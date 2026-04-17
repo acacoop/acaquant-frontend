@@ -127,7 +127,7 @@ export default async function Home() {
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
+        <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
           <Panel title="RENTA FIJA" count={rentaFija.length}>
             <RentaFijaTable
               data={rentaFija}
@@ -141,7 +141,7 @@ export default async function Home() {
           </Panel>
         </div>
 
-        <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,2fr)_minmax(0,3fr)] gap-3">
+        <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
           <Panel title="FORWARDS">
             <ForwardsPanel forwards={forwards} historico={forwardsHist} />
           </Panel>
