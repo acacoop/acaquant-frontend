@@ -67,7 +67,7 @@ export function ForwardMatrix({ tickers, matrix }: ForwardMatrixProps) {
         <tbody>
           {tickers.slice(1).map((tLargo, i) => (
             <tr key={tLargo} className="hover:!bg-transparent">
-              <td className="!px-2 !py-1 text-[#3399ff] font-semibold whitespace-nowrap">
+              <td className="!px-2 !py-1 text-[#ff9900] font-semibold whitespace-nowrap">
                 {short[i + 1]}
               </td>
               {tickers.slice(0, -1).map((tCorto, j) => {

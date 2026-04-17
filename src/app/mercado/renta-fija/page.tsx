@@ -134,7 +134,7 @@ export default async function RentaFijaPage() {
                     const be = p.breakeven_mensual * 100;
                     return (
                       <tr key={p.n}>
-                        <td className="text-[#3399ff]">
+                        <td className="text-[#ff9900]">
                           {shortTicker(p.lecap)}
                         </td>
                         <td className="text-[#808080]">

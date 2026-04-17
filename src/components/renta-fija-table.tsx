@@ -102,7 +102,7 @@ export function RentaFijaTable({
 
                 return (
                   <tr key={r.instrumento}>
-                    <td className="text-[#3399ff]">
+                    <td className="text-[#ff9900]">
                       {shortTicker(r.instrumento)}
                     </td>
                     <td className="text-right font-semibold">
@@ -183,8 +183,8 @@ function FilterBtn({
       onClick={onClick}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#094293] text-white border-[#094293]"
-          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#808080] hover:border-[#555555]"
+          ? "bg-[#ff9900] text-black border-[#ff9900]"
+          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

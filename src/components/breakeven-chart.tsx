@@ -60,9 +60,9 @@ export function BreakevenChart({ pares }: { pares: BreakevenPar[] }) {
         <Line
           type="monotone"
           dataKey="be"
-          stroke="#4C9BE8"
+          stroke="#ff9900"
           strokeWidth={2}
-          dot={{ fill: "#4C9BE8", r: 4, stroke: "#080808", strokeWidth: 2 }}
+          dot={{ fill: "#ff9900", r: 4, stroke: "#080808", strokeWidth: 2 }}
           activeDot={{ r: 6 }}
         />
       </LineChart>

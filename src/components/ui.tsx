@@ -15,8 +15,8 @@ export function Panel({
 }) {
   return (
     <div className="border border-[#1a1a1a] bg-[#080808]">
-      <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#094293]/15">
-        <span className="text-[11px] font-semibold text-[#094293] tracking-wide uppercase">
+      <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           {title}
         </span>
         {count !== undefined && (
