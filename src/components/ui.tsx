@@ -16,11 +16,7 @@ export function Panel({
   fill?: boolean;
 }) {
   return (
-    <div
-      className={`border border-[#1a1a1a] bg-[#080808] overflow-hidden ${
-        fill ? "h-full flex flex-col min-h-0" : ""
-      }`}
-    >
+    <div className="h-full flex flex-col border border-[#1a1a1a] bg-[#080808] overflow-hidden">
       <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           {title}
@@ -33,7 +29,7 @@ export function Panel({
           <span className="ml-auto text-[10px] text-[#555555]">{sub}</span>
         )}
       </div>
-      <div className={`p-2 ${fill ? "flex-1 min-h-0" : ""}`}>{children}</div>
+      <div className={`flex-1 min-h-0 p-2 ${fill ? "" : "overflow-y-auto"}`}>{children}</div>
     </div>
   );
 }
