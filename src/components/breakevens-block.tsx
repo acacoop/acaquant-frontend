@@ -83,11 +83,15 @@ export function BreakevensBlock({
     [historico]
   );
 
-  const [fechaIdx, setFechaIdx] = useState<number>(
-    Math.max(0, fechasOrdenadas.length - 1)
-  );
+  const [fechaIdx, setFechaIdx] = useState<number | null>(null);
 
-  const fechaSel = fechasOrdenadas[fechaIdx];
+  const effectiveIdx =
+    fechasOrdenadas.length > 0
+      ? fechaIdx == null
+        ? fechasOrdenadas.length - 1
+        : Math.min(Math.max(0, fechaIdx), fechasOrdenadas.length - 1)
+      : 0;
+  const fechaSel = fechasOrdenadas[effectiveIdx];
   const paresMostrar =
     modo === "live"
       ? pares
@@ -124,7 +128,7 @@ export function BreakevensBlock({
             type="range"
             min={0}
             max={fechasOrdenadas.length - 1}
-            value={Math.min(fechaIdx, fechasOrdenadas.length - 1)}
+            value={effectiveIdx}
             onChange={(e) => setFechaIdx(Number(e.target.value))}
             className="flex-1 accent-[#ff9900]"
           />
