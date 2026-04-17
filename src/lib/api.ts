@@ -25,7 +25,7 @@ export async function apiFetch<T>(path: string): Promise<T> {
 
   const res = await fetch(url, {
     headers,
-    next: { revalidate: 30 },
+    cache: "no-store",
   });
 
   if (!res.ok) {

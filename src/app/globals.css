@@ -72,7 +72,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 2rem;
-  animation: ticker-scroll 30s linear infinite;
+  animation: ticker-scroll 90s linear infinite;
 }
 
 .ticker-content:hover {

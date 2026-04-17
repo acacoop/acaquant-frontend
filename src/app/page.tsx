@@ -3,6 +3,7 @@ import { TickerTape } from "@/components/ticker-tape";
 import { Panel, shortTicker, fmtNum } from "@/components/ui";
 import { RentaFijaTable } from "@/components/renta-fija-table";
 import { ForwardsPanel } from "@/components/forwards-panel";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 interface MepResponse {
   mep: number;
@@ -97,6 +98,7 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col h-full">
+      <AutoRefresh intervalMs={5000} />
       <TickerTape items={tickerItems} />
 
       <div className="flex-1 p-3">
