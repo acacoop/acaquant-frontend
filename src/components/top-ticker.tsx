@@ -20,9 +20,13 @@ interface RentaFijaDoc {
   };
 }
 
-async function safeFetch<T>(path: string, fallback: T): Promise<T> {
+async function safeFetch<T>(
+  path: string,
+  fallback: T,
+  revalidate = 0
+): Promise<T> {
   try {
-    return await apiFetch<T>(path);
+    return await apiFetch<T>(path, { revalidate });
   } catch {
     return fallback;
   }
@@ -30,9 +34,9 @@ async function safeFetch<T>(path: string, fallback: T): Promise<T> {
 
 export async function TopTicker() {
   const [mep, dolar, rentaFija] = await Promise.all([
-    safeFetch<MepResponse | null>("/api/cotizaciones/mep", null),
-    safeFetch<DolarResponse[]>("/api/cotizaciones/dolar", []),
-    safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", []),
+    safeFetch<MepResponse | null>("/api/cotizaciones/mep", null, 30),
+    safeFetch<DolarResponse[]>("/api/cotizaciones/dolar", [], 3600),
+    safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
   ]);
 
   const lastDolar = dolar.length > 0 ? dolar[dolar.length - 1] : null;

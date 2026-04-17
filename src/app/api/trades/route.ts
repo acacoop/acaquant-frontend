@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+// Trades intradía — cache 15s (coincide con TTL del backend).
+const CACHE_HEADERS = {
+  "Cache-Control": "s-maxage=15, stale-while-revalidate=60",
+};
 
 export async function GET(req: NextRequest) {
   const instrumento = req.nextUrl.searchParams.get("instrumento");
@@ -10,9 +13,10 @@ export async function GET(req: NextRequest) {
   }
   try {
     const data = await apiFetch<unknown>(
-      `/api/cotizaciones/historico/trades?instrumento=${encodeURIComponent(instrumento)}`
+      `/api/cotizaciones/historico/trades?instrumento=${encodeURIComponent(instrumento)}`,
+      { revalidate: 15 }
     );
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: CACHE_HEADERS });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 502 });

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
-
 interface SnapshotDoc {
   unidad: string;
   emisor: string;
@@ -13,6 +11,10 @@ interface SnapshotDoc {
   cantidad: number;
 }
 
+const CACHE_HEADERS = {
+  "Cache-Control": "s-maxage=300, stale-while-revalidate=600",
+};
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -21,9 +23,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "fecha requerido" }, { status: 400 });
     }
     const docs = await apiFetch<SnapshotDoc[]>(
-      `/api/portfolio/fci-snapshot?fecha=${fecha}`
+      `/api/portfolio/fci-snapshot?fecha=${fecha}`,
+      { revalidate: 300 }
     );
-    return NextResponse.json({ docs });
+    return NextResponse.json({ docs }, { headers: CACHE_HEADERS });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 502 });

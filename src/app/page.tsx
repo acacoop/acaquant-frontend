@@ -48,9 +48,13 @@ interface BreakevenDoc {
   updated_at?: string;
 }
 
-async function safeFetch<T>(path: string, fallback: T): Promise<T> {
+async function safeFetch<T>(
+  path: string,
+  fallback: T,
+  revalidate = 0
+): Promise<T> {
   try {
-    return await apiFetch<T>(path);
+    return await apiFetch<T>(path, { revalidate });
   } catch {
     return fallback;
   }
@@ -59,11 +63,11 @@ async function safeFetch<T>(path: string, fallback: T): Promise<T> {
 export default async function Home() {
   const [rentaFija, forwards, flujosTF, flujosCER, breakevens] =
     await Promise.all([
-      safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", []),
-      safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", []),
-      safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=tasa_fija", []),
-      safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=cer", []),
-      safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", []),
+      safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
+      safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
+      safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=tasa_fija", [], 600),
+      safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=cer", [], 600),
+      safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", [], 30),
     ]);
 
   const allFlujos: FlujoTicker[] = [

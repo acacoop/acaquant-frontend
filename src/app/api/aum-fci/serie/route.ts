@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
-
 interface SerieDoc {
   fecha: string;
   total: number;
   por_emisor: Record<string, number>;
 }
+
+const CACHE_HEADERS = {
+  "Cache-Control": "s-maxage=300, stale-while-revalidate=600",
+};
 
 export async function GET(req: Request) {
   try {
@@ -19,8 +21,11 @@ export async function GET(req: Request) {
     if (hasta) q.set("hasta", hasta);
     const suffix = q.toString() ? `?${q}` : "";
 
-    const serie = await apiFetch<SerieDoc[]>(`/api/portfolio/fci-serie${suffix}`);
-    return NextResponse.json({ serie });
+    const serie = await apiFetch<SerieDoc[]>(
+      `/api/portfolio/fci-serie${suffix}`,
+      { revalidate: 300 }
+    );
+    return NextResponse.json({ serie }, { headers: CACHE_HEADERS });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 502 });
