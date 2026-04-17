@@ -1,13 +1,16 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* Bloomberg palette */
+  /* ACA Valores + Bloomberg palette */
+  --color-aca-blue: #094293;
+  --color-aca-blue-dark: #062d66;
+  --color-aca-blue-light: #0b52b5;
   --color-bb-black: #000000;
-  --color-bb-panel: #0a0a0a;
-  --color-bb-surface: #111111;
+  --color-bb-panel: #080808;
+  --color-bb-surface: #0e0e0e;
   --color-bb-border: #1a1a1a;
   --color-bb-border-light: #2a2a2a;
-  --color-bb-text: #e0e0e0;
+  --color-bb-text: #d0d0d0;
   --color-bb-text-dim: #808080;
   --color-bb-text-muted: #555555;
   --color-bb-orange: #ff6600;
@@ -15,14 +18,13 @@
   --color-bb-green: #00cc66;
   --color-bb-red: #ff3333;
   --color-bb-blue: #3399ff;
-  --color-bb-header: #1a1a2e;
 
   --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", "SF Mono", "Consolas", monospace;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a2a #0a0a0a;
+  scrollbar-color: #2a2a2a #080808;
 }
 
 body {
@@ -34,29 +36,48 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Bloomberg-style selection */
 ::selection {
-  background: #ff6600;
-  color: #000000;
+  background: #094293;
+  color: #ffffff;
 }
 
-/* Scrollbar for webkit */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: #080808;
 }
 ::-webkit-scrollbar-thumb {
   background: #2a2a2a;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #3a3a3a;
+  border-radius: 2px;
 }
 
-/* Dense tables */
+/* ── Ticker tape animation ── */
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ticker-content {
+  display: inline-block;
+  animation: ticker-scroll 30s linear infinite;
+}
+
+.ticker-content:hover {
+  animation-play-state: paused;
+}
+
+/* ── Tables ── */
 table {
   border-collapse: collapse;
   width: 100%;
@@ -65,7 +86,7 @@ table {
 th {
   text-align: left;
   padding: 4px 8px;
-  color: #ffaa00;
+  color: #094293;
   font-weight: 600;
   text-transform: uppercase;
   font-size: 10px;
@@ -79,5 +100,5 @@ td {
   white-space: nowrap;
 }
 tr:hover {
-  background: #111111;
+  background: #0e0e0e;
 }
