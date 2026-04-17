@@ -149,8 +149,8 @@ export function CurvasChart({
   }, [puntos, fit]);
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-2 mb-2 flex-wrap shrink-0">
         <FilterBtn
           active={curva === "tasa_fija"}
           onClick={() => setCurva("tasa_fija")}
@@ -173,7 +173,8 @@ export function CurvasChart({
       </div>
 
       {puntos.length >= 2 ? (
-        <ResponsiveContainer width="100%" height={320}>
+        <div className="flex-1 min-h-0">
+          <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
             <XAxis
               dataKey="Duration"
@@ -230,7 +231,8 @@ export function CurvasChart({
               />
             </Scatter>
           </ComposedChart>
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        </div>
       ) : (
         <p className="text-[#555555] text-xs py-4 text-center">
           SIN DATOS — MERCADO CERRADO
