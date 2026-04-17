@@ -8,6 +8,8 @@ import {
   ISeriesApi,
   LineData,
   LineSeries,
+  HistogramData,
+  HistogramSeries,
   Time,
   IPriceLine,
   LineStyle,
@@ -197,6 +199,7 @@ function LastMinutesChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const vwapLineRef = useRef<IPriceLine | null>(null);
 
   useEffect(() => {
@@ -232,31 +235,67 @@ function LastMinutesChart({
       lastValueVisible: true,
     });
 
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      color: "#ff9900",
+      priceFormat: { type: "volume" },
+      priceScaleId: "volume",
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+    chart.priceScale("volume").applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
+    });
+
     chartRef.current = chart;
     seriesRef.current = series;
+    volumeSeriesRef.current = volumeSeries;
 
     return () => {
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      volumeSeriesRef.current = null;
       vwapLineRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     const series = seriesRef.current;
+    const volumeSeries = volumeSeriesRef.current;
     if (!series) return;
 
-    const seen = new Map<number, number>();
+    const priceMap = new Map<number, number>();
+    const volMap = new Map<number, { size: number; side?: string }>();
     for (const t of trades) {
       const ts = Math.floor(new Date(t.timestamp).getTime() / 1000);
-      seen.set(ts, t.price);
+      priceMap.set(ts, t.price);
+      const prev = volMap.get(ts);
+      volMap.set(ts, {
+        size: (prev?.size || 0) + (t.size || 0),
+        side: t.side || prev?.side,
+      });
     }
-    const data: LineData[] = Array.from(seen.entries())
+    const data: LineData[] = Array.from(priceMap.entries())
       .sort((a, b) => a[0] - b[0])
       .map(([time, value]) => ({ time: time as Time, value }));
 
     series.setData(data);
+
+    if (volumeSeries) {
+      const volData: HistogramData[] = Array.from(volMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([time, v]) => {
+          const side = (v.side || "").toUpperCase();
+          const color =
+            side === "BUY"
+              ? "#00cc66"
+              : side === "SELL"
+              ? "#ff3333"
+              : "#808080";
+          return { time: time as Time, value: v.size, color };
+        });
+      volumeSeries.setData(volData);
+    }
 
     if (vwapLineRef.current) {
       series.removePriceLine(vwapLineRef.current);

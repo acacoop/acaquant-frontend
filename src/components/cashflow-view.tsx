@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -35,7 +36,9 @@ type FiltroAcc =
 type Granularity = "Diario" | "Mensual";
 
 const COLOR_ARS = "#094293";
+const COLOR_ARS_NEG = "#3a6db5";
 const COLOR_USD = "#00cc66";
+const COLOR_USD_NEG = "#5aa87f";
 const COOP_RE = /\bcoop/i;
 
 function esCooperativa(cuenta?: string | null): boolean {
@@ -376,6 +379,7 @@ export function CashFlowView() {
           <MonedaChart
             moneda="ARS"
             color={COLOR_ARS}
+            negColor={COLOR_ARS_NEG}
             data={chartData}
             total={totals.ARS}
             granularity={granularity}
@@ -385,6 +389,7 @@ export function CashFlowView() {
           <MonedaChart
             moneda="USD"
             color={COLOR_USD}
+            negColor={COLOR_USD_NEG}
             data={chartData}
             total={totals.USD}
             granularity={granularity}
@@ -398,12 +403,14 @@ export function CashFlowView() {
 function MonedaChart({
   moneda,
   color,
+  negColor,
   data,
   total,
   granularity,
 }: {
   moneda: "ARS" | "USD";
   color: string;
+  negColor: string;
   data: { key: string; label: string; ARS: number; USD: number }[];
   total: { entradas: number; salidas: number };
   granularity: Granularity;
@@ -484,7 +491,14 @@ function MonedaChart({
                   labelStyle={{ color: "#808080" }}
                   formatter={(value) => [fmtSigned(Number(value)), moneda]}
                 />
-                <Bar dataKey={moneda} fill={color} isAnimationActive={false} />
+                <Bar dataKey={moneda} fill={color} isAnimationActive={false}>
+                  {data.map((d, i) => {
+                    const v = moneda === "ARS" ? d.ARS : d.USD;
+                    return (
+                      <Cell key={i} fill={v < 0 ? negColor : color} />
+                    );
+                  })}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

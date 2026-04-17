@@ -87,7 +87,11 @@ export default async function Home() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full min-h-0">
         <div className="min-w-0 min-h-0 grid grid-rows-[auto_1fr] gap-3">
           <Panel title="RENTA FIJA" count={rentaFija.length}>
-            <RentaFijaTable data={rentaFija} flujos={allFlujos} />
+            <RentaFijaTable
+              data={rentaFija}
+              flujos={allFlujos}
+              forwards={forwards}
+            />
           </Panel>
 
           <Panel title="CURVAS" fill>
