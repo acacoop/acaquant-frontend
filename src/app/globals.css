@@ -69,7 +69,9 @@ body {
 }
 
 .ticker-content {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 2rem;
   animation: ticker-scroll 30s linear infinite;
 }
 

@@ -95,52 +95,34 @@ export default async function Home() {
 
   if (mep) {
     tickerItems.push({
-      label: "MEP",
+      label: "DOLAR MEP",
       value: `$${fmtNum(mep.mep)}`,
       color: "#00cc66",
     });
   }
   if (lastDolar) {
     tickerItems.push({
-      label: "A3500",
+      label: "DOLAR OFICIAL",
       value: `$${fmtNum(lastDolar.valor)}`,
       color: "#d0d0d0",
     });
   }
-  if (mep && lastDolar) {
+  // Renta fija instruments with last price
+  for (const r of rentaFija
+    .filter((r) => r.metrics?.last_price)
+    .sort(
+      (a, b) =>
+        (b.metrics?.total_nominals || 0) - (a.metrics?.total_nominals || 0)
+    )) {
     tickerItems.push({
-      label: "BRECHA",
-      value: `${((mep.mep / lastDolar.valor - 1) * 100).toFixed(1)}%`,
-      color: "#ffaa00",
+      label: shortTicker(r.instrumento),
+      value: `$${fmtNum(r.metrics!.last_price!)}`,
+      color: "#3399ff",
     });
   }
-  if (breakevens.length > 0 && breakevens[0].pares) {
-    for (const par of breakevens[0].pares.slice(0, 5)) {
-      const be = (par.breakeven_mensual * 100).toFixed(2);
-      tickerItems.push({
-        label: `BE ${shortTicker(par.lecap)}`,
-        value: `${be}%`,
-        color: parseFloat(be) > 3 ? "#ff3333" : "#00cc66",
-      });
-    }
-  }
-  const fwTF = forwards.find((f) => f.curva === "tasa_fija");
-  if (fwTF?.tasas) {
-    for (const [ticker, tea] of Object.entries(fwTF.tasas).slice(0, 5)) {
-      tickerItems.push({
-        label: `TEA ${ticker}`,
-        value: `${(tea * 100).toFixed(2)}%`,
-        color: "#3399ff",
-      });
-    }
-  }
-  tickerItems.push({
-    label: "API",
-    value: health ? "ONLINE" : "OFFLINE",
-    color: health ? "#00cc66" : "#ff3333",
-  });
 
-  // ── Forward matrix (tasa fija) ──
+  // ── Forward curves ──
+  const fwTF = forwards.find((f) => f.curva === "tasa_fija");
   const fwCER = forwards.find((f) => f.curva === "cer");
 
   return (
