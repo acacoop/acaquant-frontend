@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useViewportKey } from "@/lib/use-viewport-key";
 import {
   Bar,
   ComposedChart,
@@ -63,6 +64,7 @@ export function FlujoVsAumView() {
   const [loadingFondos, setLoadingFondos] = useState(true);
   const [loadingSerie, setLoadingSerie] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const vpKey = useViewportKey();
 
   // 1) Lista de fondos
   useEffect(() => {
@@ -201,7 +203,7 @@ export function FlujoVsAumView() {
           </div>
         ) : (
           <div className="flex-1 min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={240}>
               <ComposedChart
                 data={chartData}
                 margin={{ top: 12, right: 12, left: 0, bottom: 28 }}

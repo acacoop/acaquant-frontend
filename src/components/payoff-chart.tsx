@@ -16,6 +16,7 @@ import {
   findBreakevens,
   type ResolvedLeg,
 } from "@/lib/estrategias";
+import { useViewportKey } from "@/lib/use-viewport-key";
 
 export function PayoffChart({
   legs,
@@ -26,6 +27,7 @@ export function PayoffChart({
   spot: number;
   costo: number;
 }) {
+  const vpKey = useViewportKey();
   const { curve, breakevens } = useMemo(() => {
     const curve = payoffCurve(legs, spot, costo, 200);
     return { curve, breakevens: findBreakevens(curve) };
@@ -53,7 +55,7 @@ export function PayoffChart({
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={240}>
         <ComposedChart
           data={data}
           margin={{ top: 4, right: 12, bottom: 20, left: 4 }}

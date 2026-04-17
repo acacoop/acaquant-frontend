@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useViewportKey } from "@/lib/use-viewport-key";
 import {
   CartesianGrid,
   Legend,
@@ -44,6 +45,7 @@ function fmtFechaCorta(s: string): string {
 export function RetornoTotalView() {
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [byCurva, setByCurva] = useState<Record<string, HistRow[]>>({});
+  const vpKey = useViewportKey();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -209,7 +211,7 @@ export function RetornoTotalView() {
           {chartData.length < 2 ? (
             <p className="text-[#555] text-xs py-4 text-center">Sin datos suficientes.</p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={240}>
               <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 28, left: 4 }}>
                 <CartesianGrid stroke="#1a1a1a" vertical={false} />
                 <XAxis

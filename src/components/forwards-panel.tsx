@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { ForwardMatrix } from "./forward-matrix";
 import { fmtTs, shortTicker } from "./ui";
+import { useViewportKey } from "@/lib/use-viewport-key";
 
 interface ForwardDoc {
   curva: string;
@@ -57,6 +58,7 @@ export function ForwardsPanel({
 }) {
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [modo, setModo] = useState<Modo>("live");
+  const vpKey = useViewportKey();
 
   const fw = forwards.find((f) => f.curva === curva);
   const hasData = !!fw?.matrix && !!fw?.tickers && fw.tickers.length >= 2;
@@ -190,7 +192,7 @@ export function ForwardsPanel({
                 Seleccioná al menos un par.
               </p>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={180}>
                 <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 24, left: 4 }}>
                   <CartesianGrid stroke="#1a1a1a" vertical={false} />
                   <XAxis

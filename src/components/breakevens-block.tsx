@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { shortTicker } from "./ui";
+import { useViewportKey } from "@/lib/use-viewport-key";
 
 interface BreakevenPar {
   n: number;
@@ -146,6 +147,7 @@ export function BreakevensBlock({
 }
 
 function BreakevensRender({ pares, vista }: { pares: BreakevenPar[]; vista: Vista }) {
+  const vpKey = useViewportKey();
   if (pares.length === 0) {
     return (
       <p className="text-[#555555] text-xs py-4 text-center">
@@ -176,7 +178,7 @@ function BreakevensRender({ pares, vista }: { pares: BreakevenPar[]; vista: Vist
   if (vista === "grafico") {
     return (
       <div className="h-full min-h-0">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={180}>
           <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
             <XAxis
               dataKey="vencTs"

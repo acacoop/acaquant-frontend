@@ -11,6 +11,7 @@ import {
   LabelList,
   ResponsiveContainer,
 } from "recharts";
+import { useViewportKey } from "@/lib/use-viewport-key";
 
 interface ForwardDoc {
   curva: string;
@@ -86,6 +87,7 @@ export function CurvasChart({
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [metrica, setMetrica] = useState<Metrica>("TEA");
   const [modo, setModo] = useState<Modo>("live");
+  const vpKey = useViewportKey();
 
   const [histByCurva, setHistByCurva] = useState<Record<string, HistRow[]>>({});
   const [histLoading, setHistLoading] = useState(false);
@@ -288,7 +290,7 @@ export function CurvasChart({
 
       {puntos.length >= 2 ? (
         <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={180}>
           <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
             <XAxis
               dataKey="Duration"
