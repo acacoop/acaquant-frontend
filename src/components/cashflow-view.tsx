@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { DualRange } from "./dual-range";
 import {
   BarChart,
   Bar,
@@ -155,27 +156,41 @@ export function CashFlowView() {
     return { minDate: mn, maxDate: mx };
   }, [flujos]);
 
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [rangoIdx, setRangoIdx] = useState<[number, number] | null>(null);
   const [showArs, setShowArs] = useState(true);
   const [showUsd, setShowUsd] = useState(true);
-  const [granularity, setGranularity] = useState<Granularity>("Mensual");
+  const [granularity, setGranularity] = useState<Granularity>("Diario");
   const [filtroAcc, setFiltroAcc] = useState<FiltroAcc>("Todas");
-  const [seleccion, setSeleccion] = useState<string>("__TODAS__");
+  const [selState, setSelState] = useState<{ filtro: FiltroAcc; val: string }>({
+    filtro: "Todas",
+    val: "__TODAS__",
+  });
+  const seleccion = selState.filtro === filtroAcc ? selState.val : "__TODAS__";
+  const setSeleccion = (v: string) => setSelState({ filtro: filtroAcc, val: v });
 
-  useEffect(() => {
-    if (minDate && !desde) setDesde(minDate);
-    if (maxDate && !hasta) setHasta(maxDate);
-  }, [minDate, maxDate, desde, hasta]);
+  const fechasUnicas = useMemo(
+    () => Array.from(new Set(flujos.map((f) => f.concertacion.slice(0, 10)))).sort(),
+    [flujos]
+  );
 
-  useEffect(() => {
-    setSeleccion("__TODAS__");
-  }, [filtroAcc]);
+  const efectivoRango: [number, number] =
+    fechasUnicas.length > 0
+      ? rangoIdx == null
+        ? [0, fechasUnicas.length - 1]
+        : [
+            Math.min(Math.max(0, rangoIdx[0]), fechasUnicas.length - 1),
+            Math.min(Math.max(rangoIdx[0], rangoIdx[1]), fechasUnicas.length - 1),
+          ]
+      : [0, 0];
 
-  const monedasSel: string[] = [
-    ...(showArs ? ["ARS"] : []),
-    ...(showUsd ? ["USD"] : []),
-  ];
+  const desde = fechasUnicas[efectivoRango[0]] ?? minDate;
+  const hasta = fechasUnicas[efectivoRango[1]] ?? maxDate;
+
+
+  const monedasSel = useMemo(
+    () => [...(showArs ? ["ARS"] : []), ...(showUsd ? ["USD"] : [])],
+    [showArs, showUsd]
+  );
 
   const { opciones, label } = useMemo(() => {
     const todasCuentas = Array.from(
@@ -293,27 +308,19 @@ export function CashFlowView() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       <div className="border border-[#1a1a1a] bg-[#080808] p-3 space-y-2 shrink-0">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <LabeledInput label="Desde">
-            <input
-              type="date"
-              value={desde}
-              min={minDate}
-              max={hasta}
-              onChange={(e) => setDesde(e.target.value)}
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
-            />
-          </LabeledInput>
-          <LabeledInput label="Hasta">
-            <input
-              type="date"
-              value={hasta}
-              min={desde}
-              max={maxDate}
-              onChange={(e) => setHasta(e.target.value)}
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
-            />
-          </LabeledInput>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] text-[#ff9900] font-mono min-w-[54px]">{desde}</span>
+          <DualRange
+            min={0}
+            max={Math.max(0, fechasUnicas.length - 1)}
+            lo={efectivoRango[0]}
+            hi={efectivoRango[1]}
+            setLo={(v) => setRangoIdx([v, Math.max(v, efectivoRango[1])])}
+            setHi={(v) => setRangoIdx([Math.min(v, efectivoRango[0]), v])}
+          />
+          <span className="text-[10px] text-[#ff9900] font-mono min-w-[54px] text-right">{hasta}</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <LabeledInput label="Monedas">
             <div className="flex items-center gap-1 h-[26px]">
               <Toggle active={showArs} onClick={() => setShowArs(!showArs)}>
