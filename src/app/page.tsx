@@ -48,6 +48,17 @@ interface BreakevenDoc {
   updated_at?: string;
 }
 
+interface BreakevenHistDoc {
+  fecha: string;
+  pares: BreakevenPar[];
+}
+
+interface ForwardHistDoc {
+  curva: string;
+  fecha: string;
+  matrix: Record<string, Record<string, number>>;
+}
+
 async function safeFetch<T>(
   path: string,
   fallback: T,
@@ -61,14 +72,41 @@ async function safeFetch<T>(
 }
 
 export default async function Home() {
-  const [rentaFija, forwards, flujosTF, flujosCER, breakevens] =
-    await Promise.all([
-      safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
-      safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
-      safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=tasa_fija", [], 600),
-      safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=cer", [], 600),
-      safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", [], 30),
-    ]);
+  const [
+    rentaFija,
+    forwards,
+    flujosTF,
+    flujosCER,
+    breakevens,
+    breakevensHist,
+    forwardsHistTF,
+    forwardsHistCER,
+  ] = await Promise.all([
+    safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
+    safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
+    safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=tasa_fija", [], 600),
+    safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=cer", [], 600),
+    safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", [], 30),
+    safeFetch<BreakevenHistDoc[]>(
+      "/api/cotizaciones/historico/breakevens",
+      [],
+      300
+    ),
+    safeFetch<ForwardHistDoc[]>(
+      "/api/cotizaciones/historico/forwards?curva=tasa_fija",
+      [],
+      300
+    ),
+    safeFetch<ForwardHistDoc[]>(
+      "/api/cotizaciones/historico/forwards?curva=cer",
+      [],
+      300
+    ),
+  ]);
+  const forwardsHist: ForwardHistDoc[] = [
+    ...forwardsHistTF,
+    ...forwardsHistCER,
+  ];
 
   const allFlujos: FlujoTicker[] = [
     ...flujosTF.map((f) => ({
@@ -105,7 +143,7 @@ export default async function Home() {
 
         <div className="min-w-0 min-h-0 grid grid-rows-[auto_1fr] gap-3">
           <Panel title="FORWARDS">
-            <ForwardsPanel forwards={forwards} />
+            <ForwardsPanel forwards={forwards} historico={forwardsHist} />
           </Panel>
 
           <Panel
@@ -113,7 +151,7 @@ export default async function Home() {
             sub={breakevensTs ? fmtTs(breakevensTs) : ""}
             fill
           >
-            <BreakevensBlock pares={pares} />
+            <BreakevensBlock pares={pares} historico={breakevensHist} />
           </Panel>
         </div>
       </div>

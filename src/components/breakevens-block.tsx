@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ComposedChart,
   Line,
@@ -25,7 +25,13 @@ interface BreakevenPar {
   breakeven_mensual: number;
 }
 
+interface BreakevenHistDoc {
+  fecha: string;
+  pares: BreakevenPar[];
+}
+
 type Vista = "grafico" | "tabla";
+type Modo = "live" | "hist";
 
 const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
@@ -33,6 +39,13 @@ function fmtMesAnio(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return `${MESES_CORTOS[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
+}
+
+function fmtFechaCorta(s: string): string {
+  const iso = s.length >= 10 ? s.slice(0, 10) : s;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
 }
 
 function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: number; ticks: number[] } {
@@ -51,9 +64,84 @@ function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: 
   return { min: niceMin, max: niceMax, ticks };
 }
 
-export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
+export function BreakevensBlock({
+  pares,
+  historico,
+}: {
+  pares: BreakevenPar[];
+  historico?: BreakevenHistDoc[];
+}) {
+  const [modo, setModo] = useState<Modo>("live");
   const [vista, setVista] = useState<Vista>("grafico");
 
+  const fechasOrdenadas = useMemo(
+    () =>
+      (historico ?? [])
+        .map((d) => d.fecha)
+        .filter(Boolean)
+        .sort(),
+    [historico]
+  );
+
+  const [fechaIdx, setFechaIdx] = useState<number>(
+    Math.max(0, fechasOrdenadas.length - 1)
+  );
+
+  const fechaSel = fechasOrdenadas[fechaIdx];
+  const paresMostrar =
+    modo === "live"
+      ? pares
+      : (historico ?? []).find((d) => d.fecha === fechaSel)?.pares ?? [];
+
+  const hayHistorico = fechasOrdenadas.length > 0;
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-2 mb-2 shrink-0 flex-wrap">
+        <FilterBtn active={modo === "live"} onClick={() => setModo("live")}>
+          LIVE
+        </FilterBtn>
+        <FilterBtn
+          active={modo === "hist"}
+          onClick={() => hayHistorico && setModo("hist")}
+          disabled={!hayHistorico}
+        >
+          HISTÓRICO
+        </FilterBtn>
+        <span className="w-px h-3 bg-[#2a2a2a] mx-1" />
+        <FilterBtn active={vista === "grafico"} onClick={() => setVista("grafico")}>
+          GRAFICO
+        </FilterBtn>
+        <FilterBtn active={vista === "tabla"} onClick={() => setVista("tabla")}>
+          TABLA
+        </FilterBtn>
+      </div>
+
+      {modo === "hist" && hayHistorico && (
+        <div className="flex items-center gap-2 mb-2 shrink-0">
+          <span className="text-[10px] text-[#555555] tracking-wide">FECHA</span>
+          <input
+            type="range"
+            min={0}
+            max={fechasOrdenadas.length - 1}
+            value={Math.min(fechaIdx, fechasOrdenadas.length - 1)}
+            onChange={(e) => setFechaIdx(Number(e.target.value))}
+            className="flex-1 accent-[#ff9900]"
+          />
+          <span className="text-[10px] text-[#ff9900] font-mono min-w-[60px] text-right">
+            {fechaSel ? fmtFechaCorta(fechaSel) : "--"}
+          </span>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0">
+        <BreakevensRender pares={paresMostrar} vista={vista} />
+      </div>
+    </div>
+  );
+}
+
+function BreakevensRender({ pares, vista }: { pares: BreakevenPar[]; vista: Vista }) {
   if (pares.length === 0) {
     return (
       <p className="text-[#555555] text-xs py-4 text-center">
@@ -81,111 +169,102 @@ export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
     ? niceScale(Math.min(...beVals, 3), Math.max(...beVals, 3), 6)
     : { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5] };
 
-  return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 mb-2 shrink-0">
-        <FilterBtn active={vista === "grafico"} onClick={() => setVista("grafico")}>
-          GRAFICO
-        </FilterBtn>
-        <FilterBtn active={vista === "tabla"} onClick={() => setVista("tabla")}>
-          TABLA
-        </FilterBtn>
+  if (vista === "grafico") {
+    return (
+      <div className="h-full min-h-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
+            <XAxis
+              dataKey="vencTs"
+              type="number"
+              domain={["dataMin", "dataMax"]}
+              ticks={xTicks}
+              scale="time"
+              tick={{ fill: "#808080", fontSize: 10 }}
+              axisLine={{ stroke: "#2a2a2a" }}
+              tickLine={false}
+              angle={-45}
+              textAnchor="end"
+              height={40}
+              interval={0}
+              tickFormatter={(ts: number) => fmtMesAnio(new Date(ts).toISOString())}
+            />
+            <YAxis
+              domain={[yScale.min, yScale.max]}
+              ticks={yScale.ticks}
+              tick={{ fill: "#808080", fontSize: 10 }}
+              axisLine={{ stroke: "#2a2a2a" }}
+              tickLine={false}
+              tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+            />
+            <ReferenceLine y={3} stroke="#ff3333" strokeDasharray="6 3" strokeOpacity={0.5} />
+            <Tooltip
+              contentStyle={{
+                background: "#0e0e0e",
+                border: "1px solid #2a2a2a",
+                fontSize: 11,
+                fontFamily: "JetBrains Mono, monospace",
+              }}
+              labelStyle={{ color: "#808080" }}
+              formatter={(value, name) => {
+                if (name === "be") return [`${Number(value).toFixed(2)}%`, "BE Mensual"];
+                return [String(value), String(name)];
+              }}
+              labelFormatter={(ts) => fmtMesAnio(new Date(Number(ts)).toISOString())}
+            />
+            <Line
+              dataKey="be"
+              type="monotone"
+              stroke="#ff9900"
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />
+            <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
+              <LabelList
+                dataKey="ticker"
+                position="top"
+                fill="#aaaaaa"
+                style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
+              />
+            </Scatter>
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
+    );
+  }
 
-      {vista === "grafico" ? (
-        <div className="flex-1 min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
-              <XAxis
-                dataKey="vencTs"
-                type="number"
-                domain={["dataMin", "dataMax"]}
-                ticks={xTicks}
-                scale="time"
-                tick={{ fill: "#808080", fontSize: 10 }}
-                axisLine={{ stroke: "#2a2a2a" }}
-                tickLine={false}
-                angle={-45}
-                textAnchor="end"
-                height={40}
-                interval={0}
-                tickFormatter={(ts: number) => fmtMesAnio(new Date(ts).toISOString())}
-              />
-              <YAxis
-                domain={[yScale.min, yScale.max]}
-                ticks={yScale.ticks}
-                tick={{ fill: "#808080", fontSize: 10 }}
-                axisLine={{ stroke: "#2a2a2a" }}
-                tickLine={false}
-                tickFormatter={(v: number) => `${v.toFixed(1)}%`}
-              />
-              <ReferenceLine y={3} stroke="#ff3333" strokeDasharray="6 3" strokeOpacity={0.5} />
-              <Tooltip
-                contentStyle={{
-                  background: "#0e0e0e",
-                  border: "1px solid #2a2a2a",
-                  fontSize: 11,
-                  fontFamily: "JetBrains Mono, monospace",
-                }}
-                labelStyle={{ color: "#808080" }}
-                formatter={(value, name) => {
-                  if (name === "be") return [`${Number(value).toFixed(2)}%`, "BE Mensual"];
-                  return [String(value), String(name)];
-                }}
-                labelFormatter={(ts) => fmtMesAnio(new Date(Number(ts)).toISOString())}
-              />
-              <Line
-                dataKey="be"
-                type="monotone"
-                stroke="#ff9900"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-              />
-              <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
-                <LabelList
-                  dataKey="ticker"
-                  position="top"
-                  fill="#aaaaaa"
-                  style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-                />
-              </Scatter>
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <table>
-            <thead>
-              <tr>
-                <th>LECAP</th>
-                <th>CER</th>
-                <th className="text-right">DIAS</th>
-                <th className="text-right">BE MENSUAL</th>
+  return (
+    <div className="h-full min-h-0 overflow-y-auto">
+      <table>
+        <thead>
+          <tr>
+            <th>LECAP</th>
+            <th>CER</th>
+            <th className="text-right">DIAS</th>
+            <th className="text-right">BE MENSUAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pares.map((p) => {
+            const be = p.breakeven_mensual * 100;
+            return (
+              <tr key={p.n}>
+                <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
+                <td className="text-[#808080]">{shortTicker(p.cer)}</td>
+                <td className="text-right">{p.dias}</td>
+                <td
+                  className={`text-right font-bold ${
+                    be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"
+                  }`}
+                >
+                  {be.toFixed(2)}%
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {pares.map((p) => {
-                const be = p.breakeven_mensual * 100;
-                return (
-                  <tr key={p.n}>
-                    <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
-                    <td className="text-[#808080]">{shortTicker(p.cer)}</td>
-                    <td className="text-right">{p.dias}</td>
-                    <td
-                      className={`text-right font-bold ${
-                        be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"
-                      }`}
-                    >
-                      {be.toFixed(2)}%
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -194,16 +273,21 @@ function FilterBtn({
   active,
   onClick,
   children,
+  disabled,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-        active
+        disabled
+          ? "bg-transparent text-[#333333] border-[#1a1a1a] cursor-not-allowed"
+          : active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
           : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
