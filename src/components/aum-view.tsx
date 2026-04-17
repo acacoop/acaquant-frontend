@@ -144,16 +144,23 @@ export function AumView() {
   }, [fechaSel]);
 
   const fechasAll = useMemo(() => serie.map((s) => s.fecha), [serie]);
-  const [rangoIdx, setRangoIdx] = useState<[number, number] | null>(null);
-  useEffect(() => {
-    if (fechasAll.length && !rangoIdx)
-      setRangoIdx([0, fechasAll.length - 1]);
-  }, [fechasAll, rangoIdx]);
+
+  type RangoKey = "1M" | "3M" | "6M" | "YTD" | "ALL";
+  const [rangoKey, setRangoKey] = useState<RangoKey>("ALL");
 
   const chartData = useMemo(() => {
-    if (!rangoIdx) return serie;
-    return serie.slice(rangoIdx[0], rangoIdx[1] + 1);
-  }, [serie, rangoIdx]);
+    if (!serie.length || rangoKey === "ALL") return serie;
+    const hoy = new Date();
+    let corte: Date;
+    if (rangoKey === "YTD") {
+      corte = new Date(hoy.getFullYear(), 0, 1);
+    } else {
+      const meses = rangoKey === "1M" ? 1 : rangoKey === "3M" ? 3 : 6;
+      corte = new Date(hoy.getFullYear(), hoy.getMonth() - meses, hoy.getDate());
+    }
+    const corteStr = corte.toISOString().slice(0, 10);
+    return serie.filter((s) => s.fecha >= corteStr);
+  }, [serie, rangoKey]);
 
   const ultimo = serie.length ? serie[serie.length - 1] : null;
 
@@ -327,42 +334,21 @@ export function AumView() {
                 </ResponsiveContainer>
               </div>
 
-              {fechasAll.length > 1 && rangoIdx && (
-                <div className="px-2 pt-1 pb-0 flex items-center gap-2 text-[10px] text-[#888888]">
-                  <span className="min-w-[70px]">
-                    {fmtFecha(fechasAll[rangoIdx[0]])}
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={fechasAll.length - 1}
-                    value={rangoIdx[0]}
-                    onChange={(e) => {
-                      const v = Math.min(
-                        parseInt(e.target.value),
-                        rangoIdx[1] - 1
-                      );
-                      setRangoIdx([v, rangoIdx[1]]);
-                    }}
-                    className="flex-1 accent-[#ff9900]"
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={fechasAll.length - 1}
-                    value={rangoIdx[1]}
-                    onChange={(e) => {
-                      const v = Math.max(
-                        parseInt(e.target.value),
-                        rangoIdx[0] + 1
-                      );
-                      setRangoIdx([rangoIdx[0], v]);
-                    }}
-                    className="flex-1 accent-[#ff9900]"
-                  />
-                  <span className="min-w-[70px] text-right">
-                    {fmtFecha(fechasAll[rangoIdx[1]])}
-                  </span>
+              {fechasAll.length > 1 && (
+                <div className="px-2 pt-1 pb-0 flex items-center justify-center gap-1">
+                  {(["1M", "3M", "6M", "YTD", "ALL"] as RangoKey[]).map((k) => (
+                    <button
+                      key={k}
+                      onClick={() => setRangoKey(k)}
+                      className={`px-2 h-[22px] text-[10px] font-semibold tracking-wide border transition-colors ${
+                        rangoKey === k
+                          ? "bg-[#ff9900] text-black border-[#ff9900]"
+                          : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      }`}
+                    >
+                      {k}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
