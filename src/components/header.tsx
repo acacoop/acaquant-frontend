@@ -2,19 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { NavDropdown } from "./nav-dropdown";
-
-const MERCADO_ITEMS = [
-  { href: "/mercado/renta-fija", label: "RENTA FIJA" },
-  {
-    label: "DERIVADOS",
-    children: [{ href: "/mercado/derivados/opciones", label: "OPCIONES" }],
-  },
-];
-
 const NAV_LINKS = [
-  { href: "/portfolios", label: "PORTFOLIOS" },
+  { href: "/derivados", label: "DERIVADOS" },
   { href: "/operaciones", label: "OPERACIONES" },
+  { href: "/portfolios", label: "PORTFOLIOS" },
   { href: "/aum", label: "AUM" },
 ];
 
@@ -33,7 +24,6 @@ export function Header() {
       </Link>
       <div className="h-4 w-px bg-white/20 mr-4" />
       <nav className="flex gap-0.5 items-center">
-        <NavDropdown label="MERCADO" items={MERCADO_ITEMS} />
         {NAV_LINKS.map(({ href, label }) => (
           <Link
             key={href}
