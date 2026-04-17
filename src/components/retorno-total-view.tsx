@@ -211,7 +211,7 @@ export function RetornoTotalView() {
           {chartData.length < 2 ? (
             <p className="text-[#555] text-xs py-4 text-center">Sin datos suficientes.</p>
           ) : (
-            <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={240}>
+            <ResponsiveContainer key={vpKey} width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 28, left: 4 }}>
                 <CartesianGrid stroke="#1a1a1a" vertical={false} />
                 <XAxis

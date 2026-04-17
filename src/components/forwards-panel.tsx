@@ -192,7 +192,7 @@ export function ForwardsPanel({
                 Seleccioná al menos un par.
               </p>
             ) : (
-              <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={180}>
+              <ResponsiveContainer key={vpKey} width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 24, left: 4 }}>
                   <CartesianGrid stroke="#1a1a1a" vertical={false} />
                   <XAxis

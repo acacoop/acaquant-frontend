@@ -290,7 +290,7 @@ export function CurvasChart({
 
       {puntos.length >= 2 ? (
         <div className="flex-1 min-h-0">
-          <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={180}>
+          <ResponsiveContainer key={vpKey} width="100%" height="100%">
           <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
             <XAxis
               dataKey="Duration"

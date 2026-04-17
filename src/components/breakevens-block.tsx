@@ -178,7 +178,7 @@ function BreakevensRender({ pares, vista }: { pares: BreakevenPar[]; vista: Vist
   if (vista === "grafico") {
     return (
       <div className="h-full min-h-0">
-        <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={180}>
+        <ResponsiveContainer key={vpKey} width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
             <XAxis
               dataKey="vencTs"

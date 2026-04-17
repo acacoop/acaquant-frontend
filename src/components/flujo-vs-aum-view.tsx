@@ -203,7 +203,7 @@ export function FlujoVsAumView() {
           </div>
         ) : (
           <div className="flex-1 min-h-0">
-            <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={240}>
+            <ResponsiveContainer key={vpKey} width="100%" height="100%">
               <ComposedChart
                 data={chartData}
                 margin={{ top: 12, right: 12, left: 0, bottom: 28 }}

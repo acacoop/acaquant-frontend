@@ -55,7 +55,7 @@ export function PayoffChart({
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <ResponsiveContainer key={vpKey} width="100%" height="100%" minHeight={240}>
+      <ResponsiveContainer key={vpKey} width="100%" height="100%">
         <ComposedChart
           data={data}
           margin={{ top: 4, right: 12, bottom: 20, left: 4 }}
