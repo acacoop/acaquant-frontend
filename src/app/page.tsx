@@ -1,21 +1,9 @@
 import { apiFetch } from "@/lib/api";
-import { TickerTape } from "@/components/ticker-tape";
-import { Panel, shortTicker, fmtNum, fmtTs } from "@/components/ui";
+import { Panel, fmtTs } from "@/components/ui";
 import { RentaFijaTable } from "@/components/renta-fija-table";
 import { ForwardsPanel } from "@/components/forwards-panel";
 import { CurvasChart } from "@/components/curvas-chart";
 import { BreakevensBlock } from "@/components/breakevens-block";
-import { AutoRefresh } from "@/components/auto-refresh";
-
-interface MepResponse {
-  mep: number;
-  timestamp: string;
-}
-
-interface DolarResponse {
-  fecha: string;
-  valor: number;
-}
 
 interface RentaFijaDoc {
   instrumento: string;
@@ -69,47 +57,14 @@ async function safeFetch<T>(path: string, fallback: T): Promise<T> {
 }
 
 export default async function Home() {
-  const [mep, dolar, rentaFija, forwards, flujosTF, flujosCER, breakevens] =
+  const [rentaFija, forwards, flujosTF, flujosCER, breakevens] =
     await Promise.all([
-      safeFetch<MepResponse | null>("/api/cotizaciones/mep", null),
-      safeFetch<DolarResponse[]>("/api/cotizaciones/dolar", []),
       safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", []),
       safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", []),
       safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=tasa_fija", []),
       safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=cer", []),
       safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", []),
     ]);
-
-  const lastDolar = dolar.length > 0 ? dolar[dolar.length - 1] : null;
-
-  const tickerItems: { label: string; value: string; color: string }[] = [];
-
-  if (mep) {
-    tickerItems.push({
-      label: "DOLAR MEP",
-      value: `$${fmtNum(mep.mep)}`,
-      color: "#00cc66",
-    });
-  }
-  if (lastDolar) {
-    tickerItems.push({
-      label: "DOLAR OFICIAL",
-      value: `$${fmtNum(lastDolar.valor)}`,
-      color: "#d0d0d0",
-    });
-  }
-  for (const r of rentaFija
-    .filter((r) => r.metrics?.last_price)
-    .sort(
-      (a, b) =>
-        (b.metrics?.total_nominals || 0) - (a.metrics?.total_nominals || 0)
-    )) {
-    tickerItems.push({
-      label: shortTicker(r.instrumento),
-      value: `$${fmtNum(r.metrics!.last_price!)}`,
-      color: "#ff9900",
-    });
-  }
 
   const allFlujos: FlujoTicker[] = [
     ...flujosTF.map((f) => ({
@@ -128,35 +83,30 @@ export default async function Home() {
   const breakevensTs = breakevens[0]?.updated_at;
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <AutoRefresh intervalMs={5000} />
-      <TickerTape items={tickerItems} />
+    <div className="h-full min-h-0 p-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full min-h-0">
+        <div className="min-w-0 min-h-0 grid grid-rows-[auto_1fr] gap-3">
+          <Panel title="RENTA FIJA" count={rentaFija.length}>
+            <RentaFijaTable data={rentaFija} flujos={allFlujos} />
+          </Panel>
 
-      <div className="flex-1 min-h-0 p-3">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full min-h-0">
-          <div className="min-w-0 min-h-0 grid grid-rows-[auto_1fr] gap-3">
-            <Panel title="RENTA FIJA" count={rentaFija.length}>
-              <RentaFijaTable data={rentaFija} flujos={allFlujos} />
-            </Panel>
+          <Panel title="CURVAS" fill>
+            <CurvasChart forwards={forwards} flujos={allFlujos} />
+          </Panel>
+        </div>
 
-            <Panel title="CURVAS" fill>
-              <CurvasChart forwards={forwards} flujos={allFlujos} />
-            </Panel>
-          </div>
+        <div className="min-w-0 min-h-0 grid grid-rows-[auto_1fr] gap-3">
+          <Panel title="FORWARDS">
+            <ForwardsPanel forwards={forwards} />
+          </Panel>
 
-          <div className="min-w-0 min-h-0 grid grid-rows-[auto_1fr] gap-3">
-            <Panel title="FORWARDS">
-              <ForwardsPanel forwards={forwards} />
-            </Panel>
-
-            <Panel
-              title="BREAKEVENS"
-              sub={breakevensTs ? fmtTs(breakevensTs) : ""}
-              fill
-            >
-              <BreakevensBlock pares={pares} />
-            </Panel>
-          </div>
+          <Panel
+            title="BREAKEVENS"
+            sub={breakevensTs ? fmtTs(breakevensTs) : ""}
+            fill
+          >
+            <BreakevensBlock pares={pares} />
+          </Panel>
         </div>
       </div>
     </div>

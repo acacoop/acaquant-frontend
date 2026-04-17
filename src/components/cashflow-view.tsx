@@ -56,6 +56,31 @@ function fmtSigned(n: number): string {
   return sign + fmtCompact(Math.abs(n));
 }
 
+function niceScale(
+  min: number,
+  max: number,
+  maxTicks = 6
+): { min: number; max: number; ticks: number[] } {
+  if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };
+  if (min === max) {
+    const d = Math.abs(min) || 1;
+    return { min: min - d, max: max + d, ticks: [min - d, min, min + d] };
+  }
+  const range = max - min;
+  const roughStep = range / Math.max(1, maxTicks - 1);
+  const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const normalized = roughStep / pow10;
+  const niceStep =
+    normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10;
+  const step = niceStep * pow10;
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let t = niceMin; t <= niceMax + step / 2; t += step)
+    ticks.push(+t.toFixed(10));
+  return { min: niceMin, max: niceMax, ticks };
+}
+
 const MESES = [
   "Ene",
   "Feb",
@@ -77,8 +102,8 @@ function fmtMesAnio(key: string): string {
 }
 
 function fmtDia(key: string): string {
-  const [y, m, d] = key.split("-");
-  return `${d}/${m}/${y.slice(-2)}`;
+  const [, m, d] = key.split("-");
+  return `${d}/${m}`;
 }
 
 export function CashFlowView() {
@@ -110,14 +135,12 @@ export function CashFlowView() {
     };
   }, []);
 
-  // Mapa cuenta → grupo (accionista)
   const accMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const a of accionistas) m.set(a.cuenta, a.grupo);
     return m;
   }, [accionistas]);
 
-  // Rango de fechas total
   const { minDate, maxDate } = useMemo(() => {
     if (flujos.length === 0) return { minDate: "", maxDate: "" };
     let mn = flujos[0].concertacion;
@@ -129,7 +152,6 @@ export function CashFlowView() {
     return { minDate: mn, maxDate: mx };
   }, [flujos]);
 
-  // Controles de filtros
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [showArs, setShowArs] = useState(true);
@@ -143,7 +165,6 @@ export function CashFlowView() {
     if (maxDate && !hasta) setHasta(maxDate);
   }, [minDate, maxDate, desde, hasta]);
 
-  // Reset selección al cambiar el filtro de cuentas
   useEffect(() => {
     setSeleccion("__TODAS__");
   }, [filtroAcc]);
@@ -153,7 +174,6 @@ export function CashFlowView() {
     ...(showUsd ? ["USD"] : []),
   ];
 
-  // Opciones del dropdown secundario
   const { opciones, label } = useMemo(() => {
     const todasCuentas = Array.from(
       new Set(flujos.map((f) => f.cuenta).filter(Boolean) as string[])
@@ -183,7 +203,6 @@ export function CashFlowView() {
     return { opciones: todasCuentas.sort(), label: "Cuenta" };
   }, [flujos, filtroAcc, accMap]);
 
-  // Aplicar filtros
   const filtered = useMemo(() => {
     return flujos.filter((f) => {
       if (f.concertacion < desde || f.concertacion > hasta) return false;
@@ -207,10 +226,11 @@ export function CashFlowView() {
     });
   }, [flujos, desde, hasta, monedasSel, filtroAcc, seleccion, accMap]);
 
-  // Agrupar por período + moneda
   const chartData = useMemo(() => {
-    const byKey: Record<string, { label: string; ARS: number; USD: number }> =
-      {};
+    const byKey: Record<
+      string,
+      { key: string; label: string; ARS: number; USD: number }
+    > = {};
     for (const f of filtered) {
       const key =
         granularity === "Mensual"
@@ -218,6 +238,7 @@ export function CashFlowView() {
           : f.concertacion.slice(0, 10);
       if (!byKey[key]) {
         byKey[key] = {
+          key,
           label: granularity === "Mensual" ? fmtMesAnio(key) : fmtDia(key),
           ARS: 0,
           USD: 0,
@@ -231,7 +252,6 @@ export function CashFlowView() {
       .map(([, v]) => v);
   }, [filtered, granularity]);
 
-  // Totales por moneda
   const totals = useMemo(() => {
     const out: Record<string, { entradas: number; salidas: number }> = {
       ARS: { entradas: 0, salidas: 0 },
@@ -268,9 +288,9 @@ export function CashFlowView() {
   }
 
   return (
-    <div className="p-3 space-y-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+    <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
+      <div className="border border-[#1a1a1a] bg-[#080808] p-3 space-y-2 shrink-0">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           <LabeledInput label="Desde">
             <input
               type="date"
@@ -291,9 +311,8 @@ export function CashFlowView() {
               className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </LabeledInput>
-
           <LabeledInput label="Monedas">
-            <div className="flex items-center gap-2 h-[26px]">
+            <div className="flex items-center gap-1 h-[26px]">
               <Toggle active={showArs} onClick={() => setShowArs(!showArs)}>
                 ARS
               </Toggle>
@@ -302,9 +321,8 @@ export function CashFlowView() {
               </Toggle>
             </div>
           </LabeledInput>
-
           <LabeledInput label="Granularidad">
-            <div className="flex items-center gap-2 h-[26px]">
+            <div className="flex items-center gap-1 h-[26px]">
               <Toggle
                 active={granularity === "Diario"}
                 onClick={() => setGranularity("Diario")}
@@ -319,9 +337,6 @@ export function CashFlowView() {
               </Toggle>
             </div>
           </LabeledInput>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-3">
           <LabeledInput label="Cuentas">
             <select
               value={filtroAcc}
@@ -351,29 +366,31 @@ export function CashFlowView() {
         </div>
       </div>
 
-      {/* Gráficos por moneda */}
-      {monedasSel.length === 0 && (
-        <div className="text-center text-[#555555] text-xs py-8">
-          Seleccioná al menos una moneda.
-        </div>
-      )}
-
-      {showArs && (
-        <MonedaChart
-          moneda="ARS"
-          color={COLOR_ARS}
-          data={chartData}
-          total={totals.ARS}
-        />
-      )}
-      {showUsd && (
-        <MonedaChart
-          moneda="USD"
-          color={COLOR_USD}
-          data={chartData}
-          total={totals.USD}
-        />
-      )}
+      <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 gap-3 auto-rows-min">
+        {monedasSel.length === 0 && (
+          <div className="text-center text-[#555555] text-xs py-8">
+            Seleccioná al menos una moneda.
+          </div>
+        )}
+        {showArs && (
+          <MonedaChart
+            moneda="ARS"
+            color={COLOR_ARS}
+            data={chartData}
+            total={totals.ARS}
+            granularity={granularity}
+          />
+        )}
+        {showUsd && (
+          <MonedaChart
+            moneda="USD"
+            color={COLOR_USD}
+            data={chartData}
+            total={totals.USD}
+            granularity={granularity}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -383,17 +400,27 @@ function MonedaChart({
   color,
   data,
   total,
+  granularity,
 }: {
   moneda: "ARS" | "USD";
   color: string;
-  data: { label: string; ARS: number; USD: number }[];
+  data: { key: string; label: string; ARS: number; USD: number }[];
   total: { entradas: number; salidas: number };
+  granularity: Granularity;
 }) {
-  const hasData = data.some(
-    (d) => (moneda === "ARS" ? d.ARS : d.USD) !== 0
-  );
+  const vals = data.map((d) => (moneda === "ARS" ? d.ARS : d.USD));
+  const hasData = vals.some((v) => v !== 0);
   const neto = total.entradas + total.salidas;
   const netoColor = neto >= 0 ? "#00cc66" : "#ff4444";
+
+  // Escala Y con ticks redondos
+  const yScale = hasData
+    ? niceScale(Math.min(0, ...vals), Math.max(0, ...vals), 5)
+    : { min: 0, max: 1, ticks: [0, 1] };
+
+  // Paso de etiquetas X: mensual = todos; diario = aprox cada 15 data points
+  const xInterval =
+    granularity === "Mensual" ? 0 : Math.max(0, Math.floor(data.length / 10));
 
   return (
     <div className="border border-[#1a1a1a] bg-[#080808]">
@@ -404,32 +431,47 @@ function MonedaChart({
         >
           {moneda}
         </span>
+        <div className="ml-auto flex items-center gap-4 text-[10px]">
+          <LegendStat
+            label="Entradas"
+            value={fmtCompact(total.entradas)}
+            color="#00cc66"
+          />
+          <LegendStat
+            label="Salidas"
+            value={fmtCompact(Math.abs(total.salidas))}
+            color="#ff4444"
+          />
+          <LegendStat label="Neto" value={fmtSigned(neto)} color={netoColor} />
+        </div>
       </div>
 
-      <div className="p-3">
+      <div className="p-2">
         {hasData ? (
-          <div className="h-[280px]">
+          <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={data}
-                margin={{ top: 12, right: 16, bottom: 28, left: 8 }}
+                margin={{ top: 8, right: 12, bottom: 24, left: 8 }}
               >
                 <XAxis
                   dataKey="label"
                   tick={{ fill: "#808080", fontSize: 10 }}
                   axisLine={{ stroke: "#2a2a2a" }}
                   tickLine={false}
+                  interval={xInterval}
                   angle={-45}
                   textAnchor="end"
-                  height={40}
-                  interval={0}
+                  height={32}
                 />
                 <YAxis
+                  domain={[yScale.min, yScale.max]}
+                  ticks={yScale.ticks}
                   tick={{ fill: "#808080", fontSize: 10 }}
                   axisLine={{ stroke: "#2a2a2a" }}
                   tickLine={false}
                   tickFormatter={(v: number) => fmtCompact(v)}
-                  width={70}
+                  width={60}
                 />
                 <ReferenceLine y={0} stroke="#2a2a2a" />
                 <Tooltip
@@ -442,11 +484,7 @@ function MonedaChart({
                   labelStyle={{ color: "#808080" }}
                   formatter={(value) => [fmtSigned(Number(value)), moneda]}
                 />
-                <Bar
-                  dataKey={moneda}
-                  fill={color}
-                  isAnimationActive={false}
-                />
+                <Bar dataKey={moneda} fill={color} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -455,22 +493,12 @@ function MonedaChart({
             Sin datos para {moneda}.
           </div>
         )}
-
-        <div className="mt-3 grid grid-cols-3 gap-3 text-[11px]">
-          <Stat label="Entradas" value={fmtCompact(total.entradas)} color="#00cc66" />
-          <Stat
-            label="Salidas"
-            value={fmtCompact(Math.abs(total.salidas))}
-            color="#ff4444"
-          />
-          <Stat label="Flujo Neto" value={fmtSigned(neto)} color={netoColor} />
-        </div>
       </div>
     </div>
   );
 }
 
-function Stat({
+function LegendStat({
   label,
   value,
   color,
@@ -480,14 +508,12 @@ function Stat({
   color: string;
 }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#0a0a0a] px-3 py-2">
-      <div className="text-[#888888] text-[10px] tracking-wide uppercase">
-        {label}
-      </div>
-      <div className="text-[15px] font-semibold mt-0.5" style={{ color }}>
+    <span>
+      <span className="text-[#888888]">{label}: </span>
+      <span style={{ color }} className="font-semibold">
         {value}
-      </div>
-    </div>
+      </span>
+    </span>
   );
 }
 
@@ -499,7 +525,7 @@ function LabeledInput({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 min-w-0">
       <span className="text-[10px] tracking-wide text-[#555555] uppercase">
         {label}
       </span>

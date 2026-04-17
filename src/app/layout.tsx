@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
+import { TopTicker } from "@/components/top-ticker";
+import { AutoRefresh } from "@/components/auto-refresh";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,8 +23,10 @@ export default function RootLayout({
         />
       </head>
       <body className="h-full flex flex-col">
+        <AutoRefresh intervalMs={5000} />
         <Header />
-        <main className="flex-1 min-h-0 overflow-auto">{children}</main>
+        <TopTicker />
+        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         <footer className="flex items-center h-5 px-3 bg-[#080808] border-t border-[#1a1a1a] text-[10px] text-[#555555]">
           <span>ACA VALORES &middot; MERCADO DE CAPITALES</span>
           <span className="ml-auto">MERVAL / ROFEX</span>
