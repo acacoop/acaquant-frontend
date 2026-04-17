@@ -1,30 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "ACAQuant",
-  description: "TradingAV — Plataforma Quant para mercados argentinos",
+  title: "ACAQuant Terminal",
+  description: "TradingAV — Terminal para mercados argentinos",
 };
 
 const NAV_ITEMS = [
-  { href: "/", label: "Home" },
-  { href: "/mercado", label: "Mercado" },
-  { href: "/opciones", label: "Opciones" },
-  { href: "/portfolios", label: "Portfolios" },
-  { href: "/operaciones", label: "Operaciones" },
-  { href: "/aum", label: "AuM" },
+  { href: "/mercado", label: "MERCADO" },
+  { href: "/opciones", label: "OPCIONES" },
+  { href: "/portfolios", label: "PORTFOLIOS" },
+  { href: "/operaciones", label: "OPERACIONES" },
+  { href: "/aum", label: "AUM" },
 ];
 
 export default function RootLayout({
@@ -33,32 +21,46 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="es"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-100">
-        <nav className="border-b border-zinc-800 bg-zinc-900">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="flex h-14 items-center justify-between">
-              <Link href="/" className="text-lg font-bold tracking-tight">
-                ACAQuant
+    <html lang="es" className="h-full">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-full flex flex-col">
+        {/* Top bar */}
+        <header className="flex items-center h-8 px-3 bg-[#1a1a2e] border-b border-[#2a2a2a]">
+          <Link
+            href="/"
+            className="text-[#ff6600] font-bold text-sm tracking-wider mr-8"
+          >
+            ACAQUANT
+          </Link>
+          <nav className="flex gap-1">
+            {NAV_ITEMS.map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className="px-3 py-1 text-[11px] font-semibold tracking-wide text-[#808080] hover:text-[#e0e0e0] hover:bg-[#2a2a2a] transition-colors"
+              >
+                {label}
               </Link>
-              <div className="flex gap-6 text-sm">
-                {NAV_ITEMS.map(({ href, label }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="text-zinc-400 hover:text-white transition-colors"
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            </div>
+            ))}
+          </nav>
+          <div className="ml-auto text-[10px] text-[#555555] tracking-wide">
+            TRADING TERMINAL
           </div>
-        </nav>
-        <main className="flex-1">{children}</main>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-auto">{children}</main>
+
+        {/* Status bar */}
+        <footer className="flex items-center h-5 px-3 bg-[#0a0a0a] border-t border-[#1a1a1a] text-[10px] text-[#555555]">
+          <span>ACAQUANT v1.0</span>
+          <span className="ml-auto">MERVAL/ROFEX</span>
+        </footer>
       </body>
     </html>
   );
