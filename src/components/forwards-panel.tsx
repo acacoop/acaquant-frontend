@@ -20,8 +20,8 @@ export function ForwardsPanel({ forwards }: { forwards: ForwardDoc[] }) {
   const hasData = !!fw?.matrix && !!fw?.tickers && fw.tickers.length >= 2;
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center gap-2 mb-2 shrink-0">
         <FilterBtn
           active={curva === "tasa_fija"}
           onClick={() => setCurva("tasa_fija")}
@@ -39,7 +39,7 @@ export function ForwardsPanel({ forwards }: { forwards: ForwardDoc[] }) {
       </div>
 
       {hasData ? (
-        <div className="overflow-x-auto">
+        <div className="flex-1 min-h-0 overflow-auto">
           <ForwardMatrix tickers={fw!.tickers!} matrix={fw!.matrix!} />
         </div>
       ) : (

@@ -54,8 +54,8 @@ export function RentaFijaTable({
     );
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex items-center gap-2 mb-2 shrink-0">
         <FilterBtn active={curva === "todas"} onClick={() => setCurva("todas")}>
           TODAS
         </FilterBtn>
@@ -71,7 +71,7 @@ export function RentaFijaTable({
       </div>
 
       {sorted.length > 0 ? (
-        <div className="max-h-[400px] overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <table>
             <thead>
               <tr>
@@ -161,7 +161,7 @@ export function RentaFijaTable({
         </p>
       )}
 
-      <div className="mt-1 text-[10px] text-[#555555] text-right">
+      <div className="mt-1 text-[10px] text-[#555555] text-right shrink-0">
         {sorted.length} instrumento{sorted.length !== 1 ? "s" : ""} ·{" "}
         VOL TOTAL {fmtVol(sorted.reduce((s, r) => s + (r.metrics?.total_nominals || 0), 0))} VN
       </div>
