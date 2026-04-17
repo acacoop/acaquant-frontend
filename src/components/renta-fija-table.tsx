@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { shortTicker, fmtNum, fmtPrice, fmtVol } from "./ui";
+import { shortTicker, fmtPrice, fmtVol } from "./ui";
+import { LibroPanel } from "./libro-panel";
 
 interface RentaFijaDoc {
   instrumento: string;
@@ -28,7 +29,10 @@ export function RentaFijaTable({
   data: RentaFijaDoc[];
   flujos: FlujoTicker[];
 }) {
-  const [curva, setCurva] = useState<"tasa_fija" | "cer">("tasa_fija");
+  const [vista, setVista] = useState<"tasa_fija" | "cer" | "libro">(
+    "tasa_fija"
+  );
+  const curva = vista === "libro" ? "tasa_fija" : vista;
 
   const tickerCurvaMap: Record<string, string> = {};
   for (const f of flujos) {
@@ -51,17 +55,22 @@ export function RentaFijaTable({
     <div>
       <div className="flex items-center gap-2 mb-2">
         <FilterBtn
-          active={curva === "tasa_fija"}
-          onClick={() => setCurva("tasa_fija")}
+          active={vista === "tasa_fija"}
+          onClick={() => setVista("tasa_fija")}
         >
           TASA FIJA
         </FilterBtn>
-        <FilterBtn active={curva === "cer"} onClick={() => setCurva("cer")}>
+        <FilterBtn active={vista === "cer"} onClick={() => setVista("cer")}>
           CER
+        </FilterBtn>
+        <FilterBtn active={vista === "libro"} onClick={() => setVista("libro")}>
+          LIBRO
         </FilterBtn>
       </div>
 
-      {sorted.length > 0 ? (
+      {vista === "libro" ? (
+        <LibroPanel data={data} />
+      ) : sorted.length > 0 ? (
         <div className="h-[380px] overflow-y-auto">
           <table>
             <thead>
@@ -152,10 +161,12 @@ export function RentaFijaTable({
         </p>
       )}
 
-      <div className="mt-1 text-[10px] text-[#555555] text-right">
-        {sorted.length} instrumento{sorted.length !== 1 ? "s" : ""} ·{" "}
-        VOL TOTAL {fmtVol(sorted.reduce((s, r) => s + (r.metrics?.total_nominals || 0), 0))} VN
-      </div>
+      {vista !== "libro" && (
+        <div className="mt-1 text-[10px] text-[#555555] text-right">
+          {sorted.length} instrumento{sorted.length !== 1 ? "s" : ""} ·{" "}
+          VOL TOTAL {fmtVol(sorted.reduce((s, r) => s + (r.metrics?.total_nominals || 0), 0))} VN
+        </div>
+      )}
     </div>
   );
 }
