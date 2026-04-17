@@ -1,8 +1,10 @@
 import { apiFetch } from "@/lib/api";
 import { TickerTape } from "@/components/ticker-tape";
-import { Panel, shortTicker, fmtNum } from "@/components/ui";
+import { Panel, shortTicker, fmtNum, fmtTs } from "@/components/ui";
 import { RentaFijaTable } from "@/components/renta-fija-table";
 import { ForwardsPanel } from "@/components/forwards-panel";
+import { CurvasChart } from "@/components/curvas-chart";
+import { BreakevensBlock } from "@/components/breakevens-block";
 import { AutoRefresh } from "@/components/auto-refresh";
 
 interface MepResponse {
@@ -31,6 +33,7 @@ interface RentaFijaDoc {
 interface ForwardDoc {
   curva: string;
   tickers?: string[];
+  tasas?: Record<string, number>;
   matrix?: Record<string, Record<string, number>>;
   updated_at?: string;
 }
@@ -38,6 +41,23 @@ interface ForwardDoc {
 interface FlujoTicker {
   ticker: string;
   curva: string;
+  fecha_vencimiento?: string;
+}
+
+interface BreakevenPar {
+  n: number;
+  lecap: string;
+  cer: string;
+  fecha_vencimiento: string;
+  dias: number;
+  tem_lecap: number;
+  paridad_cer: number;
+  breakeven_mensual: number;
+}
+
+interface BreakevenDoc {
+  pares?: BreakevenPar[];
+  updated_at?: string;
 }
 
 async function safeFetch<T>(path: string, fallback: T): Promise<T> {
@@ -49,7 +69,7 @@ async function safeFetch<T>(path: string, fallback: T): Promise<T> {
 }
 
 export default async function Home() {
-  const [mep, dolar, rentaFija, forwards, flujosTF, flujosCER] =
+  const [mep, dolar, rentaFija, forwards, flujosTF, flujosCER, breakevens] =
     await Promise.all([
       safeFetch<MepResponse | null>("/api/cotizaciones/mep", null),
       safeFetch<DolarResponse[]>("/api/cotizaciones/dolar", []),
@@ -57,11 +77,11 @@ export default async function Home() {
       safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", []),
       safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=tasa_fija", []),
       safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=cer", []),
+      safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", []),
     ]);
 
   const lastDolar = dolar.length > 0 ? dolar[dolar.length - 1] : null;
 
-  // Ticker tape items
   const tickerItems: { label: string; value: string; color: string }[] = [];
 
   if (mep) {
@@ -92,9 +112,20 @@ export default async function Home() {
   }
 
   const allFlujos: FlujoTicker[] = [
-    ...flujosTF.map((f) => ({ ticker: f.ticker, curva: "tasa_fija" })),
-    ...flujosCER.map((f) => ({ ticker: f.ticker, curva: "cer" })),
+    ...flujosTF.map((f) => ({
+      ticker: f.ticker,
+      curva: "tasa_fija",
+      fecha_vencimiento: f.fecha_vencimiento,
+    })),
+    ...flujosCER.map((f) => ({
+      ticker: f.ticker,
+      curva: "cer",
+      fecha_vencimiento: f.fecha_vencimiento,
+    })),
   ];
+
+  const pares = breakevens[0]?.pares || [];
+  const breakevensTs = breakevens[0]?.updated_at;
 
   return (
     <div className="flex flex-col h-full">
@@ -103,17 +134,28 @@ export default async function Home() {
 
       <div className="flex-1 p-3">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {/* LEFT: Renta Fija con filtro de curva */}
-          <div className="min-w-0">
+          {/* LEFT COL */}
+          <div className="min-w-0 space-y-3">
             <Panel title="RENTA FIJA" count={rentaFija.length}>
               <RentaFijaTable data={rentaFija} flujos={allFlujos} />
             </Panel>
+
+            <Panel title="CURVAS">
+              <CurvasChart forwards={forwards} flujos={allFlujos} />
+            </Panel>
           </div>
 
-          {/* RIGHT: Forwards con selector de curva, scrollable */}
-          <div className="min-w-0">
+          {/* RIGHT COL */}
+          <div className="min-w-0 space-y-3">
             <Panel title="FORWARDS">
               <ForwardsPanel forwards={forwards} />
+            </Panel>
+
+            <Panel
+              title="BREAKEVENS"
+              sub={breakevensTs ? fmtTs(breakevensTs) : ""}
+            >
+              <BreakevensBlock pares={pares} />
             </Panel>
           </div>
         </div>
