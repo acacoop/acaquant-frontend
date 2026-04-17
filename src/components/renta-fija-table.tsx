@@ -28,23 +28,17 @@ export function RentaFijaTable({
   data: RentaFijaDoc[];
   flujos: FlujoTicker[];
 }) {
-  const [curva, setCurva] = useState<string>("todas");
+  const [curva, setCurva] = useState<"tasa_fija" | "cer">("tasa_fija");
 
-  // Build ticker → curva map from flujos data
   const tickerCurvaMap: Record<string, string> = {};
   for (const f of flujos) {
-    // flujos ticker is short (e.g. "TX26"), renta-fija instrumento is long
     tickerCurvaMap[f.ticker] = f.curva;
   }
 
-  // Filter renta fija by curva
-  const filtered =
-    curva === "todas"
-      ? data
-      : data.filter((r) => {
-          const short = shortTicker(r.instrumento);
-          return tickerCurvaMap[short] === curva;
-        });
+  const filtered = data.filter((r) => {
+    const short = shortTicker(r.instrumento);
+    return tickerCurvaMap[short] === curva;
+  });
 
   const sorted = filtered
     .filter((r) => r.metrics?.last_price)
@@ -54,11 +48,8 @@ export function RentaFijaTable({
     );
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-2 mb-2 shrink-0">
-        <FilterBtn active={curva === "todas"} onClick={() => setCurva("todas")}>
-          TODAS
-        </FilterBtn>
+    <div>
+      <div className="flex items-center gap-2 mb-2">
         <FilterBtn
           active={curva === "tasa_fija"}
           onClick={() => setCurva("tasa_fija")}
@@ -71,7 +62,7 @@ export function RentaFijaTable({
       </div>
 
       {sorted.length > 0 ? (
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="h-[380px] overflow-y-auto">
           <table>
             <thead>
               <tr>
@@ -161,7 +152,7 @@ export function RentaFijaTable({
         </p>
       )}
 
-      <div className="mt-1 text-[10px] text-[#555555] text-right shrink-0">
+      <div className="mt-1 text-[10px] text-[#555555] text-right">
         {sorted.length} instrumento{sorted.length !== 1 ? "s" : ""} ·{" "}
         VOL TOTAL {fmtVol(sorted.reduce((s, r) => s + (r.metrics?.total_nominals || 0), 0))} VN
       </div>

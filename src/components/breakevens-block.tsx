@@ -60,8 +60,8 @@ export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
     .sort((a, b) => a.vencTs - b.vencTs);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-2 mb-2 shrink-0">
+    <div>
+      <div className="flex items-center gap-2 mb-2">
         <FilterBtn active={vista === "grafico"} onClick={() => setVista("grafico")}>
           GRAFICO
         </FilterBtn>
@@ -71,7 +71,7 @@ export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
       </div>
 
       {vista === "grafico" ? (
-        <div className="flex-1 min-h-0">
+        <div className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
               <XAxis
@@ -129,7 +129,7 @@ export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="h-[320px] overflow-y-auto">
           <table>
             <thead>
               <tr>

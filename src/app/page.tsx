@@ -128,31 +128,27 @@ export default async function Home() {
   const breakevensTs = breakevens[0]?.updated_at;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full">
       <AutoRefresh intervalMs={5000} />
       <TickerTape items={tickerItems} />
 
-      <div className="flex-1 min-h-0 p-3">
-        <div className="grid h-full gap-3 grid-cols-1 grid-rows-4 lg:grid-cols-2 lg:grid-rows-2">
-          <div className="min-w-0 min-h-0">
+      <div className="flex-1 p-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="min-w-0 space-y-3">
             <Panel title="RENTA FIJA" count={rentaFija.length}>
               <RentaFijaTable data={rentaFija} flujos={allFlujos} />
             </Panel>
-          </div>
 
-          <div className="min-w-0 min-h-0">
-            <Panel title="FORWARDS">
-              <ForwardsPanel forwards={forwards} />
-            </Panel>
-          </div>
-
-          <div className="min-w-0 min-h-0">
             <Panel title="CURVAS">
               <CurvasChart forwards={forwards} flujos={allFlujos} />
             </Panel>
           </div>
 
-          <div className="min-w-0 min-h-0">
+          <div className="min-w-0 space-y-3">
+            <Panel title="FORWARDS">
+              <ForwardsPanel forwards={forwards} />
+            </Panel>
+
             <Panel
               title="BREAKEVENS"
               sub={breakevensTs ? fmtTs(breakevensTs) : ""}
