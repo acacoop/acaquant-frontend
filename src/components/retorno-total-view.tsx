@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useViewportKey } from "@/lib/use-viewport-key";
-import { DualRange } from "./ui";
+import { DualRange } from "./dual-range";
 import {
   CartesianGrid,
   Legend,
