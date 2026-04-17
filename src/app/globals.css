@@ -104,3 +104,31 @@ td {
 tr:hover {
   background: #0e0e0e;
 }
+
+/* ── Dual-range slider ── */
+.dual-range-input {
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.dual-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: all;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff9900;
+  cursor: pointer;
+  border: none;
+}
+.dual-range-input::-moz-range-thumb {
+  pointer-events: all;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff9900;
+  cursor: pointer;
+  border: none;
+}

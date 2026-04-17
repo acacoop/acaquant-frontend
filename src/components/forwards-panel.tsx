@@ -83,6 +83,7 @@ export function ForwardsPanel({
   }, [histCurva]);
 
   const [paresSel, setParesSel] = useState<string[]>([]);
+  const [parSearch, setParSearch] = useState("");
 
   const paresEfectivos = useMemo(() => {
     if (paresSel.length) return paresSel;
@@ -164,27 +165,47 @@ export function ForwardsPanel({
         </div>
       ) : (
         <div className="h-[380px] flex flex-col gap-2 min-h-0">
-          <div className="flex flex-wrap gap-1 shrink-0 max-h-[80px] overflow-y-auto border border-[#1a1a1a] p-1">
-            {paresDisp.map((par) => {
-              const activo = paresEfectivos.includes(par);
-              const [tLargo, tCorto] = par.split("→");
-              const color = PALETA[paresEfectivos.indexOf(par) % PALETA.length];
-              return (
-                <button
-                  key={par}
-                  onClick={() => togglePar(par)}
-                  className={`text-[10px] px-1.5 py-0.5 border font-mono transition-colors ${
-                    activo
-                      ? "text-black border-transparent"
-                      : "bg-transparent text-[#707070] border-[#2a2a2a] hover:border-[#ff9900] hover:text-[#ff9900]"
-                  }`}
-                  style={activo ? { backgroundColor: color, borderColor: color } : undefined}
-                  title={par}
-                >
-                  {shortTicker(tLargo)}→{shortTicker(tCorto)}
-                </button>
-              );
-            })}
+          <div className="shrink-0 border border-[#1a1a1a] p-1 flex flex-col gap-1">
+            <input
+              type="text"
+              value={parSearch}
+              onChange={(e) => setParSearch(e.target.value)}
+              placeholder="buscar par… ej: T30J6"
+              className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-full"
+            />
+            <div className="flex flex-wrap gap-1 max-h-[60px] overflow-y-auto">
+              {paresDisp
+                .filter((par) => {
+                  if (!parSearch) return true;
+                  const q = parSearch.toLowerCase();
+                  const [tL, tC] = par.split("→");
+                  return (
+                    shortTicker(tL).toLowerCase().includes(q) ||
+                    shortTicker(tC).toLowerCase().includes(q) ||
+                    par.toLowerCase().includes(q)
+                  );
+                })
+                .map((par) => {
+                  const activo = paresEfectivos.includes(par);
+                  const [tLargo, tCorto] = par.split("→");
+                  const color = PALETA[paresEfectivos.indexOf(par) % PALETA.length];
+                  return (
+                    <button
+                      key={par}
+                      onClick={() => togglePar(par)}
+                      className={`text-[10px] px-1.5 py-0.5 border font-mono transition-colors ${
+                        activo
+                          ? "text-black border-transparent"
+                          : "bg-transparent text-[#707070] border-[#2a2a2a] hover:border-[#ff9900] hover:text-[#ff9900]"
+                      }`}
+                      style={activo ? { backgroundColor: color, borderColor: color } : undefined}
+                      title={par}
+                    >
+                      {shortTicker(tLargo)}→{shortTicker(tCorto)}
+                    </button>
+                  );
+                })}
+            </div>
           </div>
           <div className="flex-1 min-h-0">
             {paresEfectivos.length === 0 || chartData.length === 0 ? (

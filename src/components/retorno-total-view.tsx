@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useViewportKey } from "@/lib/use-viewport-key";
+import { DualRange } from "./ui";
 import {
   CartesianGrid,
   Legend,
@@ -171,35 +172,19 @@ export function RetornoTotalView() {
         ) : fechas.length < 2 ? (
           <span className="text-[10px] text-[#555]">sin datos</span>
         ) : (
-          <div className="flex items-center gap-2 flex-1 min-w-[300px]">
-            <span className="text-[10px] text-[#555] tracking-wide">DESDE</span>
-            <input
-              type="range"
-              min={0}
-              max={fechas.length - 1}
-              value={effectiveRango[0]}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setRangoIdx([v, Math.max(v, effectiveRango[1])]);
-              }}
-              className="flex-1 accent-[#ff9900]"
-            />
-            <span className="text-[10px] text-[#ff9900] font-mono min-w-[50px] text-right">
+          <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+            <span className="text-[10px] text-[#ff9900] font-mono min-w-[36px]">
               {fmtFechaCorta(fechaDesde || "")}
             </span>
-            <span className="text-[10px] text-[#555] tracking-wide ml-3">HASTA</span>
-            <input
-              type="range"
+            <DualRange
               min={0}
               max={fechas.length - 1}
-              value={effectiveRango[1]}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setRangoIdx([Math.min(v, effectiveRango[0]), v]);
-              }}
-              className="flex-1 accent-[#ff9900]"
+              lo={effectiveRango[0]}
+              hi={effectiveRango[1]}
+              setLo={(v) => setRangoIdx([v, Math.max(v, effectiveRango[1])])}
+              setHi={(v) => setRangoIdx([Math.min(v, effectiveRango[0]), v])}
             />
-            <span className="text-[10px] text-[#ff9900] font-mono min-w-[50px] text-right">
+            <span className="text-[10px] text-[#ff9900] font-mono min-w-[36px] text-right">
               {fmtFechaCorta(fechaHasta || "")}
             </span>
           </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useViewportKey } from "@/lib/use-viewport-key";
+import { DualRange } from "./ui";
 import {
   Bar,
   ComposedChart,
@@ -29,8 +30,8 @@ const MESES = [
   "Dic",
 ];
 
-const COLOR_AUM = "#ff9900";
-const COLOR_POS = "#4a9eff";
+const COLOR_AUM = "#4a9eff";
+const COLOR_POS = "#ff9900";
 const COLOR_NEG = "#ff3333";
 
 interface Serie {
@@ -64,6 +65,7 @@ export function FlujoVsAumView() {
   const [loadingFondos, setLoadingFondos] = useState(true);
   const [loadingSerie, setLoadingSerie] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rangoState, setRangoState] = useState<{ sel: string; idx: [number, number] } | null>(null);
   const vpKey = useViewportKey();
 
   // 1) Lista de fondos
@@ -144,6 +146,23 @@ export function FlujoVsAumView() {
     });
   }, [serie]);
 
+  const rangoIdx = rangoState?.sel === sel ? rangoState.idx : null;
+
+  const efectivoRango: [number, number] =
+    chartData.length > 0
+      ? rangoIdx == null
+        ? [0, chartData.length - 1]
+        : [
+            Math.min(Math.max(0, rangoIdx[0]), chartData.length - 1),
+            Math.min(Math.max(rangoIdx[0], rangoIdx[1]), chartData.length - 1),
+          ]
+      : [0, 0];
+
+  const chartDataFiltered = chartData.slice(
+    efectivoRango[0],
+    efectivoRango[1] + 1
+  );
+
   if (loadingFondos) {
     return (
       <div className="h-full flex items-center justify-center text-[#555555] text-sm">
@@ -192,7 +211,26 @@ export function FlujoVsAumView() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 max-h-[520px] border border-[#1a1a1a] bg-[#080808] p-2 overflow-hidden flex flex-col">
+      {chartData.length >= 2 && (
+        <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-1.5 shrink-0 flex items-center gap-2">
+          <span className="text-[10px] text-[#ff9900] font-mono min-w-[40px]">
+            {chartData[efectivoRango[0]]?.label}
+          </span>
+          <DualRange
+            min={0}
+            max={chartData.length - 1}
+            lo={efectivoRango[0]}
+            hi={efectivoRango[1]}
+            setLo={(v) => sel && setRangoState({ sel, idx: [v, Math.max(v, efectivoRango[1])] })}
+            setHi={(v) => sel && setRangoState({ sel, idx: [Math.min(v, efectivoRango[0]), v] })}
+          />
+          <span className="text-[10px] text-[#ff9900] font-mono min-w-[40px] text-right">
+            {chartData[efectivoRango[1]]?.label}
+          </span>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] p-2 overflow-hidden flex flex-col">
         {loadingSerie ? (
           <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">
             Cargando…
@@ -205,7 +243,7 @@ export function FlujoVsAumView() {
           <div className="flex-1 min-h-0">
             <ResponsiveContainer key={vpKey} width="100%" height="100%">
               <ComposedChart
-                data={chartData}
+                data={chartDataFiltered}
                 margin={{ top: 12, right: 12, left: 0, bottom: 28 }}
               >
                 <XAxis
@@ -226,6 +264,10 @@ export function FlujoVsAumView() {
                   tickLine={false}
                   tickFormatter={(v: number) => fmtCompact(v)}
                   width={55}
+                  domain={[
+                    (dataMin: number) => Math.min(dataMin, 0),
+                    (dataMax: number) => Math.max(dataMax, 0) * 1.05 || 1,
+                  ]}
                 />
                 <YAxis
                   yAxisId="aum"
@@ -235,11 +277,7 @@ export function FlujoVsAumView() {
                   tickLine={false}
                   tickFormatter={(v: number) => fmtCompact(v)}
                   width={60}
-                  domain={[
-                    (dataMin: number) => dataMin * 0.95,
-                    (dataMax: number) => dataMax * 1.05,
-                  ]}
-                  allowDataOverflow={false}
+                  domain={[0, (dataMax: number) => dataMax * 1.05 || 1]}
                 />
                 <Tooltip
                   contentStyle={{
@@ -263,9 +301,10 @@ export function FlujoVsAumView() {
                   yAxisId="flujo"
                   dataKey="flujo"
                   name="Flujo"
+                  fill={COLOR_POS}
                   isAnimationActive={false}
                 >
-                  {chartData.map((d, i) => (
+                  {chartDataFiltered.map((d, i) => (
                     <Cell
                       key={i}
                       fill={(d.flujo ?? 0) >= 0 ? COLOR_POS : COLOR_NEG}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   createChart,
   ColorType,
@@ -47,22 +47,53 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
   );
 
   const [selected, setSelected] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  const effectiveSelected = selected ?? (tickers.length > 0 ? tickers[0] : null);
+
+  const selectedShort = effectiveSelected ? shortTicker(effectiveSelected) : "";
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return tickers.filter((t) => shortTicker(t).toLowerCase().includes(q));
+  }, [tickers, search]);
+
+  const pickTicker = useCallback(
+    (t: string) => {
+      setSelected(t);
+      setSearch("");
+      setOpen(false);
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!selected && tickers.length > 0) setSelected(tickers[0]);
-  }, [tickers, selected]);
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (
+        !inputRef.current?.contains(e.target as Node) &&
+        !dropRef.current?.contains(e.target as Node)
+      )
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!effectiveSelected) return;
     let cancelled = false;
 
     async function fetchTrades() {
       try {
         setLoading(true);
         const res = await fetch(
-          `/api/trades?instrumento=${encodeURIComponent(selected!)}`,
+          `/api/trades?instrumento=${encodeURIComponent(effectiveSelected!)}`,
           { cache: "no-store" }
         );
         if (!res.ok) return;
@@ -82,12 +113,12 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [selected]);
+  }, [effectiveSelected]);
 
   const vwap = useMemo(() => {
-    const doc = data.find((r) => r.instrumento === selected);
+    const doc = data.find((r) => r.instrumento === effectiveSelected);
     return doc?.metrics?.vwap;
-  }, [data, selected]);
+  }, [data, effectiveSelected]);
 
   const { todayTrades, sessionLabel } = useMemo(() => {
     if (trades.length === 0) return { todayTrades: [], sessionLabel: "" };
@@ -136,17 +167,39 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
     <div>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-[10px] text-[#555555] tracking-wide">TICKER</span>
-        <select
-          value={selected || ""}
-          onChange={(e) => setSelected(e.target.value)}
-          className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
-        >
-          {tickers.map((t) => (
-            <option key={t} value={t}>
-              {shortTicker(t)}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={open ? search : selectedShort}
+            placeholder={selectedShort || "buscar…"}
+            onFocus={() => { setSearch(""); setOpen(true); }}
+            onChange={(e) => { setSearch(e.target.value); setOpen(true); }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setOpen(false);
+              if (e.key === "Enter" && filtered.length > 0) pickTicker(filtered[0]);
+            }}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[140px]"
+          />
+          {open && filtered.length > 0 && (
+            <div
+              ref={dropRef}
+              className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[200px] overflow-y-auto min-w-full"
+            >
+              {filtered.map((t) => (
+                <div
+                  key={t}
+                  onMouseDown={() => pickTicker(t)}
+                  className={`px-2 py-0.5 text-[11px] font-mono cursor-pointer hover:bg-[#ff9900]/10 ${
+                    t === effectiveSelected ? "text-[#ff9900]" : "text-[#d0d0d0]"
+                  }`}
+                >
+                  {shortTicker(t)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         {loading && (
           <span className="text-[10px] text-[#555555]">cargando…</span>
         )}
@@ -163,7 +216,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
             </div>
           ) : (
             <LastMinutesChart
-              key={selected || "none"}
+              key={effectiveSelected || "none"}
               trades={todayTrades}
               vwap={vwap}
             />
