@@ -130,7 +130,6 @@ export function ContrapartesView() {
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [cpSel, setCpSel] = useState<string | null>(null);
-  const [mesesSel, setMesesSel] = useState<string[]>([]);
   const [monedaTabla, setMonedaTabla] = useState<string>("");
 
   useEffect(() => {
@@ -168,7 +167,7 @@ export function ContrapartesView() {
     });
   }, [flujos, desde, hasta, segSel, monSel]);
 
-  // acumulado mensual por moneda
+  // Acumulado por moneda (para los charts abajo)
   const chartDataByMoneda = useMemo(() => {
     const out: Record<string, { label: string; key: string; acum: number }[]> =
       {};
@@ -189,7 +188,7 @@ export function ContrapartesView() {
     return out;
   }, [filtered, monSel]);
 
-  // tabla de contrapartes para moneda seleccionada
+  // Tabla de contrapartes (moneda seleccionada)
   const contrapartesTabla = useMemo(() => {
     const sub = filtered.filter((f) => f.moneda === monedaTabla);
     const agg: Record<string, number> = {};
@@ -207,11 +206,11 @@ export function ContrapartesView() {
       .sort((a, b) => b.bruto - a.bruto);
   }, [filtered, monedaTabla]);
 
-  // detalle mensual de contraparte seleccionada
-  const mesesContraparte = useMemo(() => {
-    if (!cpSel) return [];
+  // Meses: por defecto consolidado (todas las contrapartes) — o de la contraparte seleccionada
+  const mesesTabla = useMemo(() => {
     const sub = filtered.filter(
-      (f) => f.moneda === monedaTabla && f.contraparte === cpSel
+      (f) =>
+        f.moneda === monedaTabla && (cpSel ? f.contraparte === cpSel : true)
     );
     const monthly: Record<string, number> = {};
     for (const f of sub) {
@@ -223,38 +222,9 @@ export function ContrapartesView() {
       .sort((a, b) => (a.key < b.key ? 1 : -1));
   }, [filtered, cpSel, monedaTabla]);
 
-  // tipos de operación para contraparte + meses seleccionados
-  const tiposContraparte = useMemo(() => {
-    if (!cpSel) return { rows: [], total: 0 };
-    let sub = filtered.filter(
-      (f) => f.moneda === monedaTabla && f.contraparte === cpSel
-    );
-    if (mesesSel.length) {
-      sub = sub.filter((f) => mesesSel.includes(f.concertacion.slice(0, 7)));
-    }
-    const agg: Record<string, number> = {};
-    for (const f of sub) {
-      const k = f.tipoOperacion || "—";
-      agg[k] = (agg[k] || 0) + (f.bruto || 0);
-    }
-    const total = Object.values(agg).reduce((a, b) => a + b, 0);
-    const rows = Object.entries(agg)
-      .map(([tipo, bruto]) => ({
-        tipo,
-        bruto,
-        share: total ? (bruto / total) * 100 : 0,
-      }))
-      .sort((a, b) => b.bruto - a.bruto);
-    return { rows, total };
-  }, [filtered, cpSel, monedaTabla, mesesSel]);
-
   useEffect(() => {
     setCpSel(null);
-    setMesesSel([]);
   }, [monedaTabla, desde, hasta]);
-  useEffect(() => {
-    setMesesSel([]);
-  }, [cpSel]);
 
   if (loading) {
     return (
@@ -282,7 +252,7 @@ export function ContrapartesView() {
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Filtros */}
       <div className="border border-[#1a1a1a] bg-[#080808] p-3 shrink-0">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Labeled label="Desde">
             <select
               value={desde}
@@ -317,7 +287,9 @@ export function ContrapartesView() {
                   active={segSel.includes(s)}
                   onClick={() =>
                     setSegSel((prev) =>
-                      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                      prev.includes(s)
+                        ? prev.filter((x) => x !== s)
+                        : [...prev, s]
                     )
                   }
                 >
@@ -334,22 +306,11 @@ export function ContrapartesView() {
                   active={monSel.includes(m)}
                   onClick={() =>
                     setMonSel((prev) =>
-                      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]
+                      prev.includes(m)
+                        ? prev.filter((x) => x !== m)
+                        : [...prev, m]
                     )
                   }
-                >
-                  {m}
-                </Chip>
-              ))}
-            </div>
-          </Labeled>
-          <Labeled label="Tabla moneda">
-            <div className="flex items-center gap-1 h-[26px]">
-              {monSel.map((m) => (
-                <Chip
-                  key={m}
-                  active={monedaTabla === m}
-                  onClick={() => setMonedaTabla(m)}
                 >
                   {m}
                 </Chip>
@@ -359,289 +320,240 @@ export function ContrapartesView() {
         </div>
       </div>
 
-      {/* Charts + Tablas */}
+      {/* Fila 1: Tabla contrapartes | Tabla meses (misma altura, flex-1) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
-        {/* Col 1: acumulados por moneda + stats */}
-        <div className="grid grid-rows-[auto_1fr] gap-3 min-h-0">
-          <div className="border border-[#1a1a1a] bg-[#080808]">
-            <PanelHeader title="FLUJO ACUMULADO" />
-            <div className="p-2 grid grid-cols-1 gap-2">
-              {monSel.map((moneda) => {
-                const data = chartDataByMoneda[moneda] || [];
-                const hasData = data.some((d) => d.acum !== 0);
-                const color = moneda === "ARS" ? COLOR_ARS : COLOR_USD;
-                const vals = data.map((d) => d.acum);
-                const yScale = hasData
-                  ? niceScale(Math.min(0, ...vals), Math.max(0, ...vals), 4)
-                  : { min: 0, max: 1, ticks: [0, 1] };
-                return (
-                  <div key={moneda}>
-                    <div className="flex items-center px-2 py-1 text-[10px] tracking-wide">
-                      <span style={{ color }} className="font-semibold">
-                        {moneda}
-                      </span>
-                      <span className="ml-auto text-[#888888]">
-                        Acum:{" "}
-                        <span style={{ color }} className="font-semibold">
-                          {data.length
-                            ? fmtCompact(data[data.length - 1].acum)
-                            : "--"}
-                        </span>
-                      </span>
-                    </div>
-                    {hasData ? (
-                      <div className="h-[150px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart
-                            data={data}
-                            margin={{ top: 4, right: 10, bottom: 20, left: 0 }}
-                          >
-                            <defs>
-                              <linearGradient
-                                id={`grad-${moneda}`}
-                                x1="0"
-                                y1="0"
-                                x2="0"
-                                y2="1"
-                              >
-                                <stop
-                                  offset="0%"
-                                  stopColor={color}
-                                  stopOpacity={0.35}
-                                />
-                                <stop
-                                  offset="100%"
-                                  stopColor={color}
-                                  stopOpacity={0.02}
-                                />
-                              </linearGradient>
-                            </defs>
-                            <XAxis
-                              dataKey="label"
-                              tick={{ fill: "#808080", fontSize: 9 }}
-                              axisLine={{ stroke: "#2a2a2a" }}
-                              tickLine={false}
-                              interval={Math.max(
-                                0,
-                                Math.floor(data.length / 8)
-                              )}
-                              angle={-35}
-                              textAnchor="end"
-                              height={24}
-                            />
-                            <YAxis
-                              domain={[yScale.min, yScale.max]}
-                              ticks={yScale.ticks}
-                              tick={{ fill: "#808080", fontSize: 9 }}
-                              axisLine={{ stroke: "#2a2a2a" }}
-                              tickLine={false}
-                              tickFormatter={(v: number) => fmtCompact(v)}
-                              width={55}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                background: "#0e0e0e",
-                                border: "1px solid #2a2a2a",
-                                fontSize: 11,
-                                fontFamily: "JetBrains Mono, monospace",
-                              }}
-                              labelStyle={{ color: "#808080" }}
-                              formatter={(v) => [fmtCompact(Number(v)), moneda]}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="acum"
-                              stroke={color}
-                              strokeWidth={2}
-                              fill={`url(#grad-${moneda})`}
-                              isAnimationActive={false}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="h-[150px] flex items-center justify-center text-[#555555] text-[10px]">
-                        Sin datos en {moneda}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+        {/* Contrapartes */}
+        <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              CONTRAPARTES
+            </span>
+            <span className="ml-2 text-[10px] text-[#555555]">
+              ({contrapartesTabla.length})
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              {monSel.map((m) => (
+                <MiniChip
+                  key={m}
+                  active={monedaTabla === m}
+                  onClick={() => setMonedaTabla(m)}
+                >
+                  {m}
+                </MiniChip>
+              ))}
             </div>
           </div>
-
-          <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
-            <PanelHeader
-              title={`CONTRAPARTES · ${monedaTabla}`}
-              sub={`${contrapartesTabla.length}`}
-            />
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              <table className="w-full text-[11px] font-mono">
-                <thead className="sticky top-0 bg-[#080808] z-10">
-                  <tr>
-                    <th className="!px-2 !py-1 text-left">CONTRAPARTE</th>
-                    <th className="!px-2 !py-1 text-right">BRUTO</th>
-                    <th className="!px-2 !py-1 text-right">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contrapartesTabla.map((r) => {
-                    const active = cpSel === r.cp;
-                    return (
-                      <tr
-                        key={r.cp}
-                        onClick={() => setCpSel(active ? null : r.cp)}
-                        className={`cursor-pointer border-b border-[#111111] transition-colors ${
-                          active
-                            ? "bg-[#ff9900]/10 text-[#ff9900]"
-                            : "hover:bg-[#ff9900]/5"
-                        }`}
-                      >
-                        <td className="!px-2 !py-1 text-[#d0d0d0]">{r.cp}</td>
-                        <td className="!px-2 !py-1 text-right">
-                          {fmtFull(r.bruto)}
-                        </td>
-                        <td className="!px-2 !py-1 text-right text-[#888888]">
-                          {r.share.toFixed(1)}%
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {contrapartesTabla.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="text-center text-[#555555] py-4"
-                      >
-                        Sin datos
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <table className="w-full text-[11px] font-mono">
+              <thead className="sticky top-0 bg-[#080808] z-10">
+                <tr>
+                  <th className="!px-2 !py-1 text-left">CONTRAPARTE</th>
+                  <th className="!px-2 !py-1 text-right">BRUTO</th>
+                  <th className="!px-2 !py-1 text-right">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contrapartesTabla.map((r) => {
+                  const active = cpSel === r.cp;
+                  return (
+                    <tr
+                      key={r.cp}
+                      onClick={() => setCpSel(active ? null : r.cp)}
+                      className={`cursor-pointer border-b border-[#111111] transition-colors ${
+                        active
+                          ? "bg-[#ff9900]/10 text-[#ff9900]"
+                          : "hover:bg-[#ff9900]/5"
+                      }`}
+                    >
+                      <td className="!px-2 !py-1 text-[#d0d0d0]">{r.cp}</td>
+                      <td className="!px-2 !py-1 text-right">
+                        {fmtFull(r.bruto)}
+                      </td>
+                      <td className="!px-2 !py-1 text-right text-[#888888]">
+                        {r.share.toFixed(1)}%
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+                {contrapartesTabla.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="text-center text-[#555555] py-4"
+                    >
+                      Sin datos
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Col 2: drill-down por mes + tipo op */}
-        <div className="grid grid-rows-2 gap-3 min-h-0">
-          <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
-            <PanelHeader
-              title="MESES"
-              sub={cpSel ? cpSel : "Seleccioná contraparte"}
-            />
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {!cpSel ? (
-                <div className="py-6 text-center text-[#555555] text-[11px]">
-                  Seleccioná una contraparte.
-                </div>
-              ) : (
-                <table className="w-full text-[11px] font-mono">
-                  <thead className="sticky top-0 bg-[#080808] z-10">
-                    <tr>
-                      <th className="!px-2 !py-1 text-left">MES</th>
-                      <th className="!px-2 !py-1 text-right">BRUTO</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mesesContraparte.map((r) => {
-                      const active = mesesSel.includes(r.key);
-                      return (
-                        <tr
-                          key={r.key}
-                          onClick={() =>
-                            setMesesSel((prev) =>
-                              prev.includes(r.key)
-                                ? prev.filter((x) => x !== r.key)
-                                : [...prev, r.key]
-                            )
-                          }
-                          className={`cursor-pointer border-b border-[#111111] transition-colors ${
-                            active
-                              ? "bg-[#ff9900]/10 text-[#ff9900]"
-                              : "hover:bg-[#ff9900]/5"
-                          }`}
-                        >
-                          <td className="!px-2 !py-1 text-[#d0d0d0]">
-                            {r.label}
-                          </td>
-                          <td className="!px-2 !py-1 text-right">
-                            {fmtFull(r.bruto)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {mesesContraparte.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={2}
-                          className="text-center text-[#555555] py-4"
-                        >
-                          Sin meses
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-            </div>
+        {/* Meses */}
+        <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              MESES
+            </span>
+            <span className="ml-auto text-[10px] text-[#888888] truncate max-w-[60%]">
+              {cpSel ? cpSel : "Consolidado"}
+            </span>
           </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <table className="w-full text-[11px] font-mono">
+              <thead className="sticky top-0 bg-[#080808] z-10">
+                <tr>
+                  <th className="!px-2 !py-1 text-left">MES</th>
+                  <th className="!px-2 !py-1 text-right">BRUTO</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mesesTabla.map((r) => (
+                  <tr
+                    key={r.key}
+                    className="border-b border-[#111111] hover:bg-[#ff9900]/5"
+                  >
+                    <td className="!px-2 !py-1 text-[#d0d0d0]">{r.label}</td>
+                    <td className="!px-2 !py-1 text-right">
+                      {fmtFull(r.bruto)}
+                    </td>
+                  </tr>
+                ))}
+                {mesesTabla.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={2}
+                      className="text-center text-[#555555] py-4"
+                    >
+                      Sin meses
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
-          <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
-            <PanelHeader
-              title="TIPO DE OPERACIÓN"
-              sub={
-                mesesSel.length
-                  ? mesesSel.map(mesLabel).join(", ")
-                  : cpSel
-                  ? "Total"
-                  : "—"
-              }
-            />
-            <div className="flex-1 min-h-0 overflow-y-auto">
-              {!cpSel ? (
-                <div className="py-6 text-center text-[#555555] text-[11px]">
-                  Seleccioná una contraparte.
-                </div>
-              ) : (
-                <table className="w-full text-[11px] font-mono">
-                  <thead className="sticky top-0 bg-[#080808] z-10">
-                    <tr>
-                      <th className="!px-2 !py-1 text-left">TIPO</th>
-                      <th className="!px-2 !py-1 text-right">BRUTO</th>
-                      <th className="!px-2 !py-1 text-right">%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tiposContraparte.rows.map((r) => (
-                      <tr
-                        key={r.tipo}
-                        className="border-b border-[#111111] hover:bg-[#ff9900]/5"
-                      >
-                        <td className="!px-2 !py-1 text-[#d0d0d0]">{r.tipo}</td>
-                        <td className="!px-2 !py-1 text-right">
-                          {fmtFull(r.bruto)}
-                        </td>
-                        <td className="!px-2 !py-1 text-right text-[#888888]">
-                          {r.share.toFixed(1)}%
-                        </td>
-                      </tr>
-                    ))}
-                    {tiposContraparte.rows.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center text-[#555555] py-4"
-                        >
-                          Sin datos
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
+      {/* Fila 2: Charts acumulados — altura fija, 1 o 2 columnas según monSel */}
+      <div className="border border-[#1a1a1a] bg-[#080808] shrink-0">
+        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+            FLUJO ACUMULADO
+          </span>
+        </div>
+        <div
+          className={`p-2 grid gap-2 ${
+            monSel.length === 2 ? "grid-cols-2" : "grid-cols-1"
+          }`}
+        >
+          {monSel.length === 0 && (
+            <div className="h-[180px] flex items-center justify-center text-[#555555] text-[11px]">
+              Seleccioná al menos una moneda.
             </div>
-          </div>
+          )}
+          {monSel.map((moneda) => {
+            const data = chartDataByMoneda[moneda] || [];
+            const hasData = data.some((d) => d.acum !== 0);
+            const color = moneda === "ARS" ? COLOR_ARS : COLOR_USD;
+            const vals = data.map((d) => d.acum);
+            const yScale = hasData
+              ? niceScale(Math.min(0, ...vals), Math.max(0, ...vals), 4)
+              : { min: 0, max: 1, ticks: [0, 1] };
+            return (
+              <div key={moneda}>
+                <div className="flex items-center px-1 pb-1 text-[10px] tracking-wide">
+                  <span style={{ color }} className="font-semibold">
+                    {moneda}
+                  </span>
+                  <span className="ml-auto text-[#888888]">
+                    Acum:{" "}
+                    <span style={{ color }} className="font-semibold">
+                      {data.length
+                        ? fmtCompact(data[data.length - 1].acum)
+                        : "--"}
+                    </span>
+                  </span>
+                </div>
+                {hasData ? (
+                  <div className="h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={data}
+                        margin={{ top: 4, right: 10, bottom: 20, left: 0 }}
+                      >
+                        <defs>
+                          <linearGradient
+                            id={`grad-${moneda}`}
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor={color}
+                              stopOpacity={0.35}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor={color}
+                              stopOpacity={0.02}
+                            />
+                          </linearGradient>
+                        </defs>
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fill: "#808080", fontSize: 9 }}
+                          axisLine={{ stroke: "#2a2a2a" }}
+                          tickLine={false}
+                          interval={Math.max(
+                            0,
+                            Math.floor(data.length / 8)
+                          )}
+                          angle={-35}
+                          textAnchor="end"
+                          height={24}
+                        />
+                        <YAxis
+                          domain={[yScale.min, yScale.max]}
+                          ticks={yScale.ticks}
+                          tick={{ fill: "#808080", fontSize: 9 }}
+                          axisLine={{ stroke: "#2a2a2a" }}
+                          tickLine={false}
+                          tickFormatter={(v: number) => fmtCompact(v)}
+                          width={55}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "#0e0e0e",
+                            border: "1px solid #2a2a2a",
+                            fontSize: 11,
+                            fontFamily: "JetBrains Mono, monospace",
+                          }}
+                          labelStyle={{ color: "#808080" }}
+                          formatter={(v) => [fmtCompact(Number(v)), moneda]}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="acum"
+                          stroke={color}
+                          strokeWidth={2}
+                          fill={`url(#grad-${moneda})`}
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-[180px] flex items-center justify-center text-[#555555] text-[10px]">
+                    Sin datos en {moneda}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -688,17 +600,25 @@ function Chip({
   );
 }
 
-function PanelHeader({ title, sub }: { title: string; sub?: string }) {
+function MiniChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
-      <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-        {title}
-      </span>
-      {sub && (
-        <span className="ml-auto text-[10px] text-[#888888] truncate max-w-[60%]">
-          {sub}
-        </span>
-      )}
-    </div>
+    <button
+      onClick={onClick}
+      className={`px-1.5 h-[18px] text-[9px] font-semibold tracking-wide border transition-colors ${
+        active
+          ? "bg-[#ff9900] text-black border-[#ff9900]"
+          : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
