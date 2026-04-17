@@ -1,12 +1,15 @@
 import { apiFetch } from "@/lib/api";
-import { Panel } from "@/components/ui";
-import { OpcionesTable, type OpcionDoc } from "@/components/opciones-table";
+import { DerivadosView } from "@/components/derivados-view";
+import type { OpcionDoc } from "@/lib/estrategias";
 
-async function safeFetch<T>(
-  path: string,
-  fallback: T,
-  revalidate = 0
-): Promise<T> {
+interface Meta {
+  tasa: number;
+  vr_local: number;
+  vr_adr: number;
+  updated_at?: string;
+}
+
+async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<T> {
   try {
     return await apiFetch<T>(path, { revalidate });
   } catch {
@@ -15,17 +18,14 @@ async function safeFetch<T>(
 }
 
 export default async function DerivadosPage() {
-  const opciones = await safeFetch<OpcionDoc[]>(
-    "/api/cotizaciones/opciones",
-    [],
-    10
-  );
+  const [opciones, meta] = await Promise.all([
+    safeFetch<OpcionDoc[]>("/api/cotizaciones/opciones", [], 10),
+    safeFetch<Meta>(
+      "/api/cotizaciones/opciones/meta",
+      { tasa: 0.242, vr_local: 0, vr_adr: 0 },
+      30
+    ),
+  ]);
 
-  return (
-    <div className="h-full min-h-0 p-3">
-      <Panel title="OPCIONES GGAL" count={opciones.length}>
-        <OpcionesTable data={opciones} />
-      </Panel>
-    </div>
-  );
+  return <DerivadosView docs={opciones} metaInicial={meta} />;
 }

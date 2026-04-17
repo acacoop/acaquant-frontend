@@ -18,6 +18,7 @@ const CF_CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
 
 interface FetchOpts {
   revalidate?: number;
+  method?: "GET" | "PUT" | "POST" | "DELETE" | "PATCH";
 }
 
 export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
@@ -32,10 +33,11 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
     headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
   }
 
+  const method = opts.method || "GET";
   const init: RequestInit & { next?: { revalidate: number } } =
-    opts.revalidate && opts.revalidate > 0
-      ? { headers, next: { revalidate: opts.revalidate } }
-      : { headers, cache: "no-store" };
+    method === "GET" && opts.revalidate && opts.revalidate > 0
+      ? { method, headers, next: { revalidate: opts.revalidate } }
+      : { method, headers, cache: "no-store" };
 
   const res = await fetch(url, init);
 
