@@ -23,6 +23,13 @@ interface FlujoDoc {
   moneda?: string;
 }
 
+interface ContraparteDoc {
+  cuenta?: string;
+  id_cuenta?: string;
+  nombre?: string;
+  grupo?: string;
+}
+
 const COLOR_ARS = "#094293";
 const COLOR_USD = "#00cc66";
 const MESES = [
@@ -87,6 +94,7 @@ export function ContrapartesView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [flujos, setFlujos] = useState<FlujoDoc[]>([]);
+  const [contrapartes, setContrapartes] = useState<ContraparteDoc[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +106,9 @@ export function ContrapartesView() {
         const json = await res.json();
         if (cancelled) return;
         setFlujos(Array.isArray(json.flujos) ? json.flujos : []);
+        setContrapartes(
+          Array.isArray(json.contrapartes) ? json.contrapartes : []
+        );
         setError(null);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "error");
@@ -110,12 +121,21 @@ export function ContrapartesView() {
     };
   }, []);
 
-  const segmentosDisp = useMemo(
+  // Map contraparte.nombre → grupo (Fondos / ALYC / Bancos / …)
+  const grupoMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of contrapartes) {
+      if (c.nombre && c.grupo) m[c.nombre] = c.grupo;
+    }
+    return m;
+  }, [contrapartes]);
+
+  const gruposDisp = useMemo(
     () =>
       Array.from(
-        new Set(flujos.map((f) => f.segmento).filter(Boolean) as string[])
+        new Set(contrapartes.map((c) => c.grupo).filter(Boolean) as string[])
       ).sort(),
-    [flujos]
+    [contrapartes]
   );
   const monedasDisp = useMemo(
     () =>
@@ -125,7 +145,7 @@ export function ContrapartesView() {
     [flujos]
   );
 
-  const [segSel, setSegSel] = useState<string[]>([]);
+  const [grupoSel, setGrupoSel] = useState<string[]>([]);
   const [monSel, setMonSel] = useState<string[]>([]);
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -133,8 +153,8 @@ export function ContrapartesView() {
   const [monedaTabla, setMonedaTabla] = useState<string>("");
 
   useEffect(() => {
-    if (segmentosDisp.length && segSel.length === 0) setSegSel(segmentosDisp);
-  }, [segmentosDisp, segSel.length]);
+    if (gruposDisp.length && grupoSel.length === 0) setGrupoSel(gruposDisp);
+  }, [gruposDisp, grupoSel.length]);
   useEffect(() => {
     if (monedasDisp.length && monSel.length === 0) setMonSel(monedasDisp);
   }, [monedasDisp, monSel.length]);
@@ -161,11 +181,14 @@ export function ContrapartesView() {
       const mes = f.concertacion.slice(0, 7);
       if (desde && mes < desde) return false;
       if (hasta && mes > hasta) return false;
-      if (f.segmento && !segSel.includes(f.segmento)) return false;
       if (f.moneda && !monSel.includes(f.moneda)) return false;
+      if (grupoSel.length && grupoSel.length !== gruposDisp.length) {
+        const g = f.contraparte ? grupoMap[f.contraparte] : undefined;
+        if (!g || !grupoSel.includes(g)) return false;
+      }
       return true;
     });
-  }, [flujos, desde, hasta, segSel, monSel]);
+  }, [flujos, desde, hasta, monSel, grupoSel, gruposDisp.length, grupoMap]);
 
   // Acumulado por moneda (para los charts abajo)
   const chartDataByMoneda = useMemo(() => {
@@ -279,21 +302,21 @@ export function ContrapartesView() {
               ))}
             </select>
           </Labeled>
-          <Labeled label="Segmento">
+          <Labeled label="Grupo">
             <div className="flex items-center gap-1 h-[26px] flex-wrap">
-              {segmentosDisp.map((s) => (
+              {gruposDisp.map((g) => (
                 <Chip
-                  key={s}
-                  active={segSel.includes(s)}
+                  key={g}
+                  active={grupoSel.includes(g)}
                   onClick={() =>
-                    setSegSel((prev) =>
-                      prev.includes(s)
-                        ? prev.filter((x) => x !== s)
-                        : [...prev, s]
+                    setGrupoSel((prev) =>
+                      prev.includes(g)
+                        ? prev.filter((x) => x !== g)
+                        : [...prev, g]
                     )
                   }
                 >
-                  {s}
+                  {g}
                 </Chip>
               ))}
             </div>
@@ -324,32 +347,35 @@ export function ContrapartesView() {
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
         {/* Contrapartes */}
         <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-              CONTRAPARTES
-            </span>
-            <span className="ml-2 text-[10px] text-[#555555]">
-              ({contrapartesTabla.length})
-            </span>
-            <div className="ml-auto flex items-center gap-1">
-              {monSel.map((m) => (
-                <MiniChip
-                  key={m}
-                  active={monedaTabla === m}
-                  onClick={() => setMonedaTabla(m)}
-                >
-                  {m}
-                </MiniChip>
-              ))}
-            </div>
-          </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
               <thead className="sticky top-0 bg-[#080808] z-10">
-                <tr>
-                  <th className="!px-2 !py-1 text-left">CONTRAPARTE</th>
-                  <th className="!px-2 !py-1 text-right">BRUTO</th>
-                  <th className="!px-2 !py-1 text-right">%</th>
+                <tr className="border-b border-[#1a1a1a]">
+                  <th className="!px-2 !py-1 text-left text-[#ff9900] font-semibold tracking-wide uppercase">
+                    CONTRAPARTE
+                    <span className="ml-1 text-[10px] text-[#555555] font-normal normal-case">
+                      ({contrapartesTabla.length})
+                    </span>
+                  </th>
+                  <th className="!px-2 !py-1 text-right text-[#ff9900] font-semibold tracking-wide uppercase">
+                    BRUTO
+                  </th>
+                  <th className="!px-2 !py-1 text-right text-[#ff9900] font-semibold tracking-wide uppercase">
+                    <div className="flex items-center justify-end gap-1">
+                      <span>%</span>
+                      <span className="ml-1 flex items-center gap-1">
+                        {monSel.map((m) => (
+                          <MiniChip
+                            key={m}
+                            active={monedaTabla === m}
+                            onClick={() => setMonedaTabla(m)}
+                          >
+                            {m}
+                          </MiniChip>
+                        ))}
+                      </span>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
