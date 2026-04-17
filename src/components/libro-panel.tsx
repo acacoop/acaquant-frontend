@@ -87,19 +87,40 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
     return doc?.metrics?.vwap;
   }, [data, selected]);
 
-  const todayTrades = useMemo(() => {
+  const { todayTrades, sessionLabel } = useMemo(() => {
+    if (trades.length === 0) return { todayTrades: [], sessionLabel: "" };
+
+    const sorted = [...trades].sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
     const now = new Date();
     const startOfDay = new Date(
       now.getFullYear(),
       now.getMonth(),
       now.getDate()
     ).getTime();
-    return trades
-      .filter((t) => new Date(t.timestamp).getTime() >= startOfDay)
-      .sort(
-        (a, b) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      );
+    const today = sorted.filter(
+      (t) => new Date(t.timestamp).getTime() >= startOfDay
+    );
+    if (today.length > 0) return { todayTrades: today, sessionLabel: "HOY" };
+
+    const lastTs = new Date(sorted[sorted.length - 1].timestamp);
+    const lastDayStart = new Date(
+      lastTs.getFullYear(),
+      lastTs.getMonth(),
+      lastTs.getDate()
+    ).getTime();
+    const lastDayEnd = lastDayStart + 86_400_000;
+    const lastSession = sorted.filter((t) => {
+      const ts = new Date(t.timestamp).getTime();
+      return ts >= lastDayStart && ts < lastDayEnd;
+    });
+    const label = `${String(lastTs.getDate()).padStart(2, "0")}/${String(
+      lastTs.getMonth() + 1
+    ).padStart(2, "0")}`;
+    return { todayTrades: lastSession, sessionLabel: label };
   }, [trades]);
 
   const tapeTrades = useMemo(() => {
@@ -128,17 +149,34 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
           <span className="text-[10px] text-[#555555]">cargando…</span>
         )}
         <span className="ml-auto text-[10px] text-[#555555]">
-          {todayTrades.length} trades hoy
+          {todayTrades.length} trades {sessionLabel.toLowerCase()}
         </span>
       </div>
 
-      <div className="grid grid-cols-[1fr_220px] gap-2 h-[348px]">
-        <div className="min-w-0 border border-[#1a1a1a] bg-[#0a0a0a]">
-          <LastMinutesChart trades={todayTrades} vwap={vwap} />
+      <div className="grid grid-cols-[1fr_320px] gap-2 h-[348px]">
+        <div className="min-w-0 border border-[#1a1a1a] bg-[#0a0a0a] relative">
+          {todayTrades.length === 0 && !loading ? (
+            <div className="absolute inset-0 flex items-center justify-center text-[#555555] text-[10px]">
+              SIN TRADES
+            </div>
+          ) : (
+            <LastMinutesChart
+              key={selected || "none"}
+              trades={todayTrades}
+              vwap={vwap}
+            />
+          )}
         </div>
         <div className="border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden flex flex-col">
-          <div className="px-2 py-1 border-b border-[#1a1a1a] bg-[#ff9900]/10 text-[10px] text-[#ff9900] tracking-wide font-semibold">
-            TIME &amp; SALES
+          <div className="flex items-center px-2 py-1 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+            <span className="text-[10px] text-[#ff9900] tracking-wide font-semibold">
+              TIME &amp; SALES
+            </span>
+            {sessionLabel && sessionLabel !== "HOY" && (
+              <span className="ml-auto text-[9px] text-[#808080]">
+                {sessionLabel}
+              </span>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto">
             <TimeSalesTape trades={tapeTrades} />
