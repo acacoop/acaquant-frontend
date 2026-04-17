@@ -27,6 +27,22 @@ interface FlujoTicker {
 type Curva = "tasa_fija" | "cer";
 type Metrica = "TEA" | "TEM";
 
+function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: number; ticks: number[] } {
+  if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };
+  if (min === max) return { min: min - 1, max: max + 1, ticks: [min - 1, min, min + 1] };
+  const range = max - min;
+  const roughStep = range / Math.max(1, maxTicks - 1);
+  const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const normalized = roughStep / pow10;
+  const niceStep = normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10;
+  const step = niceStep * pow10;
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let t = niceMin; t <= niceMax + step / 2; t += step) ticks.push(+t.toFixed(10));
+  return { min: niceMin, max: niceMax, ticks };
+}
+
 function logFit(xs: number[], ys: number[]): { a: number; b: number } | null {
   if (xs.length < 2) return null;
   const logs = xs.map(Math.log);
@@ -54,7 +70,7 @@ export function CurvasChart({
 
   const metricaUsada: Metrica = curva === "cer" ? "TEA" : metrica;
 
-  const { puntos, fit, yMin, yMax } = useMemo(() => {
+  const { puntos, fit, yMin, yMax, yTicks, xMin, xMax, xTicks } = useMemo(() => {
     const fw = forwards.find((f) => f.curva === curva);
     const tasas = fw?.tasas || {};
     const vencMap: Record<string, string | undefined> = {};
@@ -96,12 +112,24 @@ export function CurvasChart({
     }
 
     const allY = [...puntos.map((p) => p.y), ...(fit?.map((p) => p.y) || [])];
-    const rango = allY.length ? Math.max(...allY) - Math.min(...allY) : 0;
-    const pad = rango > 0 ? rango * 0.1 : 1.0;
-    const yMin = allY.length ? Math.min(...allY) - pad : 0;
-    const yMax = allY.length ? Math.max(...allY) + pad : 1;
+    const allX = puntos.map((p) => p.Duration);
+    const yScale = allY.length
+      ? niceScale(Math.min(...allY), Math.max(...allY), 6)
+      : { min: 0, max: 1, ticks: [0, 1] };
+    const xScale = allX.length
+      ? niceScale(Math.min(...allX), Math.max(...allX), 7)
+      : { min: 0, max: 1, ticks: [0, 1] };
 
-    return { puntos, fit, yMin, yMax };
+    return {
+      puntos,
+      fit,
+      yMin: yScale.min,
+      yMax: yScale.max,
+      yTicks: yScale.ticks,
+      xMin: xScale.min,
+      xMax: xScale.max,
+      xTicks: xScale.ticks,
+    };
   }, [forwards, flujos, curva, metricaUsada]);
 
   const merged = useMemo(() => {
@@ -150,7 +178,8 @@ export function CurvasChart({
             <XAxis
               dataKey="Duration"
               type="number"
-              domain={["dataMin", "dataMax"]}
+              domain={[xMin, xMax]}
+              ticks={xTicks}
               tick={{ fill: "#808080", fontSize: 10 }}
               axisLine={{ stroke: "#2a2a2a" }}
               tickLine={false}
@@ -159,6 +188,7 @@ export function CurvasChart({
             />
             <YAxis
               domain={[yMin, yMax]}
+              ticks={yTicks}
               tick={{ fill: "#808080", fontSize: 10 }}
               axisLine={{ stroke: "#2a2a2a" }}
               tickLine={false}

@@ -35,6 +35,22 @@ function fmtMesAnio(iso: string): string {
   return `${MESES_CORTOS[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
 }
 
+function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: number; ticks: number[] } {
+  if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };
+  if (min === max) return { min: min - 1, max: max + 1, ticks: [min - 1, min, min + 1] };
+  const range = max - min;
+  const roughStep = range / Math.max(1, maxTicks - 1);
+  const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const normalized = roughStep / pow10;
+  const niceStep = normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10;
+  const step = niceStep * pow10;
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let t = niceMin; t <= niceMax + step / 2; t += step) ticks.push(+t.toFixed(10));
+  return { min: niceMin, max: niceMax, ticks };
+}
+
 export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
   const [vista, setVista] = useState<Vista>("grafico");
 
@@ -59,6 +75,12 @@ export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
     })
     .sort((a, b) => a.vencTs - b.vencTs);
 
+  const xTicks = data.map((d) => d.vencTs);
+  const beVals = data.map((d) => d.be);
+  const yScale = beVals.length
+    ? niceScale(Math.min(...beVals, 3), Math.max(...beVals, 3), 6)
+    : { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5] };
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
@@ -78,6 +100,7 @@ export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
                 dataKey="vencTs"
                 type="number"
                 domain={["dataMin", "dataMax"]}
+                ticks={xTicks}
                 scale="time"
                 tick={{ fill: "#808080", fontSize: 10 }}
                 axisLine={{ stroke: "#2a2a2a" }}
@@ -85,10 +108,12 @@ export function BreakevensBlock({ pares }: { pares: BreakevenPar[] }) {
                 angle={-45}
                 textAnchor="end"
                 height={40}
+                interval={0}
                 tickFormatter={(ts: number) => fmtMesAnio(new Date(ts).toISOString())}
               />
               <YAxis
-                domain={["dataMin - 0.2", "dataMax + 0.2"]}
+                domain={[yScale.min, yScale.max]}
+                ticks={yScale.ticks}
                 tick={{ fill: "#808080", fontSize: 10 }}
                 axisLine={{ stroke: "#2a2a2a" }}
                 tickLine={false}
