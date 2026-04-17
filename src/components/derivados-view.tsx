@@ -34,7 +34,7 @@ export function DerivadosView({
   const [savingTasa, setSavingTasa] = useState(false);
 
   const [strike, setStrike] = useState<number | null>(null);
-  const [categoria, setCategoria] = useState("Spread Alcista");
+  const [categoria, setCategoria] = useState("Cono / Cuna");
   const [selected, setSelected] = useState(0);
   const [detalleTab, setDetalleTab] = useState<DetalleTab>("payoff");
 
