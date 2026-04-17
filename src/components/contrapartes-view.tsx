@@ -137,6 +137,13 @@ export function ContrapartesView() {
       ).sort(),
     [contrapartes]
   );
+  const segmentosDisp = useMemo(
+    () =>
+      Array.from(
+        new Set(flujos.map((f) => f.segmento).filter(Boolean) as string[])
+      ).sort(),
+    [flujos]
+  );
   const monedasDisp = useMemo(
     () =>
       Array.from(
@@ -146,6 +153,7 @@ export function ContrapartesView() {
   );
 
   const [grupoSel, setGrupoSel] = useState<string[]>([]);
+  const [segSel, setSegSel] = useState<string[]>([]);
   const [monSel, setMonSel] = useState<string[]>([]);
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
@@ -155,6 +163,9 @@ export function ContrapartesView() {
   useEffect(() => {
     if (gruposDisp.length && grupoSel.length === 0) setGrupoSel(gruposDisp);
   }, [gruposDisp, grupoSel.length]);
+  useEffect(() => {
+    if (segmentosDisp.length && segSel.length === 0) setSegSel(segmentosDisp);
+  }, [segmentosDisp, segSel.length]);
   useEffect(() => {
     if (monedasDisp.length && monSel.length === 0) setMonSel(monedasDisp);
   }, [monedasDisp, monSel.length]);
@@ -182,13 +193,26 @@ export function ContrapartesView() {
       if (desde && mes < desde) return false;
       if (hasta && mes > hasta) return false;
       if (f.moneda && !monSel.includes(f.moneda)) return false;
+      if (segSel.length && segSel.length !== segmentosDisp.length) {
+        if (!f.segmento || !segSel.includes(f.segmento)) return false;
+      }
       if (grupoSel.length && grupoSel.length !== gruposDisp.length) {
         const g = f.contraparte ? grupoMap[f.contraparte] : undefined;
         if (!g || !grupoSel.includes(g)) return false;
       }
       return true;
     });
-  }, [flujos, desde, hasta, monSel, grupoSel, gruposDisp.length, grupoMap]);
+  }, [
+    flujos,
+    desde,
+    hasta,
+    monSel,
+    segSel,
+    segmentosDisp.length,
+    grupoSel,
+    gruposDisp.length,
+    grupoMap,
+  ]);
 
   // Acumulado por moneda (para los charts abajo)
   const chartDataByMoneda = useMemo(() => {
@@ -275,7 +299,7 @@ export function ContrapartesView() {
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Filtros */}
       <div className="border border-[#1a1a1a] bg-[#080808] p-3 shrink-0">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Labeled label="Desde">
             <select
               value={desde}
@@ -317,6 +341,25 @@ export function ContrapartesView() {
                   }
                 >
                   {g}
+                </Chip>
+              ))}
+            </div>
+          </Labeled>
+          <Labeled label="Segmento">
+            <div className="flex items-center gap-1 h-[26px] flex-wrap">
+              {segmentosDisp.map((s) => (
+                <Chip
+                  key={s}
+                  active={segSel.includes(s)}
+                  onClick={() =>
+                    setSegSel((prev) =>
+                      prev.includes(s)
+                        ? prev.filter((x) => x !== s)
+                        : [...prev, s]
+                    )
+                  }
+                >
+                  {s}
                 </Chip>
               ))}
             </div>
