@@ -3,11 +3,9 @@
 import { useMemo, useState } from "react";
 import { Panel, fmtTs } from "./ui";
 import { OpcionesTableCompact } from "./opciones-table-compact";
-import { VolatilitySmile } from "./volatility-smile";
 import { EstrategiasTabla } from "./estrategias-tabla";
 import { PayoffChart } from "./payoff-chart";
 import { EscenariosTabla } from "./escenarios-tabla";
-import { HistoricoEstrategia } from "./historico-estrategia";
 import {
   buildPorStrike,
   calcularEstrategias,
@@ -22,7 +20,7 @@ interface Meta {
   updated_at?: string;
 }
 
-type DetalleTab = "payoff" | "escenarios" | "historico";
+type DetalleTab = "payoff" | "escenarios";
 
 export function DerivadosView({
   docs,
@@ -159,9 +157,8 @@ export function DerivadosView({
         </span>
       </div>
 
-      {/* 2x2 grid */}
+      {/* Layout: columna izq (opciones + estrategias) | columna der full detalle */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Left column: options table + strategies */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
           <Panel title="OPCIONES GGAL" count={docs.length} fill>
             <OpcionesTableCompact data={docs} />
@@ -181,11 +178,7 @@ export function DerivadosView({
           </Panel>
         </div>
 
-        {/* Right column: smile + detail */}
-        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
-          <Panel title="VOLATILITY SMILE" fill>
-            <VolatilitySmile data={docs} />
-          </Panel>
+        <div className="min-w-0 min-h-0">
           <Panel
             title={
               selRow
@@ -209,12 +202,6 @@ export function DerivadosView({
                 >
                   ESCENARIOS
                 </TabBtn>
-                <TabBtn
-                  active={detalleTab === "historico"}
-                  onClick={() => setDetalleTab("historico")}
-                >
-                  HISTÓRICO
-                </TabBtn>
               </div>
             }
           >
@@ -224,18 +211,12 @@ export function DerivadosView({
               </p>
             ) : detalleTab === "payoff" ? (
               <PayoffChart legs={selLegs} spot={spot} costo={selCosto || 0} />
-            ) : detalleTab === "escenarios" ? (
+            ) : (
               <EscenariosTabla
                 legs={selLegs}
                 spot={spot}
                 costo={selCosto || 0}
                 tasa={meta.tasa}
-              />
-            ) : (
-              <HistoricoEstrategia
-                key={selRow.nombre}
-                legs={selLegs}
-                costoActual={selCosto || 0}
               />
             )}
           </Panel>

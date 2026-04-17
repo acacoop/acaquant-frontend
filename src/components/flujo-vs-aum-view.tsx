@@ -29,7 +29,7 @@ const MESES = [
 ];
 
 const COLOR_AUM = "#ff9900";
-const COLOR_POS = "#00cc66";
+const COLOR_POS = "#4a9eff";
 const COLOR_NEG = "#ff3333";
 
 interface Serie {
@@ -190,7 +190,7 @@ export function FlujoVsAumView() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] p-2 overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 max-h-[520px] border border-[#1a1a1a] bg-[#080808] p-2 overflow-hidden flex flex-col">
         {loadingSerie ? (
           <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">
             Cargando…
@@ -233,7 +233,11 @@ export function FlujoVsAumView() {
                   tickLine={false}
                   tickFormatter={(v: number) => fmtCompact(v)}
                   width={60}
-                  domain={["dataMin", "dataMax"]}
+                  domain={[
+                    (dataMin: number) => dataMin * 0.95,
+                    (dataMax: number) => dataMax * 1.05,
+                  ]}
+                  allowDataOverflow={false}
                 />
                 <Tooltip
                   contentStyle={{
