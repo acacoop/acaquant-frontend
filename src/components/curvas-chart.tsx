@@ -172,12 +172,13 @@ export function CurvasChart({
                 fontFamily: "JetBrains Mono, monospace",
               }}
               labelStyle={{ color: "#808080" }}
-              formatter={(value: number | string, name: string) => {
-                if (name === "scatterY") return [`${Number(value).toFixed(2)}%`, metricaUsada];
-                if (name === "fitY") return [`${Number(value).toFixed(2)}%`, "Fit log"];
-                return [value, name];
+              formatter={(value, name) => {
+                const v = Number(value);
+                if (name === "scatterY") return [`${v.toFixed(2)}%`, metricaUsada];
+                if (name === "fitY") return [`${v.toFixed(2)}%`, "Fit log"];
+                return [String(value), String(name)];
               }}
-              labelFormatter={(v: number) => `Duration ${Number(v).toFixed(2)} años`}
+              labelFormatter={(v) => `Duration ${Number(v).toFixed(2)} años`}
             />
             {fit && (
               <Line
