@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Line,
   LineChart,
@@ -84,6 +84,9 @@ export function ForwardsPanel({
 
   const [paresSel, setParesSel] = useState<string[]>([]);
   const [parSearch, setParSearch] = useState("");
+  const [dropOpen, setDropOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
 
   const paresEfectivos = useMemo(() => {
     if (paresSel.length) return paresSel;
@@ -117,6 +120,19 @@ export function ForwardsPanel({
   };
 
   const hayHistorico = histCurva.length > 0 && paresDisp.length > 0;
+
+  const filteredPares = useMemo(() => {
+    const q = parSearch.toLowerCase();
+    if (!q) return paresDisp;
+    return paresDisp.filter((par) => {
+      const [tL, tC] = par.split("→");
+      return (
+        shortTicker(tL).toLowerCase().includes(q) ||
+        shortTicker(tC).toLowerCase().includes(q) ||
+        par.toLowerCase().includes(q)
+      );
+    });
+  }, [paresDisp, parSearch]);
 
   return (
     <div>
@@ -165,46 +181,76 @@ export function ForwardsPanel({
         </div>
       ) : (
         <div className="h-[380px] flex flex-col gap-2 min-h-0">
-          <div className="shrink-0 border border-[#1a1a1a] p-1 flex flex-col gap-1">
-            <input
-              type="text"
-              value={parSearch}
-              onChange={(e) => setParSearch(e.target.value)}
-              placeholder="buscar par… ej: T30J6"
-              className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-full"
-            />
-            <div className="flex flex-wrap gap-1 max-h-[60px] overflow-y-auto">
-              {paresDisp
-                .filter((par) => {
-                  if (!parSearch) return true;
-                  const q = parSearch.toLowerCase();
-                  const [tL, tC] = par.split("→");
-                  return (
-                    shortTicker(tL).toLowerCase().includes(q) ||
-                    shortTicker(tC).toLowerCase().includes(q) ||
-                    par.toLowerCase().includes(q)
-                  );
-                })
-                .map((par) => {
-                  const activo = paresEfectivos.includes(par);
+          <div className="shrink-0 flex flex-col gap-1">
+            {paresEfectivos.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {paresEfectivos.map((par, i) => {
                   const [tLargo, tCorto] = par.split("→");
-                  const color = PALETA[paresEfectivos.indexOf(par) % PALETA.length];
+                  const color = PALETA[i % PALETA.length];
                   return (
-                    <button
+                    <span
                       key={par}
-                      onClick={() => togglePar(par)}
-                      className={`text-[10px] px-1.5 py-0.5 border font-mono transition-colors ${
-                        activo
-                          ? "text-black border-transparent"
-                          : "bg-transparent text-[#707070] border-[#2a2a2a] hover:border-[#ff9900] hover:text-[#ff9900]"
-                      }`}
-                      style={activo ? { backgroundColor: color, borderColor: color } : undefined}
-                      title={par}
+                      className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 font-mono"
+                      style={{ backgroundColor: `${color}22`, border: `1px solid ${color}`, color }}
                     >
                       {shortTicker(tLargo)}→{shortTicker(tCorto)}
-                    </button>
+                      <button
+                        onClick={() => togglePar(par)}
+                        className="opacity-60 hover:opacity-100 leading-none ml-0.5"
+                      >
+                        ×
+                      </button>
+                    </span>
                   );
                 })}
+              </div>
+            )}
+            <div className="relative">
+              <input
+                ref={searchRef}
+                type="text"
+                value={parSearch}
+                onFocus={() => setDropOpen(true)}
+                onChange={(e) => { setParSearch(e.target.value); setDropOpen(true); }}
+                onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setDropOpen(false);
+                  if (e.key === "Enter" && filteredPares.length > 0) {
+                    togglePar(filteredPares[0]);
+                    setParSearch("");
+                    setDropOpen(false);
+                  }
+                }}
+                placeholder="agregar par… ej: TX26"
+                className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-full"
+              />
+              {dropOpen && filteredPares.length > 0 && (
+                <div
+                  ref={dropRef}
+                  className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[180px] overflow-y-auto w-full"
+                >
+                  {filteredPares.map((par) => {
+                    const activo = paresEfectivos.includes(par);
+                    const [tLargo, tCorto] = par.split("→");
+                    return (
+                      <div
+                        key={par}
+                        onMouseDown={() => {
+                          togglePar(par);
+                          setParSearch("");
+                          setDropOpen(false);
+                        }}
+                        className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${
+                          activo ? "text-[#ff9900]" : "text-[#d0d0d0]"
+                        }`}
+                      >
+                        <span className="w-3 text-center">{activo ? "✓" : ""}</span>
+                        {shortTicker(tLargo)}→{shortTicker(tCorto)}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex-1 min-h-0">

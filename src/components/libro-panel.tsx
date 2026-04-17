@@ -254,6 +254,7 @@ function LastMinutesChart({
   const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const vwapLineRef = useRef<IPriceLine | null>(null);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -303,6 +304,7 @@ function LastMinutesChart({
     seriesRef.current = series;
     volumeSeriesRef.current = volumeSeries;
 
+    hasLoadedRef.current = false;
     return () => {
       chart.remove();
       chartRef.current = null;
@@ -365,7 +367,10 @@ function LastMinutesChart({
       });
     }
 
-    if (data.length > 0) chartRef.current?.timeScale().fitContent();
+    if (data.length > 0 && !hasLoadedRef.current) {
+      chartRef.current?.timeScale().fitContent();
+      hasLoadedRef.current = true;
+    }
   }, [trades, vwap]);
 
   return <div ref={containerRef} className="w-full h-full" />;
