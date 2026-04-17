@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CashFlowView } from "./cashflow-view";
+import { ContrapartesView } from "./contrapartes-view";
 
 type Tab = "cashflow" | "contrapartes";
 
@@ -23,13 +24,7 @@ export function OperacionesView() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "cashflow" ? (
-          <CashFlowView />
-        ) : (
-          <div className="h-full flex items-center justify-center text-[#555555] text-sm">
-            Próximamente.
-          </div>
-        )}
+        {tab === "cashflow" ? <CashFlowView /> : <ContrapartesView />}
       </div>
     </div>
   );
