@@ -180,31 +180,25 @@ export function ForwardsPanel({
           )}
         </div>
       ) : (
-        <div className="h-[380px] flex flex-col gap-2 min-h-0">
-          <div className="shrink-0 flex flex-col gap-1">
-            {paresEfectivos.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {paresEfectivos.map((par, i) => {
-                  const [tLargo, tCorto] = par.split("→");
-                  const color = PALETA[i % PALETA.length];
-                  return (
-                    <span
-                      key={par}
-                      className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 font-mono"
-                      style={{ backgroundColor: `${color}22`, border: `1px solid ${color}`, color }}
-                    >
-                      {shortTicker(tLargo)}→{shortTicker(tCorto)}
-                      <button
-                        onClick={() => togglePar(par)}
-                        className="opacity-60 hover:opacity-100 leading-none ml-0.5"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
+        <div className="h-[380px] flex gap-2 min-h-0">
+          {/* Sidebar: selector de pares */}
+          <div className="w-[155px] shrink-0 flex flex-col gap-1 min-h-0">
+            <div className="flex flex-wrap gap-1 overflow-y-auto max-h-[160px]">
+              {paresEfectivos.map((par, i) => {
+                const [tLargo, tCorto] = par.split("→");
+                const color = PALETA[i % PALETA.length];
+                return (
+                  <span
+                    key={par}
+                    className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 font-mono"
+                    style={{ backgroundColor: `${color}22`, border: `1px solid ${color}`, color }}
+                  >
+                    {shortTicker(tLargo)}→{shortTicker(tCorto)}
+                    <button onClick={() => togglePar(par)} className="opacity-60 hover:opacity-100 leading-none ml-0.5">×</button>
+                  </span>
+                );
+              })}
+            </div>
             <div className="relative">
               <input
                 ref={searchRef}
@@ -221,13 +215,13 @@ export function ForwardsPanel({
                     setDropOpen(false);
                   }
                 }}
-                placeholder="agregar par… ej: TX26"
+                placeholder="agregar par…"
                 className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-full"
               />
               {dropOpen && filteredPares.length > 0 && (
                 <div
                   ref={dropRef}
-                  className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[180px] overflow-y-auto w-full"
+                  className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[200px] overflow-y-auto w-full"
                 >
                   {filteredPares.map((par) => {
                     const activo = paresEfectivos.includes(par);
@@ -235,14 +229,8 @@ export function ForwardsPanel({
                     return (
                       <div
                         key={par}
-                        onMouseDown={() => {
-                          togglePar(par);
-                          setParSearch("");
-                          setDropOpen(false);
-                        }}
-                        className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${
-                          activo ? "text-[#ff9900]" : "text-[#d0d0d0]"
-                        }`}
+                        onMouseDown={() => { togglePar(par); setParSearch(""); setDropOpen(false); }}
+                        className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${activo ? "text-[#ff9900]" : "text-[#d0d0d0]"}`}
                       >
                         <span className="w-3 text-center">{activo ? "✓" : ""}</span>
                         {shortTicker(tLargo)}→{shortTicker(tCorto)}
@@ -253,7 +241,8 @@ export function ForwardsPanel({
               )}
             </div>
           </div>
-          <div className="flex-1 min-h-0">
+          {/* Chart: ocupa el resto */}
+          <div className="flex-1 min-h-0 min-w-0">
             {paresEfectivos.length === 0 || chartData.length === 0 ? (
               <p className="text-[#555555] text-xs py-4 text-center">
                 Seleccioná al menos un par.

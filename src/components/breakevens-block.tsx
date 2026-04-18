@@ -31,7 +31,6 @@ interface BreakevenHistDoc {
   pares: BreakevenPar[];
 }
 
-type Vista = "grafico" | "tabla";
 type Modo = "live" | "hist";
 
 const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -73,7 +72,6 @@ export function BreakevensBlock({
   historico?: BreakevenHistDoc[];
 }) {
   const [modo, setModo] = useState<Modo>("live");
-  const [vista, setVista] = useState<Vista>("grafico");
 
   const fechasOrdenadas = useMemo(
     () =>
@@ -113,13 +111,6 @@ export function BreakevensBlock({
         >
           HISTÓRICO
         </FilterBtn>
-        <span className="w-px h-3 bg-[#2a2a2a] mx-1" />
-        <FilterBtn active={vista === "grafico"} onClick={() => setVista("grafico")}>
-          GRAFICO
-        </FilterBtn>
-        <FilterBtn active={vista === "tabla"} onClick={() => setVista("tabla")}>
-          TABLA
-        </FilterBtn>
       </div>
 
       {modo === "hist" && hayHistorico && (
@@ -139,15 +130,50 @@ export function BreakevensBlock({
         </div>
       )}
 
-      <div className="flex-1 min-h-0">
-        <BreakevensRender pares={paresMostrar} vista={vista} />
+      <div className="flex-1 min-h-0 grid grid-cols-[auto_1fr] gap-3 min-w-0">
+        <BreakevensTabla pares={paresMostrar} />
+        <BreakevensGrafico pares={paresMostrar} />
       </div>
     </div>
   );
 }
 
-function BreakevensRender({ pares, vista }: { pares: BreakevenPar[]; vista: Vista }) {
+function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
+  if (pares.length === 0) return null;
+  return (
+    <div className="overflow-y-auto shrink-0">
+      <table>
+        <thead>
+          <tr>
+            <th>LECAP</th>
+            <th>CER</th>
+            <th className="text-right">DÍAS</th>
+            <th className="text-right">BE MEN.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pares.map((p) => {
+            const be = p.breakeven_mensual * 100;
+            return (
+              <tr key={p.n}>
+                <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
+                <td className="text-[#808080]">{shortTicker(p.cer)}</td>
+                <td className="text-right text-[#808080]">{p.dias}</td>
+                <td className={`text-right font-bold ${be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"}`}>
+                  {be.toFixed(2)}%
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BreakevensGrafico({ pares }: { pares: BreakevenPar[] }) {
   const vpKey = useViewportKey();
+
   if (pares.length === 0) {
     return (
       <p className="text-[#555555] text-xs py-4 text-center">
@@ -162,7 +188,6 @@ function BreakevensRender({ pares, vista }: { pares: BreakevenPar[]; vista: Vist
       const d = new Date(p.fecha_vencimiento);
       return {
         vencTs: d.getTime(),
-        vencLabel: fmtMesAnio(p.fecha_vencimiento),
         be: +(p.breakeven_mensual * 100).toFixed(2),
         ticker: shortTicker(p.lecap),
       };
@@ -175,102 +200,49 @@ function BreakevensRender({ pares, vista }: { pares: BreakevenPar[]; vista: Vist
     ? niceScale(Math.min(...beVals, 3), Math.max(...beVals, 3), 6)
     : { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5] };
 
-  if (vista === "grafico") {
-    return (
-      <div className="h-full min-h-0">
-        <ResponsiveContainer key={vpKey} width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
-            <XAxis
-              dataKey="vencTs"
-              type="number"
-              domain={["dataMin", "dataMax"]}
-              ticks={xTicks}
-              scale="time"
-              tick={{ fill: "#808080", fontSize: 10 }}
-              axisLine={{ stroke: "#2a2a2a" }}
-              tickLine={false}
-              angle={-45}
-              textAnchor="end"
-              height={40}
-              interval={0}
-              tickFormatter={(ts: number) => fmtMesAnio(new Date(ts).toISOString())}
-            />
-            <YAxis
-              domain={[yScale.min, yScale.max]}
-              ticks={yScale.ticks}
-              tick={{ fill: "#808080", fontSize: 10 }}
-              axisLine={{ stroke: "#2a2a2a" }}
-              tickLine={false}
-              tickFormatter={(v: number) => `${v.toFixed(1)}%`}
-            />
-            <ReferenceLine y={3} stroke="#ff3333" strokeDasharray="6 3" strokeOpacity={0.5} />
-            <Tooltip
-              contentStyle={{
-                background: "#0e0e0e",
-                border: "1px solid #2a2a2a",
-                fontSize: 11,
-                fontFamily: "JetBrains Mono, monospace",
-              }}
-              labelStyle={{ color: "#808080" }}
-              formatter={(value, name) => {
-                if (name === "be") return [`${Number(value).toFixed(2)}%`, "BE Mensual"];
-                return [String(value), String(name)];
-              }}
-              labelFormatter={(ts) => fmtMesAnio(new Date(Number(ts)).toISOString())}
-            />
-            <Line
-              dataKey="be"
-              type="monotone"
-              stroke="#ff9900"
-              strokeWidth={2}
-              dot={false}
-              isAnimationActive={false}
-            />
-            <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
-              <LabelList
-                dataKey="ticker"
-                position="top"
-                fill="#aaaaaa"
-                style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-              />
-            </Scatter>
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full min-h-0 overflow-y-auto">
-      <table>
-        <thead>
-          <tr>
-            <th>LECAP</th>
-            <th>CER</th>
-            <th className="text-right">DIAS</th>
-            <th className="text-right">BE MENSUAL</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pares.map((p) => {
-            const be = p.breakeven_mensual * 100;
-            return (
-              <tr key={p.n}>
-                <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
-                <td className="text-[#808080]">{shortTicker(p.cer)}</td>
-                <td className="text-right">{p.dias}</td>
-                <td
-                  className={`text-right font-bold ${
-                    be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"
-                  }`}
-                >
-                  {be.toFixed(2)}%
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="h-full min-h-0 min-w-0">
+      <ResponsiveContainer key={vpKey} width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
+          <XAxis
+            dataKey="vencTs"
+            type="number"
+            domain={["dataMin", "dataMax"]}
+            ticks={xTicks}
+            scale="time"
+            tick={{ fill: "#808080", fontSize: 10 }}
+            axisLine={{ stroke: "#2a2a2a" }}
+            tickLine={false}
+            angle={-45}
+            textAnchor="end"
+            height={40}
+            interval={0}
+            tickFormatter={(ts: number) => fmtMesAnio(new Date(ts).toISOString())}
+          />
+          <YAxis
+            domain={[yScale.min, yScale.max]}
+            ticks={yScale.ticks}
+            tick={{ fill: "#808080", fontSize: 10 }}
+            axisLine={{ stroke: "#2a2a2a" }}
+            tickLine={false}
+            tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+          />
+          <ReferenceLine y={3} stroke="#ff3333" strokeDasharray="6 3" strokeOpacity={0.5} />
+          <Tooltip
+            contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+            labelStyle={{ color: "#808080" }}
+            formatter={(value, name) => {
+              if (name === "be") return [`${Number(value).toFixed(2)}%`, "BE Mensual"];
+              return [String(value), String(name)];
+            }}
+            labelFormatter={(ts) => fmtMesAnio(new Date(Number(ts)).toISOString())}
+          />
+          <Line dataKey="be" type="monotone" stroke="#ff9900" strokeWidth={2} dot={false} isAnimationActive={false} />
+          <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
+            <LabelList dataKey="ticker" position="top" fill="#aaaaaa" style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }} />
+          </Scatter>
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }
