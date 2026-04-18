@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Cuenta {
   id_cuenta: string;
@@ -11,6 +10,25 @@ interface Cuenta {
 interface ResumeData {
   cuentas: Cuenta[];
   mes_actual: Record<string, number>;
+}
+
+interface Posicion {
+  unidad: string;
+  ticker: string;
+  emisor: string;
+  clase_activo: string;
+  cartera: string;
+  calificacion: string;
+  vencimiento: string | null;
+  cantidad: number;
+  precio: number;
+  valuacion: number;
+  pct: number;
+}
+
+interface DetalleData {
+  posiciones: Posicion[];
+  total: number;
 }
 
 interface Props {
@@ -40,12 +58,22 @@ function fmtFull(n: number): string {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 }
 
+function fmtVto(v: string | null): string {
+  if (!v) return "-";
+  const s = String(v).slice(0, 10);
+  const [y, m, d] = s.split("-");
+  return `${d}/${m}/${String(y).slice(-2)}`;
+}
+
 export function PortfolioView({ mep, a3500 }: Props) {
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
-  const [data, setData] = useState<ResumeData | null>(null);
+  const [resumen, setResumen] = useState<ResumeData | null>(null);
+  const [detalle, setDetalle] = useState<DetalleData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [carteraFiltro, setCarteraFiltro] = useState<string | null>(null);
 
+  // Cargar lista de cuentas
   useEffect(() => {
     fetch("/api/portfolio/resumen")
       .then((r) => r.json())
@@ -58,25 +86,30 @@ export function PortfolioView({ mep, a3500 }: Props) {
       .catch(console.error);
   }, []);
 
+  // Cargar datos al cambiar cuenta
   useEffect(() => {
     if (!selectedId) return;
     setLoading(true);
-    fetch(`/api/portfolio/resumen?id_cuenta=${encodeURIComponent(selectedId)}`)
-      .then((r) => r.json())
-      .then((d: ResumeData) => {
-        setData(d);
-        if (d.cuentas?.length) setCuentas(d.cuentas);
+    setCarteraFiltro(null);
+    Promise.all([
+      fetch(`/api/portfolio/resumen?id_cuenta=${encodeURIComponent(selectedId)}`).then((r) => r.json()),
+      fetch(`/api/portfolio/detalle?id_cuenta=${encodeURIComponent(selectedId)}`).then((r) => r.json()),
+    ])
+      .then(([res, det]: [ResumeData, DetalleData]) => {
+        setResumen(res);
+        if (res.cuentas?.length) setCuentas(res.cuentas);
+        setDetalle(det);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [selectedId]);
 
-  const mesActual  = data?.mes_actual ?? {};
+  const mesActual = resumen?.mes_actual ?? {};
   const totalActual = Object.values(mesActual).reduce((a, b) => a + b, 0);
-
-  const donutData = Object.entries(mesActual)
-    .filter(([, v]) => v > 0)
-    .map(([name, value]) => ({ name, value }));
+  const posiciones = detalle?.posiciones ?? [];
+  const posFiltradas = carteraFiltro
+    ? posiciones.filter((p) => p.cartera === carteraFiltro)
+    : posiciones;
 
   const hoy = new Date().toLocaleDateString("es-AR", {
     day: "2-digit", month: "2-digit", year: "numeric",
@@ -88,8 +121,10 @@ export function PortfolioView({ mep, a3500 }: Props) {
     { label: "VALUACIÓN ARS", value: totalActual > 0 ? fmtARS(totalActual) : "--" },
     { label: "VAL A3500",    value: totalActual > 0 && a3500 > 0 ? fmtARS(totalActual / a3500) : "--" },
     { label: "VAL USD MEP",  value: totalActual > 0 && mep > 0 ? fmtARS(totalActual / mep) : "--" },
-    { label: "POSICIONES", value: Object.keys(mesActual).length > 0 ? String(Object.keys(mesActual).length) : "--" },
+    { label: "POSICIONES",   value: posiciones.length > 0 ? String(posiciones.length) : "--" },
   ];
+
+  const carteras = Object.entries(mesActual).filter(([, v]) => v > 0);
 
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
@@ -121,120 +156,114 @@ export function PortfolioView({ mep, a3500 }: Props) {
         ))}
       </div>
 
-      {/* Donut + Tablas */}
-      <div className="flex-1 min-h-0 grid grid-cols-[1fr_1fr] gap-3">
-        {/* Donut */}
+      {/* Main: filtro cartera (izq) + tabla posiciones (der) */}
+      <div className="flex-1 min-h-0 grid grid-cols-[180px_1fr] gap-3">
+
+        {/* Panel izquierdo: resumen por cartera + filtro */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
           <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">COMPOSICIÓN</span>
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">MES ACTUAL</span>
           </div>
-          <div className="flex-1 min-h-0">
-            {donutData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={donutData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius="45%"
-                    outerRadius="70%"
-                    paddingAngle={2}
-                    isAnimationActive={false}
-                  >
-                    {donutData.map((entry) => (
-                      <Cell key={entry.name} fill={colorFor(entry.name)} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                    formatter={(v, name) => [
-                      `${fmtARS(Number(v))}  (${totalActual > 0 ? ((Number(v) / totalActual) * 100).toFixed(1) : 0}%)`,
-                      String(name),
-                    ]}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-[#555555] text-xs py-4 text-center">SIN DATOS</p>
-            )}
-          </div>
-          <div className="px-4 pb-3 flex flex-wrap gap-x-5 gap-y-1 shrink-0">
-            {donutData.map(({ name, value }) => (
-              <div key={name} className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colorFor(name) }} />
-                <span className="text-[10px] text-[#808080] font-mono">
-                  {name.replace("CARTERA ", "")}
-                  {totalActual > 0 ? ` ${((value / totalActual) * 100).toFixed(1)}%` : ""}
-                </span>
-              </div>
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1">
+            <button
+              onClick={() => setCarteraFiltro(null)}
+              className={`w-full text-left px-2 py-1.5 text-[10px] font-mono border transition-colors ${
+                carteraFiltro === null
+                  ? "border-[#ff9900]/50 bg-[#ff9900]/10 text-[#ff9900]"
+                  : "border-[#1a1a1a] text-[#808080] hover:border-[#2a2a2a] hover:text-[#d0d0d0]"
+              }`}
+            >
+              <div className="font-semibold">TODAS</div>
+              <div className="text-[11px] mt-0.5">{fmtARS(totalActual)}</div>
+            </button>
+
+            {carteras.map(([cartera, monto]) => (
+              <button
+                key={cartera}
+                onClick={() => setCarteraFiltro(carteraFiltro === cartera ? null : cartera)}
+                className={`w-full text-left px-2 py-1.5 text-[10px] font-mono border transition-colors ${
+                  carteraFiltro === cartera
+                    ? "border-transparent"
+                    : "border-[#1a1a1a] text-[#808080] hover:border-[#2a2a2a] hover:text-[#d0d0d0]"
+                }`}
+                style={
+                  carteraFiltro === cartera
+                    ? { backgroundColor: `${colorFor(cartera)}18`, borderColor: colorFor(cartera), color: colorFor(cartera) }
+                    : undefined
+                }
+              >
+                <div className="flex items-center gap-1.5 font-semibold">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colorFor(cartera) }} />
+                  {cartera.replace("CARTERA ", "")}
+                </div>
+                <div className="text-[11px] mt-0.5 ml-3.5">{fmtARS(monto)}</div>
+                <div className="text-[9px] mt-0.5 ml-3.5 opacity-60">
+                  {totalActual > 0 ? `${((monto / totalActual) * 100).toFixed(1)}%` : ""}
+                </div>
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Tabla mes actual */}
-        <CartTable title="MES ACTUAL" breakdown={mesActual} total={totalActual} />
-      </div>
-    </div>
-  );
-}
-
-function CartTable({
-  title, breakdown, total,
-}: {
-  title: string;
-  breakdown: Record<string, number>;
-  total: number;
-}) {
-  const entries = Object.entries(breakdown).filter(([, v]) => v > 0);
-
-  return (
-    <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">{title}</span>
-      </div>
-      <div className="overflow-y-auto flex-1">
-        <table>
-          <thead>
-            <tr>
-              <th>CARTERA</th>
-              <th className="text-right">MONTO ARS</th>
-              <th className="text-right">POND.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map(([cartera, monto]) => (
-              <tr key={cartera}>
-                <td>
-                  <span
-                    className="w-2 h-2 rounded-full inline-block mr-2"
-                    style={{ backgroundColor: colorFor(cartera) }}
-                  />
-                  {cartera.replace("CARTERA ", "")}
-                </td>
-                <td className="text-right font-mono">
-                  {monto.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-                </td>
-                <td className="text-right text-[#808080]">
-                  {total > 0 ? `${((monto / total) * 100).toFixed(1)}%` : "--"}
-                </td>
-              </tr>
-            ))}
-            {entries.length > 0 && (
-              <tr className="border-t border-[#2a2a2a]">
-                <td className="text-[#ff9900] font-semibold">TOTAL</td>
-                <td className="text-right font-mono font-semibold text-[#d0d0d0]">
-                  {total.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-                </td>
-                <td className="text-right text-[#808080]">100%</td>
-              </tr>
+        {/* Panel derecho: tabla de posiciones */}
+        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              COMPOSICIÓN
+              {carteraFiltro && (
+                <span className="ml-2 text-[#808080] font-normal normal-case">
+                  — {carteraFiltro.replace("CARTERA ", "")}
+                </span>
+              )}
+            </span>
+            <span className="ml-auto text-[10px] text-[#555555]">
+              {posFiltradas.length} posición{posFiltradas.length !== 1 ? "es" : ""}
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {posFiltradas.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>TICKER</th>
+                    <th>EMISOR</th>
+                    <th>CLASE</th>
+                    <th>CARTERA</th>
+                    <th>CALIF.</th>
+                    <th>VTO.</th>
+                    <th className="text-right">CANTIDAD</th>
+                    <th className="text-right">PRECIO</th>
+                    <th className="text-right">VALUACIÓN</th>
+                    <th className="text-right">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {posFiltradas.map((p, i) => (
+                    <tr key={i}>
+                      <td className="text-[#ff9900] font-semibold">{p.ticker}</td>
+                      <td className="text-[#808080]">{p.emisor}</td>
+                      <td>{p.clase_activo}</td>
+                      <td>
+                        <span className="w-1.5 h-1.5 rounded-full inline-block mr-1" style={{ backgroundColor: colorFor(p.cartera) }} />
+                        {p.cartera.replace("CARTERA ", "")}
+                      </td>
+                      <td className="text-[#808080]">{p.calificacion}</td>
+                      <td className="text-[#808080]">{fmtVto(p.vencimiento)}</td>
+                      <td className="text-right font-mono">{p.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</td>
+                      <td className="text-right font-mono">{p.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 })}</td>
+                      <td className="text-right font-mono">{p.valuacion.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                      <td className="text-right text-[#808080]">{p.pct.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-[#555555] text-xs py-4 text-center">
+                {loading ? "Cargando…" : "SIN DATOS"}
+              </p>
             )}
-            {entries.length === 0 && (
-              <tr>
-                <td colSpan={3} className="text-center text-[#555555] py-4">SIN DATOS</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
     </div>
   );
