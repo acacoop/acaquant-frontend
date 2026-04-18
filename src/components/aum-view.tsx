@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 
 interface SeriePoint {
@@ -27,6 +30,146 @@ interface SnapshotRow {
 }
 
 const BRAND_BLUE = "#094293";
+
+// ── Tasa Fija ─────────────────────────────────────────────────────────────────
+
+interface TFCuenta { cuenta: string; id_cuenta: string; valuacion: number; cantidad: number; cobro_proyectado: number }
+interface TFTicker {
+  ticker: string; fecha_vencimiento: string | null;
+  flujo_vencimiento: number; valuacion: number; cantidad: number;
+  cobro_proyectado: number; cuentas: TFCuenta[];
+}
+interface TFData { fecha: string | null; total_valuacion: number; total_cobro: number; tickers: TFTicker[] }
+
+function fmtVto(s: string | null): string {
+  if (!s) return "-";
+  const [y, m, d] = s.slice(0, 10).split("-");
+  return `${d}/${m}/${y.slice(-2)}`;
+}
+
+function TabTasaFija() {
+  const [data, setData]           = useState<TFData | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [selTicker, setSelTicker] = useState<string | null>(null);
+  const [verVN, setVerVN]         = useState(false);
+
+  useEffect(() => {
+    fetch("/api/portfolio/tasa-fija", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: TFData) => { setData(d); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Cargando…</div>;
+  if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Sin posiciones de Tasa Fija.</div>;
+
+  const tickers = data.tickers;
+  const tickerSel = selTicker ? tickers.find((t) => t.ticker === selTicker) ?? null : null;
+
+  const colSrc  = verVN ? "cantidad"  : "valuacion";
+  const colLbl  = verVN ? "VN"        : "VALUACIÓN";
+  const fmtCol  = verVN
+    ? (v: number) => v.toLocaleString("es-AR", { maximumFractionDigits: 2 })
+    : (v: number) => v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+
+  const chartData = tickers
+    .filter((t) => t.cobro_proyectado > 0 && t.fecha_vencimiento)
+    .map((t) => ({ fecha: fmtVto(t.fecha_vencimiento), monto: t.cobro_proyectado, ticker: t.ticker }));
+
+  return (
+    <div className="h-full flex flex-col gap-3 p-3 overflow-hidden min-h-0">
+      {/* KPIs + toggle */}
+      <div className="flex items-center gap-3 shrink-0">
+        <Kpi label="VALUACIÓN ACTUAL" value={fmtCompact(data.total_valuacion)} accent={BRAND_BLUE} />
+        <Kpi label="COBRO PROYECTADO" value={fmtCompact(data.total_cobro)} accent="#00cc66" />
+        <Kpi label="FECHA SNAPSHOT"   value={fmtVto(data.fecha)} />
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[10px] text-[#555555]">VALOR NOMINAL</span>
+          <button
+            onClick={() => setVerVN((v) => !v)}
+            className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[#ff9900]" : "bg-[#2a2a2a]"}`}
+          >
+            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${verVN ? "translate-x-4" : "translate-x-0.5"}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Tabla tickers + detalle cuentas */}
+      <div className="grid grid-cols-[1fr_1fr] gap-3 min-h-0" style={{ height: "38%" }}>
+        {/* Tickers */}
+        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <PanelHeader title="POSICIONES POR TICKER" />
+          <div className="flex-1 overflow-y-auto">
+            <table>
+              <thead><tr><th>TICKER</th><th>VENCIMIENTO</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO PROY.</th></tr></thead>
+              <tbody>
+                {tickers.map((t) => (
+                  <tr
+                    key={t.ticker}
+                    onClick={() => setSelTicker(selTicker === t.ticker ? null : t.ticker)}
+                    className={`cursor-pointer ${selTicker === t.ticker ? "bg-[#ff9900]/10" : ""}`}
+                  >
+                    <td className="text-[#ff9900] font-semibold">{t.ticker}</td>
+                    <td className="text-[#808080]">{fmtVto(t.fecha_vencimiento)}</td>
+                    <td className="text-right font-mono">{fmtCol(t[colSrc])}</td>
+                    <td className="text-right font-mono text-[#00cc66]">{t.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Cuentas */}
+        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <PanelHeader title={tickerSel ? `CUENTAS — ${tickerSel.ticker}` : "CUENTAS (seleccioná un ticker)"} />
+          <div className="flex-1 overflow-y-auto">
+            {tickerSel ? (
+              <table>
+                <thead><tr><th>CUENTA</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO PROY.</th></tr></thead>
+                <tbody>
+                  {tickerSel.cuentas.sort((a, b) => b.valuacion - a.valuacion).map((c, i) => (
+                    <tr key={i}>
+                      <td className="text-[#d0d0d0]">{c.cuenta}</td>
+                      <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
+                      <td className="text-right font-mono text-[#00cc66]">{c.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-[#555555] text-xs py-4 text-center">Clickeá un ticker para ver detalle por cuenta.</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Gráfico amortizaciones */}
+      {chartData.length > 0 && (
+        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <PanelHeader title="COBRO PROYECTADO POR VENCIMIENTO" />
+          <div className="flex-1 min-h-0 p-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+                <XAxis dataKey="fecha" tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
+                <YAxis tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
+                <Tooltip
+                  contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                  formatter={(v: number, _: string, entry) => [`${v.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, entry.payload?.ticker]}
+                  labelFormatter={(l) => `Vto: ${l}`}
+                />
+                <Bar dataKey="monto" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+                  {chartData.map((_, i) => <Cell key={i} fill={BRAND_BLUE} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function fmtCompact(n: number): string {
   const abs = Math.abs(n);
@@ -71,7 +214,10 @@ function niceScale(
   return { min: niceMin, max: niceMax, ticks };
 }
 
+type AumTab = "fci" | "tasa_fija";
+
 export function AumView() {
+  const [tab, setTab] = useState<AumTab>("fci");
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
   const [serie, setSerie] = useState<SeriePoint[]>([]);
@@ -207,24 +353,49 @@ export function AumView() {
       .sort((a, b) => b.valuacion - a.valuacion);
   }, [snapshot, emisorSel]);
 
+  const tabBar = (
+    <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      {(["fci", "tasa_fija"] as AumTab[]).map((t) => (
+        <button key={t} onClick={() => setTab(t)}
+          className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
+            tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          }`}>
+          {t === "fci" ? "FCI" : "TASA FIJA"}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === "tasa_fija") {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        {tabBar}
+        <div className="flex-1 min-h-0"><TabTasaFija /></div>
+      </div>
+    );
+  }
+
   if (loadingSerie) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
-        Cargando…
+      <div className="h-full flex flex-col min-h-0">
+        {tabBar}
+        <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">Cargando…</div>
       </div>
     );
   }
   if (serieErr) {
     return (
-      <div className="h-full flex items-center justify-center text-[#ff3333] text-sm">
-        Error: {serieErr}
+      <div className="h-full flex flex-col min-h-0">
+        {tabBar}
+        <div className="flex-1 flex items-center justify-center text-[#ff3333] text-sm">Error: {serieErr}</div>
       </div>
     );
   }
   if (serie.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
-        Sin datos FCI.
+      <div className="h-full flex flex-col min-h-0">
+        {tabBar}
+        <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">Sin datos FCI.</div>
       </div>
     );
   }
@@ -236,8 +407,10 @@ export function AumView() {
       : { min: 0, max: Math.max(1, vals[0] || 1), ticks: [0, vals[0] || 1] };
 
   return (
-    <div className="h-full min-h-0 p-3 overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-full min-h-0">
+    <div className="h-full flex flex-col min-h-0">
+      {tabBar}
+      <div className="flex-1 min-h-0 p-3 overflow-hidden">
+      <div className="grid grid-cols-2 gap-3 h-full min-h-0">
         {/* COLUMNA IZQUIERDA — evolución + stats */}
         <div className="min-h-0 grid grid-rows-[auto_auto_1fr] gap-3">
           {/* KPIs */}
@@ -490,6 +663,7 @@ export function AumView() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
