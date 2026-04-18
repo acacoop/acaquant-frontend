@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const managerEmails = (process.env.MANAGER_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim())
