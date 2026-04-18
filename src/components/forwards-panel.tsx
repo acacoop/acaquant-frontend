@@ -157,6 +157,49 @@ export function ForwardsPanel({
         >
           GRÁFICO
         </FilterBtn>
+        {modo === "grafico" && (
+          <div className="relative ml-1">
+            <input
+              ref={searchRef}
+              type="text"
+              value={parSearch}
+              onFocus={() => setDropOpen(true)}
+              onChange={(e) => { setParSearch(e.target.value); setDropOpen(true); }}
+              onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setDropOpen(false);
+                if (e.key === "Enter" && filteredPares.length > 0) {
+                  togglePar(filteredPares[0]);
+                  setParSearch("");
+                  setDropOpen(false);
+                }
+              }}
+              placeholder="agregar par…"
+              className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[130px]"
+            />
+            {dropOpen && filteredPares.length > 0 && (
+              <div
+                ref={dropRef}
+                className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[200px] overflow-y-auto w-[160px]"
+              >
+                {filteredPares.map((par) => {
+                  const activo = paresEfectivos.includes(par);
+                  const [tLargo, tCorto] = par.split("→");
+                  return (
+                    <div
+                      key={par}
+                      onMouseDown={() => { togglePar(par); setParSearch(""); setDropOpen(false); }}
+                      className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${activo ? "text-[#ff9900]" : "text-[#d0d0d0]"}`}
+                    >
+                      <span className="w-3 text-center">{activo ? "✓" : ""}</span>
+                      {shortTicker(tLargo)}→{shortTicker(tCorto)}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {fw?.updated_at && modo === "live" && (
           <span className="ml-auto text-[10px] text-[#555555]">
             {fmtTs(fw.updated_at)}
@@ -180,53 +223,8 @@ export function ForwardsPanel({
           )}
         </div>
       ) : (
-        <div className="h-[380px] flex gap-2 min-h-0">
-          {/* Sidebar: selector de pares */}
-          <div className="w-[155px] shrink-0 flex flex-col gap-1 min-h-0">
-            <div className="relative">
-              <input
-                ref={searchRef}
-                type="text"
-                value={parSearch}
-                onFocus={() => setDropOpen(true)}
-                onChange={(e) => { setParSearch(e.target.value); setDropOpen(true); }}
-                onBlur={() => setTimeout(() => setDropOpen(false), 150)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setDropOpen(false);
-                  if (e.key === "Enter" && filteredPares.length > 0) {
-                    togglePar(filteredPares[0]);
-                    setParSearch("");
-                    setDropOpen(false);
-                  }
-                }}
-                placeholder="agregar par…"
-                className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-full"
-              />
-              {dropOpen && filteredPares.length > 0 && (
-                <div
-                  ref={dropRef}
-                  className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[200px] overflow-y-auto w-full"
-                >
-                  {filteredPares.map((par) => {
-                    const activo = paresEfectivos.includes(par);
-                    const [tLargo, tCorto] = par.split("→");
-                    return (
-                      <div
-                        key={par}
-                        onMouseDown={() => { togglePar(par); setParSearch(""); setDropOpen(false); }}
-                        className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${activo ? "text-[#ff9900]" : "text-[#d0d0d0]"}`}
-                      >
-                        <span className="w-3 text-center">{activo ? "✓" : ""}</span>
-                        {shortTicker(tLargo)}→{shortTicker(tCorto)}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-          {/* Chart: ocupa el resto */}
-          <div className="flex-1 min-h-0 min-w-0">
+        <div className="h-[380px] min-h-0">
+          <div className="h-full min-h-0 min-w-0">
             {paresEfectivos.length === 0 || chartData.length === 0 ? (
               <p className="text-[#555555] text-xs py-4 text-center">
                 Seleccioná al menos un par.
