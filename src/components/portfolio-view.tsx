@@ -10,6 +10,7 @@ interface Cuenta {
 interface ResumeData {
   cuentas: Cuenta[];
   mes_actual: Record<string, number>;
+  mes_anterior: Record<string, number>;
 }
 
 interface Posicion {
@@ -104,8 +105,10 @@ export function PortfolioView({ mep, a3500 }: Props) {
       .finally(() => setLoading(false));
   }, [selectedId]);
 
-  const mesActual = resumen?.mes_actual ?? {};
-  const totalActual = Object.values(mesActual).reduce((a, b) => a + b, 0);
+  const mesActual   = resumen?.mes_actual ?? {};
+  const mesAnterior = resumen?.mes_anterior ?? {};
+  const totalActual   = Object.values(mesActual).reduce((a, b) => a + b, 0);
+  const totalAnterior = Object.values(mesAnterior).reduce((a, b) => a + b, 0);
   const posiciones = detalle?.posiciones ?? [];
   const posFiltradas = carteraFiltro
     ? posiciones.filter((p) => p.cartera === carteraFiltro)
@@ -126,7 +129,7 @@ export function PortfolioView({ mep, a3500 }: Props) {
     { label: "VALUACIÓN ARS", value: totalVisible > 0 ? fmtARS(totalVisible) : "--" },
     { label: "VAL A3500",    value: totalVisible > 0 && a3500 > 0 ? fmtARS(totalVisible / a3500) : "--" },
     { label: "VAL USD MEP",  value: totalVisible > 0 && mep > 0 ? fmtARS(totalVisible / mep) : "--" },
-    { label: "POSICIONES",   value: posFiltradas.length > 0 ? String(posFiltradas.length) : "--" },
+    { label: "MES ANTERIOR", value: totalAnterior > 0 ? fmtARS(totalAnterior) : "--" },
   ];
 
   const carteras = Object.entries(mesActual).filter(([, v]) => v > 0);
@@ -210,6 +213,23 @@ export function PortfolioView({ mep, a3500 }: Props) {
                 </div>
               </button>
             ))}
+
+            {totalAnterior > 0 && (
+              <div className="mt-2 pt-2 border-t border-[#1a1a1a]">
+                <div className="text-[9px] text-[#555555] tracking-wide uppercase px-1 mb-1">MES ANTERIOR</div>
+                {Object.entries(mesAnterior).filter(([, v]) => v > 0).map(([cartera, monto]) => (
+                  <div key={cartera} className="px-1 py-0.5 text-[10px] font-mono text-[#555555] flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 opacity-50" style={{ backgroundColor: colorFor(cartera) }} />
+                    <span>{cartera.replace("CARTERA ", "")}</span>
+                    <span className="ml-auto">{fmtARS(monto)}</span>
+                  </div>
+                ))}
+                <div className="px-1 py-0.5 text-[10px] font-mono text-[#808080] border-t border-[#1a1a1a] mt-0.5 flex justify-between">
+                  <span className="font-semibold">TOTAL</span>
+                  <span>{fmtARS(totalAnterior)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
