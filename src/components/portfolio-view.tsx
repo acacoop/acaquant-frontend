@@ -111,17 +111,22 @@ export function PortfolioView({ mep, a3500 }: Props) {
     ? posiciones.filter((p) => p.cartera === carteraFiltro)
     : posiciones;
 
+  // Total dinámico según filtro activo
+  const totalVisible = carteraFiltro
+    ? posFiltradas.reduce((a, p) => a + p.valuacion, 0)
+    : totalActual;
+
   const hoy = new Date().toLocaleDateString("es-AR", {
     day: "2-digit", month: "2-digit", year: "numeric",
   });
 
   const kpis = [
-    { label: "DÓLAR MEP",    value: mep > 0 ? `$${fmtFull(mep)}` : "--" },
-    { label: "DÓLAR A3500",  value: a3500 > 0 ? `$${fmtFull(a3500)}` : "--" },
-    { label: "VALUACIÓN ARS", value: totalActual > 0 ? fmtARS(totalActual) : "--" },
-    { label: "VAL A3500",    value: totalActual > 0 && a3500 > 0 ? fmtARS(totalActual / a3500) : "--" },
-    { label: "VAL USD MEP",  value: totalActual > 0 && mep > 0 ? fmtARS(totalActual / mep) : "--" },
-    { label: "POSICIONES",   value: posiciones.length > 0 ? String(posiciones.length) : "--" },
+    { label: "DÓLAR MEP",    value: mep > 0 ? `$${fmtFull(mep)}` : "--",    highlight: true },
+    { label: "DÓLAR A3500",  value: a3500 > 0 ? `$${fmtFull(a3500)}` : "--", highlight: true },
+    { label: "VALUACIÓN ARS", value: totalVisible > 0 ? fmtARS(totalVisible) : "--" },
+    { label: "VAL A3500",    value: totalVisible > 0 && a3500 > 0 ? fmtARS(totalVisible / a3500) : "--" },
+    { label: "VAL USD MEP",  value: totalVisible > 0 && mep > 0 ? fmtARS(totalVisible / mep) : "--" },
+    { label: "POSICIONES",   value: posFiltradas.length > 0 ? String(posFiltradas.length) : "--" },
   ];
 
   const carteras = Object.entries(mesActual).filter(([, v]) => v > 0);
@@ -148,9 +153,12 @@ export function PortfolioView({ mep, a3500 }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-6 gap-2 shrink-0">
-        {kpis.map(({ label, value }) => (
-          <div key={label} className="border border-[#1a1a1a] bg-[#080808] px-3 py-2">
-            <div className="text-[9px] text-[#555555] tracking-wide uppercase mb-1">{label}</div>
+        {kpis.map(({ label, value, highlight }) => (
+          <div
+            key={label}
+            className={`bg-[#080808] px-3 py-2 border ${highlight ? "border-[#ff9900]/40" : "border-[#1a1a1a]"}`}
+          >
+            <div className={`text-[9px] tracking-wide uppercase mb-1 ${highlight ? "text-[#ff9900]/60" : "text-[#555555]"}`}>{label}</div>
             <div className="text-[15px] font-semibold text-[#d0d0d0] font-mono leading-tight">{value}</div>
           </div>
         ))}
@@ -228,7 +236,7 @@ export function PortfolioView({ mep, a3500 }: Props) {
                     <th>TICKER</th>
                     <th>EMISOR</th>
                     <th>CLASE</th>
-                    <th>CARTERA</th>
+                    {!carteraFiltro && <th>CARTERA</th>}
                     <th>CALIF.</th>
                     <th>VTO.</th>
                     <th className="text-right">CANTIDAD</th>
@@ -243,10 +251,12 @@ export function PortfolioView({ mep, a3500 }: Props) {
                       <td className="text-[#ff9900] font-semibold">{p.ticker}</td>
                       <td className="text-[#808080]">{p.emisor}</td>
                       <td>{p.clase_activo}</td>
-                      <td>
-                        <span className="w-1.5 h-1.5 rounded-full inline-block mr-1" style={{ backgroundColor: colorFor(p.cartera) }} />
-                        {p.cartera.replace("CARTERA ", "")}
-                      </td>
+                      {!carteraFiltro && (
+                        <td>
+                          <span className="w-1.5 h-1.5 rounded-full inline-block mr-1" style={{ backgroundColor: colorFor(p.cartera) }} />
+                          {p.cartera.replace("CARTERA ", "")}
+                        </td>
+                      )}
                       <td className="text-[#808080]">{p.calificacion}</td>
                       <td className="text-[#808080]">{fmtVto(p.vencimiento)}</td>
                       <td className="text-right font-mono">{p.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</td>
