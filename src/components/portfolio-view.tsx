@@ -11,7 +11,6 @@ interface Cuenta {
 interface ResumeData {
   cuentas: Cuenta[];
   mes_actual: Record<string, number>;
-  mes_anterior: Record<string, number>;
 }
 
 interface Props {
@@ -72,10 +71,8 @@ export function PortfolioView({ mep, a3500 }: Props) {
       .finally(() => setLoading(false));
   }, [selectedId]);
 
-  const mesActual   = data?.mes_actual ?? {};
-  const mesAnterior = data?.mes_anterior ?? {};
-  const totalActual   = Object.values(mesActual).reduce((a, b) => a + b, 0);
-  const totalAnterior = Object.values(mesAnterior).reduce((a, b) => a + b, 0);
+  const mesActual  = data?.mes_actual ?? {};
+  const totalActual = Object.values(mesActual).reduce((a, b) => a + b, 0);
 
   const donutData = Object.entries(mesActual)
     .filter(([, v]) => v > 0)
@@ -91,7 +88,7 @@ export function PortfolioView({ mep, a3500 }: Props) {
     { label: "VALUACIÓN ARS", value: totalActual > 0 ? fmtARS(totalActual) : "--" },
     { label: "VAL A3500",    value: totalActual > 0 && a3500 > 0 ? fmtARS(totalActual / a3500) : "--" },
     { label: "VAL USD MEP",  value: totalActual > 0 && mep > 0 ? fmtARS(totalActual / mep) : "--" },
-    { label: "MES ANTERIOR", value: totalAnterior > 0 ? fmtARS(totalAnterior) : "--" },
+    { label: "POSICIONES", value: Object.keys(mesActual).length > 0 ? String(Object.keys(mesActual).length) : "--" },
   ];
 
   return (
@@ -174,11 +171,8 @@ export function PortfolioView({ mep, a3500 }: Props) {
           </div>
         </div>
 
-        {/* Tablas */}
-        <div className="flex flex-col gap-3 min-h-0">
-          <CartTable title="MES ACTUAL"   breakdown={mesActual}   total={totalActual} />
-          <CartTable title="MES ANTERIOR" breakdown={mesAnterior} total={totalAnterior} />
-        </div>
+        {/* Tabla mes actual */}
+        <CartTable title="MES ACTUAL" breakdown={mesActual} total={totalActual} />
       </div>
     </div>
   );
