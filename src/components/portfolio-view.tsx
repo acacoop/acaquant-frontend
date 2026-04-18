@@ -150,9 +150,9 @@ export function PortfolioView({ mep, a3500 }: Props) {
                   </Pie>
                   <Tooltip
                     contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                    formatter={(v: number, name: string) => [
-                      `${fmtARS(v)}  (${totalActual > 0 ? ((v / totalActual) * 100).toFixed(1) : 0}%)`,
-                      name,
+                    formatter={(v, name) => [
+                      `${fmtARS(Number(v))}  (${totalActual > 0 ? ((Number(v) / totalActual) * 100).toFixed(1) : 0}%)`,
+                      String(name),
                     ]}
                   />
                 </PieChart>
