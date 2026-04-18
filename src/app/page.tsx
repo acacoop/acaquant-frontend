@@ -62,7 +62,7 @@ interface ForwardHistDoc {
 async function safeFetch<T>(
   path: string,
   fallback: T,
-  revalidate = 0
+  revalidate = 30
 ): Promise<T> {
   try {
     return await apiFetch<T>(path, { revalidate });
@@ -75,51 +75,24 @@ export default async function Home() {
   const [
     rentaFija,
     forwards,
-    flujosTF,
-    flujosCER,
+    flujos,
     breakevens,
     breakevensHist,
-    forwardsHistTF,
-    forwardsHistCER,
+    forwardsHist,
   ] = await Promise.all([
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
-    safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=tasa_fija", [], 600),
-    safeFetch<FlujoTicker[]>("/api/titulos/flujos?curva=cer", [], 600),
+    safeFetch<FlujoTicker[]>("/api/titulos/flujos", [], 600),
     safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", [], 30),
-    safeFetch<BreakevenHistDoc[]>(
-      "/api/cotizaciones/historico/breakevens",
-      [],
-      300
-    ),
-    safeFetch<ForwardHistDoc[]>(
-      "/api/cotizaciones/historico/forwards?curva=tasa_fija",
-      [],
-      300
-    ),
-    safeFetch<ForwardHistDoc[]>(
-      "/api/cotizaciones/historico/forwards?curva=cer",
-      [],
-      300
-    ),
+    safeFetch<BreakevenHistDoc[]>("/api/cotizaciones/historico/breakevens", [], 300),
+    safeFetch<ForwardHistDoc[]>("/api/cotizaciones/historico/forwards", [], 300),
   ]);
-  const forwardsHist: ForwardHistDoc[] = [
-    ...forwardsHistTF,
-    ...forwardsHistCER,
-  ];
 
-  const allFlujos: FlujoTicker[] = [
-    ...flujosTF.map((f) => ({
-      ticker: f.ticker,
-      curva: "tasa_fija",
-      fecha_vencimiento: f.fecha_vencimiento,
-    })),
-    ...flujosCER.map((f) => ({
-      ticker: f.ticker,
-      curva: "cer",
-      fecha_vencimiento: f.fecha_vencimiento,
-    })),
-  ];
+  const allFlujos: FlujoTicker[] = flujos.map((f) => ({
+    ticker: f.ticker,
+    curva: f.curva,
+    fecha_vencimiento: f.fecha_vencimiento,
+  }));
 
   const pares = breakevens[0]?.pares || [];
   const breakevensTs = breakevens[0]?.updated_at;
