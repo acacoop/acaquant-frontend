@@ -122,7 +122,7 @@ export function BreakevensBlock({
             max={fechasOrdenadas.length - 1}
             value={effectiveIdx}
             onChange={(e) => setFechaIdx(Number(e.target.value))}
-            className="flex-1 accent-[#ff9900]"
+            className="flex-1 range-slider"
           />
           <span className="text-[10px] text-[#ff9900] font-mono min-w-[60px] text-right">
             {fechaSel ? fmtFechaCorta(fechaSel) : "--"}

@@ -183,22 +183,6 @@ export function ForwardsPanel({
         <div className="h-[380px] flex gap-2 min-h-0">
           {/* Sidebar: selector de pares */}
           <div className="w-[155px] shrink-0 flex flex-col gap-1 min-h-0">
-            <div className="flex flex-wrap gap-1 overflow-y-auto max-h-[160px]">
-              {paresEfectivos.map((par, i) => {
-                const [tLargo, tCorto] = par.split("→");
-                const color = PALETA[i % PALETA.length];
-                return (
-                  <span
-                    key={par}
-                    className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 font-mono"
-                    style={{ backgroundColor: `${color}22`, border: `1px solid ${color}`, color }}
-                  >
-                    {shortTicker(tLargo)}→{shortTicker(tCorto)}
-                    <button onClick={() => togglePar(par)} className="opacity-60 hover:opacity-100 leading-none ml-0.5">×</button>
-                  </span>
-                );
-              })}
-            </div>
             <div className="relative">
               <input
                 ref={searchRef}
