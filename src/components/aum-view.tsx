@@ -156,7 +156,7 @@ function TabTasaFija() {
                 <YAxis tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
                 <Tooltip
                   contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                  formatter={(v: number, _: string, entry) => [`${v.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, entry.payload?.ticker]}
+                  formatter={(v, _, entry) => [`${Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, String((entry as { payload?: { ticker?: string } })?.payload?.ticker ?? "")]}
                   labelFormatter={(l) => `Vto: ${l}`}
                 />
                 <Bar dataKey="monto" radius={[2, 2, 0, 0]} isAnimationActive={false}>
