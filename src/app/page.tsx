@@ -101,7 +101,7 @@ export default async function Home() {
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
         <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-          <Panel title="RENTA FIJA" count={rentaFija.length}>
+          <Panel title="RENTA FIJA" count={rentaFija.length} expandable>
             <RentaFijaTable
               data={rentaFija}
               flujos={allFlujos}
@@ -109,13 +109,13 @@ export default async function Home() {
             />
           </Panel>
 
-          <Panel title="CURVAS" fill>
+          <Panel title="CURVAS" fill expandable>
             <CurvasChart forwards={forwards} flujos={allFlujos} />
           </Panel>
         </div>
 
         <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-          <Panel title="FORWARDS">
+          <Panel title="FORWARDS" expandable>
             <ForwardsPanel forwards={forwards} historico={forwardsHist} />
           </Panel>
 
@@ -123,6 +123,7 @@ export default async function Home() {
             title="BREAKEVENS"
             sub={breakevensTs ? fmtTs(breakevensTs) : ""}
             fill
+            expandable
           >
             <BreakevensBlock pares={pares} historico={breakevensHist} />
           </Panel>
