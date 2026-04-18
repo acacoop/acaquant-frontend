@@ -10,7 +10,8 @@ const NAV_LINKS = [
   { href: "/retorno", label: "RETORNO" },
   { href: "/operaciones", label: "OPERACIONES" },
   { href: "/portfolios", label: "PORTFOLIOS" },
-  { href: "/aum", label: "AUM" },
+  { href: "/aum",     label: "AUM"     },
+  { href: "/manager", label: "MANAGER" },
 ];
 
 export function Header() {

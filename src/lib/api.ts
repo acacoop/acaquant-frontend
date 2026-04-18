@@ -19,6 +19,7 @@ const CF_CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
 interface FetchOpts {
   revalidate?: number;
   method?: "GET" | "PUT" | "POST" | "DELETE" | "PATCH";
+  body?: string;
 }
 
 export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
@@ -32,12 +33,15 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
     headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
     headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
   }
+  if (opts.body) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const method = opts.method || "GET";
   const init: RequestInit & { next?: { revalidate: number } } =
     method === "GET" && opts.revalidate && opts.revalidate > 0
       ? { method, headers, next: { revalidate: opts.revalidate } }
-      : { method, headers, cache: "no-store" };
+      : { method, headers, cache: "no-store", ...(opts.body ? { body: opts.body } : {}) };
 
   const res = await fetch(url, init);
 
