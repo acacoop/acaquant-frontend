@@ -11,6 +11,7 @@ const NAV_LINKS = [
   { href: "/operaciones", label: "OPERACIONES" },
   { href: "/portfolios", label: "PORTFOLIOS" },
   { href: "/aum",     label: "AUM"     },
+  { href: "/asistente", label: "ASISTENTE" },
   { href: "/manager", label: "MANAGER" },
 ];
 
