@@ -445,7 +445,7 @@ export function AsistenteDashboard() {
                       fontSize: 10,
                     }}
                     labelFormatter={(v) => `${fmtDateShort(v as string)} ${fmtTime(v as string)}`}
-                    formatter={(v: number) => fmtK(v)}
+                    formatter={(v) => fmtK(Number(v))}
                   />
                   <Line
                     type="monotone"
