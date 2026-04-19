@@ -7,6 +7,14 @@ import { useEffect, useRef, useState } from "react";
  * El history se guarda en formato Gemini (role + parts) y se envía de vuelta
  * en cada turno para mantener contexto.
  */
+
+interface AppError {
+  title: string;
+  message: string;
+  hint?: string;
+  retryable: boolean;
+}
+
 interface ToolCall {
   name: string;
   args: Record<string, unknown>;
@@ -52,12 +60,96 @@ const SUGERENCIAS = [
   "cuándo paga cupón AL30?",
 ];
 
+async function parseError(res: Response): Promise<AppError> {
+  let raw = "";
+  try {
+    raw = await res.text();
+  } catch {
+    // Nada que leer
+  }
+
+  // El backend devuelve JSON con shape {detail: {code, message, retryable, ...}}.
+  // Si no es JSON, asumimos HTML de CF/Vercel (gateway timeout, etc).
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Probablemente HTML de Cloudflare o Vercel
+  }
+
+  const detail =
+    (parsed.detail as Record<string, unknown> | string | undefined) ??
+    (parsed.error as string | undefined);
+  const detailObj = typeof detail === "object" && detail !== null ? (detail as Record<string, unknown>) : null;
+  const code = detailObj?.code as string | undefined;
+  const serverMessage = (detailObj?.message as string | undefined) ?? (typeof detail === "string" ? detail : undefined);
+
+  // 1) Errores que el backend clasifica explícitamente
+  if (code === "rate_limit" || res.status === 429) {
+    return {
+      title: "Modelo saturado",
+      message:
+        serverMessage ??
+        "El modelo recibió demasiadas consultas. Esperá ~1 minuto y volvé a intentar.",
+      hint: "Esto es el límite gratuito de Gemini. Activando billing desaparece.",
+      retryable: true,
+    };
+  }
+  if (code === "transport" || res.status === 503) {
+    return {
+      title: "Servicio no disponible",
+      message: serverMessage ?? "No pude conectar con el modelo.",
+      hint: "Reintentá en unos segundos.",
+      retryable: true,
+    };
+  }
+  if (code === "bad_response") {
+    return {
+      title: "Respuesta inválida del modelo",
+      message: serverMessage ?? "El modelo devolvió algo inesperado.",
+      retryable: true,
+    };
+  }
+  if (code === "llm_error") {
+    return {
+      title: "Error del modelo",
+      message: serverMessage ?? "Falló la llamada al modelo.",
+      retryable: true,
+    };
+  }
+  if (code === "internal") {
+    return {
+      title: "Error interno",
+      message: serverMessage ?? "Algo salió mal en el servidor.",
+      retryable: false,
+    };
+  }
+
+  // 2) HTML crudo → típicamente timeout/gateway/CF
+  if (raw.trim().toLowerCase().startsWith("<!doctype") || raw.includes("<html")) {
+    return {
+      title: "Tiempo de espera excedido",
+      message: "El servidor tardó demasiado en responder. Reintentá la consulta.",
+      hint: "Si la pregunta es muy abierta, probá acotarla (ej: un bono específico).",
+      retryable: true,
+    };
+  }
+
+  // 3) Fallback: código genérico
+  return {
+    title: `Error ${res.status}`,
+    message: serverMessage ?? "Algo salió mal procesando la consulta.",
+    retryable: res.status >= 500,
+  };
+}
+
 export function ChatView() {
   const [turns, setTurns] = useState<VisibleTurn[]>([]);
   const [history, setHistory] = useState<GeminiMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
+  const [lastMessage, setLastMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -65,11 +157,14 @@ export function ChatView() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [turns, loading]);
 
-  async function enviar(texto: string) {
+  async function enviar(texto: string, { isRetry = false } = {}) {
     const msg = texto.trim();
     if (!msg || loading) return;
 
-    setTurns((t) => [...t, { role: "user", text: msg }]);
+    if (!isRetry) {
+      setTurns((t) => [...t, { role: "user", text: msg }]);
+    }
+    setLastMessage(msg);
     setInput("");
     setLoading(true);
     setError(null);
@@ -81,8 +176,9 @@ export function ChatView() {
         body: JSON.stringify({ message: msg, history }),
       });
       if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`HTTP ${res.status}: ${err.slice(0, 200)}`);
+        const parsed = await parseError(res);
+        setError(parsed);
+        return;
       }
       const data: ChatResponse = await res.json();
       setHistory(data.history);
@@ -100,11 +196,21 @@ export function ChatView() {
         },
       ]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // Error de red puro (offline, DNS, etc.)
+      setError({
+        title: "Sin conexión",
+        message: e instanceof Error ? e.message : "No pude alcanzar el servidor.",
+        hint: "Chequeá tu internet.",
+        retryable: true,
+      });
     } finally {
       setLoading(false);
       inputRef.current?.focus();
     }
+  }
+
+  function reintentar() {
+    if (lastMessage) enviar(lastMessage, { isRetry: true });
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -199,8 +305,37 @@ export function ChatView() {
         )}
 
         {error && (
-          <div className="text-[11px] text-[#ff3333] font-mono border border-[#ff3333]/40 bg-[#ff3333]/10 px-3 py-2">
-            Error: {error}
+          <div className="flex border border-[#ff9900]/50 bg-[#ff9900]/5 px-3 py-2.5 font-mono">
+            <div className="text-[#ff9900] text-lg leading-none mt-0.5 mr-3">!</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-semibold text-[#ff9900] uppercase tracking-wide">
+                {error.title}
+              </div>
+              <div className="text-[11px] text-[#d0d0d0] mt-1 leading-relaxed">
+                {error.message}
+              </div>
+              {error.hint && (
+                <div className="text-[10px] text-[#888888] mt-1 italic leading-relaxed">
+                  {error.hint}
+                </div>
+              )}
+              {error.retryable && lastMessage && (
+                <button
+                  onClick={reintentar}
+                  disabled={loading}
+                  className="mt-2 text-[10px] px-2.5 py-1 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black uppercase tracking-wide disabled:opacity-40"
+                >
+                  Reintentar
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-[#555555] hover:text-[#d0d0d0] text-sm leading-none ml-2"
+              title="Cerrar"
+            >
+              ×
+            </button>
           </div>
         )}
       </div>
