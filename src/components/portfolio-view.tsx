@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface Cuenta {
   id_cuenta: string;
@@ -73,6 +73,8 @@ export function PortfolioView({ mep, a3500 }: Props) {
   const [detalle, setDetalle] = useState<DetalleData | null>(null);
   const [loading, setLoading] = useState(false);
   const [carteraFiltro, setCarteraFiltro] = useState<string | null>(null);
+  const [sortCol, setSortCol] = useState<"ticker" | "valuacion">("valuacion");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   // Cargar lista de cuentas
   useEffect(() => {
@@ -110,9 +112,21 @@ export function PortfolioView({ mep, a3500 }: Props) {
   const totalActual   = Object.values(mesActual).reduce((a, b) => a + b, 0);
   const totalAnterior = Object.values(mesAnterior).reduce((a, b) => a + b, 0);
   const posiciones = detalle?.posiciones ?? [];
-  const posFiltradas = carteraFiltro
-    ? posiciones.filter((p) => p.cartera === carteraFiltro)
-    : posiciones;
+  const posFiltradas = useMemo(() => {
+    const base = carteraFiltro
+      ? posiciones.filter((p) => p.cartera === carteraFiltro)
+      : posiciones;
+    return [...base].sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortCol === "ticker") return dir * a.ticker.localeCompare(b.ticker);
+      return dir * (a.valuacion - b.valuacion);
+    });
+  }, [posiciones, carteraFiltro, sortCol, sortDir]);
+
+  const toggleSort = (col: "ticker" | "valuacion") => {
+    if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir(col === "valuacion" ? "desc" : "asc"); }
+  };
 
   // Total dinámico según filtro activo
   const totalVisible = carteraFiltro
@@ -253,7 +267,9 @@ export function PortfolioView({ mep, a3500 }: Props) {
               <table>
                 <thead>
                   <tr>
-                    <th>TICKER</th>
+                    <th onClick={() => toggleSort("ticker")} className="cursor-pointer hover:text-[#ff9900] select-none">
+                      TICKER {sortCol === "ticker" ? (sortDir === "asc" ? "↑" : "↓") : <span className="opacity-30">↕</span>}
+                    </th>
                     <th>EMISOR</th>
                     <th>CLASE</th>
                     {!carteraFiltro && <th>CARTERA</th>}
@@ -261,7 +277,9 @@ export function PortfolioView({ mep, a3500 }: Props) {
                     <th>VTO.</th>
                     <th className="text-right">CANTIDAD</th>
                     <th className="text-right">PRECIO</th>
-                    <th className="text-right">VALUACIÓN</th>
+                    <th onClick={() => toggleSort("valuacion")} className="text-right cursor-pointer hover:text-[#ff9900] select-none">
+                      VALUACIÓN {sortCol === "valuacion" ? (sortDir === "asc" ? "↑" : "↓") : <span className="opacity-30">↕</span>}
+                    </th>
                     <th className="text-right">%</th>
                   </tr>
                 </thead>
