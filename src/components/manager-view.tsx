@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AsistenteDashboard } from "./asistente-dashboard";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -608,7 +609,7 @@ function TabValidaciones() {
   );
 }
 
-type Tab = "diagnostico" | "backfills" | "historial" | "latencia" | "validaciones";
+type Tab = "diagnostico" | "backfills" | "historial" | "latencia" | "validaciones" | "asistente";
 
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
@@ -619,6 +620,7 @@ export function ManagerView() {
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "historial",    label: "HISTORIAL"    },
     { id: "latencia",     label: "LATENCIA"     },
+    { id: "asistente",    label: "ASISTENTE"    },
   ];
 
   return (
@@ -638,6 +640,7 @@ export function ManagerView() {
         {tab === "historial"   && <TabHistorial />}
         {tab === "validaciones" && <TabValidaciones />}
         {tab === "latencia"    && <TabLatencia />}
+        {tab === "asistente"   && <AsistenteDashboard />}
       </div>
     </div>
   );
