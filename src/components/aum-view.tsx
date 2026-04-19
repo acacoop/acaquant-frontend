@@ -96,13 +96,13 @@ function TabTasaFija() {
       </div>
 
       {/* Tabla tickers + detalle cuentas */}
-      <div className="grid grid-cols-[1fr_1fr] gap-3 min-h-0" style={{ height: "38%" }}>
+      <div className="grid grid-cols-[2fr_3fr] gap-3 min-h-0" style={{ height: "38%" }}>
         {/* Tickers */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
           <PanelHeader title="POSICIONES POR TICKER" />
           <div className="flex-1 overflow-y-auto">
             <table>
-              <thead><tr><th>TICKER</th><th>VENCIMIENTO</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO PROY.</th></tr></thead>
+              <thead><tr><th>TICKER</th><th>VTO.</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO</th></tr></thead>
               <tbody>
                 {tickers.map((t) => (
                   <tr
@@ -127,11 +127,11 @@ function TabTasaFija() {
           <div className="flex-1 overflow-y-auto">
             {tickerSel ? (
               <table>
-                <thead><tr><th>CUENTA</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO PROY.</th></tr></thead>
+                <thead><tr><th>CUENTA</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO</th></tr></thead>
                 <tbody>
                   {tickerSel.cuentas.sort((a, b) => b.valuacion - a.valuacion).map((c, i) => (
                     <tr key={i}>
-                      <td className="text-[#d0d0d0] whitespace-normal break-words max-w-[180px]">{c.cuenta}</td>
+                      <td className="text-[#d0d0d0]">{c.cuenta}</td>
                       <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
                       <td className="text-right font-mono text-[#00cc66]">{c.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                     </tr>
