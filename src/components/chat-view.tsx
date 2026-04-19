@@ -46,10 +46,10 @@ interface VisibleTurn {
 }
 
 const SUGERENCIAS = [
-  "qué contrapartes son fondos?",
-  "cómo están los breakevens?",
-  "cotización actual de TX26",
-  "listame las ALYCs con las que operamos",
+  "cómo está cotizando TX26?",
+  "breakevens actuales",
+  "forwards de la curva tasa fija",
+  "cuándo paga cupón AL30?",
 ];
 
 export function ChatView() {
