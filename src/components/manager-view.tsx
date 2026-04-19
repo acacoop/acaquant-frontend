@@ -383,16 +383,242 @@ function TabLatencia() {
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
-type Tab = "diagnostico" | "backfills" | "historial" | "latencia";
+// ── Tab: Validaciones ─────────────────────────────────────────────────────────
+
+function CheckPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-[#1a1a1a] bg-[#080808]">
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#0e0e0e] transition-colors">
+        <span className="text-[10px] text-[#555555]">{open ? "▾" : "▸"}</span>
+        <span className="text-[11px] font-semibold text-[#d0d0d0]">{title}</span>
+      </button>
+      {open && <div className="border-t border-[#1a1a1a] p-3">{children}</div>}
+    </div>
+  );
+}
+
+function RunBtn({ onClick, loading }: { onClick: () => void; loading: boolean }) {
+  return (
+    <button onClick={onClick} disabled={loading}
+      className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40 mb-2">
+      {loading ? "Ejecutando…" : "▶ Ejecutar"}
+    </button>
+  );
+}
+
+function StatusBadge({ ok, label }: { ok: boolean; label?: string }) {
+  return (
+    <span className="text-[10px] font-semibold px-1.5 py-0.5"
+      style={{ color: ok ? "#00cc66" : "#ff3333", border: `1px solid ${ok ? "#00cc6640" : "#ff333340"}`, backgroundColor: ok ? "#00cc6612" : "#ff333312" }}>
+      {label ?? (ok ? "OK" : "ERROR")}
+    </span>
+  );
+}
+
+function TabValidaciones() {
+  // Curvas pendientes
+  const [cpLoading, setCpLoading] = useState(false);
+  const [cpData, setCpData] = useState<{ total: number; ok: boolean; tickers: { ticker: string; pendientes: number }[] } | null>(null);
+
+  // Forwards
+  const [fwdLoading, setFwdLoading] = useState(false);
+  const [fwdData, setFwdData] = useState<{ curva: string; tickers: { ticker: string; vto: string; tea: number | null; duration: number | null; ultimo: string | null; ok: boolean }[]; live_ok: boolean }[] | null>(null);
+
+  // CER
+  const [cerLoading, setCerLoading] = useState(false);
+  const [cerData, setCerData] = useState<{ cer_reciente: string | null; dias_habiles: number; instrumentos: { ticker: string; ultimo_trade?: string; settlement?: string; cer_fecha?: string; cer_valor?: number; cer_emision?: number; ratio?: number; paridad?: number; ok: boolean }[] } | null>(null);
+
+  // Tasa Fija
+  const [tfLoading, setTfLoading] = useState(false);
+  const [tfData, setTfData] = useState<{ snapshot: string | null; ok: number; sin_posicion: number; sin_assets: number; instrumentos: { ticker: string; estado: string }[] } | null>(null);
+
+  // Debug Forward
+  const [tickers, setTickers] = useState<string[]>([]);
+  const [tcA, setTcA] = useState("");
+  const [tcB, setTcB] = useState("");
+  const [dbfLoading, setDbfLoading] = useState(false);
+  const [dbfData, setDbfData] = useState<{ tc_a: string; tc_b: string; tea_a: number | null; duration_a: number | null; ts_a: string | null; tea_b: number | null; duration_b: number | null; ts_b: string | null; forward: number | null; error: string | null; pasos: { paso: string; valor: string }[] } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
+      setTickers(d);
+      if (d.length > 0) setTcA(d[0]);
+      if (d.length > 1) setTcB(d[1]);
+    }).catch(console.error);
+  }, []);
+
+  const runCp  = () => { setCpLoading(true);  fetch("/api/manager/checks/curvas-pendientes").then(r => r.json()).then(setCpData).finally(() => setCpLoading(false)); };
+  const runFwd = () => { setFwdLoading(true); fetch("/api/manager/checks/forwards").then(r => r.json()).then(setFwdData).finally(() => setFwdLoading(false)); };
+  const runCer = () => { setCerLoading(true); fetch("/api/manager/checks/cer").then(r => r.json()).then(setCerData).finally(() => setCerLoading(false)); };
+  const runTf  = () => { setTfLoading(true);  fetch("/api/manager/checks/tasa-fija").then(r => r.json()).then(setTfData).finally(() => setTfLoading(false)); };
+  const runDbf = () => {
+    if (!tcA || !tcB || tcA === tcB) return;
+    setDbfLoading(true);
+    fetch(`/api/manager/checks/debug-forward?tc_a=${tcA}&tc_b=${tcB}`)
+      .then(r => r.json()).then(setDbfData).finally(() => setDbfLoading(false));
+  };
+
+  const ESTADO_LABEL: Record<string, string> = { ok: "✅ En vista", sin_posicion: "⚠️ Sin posición", sin_assets: "❌ Sin Assets" };
+
+  return (
+    <div className="h-full overflow-y-auto p-3 flex flex-col gap-2">
+
+      <CheckPanel title="Curvas Pendientes — docs sin duration en TimeSales">
+        <RunBtn onClick={runCp} loading={cpLoading} />
+        {cpData && (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <StatusBadge ok={cpData.ok} label={cpData.ok ? "Sin pendientes" : `${cpData.total.toLocaleString()} pendientes`} />
+            </div>
+            {!cpData.ok && (
+              <table><thead><tr><th>TICKER</th><th className="text-right">PENDIENTES</th></tr></thead>
+                <tbody>{cpData.tickers.map(t => (
+                  <tr key={t.ticker}><td className="text-[#ff9900]">{t.ticker}</td><td className="text-right font-mono">{t.pendientes.toLocaleString()}</td></tr>
+                ))}</tbody>
+              </table>
+            )}
+          </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Check Forwards — TEA disponible por instrumento">
+        <RunBtn onClick={runFwd} loading={fwdLoading} />
+        {fwdData && fwdData.map(curva => (
+          <div key={curva.curva} className="mb-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] font-semibold text-[#d0d0d0]">{curva.curva.toUpperCase()}</span>
+              <StatusBadge ok={curva.live_ok} label={curva.live_ok ? "ForwardsLive OK" : "ForwardsLive difiere"} />
+            </div>
+            <table><thead><tr><th>TICKER</th><th>VTO.</th><th className="text-right">TEA</th><th className="text-right">DURATION</th><th>ÚLTIMO</th><th>ESTADO</th></tr></thead>
+              <tbody>{curva.tickers.map(t => (
+                <tr key={t.ticker}>
+                  <td className="text-[#ff9900]">{t.ticker}</td>
+                  <td className="text-[#808080]">{t.vto}</td>
+                  <td className="text-right font-mono">{t.tea != null ? `${t.tea.toFixed(2)}%` : "—"}</td>
+                  <td className="text-right font-mono">{t.duration != null ? t.duration.toFixed(3) : "—"}</td>
+                  <td className="text-[#808080]">{t.ultimo ?? "—"}</td>
+                  <td><StatusBadge ok={t.ok} label={t.ok ? "✅" : "❌"} /></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ))}
+      </CheckPanel>
+
+      <CheckPanel title="Check CER — CER usado en último trade enriquecido">
+        <RunBtn onClick={runCer} loading={cerLoading} />
+        {cerData && (
+          <>
+            <div className="text-[10px] text-[#555555] mb-2">
+              CER más reciente: {cerData.cer_reciente ?? "—"} · Días hábiles: {cerData.dias_habiles}
+            </div>
+            <table><thead><tr><th>TICKER</th><th>ÚLTIMO TRADE</th><th>SETTLEMENT</th><th>CER FECHA</th><th className="text-right">CER VALOR</th><th className="text-right">RATIO</th><th className="text-right">PARIDAD</th></tr></thead>
+              <tbody>{cerData.instrumentos.map(r => (
+                <tr key={r.ticker}>
+                  <td className="text-[#ff9900]">{r.ticker}</td>
+                  <td className="text-[#808080] font-mono">{r.ultimo_trade ?? "—"}</td>
+                  <td className="text-[#808080]">{r.settlement ?? "—"}</td>
+                  <td className="text-[#808080]">{r.cer_fecha ?? "—"}</td>
+                  <td className="text-right font-mono">{r.cer_valor?.toFixed(6) ?? "—"}</td>
+                  <td className="text-right font-mono">{r.ratio?.toFixed(6) ?? "—"}</td>
+                  <td className="text-right font-mono">{r.paridad?.toFixed(2) ?? "—"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Check Tasa Fija — estado de instrumentos en AuM">
+        <RunBtn onClick={runTf} loading={tfLoading} />
+        {tfData && (
+          <>
+            <div className="flex items-center gap-3 mb-2 text-[10px] font-mono">
+              <span className="text-[#555555]">Snapshot: {tfData.snapshot ?? "—"}</span>
+              <span style={{ color: "#00cc66" }}>✅ {tfData.ok}</span>
+              <span style={{ color: "#ff9900" }}>⚠️ {tfData.sin_posicion}</span>
+              <span style={{ color: "#ff3333" }}>❌ {tfData.sin_assets}</span>
+            </div>
+            <table><thead><tr><th>TICKER</th><th>ESTADO</th></tr></thead>
+              <tbody>{tfData.instrumentos.map(r => (
+                <tr key={r.ticker}>
+                  <td className="text-[#ff9900]">{r.ticker}</td>
+                  <td className={r.estado === "ok" ? "text-[#00cc66]" : r.estado === "sin_posicion" ? "text-[#ff9900]" : "text-[#ff3333]"}>
+                    {ESTADO_LABEL[r.estado] ?? r.estado}
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Debug Forward — cálculo paso a paso entre dos instrumentos">
+        <div className="flex items-center gap-2 mb-2">
+          <select value={tcA} onChange={e => setTcA(e.target.value)}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            {tickers.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <span className="text-[#555555] text-[10px]">→</span>
+          <select value={tcB} onChange={e => setTcB(e.target.value)}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            {tickers.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <button onClick={runDbf} disabled={dbfLoading || tcA === tcB}
+            className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+            {dbfLoading ? "Calculando…" : "Calcular"}
+          </button>
+        </div>
+        {dbfData && (
+          <>
+            {dbfData.error ? (
+              <p className="text-[#ff3333] text-[10px]">{dbfData.error}</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                  {[{ tc: dbfData.tc_a, tea: dbfData.tea_a, dur: dbfData.duration_a, ts: dbfData.ts_a },
+                    { tc: dbfData.tc_b, tea: dbfData.tea_b, dur: dbfData.duration_b, ts: dbfData.ts_b }].map(x => (
+                    <div key={x.tc} className="border border-[#1a1a1a] p-2">
+                      <div className="text-[11px] font-semibold text-[#ff9900]">{x.tc}</div>
+                      <div className="text-[10px] font-mono text-[#d0d0d0]">TEA: {x.tea != null ? `${(x.tea * 100).toFixed(4)}%` : "—"}</div>
+                      <div className="text-[10px] font-mono text-[#808080]">Duration: {x.dur?.toFixed(6) ?? "—"}</div>
+                      <div className="text-[9px] text-[#555555]">{x.ts ?? ""}</div>
+                    </div>
+                  ))}
+                </div>
+                {dbfData.forward != null && (
+                  <div className="text-[14px] font-semibold text-[#00cc66] font-mono mb-2">
+                    Forward {dbfData.tc_a} → {dbfData.tc_b}: {dbfData.forward.toFixed(4)}%
+                  </div>
+                )}
+                <table><thead><tr><th>PASO</th><th className="text-right">VALOR</th></tr></thead>
+                  <tbody>{dbfData.pasos.map((p, i) => (
+                    <tr key={i}><td className="text-[#808080]">{p.paso}</td><td className="text-right font-mono">{p.valor}</td></tr>
+                  ))}</tbody>
+                </table>
+              </>
+            )}
+          </>
+        )}
+      </CheckPanel>
+
+    </div>
+  );
+}
+
+type Tab = "diagnostico" | "backfills" | "historial" | "latencia" | "validaciones";
 
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "diagnostico", label: "DIAGNÓSTICO" },
-    { id: "backfills",   label: "BACKFILLS"   },
-    { id: "historial",   label: "HISTORIAL"   },
-    { id: "latencia",    label: "LATENCIA"    },
+    { id: "diagnostico",  label: "DIAGNÓSTICO"  },
+    { id: "backfills",    label: "BACKFILLS"    },
+    { id: "validaciones", label: "VALIDACIONES" },
+    { id: "historial",    label: "HISTORIAL"    },
+    { id: "latencia",     label: "LATENCIA"     },
   ];
 
   return (
@@ -410,6 +636,7 @@ export function ManagerView() {
         {tab === "diagnostico" && <TabDiagnostico />}
         {tab === "backfills"   && <TabBackfills />}
         {tab === "historial"   && <TabHistorial />}
+        {tab === "validaciones" && <TabValidaciones />}
         {tab === "latencia"    && <TabLatencia />}
       </div>
     </div>
