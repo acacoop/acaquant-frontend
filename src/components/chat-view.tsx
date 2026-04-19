@@ -28,8 +28,9 @@ interface GeminiPart {
 }
 
 interface GeminiMessage {
-  role: "user" | "model";
-  parts: GeminiPart[];
+  role: "user" | "model" | "assistant";
+  parts?: GeminiPart[];
+  content?: string | Record<string, unknown>[];
 }
 
 interface ChatResponse {
@@ -40,17 +41,19 @@ interface ChatResponse {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
     totalTokenCount?: number;
+    model_alias?: string;
   };
   steps: number;
   elapsed_s: number;
   truncated?: boolean;
+  model_used?: string;
 }
 
 interface VisibleTurn {
   role: "user" | "assistant";
   text: string;
   toolCalls?: ToolCall[];
-  meta?: { steps: number; elapsed_s: number; tokens?: number };
+  meta?: { steps: number; elapsed_s: number; tokens?: number; model?: string };
 }
 
 const SUGERENCIAS = [
@@ -192,6 +195,7 @@ export function ChatView() {
             steps: data.steps,
             elapsed_s: data.elapsed_s,
             tokens: data.usage?.totalTokenCount,
+            model: data.model_used ?? data.usage?.model_alias,
           },
         },
       ]);
@@ -230,7 +234,7 @@ export function ChatView() {
     <div className="h-full flex flex-col bg-[#080808]">
       <div className="border-b border-[#1a1a1a] px-3 py-1.5 flex items-center gap-3 shrink-0">
         <span className="text-[10px] tracking-wide text-[#555555] uppercase">Asistente</span>
-        <span className="text-[10px] text-[#ff9900]">Gemini 2.5 Flash</span>
+        <span className="text-[10px] text-[#ff9900]">Claude · haiku/sonnet auto</span>
         <button
           onClick={resetear}
           className="ml-auto text-[10px] text-[#555555] hover:text-[#ff9900] uppercase tracking-wide"
@@ -288,6 +292,7 @@ export function ChatView() {
                     <div className="mt-1 text-[9px] text-[#555555] tracking-wide uppercase">
                       {t.meta.steps} step{t.meta.steps !== 1 ? "s" : ""} · {t.meta.elapsed_s}s
                       {t.meta.tokens ? ` · ${t.meta.tokens} tok` : ""}
+                      {t.meta.model ? ` · ${t.meta.model}` : ""}
                     </div>
                   )}
                 </div>
