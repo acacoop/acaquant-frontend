@@ -287,10 +287,7 @@ export function FlujoVsAumView() {
                     fontFamily: "JetBrains Mono, monospace",
                   }}
                   labelStyle={{ color: "#ff9900" }}
-                  formatter={(v, name) => [
-                    fmtCompact(Number(v)),
-                    name === "aum" ? "AuM" : "Flujo",
-                  ]}
+                  formatter={(v, name) => [fmtCompact(Number(v)), name]}
                 />
                 <Legend
                   verticalAlign="top"
