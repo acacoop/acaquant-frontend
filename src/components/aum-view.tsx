@@ -96,7 +96,7 @@ function TabTasaFija() {
       </div>
 
       {/* Tabla tickers + detalle cuentas */}
-      <div className="grid grid-cols-[2fr_3fr] gap-3 min-h-0" style={{ height: "38%" }}>
+      <div className="grid grid-cols-[35%_65%] gap-3 min-h-0" style={{ height: "38%" }}>
         {/* Tickers */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
           <PanelHeader title="POSICIONES POR TICKER" />
