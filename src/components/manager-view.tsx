@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AsistenteDashboard } from "./asistente-dashboard";
+import { IntelPanel } from "./intel-panel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -609,7 +610,7 @@ function TabValidaciones() {
   );
 }
 
-type Tab = "diagnostico" | "backfills" | "historial" | "latencia" | "validaciones" | "asistente";
+type Tab = "diagnostico" | "backfills" | "historial" | "latencia" | "validaciones" | "asistente" | "intel";
 
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
@@ -621,6 +622,7 @@ export function ManagerView() {
     { id: "historial",    label: "HISTORIAL"    },
     { id: "latencia",     label: "LATENCIA"     },
     { id: "asistente",    label: "ASISTENTE"    },
+    { id: "intel",        label: "INTEL"        },
   ];
 
   return (
@@ -641,6 +643,7 @@ export function ManagerView() {
         {tab === "validaciones" && <TabValidaciones />}
         {tab === "latencia"    && <TabLatencia />}
         {tab === "asistente"   && <AsistenteDashboard />}
+        {tab === "intel"       && <IntelPanel />}
       </div>
     </div>
   );
