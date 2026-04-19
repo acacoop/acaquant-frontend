@@ -131,7 +131,7 @@ function TabTasaFija() {
                 <tbody>
                   {tickerSel.cuentas.sort((a, b) => b.valuacion - a.valuacion).map((c, i) => (
                     <tr key={i}>
-                      <td className="text-[#d0d0d0]">{c.cuenta}</td>
+                      <td className="text-[#d0d0d0] whitespace-normal break-words max-w-[180px]">{c.cuenta}</td>
                       <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
                       <td className="text-right font-mono text-[#00cc66]">{c.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                     </tr>
