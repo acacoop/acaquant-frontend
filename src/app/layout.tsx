@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Header } from "@/components/header";
+import { PauseBanner } from "@/components/pause-banner";
 import { TopTicker } from "@/components/top-ticker";
 import { AutoRefresh } from "@/components/auto-refresh";
 import "./globals.css";
@@ -38,6 +39,7 @@ export default async function RootLayout({
       <body className="h-full flex flex-col">
         <AutoRefresh intervalMs={5000} />
         <Header isManager={isManager} />
+        <PauseBanner />
         <TopTicker />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         <footer className="flex items-center h-5 px-3 bg-[#080808] border-t border-[#1a1a1a] text-[10px] text-[#555555]">
