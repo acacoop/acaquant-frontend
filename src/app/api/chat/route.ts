@@ -1,28 +1,58 @@
 import { NextResponse } from "next/server";
-import { apiFetch } from "@/lib/api";
 
 // El endpoint /api/chat puede tardar: prompt grande (~15K tokens) + varias
-// tool calls + Gemini latency. Cada turno ~5-8s, modelo puede encadenar 5-6
+// tool calls + Claude latency. Cada turno ~5-8s, modelo puede encadenar 5-6
 // turnos en preguntas estratégicas. maxDuration 300s (máx Vercel Pro).
+//
+// Implementación propia (sin apiFetch) para:
+// 1. No comernos el DEFAULT_TIMEOUT_MS=15s de apiFetch — el chat es largo
+//    por diseño. Si apiFetch aborta a los 15s, el backend sigue procesando,
+//    loggea OK, pero el usuario ve error: desfase clásico logs-OK/user-error.
+// 2. Preservar status + body del backend tal cual. Cuando el backend tira
+//    429/503/500 con {detail: {code, message, retryable}}, queremos que el
+//    front reciba el shape completo para mostrar el mensaje específico.
+
 export const maxDuration = 300;
+
+const API_URL = process.env.API_URL || "https://api.acaquant.com";
+const API_KEY = process.env.API_KEY || "";
+const CF_CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID || "";
+const CF_CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
 
 export async function POST(req: Request) {
   try {
-    // Propagar el email de Cloudflare Access para que el backend pueda
-    // auditar quién hizo la consulta (se guarda en Manager.AsistenteLogs).
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
+    if (CF_CLIENT_ID && CF_CLIENT_SECRET) {
+      headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
+      headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
+    }
+    // Propagar el email de Cloudflare Access para auditar en AsistenteLogs.
     const email = req.headers.get("cf-access-authenticated-user-email");
-    const extraHeaders: Record<string, string> = {};
-    if (email) extraHeaders["cf-access-authenticated-user-email"] = email;
+    if (email) headers["cf-access-authenticated-user-email"] = email;
 
-    const body = await req.json();
-    const data = await apiFetch("/api/chat", {
+    const body = await req.text();
+
+    const res = await fetch(`${API_URL}/api/chat`, {
       method: "POST",
-      revalidate: 0,
-      body: JSON.stringify(body),
-      extraHeaders,
+      headers,
+      body,
+      cache: "no-store",
     });
-    return NextResponse.json(data);
+
+    const text = await res.text();
+    return new NextResponse(text, {
+      status: res.status,
+      headers: {
+        "content-type": res.headers.get("content-type") || "application/json",
+      },
+    });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 502 });
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : String(e) },
+      { status: 502 },
+    );
   }
 }
