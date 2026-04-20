@@ -56,13 +56,6 @@ interface VisibleTurn {
   meta?: { steps: number; elapsed_s: number; tokens?: number; model?: string };
 }
 
-const SUGERENCIAS = [
-  "cómo está cotizando TX26?",
-  "breakevens actuales",
-  "forwards de la curva tasa fija",
-  "cuándo paga cupón AL30?",
-];
-
 /**
  * Mini-renderer de markdown inline (sin librerías externas).
  * Soporta: [texto](url), **bold**, `code`, saltos de línea.
@@ -294,20 +287,7 @@ export function ChatView() {
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         {turns.length === 0 && (
-          <div className="text-[#555555] text-sm">
-            <div className="mb-3">Hacé una pregunta sobre carteras, flujos, cotizaciones o breakevens.</div>
-            <div className="flex flex-wrap gap-1.5">
-              {SUGERENCIAS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => enviar(s)}
-                  className="text-[11px] px-2 py-1 border border-[#1a1a1a] bg-[#0e0e0e] hover:border-[#ff9900] hover:text-[#ff9900] font-mono"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
+          <div className="text-[#555555] text-sm">Preguntale a ACAQuant.</div>
         )}
 
         {turns.map((t, i) => (
