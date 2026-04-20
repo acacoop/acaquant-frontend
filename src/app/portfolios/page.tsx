@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/api";
 import { PortfolioView } from "@/components/portfolio-view";
 
+export const dynamic = "force-dynamic";
+
 async function safeFetch<T>(path: string, fallback: T): Promise<T> {
   try {
     return await apiFetch<T>(path, { revalidate: 60 });

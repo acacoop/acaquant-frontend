@@ -2,6 +2,8 @@ import { apiFetch } from "@/lib/api";
 import { DerivadosView } from "@/components/derivados-view";
 import type { OpcionDoc } from "@/lib/estrategias";
 
+export const dynamic = "force-dynamic";
+
 interface Meta {
   tasa: number;
   vr_local: number;

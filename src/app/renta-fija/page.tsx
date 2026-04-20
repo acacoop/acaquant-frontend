@@ -5,6 +5,8 @@ import { ForwardsPanel } from "@/components/forwards-panel";
 import { CurvasChart } from "@/components/curvas-chart";
 import { BreakevensBlock } from "@/components/breakevens-block";
 
+export const dynamic = "force-dynamic";
+
 interface RentaFijaDoc {
   instrumento: string;
   metrics?: {
