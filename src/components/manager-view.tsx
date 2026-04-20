@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AsistenteDashboard } from "./asistente-dashboard";
 import { IntelPanel } from "./intel-panel";
+import { JobsRunsPanel } from "./jobs-runs-panel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -610,7 +611,7 @@ function TabValidaciones() {
   );
 }
 
-type Tab = "diagnostico" | "backfills" | "historial" | "latencia" | "validaciones" | "asistente" | "intel";
+type Tab = "diagnostico" | "backfills" | "jobs" | "historial" | "latencia" | "validaciones" | "asistente" | "intel";
 
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
@@ -618,6 +619,7 @@ export function ManagerView() {
   const tabs: { id: Tab; label: string }[] = [
     { id: "diagnostico",  label: "DIAGNÓSTICO"  },
     { id: "backfills",    label: "BACKFILLS"    },
+    { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "historial",    label: "HISTORIAL"    },
     { id: "latencia",     label: "LATENCIA"     },
@@ -639,6 +641,7 @@ export function ManagerView() {
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "diagnostico" && <TabDiagnostico />}
         {tab === "backfills"   && <TabBackfills />}
+        {tab === "jobs"        && <JobsRunsPanel />}
         {tab === "historial"   && <TabHistorial />}
         {tab === "validaciones" && <TabValidaciones />}
         {tab === "latencia"    && <TabLatencia />}
