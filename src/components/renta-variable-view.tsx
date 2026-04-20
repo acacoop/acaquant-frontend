@@ -226,7 +226,8 @@ function TickerDetail({ symbol }: { symbol: string }) {
           let detail = `HTTP ${r.status}`;
           try {
             const body = await r.json();
-            if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+            const msg = body?.detail ?? body?.error;
+            if (msg) detail = typeof msg === "string" ? msg : JSON.stringify(msg);
           } catch {
             /* ignore */
           }
