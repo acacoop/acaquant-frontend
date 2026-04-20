@@ -63,6 +63,54 @@ const SUGERENCIAS = [
   "cuándo paga cupón AL30?",
 ];
 
+/**
+ * Mini-renderer de markdown inline (sin librerías externas).
+ * Soporta: [texto](url), **bold**, `code`, saltos de línea.
+ * Los links internos (/, /derivados, etc) se renderizan como <a> naranja;
+ * los externos abren en nueva pestaña.
+ */
+function renderMarkdown(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let idx = 0;
+  // Regex combinado: [texto](url) | **bold** | `code`
+  const re = /\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`/g;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > idx) nodes.push(text.slice(idx, match.index));
+    if (match[1] && match[2]) {
+      const [label, href] = [match[1], match[2]];
+      const external = href.startsWith("http");
+      nodes.push(
+        <a
+          key={key++}
+          href={href}
+          target={external ? "_blank" : undefined}
+          rel={external ? "noopener noreferrer" : undefined}
+          className="text-[#ff9900] underline decoration-dotted underline-offset-2 hover:text-[#ffb84d]"
+        >
+          {label}
+        </a>,
+      );
+    } else if (match[3]) {
+      nodes.push(
+        <strong key={key++} className="text-white font-semibold">
+          {match[3]}
+        </strong>,
+      );
+    } else if (match[4]) {
+      nodes.push(
+        <code key={key++} className="bg-[#1a1a1a] px-1 text-[#ff9900]">
+          {match[4]}
+        </code>,
+      );
+    }
+    idx = re.lastIndex;
+  }
+  if (idx < text.length) nodes.push(text.slice(idx));
+  return nodes;
+}
+
 async function parseError(res: Response): Promise<AppError> {
   let raw = "";
   try {
@@ -273,7 +321,7 @@ export function ChatView() {
             ) : (
               <div className="flex">
                 <div className="max-w-[90%] bg-[#0e0e0e] border border-[#1a1a1a] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
-                  {t.text}
+                  {renderMarkdown(t.text)}
                   {t.toolCalls && t.toolCalls.length > 0 && (
                     <details className="mt-2 text-[10px] text-[#555555]">
                       <summary className="cursor-pointer hover:text-[#ff9900] uppercase tracking-wide">
