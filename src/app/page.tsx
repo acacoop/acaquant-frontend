@@ -11,8 +11,8 @@ export default function Home() {
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* Columna izquierda: watchlist arriba · chart de ticker seleccionado abajo */}
-        <div className="min-h-0 grid grid-rows-2 gap-3">
+        {/* Columna izquierda: watchlist 40% arriba · chart 60% abajo */}
+        <div className="min-h-0 grid grid-rows-[2fr_3fr] gap-3">
           <div className="min-h-0">
             <WatchlistPanel
               onSelect={setSelectedTicker}
