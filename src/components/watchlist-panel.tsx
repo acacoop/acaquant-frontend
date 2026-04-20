@@ -9,6 +9,10 @@ interface Quote {
   last: number | null;
   prev_close: number | null;
   pct_day: number | null;
+  ret_7d:  number | null;
+  ret_mtd: number | null;
+  ret_ytd: number | null;
+  ret_1y:  number | null;
   updated_at?: string;
 }
 
@@ -28,6 +32,18 @@ function fmtPct(v: number | null | undefined): string {
   return `${sign}${v.toFixed(2)}%`;
 }
 
+function PctCell({ v }: { v: number | null | undefined }) {
+  if (v === null || v === undefined) {
+    return <td className="px-2 py-0.5 text-right text-[#555555] tabular-nums">—</td>;
+  }
+  const color = v >= 0 ? "#00cc66" : "#ff3333";
+  return (
+    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color }}>
+      {fmtPct(v)}
+    </td>
+  );
+}
+
 const FILTROS_ORDER = ["Índices", "Regiones", "Commodities", "Monedas"];
 
 export function WatchlistPanel() {
@@ -35,7 +51,7 @@ export function WatchlistPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [filtro, setFiltro] = useState<string>("all");
+  const [filtro, setFiltro] = useState<string>("");
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -72,22 +88,19 @@ export function WatchlistPanel() {
     );
   }, [quotes]);
 
+  // Cuando llegan las quotes por primera vez, autoseleccionamos el primer grupo.
+  useEffect(() => {
+    if (!filtro && gruposPresentes.length > 0) {
+      setFiltro(gruposPresentes[0]);
+    }
+  }, [filtro, gruposPresentes]);
+
   const visibles = useMemo(() => {
-    const src = filtro === "all"
-      ? quotes
-      : quotes.filter((q) => (q.grupo || (q.type === "forex" ? "Monedas" : "Otros")) === filtro);
-    return src
+    if (!filtro) return [];
+    return quotes
+      .filter((q) => (q.grupo || (q.type === "forex" ? "Monedas" : "Otros")) === filtro)
       .slice()
-      .sort((a, b) => {
-        const ga = a.grupo || "Otros";
-        const gb = b.grupo || "Otros";
-        const oa = FILTROS_ORDER.indexOf(ga);
-        const ob = FILTROS_ORDER.indexOf(gb);
-        const da = oa === -1 ? 99 : oa;
-        const db = ob === -1 ? 99 : ob;
-        if (da !== db) return da - db;
-        return a.symbol.localeCompare(b.symbol);
-      });
+      .sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [quotes, filtro]);
 
   return (
@@ -111,16 +124,6 @@ export function WatchlistPanel() {
 
       {/* Chips de filtro */}
       <div className="px-2 py-1.5 border-b border-[#1a1a1a] flex flex-wrap items-center gap-1 shrink-0">
-        <button
-          onClick={() => setFiltro("all")}
-          className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
-            filtro === "all"
-              ? "bg-[#ff9900] text-black border-[#ff9900]"
-              : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
-          }`}
-        >
-          Todos
-        </button>
         {gruposPresentes.map((g) => (
           <button
             key={g}
@@ -154,33 +157,26 @@ export function WatchlistPanel() {
           <thead className="sticky top-0 bg-[#080808] z-10 border-b border-[#1a1a1a]">
             <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
               <th className="px-2 py-1 text-left">Símbolo</th>
-              <th className="px-2 py-1 text-left w-[86px]">Grupo</th>
               <th className="px-2 py-1 text-right">Último</th>
-              <th className="px-2 py-1 text-right w-[64px]">%Día</th>
+              <th className="px-2 py-1 text-right">%Día</th>
+              <th className="px-2 py-1 text-right">%7d</th>
+              <th className="px-2 py-1 text-right">%MTD</th>
+              <th className="px-2 py-1 text-right">%YTD</th>
             </tr>
           </thead>
           <tbody>
-            {visibles.map((q) => {
-              const up = q.pct_day !== null && (q.pct_day ?? 0) >= 0;
-              const grupo = q.grupo || "Otros";
-              return (
-                <tr key={q.symbol} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
-                  <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold w-[80px]">
-                    {q.symbol}
-                  </td>
-                  <td className="px-2 py-0.5 text-[#666666]">{grupo}</td>
-                  <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
-                    {fmtPrice(q.last)}
-                  </td>
-                  <td
-                    className="px-2 py-0.5 text-right tabular-nums"
-                    style={{ color: up ? "#00cc66" : "#ff3333" }}
-                  >
-                    {fmtPct(q.pct_day)}
-                  </td>
-                </tr>
-              );
-            })}
+            {visibles.map((q) => (
+              <tr key={q.symbol} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
+                <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{q.symbol}</td>
+                <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
+                  {fmtPrice(q.last)}
+                </td>
+                <PctCell v={q.pct_day} />
+                <PctCell v={q.ret_7d} />
+                <PctCell v={q.ret_mtd} />
+                <PctCell v={q.ret_ytd} />
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
