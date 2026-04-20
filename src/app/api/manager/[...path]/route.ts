@@ -70,6 +70,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ path: 
   return proxy(req, (await params).path);
 }
 
+export async function PUT(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+  return proxy(req, (await params).path);
+}
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   return proxy(req, (await params).path);
 }
