@@ -217,20 +217,31 @@ function TickerDetail({ symbol }: { symbol: string }) {
     let cancelled = false;
     setLoading(true);
 
-    Promise.all([
-      fetch(
-        `/api/market/candle?symbol=${encodeURIComponent(symbol)}&resolution=${opt.resolution}&desde=${desdeISO}&hasta=${hastaISO}`,
-        { cache: "no-store" },
-      ).then((r) => r.json()),
-      fetch(`/api/market/quotes?symbols=${encodeURIComponent(symbol)}`, { cache: "no-store" })
-        .then((r) => r.json()),
-    ])
-      .then(([candleData, _]) => {
+    fetch(
+      `/api/market/candle?symbol=${encodeURIComponent(symbol)}&resolution=${opt.resolution}&desde=${desdeISO}&hasta=${hastaISO}`,
+      { cache: "no-store" },
+    )
+      .then(async (r) => {
+        if (!r.ok) {
+          let detail = `HTTP ${r.status}`;
+          try {
+            const body = await r.json();
+            if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+          } catch {
+            /* ignore */
+          }
+          throw new Error(detail);
+        }
+        return r.json();
+      })
+      .then((candleData) => {
         if (cancelled) return;
-        setCandles(Array.isArray(candleData?.candles) ? candleData.candles : []);
-        setError(null);
+        const rows = Array.isArray(candleData?.candles) ? candleData.candles : [];
+        setCandles(rows);
+        setError(rows.length === 0 ? `Sin data (status: ${candleData?.status ?? "?"})` : null);
       })
       .catch((e) => {
+        console.error("candle fetch failed:", e);
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
+// yfinance puede tardar 5-15s. Default Vercel Hobby es 10s → bumpeamos a 60.
+export const maxDuration = 60;
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
