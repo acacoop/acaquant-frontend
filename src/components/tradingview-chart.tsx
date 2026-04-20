@@ -26,6 +26,9 @@ function mapSymbol(symbol: string): string {
   if (symbol === "UST 10Y") return "TVC:US10Y";
   if (symbol === "UST 30Y") return "TVC:US30Y";
 
+  // Índices locales
+  if (symbol === "MERVAL") return "BCBA:IMV";
+
   // Resto (stocks, ETFs): TradingView auto-resuelve con el símbolo pelado.
   return symbol;
 }

@@ -1,12 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NewsPanel } from "@/components/news-panel";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
 export function HomeView() {
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [maximized, setMaximized] = useState(false);
+
+  useEffect(() => {
+    if (!maximized) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMaximized(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [maximized]);
+
+  const chartHeader = (
+    <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center">
+      <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+        Chart
+      </span>
+      <span className="ml-2 text-[10px] text-[#d0d0d0] font-mono">
+        {selectedTicker}
+      </span>
+      <span className="ml-auto flex items-center gap-2">
+        <span className="text-[9px] text-[#555555]">TradingView</span>
+        <button
+          onClick={() => setMaximized((m) => !m)}
+          aria-label={maximized ? "Minimizar" : "Maximizar"}
+          title={maximized ? "Minimizar (Esc)" : "Maximizar"}
+          className="text-[#555555] hover:text-[#ff9900] transition-colors text-[14px] leading-none px-1"
+        >
+          {maximized ? "⊡" : "⛶"}
+        </button>
+      </span>
+    </div>
+  );
 
   return (
     <div className="h-full min-h-0 p-3">
@@ -22,17 +54,9 @@ export function HomeView() {
           <div className="min-h-0">
             {selectedTicker ? (
               <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[#080808] overflow-hidden">
-                <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center">
-                  <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-                    Chart
-                  </span>
-                  <span className="ml-2 text-[10px] text-[#d0d0d0] font-mono">
-                    {selectedTicker}
-                  </span>
-                  <span className="ml-auto text-[9px] text-[#555555]">TradingView</span>
-                </div>
+                {chartHeader}
                 <div className="flex-1 min-h-0">
-                  <TradingViewChart symbol={selectedTicker} />
+                  {!maximized && <TradingViewChart symbol={selectedTicker} />}
                 </div>
               </div>
             ) : (
@@ -48,6 +72,24 @@ export function HomeView() {
           <NewsPanel />
         </div>
       </div>
+
+      {/* Overlay fullscreen del chart */}
+      {maximized && selectedTicker && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          onClick={() => setMaximized(false)}
+        >
+          <div
+            className="bg-[#080808] border border-[#ff9900] w-[96vw] h-[92vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {chartHeader}
+            <div className="flex-1 min-h-0">
+              <TradingViewChart symbol={selectedTicker} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
