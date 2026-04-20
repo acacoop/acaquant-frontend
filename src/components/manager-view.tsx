@@ -197,6 +197,157 @@ function JobCard({ job_id, tipo, onClear }: { job_id: string; tipo: string; onCl
   );
 }
 
+// ── Panel: Opciones → elegir vencimientos a trackear ───────────────────────
+
+function fmtExpiry(s: string): string {
+  if (s.length !== 8) return s;
+  return `${s.slice(6, 8)}/${s.slice(4, 6)}/${s.slice(0, 4)}`;
+}
+
+interface ExpiriesData {
+  disponibles: string[];
+  activos:     string[];
+  auto_pick:   boolean;
+  actualizado: string | null;
+}
+
+function OpcionesExpiriesPanel() {
+  const [data, setData] = useState<ExpiriesData | null>(null);
+  const [seleccion, setSeleccion] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const fetchData = useCallback(() => {
+    fetch("/api/manager/options/expiries")
+      .then((r) => r.json())
+      .then((d: ExpiriesData) => {
+        setData(d);
+        setSeleccion(d.activos || []);
+      })
+      .catch((e) => setMsg(`Error: ${e}`));
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const toggle = (exp: string) => {
+    setSeleccion((s) => (s.includes(exp) ? s.filter((x) => x !== exp) : [...s, exp]));
+  };
+
+  const guardar = () => {
+    setSaving(true);
+    setMsg(null);
+    fetch("/api/manager/options/expiries", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expiries: seleccion }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setMsg(d.auto_pick ? "Guardado — auto-pick activado" : `Guardado — ${d.expiries.length} vencimiento(s)`);
+        fetchData();
+      })
+      .catch((e) => setMsg(`Error: ${e}`))
+      .finally(() => setSaving(false));
+  };
+
+  const volverAuto = () => {
+    setSeleccion([]);
+    setSaving(true);
+    setMsg(null);
+    fetch("/api/manager/options/expiries", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expiries: [] }),
+    })
+      .then(() => {
+        setMsg("Auto-pick activado");
+        fetchData();
+      })
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <div className="border border-[#1a1a1a] bg-[#080808]">
+      <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+          Opciones — vencimientos a trackear
+        </span>
+        <span className="text-[9px] text-[#555555]">
+          (engine aplica en el próximo chequeo ~5 min)
+        </span>
+        {data?.actualizado && (
+          <span className="ml-auto text-[9px] text-[#555555] font-mono">
+            disponibles actualizados: {data.actualizado}
+          </span>
+        )}
+      </div>
+
+      <div className="p-3 space-y-2">
+        {!data ? (
+          <div className="text-[10px] text-[#555555] font-mono">Cargando…</div>
+        ) : data.disponibles.length === 0 ? (
+          <div className="text-[10px] text-[#ff9900] font-mono">
+            No hay vencimientos disponibles en Metadata. ¿Está corriendo el motor de opciones?
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {data.disponibles.map((exp) => {
+                const sel = seleccion.includes(exp);
+                return (
+                  <button
+                    key={exp}
+                    onClick={() => toggle(exp)}
+                    disabled={saving}
+                    className={`px-2 py-1 text-[10px] font-mono border transition-colors ${
+                      sel
+                        ? "bg-[#ff9900] text-black border-[#ff9900]"
+                        : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    }`}
+                  >
+                    {fmtExpiry(exp)}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={guardar}
+                disabled={saving}
+                className="px-3 py-1 text-[10px] font-semibold border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black transition-colors disabled:opacity-40"
+              >
+                {saving ? "Guardando…" : "Guardar selección"}
+              </button>
+              <button
+                onClick={volverAuto}
+                disabled={saving}
+                className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+              >
+                Volver a auto-pick
+              </button>
+              <span className="text-[10px] font-mono text-[#808080]">
+                estado actual:{" "}
+                {data.auto_pick ? (
+                  <span className="text-[#00cc66]">AUTO (próximo &gt; hoy)</span>
+                ) : (
+                  <span className="text-[#ff9900]">
+                    {data.activos.map(fmtExpiry).join(", ")}
+                  </span>
+                )}
+              </span>
+              {msg && <span className="text-[10px] font-mono text-[#00cc66] ml-auto">{msg}</span>}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function TabBackfills() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [activeJobs, setActiveJobs] = useState<Record<string, { job_id: string; tipo: string }>>({});
@@ -213,7 +364,8 @@ function TabBackfills() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-3">
+    <div className="h-full overflow-y-auto p-3 space-y-3">
+      <OpcionesExpiriesPanel />
       <div className="grid grid-cols-2 gap-3">
         {JOBS_DISPONIBLES.map(({ tipo, label, desc, needsDate }) => (
           <div key={tipo} className="border border-[#1a1a1a] bg-[#080808] p-3 flex flex-col gap-2">
