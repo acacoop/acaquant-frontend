@@ -1,20 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-interface Quote {
-  symbol: string;
-  type: "stock" | "forex";
-  grupo?: string;
-  last: number | null;
-  prev_close: number | null;
-  pct_day: number | null;
-  ret_7d:  number | null;
-  ret_mtd: number | null;
-  ret_ytd: number | null;
-  ret_1y:  number | null;
-  updated_at?: string;
-}
+import type { Quote } from "@/lib/types";
 
 const POLL_MS = 30_000;
 

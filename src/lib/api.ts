@@ -20,7 +20,11 @@ interface FetchOpts {
   revalidate?: number;
   method?: "GET" | "PUT" | "POST" | "DELETE" | "PATCH";
   body?: string;
+  /** Timeout en ms. Default 15s. Pasá 0 para desactivar. */
+  timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T> {
   const url = `${API_URL}${path}`;
@@ -38,16 +42,33 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   }
 
   const method = opts.method || "GET";
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+
   const init: RequestInit & { next?: { revalidate: number } } =
     method === "GET" && opts.revalidate && opts.revalidate > 0
-      ? { method, headers, next: { revalidate: opts.revalidate } }
-      : { method, headers, cache: "no-store", ...(opts.body ? { body: opts.body } : {}) };
+      ? { method, headers, next: { revalidate: opts.revalidate }, signal: controller?.signal }
+      : {
+          method,
+          headers,
+          cache: "no-store",
+          signal: controller?.signal,
+          ...(opts.body ? { body: opts.body } : {}),
+        };
 
-  const res = await fetch(url, init);
-
-  if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${res.statusText}`);
+  try {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      throw new Error(`API error ${res.status}: ${res.statusText}`);
+    }
+    return await res.json();
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error(`API timeout (${timeoutMs}ms): ${path}`);
+    }
+    throw e;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-
-  return res.json();
 }

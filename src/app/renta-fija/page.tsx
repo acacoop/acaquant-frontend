@@ -1,4 +1,12 @@
 import { apiFetch } from "@/lib/api";
+import type {
+  BreakevenDoc,
+  BreakevenHistDoc,
+  FlujoTicker,
+  ForwardDoc,
+  ForwardHistDoc,
+  RentaFijaDoc,
+} from "@/lib/types";
 import { Panel, fmtTs } from "@/components/ui";
 import { RentaFijaTable } from "@/components/renta-fija-table";
 import { ForwardsPanel } from "@/components/forwards-panel";
@@ -6,60 +14,6 @@ import { CurvasChart } from "@/components/curvas-chart";
 import { BreakevensBlock } from "@/components/breakevens-block";
 
 export const dynamic = "force-dynamic";
-
-interface RentaFijaDoc {
-  instrumento: string;
-  metrics?: {
-    last_price?: number;
-    vwap?: number;
-    total_nominals?: number;
-    high_price?: number;
-    low_price?: number;
-    closing_price?: number;
-    open_price?: number;
-  };
-}
-
-interface ForwardDoc {
-  curva: string;
-  tickers?: string[];
-  tasas?: Record<string, number>;
-  matrix?: Record<string, Record<string, number>>;
-  updated_at?: string;
-}
-
-interface FlujoTicker {
-  ticker: string;
-  curva: string;
-  fecha_vencimiento?: string;
-}
-
-interface BreakevenPar {
-  n: number;
-  lecap: string;
-  cer: string;
-  fecha_vencimiento: string;
-  dias: number;
-  tem_lecap: number;
-  paridad_cer: number;
-  breakeven_mensual: number;
-}
-
-interface BreakevenDoc {
-  pares?: BreakevenPar[];
-  updated_at?: string;
-}
-
-interface BreakevenHistDoc {
-  fecha: string;
-  pares: BreakevenPar[];
-}
-
-interface ForwardHistDoc {
-  curva: string;
-  fecha: string;
-  matrix: Record<string, Record<string, number>>;
-}
 
 async function safeFetch<T>(
   path: string,
