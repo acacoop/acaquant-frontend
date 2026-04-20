@@ -8,11 +8,18 @@ export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {
+    // Propagar el email de Cloudflare Access para que el backend pueda
+    // auditar quién hizo la consulta (se guarda en Manager.AsistenteLogs).
+    const email = req.headers.get("cf-access-authenticated-user-email");
+    const extraHeaders: Record<string, string> = {};
+    if (email) extraHeaders["cf-access-authenticated-user-email"] = email;
+
     const body = await req.json();
     const data = await apiFetch("/api/chat", {
       method: "POST",
       revalidate: 0,
       body: JSON.stringify(body),
+      extraHeaders,
     });
     return NextResponse.json(data);
   } catch (e) {

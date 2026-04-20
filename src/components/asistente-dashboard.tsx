@@ -87,13 +87,22 @@ function fmtK(n: number | undefined): string {
 function fmtTime(iso: string | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return d.toLocaleTimeString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function fmtDateShort(iso: string | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  return d.toLocaleDateString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "2-digit",
+    month: "2-digit",
+  });
 }
 
 function truncate(s: string, n: number): string {
@@ -502,9 +511,12 @@ export function AsistenteDashboard() {
                         isExp ? "bg-[#0e0e0e]" : ""
                       }`}
                     >
-                      <td className="px-2 py-1 text-[#888888]">{fmtTime(l.ts)}</td>
-                      <td className="px-2 py-1 text-[#888888] truncate">
-                        {l.user && l.user !== "anon" ? l.user.split("@")[0] : "—"}
+                      <td className="px-2 py-1 text-[#888888] whitespace-nowrap">{fmtTime(l.ts)}</td>
+                      <td
+                        className="px-2 py-1 text-[#888888] truncate max-w-[180px]"
+                        title={l.user || undefined}
+                      >
+                        {l.user && l.user !== "anon" ? l.user : "—"}
                       </td>
                       <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-0">
                         {truncate(l.message, 100)}

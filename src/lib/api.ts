@@ -22,6 +22,8 @@ interface FetchOpts {
   body?: string;
   /** Timeout en ms. Default 15s. Pasá 0 para desactivar. */
   timeoutMs?: number;
+  /** Headers adicionales a reenviar al backend (ej. cf-access-authenticated-user-email). */
+  extraHeaders?: Record<string, string>;
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -39,6 +41,9 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   }
   if (opts.body) {
     headers["Content-Type"] = "application/json";
+  }
+  if (opts.extraHeaders) {
+    Object.assign(headers, opts.extraHeaders);
   }
 
   const method = opts.method || "GET";
