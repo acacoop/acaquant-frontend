@@ -330,7 +330,7 @@ function TickerDetail({ symbol }: { symbol: string }) {
               <Tooltip
                 contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 10 }}
                 labelFormatter={(v) => new Date(v as string).toLocaleDateString("es-AR")}
-                formatter={(v: number | string) => [fmtPrice(Number(v)), "Cierre"]}
+                formatter={(v) => [fmtPrice(Number(v)), "Cierre"]}
               />
               <Line
                 type="monotone"
