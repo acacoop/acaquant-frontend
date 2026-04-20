@@ -44,9 +44,14 @@ function PctCell({ v }: { v: number | null | undefined }) {
   );
 }
 
-const FILTROS_ORDER = ["Índices", "Regiones", "Commodities", "Monedas"];
+const FILTROS_ORDER = ["Índices", "Regiones", "Commodities", "Monedas", "US Treasury"];
 
-export function WatchlistPanel() {
+interface WatchlistPanelProps {
+  onSelect?: (symbol: string) => void;
+  selected?: string | null;
+}
+
+export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {}) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -165,18 +170,32 @@ export function WatchlistPanel() {
             </tr>
           </thead>
           <tbody>
-            {visibles.map((q) => (
-              <tr key={q.symbol} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
-                <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{q.symbol}</td>
-                <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
-                  {fmtPrice(q.last)}
-                </td>
-                <PctCell v={q.pct_day} />
-                <PctCell v={q.ret_7d} />
-                <PctCell v={q.ret_mtd} />
-                <PctCell v={q.ret_ytd} />
-              </tr>
-            ))}
+            {visibles.map((q) => {
+              const isSel = selected === q.symbol;
+              const clickable = !!onSelect;
+              return (
+                <tr
+                  key={q.symbol}
+                  onClick={clickable ? () => onSelect!(q.symbol) : undefined}
+                  className={`border-b border-[#0e0e0e] ${
+                    isSel
+                      ? "bg-[#ff9900]/15"
+                      : clickable
+                      ? "hover:bg-[#0e0e0e] cursor-pointer"
+                      : "hover:bg-[#0e0e0e]"
+                  }`}
+                >
+                  <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{q.symbol}</td>
+                  <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
+                    {fmtPrice(q.last)}
+                  </td>
+                  <PctCell v={q.pct_day} />
+                  <PctCell v={q.ret_7d} />
+                  <PctCell v={q.ret_mtd} />
+                  <PctCell v={q.ret_ytd} />
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
