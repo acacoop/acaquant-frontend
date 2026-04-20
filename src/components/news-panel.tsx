@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-interface Headline {
+export interface Headline {
   url: string;
   fuente: string;
   categoria: string;
@@ -10,6 +10,11 @@ interface Headline {
   excerpt?: string;
   fecha_publicacion: string; // ISO
   fetched_at?: string;
+}
+
+interface NewsPanelProps {
+  onSelect?: (h: Headline) => void;
+  selectedUrl?: string | null;
 }
 
 // Colores por fuente — tipo Bloomberg (cada source con un acento).
@@ -56,7 +61,7 @@ function fmtHora(iso: string): string {
   );
 }
 
-export function NewsPanel() {
+export function NewsPanel({ onSelect, selectedUrl }: NewsPanelProps = {}) {
   const [headlines, setHeadlines] = useState<Headline[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -188,39 +193,58 @@ export function NewsPanel() {
             const color = FUENTE_COLOR[h.fuente] ?? "#888888";
             const flash = newUrls.has(h.url);
             const bg = FUENTE_BG[h.fuente] ?? "bg-[#1a1a1a]/20";
+            const isSelected = selectedUrl === h.url;
+
+            const content = (
+              <>
+                <div className="flex items-start gap-2 text-[10px]">
+                  <span className="text-[#555555] shrink-0 w-[44px] tabular-nums">
+                    {fmtHora(h.fecha_publicacion)}
+                  </span>
+                  <span
+                    className={`shrink-0 px-1 ${bg} uppercase tracking-wide font-semibold`}
+                    style={{ color }}
+                  >
+                    {h.fuente.replace("Ámbito", "AMB").slice(0, 7)}
+                  </span>
+                  <span className="text-[11px] text-[#d0d0d0] group-hover:text-white leading-tight">
+                    {h.titulo}
+                  </span>
+                </div>
+                {h.excerpt && (
+                  <div className="pl-[52px] mt-0.5 text-[10px] text-[#666666] leading-snug line-clamp-2 group-hover:text-[#888888]">
+                    {h.excerpt}
+                  </div>
+                )}
+              </>
+            );
+
+            // Si hay onSelect, abre inline en la terminal (no redirige).
+            // Sin onSelect (otras páginas), cae al comportamiento de link externo.
             return (
               <li
                 key={h.url}
-                className={`border-b border-[#111111] px-3 py-1.5 hover:bg-[#0e0e0e] transition-colors ${
+                className={`border-b border-[#111111] transition-colors ${
                   flash ? "bg-[#ff9900]/15 animate-pulse" : ""
-                }`}
+                } ${isSelected ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]"}`}
               >
-                <a
-                  href={h.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block group"
-                >
-                  <div className="flex items-start gap-2 text-[10px]">
-                    <span className="text-[#555555] shrink-0 w-[44px] tabular-nums">
-                      {fmtHora(h.fecha_publicacion)}
-                    </span>
-                    <span
-                      className={`shrink-0 px-1 ${bg} uppercase tracking-wide font-semibold`}
-                      style={{ color }}
-                    >
-                      {h.fuente.replace("Ámbito", "AMB").slice(0, 7)}
-                    </span>
-                    <span className="text-[11px] text-[#d0d0d0] group-hover:text-white leading-tight">
-                      {h.titulo}
-                    </span>
-                  </div>
-                  {h.excerpt && (
-                    <div className="pl-[52px] mt-0.5 text-[10px] text-[#666666] leading-snug line-clamp-2 group-hover:text-[#888888]">
-                      {h.excerpt}
-                    </div>
-                  )}
-                </a>
+                {onSelect ? (
+                  <button
+                    onClick={() => onSelect(h)}
+                    className="block w-full text-left px-3 py-1.5 group cursor-pointer"
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <a
+                    href={h.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block px-3 py-1.5 group"
+                  >
+                    {content}
+                  </a>
+                )}
               </li>
             );
           })}
