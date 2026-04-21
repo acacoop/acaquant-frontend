@@ -5,8 +5,10 @@ import { NewsPanel } from "@/components/news-panel";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
+const DEFAULT_TICKER = "MERVAL";   // BCBA:IMV en TradingView (mapSymbol)
+
 export function HomeView() {
-  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_TICKER);
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -52,18 +54,12 @@ export function HomeView() {
             />
           </div>
           <div className="min-h-0">
-            {selectedTicker ? (
-              <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[#080808] overflow-hidden">
-                {chartHeader}
-                <div className="flex-1 min-h-0">
-                  {!maximized && <TradingViewChart symbol={selectedTicker} />}
-                </div>
+            <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[#080808] overflow-hidden">
+              {chartHeader}
+              <div className="flex-1 min-h-0">
+                {!maximized && <TradingViewChart symbol={selectedTicker} />}
               </div>
-            ) : (
-              <div className="h-full border border-[#1a1a1a] bg-[#080808] flex items-center justify-center text-[#555555] text-xs font-mono text-center px-6">
-                Clickeá un ticker del watchlist arriba para ver el chart acá.
-              </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -74,7 +70,7 @@ export function HomeView() {
       </div>
 
       {/* Overlay fullscreen del chart */}
-      {maximized && selectedTicker && (
+      {maximized && (
         <div
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
           onClick={() => setMaximized(false)}
