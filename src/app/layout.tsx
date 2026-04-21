@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { Header } from "@/components/header";
 import { PauseBanner } from "@/components/pause-banner";
 import { TopTicker } from "@/components/top-ticker";
-import { AutoRefresh } from "@/components/auto-refresh";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,7 +36,6 @@ export default async function RootLayout({
         />
       </head>
       <body className="h-full flex flex-col">
-        <AutoRefresh intervalMs={5000} />
         <Header isManager={isManager} />
         <PauseBanner />
         <TopTicker />
