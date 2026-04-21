@@ -4,6 +4,8 @@ import { shortTicker, fmtNum } from "./ui";
 
 interface MepResponse {
   mep: number;
+  ccl?: number | null;
+  canje?: number | null;
   timestamp: string;
 }
 
@@ -20,6 +22,13 @@ interface RentaFijaDoc {
   };
 }
 
+interface CaucionDoc {
+  moneda: "ARS" | "USD";
+  plazo_dias: number;
+  tna_last: number | null;
+  tna_closing: number | null;
+}
+
 async function safeFetch<T>(
   path: string,
   fallback: T,
@@ -32,11 +41,17 @@ async function safeFetch<T>(
   }
 }
 
+function fmtTna(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—";
+  return `${v.toFixed(2)}%`;
+}
+
 export async function TopTicker() {
-  const [mep, dolar, rentaFija] = await Promise.all([
+  const [mep, dolar, rentaFija, caucion] = await Promise.all([
     safeFetch<MepResponse | null>("/api/cotizaciones/mep", null, 30),
     safeFetch<DolarResponse[]>("/api/cotizaciones/dolar", [], 3600),
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
+    safeFetch<CaucionDoc[]>("/api/cotizaciones/caucion", [], 15),
   ]);
 
   const lastDolar = dolar.length > 0 ? dolar[dolar.length - 1] : null;
@@ -48,6 +63,20 @@ export async function TopTicker() {
       value: `$${fmtNum(mep.mep)}`,
       color: "#00cc66",
     });
+    if (mep.ccl) {
+      items.push({
+        label: "DOLAR CCL",
+        value: `$${fmtNum(mep.ccl)}`,
+        color: "#00cc66",
+      });
+    }
+    if (mep.canje !== null && mep.canje !== undefined) {
+      items.push({
+        label: "CANJE",
+        value: `${mep.canje.toFixed(2)}%`,
+        color: mep.canje >= 0 ? "#00cc66" : "#ff3333",
+      });
+    }
   }
   if (lastDolar) {
     items.push({
@@ -56,6 +85,27 @@ export async function TopTicker() {
       color: "#d0d0d0",
     });
   }
+
+  // Caución: TNA del plazo más corto (típicamente 1D, viernes 3D).
+  const cauARS = caucion.find((c) => c.moneda === "ARS");
+  const cauUSD = caucion.find((c) => c.moneda === "USD");
+  if (cauARS) {
+    const tna = cauARS.tna_last ?? cauARS.tna_closing;
+    items.push({
+      label: `CAUCION ARS ${cauARS.plazo_dias}D`,
+      value: fmtTna(tna),
+      color: "#ffcc00",
+    });
+  }
+  if (cauUSD) {
+    const tna = cauUSD.tna_last ?? cauUSD.tna_closing;
+    items.push({
+      label: `CAUCION USD ${cauUSD.plazo_dias}D`,
+      value: fmtTna(tna),
+      color: "#ffcc00",
+    });
+  }
+
   for (const r of rentaFija
     .filter((r) => r.metrics?.last_price)
     .sort(
