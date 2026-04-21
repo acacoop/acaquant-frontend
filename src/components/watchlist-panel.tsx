@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Quote } from "@/lib/types";
 
 const POLL_MS = 30_000;
-const POLL_LOCAL_MS = 15_000;  // futuros DLR + caución + MEP refrescan más rápido
+const POLL_LOCAL_MS = 5_000;   // ARGY + futuros DLR refrescan cada 5s (live)
 
 // ── Helpers de formateo ──
 
@@ -56,26 +56,17 @@ interface FuturoDlrDoc {
   tasa_implicita_tna: number | null;
 }
 
-interface CaucionDoc {
-  moneda: "ARS" | "USD";
-  plazo_dias: number;
-  tna_last: number | null;
-  tna_closing: number | null;
-  tna_bid: number | null;
-  tna_offer: number | null;
-}
-
-interface MepDoc {
-  mep: number;
-  ccl?: number | null;
-  canje?: number | null;
-}
-
-interface ArgyRow {
+interface ArgyDoc {
   label: string;
   value: number | null;
   unit: "$" | "%";
-  extra?: string;
+  plazo_dias?: number | null;
+  ret_day: number | null;
+  ret_7d: number | null;
+  ret_mtd: number | null;
+  ret_ytd: number | null;
+  ts: string | null;
+  source: string;
 }
 
 const FILTROS_ORDER = [
@@ -96,8 +87,7 @@ interface WatchlistPanelProps {
 export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {}) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [futurosDlr, setFuturosDlr] = useState<FuturoDlrDoc[]>([]);
-  const [caucion, setCaucion] = useState<CaucionDoc[]>([]);
-  const [mepDoc, setMepDoc] = useState<MepDoc | null>(null);
+  const [argy, setArgy] = useState<ArgyDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
@@ -119,16 +109,14 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   }, []);
 
   const fetchLocal = useCallback(async () => {
-    // 3 fetches en paralelo a endpoints internos: futuros DLR, caución, MEP+CCL.
+    // 2 fetches en paralelo: futuros DLR + ARGY (5 métricas con returns).
     try {
-      const [fRes, cRes, mRes] = await Promise.all([
+      const [fRes, aRes] = await Promise.all([
         fetch("/api/futuros-dlr", { cache: "no-store" }),
-        fetch("/api/caucion", { cache: "no-store" }),
-        fetch("/api/mep", { cache: "no-store" }),
+        fetch("/api/argy", { cache: "no-store" }),
       ]);
       if (fRes.ok) setFuturosDlr(await fRes.json());
-      if (cRes.ok) setCaucion(await cRes.json());
-      if (mRes.ok) setMepDoc(await mRes.json());
+      if (aRes.ok) setArgy(await aRes.json());
     } catch {
       // best-effort, no rompemos la UI por estos
     }
@@ -151,7 +139,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   const gruposPresentes = useMemo(() => {
     const set = new Set<string>();
     if (futurosDlr.length > 0) set.add("FUTUROS ROFEX");
-    if (mepDoc || caucion.length > 0) set.add("ARGY");
+    if (argy.length > 0) set.add("ARGY");
     for (const q of quotes) {
       const g = q.grupo || (q.type === "forex" ? "Monedas" : "Otros");
       set.add(g);
@@ -161,7 +149,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         (FILTROS_ORDER.indexOf(a) === -1 ? 99 : FILTROS_ORDER.indexOf(a)) -
         (FILTROS_ORDER.indexOf(b) === -1 ? 99 : FILTROS_ORDER.indexOf(b)),
     );
-  }, [quotes, futurosDlr, caucion, mepDoc]);
+  }, [quotes, futurosDlr, argy]);
 
   useEffect(() => {
     if (!filtro && gruposPresentes.length > 0) {
@@ -185,39 +173,11 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     return [...futurosDlr].sort((a, b) => a.vencimiento.localeCompare(b.vencimiento));
   }, [filtro, futurosDlr]);
 
-  // ── Filas para ARGY ──
-  const visiblesArgy = useMemo<ArgyRow[]>(() => {
+  // ── Filas para ARGY (vienen del endpoint con returns calculados) ──
+  const visiblesArgy = useMemo<ArgyDoc[]>(() => {
     if (filtro !== "ARGY") return [];
-    const rows: ArgyRow[] = [];
-    if (mepDoc) {
-      rows.push({ label: "DOLAR MEP", value: mepDoc.mep, unit: "$" });
-      if (mepDoc.ccl !== null && mepDoc.ccl !== undefined) {
-        rows.push({ label: "DOLAR CCL", value: mepDoc.ccl, unit: "$" });
-      }
-      if (mepDoc.canje !== null && mepDoc.canje !== undefined) {
-        rows.push({ label: "CANJE", value: mepDoc.canje, unit: "%" });
-      }
-    }
-    const cAR = caucion.find((c) => c.moneda === "ARS");
-    const cUS = caucion.find((c) => c.moneda === "USD");
-    if (cAR) {
-      rows.push({
-        label: "CAUCION ARS",
-        value: cAR.tna_last ?? cAR.tna_closing,
-        unit: "%",
-        extra: `${cAR.plazo_dias}D`,
-      });
-    }
-    if (cUS) {
-      rows.push({
-        label: "CAUCION USD",
-        value: cUS.tna_last ?? cUS.tna_closing,
-        unit: "%",
-        extra: `${cUS.plazo_dias}D`,
-      });
-    }
-    return rows;
-  }, [filtro, mepDoc, caucion]);
+    return argy;
+  }, [filtro, argy]);
 
   const totalVisibles =
     visiblesGlobales.length + visiblesFuturosDlr.length + visiblesArgy.length;
@@ -238,7 +198,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
             : "—"}
         </span>
         <span className="text-[9px] text-[#555555]">
-          · poll {filtro === "FUTUROS ROFEX" || filtro === "ARGY" ? "15s" : "30s"}
+          · poll {filtro === "FUTUROS ROFEX" || filtro === "ARGY" ? "5s" : "30s"}
         </span>
         <span className="ml-auto text-[9px] text-[#555555]">{totalVisibles}</span>
       </div>
@@ -360,35 +320,41 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
           </table>
         )}
 
-        {/* ── Tabla ARGY (MEP, CCL, canje, caución) ── */}
+        {/* ── Tabla ARGY (MEP, CCL, canje, cauciones) con returns ── */}
         {visiblesArgy.length > 0 && (
-          <table className="w-full text-[11px] font-mono">
+          <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-[#080808] z-10 border-b border-[#1a1a1a]">
               <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Concepto</th>
-                <th className="px-2 py-1 text-right">Plazo</th>
                 <th className="px-2 py-1 text-right">Valor</th>
+                <th className="px-2 py-1 text-right">%Día</th>
+                <th className="px-2 py-1 text-right">%7d</th>
+                <th className="px-2 py-1 text-right">%MTD</th>
+                <th className="px-2 py-1 text-right">%YTD</th>
               </tr>
             </thead>
             <tbody>
               {visiblesArgy.map((r) => {
                 const isPct = r.unit === "%";
-                const colorBase = isPct
+                const valueColor = isPct
                   ? r.label === "CANJE"
                     ? r.value !== null && r.value < 0
                       ? "#ff3333"
                       : "#00cc66"
                     : "#ffcc00"
                   : "#00cc66";
+                const labelExtra = r.plazo_dias ? ` ${r.plazo_dias}D` : "";
                 return (
                   <tr key={r.label} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
-                    <td className="px-2 py-1 text-[#d0d0d0] font-semibold">{r.label}</td>
-                    <td className="px-2 py-1 text-right text-[#888888] tabular-nums">
-                      {r.extra ?? "—"}
+                    <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">
+                      {r.label}
+                      {labelExtra && (
+                        <span className="text-[#555555] font-normal">{labelExtra}</span>
+                      )}
                     </td>
                     <td
-                      className="px-2 py-1 text-right tabular-nums font-semibold"
-                      style={{ color: colorBase }}
+                      className="px-2 py-0.5 text-right tabular-nums font-semibold"
+                      style={{ color: valueColor }}
                     >
                       {r.value === null
                         ? "—"
@@ -396,6 +362,10 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                         ? `${r.value.toFixed(2)}%`
                         : `$${fmtPrice(r.value)}`}
                     </td>
+                    <PctCell v={r.ret_day} />
+                    <PctCell v={r.ret_7d} />
+                    <PctCell v={r.ret_mtd} />
+                    <PctCell v={r.ret_ytd} />
                   </tr>
                 );
               })}
