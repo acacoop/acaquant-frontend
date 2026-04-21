@@ -29,14 +29,19 @@ function mapSymbol(symbol: string): string {
   // Índices locales
   if (symbol === "MERVAL") return "BCBA:IMV";
 
-  // Futuros CME / CBOT / COMEX / NYMEX (continuous front-month con '!')
+  // Futuros CME / CBOT / COMEX / NYMEX / ICE (continuous front-month con '!')
   if (symbol === "S&P FUT")    return "CME_MINI:ES1!";
   if (symbol === "NASDAQ FUT") return "CME_MINI:NQ1!";
   if (symbol === "WTI")        return "NYMEX:CL1!";
+  if (symbol === "BRENT")      return "ICEEUR:COIL1!";
   if (symbol === "ORO")        return "COMEX:GC1!";
   if (symbol === "SOJA")       return "CBOT:ZS1!";
   if (symbol === "MAIZ")       return "CBOT:ZC1!";
   if (symbol === "TRIGO")      return "CBOT:ZW1!";
+
+  // Cripto: pares líquidos 24/7 de Binance en TradingView.
+  if (symbol === "BTCUSDT")    return "BINANCE:BTCUSDT";
+  if (symbol === "ETHUSDT")    return "BINANCE:ETHUSDT";
 
   // Resto (stocks, ETFs): TradingView auto-resuelve con el símbolo pelado.
   return symbol;
