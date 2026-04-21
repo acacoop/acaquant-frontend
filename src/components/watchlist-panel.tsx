@@ -73,8 +73,8 @@ const FILTROS_ORDER = [
   "ARGY",
   "FUTUROS ROFEX",
   "Índices",
+  "Futuros",
   "Regiones",
-  "Commodities",
   "Monedas",
   "US Treasury",
 ];
