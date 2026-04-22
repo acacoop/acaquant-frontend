@@ -35,7 +35,7 @@ interface HistRow {
   paridad: number | null;
 }
 
-type Curva = "tasa_fija" | "cer";
+type Curva = "tasa_fija" | "cer" | "soberanos";
 type Metrica = "TEA" | "TEM";
 type Modo = "live" | "hist";
 
@@ -136,7 +136,10 @@ export function CurvasChart({
       : 0;
   const fechaSel = fechasHist[effectiveIdx];
 
-  const metricaUsada: Metrica = curva === "cer" ? "TEA" : metrica;
+  // CER y soberanos siempre se grafican en TEA (el TEM mensualizado no
+  // tiene sentido en USD y tampoco para CER real).
+  const metricaUsada: Metrica =
+    curva === "cer" || curva === "soberanos" ? "TEA" : metrica;
 
   const { puntos, fit, yMin, yMax, yTicks, xMin, xMax, xTicks } = useMemo(() => {
     const puntos: { Ticker: string; Duration: number; y: number }[] = [];
@@ -241,6 +244,9 @@ export function CurvasChart({
         </FilterBtn>
         <FilterBtn active={curva === "cer"} onClick={() => setCurva("cer")}>
           CER
+        </FilterBtn>
+        <FilterBtn active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>
+          GLOBALES
         </FilterBtn>
         {curva === "tasa_fija" && (
           <div className="ml-1 flex items-center gap-1">
