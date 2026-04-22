@@ -9,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { DualRange } from "./dual-range";
 
 interface FlujoDoc {
   boleto?: number | string;
@@ -155,8 +156,8 @@ export function ContrapartesView() {
   const [grupoSel, setGrupoSel] = useState<string[]>([]);
   const [segSel, setSegSel] = useState<string[]>([]);
   const [monSel, setMonSel] = useState<string[]>([]);
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [rangoIdx, setRangoIdx] = useState<[number, number] | null>(null);
+  const [dia, setDia] = useState<string>(""); // vacío = rango; si hay valor = solo ese día
   const [cpSel, setCpSel] = useState<string | null>(null);
   const [monedaTabla, setMonedaTabla] = useState<string>("");
 
@@ -170,16 +171,25 @@ export function ContrapartesView() {
     if (monedasDisp.length && monSel.length === 0) setMonSel(monedasDisp);
   }, [monedasDisp, monSel.length]);
 
-  const mesesAll = useMemo(() => {
+  // Fechas únicas (YYYY-MM-DD) ordenadas ASC. Base del DualRange.
+  const diasAll = useMemo(() => {
     const set = new Set<string>();
-    for (const f of flujos) set.add(f.concertacion.slice(0, 7));
+    for (const f of flujos) set.add(f.concertacion.slice(0, 10));
     return Array.from(set).sort();
   }, [flujos]);
 
-  useEffect(() => {
-    if (mesesAll.length && !desde) setDesde(mesesAll[0]);
-    if (mesesAll.length && !hasta) setHasta(mesesAll[mesesAll.length - 1]);
-  }, [mesesAll, desde, hasta]);
+  // Rango efectivo — default a todo el universo disponible.
+  const efectivoRango: [number, number] =
+    diasAll.length > 0
+      ? rangoIdx == null
+        ? [0, diasAll.length - 1]
+        : [
+            Math.min(Math.max(0, rangoIdx[0]), diasAll.length - 1),
+            Math.min(Math.max(rangoIdx[0], rangoIdx[1]), diasAll.length - 1),
+          ]
+      : [0, 0];
+  const desde = diasAll[efectivoRango[0]] ?? "";
+  const hasta = diasAll[efectivoRango[1]] ?? "";
 
   useEffect(() => {
     if (monSel.length && !monedaTabla) setMonedaTabla(monSel[0]);
@@ -189,9 +199,14 @@ export function ContrapartesView() {
 
   const filtered = useMemo(() => {
     return flujos.filter((f) => {
-      const mes = f.concertacion.slice(0, 7);
-      if (desde && mes < desde) return false;
-      if (hasta && mes > hasta) return false;
+      const dd = f.concertacion.slice(0, 10);
+      if (dia) {
+        // Modo "día específico": ignora rango, filtra exact match.
+        if (dd !== dia) return false;
+      } else {
+        if (desde && dd < desde) return false;
+        if (hasta && dd > hasta) return false;
+      }
       if (f.moneda && !monSel.includes(f.moneda)) return false;
       if (segSel.length && segSel.length !== segmentosDisp.length) {
         if (!f.segmento || !segSel.includes(f.segmento)) return false;
@@ -206,6 +221,7 @@ export function ContrapartesView() {
     flujos,
     desde,
     hasta,
+    dia,
     monSel,
     segSel,
     segmentosDisp.length,
@@ -213,6 +229,17 @@ export function ContrapartesView() {
     gruposDisp.length,
     grupoMap,
   ]);
+
+  // Operaciones del día seleccionado, ordenadas por boleto DESC (más reciente primero).
+  // El campo `boleto` es monotónicamente creciente dentro del día; si falta, fallback a _id.
+  const opsDelDia = useMemo(() => {
+    if (!dia) return [];
+    return [...filtered].sort((a, b) => {
+      const ba = Number(a.boleto) || 0;
+      const bb = Number(b.boleto) || 0;
+      return bb - ba;
+    });
+  }, [filtered, dia]);
 
   // Acumulado por moneda (para los charts abajo)
   const chartDataByMoneda = useMemo(() => {
@@ -271,7 +298,7 @@ export function ContrapartesView() {
 
   useEffect(() => {
     setCpSel(null);
-  }, [monedaTabla, desde, hasta]);
+  }, [monedaTabla, desde, hasta, dia]);
 
   if (loading) {
     return (
@@ -298,33 +325,54 @@ export function ContrapartesView() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Filtros */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 shrink-0">
+      <div className="border border-[#1a1a1a] bg-[#080808] p-3 space-y-2 shrink-0">
+        {/* Barrita de rango (deshabilitada si hay día específico) */}
+        <div
+          className={`flex items-center gap-2 ${
+            dia ? "opacity-40 pointer-events-none" : ""
+          }`}
+        >
+          <span className="text-[10px] text-[#ff9900] font-mono min-w-[78px]">
+            {desde}
+          </span>
+          <DualRange
+            min={0}
+            max={Math.max(0, diasAll.length - 1)}
+            lo={efectivoRango[0]}
+            hi={efectivoRango[1]}
+            setLo={(v) => setRangoIdx([v, Math.max(v, efectivoRango[1])])}
+            setHi={(v) => setRangoIdx([Math.min(v, efectivoRango[0]), v])}
+          />
+          <span className="text-[10px] text-[#ff9900] font-mono min-w-[78px] text-right">
+            {hasta}
+          </span>
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Labeled label="Desde">
-            <select
-              value={desde}
-              onChange={(e) => setDesde(e.target.value)}
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
-            >
-              {mesesAll.map((k) => (
-                <option key={k} value={k}>
-                  {mesLabel(k)}
-                </option>
-              ))}
-            </select>
-          </Labeled>
-          <Labeled label="Hasta">
-            <select
-              value={hasta}
-              onChange={(e) => setHasta(e.target.value)}
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
-            >
-              {mesesAll.map((k) => (
-                <option key={k} value={k}>
-                  {mesLabel(k)}
-                </option>
-              ))}
-            </select>
+          <Labeled label="Día específico">
+            <div className="flex items-center gap-1 h-[26px]">
+              <select
+                value={dia}
+                onChange={(e) => setDia(e.target.value)}
+                className="flex-1 bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              >
+                <option value="">(rango completo)</option>
+                {[...diasAll].reverse().map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+              {dia && (
+                <button
+                  onClick={() => setDia("")}
+                  title="Limpiar día"
+                  className="h-[26px] px-2 text-[10px] border border-[#2a2a2a] text-[#555555] hover:text-[#ff9900] hover:border-[#ff9900]"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </Labeled>
           <Labeled label="Grupo">
             <div className="flex items-center gap-1 h-[26px] flex-wrap">
@@ -383,10 +431,90 @@ export function ContrapartesView() {
               ))}
             </div>
           </Labeled>
+          <Labeled label="Total filtrado">
+            <div className="h-[26px] flex items-center text-[11px] font-mono text-[#d0d0d0]">
+              {filtered.length} ops
+            </div>
+          </Labeled>
         </div>
       </div>
 
-      {/* Fila 1: Tabla contrapartes | Tabla meses (misma altura, flex-1) */}
+      {/* Si hay día específico: tabla de operaciones del día. Si no: contrapartes + meses. */}
+      {dia ? (
+        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              OPERACIONES · {dia}
+            </span>
+            <span className="ml-2 text-[10px] text-[#555555]">
+              ({opsDelDia.length} ops, orden boleto ↓)
+            </span>
+            <span className="ml-auto text-[10px] text-[#888888]">
+              Total bruto:{" "}
+              <span className="text-[#ff9900] font-semibold">
+                {fmtFull(opsDelDia.reduce((s, o) => s + (o.bruto || 0), 0))}
+              </span>
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <table className="w-full text-[11px] font-mono">
+              <thead className="sticky top-0 bg-[#080808] z-10">
+                <tr className="border-b border-[#1a1a1a] text-left text-[#ff9900] uppercase tracking-wide">
+                  <th className="!px-2 !py-1">Boleto</th>
+                  <th className="!px-2 !py-1">Tipo</th>
+                  <th className="!px-2 !py-1">Cuenta</th>
+                  <th className="!px-2 !py-1">Contraparte</th>
+                  <th className="!px-2 !py-1">Segmento</th>
+                  <th className="!px-2 !py-1">Unidad</th>
+                  <th className="!px-2 !py-1 text-right">Bruto</th>
+                  <th className="!px-2 !py-1">Mon</th>
+                </tr>
+              </thead>
+              <tbody>
+                {opsDelDia.map((o, i) => (
+                  <tr
+                    key={`${o.boleto ?? ""}-${i}`}
+                    className="border-b border-[#111111] hover:bg-[#ff9900]/5"
+                  >
+                    <td className="!px-2 !py-1 text-[#888888]">
+                      {o.boleto ?? "—"}
+                    </td>
+                    <td className="!px-2 !py-1 text-[#d0d0d0]">
+                      {o.tipoOperacion ?? "—"}
+                    </td>
+                    <td className="!px-2 !py-1 text-[#d0d0d0] truncate max-w-[180px]">
+                      {o.cuenta ?? "—"}
+                    </td>
+                    <td className="!px-2 !py-1 text-[#d0d0d0]">
+                      {o.contraparte ?? "—"}
+                    </td>
+                    <td className="!px-2 !py-1 text-[#888888]">
+                      {o.segmento ?? "—"}
+                    </td>
+                    <td className="!px-2 !py-1 text-[#888888] truncate max-w-[260px]">
+                      {o.unidad ?? "—"}
+                    </td>
+                    <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
+                      {fmtFull(o.bruto ?? 0)}
+                    </td>
+                    <td className="!px-2 !py-1 text-[#ff9900]">
+                      {o.moneda ?? ""}
+                    </td>
+                  </tr>
+                ))}
+                {opsDelDia.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="text-center text-[#555555] py-4">
+                      Sin operaciones en este día.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+      /* Fila 1: Tabla contrapartes | Tabla meses (misma altura, flex-1) */
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
         {/* Contrapartes */}
         <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
@@ -504,6 +632,7 @@ export function ContrapartesView() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Fila 2: Charts acumulados — altura fija, 1 o 2 columnas según monSel */}
       <div className="border border-[#1a1a1a] bg-[#080808] shrink-0">
