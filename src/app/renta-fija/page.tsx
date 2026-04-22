@@ -7,11 +7,7 @@ import type {
   ForwardHistDoc,
   RentaFijaDoc,
 } from "@/lib/types";
-import { Panel, fmtTs } from "@/components/ui";
-import { RentaFijaTable } from "@/components/renta-fija-table";
-import { ForwardsPanel } from "@/components/forwards-panel";
-import { CurvasChart } from "@/components/curvas-chart";
-import { BreakevensBlock } from "@/components/breakevens-block";
+import { RentaFijaLiveView } from "@/components/renta-fija-live";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +24,9 @@ async function safeFetch<T>(
 }
 
 export default async function Home() {
+  // SSR inicial — carga rápida con datos del último snapshot. El polling
+  // client-side en RentaFijaLiveView mantiene los 3 datasets live (renta
+  // fija, forwards, breakevens) sin depender de AutoRefresh global.
   const [
     rentaFija,
     forwards,
@@ -50,41 +49,14 @@ export default async function Home() {
     fecha_vencimiento: f.fecha_vencimiento,
   }));
 
-  const pares = breakevens[0]?.pares || [];
-  const breakevensTs = breakevens[0]?.updated_at;
-
   return (
-    <div className="h-full min-h-0 p-3">
-      <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-          <Panel title="RENTA FIJA" count={rentaFija.length} expandable>
-            <RentaFijaTable
-              data={rentaFija}
-              flujos={allFlujos}
-              forwards={forwards}
-            />
-          </Panel>
-
-          <Panel title="CURVAS" fill expandable>
-            <CurvasChart forwards={forwards} flujos={allFlujos} />
-          </Panel>
-        </div>
-
-        <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-          <Panel title="FORWARDS" expandable>
-            <ForwardsPanel forwards={forwards} historico={forwardsHist} />
-          </Panel>
-
-          <Panel
-            title="BREAKEVENS"
-            sub={breakevensTs ? fmtTs(breakevensTs) : ""}
-            fill
-            expandable
-          >
-            <BreakevensBlock pares={pares} historico={breakevensHist} />
-          </Panel>
-        </div>
-      </div>
-    </div>
+    <RentaFijaLiveView
+      initialRentaFija={rentaFija}
+      initialForwards={forwards}
+      initialBreakevens={breakevens}
+      flujos={allFlujos}
+      breakevensHist={breakevensHist}
+      forwardsHist={forwardsHist}
+    />
   );
 }
