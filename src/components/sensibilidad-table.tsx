@@ -4,9 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 
 interface Escenario {
   tir: number;
+  shock_pp: number | null;
   precio_1anio: number;
   retorno_total: number;
 }
+
+type Modo = "absoluta" | "relativa";
 interface BonoRow {
   ticker: string;
   ticker_completo: string;
@@ -44,12 +47,16 @@ function fmtPctAbs(v: number | null | undefined, d = 2): string {
 }
 
 export function SensibilidadTable() {
-  const [tirsInput, setTirsInput] = useState("4,5,6,7,8,9,10,11");
+  const [modo, setModo] = useState<Modo>("absoluta");
+  const [tirsAbs, setTirsAbs] = useState("4,5,6,7,8,9,10,11");
+  const [tirsRel, setTirsRel] = useState("-4,-3,-2,-1,0,1,2,3,4");
   const [horizonteDias, setHorizonteDias] = useState(365);
   const [data, setData] = useState<BonoRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<string>("");
+
+  const tirsInput = modo === "absoluta" ? tirsAbs : tirsRel;
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +64,7 @@ export function SensibilidadTable() {
       try {
         if (!cancelled) setLoading(true);
         const res = await fetch(
-          `/api/analitica/sensibilidad-retorno?curva=soberanos&tirs=${encodeURIComponent(
+          `/api/analitica/sensibilidad-retorno?curva=soberanos&modo=${modo}&tirs=${encodeURIComponent(
             tirsInput,
           )}&horizonte_dias=${horizonteDias}`,
           { cache: "no-store" },
@@ -88,12 +95,22 @@ export function SensibilidadTable() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [tirsInput, horizonteDias]);
+  }, [tirsInput, horizonteDias, modo]);
 
-  const tirs: number[] = useMemo(() => {
+  // En absoluta las columnas son TIRs absolutas (las mismas para todos
+  // los bonos). En relativa son shocks pp (también iguales para todos).
+  const colHeaders: { key: string; label: string }[] = useMemo(() => {
     if (!data.length) return [];
-    return data[0].escenarios.map((e) => e.tir);
-  }, [data]);
+    return data[0].escenarios.map((e) => {
+      if (modo === "relativa" && e.shock_pp != null) {
+        const s = e.shock_pp * 100;
+        const sign = s > 0 ? "+" : "";
+        const label = s === 0 ? "=" : `${sign}${s.toFixed(0)} pp`;
+        return { key: `${s}`, label };
+      }
+      return { key: `${e.tir}`, label: `TIR ${(e.tir * 100).toFixed(0)}%` };
+    });
+  }, [data, modo]);
 
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
@@ -101,14 +118,38 @@ export function SensibilidadTable() {
       <div className="border border-[#1a1a1a] bg-[#080808] p-3 flex items-center gap-3 shrink-0">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wide text-[#555]">
-            Escenarios TIR (%)
+            Modo
+          </span>
+          <div className="flex items-center gap-1 h-[26px]">
+            {(["absoluta", "relativa"] as Modo[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setModo(m)}
+                className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
+                  modo === m
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                }`}
+              >
+                {m === "absoluta" ? "TIR ABSOLUTA" : "TIR RELATIVA"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-[#555]">
+            {modo === "absoluta" ? "TIRs (%)" : "Shocks pp (centrados en TEA)"}
           </span>
           <input
             type="text"
             value={tirsInput}
-            onChange={(e) => setTirsInput(e.target.value)}
-            placeholder="4,5,6,7,8,9,10,11"
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-40"
+            onChange={(e) =>
+              modo === "absoluta"
+                ? setTirsAbs(e.target.value)
+                : setTirsRel(e.target.value)
+            }
+            placeholder={modo === "absoluta" ? "4,5,6,7,8,9,10,11" : "-4,-3,-2,-1,0,1,2,3,4"}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -147,12 +188,12 @@ export function SensibilidadTable() {
               <th className="!px-2 !py-1.5 text-right">TEA actual</th>
               <th className="!px-2 !py-1.5 text-right">Dur</th>
               <th className="!px-2 !py-1.5 text-right">Paridad</th>
-              {tirs.map((t) => (
+              {colHeaders.map((h) => (
                 <th
-                  key={t}
+                  key={h.key}
                   className="!px-2 !py-1.5 text-right border-l border-[#1a1a1a]"
                 >
-                  TIR {(t * 100).toFixed(0)}%
+                  {h.label}
                 </th>
               ))}
             </tr>
@@ -181,14 +222,19 @@ export function SensibilidadTable() {
                 <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
                   {b.paridad ? `${b.paridad.toFixed(1)}%` : "—"}
                 </td>
-                {b.escenarios.map((e) => {
+                {b.escenarios.map((e, i) => {
                   const c = colorRetorno(e.retorno_total);
+                  // Tooltip: muestra TIR final + precio proyectado, útil
+                  // sobre todo en modo relativo donde el header no dice
+                  // la TIR absoluta sino el shock pp.
+                  const tirReal = (e.tir * 100).toFixed(2);
+                  const tip = `TIR ${tirReal}% · Precio 1y ${e.precio_1anio.toFixed(2)}`;
                   return (
                     <td
-                      key={e.tir}
+                      key={i}
                       className="!px-2 !py-1 text-right border-l border-[#1a1a1a] font-semibold"
                       style={{ background: c.bg, color: c.fg }}
-                      title={`Precio 1y: ${e.precio_1anio.toFixed(2)}`}
+                      title={tip}
                     >
                       {fmtPct(e.retorno_total)}
                     </td>
@@ -199,7 +245,7 @@ export function SensibilidadTable() {
             {data.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={6 + tirs.length}
+                  colSpan={6 + colHeaders.length}
                   className="text-center text-[#555] py-6"
                 >
                   Sin bonos con precio actual + flujos válidos.
@@ -211,10 +257,16 @@ export function SensibilidadTable() {
       </div>
 
       <div className="text-[10px] text-[#555] px-1 shrink-0 leading-relaxed">
-        Cada celda = retorno total a {horizonteDias} días si la TIR del bono converge al
-        valor de la columna. Incluye cupones + amortizaciones cobradas durante el
-        horizonte y el cambio en el precio descontado a esa TIR. Hover sobre la celda
-        muestra el precio proyectado.
+        Cada celda = retorno total a {horizonteDias} días.
+        {modo === "absoluta" ? (
+          <> En <b>TIR absoluta</b> todos los bonos se evalúan contra los mismos
+            niveles de TIR.</>
+        ) : (
+          <> En <b>TIR relativa</b> cada bono se evalúa con shocks centrados en su
+            propia TEA actual (la columna <b>=</b> es el carry puro, sin cambio de TIR).</>
+        )} Incluye cupones + amortizaciones cobradas en el horizonte y el cambio en el
+        precio descontado a la TIR escenario. Hover sobre la celda muestra TIR real +
+        precio proyectado.
       </div>
     </div>
   );
