@@ -37,7 +37,7 @@ export default async function Home() {
   ] = await Promise.all([
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
-    safeFetch<FlujoTicker[]>("/api/titulos/flujos", [], 600),
+    safeFetch<FlujoTicker[]>("/api/titulos/flujos", [], 60),
     safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", [], 30),
     safeFetch<BreakevenHistDoc[]>("/api/cotizaciones/historico/breakevens", [], 300),
     safeFetch<ForwardHistDoc[]>("/api/cotizaciones/historico/forwards", [], 300),
