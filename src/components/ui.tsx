@@ -44,14 +44,30 @@ export function fmtPct(n?: number): string {
 
 export function fmtTs(ts: string): string {
   try {
-    return new Date(ts).toLocaleString("es-AR", {
+    // Si el ts viene UTC-naive desde el backend (sin 'Z' ni offset), hay
+    // que asumir UTC; el browser lo parsearía como local y daría una hora
+    // off-by-N-horas.
+    const hasTz = /[zZ]|[+-]\d{2}:\d{2}$/.test(ts);
+    const iso = hasTz ? ts : `${ts}Z`;
+    return new Date(iso).toLocaleTimeString("es-AR", {
       timeZone: "America/Argentina/Buenos_Aires",
-      day: "2-digit",
-      month: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
     });
   } catch {
     return ts;
   }
+}
+
+/** Hora ART en formato HH:MM:SS para tiempos capturados en el browser. */
+export function fmtHoraAR(epochMs: number): string {
+  return new Date(epochMs).toLocaleTimeString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 }
