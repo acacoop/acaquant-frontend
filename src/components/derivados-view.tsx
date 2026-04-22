@@ -1,17 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Panel, fmtTs } from "./ui";
+import { Panel, fmtHoraAR } from "./ui";
 import { OpcionesTableCompact } from "./opciones-table-compact";
 import { EstrategiasTabla } from "./estrategias-tabla";
 import { PayoffChart } from "./payoff-chart";
 import { EscenariosTabla } from "./escenarios-tabla";
+import { usePoll } from "@/lib/use-poll";
 import {
   buildPorStrike,
   calcularEstrategias,
   type EstrategiaRow,
   type OpcionDoc,
 } from "@/lib/estrategias";
+
+// Intervalo de polling para la chain de opciones. El motor de opciones
+// replacea el snapshot cada 1 s; 5 s es un compromise razonable entre
+// frescura y carga de red.
+const POLL_OPCIONES_MS = 5_000;
 
 interface Meta {
   tasa: number;
@@ -23,12 +29,21 @@ interface Meta {
 type DetalleTab = "payoff" | "escenarios";
 
 export function DerivadosView({
-  docs,
+  docs: initialDocs,
   metaInicial,
 }: {
   docs: OpcionDoc[];
   metaInicial: Meta;
 }) {
+  // Polling live de la chain de opciones; el SSR provee el initialData
+  // para carga rápida. Antes docs venía sólo del SSR y la vista quedaba
+  // estática hasta F5.
+  const { data: docs, lastAt: atDocs } = usePoll<OpcionDoc[]>(
+    "/api/cotizaciones/opciones",
+    initialDocs,
+    POLL_OPCIONES_MS,
+  );
+
   const [meta, setMeta] = useState<Meta>(metaInicial);
   const [tasaInput, setTasaInput] = useState(metaInicial.tasa.toFixed(3));
   const [savingTasa, setSavingTasa] = useState(false);
@@ -43,14 +58,7 @@ export function DerivadosView({
     [docs]
   );
 
-  const ultimoTs = useMemo(() => {
-    let max: string | undefined;
-    for (const d of docs) {
-      if (!d.updated_at) continue;
-      if (!max || d.updated_at > max) max = d.updated_at;
-    }
-    return max;
-  }, [docs]);
+  const ultimoDisplay = atDocs > 0 ? fmtHoraAR(atDocs) : "—";
 
   const { liquidStrikes, atmStrike, rows } = useMemo(() => {
     const { porStrike, liquidStrikes } = buildPorStrike(docs);
@@ -153,7 +161,7 @@ export function DerivadosView({
           </span>
         </div>
         <span className="ml-auto text-[10px] text-[#555]">
-          ÚLT. ACT {ultimoTs ? fmtTs(ultimoTs) : "—"}
+          ÚLT. ACT {ultimoDisplay}
         </span>
       </div>
 
