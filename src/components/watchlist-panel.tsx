@@ -16,6 +16,17 @@ function fmtPrice(v: number | null | undefined): string {
   return v.toFixed(4);
 }
 
+// Formato específico para cotizaciones de dólar futuro: siempre 2 decimales,
+// incluso si el valor es >= 1000 (DLR cotizan ~1300-2000 con centavos que
+// importan al operador).
+function fmtPriceDlr(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—";
+  return v.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function fmtPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
   const sign = v > 0 ? "+" : "";
@@ -300,13 +311,13 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     {f.dias_a_vto}
                   </td>
                   <td className="px-2 py-0.5 text-right text-[#00cc66] tabular-nums">
-                    {fmtPrice(f.bid_price)}
+                    {fmtPriceDlr(f.bid_price)}
                   </td>
                   <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
-                    {fmtPrice(f.last_price)}
+                    {fmtPriceDlr(f.last_price)}
                   </td>
                   <td className="px-2 py-0.5 text-right text-[#ff3333] tabular-nums">
-                    {fmtPrice(f.offer_price)}
+                    {fmtPriceDlr(f.offer_price)}
                   </td>
                   <td
                     className="px-2 py-0.5 text-right tabular-nums font-semibold"
