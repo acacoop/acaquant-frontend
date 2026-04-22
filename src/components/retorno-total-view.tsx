@@ -45,7 +45,7 @@ function fmtFechaCorta(s: string): string {
 }
 
 export function RetornoTotalView() {
-  const [tab, setTab] = useState<"historico" | "sensibilidad">("historico");
+  const [tab, setTab] = useState<"retorno_total" | "sensibilidad">("retorno_total");
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -54,18 +54,18 @@ export function RetornoTotalView() {
           RETORNO
         </span>
         <TabPill
-          label="HISTÓRICO"
-          active={tab === "historico"}
-          onClick={() => setTab("historico")}
+          label="RETORNO TOTAL"
+          active={tab === "retorno_total"}
+          onClick={() => setTab("retorno_total")}
         />
         <TabPill
-          label="RETORNO TOTAL"
+          label="ANÁLISIS SENSIBILIDAD"
           active={tab === "sensibilidad"}
           onClick={() => setTab("sensibilidad")}
         />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "historico" && <HistoricoTab />}
+        {tab === "retorno_total" && <HistoricoTab />}
         {tab === "sensibilidad" && <SensibilidadTable />}
       </div>
     </div>
