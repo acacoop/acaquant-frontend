@@ -230,14 +230,12 @@ export function ContrapartesView() {
     grupoMap,
   ]);
 
-  // Operaciones del día seleccionado, ordenadas por boleto DESC (más reciente primero).
-  // El campo `boleto` es monotónicamente creciente dentro del día; si falta, fallback a _id.
+  // Operaciones del día seleccionado, ordenadas por |bruto| DESC — las más
+  // grandes primero, para ver dónde se concentra el flujo del día.
   const opsDelDia = useMemo(() => {
     if (!dia) return [];
     return [...filtered].sort((a, b) => {
-      const ba = Number(a.boleto) || 0;
-      const bb = Number(b.boleto) || 0;
-      return bb - ba;
+      return Math.abs(b.bruto || 0) - Math.abs(a.bruto || 0);
     });
   }, [filtered, dia]);
 
@@ -447,7 +445,7 @@ export function ContrapartesView() {
               OPERACIONES · {dia}
             </span>
             <span className="ml-2 text-[10px] text-[#555555]">
-              ({opsDelDia.length} ops, orden boleto ↓)
+              ({opsDelDia.length} ops, orden |bruto| ↓)
             </span>
             <span className="ml-auto text-[10px] text-[#888888]">
               Total bruto:{" "}
