@@ -598,6 +598,20 @@ function TabValidaciones() {
   const [dbfLoading, setDbfLoading] = useState(false);
   const [dbfData, setDbfData] = useState<{ tc_a: string; tc_b: string; tea_a: number | null; duration_a: number | null; ts_a: string | null; tea_b: number | null; duration_b: number | null; ts_b: string | null; forward: number | null; error: string | null; pasos: { paso: string; valor: string }[] } | null>(null);
 
+  // Debug Soberano
+  const [tcSob, setTcSob] = useState("");
+  const [sobLoading, setSobLoading] = useState(false);
+  const [sobData, setSobData] = useState<{
+    instrumento: { ticker: string; ticker_corto: string; tipo: string; curva: string; fecha_emision: string; fecha_vencimiento: string; valor_nominal: number; flujos_total: number };
+    precio: { ultimo_trade_ts: string | null; precio_rofex: number | null; mep: number | null; precio_usd: number | null };
+    settlement: string;
+    flujos_futuros: { fecha: string; amortizacion_pct: number; cupon_sobre_residual: number; residual_previo_pct: number; monto_usd: number }[];
+    total_flujos_usd: number;
+    cashflow: { fecha: string; monto: number }[];
+    resultado: { tea_pct: number | null; duration: number | null; paridad: number | null };
+  } | null>(null);
+  const [sobError, setSobError] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
       setTickers(d);
@@ -615,6 +629,22 @@ function TabValidaciones() {
     setDbfLoading(true);
     fetch(`/api/manager/checks/debug-forward?tc_a=${tcA}&tc_b=${tcB}`)
       .then(r => r.json()).then(setDbfData).finally(() => setDbfLoading(false));
+  };
+  const runSob = () => {
+    if (!tcSob) return;
+    setSobLoading(true);
+    setSobError(null);
+    fetch(`/api/manager/checks/debug-soberano?ticker_corto=${encodeURIComponent(tcSob)}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.text();
+          throw new Error(body || `HTTP ${r.status}`);
+        }
+        return r.json();
+      })
+      .then(setSobData)
+      .catch((e) => { setSobData(null); setSobError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => setSobLoading(false));
   };
 
   const ESTADO_LABEL: Record<string, string> = { ok: "✅ En vista", sin_posicion: "⚠️ Sin posición", sin_assets: "❌ Sin Assets" };
@@ -757,6 +787,85 @@ function TabValidaciones() {
                 </table>
               </>
             )}
+          </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Debug Soberano — cálculo paso a paso del YTM (GD30D / GD35D / GD38D)">
+        <div className="flex items-center gap-2 mb-2">
+          <select value={tcSob} onChange={e => setTcSob(e.target.value)}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            <option value="">— elegir ticker —</option>
+            {tickers.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <button onClick={runSob} disabled={sobLoading || !tcSob}
+            className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+            {sobLoading ? "Calculando…" : "Calcular"}
+          </button>
+        </div>
+        {sobError && <p className="text-[#ff3333] text-[10px] mb-2">{sobError}</p>}
+        {sobData && (
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="border border-[#1a1a1a] p-2">
+                <div className="text-[11px] font-semibold text-[#ff9900] mb-1">{sobData.instrumento.ticker_corto}</div>
+                <div className="text-[10px] font-mono text-[#d0d0d0]">Ticker: {sobData.instrumento.ticker}</div>
+                <div className="text-[10px] font-mono text-[#808080]">Tipo: {sobData.instrumento.tipo} · Curva: {sobData.instrumento.curva}</div>
+                <div className="text-[10px] font-mono text-[#808080]">Emisión: {sobData.instrumento.fecha_emision}</div>
+                <div className="text-[10px] font-mono text-[#808080]">Vencimiento: {sobData.instrumento.fecha_vencimiento}</div>
+                <div className="text-[10px] font-mono text-[#808080]">VN: {sobData.instrumento.valor_nominal} · Flujos totales: {sobData.instrumento.flujos_total}</div>
+              </div>
+              <div className="border border-[#1a1a1a] p-2">
+                <div className="text-[11px] font-semibold text-[#ff9900] mb-1">Precio</div>
+                <div className="text-[10px] font-mono text-[#d0d0d0]">Último trade: {sobData.precio.ultimo_trade_ts ?? "—"}</div>
+                <div className="text-[10px] font-mono text-[#d0d0d0]">Precio ROFEX: {sobData.precio.precio_rofex?.toFixed(4) ?? "—"}</div>
+                <div className="text-[10px] font-mono text-[#808080]">MEP: {sobData.precio.mep?.toFixed(2) ?? "—"}</div>
+                <div className="text-[10px] font-mono text-[#00cc66]">Precio USD: {sobData.precio.precio_usd?.toFixed(4) ?? "—"}</div>
+                <div className="text-[10px] font-mono text-[#808080] mt-1">Settlement: {sobData.settlement}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              <div className="border border-[#00cc66]/30 bg-[#00cc66]/5 p-2 text-center">
+                <div className="text-[9px] text-[#808080] uppercase tracking-wide">TEA (YTM)</div>
+                <div className="text-[16px] font-semibold font-mono text-[#00cc66]">
+                  {sobData.resultado.tea_pct != null ? `${sobData.resultado.tea_pct.toFixed(2)}%` : "—"}
+                </div>
+              </div>
+              <div className="border border-[#1a1a1a] p-2 text-center">
+                <div className="text-[9px] text-[#808080] uppercase tracking-wide">Duration</div>
+                <div className="text-[16px] font-semibold font-mono text-[#d0d0d0]">
+                  {sobData.resultado.duration?.toFixed(4) ?? "—"}
+                </div>
+              </div>
+              <div className="border border-[#1a1a1a] p-2 text-center">
+                <div className="text-[9px] text-[#808080] uppercase tracking-wide">Paridad</div>
+                <div className="text-[16px] font-semibold font-mono text-[#d0d0d0]">
+                  {sobData.resultado.paridad != null ? `${sobData.resultado.paridad.toFixed(2)}%` : "—"}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-[#808080] mb-1">
+              Flujos futuros ({sobData.flujos_futuros.length}) · Total USD: {sobData.total_flujos_usd.toFixed(2)}
+            </div>
+            <table><thead><tr>
+              <th>FECHA</th>
+              <th className="text-right">AMORT %</th>
+              <th className="text-right">CUP s/RES</th>
+              <th className="text-right">RES PREVIO %</th>
+              <th className="text-right">MONTO USD</th>
+            </tr></thead>
+              <tbody>{sobData.flujos_futuros.map(f => (
+                <tr key={f.fecha}>
+                  <td className="text-[#d0d0d0]">{f.fecha}</td>
+                  <td className="text-right font-mono">{f.amortizacion_pct.toFixed(2)}</td>
+                  <td className="text-right font-mono">{f.cupon_sobre_residual.toFixed(4)}</td>
+                  <td className="text-right font-mono">{f.residual_previo_pct.toFixed(2)}</td>
+                  <td className="text-right font-mono text-[#00cc66]">{f.monto_usd.toFixed(4)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
           </>
         )}
       </CheckPanel>
