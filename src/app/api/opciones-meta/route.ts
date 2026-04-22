@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
-const CACHE_HEADERS = {
-  "Cache-Control": "s-maxage=30, stale-while-revalidate=120",
-};
-
+// Sin cache — el VR / tasa se actualiza en el motor o via PUT; cualquier
+// cache intermedia demora el refresh del header de Derivados.
 export async function GET() {
   try {
-    const data = await apiFetch<unknown>(
-      "/api/cotizaciones/opciones/meta",
-      { revalidate: 30 }
-    );
-    return NextResponse.json(data, { headers: CACHE_HEADERS });
+    const data = await apiFetch<unknown>("/api/cotizaciones/opciones/meta");
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 502 });
@@ -26,7 +23,7 @@ export async function PUT(req: NextRequest) {
   try {
     const data = await apiFetch<unknown>(
       `/api/cotizaciones/opciones/tasa?valor=${encodeURIComponent(valor)}`,
-      { method: "PUT" }
+      { method: "PUT" },
     );
     return NextResponse.json(data);
   } catch (e) {

@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
-const CACHE_HEADERS = {
-  "Cache-Control": "s-maxage=30, stale-while-revalidate=120",
-};
-
+// Proxy live — ver /api/argy/route.ts. MEP live viene del motor de
+// dólares (snapshot 5s); el edge cache de 30s estaba dejando el
+// indicador del top ticker desactualizado casi medio minuto.
 export async function GET() {
   try {
-    const data = await apiFetch<unknown>("/api/cotizaciones/mep", { revalidate: 30 });
-    return NextResponse.json(data, { headers: CACHE_HEADERS });
+    const data = await apiFetch<unknown>("/api/cotizaciones/mep");
+    return NextResponse.json(data, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 502 });
   }
