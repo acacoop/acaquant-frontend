@@ -634,7 +634,9 @@ export function ContrapartesView() {
       </div>
       )}
 
-      {/* Fila 2: Charts acumulados — altura fija, 1 o 2 columnas según monSel */}
+      {/* Fila 2: Charts acumulados — solo en modo rango. Con un día específico
+           el chart muestra un solo punto y no aporta; la tabla alcanza. */}
+      {!dia && (
       <div className="border border-[#1a1a1a] bg-[#080808] shrink-0">
         <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
@@ -754,6 +756,7 @@ export function ContrapartesView() {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }
