@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useViewportKey } from "@/lib/use-viewport-key";
 import { DualRange } from "./dual-range";
+import { SensibilidadTable } from "./sensibilidad-table";
 import {
   CartesianGrid,
   Legend,
@@ -44,6 +45,51 @@ function fmtFechaCorta(s: string): string {
 }
 
 export function RetornoTotalView() {
+  const [tab, setTab] = useState<"historico" | "sensibilidad">("historico");
+
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest mr-3">
+          RETORNO
+        </span>
+        <TabPill
+          label="HISTÓRICO"
+          active={tab === "historico"}
+          onClick={() => setTab("historico")}
+        />
+        <TabPill
+          label="RETORNO TOTAL"
+          active={tab === "sensibilidad"}
+          onClick={() => setTab("sensibilidad")}
+        />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {tab === "historico" && <HistoricoTab />}
+        {tab === "sensibilidad" && <SensibilidadTable />}
+      </div>
+    </div>
+  );
+}
+
+function TabPill({
+  label, active, onClick,
+}: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 text-[11px] font-semibold tracking-wide border ${
+        active
+          ? "bg-[#ff9900] text-black border-[#ff9900]"
+          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function HistoricoTab() {
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [byCurva, setByCurva] = useState<Record<string, HistRow[]>>({});
   const vpKey = useViewportKey();
