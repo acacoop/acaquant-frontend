@@ -44,7 +44,7 @@ function fmtPctAbs(v: number | null | undefined, d = 2): string {
 }
 
 export function SensibilidadTable() {
-  const [tirsInput, setTirsInput] = useState("9,10,11,12,13");
+  const [tirsInput, setTirsInput] = useState("4,5,6,7,8,9,10,11");
   const [horizonteDias, setHorizonteDias] = useState(365);
   const [data, setData] = useState<BonoRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -107,7 +107,7 @@ export function SensibilidadTable() {
             type="text"
             value={tirsInput}
             onChange={(e) => setTirsInput(e.target.value)}
-            placeholder="9,10,11,12,13"
+            placeholder="4,5,6,7,8,9,10,11"
             className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-40"
           />
         </div>
@@ -147,12 +147,6 @@ export function SensibilidadTable() {
               <th className="!px-2 !py-1.5 text-right">TEA actual</th>
               <th className="!px-2 !py-1.5 text-right">Dur</th>
               <th className="!px-2 !py-1.5 text-right">Paridad</th>
-              <th
-                className="!px-2 !py-1.5 text-right"
-                title="Cupones + amortizaciones cobrados durante el horizonte"
-              >
-                Carry $
-              </th>
               {tirs.map((t) => (
                 <th
                   key={t}
@@ -187,9 +181,6 @@ export function SensibilidadTable() {
                 <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
                   {b.paridad ? `${b.paridad.toFixed(1)}%` : "—"}
                 </td>
-                <td className="!px-2 !py-1 text-right text-[#888]">
-                  {b.cobrado_anio.toFixed(2)}
-                </td>
                 {b.escenarios.map((e) => {
                   const c = colorRetorno(e.retorno_total);
                   return (
@@ -208,7 +199,7 @@ export function SensibilidadTable() {
             {data.length === 0 && !loading && (
               <tr>
                 <td
-                  colSpan={7 + tirs.length}
+                  colSpan={6 + tirs.length}
                   className="text-center text-[#555] py-6"
                 >
                   Sin bonos con precio actual + flujos válidos.
