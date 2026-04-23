@@ -64,6 +64,7 @@ export function SensibilidadTable() {
   // Celda seleccionada para el panel de debug. Default a la primera celda
   // del primer bono cuando llega data. Clamping abajo si cambia la shape.
   const [selIdx, setSelIdx] = useState<{ bono: number; esc: number }>({ bono: 0, esc: 0 });
+  const [debugOpen, setDebugOpen] = useState(true);
 
   const tirsInput = modo === "absoluta" ? tirsAbs : tirsRel;
   const tiposParam = tipos.slice().sort().join(",");
@@ -343,11 +344,40 @@ export function SensibilidadTable() {
         </table>
       </div>
 
-      {/* Panel de debug lateral — refleja la celda seleccionada. Reactive
-          a cualquier cambio de data / filtros. */}
-      <aside className="w-72 shrink-0 border border-[#1a1a1a] bg-[#0a0a0a] p-3 overflow-y-auto text-[10px] font-mono">
-        <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-2">
-          DEBUG · celda seleccionada
+      {/* Panel de debug lateral — colapsable. Cerrado = rail con label
+          vertical clickeable. Abierto = panel con detalle. */}
+      <aside
+        className={`shrink-0 border border-[#1a1a1a] bg-[#0a0a0a] text-[10px] font-mono transition-[width] duration-150 flex flex-col ${
+          debugOpen ? "w-72" : "w-8"
+        }`}
+      >
+        {!debugOpen ? (
+          <button
+            onClick={() => setDebugOpen(true)}
+            className="flex-1 flex flex-col items-center justify-center gap-2 text-[#ff9900] hover:bg-[#ff9900]/10 cursor-pointer"
+            title="Expandir panel de debug"
+          >
+            <span className="text-[11px]">◀</span>
+            <span
+              className="text-[10px] uppercase tracking-[0.2em] text-[#ff9900]"
+              style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+            >
+              DEBUG
+            </span>
+          </button>
+        ) : (
+        <div className="p-3 overflow-y-auto flex-1">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[9px] uppercase tracking-widest text-[#ff9900]">
+            DEBUG · celda seleccionada
+          </span>
+          <button
+            onClick={() => setDebugOpen(false)}
+            className="text-[#555] hover:text-[#ff9900] text-[14px] leading-none cursor-pointer"
+            title="Minimizar panel"
+          >
+            ▶
+          </button>
         </div>
         {!debug ? (
           <div className="text-[#555] text-[11px]">
@@ -457,6 +487,8 @@ export function SensibilidadTable() {
               </div>
             )}
           </div>
+        )}
+        </div>
         )}
       </aside>
       </div>
