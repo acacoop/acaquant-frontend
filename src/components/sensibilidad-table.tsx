@@ -6,11 +6,13 @@ interface Escenario {
   tir: number;
   shock_pp: number | null;
   precio_objetivo: number;
-  upside: number;
+  upside_sin_carry: number;
+  upside_con_carry: number;
 }
 
 type Modo = "absoluta" | "relativa";
 type Tipo = "globales" | "bonares";
+type ModoCarry = "sin_carry" | "con_carry";
 const TIPOS_DISPONIBLES: Tipo[] = ["globales", "bonares"];
 
 interface BonoRow {
@@ -22,6 +24,8 @@ interface BonoRow {
   tea_actual: number | null;
   duration: number | null;
   paridad: number | null;
+  cobrado_horizonte: number;
+  n_flujos_horizonte: number;
   escenarios: Escenario[];
 }
 
@@ -52,8 +56,15 @@ export function SensibilidadTable() {
   const [modo, setModo] = useState<Modo>("absoluta");
   const [tirsAbs, setTirsAbs] = useState("4,5,6,7,8,9,10,11");
   const [tirsRel, setTirsRel] = useState("-4,-3,-2,-1,0,1,2,3,4");
+  // 0 = upside instantáneo (foto de hoy). >0 = proyecta el precio a esa
+  // fecha (pull-to-par activo).
+  const [horizonteDias, setHorizonteDias] = useState(0);
   // Default solo globales — el usuario activa bonares manualmente.
   const [tipos, setTipos] = useState<Tipo[]>(["globales"]);
+  // Con carry = retorno total (suma cupones cobrados en el horizonte).
+  // Sin carry = upside de precio puro (lo que debería subir/bajar el bono
+  // para cotizar a la TIR objetivo). Toggle local, sin re-fetch.
+  const [modoCarry, setModoCarry] = useState<ModoCarry>("sin_carry");
   const [data, setData] = useState<BonoRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +96,7 @@ export function SensibilidadTable() {
         const res = await fetch(
           `/api/analitica/sensibilidad-retorno?curva=soberanos&modo=${modo}&tirs=${encodeURIComponent(
             tirsInput,
-          )}&tipos=${encodeURIComponent(tiposParam)}`,
+          )}&horizonte_dias=${horizonteDias}&tipos=${encodeURIComponent(tiposParam)}`,
           { cache: "no-store" },
         );
         if (!res.ok) {
@@ -114,7 +125,7 @@ export function SensibilidadTable() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [tirsInput, modo, tiposParam]);
+  }, [tirsInput, horizonteDias, modo, tiposParam]);
 
   // Clamping derivado (no state) para que la celda seleccionada sobreviva
   // cambios de shape sin violar react-hooks/set-state-in-effect.
@@ -129,21 +140,30 @@ export function SensibilidadTable() {
   }, [data, selIdx]);
 
   // Desglose del cálculo para la celda seleccionada. Recomputa con cada
-  // cambio de data / selección para que el panel sea 100% dinámico.
+  // cambio de data / selección / horizonte / modo carry para que el panel
+  // sea 100% dinámico.
   const debug = useMemo(() => {
     if (data.length === 0) return null;
     const bono = data[effectiveIdx.bono];
     if (!bono) return null;
     const esc = bono.escenarios[effectiveIdx.esc];
     if (!esc) return null;
+    const upside = modoCarry === "con_carry" ? esc.upside_con_carry : esc.upside_sin_carry;
     const dTir = bono.tea_actual != null ? esc.tir - bono.tea_actual : null;
-    // Sanity check linealizado: ΔP/P ≈ -Duration × ΔTIR. Usa la duration
-    // actual (sin restar horizonte porque el upside es instantáneo).
-    const upsideLinear = (bono.duration != null && dTir != null)
-      ? -bono.duration * dTir
+    // Sanity check linealizado del upside SIN carry: ΔP/P ≈ -Dur_res × ΔTIR.
+    // Para el CON carry sumamos aprox el carry/precio actual.
+    const durRes = bono.duration != null
+      ? Math.max(bono.duration - horizonteDias / 365, 0)
       : null;
-    return { bono, esc, dTir, upsideLinear };
-  }, [data, effectiveIdx]);
+    let upsideLinear: number | null = null;
+    if (durRes != null && dTir != null) {
+      upsideLinear = -durRes * dTir;
+      if (modoCarry === "con_carry") {
+        upsideLinear += bono.cobrado_horizonte / bono.precio_actual;
+      }
+    }
+    return { bono, esc, upside, dTir, durRes, upsideLinear };
+  }, [data, effectiveIdx, horizonteDias, modoCarry]);
 
   // En absoluta las columnas son TIRs absolutas (las mismas para todos
   // los bonos). En relativa son shocks pp (también iguales para todos).
@@ -186,6 +206,31 @@ export function SensibilidadTable() {
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wide text-[#555]">
+            Carry
+          </span>
+          <div className="flex items-center gap-1 h-[26px]">
+            {(["sin_carry", "con_carry"] as ModoCarry[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setModoCarry(m)}
+                className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
+                  modoCarry === m
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                }`}
+                title={
+                  m === "sin_carry"
+                    ? "Upside de precio puro (cuánto debe moverse el bono)"
+                    : "Retorno total: precio proyectado + cupones cobrados en el horizonte"
+                }
+              >
+                {m === "sin_carry" ? "SIN CARRY" : "CON CARRY"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-[#555]">
             {modo === "absoluta" ? "TIRs (%)" : "Shocks de TIR (%) centrados en TEA"}
           </span>
           <input
@@ -198,6 +243,21 @@ export function SensibilidadTable() {
             }
             placeholder={modo === "absoluta" ? "4,5,6,7,8,9,10,11" : "-4,-3,-2,-1,0,1,2,3,4"}
             className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-[#555]">
+            Horizonte (días)
+          </span>
+          <input
+            type="number"
+            value={horizonteDias}
+            min={0}
+            max={1095}
+            step={30}
+            onChange={(e) => setHorizonteDias(parseInt(e.target.value || "0", 10))}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
+            title="0 = upside instantáneo (foto de hoy). >0 = proyecta el precio a esa fecha (pull-to-par activo, sin carry)."
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -286,9 +346,8 @@ export function SensibilidadTable() {
                   {b.paridad ? `${b.paridad.toFixed(1)}%` : "—"}
                 </td>
                 {b.escenarios.map((e, i) => {
-                  const c = colorRetorno(e.upside);
-                  // Tooltip: TIR final + precio objetivo. En modo relativo
-                  // el header muestra el shock pp, acá sumamos la TIR real.
+                  const upside = modoCarry === "con_carry" ? e.upside_con_carry : e.upside_sin_carry;
+                  const c = colorRetorno(upside);
                   const tirReal = (e.tir * 100).toFixed(2);
                   const tip = `TIR ${tirReal}% · Precio obj ${e.precio_objetivo.toFixed(2)} · click para debug`;
                   const isSelected = effectiveIdx.bono === bonoIdx && effectiveIdx.esc === i;
@@ -302,7 +361,7 @@ export function SensibilidadTable() {
                       style={{ background: c.bg, color: c.fg }}
                       title={tip}
                     >
-                      {fmtPct(e.upside)}
+                      {fmtPct(upside)}
                     </td>
                   );
                 })}
@@ -375,7 +434,10 @@ export function SensibilidadTable() {
                 </span>
               </div>
               <div className="text-[#555] text-[9px] mt-0.5">
-                Vto {debug.bono.fecha_vencimiento} · {debug.bono.tipo}
+                Vto {debug.bono.fecha_vencimiento} · {debug.bono.tipo} ·{" "}
+                <span className="text-[#ff9900]">
+                  {modoCarry === "con_carry" ? "CON CARRY" : "SIN CARRY"}
+                </span>
               </div>
             </div>
 
@@ -394,6 +456,18 @@ export function SensibilidadTable() {
                 <span className="text-right">
                   {debug.bono.paridad != null ? `${debug.bono.paridad.toFixed(2)}%` : "—"}
                 </span>
+                <span className="text-[#888]">Horizonte</span>
+                <span className="text-right">
+                  {horizonteDias === 0 ? "HOY" : `${horizonteDias} días`}
+                </span>
+                {modoCarry === "con_carry" && horizonteDias > 0 && (
+                  <>
+                    <span className="text-[#888]">Flujos en horiz.</span>
+                    <span className="text-right">{debug.bono.n_flujos_horizonte}</span>
+                    <span className="text-[#888]">Carry cobrado</span>
+                    <span className="text-right">{debug.bono.cobrado_horizonte.toFixed(4)}</span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -417,41 +491,66 @@ export function SensibilidadTable() {
 
             <div>
               <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
-                Cálculo (exacto)
+                Cálculo (exacto) · {modoCarry === "con_carry" ? "CON CARRY" : "SIN CARRY"}
               </div>
-              <div className="text-[#d0d0d0] leading-[1.5]">
-                Upside = P<sub>objetivo</sub> / P<sub>actual</sub> − 1
-              </div>
-              <div className="text-[#888] mt-1 leading-[1.5]">
-                = {debug.esc.precio_objetivo.toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
-              </div>
+              {modoCarry === "con_carry" ? (
+                <>
+                  <div className="text-[#d0d0d0] leading-[1.5]">
+                    Retorno = (P<sub>obj</sub> + Carry) / P<sub>actual</sub> − 1
+                  </div>
+                  <div className="text-[#888] mt-1 leading-[1.5]">
+                    = ({debug.esc.precio_objetivo.toFixed(4)} + {debug.bono.cobrado_horizonte.toFixed(4)}) / {debug.bono.precio_actual.toFixed(4)} − 1
+                  </div>
+                  <div className="text-[#888] leading-[1.5]">
+                    = {(debug.esc.precio_objetivo + debug.bono.cobrado_horizonte).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[#d0d0d0] leading-[1.5]">
+                    Upside = P<sub>objetivo</sub> / P<sub>actual</sub> − 1
+                  </div>
+                  <div className="text-[#888] mt-1 leading-[1.5]">
+                    = {debug.esc.precio_objetivo.toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
+                  </div>
+                </>
+              )}
               <div
                 className="mt-1 text-[13px] font-semibold"
-                style={{ color: colorRetorno(debug.esc.upside).bg === "#1a1a1a" ? "#bdb" : "#fff" }}
+                style={{ color: colorRetorno(debug.upside).bg === "#1a1a1a" ? "#bdb" : "#fff" }}
               >
-                = {fmtPct(debug.esc.upside, 2)}
+                = {fmtPct(debug.upside, 2)}
               </div>
               <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
-                P<sub>objetivo</sub> = PV de los flujos futuros descontados a la TIR objetivo desde HOY. Capital-only, sin carry.
+                P<sub>objetivo</sub> = PV de los flujos {horizonteDias > 0 ? "post-horizonte" : "futuros"} descontados a la TIR objetivo desde {horizonteDias > 0 ? "la fecha horizonte" : "HOY"}.
+                {modoCarry === "con_carry" ? " Carry = cupones + amortizaciones cobradas en el horizonte." : " Capital-only, sin carry."}
               </div>
             </div>
 
-            {debug.upsideLinear != null && debug.dTir != null && debug.bono.duration != null && (
+            {debug.upsideLinear != null && debug.durRes != null && debug.dTir != null && debug.bono.duration != null && (
               <div>
                 <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
                   Sanity check (lineal, Fabozzi)
                 </div>
                 <div className="text-[#d0d0d0] leading-[1.5]">
-                  ≈ −Duration × ΔTIR
+                  ≈ −Dur<sub>res</sub> × ΔTIR{modoCarry === "con_carry" && horizonteDias > 0 ? " + Carry/P" : ""}
                 </div>
+                {horizonteDias > 0 && (
+                  <div className="text-[#888] mt-1 leading-[1.5]">
+                    Dur<sub>res</sub> = {debug.bono.duration.toFixed(3)} − {(horizonteDias / 365).toFixed(3)} = {debug.durRes.toFixed(3)}
+                  </div>
+                )}
                 <div className="text-[#888] mt-1 leading-[1.5]">
-                  ≈ −{debug.bono.duration.toFixed(3)} × {(debug.dTir * 100).toFixed(2)} pp
+                  ≈ −{debug.durRes.toFixed(3)} × {(debug.dTir * 100).toFixed(2)} pp
+                  {modoCarry === "con_carry" && horizonteDias > 0 && (
+                    <> + {debug.bono.cobrado_horizonte.toFixed(4)} / {debug.bono.precio_actual.toFixed(4)}</>
+                  )}
                 </div>
                 <div className="text-[#888] leading-[1.5]">
                   ≈ {fmtPct(debug.upsideLinear, 2)}
                 </div>
                 <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
-                  Diferencia vs exacto: {fmtPct(debug.esc.upside - debug.upsideLinear, 2)} — explicada por convexidad (siempre positiva, por eso el exacto es mejor que el lineal cuando la TIR baja y peor cuando sube).
+                  Diferencia vs exacto: {fmtPct(debug.upside - debug.upsideLinear, 2)} — explicada por convexidad (siempre positiva, por eso el exacto es mejor que el lineal cuando la TIR baja y peor cuando sube).
                 </div>
               </div>
             )}
@@ -467,22 +566,33 @@ export function SensibilidadTable() {
       <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
-            Cálculo — Upside de precio (capital-only)
+            Cálculo — modo {modoCarry === "con_carry" ? "CON CARRY (retorno total)" : "SIN CARRY (upside de precio)"}
           </div>
           <div className="text-[#d0d0d0]">
-            Upside = Precio<sub>objetivo</sub> / Precio<sub>actual</sub> − 1
+            {modoCarry === "con_carry"
+              ? <>Retorno = (P<sub>objetivo</sub> + Carry) / P<sub>actual</sub> − 1</>
+              : <>Upside = P<sub>objetivo</sub> / P<sub>actual</sub> − 1</>}
           </div>
           <div className="text-[#888] mt-1 leading-relaxed">
-            <b className="text-[#d0d0d0]">Precio<sub>objetivo</sub></b>: PV de
-            los flujos futuros descontados a la TIR del escenario, desde HOY.
+            <b className="text-[#d0d0d0]">P<sub>objetivo</sub></b>: PV de los
+            flujos descontados a la TIR del escenario {horizonteDias > 0
+              ? `desde la fecha horizonte (${horizonteDias} días). Solo flujos posteriores al horizonte.`
+              : "desde HOY. Todos los flujos futuros."}
             <br />
-            <b className="text-[#d0d0d0]">Precio<sub>actual</sub></b>: último
-            precio del MarketSnapshot (USD para tickers .D / .C).
+            <b className="text-[#d0d0d0]">P<sub>actual</sub></b>: último precio
+            del MarketSnapshot (USD para tickers .D / .C).
+            {modoCarry === "con_carry" && (
+              <>
+                <br />
+                <b className="text-[#d0d0d0]">Carry</b>: cupones + amortizaciones
+                cobradas dentro del horizonte. Con horizonte=0 el carry es 0.
+              </>
+            )}
             <br />
-            Upside <b className="text-[#d0d0d0]">negativo</b> si TIR objetivo &gt;
-            TEA actual (el bono debe caer para rendir más). Upside{" "}
+            Resultado <b className="text-[#d0d0d0]">negativo</b> si TIR
+            objetivo &gt; TEA actual (el bono debe caer para rendir más),{" "}
             <b className="text-[#d0d0d0]">positivo</b> si TIR objetivo &lt; TEA
-            actual. No incluye carry ni paso del tiempo.
+            actual.
           </div>
         </div>
         <div>
