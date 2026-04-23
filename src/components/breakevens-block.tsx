@@ -272,23 +272,34 @@ function BreakevensGrafico({
     );
   }
 
-  // Xticks = unión de meses del REM + vencimientos de Lecap. Queremos ver
-  // todas las fechas relevantes, no solo las del REM o solo las del BE.
+  // Xticks = unión de meses del REM + vencimientos de Lecap, pero SIN
+  // duplicar labels en el mismo mes: si un BE cae en el mismo mes-año que
+  // un fin-de-mes del REM, priorizamos el del BE (fecha exacta del vto)
+  // porque es lo que al operador le importa leer en el eje.
   const tsRem = data.filter((d) => d.rem_mensual != null).map((d) => d.vencTs);
   const tsBe  = data.filter((d) => d.be != null).map((d) => d.vencTs);
-  const xTicks = Array.from(new Set([...tsRem, ...tsBe])).sort((a, b) => a - b);
+  const monthKey = (ts: number): string => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${d.getMonth()}`;
+  };
+  const mesesConBe = new Set(tsBe.map(monthKey));
+  const tsRemFiltrados = tsRem.filter((ts) => !mesesConBe.has(monthKey(ts)));
+  const xTicks = Array.from(new Set([...tsRemFiltrados, ...tsBe])).sort(
+    (a, b) => a - b,
+  );
 
-  // Si hay muchos labels, mostramos 1 de cada N para que el eje no se
-  // apelmace. Priorizamos mantener los tickers del BE (suelen ser fechas
-  // específicas del operador) y decimamos solo los meses del REM.
+  // Si hay muchos labels, decimamos los del REM (preservamos los BE siempre).
   const maxLabels = 14;
   const tsBeSet = new Set(tsBe);
   let xTicksShown: number[] = xTicks;
   if (xTicks.length > maxLabels) {
-    const skipRem = Math.max(1, Math.ceil(tsRem.length / (maxLabels - tsBe.length)));
+    const skipRem = Math.max(
+      1,
+      Math.ceil(tsRemFiltrados.length / Math.max(1, maxLabels - tsBe.length)),
+    );
     xTicksShown = xTicks.filter((ts) => {
       if (tsBeSet.has(ts)) return true;
-      const i = tsRem.indexOf(ts);
+      const i = tsRemFiltrados.indexOf(ts);
       return i === -1 || i % skipRem === 0;
     });
   }
