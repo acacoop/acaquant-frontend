@@ -9,7 +9,6 @@ import {
   YAxis,
   Tooltip,
   ReferenceLine,
-  LabelList,
   ResponsiveContainer,
 } from "recharts";
 import { shortTicker } from "./ui";
@@ -427,22 +426,18 @@ function BreakevensGrafico({
             isAnimationActive={false}
             connectNulls
           />
-          {/* BE de mercado: línea naranja con forward-fill mes a mes.
-              El scatter pinta un punto EN CADA MES del grid (incluso los
-              que no tienen bono propio — ahí el valor viene arrastrado).
-              Los labels de ticker solo aparecen en meses con bono real. */}
+          {/* BE de mercado: línea fluida (suave) con forward-fill mes a
+              mes. Scatter en cada mes sin labels. */}
           <Line
             dataKey="be"
-            type="stepAfter"
+            type="monotone"
             stroke="#ff9900"
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
             connectNulls
           />
-          <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
-            <LabelList dataKey="ticker" position="top" fill="#aaaaaa" style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }} />
-          </Scatter>
+          <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
