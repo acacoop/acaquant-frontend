@@ -8,7 +8,7 @@ const NAV_LINKS = [
   { href: "/", label: "HOME" },
   { href: "/renta-fija", label: "RENTA FIJA" },
   { href: "/derivados", label: "DERIVADOS" },
-  { href: "/retorno", label: "RETORNO" },
+  { href: "/retorno", label: "ESTRATEGIA" },
   { href: "/operaciones", label: "OPERACIONES" },
   { href: "/portfolios", label: "PORTFOLIOS" },
   { href: "/aum",     label: "AUM"     },

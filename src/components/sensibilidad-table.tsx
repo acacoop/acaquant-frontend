@@ -10,9 +10,13 @@ interface Escenario {
 }
 
 type Modo = "absoluta" | "relativa";
+type Tipo = "globales" | "bonares";
+const TIPOS_DISPONIBLES: Tipo[] = ["globales", "bonares"];
+
 interface BonoRow {
   ticker: string;
   ticker_completo: string;
+  tipo: string | null;
   fecha_vencimiento: string | null;
   precio_actual: number;
   tea_actual: number | null;
@@ -51,12 +55,26 @@ export function SensibilidadTable() {
   const [tirsAbs, setTirsAbs] = useState("4,5,6,7,8,9,10,11");
   const [tirsRel, setTirsRel] = useState("-4,-3,-2,-1,0,1,2,3,4");
   const [horizonteDias, setHorizonteDias] = useState(365);
+  // Default solo globales — el usuario activa bonares manualmente.
+  const [tipos, setTipos] = useState<Tipo[]>(["globales"]);
   const [data, setData] = useState<BonoRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<string>("");
 
   const tirsInput = modo === "absoluta" ? tirsAbs : tirsRel;
+  const tiposParam = tipos.slice().sort().join(",");
+
+  const toggleTipo = (t: Tipo) => {
+    setTipos((prev) => {
+      if (prev.includes(t)) {
+        // No permitimos dejar la selección vacía (la API traería todos).
+        if (prev.length === 1) return prev;
+        return prev.filter((x) => x !== t);
+      }
+      return [...prev, t];
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -66,7 +84,7 @@ export function SensibilidadTable() {
         const res = await fetch(
           `/api/analitica/sensibilidad-retorno?curva=soberanos&modo=${modo}&tirs=${encodeURIComponent(
             tirsInput,
-          )}&horizonte_dias=${horizonteDias}`,
+          )}&horizonte_dias=${horizonteDias}&tipos=${encodeURIComponent(tiposParam)}`,
           { cache: "no-store" },
         );
         if (!res.ok) {
@@ -95,7 +113,7 @@ export function SensibilidadTable() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [tirsInput, horizonteDias, modo]);
+  }, [tirsInput, horizonteDias, modo, tiposParam]);
 
   // En absoluta las columnas son TIRs absolutas (las mismas para todos
   // los bonos). En relativa son shocks pp (también iguales para todos).
@@ -165,6 +183,34 @@ export function SensibilidadTable() {
             onChange={(e) => setHorizonteDias(parseInt(e.target.value || "365", 10))}
             className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
           />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-[#555]">
+            Tipos
+          </span>
+          <div className="flex items-center gap-1 h-[26px]">
+            {TIPOS_DISPONIBLES.map((t) => {
+              const active = tipos.includes(t);
+              return (
+                <button
+                  key={t}
+                  onClick={() => toggleTipo(t)}
+                  className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
+                    active
+                      ? "bg-[#ff9900] text-black border-[#ff9900]"
+                      : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  }`}
+                  title={
+                    active && tipos.length === 1
+                      ? "Necesitás al menos 1 tipo activo"
+                      : ""
+                  }
+                >
+                  {t.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="ml-auto text-[10px] text-[#555] font-mono">
           {loading ? "actualizando…" : lastFetch ? `últ. ${lastFetch}` : ""}

@@ -51,7 +51,7 @@ export function RetornoTotalView() {
     <div className="h-full min-h-0 flex flex-col">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest mr-3">
-          RETORNO
+          ESTRATEGIA
         </span>
         <TabPill
           label="RETORNO TOTAL"
