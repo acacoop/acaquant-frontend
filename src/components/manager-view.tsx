@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AsistenteDashboard } from "./asistente-dashboard";
 import { IntelPanel } from "./intel-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
@@ -21,12 +21,6 @@ interface StatusData {
   ahora_ar: string; en_rueda: boolean;
   motores: MotorStatus[]; jobs: JobStatus[];
 }
-interface LogEntry { when: string; [k: string]: unknown }
-interface LatRow {
-  vista: string; coleccion: string; descripcion: string;
-  docs: number; ms: number; ms_doc: number;
-}
-interface LatData { total_ms: number; total_docs: number; queries: number; resultados: LatRow[] }
 interface Job { status: "running" | "done" | "error"; tipo: string; result?: string; started_at?: string; finished_at?: string }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -403,141 +397,6 @@ function TabBackfills() {
   );
 }
 
-// ── Tab: Historial ────────────────────────────────────────────────────────────
-
-function TabHistorial() {
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch("/api/manager/changelog")
-      .then((r) => r.json())
-      .then(setLogs)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const cols = logs.length > 0
-    ? Object.keys(logs[0]).filter((k) => k !== "_id")
-    : ["when"];
-
-  return (
-    <div className="h-full flex flex-col overflow-hidden p-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col flex-1 overflow-hidden">
-        <SectionHeader title={`CHANGELOG (${logs.length} entradas)`} />
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <p className="text-[#555555] text-xs p-4 text-center">Cargando…</p>
-          ) : logs.length === 0 ? (
-            <p className="text-[#555555] text-xs p-4 text-center">Sin entradas en Manager.ChangeLog</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>{cols.map((c) => <th key={c}>{c.toUpperCase()}</th>)}</tr>
-              </thead>
-              <tbody>
-                {logs.map((row, i) => (
-                  <tr key={i}>
-                    {cols.map((c) => (
-                      <td key={c} className={c === "when" ? "font-mono text-[#808080] whitespace-nowrap" : ""}>
-                        {String(row[c] ?? "—")}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Tab: Latencia ─────────────────────────────────────────────────────────────
-
-function TabLatencia() {
-  const [data, setData] = useState<LatData | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const run = () => {
-    setLoading(true);
-    setData(null);
-    fetch("/api/manager/latencia")
-      .then((r) => r.json())
-      .then((d: LatData) => setData(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
-
-  function colorMs(ms: number): string {
-    if (ms < 200) return "#00cc66";
-    if (ms < 800) return "#ff9900";
-    return "#ff3333";
-  }
-
-  return (
-    <div className="h-full flex flex-col gap-3 overflow-y-auto p-3">
-      <div className="flex items-center gap-3 shrink-0">
-        <button
-          onClick={run}
-          disabled={loading}
-          className="px-4 py-1.5 text-[11px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
-        >
-          {loading ? "Corriendo benchmark…" : "▶ Ejecutar benchmark"}
-        </button>
-        {data && (
-          <>
-            <span className="text-[11px] font-mono" style={{ color: colorMs(data.total_ms / data.queries) }}>
-              Total: {(data.total_ms / 1000).toFixed(2)}s
-            </span>
-            <span className="text-[10px] text-[#555555]">{data.total_docs.toLocaleString()} docs · {data.queries} queries</span>
-          </>
-        )}
-      </div>
-
-      {data && (
-        <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden">
-          <SectionHeader title="RESULTADOS (ordenado por latencia)" />
-          <div className="overflow-y-auto max-h-[calc(100vh-250px)]">
-            <table>
-              <thead>
-                <tr>
-                  <th>COLECCIÓN</th>
-                  <th>VISTA</th>
-                  <th>DESCRIPCIÓN</th>
-                  <th className="text-right">DOCS</th>
-                  <th className="text-right">MS</th>
-                  <th className="text-right">MS/DOC</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.resultados.map((r, i) => (
-                  <tr key={i}>
-                    <td className="font-semibold text-[#d0d0d0]">{r.coleccion}</td>
-                    <td className="text-[#808080]">{r.vista}</td>
-                    <td className="text-[#555555]">{r.descripcion}</td>
-                    <td className="text-right font-mono">{r.docs.toLocaleString()}</td>
-                    <td className="text-right font-mono font-semibold" style={{ color: colorMs(r.ms) }}>{r.ms.toFixed(1)}</td>
-                    <td className="text-right font-mono text-[#808080]">{r.ms_doc.toFixed(3)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {!data && !loading && (
-        <p className="text-[#555555] text-xs text-center py-8">
-          Presioná "Ejecutar benchmark" para medir la latencia de todas las queries MongoDB.
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ── Main view ─────────────────────────────────────────────────────────────────
 
 // ── Tab: Validaciones ─────────────────────────────────────────────────────────
@@ -874,7 +733,7 @@ function TabValidaciones() {
   );
 }
 
-type Tab = "diagnostico" | "backfills" | "jobs" | "historial" | "latencia" | "validaciones" | "asistente" | "intel" | "recursos" | "logs";
+type Tab = "diagnostico" | "backfills" | "jobs" | "validaciones" | "asistente" | "intel" | "recursos" | "logs";
 
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
@@ -884,8 +743,6 @@ export function ManagerView() {
     { id: "backfills",    label: "BACKFILLS"    },
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
-    { id: "historial",    label: "HISTORIAL"    },
-    { id: "latencia",     label: "LATENCIA"     },
     { id: "recursos",     label: "RECURSOS"     },
     { id: "logs",         label: "LOGS"         },
     { id: "asistente",    label: "ASISTENTE"    },
@@ -904,16 +761,14 @@ export function ManagerView() {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "diagnostico" && <TabDiagnostico />}
-        {tab === "backfills"   && <TabBackfills />}
-        {tab === "jobs"        && <JobsRunsPanel />}
-        {tab === "historial"   && <TabHistorial />}
+        {tab === "diagnostico"  && <TabDiagnostico />}
+        {tab === "backfills"    && <TabBackfills />}
+        {tab === "jobs"         && <JobsRunsPanel />}
         {tab === "validaciones" && <TabValidaciones />}
-        {tab === "latencia"    && <TabLatencia />}
-        {tab === "recursos"    && <RecursosPanel />}
-        {tab === "logs"        && <LogsPanel />}
-        {tab === "asistente"   && <AsistenteDashboard />}
-        {tab === "intel"       && <IntelPanel />}
+        {tab === "recursos"     && <RecursosPanel />}
+        {tab === "logs"         && <LogsPanel />}
+        {tab === "asistente"    && <AsistenteDashboard />}
+        {tab === "intel"        && <IntelPanel />}
       </div>
     </div>
   );
