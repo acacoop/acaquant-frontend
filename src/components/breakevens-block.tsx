@@ -58,6 +58,14 @@ function fmtMesAnio(iso: string): string {
   return `${MESES_CORTOS[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
 }
 
+function fmtSoloMes(ts: number): string {
+  // Formato 'Abr' / 'May' / 'Jun' — sin año. Usa UTC para evitar que una
+  // fecha construida con Date.UTC(y, m, 15) caiga en el mes anterior en
+  // timezone Argentina.
+  const d = new Date(ts);
+  return MESES_CORTOS[d.getUTCMonth()];
+}
+
 function fmtPeriodoMensual(yyyy_mm: string): string {
   // Parseo manual para evitar el bug UTC→Local del constructor Date("2026-03-01"),
   // que en timezone Argentina (UTC-3) devuelve el día 28-29 del mes anterior.
@@ -120,10 +128,21 @@ export function BreakevensBlock({
         : Math.min(Math.max(0, fechaIdx), fechasOrdenadas.length - 1)
       : 0;
   const fechaSel = fechasOrdenadas[effectiveIdx];
-  const paresMostrar =
+  const paresBase =
     modo === "live"
       ? pares
       : (historico ?? []).find((d) => d.fecha === fechaSel)?.pares ?? [];
+
+  // Por pedido de la mesa: mostrar solo bonos que vencen en 2026. Filtra
+  // tanto la tabla como el chart.
+  const paresMostrar = useMemo(
+    () =>
+      paresBase.filter((p) => {
+        const anio = parseInt((p.fecha_vencimiento || "").slice(0, 4), 10);
+        return anio === 2026;
+      }),
+    [paresBase],
+  );
 
   const hayHistorico = fechasOrdenadas.length > 0;
 
@@ -242,22 +261,16 @@ function BreakevensGrafico({
   const vpKey = useViewportKey();
 
   const data = useMemo(() => {
-    // El esqueleto del eje X lo da el REM (todos los meses futuros que
-    // proyecta el informe). Encima de esa grilla, pinchamos los BE del
-    // mercado en la fecha EXACTA de vencimiento de cada Lecap — pueden
-    // o no coincidir con fin de mes; la línea del BE los conecta con
-    // connectNulls.
-    const map = new Map<number, {
-      vencTs: number;
-      rem_mensual?: number;
-      rem_acum?: number;
-      be?: number;
-      ticker?: string;
-    }>();
+    // Grilla mensual desde el mes actual en adelante. Cada punto es el
+    // día 15 (UTC) de un mes. Para los meses sin BE hacemos forward-fill
+    // desde el último BE conocido.
 
-    // 1. Puntos del REM (1 por mes proyectado). Se ubican en el día 15
-    // del mes — misma regla que los BE, así queda todo alineado por mes
-    // en el eje X (no por fin de mes del REM vs fecha puntual del vto).
+    // 1. Meses disponibles: min(hoy) a max(REM ∪ BEs). Si no hay ni REM ni
+    // BEs, devolvemos vacío.
+    const hoy = new Date();
+    const mesActualUtc = Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 15);
+
+    const remByMonth = new Map<number, { mensual: number; acum: number }>();
     remSerie.forEach((r) => {
       if (!r.periodo) return;
       const ts = Date.UTC(
@@ -266,37 +279,59 @@ function BreakevensGrafico({
         15,
       );
       if (isNaN(ts)) return;
-      map.set(ts, {
-        vencTs:      ts,
-        rem_mensual: +(r.ipc_mensual_rem * 100).toFixed(2),
-        rem_acum:    +(r.promedio_mensual_acum * 100).toFixed(2),
+      remByMonth.set(ts, {
+        mensual: +(r.ipc_mensual_rem * 100).toFixed(2),
+        acum:    +(r.promedio_mensual_acum * 100).toFixed(2),
       });
     });
 
-    // 2. Puntos del BE. Se ubican en el eje X en el MES DE INFLACIÓN
-    // implicada (vto − 2m), no en la fecha de vto del bono. Eso alinea
-    // el punto con la grilla mensual del REM para comparación directa.
-    // Si falta mes_inflacion (data vieja), fallback al vto de la Lecap.
+    const beByMonth = new Map<number, { be: number; ticker: string }>();
     pares
       .filter((p) => p.breakeven_mensual != null)
       .forEach((p) => {
-        const ts = p.mes_inflacion
-          ? Date.UTC(
-              parseInt(p.mes_inflacion.slice(0, 4), 10),
-              parseInt(p.mes_inflacion.slice(5, 7), 10) - 1,
-              15,  // día 15 del mes — punto medio, consistente con el REM
-            )
-          : new Date(p.fecha_vencimiento).getTime();
+        // El BE corresponde al IPC del mes vto − 2m (o al mes del vto si
+        // falta mes_inflacion). Ubicamos el punto en el mes del vto del
+        // bono para que se alinee con la grilla mensual.
+        const vto = new Date(p.fecha_vencimiento);
+        const ts = Date.UTC(vto.getUTCFullYear(), vto.getUTCMonth(), 15);
         if (isNaN(ts)) return;
-        const entry = map.get(ts) ?? { vencTs: ts };
-        entry.be = +(p.breakeven_mensual * 100).toFixed(2);
-        entry.ticker = p.mes_inflacion
-          ? fmtPeriodoMensual(p.mes_inflacion)
-          : shortTicker(p.lecap);
-        map.set(ts, entry);
+        beByMonth.set(ts, {
+          be:     +(p.breakeven_mensual * 100).toFixed(2),
+          ticker: p.mes_inflacion ? fmtPeriodoMensual(p.mes_inflacion) : shortTicker(p.lecap),
+        });
       });
 
-    return Array.from(map.values()).sort((a, b) => a.vencTs - b.vencTs);
+    const todosTs = [...remByMonth.keys(), ...beByMonth.keys()].sort((a, b) => a - b);
+    if (todosTs.length === 0) return [];
+    const ultimoTs = todosTs[todosTs.length - 1];
+
+    // Generar lista de meses consecutivos: hoy → último mes con datos.
+    const meses: number[] = [];
+    let cursor = mesActualUtc;
+    while (cursor <= ultimoTs) {
+      meses.push(cursor);
+      const d = new Date(cursor);
+      cursor = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 15);
+    }
+
+    // Armar los puntos. Forward-fill del BE cuando un mes no tiene dato propio.
+    let ultimoBe: number | undefined;
+    return meses.map((ts) => {
+      const rem = remByMonth.get(ts);
+      const be = beByMonth.get(ts);
+      if (be) ultimoBe = be.be;
+      return {
+        vencTs:      ts,
+        rem_mensual: rem?.mensual,
+        rem_acum:    rem?.acum,
+        // `be` = valor real del mes (si existe) o el forward-fill del previo.
+        be:          be ? be.be : ultimoBe,
+        // `beReal` identifica los puntos que SÍ tienen bono detrás; el
+        // scatter y el tooltip los usan para mostrar ticker solo en ellos.
+        beReal:      be ? be.be : undefined,
+        ticker:      be?.ticker,
+      };
+    });
   }, [pares, remSerie]);
 
   if (data.length === 0) {
@@ -307,37 +342,10 @@ function BreakevensGrafico({
     );
   }
 
-  // Xticks = unión de meses del REM + vencimientos de Lecap, pero SIN
-  // duplicar labels en el mismo mes: si un BE cae en el mismo mes-año que
-  // un fin-de-mes del REM, priorizamos el del BE (fecha exacta del vto)
-  // porque es lo que al operador le importa leer en el eje.
-  const tsRem = data.filter((d) => d.rem_mensual != null).map((d) => d.vencTs);
-  const tsBe  = data.filter((d) => d.be != null).map((d) => d.vencTs);
-  const monthKey = (ts: number): string => {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${d.getMonth()}`;
-  };
-  const mesesConBe = new Set(tsBe.map(monthKey));
-  const tsRemFiltrados = tsRem.filter((ts) => !mesesConBe.has(monthKey(ts)));
-  const xTicks = Array.from(new Set([...tsRemFiltrados, ...tsBe])).sort(
-    (a, b) => a - b,
-  );
-
-  // Si hay muchos labels, decimamos los del REM (preservamos los BE siempre).
-  const maxLabels = 14;
-  const tsBeSet = new Set(tsBe);
-  let xTicksShown: number[] = xTicks;
-  if (xTicks.length > maxLabels) {
-    const skipRem = Math.max(
-      1,
-      Math.ceil(tsRemFiltrados.length / Math.max(1, maxLabels - tsBe.length)),
-    );
-    xTicksShown = xTicks.filter((ts) => {
-      if (tsBeSet.has(ts)) return true;
-      const i = tsRemFiltrados.indexOf(ts);
-      return i === -1 || i % skipRem === 0;
-    });
-  }
+  // Un tick por mes. Todos los meses de la grilla (desde hoy hasta el
+  // último mes con datos). Formato 'Abr' / 'May' sin año — por pedido
+  // de la mesa; arranca siempre desde el mes presente.
+  const xTicksShown = data.map((d) => d.vencTs);
 
   const allVals = data.flatMap((d) =>
     [d.be, d.rem_mensual, d.rem_acum].filter((v): v is number => v != null),
@@ -364,7 +372,7 @@ function BreakevensGrafico({
             height={40}
             interval={0}
             padding={{ left: 24, right: 24 }}
-            tickFormatter={(ts: number) => fmtMesAnio(new Date(ts).toISOString())}
+            tickFormatter={(ts: number) => fmtSoloMes(ts)}
           />
           <YAxis
             domain={[yScale.min, yScale.max]}
@@ -381,6 +389,7 @@ function BreakevensGrafico({
             formatter={(value, name) => {
               if (value == null) return ["—", String(name)];
               if (name === "be")          return [`${Number(value).toFixed(2)}%`, "BE Mercado"];
+              if (name === "beReal")      return [`${Number(value).toFixed(2)}%`, "BE con bono"];
               if (name === "rem_mensual") return [`${Number(value).toFixed(2)}%`, "REM mensual"];
               if (name === "rem_acum")    return [`${Number(value).toFixed(2)}%`, "REM acumulado"];
               return [String(value), String(name)];
@@ -409,17 +418,20 @@ function BreakevensGrafico({
             isAnimationActive={false}
             connectNulls
           />
-          {/* Mercado (línea naranja + scatter con tickers) */}
+          {/* BE de mercado: la LÍNEA usa `be` con forward-fill (valor
+              arrastrado desde el último mes con dato cuando falta bono).
+              El scatter y los labels de ticker usan `beReal` (solo meses
+              que tienen un bono real detrás del valor). */}
           <Line
             dataKey="be"
-            type="monotone"
+            type="stepAfter"
             stroke="#ff9900"
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
             connectNulls
           />
-          <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
+          <Scatter dataKey="beReal" fill="#ff9900" isAnimationActive={false}>
             <LabelList dataKey="ticker" position="top" fill="#aaaaaa" style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }} />
           </Scatter>
         </ComposedChart>
