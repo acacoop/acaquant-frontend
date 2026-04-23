@@ -253,10 +253,16 @@ function BreakevensGrafico({
       ticker?: string;
     }>();
 
-    // 1. Puntos del REM (1 por mes proyectado).
+    // 1. Puntos del REM (1 por mes proyectado). Se ubican en el día 15
+    // del mes — misma regla que los BE, así queda todo alineado por mes
+    // en el eje X (no por fin de mes del REM vs fecha puntual del vto).
     remSerie.forEach((r) => {
-      if (!r.fin_mes) return;
-      const ts = new Date(r.fin_mes).getTime();
+      if (!r.periodo) return;
+      const ts = Date.UTC(
+        parseInt(r.periodo.slice(0, 4), 10),
+        parseInt(r.periodo.slice(5, 7), 10) - 1,
+        15,
+      );
       if (isNaN(ts)) return;
       map.set(ts, {
         vencTs:      ts,
@@ -265,16 +271,23 @@ function BreakevensGrafico({
       });
     });
 
-    // 2. Puntos del breakeven de mercado (fecha exacta de vto Lecap).
+    // 2. Puntos del BE. Se ubican en el eje X en el MES DE INFLACIÓN
+    // implicada (vto − 2m), no en la fecha de vto del bono. Eso alinea
+    // el punto con la grilla mensual del REM para comparación directa.
+    // Si falta mes_inflacion (data vieja), fallback al vto de la Lecap.
     pares
       .filter((p) => p.breakeven_mensual != null)
       .forEach((p) => {
-        const ts = new Date(p.fecha_vencimiento).getTime();
+        const ts = p.mes_inflacion
+          ? Date.UTC(
+              parseInt(p.mes_inflacion.slice(0, 4), 10),
+              parseInt(p.mes_inflacion.slice(5, 7), 10) - 1,
+              15,  // día 15 del mes — punto medio, consistente con el REM
+            )
+          : new Date(p.fecha_vencimiento).getTime();
         if (isNaN(ts)) return;
         const entry = map.get(ts) ?? { vencTs: ts };
         entry.be = +(p.breakeven_mensual * 100).toFixed(2);
-        // Label del punto = mes de inflación implicada (vto − 2m). Fallback
-        // al ticker de la Lecap si el backend todavía no envía mes_inflacion.
         entry.ticker = p.mes_inflacion
           ? fmtPeriodoMensual(p.mes_inflacion)
           : shortTicker(p.lecap);
