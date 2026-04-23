@@ -35,6 +35,13 @@ interface HistRow {
   paridad: number | null;
 }
 
+interface CurvaSnapshotRow {
+  ticker_corto: string | null;
+  tea: number | null;
+  tem: number | null;
+  duration: number | null;
+}
+
 type Curva = "tasa_fija" | "cer" | "soberanos";
 type Metrica = "TEA" | "TEM";
 type Modo = "live" | "hist";
@@ -93,6 +100,11 @@ export function CurvasChart({
   const [histLoading, setHistLoading] = useState(false);
   const [histError, setHistError] = useState<string | null>(null);
 
+  // Snapshot LIVE de duration real (Macaulay) — necesario para soberanos
+  // amortizables, donde TTM ≠ duration. Para tasa_fija / CER (bullets) el
+  // chart sigue usando TTM porque allí coincide y evita un fetch extra.
+  const [snapshotByCurva, setSnapshotByCurva] = useState<Record<string, CurvaSnapshotRow[]>>({});
+
   useEffect(() => {
     if (modo !== "hist") return;
     if (histByCurva[curva]) return;
@@ -121,6 +133,28 @@ export function CurvasChart({
     };
   }, [modo, curva, histByCurva]);
 
+  useEffect(() => {
+    if (modo !== "live" || curva !== "soberanos") return;
+    if (snapshotByCurva[curva]) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/analitica/listar-curva?curva=${encodeURIComponent(curva)}`
+        );
+        if (!res.ok) return;
+        const j: CurvaSnapshotRow[] = await res.json();
+        if (cancelled) return;
+        setSnapshotByCurva((prev) => ({ ...prev, [curva]: j }));
+      } catch {
+        // si falla, el chart muestra "SIN DATOS" — no rompe la UI
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [modo, curva, snapshotByCurva]);
+
   const fechasHist = useMemo(() => {
     const rows = histByCurva[curva] || [];
     return Array.from(new Set(rows.map((r) => r.fecha))).sort();
@@ -145,24 +179,43 @@ export function CurvasChart({
     const puntos: { Ticker: string; Duration: number; y: number }[] = [];
 
     if (modo === "live") {
-      const fw = forwards.find((f) => f.curva === curva);
-      const tasas = fw?.tasas || {};
-      const vencMap: Record<string, string | undefined> = {};
-      for (const f of flujos) {
-        if (f.curva === curva) vencMap[f.ticker] = f.fecha_vencimiento;
-      }
-      const hoy = new Date();
-      for (const [tk, tea] of Object.entries(tasas)) {
-        const venc = vencMap[tk];
-        if (!venc) continue;
-        const dVenc = new Date(venc);
-        if (isNaN(dVenc.getTime())) continue;
-        const dur = (dVenc.getTime() - hoy.getTime()) / (365.25 * 86400_000);
-        if (dur <= 0) continue;
-        const teaPct = tea * 100;
-        const temPct = (Math.pow(1 + tea, 1 / 12) - 1) * 100;
-        const y = metricaUsada === "TEM" ? temPct : teaPct;
-        puntos.push({ Ticker: tk, Duration: +dur.toFixed(4), y: +y.toFixed(4) });
+      // Para soberanos: usamos duration Macaulay real desde el snapshot
+      // (motor_curvas la escribe en MarketSnapshot). Para los demás
+      // (bullets), TTM ≈ duration y nos ahorramos un fetch.
+      const usaSnapshot = curva === "soberanos";
+      const snap = usaSnapshot ? snapshotByCurva[curva] : undefined;
+
+      if (usaSnapshot && snap) {
+        for (const r of snap) {
+          const tk = r.ticker_corto;
+          const dur = r.duration;
+          const tea = r.tea;
+          if (!tk || dur == null || dur <= 0 || tea == null) continue;
+          const teaPct = tea * 100;
+          const temPct = r.tem != null ? r.tem * 100 : (Math.pow(1 + tea, 1 / 12) - 1) * 100;
+          const y = metricaUsada === "TEM" ? temPct : teaPct;
+          puntos.push({ Ticker: tk, Duration: +dur.toFixed(4), y: +y.toFixed(4) });
+        }
+      } else {
+        const fw = forwards.find((f) => f.curva === curva);
+        const tasas = fw?.tasas || {};
+        const vencMap: Record<string, string | undefined> = {};
+        for (const f of flujos) {
+          if (f.curva === curva) vencMap[f.ticker] = f.fecha_vencimiento;
+        }
+        const hoy = new Date();
+        for (const [tk, tea] of Object.entries(tasas)) {
+          const venc = vencMap[tk];
+          if (!venc) continue;
+          const dVenc = new Date(venc);
+          if (isNaN(dVenc.getTime())) continue;
+          const dur = (dVenc.getTime() - hoy.getTime()) / (365.25 * 86400_000);
+          if (dur <= 0) continue;
+          const teaPct = tea * 100;
+          const temPct = (Math.pow(1 + tea, 1 / 12) - 1) * 100;
+          const y = metricaUsada === "TEM" ? temPct : teaPct;
+          puntos.push({ Ticker: tk, Duration: +dur.toFixed(4), y: +y.toFixed(4) });
+        }
       }
     } else if (fechaSel) {
       const rows = (histByCurva[curva] || []).filter((r) => r.fecha === fechaSel);
@@ -214,7 +267,7 @@ export function CurvasChart({
       xMax: xScale.max,
       xTicks: xScale.ticks,
     };
-  }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel]);
+  }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel, snapshotByCurva]);
 
   const merged = useMemo(() => {
     const map = new Map<number, { Duration: number; scatterY?: number; fitY?: number; Ticker?: string }>();
