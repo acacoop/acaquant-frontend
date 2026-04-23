@@ -272,14 +272,26 @@ function BreakevensGrafico({
     );
   }
 
-  // Xticks = meses del REM (si no hay, fallback a las fechas de venc).
-  const ticksRem = data.filter((d) => d.rem_mensual != null).map((d) => d.vencTs);
-  const xTicks = ticksRem.length > 0 ? ticksRem : data.filter((d) => d.be != null).map((d) => d.vencTs);
+  // Xticks = unión de meses del REM + vencimientos de Lecap. Queremos ver
+  // todas las fechas relevantes, no solo las del REM o solo las del BE.
+  const tsRem = data.filter((d) => d.rem_mensual != null).map((d) => d.vencTs);
+  const tsBe  = data.filter((d) => d.be != null).map((d) => d.vencTs);
+  const xTicks = Array.from(new Set([...tsRem, ...tsBe])).sort((a, b) => a - b);
 
-  // Si hay muchos meses, mostramos 1 de cada N para que el eje no se apelmace.
-  const maxLabels = 12;
-  const skip = Math.max(1, Math.ceil(xTicks.length / maxLabels));
-  const xTicksShown = xTicks.filter((_, i) => i % skip === 0);
+  // Si hay muchos labels, mostramos 1 de cada N para que el eje no se
+  // apelmace. Priorizamos mantener los tickers del BE (suelen ser fechas
+  // específicas del operador) y decimamos solo los meses del REM.
+  const maxLabels = 14;
+  const tsBeSet = new Set(tsBe);
+  let xTicksShown: number[] = xTicks;
+  if (xTicks.length > maxLabels) {
+    const skipRem = Math.max(1, Math.ceil(tsRem.length / (maxLabels - tsBe.length)));
+    xTicksShown = xTicks.filter((ts) => {
+      if (tsBeSet.has(ts)) return true;
+      const i = tsRem.indexOf(ts);
+      return i === -1 || i % skipRem === 0;
+    });
+  }
 
   const allVals = data.flatMap((d) =>
     [d.be, d.rem_mensual, d.rem_acum].filter((v): v is number => v != null),
