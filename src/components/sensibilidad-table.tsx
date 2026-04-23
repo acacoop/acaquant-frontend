@@ -105,7 +105,7 @@ export function SensibilidadTable() {
       if (modo === "relativa" && e.shock_pp != null) {
         const s = e.shock_pp * 100;
         const sign = s > 0 ? "+" : "";
-        const label = s === 0 ? "=" : `${sign}${s.toFixed(0)} pp`;
+        const label = s === 0 ? "TIR actual" : `TIR ${sign}${s.toFixed(0)}%`;
         return { key: `${s}`, label };
       }
       return { key: `${e.tir}`, label: `TIR ${(e.tir * 100).toFixed(0)}%` };
@@ -138,7 +138,7 @@ export function SensibilidadTable() {
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wide text-[#555]">
-            {modo === "absoluta" ? "TIRs (%)" : "Shocks pp (centrados en TEA)"}
+            {modo === "absoluta" ? "TIRs (%)" : "Shocks de TIR (%) centrados en TEA"}
           </span>
           <input
             type="text"
@@ -256,17 +256,52 @@ export function SensibilidadTable() {
         </table>
       </div>
 
-      <div className="text-[10px] text-[#555] px-1 shrink-0 leading-relaxed">
-        Cada celda = retorno total a {horizonteDias} días.
-        {modo === "absoluta" ? (
-          <> En <b>TIR absoluta</b> todos los bonos se evalúan contra los mismos
-            niveles de TIR.</>
-        ) : (
-          <> En <b>TIR relativa</b> cada bono se evalúa con shocks centrados en su
-            propia TEA actual (la columna <b>=</b> es el carry puro, sin cambio de TIR).</>
-        )} Incluye cupones + amortizaciones cobradas en el horizonte y el cambio en el
-        precio descontado a la TIR escenario. Hover sobre la celda muestra TIR real +
-        precio proyectado.
+      {/* Leyenda compacta — siempre visible, explica la fórmula y la
+           interpretación del modo activo. Sustituye el "debug" individual
+           por un único bloque genérico al pie de la vista. */}
+      <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
+            Cálculo
+          </div>
+          <div className="text-[#d0d0d0]">
+            Retorno = (Precio<sub>1y</sub> + Carry) / Precio<sub>actual</sub> − 1
+          </div>
+          <div className="text-[#888] mt-1 leading-relaxed">
+            <b className="text-[#d0d0d0]">Precio<sub>1y</sub></b>: PV de flujos
+            remanentes (post horizonte) descontados a la TIR del escenario.
+            <br />
+            <b className="text-[#d0d0d0]">Carry</b>: cupones + amortizaciones
+            cobrados durante los próximos {horizonteDias} días.
+            <br />
+            <b className="text-[#d0d0d0]">Precio<sub>actual</sub></b>: último
+            precio del MarketSnapshot (USD para tickers .D / .C).
+          </div>
+        </div>
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
+            Modo activo: {modo === "absoluta" ? "TIR ABSOLUTA" : "TIR RELATIVA"}
+          </div>
+          <div className="text-[#888] leading-relaxed">
+            {modo === "absoluta" ? (
+              <>
+                Las columnas son TIRs finales fijas, iguales para todos los
+                bonos. Útil para ver el retorno bajo escenarios definidos
+                de mercado (ej. compresión a 6%, stress a 11%).
+              </>
+            ) : (
+              <>
+                Cada bono se evalúa con shifts centrados en su <b className="text-[#d0d0d0]">TEA actual</b>.
+                Columna <b className="text-[#d0d0d0]">TIR actual</b> = carry
+                puro sin cambio de TIR. <b className="text-[#d0d0d0]">TIR +2%</b> = TEA
+                actual + 2 puntos. Permite comparar sensibilidad apples-to-apples
+                entre bonos con TEAs distintas.
+              </>
+            )}
+            <br />
+            <span className="text-[#555]">Hover sobre cualquier celda muestra TIR real + precio proyectado.</span>
+          </div>
+        </div>
       </div>
     </div>
   );
