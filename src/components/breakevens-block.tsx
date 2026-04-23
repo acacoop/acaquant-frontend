@@ -390,6 +390,7 @@ function BreakevensGrafico({
             textAnchor="end"
             height={40}
             interval={0}
+            padding={{ left: 24, right: 24 }}
             tickFormatter={(ts: number) => fmtMesAnio(new Date(ts).toISOString())}
           />
           <YAxis
