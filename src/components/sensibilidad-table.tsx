@@ -61,6 +61,9 @@ export function SensibilidadTable() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<string>("");
+  // Celda seleccionada para el panel de debug. Default a la primera celda
+  // del primer bono cuando llega data. Clamping abajo si cambia la shape.
+  const [selIdx, setSelIdx] = useState<{ bono: number; esc: number }>({ bono: 0, esc: 0 });
 
   const tirsInput = modo === "absoluta" ? tirsAbs : tirsRel;
   const tiposParam = tipos.slice().sort().join(",");
@@ -114,6 +117,39 @@ export function SensibilidadTable() {
       clearInterval(id);
     };
   }, [tirsInput, horizonteDias, modo, tiposParam]);
+
+  // Clamping derivado (no state) para que la celda seleccionada sobreviva
+  // cambios de shape sin violar react-hooks/set-state-in-effect.
+  const effectiveIdx = useMemo(() => {
+    if (data.length === 0) return { bono: 0, esc: 0 };
+    const maxBono = data.length - 1;
+    const maxEsc = (data[0]?.escenarios.length ?? 1) - 1;
+    return {
+      bono: Math.min(Math.max(selIdx.bono, 0), maxBono),
+      esc:  Math.min(Math.max(selIdx.esc, 0),  maxEsc),
+    };
+  }, [data, selIdx]);
+
+  // Desglose del cálculo para la celda seleccionada. Recomputa con cada
+  // cambio de data / selección / horizonte para que el panel sea 100%
+  // dinámico.
+  const debug = useMemo(() => {
+    if (data.length === 0) return null;
+    const bono = data[effectiveIdx.bono];
+    if (!bono) return null;
+    const esc = bono.escenarios[effectiveIdx.esc];
+    if (!esc) return null;
+    const dTir = bono.tea_actual != null ? esc.tir - bono.tea_actual : null;
+    // Duration residual a horizonte vista = duration_actual − (horizonte/365).
+    // Aprox pero suficiente para el sanity check linealizado.
+    const durRes = bono.duration != null
+      ? Math.max(bono.duration - horizonteDias / 365, 0)
+      : null;
+    const retLinear = (bono.tea_actual != null && durRes != null && dTir != null)
+      ? bono.tea_actual - durRes * dTir
+      : null;
+    return { bono, esc, dTir, durRes, retLinear };
+  }, [data, effectiveIdx, horizonteDias]);
 
   // En absoluta las columnas son TIRs absolutas (las mismas para todos
   // los bonos). En relativa son shocks pp (también iguales para todos).
@@ -223,7 +259,8 @@ export function SensibilidadTable() {
         </div>
       )}
 
-      {/* Tabla */}
+      {/* Tabla + panel de debug lateral */}
+      <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
       <div className="flex-1 min-h-0 overflow-auto border border-[#1a1a1a] bg-[#080808]">
         <table className="w-full text-[11px] font-mono border-collapse">
           <thead className="sticky top-0 bg-[#0c0c0c] z-10">
@@ -245,7 +282,7 @@ export function SensibilidadTable() {
             </tr>
           </thead>
           <tbody>
-            {data.map((b) => (
+            {data.map((b, bonoIdx) => (
               <tr
                 key={b.ticker_completo}
                 className="border-b border-[#111] hover:bg-[#ff9900]/5"
@@ -274,11 +311,15 @@ export function SensibilidadTable() {
                   // sobre todo en modo relativo donde el header no dice
                   // la TIR absoluta sino el shock pp.
                   const tirReal = (e.tir * 100).toFixed(2);
-                  const tip = `TIR ${tirReal}% · Precio 1y ${e.precio_1anio.toFixed(2)}`;
+                  const tip = `TIR ${tirReal}% · Precio 1y ${e.precio_1anio.toFixed(2)} · click para debug`;
+                  const isSelected = effectiveIdx.bono === bonoIdx && effectiveIdx.esc === i;
                   return (
                     <td
                       key={i}
-                      className="!px-2 !py-1 text-right border-l border-[#1a1a1a] font-semibold"
+                      onClick={() => setSelIdx({ bono: bonoIdx, esc: i })}
+                      className={`!px-2 !py-1 text-right border-l border-[#1a1a1a] font-semibold cursor-pointer ${
+                        isSelected ? "outline outline-2 outline-[#ff9900] outline-offset-[-2px]" : ""
+                      }`}
                       style={{ background: c.bg, color: c.fg }}
                       title={tip}
                     >
@@ -300,6 +341,124 @@ export function SensibilidadTable() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Panel de debug lateral — refleja la celda seleccionada. Reactive
+          a cualquier cambio de data / filtros. */}
+      <aside className="w-72 shrink-0 border border-[#1a1a1a] bg-[#0a0a0a] p-3 overflow-y-auto text-[10px] font-mono">
+        <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-2">
+          DEBUG · celda seleccionada
+        </div>
+        {!debug ? (
+          <div className="text-[#555] text-[11px]">
+            Click en una celda de retorno para ver el desglose del cálculo.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[#ff9900] font-semibold text-[13px]">
+                  {debug.bono.ticker}
+                </span>
+                <span className="text-[#888]">
+                  {modo === "relativa" && debug.esc.shock_pp != null
+                    ? `shock ${(debug.esc.shock_pp * 100).toFixed(2)} pp`
+                    : `TIR ${(debug.esc.tir * 100).toFixed(2)}%`}
+                </span>
+              </div>
+              <div className="text-[#555] text-[9px] mt-0.5">
+                Vto {debug.bono.fecha_vencimiento} · {debug.bono.tipo}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+                Inputs
+              </div>
+              <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[#d0d0d0]">
+                <span className="text-[#888]">Precio actual</span>
+                <span className="text-right">{debug.bono.precio_actual.toFixed(4)}</span>
+                <span className="text-[#888]">TEA actual</span>
+                <span className="text-right">{fmtPctAbs(debug.bono.tea_actual)}</span>
+                <span className="text-[#888]">Duration</span>
+                <span className="text-right">{debug.bono.duration?.toFixed(3) ?? "—"}</span>
+                <span className="text-[#888]">Paridad</span>
+                <span className="text-right">
+                  {debug.bono.paridad != null ? `${debug.bono.paridad.toFixed(2)}%` : "—"}
+                </span>
+                <span className="text-[#888]">Horizonte</span>
+                <span className="text-right">{horizonteDias} días</span>
+                <span className="text-[#888]">Flujos en horiz.</span>
+                <span className="text-right">{debug.bono.n_flujos_anio}</span>
+                <span className="text-[#888]">Carry (cobrado)</span>
+                <span className="text-right">{debug.bono.cobrado_anio.toFixed(4)}</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+                Escenario
+              </div>
+              <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[#d0d0d0]">
+                <span className="text-[#888]">TIR objetivo</span>
+                <span className="text-right">{(debug.esc.tir * 100).toFixed(2)}%</span>
+                <span className="text-[#888]">ΔTIR vs actual</span>
+                <span className="text-right">
+                  {debug.dTir != null
+                    ? `${debug.dTir >= 0 ? "+" : ""}${(debug.dTir * 100).toFixed(2)} pp`
+                    : "—"}
+                </span>
+                <span className="text-[#888]">Precio 1y</span>
+                <span className="text-right">{debug.esc.precio_1anio.toFixed(4)}</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+                Cálculo (exacto)
+              </div>
+              <div className="text-[#d0d0d0] leading-[1.5]">
+                Retorno = (P<sub>1y</sub> + Carry) / P<sub>actual</sub> − 1
+              </div>
+              <div className="text-[#888] mt-1 leading-[1.5]">
+                = ({debug.esc.precio_1anio.toFixed(4)} + {debug.bono.cobrado_anio.toFixed(4)}) / {debug.bono.precio_actual.toFixed(4)} − 1
+              </div>
+              <div className="text-[#888] leading-[1.5]">
+                = {(debug.esc.precio_1anio + debug.bono.cobrado_anio).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
+              </div>
+              <div
+                className="mt-1 text-[13px] font-semibold"
+                style={{ color: colorRetorno(debug.esc.retorno_total).bg === "#1a1a1a" ? "#bdb" : "#fff" }}
+              >
+                = {fmtPct(debug.esc.retorno_total, 2)}
+              </div>
+            </div>
+
+            {debug.retLinear != null && debug.durRes != null && debug.dTir != null && (
+              <div>
+                <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+                  Sanity check (lineal, Fabozzi)
+                </div>
+                <div className="text-[#d0d0d0] leading-[1.5]">
+                  ≈ TEA − Dur<sub>res</sub> × ΔTIR
+                </div>
+                <div className="text-[#888] mt-1 leading-[1.5]">
+                  Dur<sub>res</sub> = {debug.bono.duration?.toFixed(3)} − {(horizonteDias / 365).toFixed(3)} = {debug.durRes.toFixed(3)}
+                </div>
+                <div className="text-[#888] leading-[1.5]">
+                  ≈ {fmtPctAbs(debug.bono.tea_actual)} − {debug.durRes.toFixed(3)} × {(debug.dTir * 100).toFixed(2)} pp
+                </div>
+                <div className="text-[#888] leading-[1.5]">
+                  ≈ {fmtPct(debug.retLinear, 2)}
+                </div>
+                <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
+                  Diferencia vs exacto: {fmtPct(debug.esc.retorno_total - debug.retLinear, 2)} — explicada por convexidad y estructura de flujos.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </aside>
       </div>
 
       {/* Leyenda compacta — siempre visible, explica la fórmula y la
