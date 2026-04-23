@@ -224,10 +224,32 @@ function BreakevensGrafico({
   const vpKey = useViewportKey();
 
   const data = useMemo(() => {
-    // Mergea puntos de mercado + puntos del REM sobre el mismo eje X temporal.
-    // Key: timestamp ms del venc o del fin de mes REM.
-    const map = new Map<number, { vencTs: number; be?: number; rem?: number; ticker?: string }>();
+    // El esqueleto del eje X lo da el REM (todos los meses futuros que
+    // proyecta el informe). Encima de esa grilla, pinchamos los BE del
+    // mercado en la fecha EXACTA de vencimiento de cada Lecap — pueden
+    // o no coincidir con fin de mes; la línea del BE los conecta con
+    // connectNulls.
+    const map = new Map<number, {
+      vencTs: number;
+      rem_mensual?: number;
+      rem_acum?: number;
+      be?: number;
+      ticker?: string;
+    }>();
 
+    // 1. Puntos del REM (1 por mes proyectado).
+    remSerie.forEach((r) => {
+      if (!r.fin_mes) return;
+      const ts = new Date(r.fin_mes).getTime();
+      if (isNaN(ts)) return;
+      map.set(ts, {
+        vencTs:      ts,
+        rem_mensual: +(r.ipc_mensual_rem * 100).toFixed(2),
+        rem_acum:    +(r.promedio_mensual_acum * 100).toFixed(2),
+      });
+    });
+
+    // 2. Puntos del breakeven de mercado (fecha exacta de vto Lecap).
     pares
       .filter((p) => p.breakeven_mensual != null)
       .forEach((p) => {
@@ -238,15 +260,6 @@ function BreakevensGrafico({
         entry.ticker = shortTicker(p.lecap);
         map.set(ts, entry);
       });
-
-    remSerie.forEach((r) => {
-      if (!r.fin_mes) return;
-      const ts = new Date(r.fin_mes).getTime();
-      if (isNaN(ts)) return;
-      const entry = map.get(ts) ?? { vencTs: ts };
-      entry.rem = +(r.promedio_mensual_acum * 100).toFixed(2);
-      map.set(ts, entry);
-    });
 
     return Array.from(map.values()).sort((a, b) => a.vencTs - b.vencTs);
   }, [pares, remSerie]);
@@ -259,8 +272,18 @@ function BreakevensGrafico({
     );
   }
 
-  const xTicks = data.filter((d) => d.be != null).map((d) => d.vencTs);
-  const allVals = data.flatMap((d) => [d.be, d.rem].filter((v): v is number => v != null));
+  // Xticks = meses del REM (si no hay, fallback a las fechas de venc).
+  const ticksRem = data.filter((d) => d.rem_mensual != null).map((d) => d.vencTs);
+  const xTicks = ticksRem.length > 0 ? ticksRem : data.filter((d) => d.be != null).map((d) => d.vencTs);
+
+  // Si hay muchos meses, mostramos 1 de cada N para que el eje no se apelmace.
+  const maxLabels = 12;
+  const skip = Math.max(1, Math.ceil(xTicks.length / maxLabels));
+  const xTicksShown = xTicks.filter((_, i) => i % skip === 0);
+
+  const allVals = data.flatMap((d) =>
+    [d.be, d.rem_mensual, d.rem_acum].filter((v): v is number => v != null),
+  );
   const yScale = allVals.length
     ? niceScale(Math.min(...allVals, 3), Math.max(...allVals, 3), 6)
     : { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5] };
@@ -273,7 +296,7 @@ function BreakevensGrafico({
             dataKey="vencTs"
             type="number"
             domain={["dataMin", "dataMax"]}
-            ticks={xTicks}
+            ticks={xTicksShown}
             scale="time"
             tick={{ fill: "#808080", fontSize: 10 }}
             axisLine={{ stroke: "#2a2a2a" }}
@@ -298,17 +321,29 @@ function BreakevensGrafico({
             labelStyle={{ color: "#808080" }}
             formatter={(value, name) => {
               if (value == null) return ["—", String(name)];
-              if (name === "be")  return [`${Number(value).toFixed(2)}%`, "BE Mercado"];
-              if (name === "rem") return [`${Number(value).toFixed(2)}%`, "REM (prom. acum.)"];
+              if (name === "be")          return [`${Number(value).toFixed(2)}%`, "BE Mercado"];
+              if (name === "rem_mensual") return [`${Number(value).toFixed(2)}%`, "REM mensual"];
+              if (name === "rem_acum")    return [`${Number(value).toFixed(2)}%`, "REM acumulado"];
               return [String(value), String(name)];
             }}
             labelFormatter={(ts) => fmtMesAnio(new Date(Number(ts)).toISOString())}
           />
-          {/* REM (línea celeste, sin dots, conecta entre nulls) */}
+          {/* REM mensual (línea sólida celeste, IPC mes a mes del informe) */}
           <Line
-            dataKey="rem"
+            dataKey="rem_mensual"
             type="monotone"
             stroke="#4fc3f7"
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={false}
+            connectNulls
+          />
+          {/* REM acumulado (línea punteada, promedio mensual geom. hasta cada mes) */}
+          <Line
+            dataKey="rem_acum"
+            type="monotone"
+            stroke="#4fc3f7"
+            strokeOpacity={0.55}
             strokeWidth={1.5}
             strokeDasharray="4 3"
             dot={false}
@@ -316,7 +351,15 @@ function BreakevensGrafico({
             connectNulls
           />
           {/* Mercado (línea naranja + scatter con tickers) */}
-          <Line dataKey="be" type="monotone" stroke="#ff9900" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
+          <Line
+            dataKey="be"
+            type="monotone"
+            stroke="#ff9900"
+            strokeWidth={2}
+            dot={false}
+            isAnimationActive={false}
+            connectNulls
+          />
           <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
             <LabelList dataKey="ticker" position="top" fill="#aaaaaa" style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }} />
           </Scatter>
