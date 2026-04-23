@@ -20,9 +20,7 @@ interface BreakevenPar {
   lecap: string;
   cer: string;
   fecha_vencimiento: string;
-  fecha_vto_cer?: string;
-  gap_cer_dias?: number;  // días entre vto Lecap y vto CER (positivo = CER posterior)
-  mes_inflacion?: string; // 'YYYY-MM' — IPC del mes que pricea este BE (vto_lecap − 2m)
+  mes_inflacion?: string; // 'YYYY-MM' — IPC del mes que pricea este BE (vto − 2m)
   dias: number;
   tem_lecap: number;
   paridad_cer: number;
@@ -191,12 +189,9 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
       <table>
         <thead>
           <tr>
-            <th>LECAP</th>
+            <th>LECAP/BONCAP</th>
             <th>CER</th>
-            <th className="text-right" title="Días entre vto Lecap y vto CER. Target=60d (CER 2m posterior para corregir rezago).">
-              GAP
-            </th>
-            <th className="text-right" title="IPC del mes cuya inflación queda implicada (vto Lecap − 2 meses).">
+            <th className="text-right" title="IPC del mes cuya inflación pricea el BE (vto − 2 meses por rezago del CER).">
               IPC MES
             </th>
             <th className="text-right">DÍAS</th>
@@ -206,22 +201,11 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
         <tbody>
           {pares.map((p) => {
             const be = p.breakeven_mensual * 100;
-            const gap = p.gap_cer_dias;
-            // Coloreo del gap: verde oscuro si está cerca del target (45-75),
-            // amarillo si está en tolerancia pero lejos, gris si n/a.
-            let gapColor = "#555";
-            if (gap != null) {
-              const distTarget = Math.abs(gap - 60);
-              gapColor = distTarget <= 15 ? "#00cc66" : "#ff9900";
-            }
             const mesLabel = p.mes_inflacion ? fmtMesAnio(`${p.mes_inflacion}-01`) : "—";
             return (
               <tr key={p.n}>
                 <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
                 <td className="text-[#808080]">{shortTicker(p.cer)}</td>
-                <td className="text-right font-mono" style={{ color: gapColor }}>
-                  {gap != null ? `+${gap}d` : "—"}
-                </td>
                 <td className="text-right text-[#d0d0d0] font-mono">{mesLabel}</td>
                 <td className="text-right text-[#808080]">{p.dias}</td>
                 <td className={`text-right font-bold ${be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"}`}>
