@@ -15,13 +15,19 @@ interface ResumenFila {
 }
 
 const CLIENT_ID_FILTRO = "255";
-const COLS_REQUERIDAS = [
-  "Client ID",
-  "Simbolo",
-  "Punta",
-  "Cantidad Ejecutada",
-  "Turnover",
-];
+
+// Alias por columna: el CSV puede venir en español o inglés. La primera
+// key que exista en el header es la que se usa.
+const ALIAS_COLS = {
+  clientId:     ["Client ID"],
+  simbolo:      ["Symbol", "Simbolo", "Símbolo"],
+  punta:        ["Side", "Punta"],
+  cantEjec:     ["Executed Size", "Cantidad Ejecutada"],
+  turnover:     ["Turnover"],
+} as const;
+
+const COMPRAR_VALS = new Set(["COMPRAR", "COMPRA", "BUY", "B"]);
+const VENDER_VALS  = new Set(["VENDER", "VENTA", "SELL", "S"]);
 
 function detectarMoneda(simbolo: string): string {
   const s = (simbolo || "").toUpperCase();
@@ -52,24 +58,52 @@ function parseNumero(s: string): number {
   return isNaN(n) ? 0 : n;
 }
 
+function stripQuotes(s: string): string {
+  const t = s.trim();
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
+    return t.slice(1, -1).trim();
+  }
+  return t;
+}
+
 function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
-  // Detección de separador: se prueba ; primero (común en español), luego ,
+  // Detección de separador: ; (común en español/Excel) o , (estándar).
   const firstLine = text.split(/\r?\n/)[0] || "";
   const sep = firstLine.includes(";") ? ";" : ",";
 
-  // Parseo simple (asume valores sin comillas escapadas con coma adentro —
-  // los CSV de mesa son limpios en general). Si aparece un caso raro con
-  // comillas, agregar quote handling.
+  // Parseo que respeta comillas simples: los valores envueltos en "..." se
+  // quedan con su contenido y se ignora el separador dentro.
+  const parseLine = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+      if (c === sep && !inQuotes) {
+        out.push(cur);
+        cur = "";
+        continue;
+      }
+      cur += c;
+    }
+    out.push(cur);
+    return out.map((s) => s.trim());
+  };
+
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
   if (lines.length === 0) return { headers: [], rows: [] };
 
-  const headers = lines[0].split(sep).map((h) => h.trim());
+  const headers = parseLine(lines[0]).map(stripQuotes);
   const rows: Record<string, string>[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(sep);
+    const values = parseLine(lines[i]);
     const row: Record<string, string> = {};
     headers.forEach((h, j) => {
-      row[h] = (values[j] ?? "").trim();
+      row[h] = stripQuotes(values[j] ?? "");
     });
     rows.push(row);
   }
@@ -84,10 +118,29 @@ interface Resultado {
   totalesPorMoneda: { moneda: string; turnoverTotal: number }[];
 }
 
+function resolverCol(headers: string[], alias: readonly string[]): string | null {
+  for (const a of alias) {
+    if (headers.includes(a)) return a;
+  }
+  return null;
+}
+
 function consolidar(fileName: string, text: string): Resultado {
   const { headers, rows } = parseCSV(text);
 
-  const faltantes = COLS_REQUERIDAS.filter((c) => !headers.includes(c));
+  const colClient = resolverCol(headers, ALIAS_COLS.clientId);
+  const colSimb   = resolverCol(headers, ALIAS_COLS.simbolo);
+  const colPunta  = resolverCol(headers, ALIAS_COLS.punta);
+  const colCant   = resolverCol(headers, ALIAS_COLS.cantEjec);
+  const colTurn   = resolverCol(headers, ALIAS_COLS.turnover);
+
+  const faltantes = [
+    !colClient && ALIAS_COLS.clientId[0],
+    !colSimb && `${ALIAS_COLS.simbolo.join("/")}`,
+    !colPunta && `${ALIAS_COLS.punta.join("/")}`,
+    !colCant && `${ALIAS_COLS.cantEjec.join("/")}`,
+    !colTurn && ALIAS_COLS.turnover[0],
+  ].filter(Boolean) as string[];
   if (faltantes.length > 0) {
     throw new Error(
       `Faltan columnas: ${faltantes.join(", ")}. Presentes: ${headers.join(", ")}`,
@@ -95,18 +148,18 @@ function consolidar(fileName: string, text: string): Resultado {
   }
 
   const filasFiltradas = rows.filter(
-    (r) => r["Client ID"]?.trim() === CLIENT_ID_FILTRO,
+    (r) => (r[colClient!] ?? "").trim() === CLIENT_ID_FILTRO,
   );
 
   // Agrupación por símbolo.
   const porSimbolo = new Map<string, ResumenFila>();
 
   for (const r of filasFiltradas) {
-    const simbolo = r["Simbolo"] || "";
-    const punta = (r["Punta"] || "").toUpperCase().trim();
-    const signo = punta === "COMPRAR" ? 1 : punta === "VENDER" ? -1 : 0;
-    const cant = parseNumero(r["Cantidad Ejecutada"] || "");
-    const turn = parseNumero(r["Turnover"] || "");
+    const simbolo = r[colSimb!] || "";
+    const puntaRaw = (r[colPunta!] || "").toUpperCase().trim();
+    const signo = COMPRAR_VALS.has(puntaRaw) ? 1 : VENDER_VALS.has(puntaRaw) ? -1 : 0;
+    const cant = parseNumero(r[colCant!] || "");
+    const turn = parseNumero(r[colTurn!] || "");
     const cantFirmada = cant * signo;
     const turnFirmado = turn * -signo;  // al revés
 
@@ -219,8 +272,9 @@ export function IntradayView() {
       )}
 
       {!resultado && !error && (
-        <div className="flex-1 flex items-center justify-center text-[#555] text-[12px]">
-          Cargá un CSV con columnas: {COLS_REQUERIDAS.join(", ")}.
+        <div className="flex-1 flex items-center justify-center text-[#555] text-[12px] text-center px-6">
+          Cargá un CSV con las columnas: Client ID, Symbol/Símbolo, Side/Punta,
+          Executed Size/Cantidad Ejecutada, Turnover.
         </div>
       )}
 
