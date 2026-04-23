@@ -27,7 +27,7 @@ interface BonoRow {
   escenarios: Escenario[];
 }
 
-const POLL_MS = 30_000;
+const POLL_MS = 300_000; // 5 min
 
 // Color de la celda según retorno %. Gradiente verde (positivo) → rojo (negativo).
 function colorRetorno(r: number): { bg: string; fg: string } {

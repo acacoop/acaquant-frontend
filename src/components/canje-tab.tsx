@@ -37,6 +37,8 @@ interface CanjeResp {
 const PARES = ["AL30", "GD30"] as const;
 type Par = (typeof PARES)[number];
 
+const POLL_MS = 300_000; // 5 min
+
 function fmtFechaCorta(s: string): string {
   const iso = s.length >= 10 ? s.slice(0, 10) : s;
   const d = new Date(iso);
@@ -58,7 +60,7 @@ export function CanjeTab() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const run = async () => {
       try {
         setLoading(true);
         setError(null);
@@ -75,9 +77,12 @@ export function CanjeTab() {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+    run();
+    const id = setInterval(run, POLL_MS);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, [par]);
 

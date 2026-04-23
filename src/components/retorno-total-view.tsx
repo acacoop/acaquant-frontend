@@ -5,6 +5,7 @@ import { useViewportKey } from "@/lib/use-viewport-key";
 import { DualRange } from "./dual-range";
 import { SensibilidadTable } from "./sensibilidad-table";
 import { CanjeTab } from "./canje-tab";
+import { CarryTradeTab } from "./carry-trade-tab";
 import {
   CartesianGrid,
   Legend,
@@ -23,7 +24,15 @@ interface HistRow {
   price: number | null;
 }
 
-type Curva = "tasa_fija" | "cer";
+type Curva = "tasa_fija" | "cer" | "soberanos";
+
+const POLL_MS = 300_000; // 5 min — refresh para tomar precios del día
+
+const MONEDA_POR_CURVA: Record<Curva, string> = {
+  tasa_fija: "ARS",
+  cer:       "ARS",
+  soberanos: "USD",
+};
 
 const PALETA = [
   "#ff9900",
@@ -45,7 +54,7 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje";
+type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "carry_trade";
 
 export function RetornoTotalView() {
   const [tab, setTab] = useState<EstrategiaTab>("retorno_total");
@@ -71,11 +80,17 @@ export function RetornoTotalView() {
           active={tab === "canje"}
           onClick={() => setTab("canje")}
         />
+        <TabPill
+          label="CARRY TRADE"
+          active={tab === "carry_trade"}
+          onClick={() => setTab("carry_trade")}
+        />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "retorno_total" && <HistoricoTab />}
         {tab === "sensibilidad" && <SensibilidadTable />}
         {tab === "canje" && <CanjeTab />}
+        {tab === "carry_trade" && <CarryTradeTab />}
       </div>
     </div>
   );
@@ -106,14 +121,14 @@ function HistoricoTab() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (byCurva[curva]) return;
     let cancelled = false;
-    (async () => {
+    const run = async () => {
       try {
         setLoading(true);
         setError(null);
         const res = await fetch(
-          `/api/historico-curva?curva=${encodeURIComponent(curva)}`
+          `/api/historico-curva?curva=${encodeURIComponent(curva)}`,
+          { cache: "no-store" },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: HistRow[] = await res.json();
@@ -124,11 +139,16 @@ function HistoricoTab() {
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
+    };
+    // Fetch al montar/cambiar curva (sin guardia de cache, así re-pega
+    // periódicamente y trae precios del día).
+    run();
+    const id = setInterval(run, POLL_MS);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
-  }, [curva, byCurva]);
+  }, [curva]);
 
   const rows = useMemo<HistRow[]>(() => byCurva[curva] || [], [byCurva, curva]);
 
@@ -218,7 +238,13 @@ function HistoricoTab() {
           <FilterBtn active={curva === "cer"} onClick={() => { setCurva("cer"); setRangoIdx(null); }}>
             CER
           </FilterBtn>
+          <FilterBtn active={curva === "soberanos"} onClick={() => { setCurva("soberanos"); setRangoIdx(null); }}>
+            GLOBALES
+          </FilterBtn>
         </div>
+        <span className="text-[10px] text-[#555] font-mono px-2">
+          Retorno en {MONEDA_POR_CURVA[curva]}
+        </span>
 
         {loading ? (
           <span className="text-[10px] text-[#555]">cargando…</span>
