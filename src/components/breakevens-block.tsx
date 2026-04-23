@@ -56,6 +56,16 @@ function fmtMesAnio(iso: string): string {
   return `${MESES_CORTOS[d.getMonth()]} ${String(d.getFullYear()).slice(-2)}`;
 }
 
+function fmtPeriodoMensual(yyyy_mm: string): string {
+  // Parseo manual para evitar el bug UTC→Local del constructor Date("2026-03-01"),
+  // que en timezone Argentina (UTC-3) devuelve el día 28-29 del mes anterior.
+  const [yStr, mStr] = yyyy_mm.split("-");
+  const y = parseInt(yStr, 10);
+  const m = parseInt(mStr, 10);
+  if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return yyyy_mm;
+  return `${MESES_CORTOS[m - 1]} ${String(y).slice(-2)}`;
+}
+
 function fmtFechaCorta(s: string): string {
   const iso = s.length >= 10 ? s.slice(0, 10) : s;
   const d = new Date(iso);
@@ -201,7 +211,7 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
         <tbody>
           {pares.map((p) => {
             const be = p.breakeven_mensual * 100;
-            const mesLabel = p.mes_inflacion ? fmtMesAnio(`${p.mes_inflacion}-01`) : "—";
+            const mesLabel = p.mes_inflacion ? fmtPeriodoMensual(p.mes_inflacion) : "—";
             return (
               <tr key={p.n}>
                 <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
@@ -266,7 +276,7 @@ function BreakevensGrafico({
         // Label del punto = mes de inflación implicada (vto − 2m). Fallback
         // al ticker de la Lecap si el backend todavía no envía mes_inflacion.
         entry.ticker = p.mes_inflacion
-          ? fmtMesAnio(`${p.mes_inflacion}-01`)
+          ? fmtPeriodoMensual(p.mes_inflacion)
           : shortTicker(p.lecap);
         map.set(ts, entry);
       });
