@@ -4,8 +4,9 @@ import { useState } from "react";
 import { CashFlowView } from "./cashflow-view";
 import { ContrapartesView } from "./contrapartes-view";
 import { FlujoVsAumView } from "./flujo-vs-aum-view";
+import { IntradayView } from "./intraday-view";
 
-type Tab = "cashflow" | "contrapartes" | "flujo-vs-aum";
+type Tab = "cashflow" | "contrapartes" | "flujo-vs-aum" | "intraday";
 
 export function OperacionesView() {
   const [tab, setTab] = useState<Tab>("cashflow");
@@ -28,6 +29,9 @@ export function OperacionesView() {
         >
           FLUJO vs AUM
         </TabBtn>
+        <TabBtn active={tab === "intraday"} onClick={() => setTab("intraday")}>
+          INTRADAY
+        </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -35,8 +39,10 @@ export function OperacionesView() {
           <CashFlowView />
         ) : tab === "contrapartes" ? (
           <ContrapartesView />
-        ) : (
+        ) : tab === "flujo-vs-aum" ? (
           <FlujoVsAumView />
+        ) : (
+          <IntradayView />
         )}
       </div>
     </div>
