@@ -66,7 +66,7 @@ export function SensibilidadTable() {
   // Con carry = retorno total (suma cupones cobrados en el horizonte).
   // Sin carry = upside de precio puro (lo que debería subir/bajar el bono
   // para cotizar a la TIR objetivo). Toggle local, sin re-fetch.
-  const [modoCarry, setModoCarry] = useState<ModoCarry>("sin_carry");
+  const [modoCarry, setModoCarry] = useState<ModoCarry>("con_carry");
   const [data, setData] = useState<BonoRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
