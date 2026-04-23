@@ -28,6 +28,7 @@ interface FlujoTicker {
 interface HistRow {
   fecha: string;
   ticker: string;
+  tipo?: string | null;
   price: number | null;
   TEA: number | null;
   TEM: number | null;
@@ -37,14 +38,29 @@ interface HistRow {
 
 interface CurvaSnapshotRow {
   ticker_corto: string | null;
+  tipo?: string | null;
   tea: number | null;
   tem: number | null;
   duration: number | null;
 }
 
+interface Punto {
+  Ticker: string;
+  Duration: number;
+  y: number;
+}
+
 type Curva = "tasa_fija" | "cer" | "soberanos";
 type Metrica = "TEA" | "TEM";
 type Modo = "live" | "hist";
+
+// Para soberanos, dividimos los puntos en familias (globales / bonares).
+// Para las otras curvas, todo cae en "default" y se renderiza igual que antes.
+const COLORES: Record<string, { scatter: string; fit: string; label: string }> = {
+  globales: { scatter: "#00cc66", fit: "#4488ff", label: "GLOBALES" },
+  bonares:  { scatter: "#ff9900", fit: "#ffaa66", label: "BONARES" },
+  default:  { scatter: "#00cc66", fit: "#4488ff", label: "" },
+};
 
 function fmtFechaCorta(s: string): string {
   const iso = s.length >= 10 ? s.slice(0, 10) : s;
@@ -101,8 +117,7 @@ export function CurvasChart({
   const [histError, setHistError] = useState<string | null>(null);
 
   // Snapshot LIVE de duration real (Macaulay) — necesario para soberanos
-  // amortizables, donde TTM ≠ duration. Para tasa_fija / CER (bullets) el
-  // chart sigue usando TTM porque allí coincide y evita un fetch extra.
+  // amortizables, donde TTM ≠ duration.
   const [snapshotByCurva, setSnapshotByCurva] = useState<Record<string, CurvaSnapshotRow[]>>({});
 
   useEffect(() => {
@@ -155,12 +170,23 @@ export function CurvasChart({
     };
   }, [modo, curva, snapshotByCurva]);
 
+  // Sort defensivo ASC (más viejo → más reciente). El default de .sort() para
+  // strings ISO ya da ASC, pero hacemos el compare explícito para evitar
+  // sorpresas si alguna fecha viene con otro formato.
   const fechasHist = useMemo(() => {
     const rows = histByCurva[curva] || [];
-    return Array.from(new Set(rows.map((r) => r.fecha))).sort();
+    return Array.from(new Set(rows.map((r) => r.fecha))).sort((a, b) =>
+      a.localeCompare(b),
+    );
   }, [histByCurva, curva]);
 
   const [fechaIdx, setFechaIdx] = useState<number | null>(null);
+
+  // Reset del slider cuando cambia curva o modo, para que el default
+  // (último = más reciente) se aplique sin arrastrar el valor anterior.
+  useEffect(() => {
+    setFechaIdx(null);
+  }, [curva, modo]);
 
   const effectiveIdx =
     fechasHist.length > 0
@@ -170,18 +196,20 @@ export function CurvasChart({
       : 0;
   const fechaSel = fechasHist[effectiveIdx];
 
-  // CER y soberanos siempre se grafican en TEA (el TEM mensualizado no
-  // tiene sentido en USD y tampoco para CER real).
+  // CER y soberanos siempre se grafican en TEA (TEM mensualizado no tiene
+  // sentido en USD ni para CER real).
   const metricaUsada: Metrica =
     curva === "cer" || curva === "soberanos" ? "TEA" : metrica;
 
-  const { puntos, fit, yMin, yMax, yTicks, xMin, xMax, xTicks } = useMemo(() => {
-    const puntos: { Ticker: string; Duration: number; y: number }[] = [];
+  const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
+    const puntosPorTipo: Record<string, Punto[]> = {};
+    const pushPunto = (tipo: string | null | undefined, p: Punto) => {
+      const t = (tipo || "default").toLowerCase();
+      (puntosPorTipo[t] ??= []).push(p);
+    };
 
     if (modo === "live") {
-      // Para soberanos: usamos duration Macaulay real desde el snapshot
-      // (motor_curvas la escribe en MarketSnapshot). Para los demás
-      // (bullets), TTM ≈ duration y nos ahorramos un fetch.
+      // Soberanos: usamos snapshot con duration Macaulay real + tipo.
       const usaSnapshot = curva === "soberanos";
       const snap = usaSnapshot ? snapshotByCurva[curva] : undefined;
 
@@ -194,7 +222,11 @@ export function CurvasChart({
           const teaPct = tea * 100;
           const temPct = r.tem != null ? r.tem * 100 : (Math.pow(1 + tea, 1 / 12) - 1) * 100;
           const y = metricaUsada === "TEM" ? temPct : teaPct;
-          puntos.push({ Ticker: tk, Duration: +dur.toFixed(4), y: +y.toFixed(4) });
+          pushPunto(r.tipo, {
+            Ticker: tk,
+            Duration: +dur.toFixed(4),
+            y: +y.toFixed(4),
+          });
         }
       } else {
         const fw = forwards.find((f) => f.curva === curva);
@@ -214,7 +246,11 @@ export function CurvasChart({
           const teaPct = tea * 100;
           const temPct = (Math.pow(1 + tea, 1 / 12) - 1) * 100;
           const y = metricaUsada === "TEM" ? temPct : teaPct;
-          puntos.push({ Ticker: tk, Duration: +dur.toFixed(4), y: +y.toFixed(4) });
+          pushPunto(null, {
+            Ticker: tk,
+            Duration: +dur.toFixed(4),
+            y: +y.toFixed(4),
+          });
         }
       }
     } else if (fechaSel) {
@@ -226,30 +262,47 @@ export function CurvasChart({
         const teaPct = tea * 100;
         const temPct = r.TEM != null ? r.TEM * 100 : (Math.pow(1 + tea, 1 / 12) - 1) * 100;
         const y = metricaUsada === "TEM" ? temPct : teaPct;
-        puntos.push({ Ticker: r.ticker, Duration: +r.duration.toFixed(4), y: +y.toFixed(4) });
+        pushPunto(r.tipo, {
+          Ticker: r.ticker,
+          Duration: +r.duration.toFixed(4),
+          y: +y.toFixed(4),
+        });
       }
     }
-    puntos.sort((a, b) => a.Duration - b.Duration);
 
-    let fit: { Duration: number; y: number }[] | null = null;
-    if (puntos.length >= 2) {
-      const xs = puntos.map((p) => p.Duration);
-      const ys = puntos.map((p) => p.y);
-      const fitted = logFit(xs, ys);
-      if (fitted) {
-        const xA = xs[0];
-        const xB = xs[xs.length - 1];
-        const steps = 100;
-        fit = [];
-        for (let i = 0; i <= steps; i++) {
-          const x = xA + ((xB - xA) * i) / steps;
-          fit.push({ Duration: +x.toFixed(4), y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4) });
+    // Sort por duration y calcular fit log para cada tipo.
+    const fitPorTipo: Record<string, { Duration: number; y: number }[] | null> = {};
+    const allY: number[] = [];
+    const allX: number[] = [];
+
+    for (const t of Object.keys(puntosPorTipo)) {
+      puntosPorTipo[t].sort((a, b) => a.Duration - b.Duration);
+      const xs = puntosPorTipo[t].map((p) => p.Duration);
+      const ys = puntosPorTipo[t].map((p) => p.y);
+      allX.push(...xs);
+      allY.push(...ys);
+
+      let fitArr: { Duration: number; y: number }[] | null = null;
+      if (xs.length >= 2) {
+        const fitted = logFit(xs, ys);
+        if (fitted) {
+          const xA = xs[0];
+          const xB = xs[xs.length - 1];
+          const steps = 100;
+          fitArr = [];
+          for (let i = 0; i <= steps; i++) {
+            const x = xA + ((xB - xA) * i) / steps;
+            fitArr.push({
+              Duration: +x.toFixed(4),
+              y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4),
+            });
+          }
+          allY.push(...fitArr.map((p) => p.y));
         }
       }
+      fitPorTipo[t] = fitArr;
     }
 
-    const allY = [...puntos.map((p) => p.y), ...(fit?.map((p) => p.y) || [])];
-    const allX = puntos.map((p) => p.Duration);
     const yScale = allY.length
       ? niceScale(Math.min(...allY), Math.max(...allY), 6)
       : { min: 0, max: 1, ticks: [0, 1] };
@@ -257,9 +310,12 @@ export function CurvasChart({
       ? niceScale(Math.min(...allX), Math.max(...allX), 7)
       : { min: 0, max: 1, ticks: [0, 1] };
 
+    const tipos = Object.keys(puntosPorTipo).sort();
+
     return {
-      puntos,
-      fit,
+      puntosPorTipo,
+      fitPorTipo,
+      tipos,
       yMin: yScale.min,
       yMax: yScale.max,
       yTicks: yScale.ticks,
@@ -269,22 +325,44 @@ export function CurvasChart({
     };
   }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel, snapshotByCurva]);
 
+  // Construir el dataset combinado: cada punto tiene un campo dinámico
+  // por tipo (scatterY_<tipo> y fitY_<tipo>) para que recharts pueda
+  // renderizar series independientes con sus propios colores.
   const merged = useMemo(() => {
-    const map = new Map<number, { Duration: number; scatterY?: number; fitY?: number; Ticker?: string }>();
-    for (const p of puntos) {
-      map.set(p.Duration, { Duration: p.Duration, scatterY: p.y, Ticker: p.Ticker });
-    }
-    if (fit) {
-      for (const p of fit) {
-        const ex = map.get(p.Duration);
-        if (ex) ex.fitY = p.y;
-        else map.set(p.Duration, { Duration: p.Duration, fitY: p.y });
+    const map = new Map<number, Record<string, number | string>>();
+    const ensure = (dur: number) => {
+      let row = map.get(dur);
+      if (!row) {
+        row = { Duration: dur };
+        map.set(dur, row);
+      }
+      return row;
+    };
+    for (const tipo of tipos) {
+      for (const p of puntosPorTipo[tipo] || []) {
+        const row = ensure(p.Duration);
+        row[`scatterY_${tipo}`] = p.y;
+        row[`Ticker_${tipo}`] = p.Ticker;
+      }
+      const fit = fitPorTipo[tipo];
+      if (fit) {
+        for (const p of fit) {
+          const row = ensure(p.Duration);
+          row[`fitY_${tipo}`] = p.y;
+        }
       }
     }
-    return Array.from(map.values()).sort((a, b) => a.Duration - b.Duration);
-  }, [puntos, fit]);
+    return Array.from(map.values()).sort(
+      (a, b) => (a.Duration as number) - (b.Duration as number),
+    );
+  }, [puntosPorTipo, fitPorTipo, tipos]);
 
+  const totalPuntos = tipos.reduce(
+    (n, t) => n + (puntosPorTipo[t]?.length || 0),
+    0,
+  );
   const hayHist = fechasHist.length > 0;
+  const mostrarLegend = curva === "soberanos" && tipos.length > 1;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -318,6 +396,25 @@ export function CurvasChart({
         <FilterBtn active={modo === "hist"} onClick={() => setModo("hist")}>
           HISTÓRICO
         </FilterBtn>
+
+        {mostrarLegend && (
+          <div className="ml-auto flex items-center gap-3 text-[10px]">
+            {tipos.map((t) => {
+              const c = COLORES[t] || COLORES.default;
+              return (
+                <div key={t} className="flex items-center gap-1">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ background: c.scatter }}
+                  />
+                  <span className="text-[#aaaaaa] tracking-wide">
+                    {c.label || t.toUpperCase()}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {modo === "hist" && (
@@ -347,65 +444,85 @@ export function CurvasChart({
         </div>
       )}
 
-      {puntos.length >= 2 ? (
+      {totalPuntos >= 2 ? (
         <div className="flex-1 min-h-0">
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
-          <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
-            <XAxis
-              dataKey="Duration"
-              type="number"
-              domain={[xMin, xMax]}
-              ticks={xTicks}
-              tick={{ fill: "#808080", fontSize: 10 }}
-              axisLine={{ stroke: "#2a2a2a" }}
-              tickLine={false}
-              tickFormatter={(v: number) => v.toFixed(1)}
-              label={{ value: "Duration (años)", position: "insideBottom", offset: -4, fill: "#555555", fontSize: 10 }}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              ticks={yTicks}
-              tick={{ fill: "#808080", fontSize: 10 }}
-              axisLine={{ stroke: "#2a2a2a" }}
-              tickLine={false}
-              tickFormatter={(v: number) => `${v.toFixed(curva === "cer" ? 1 : 2)}%`}
-            />
-            <Tooltip
-              contentStyle={{
-                background: "#0e0e0e",
-                border: "1px solid #2a2a2a",
-                fontSize: 11,
-                fontFamily: "JetBrains Mono, monospace",
-              }}
-              labelStyle={{ color: "#808080" }}
-              formatter={(value, name) => {
-                const v = Number(value);
-                if (name === "scatterY") return [`${v.toFixed(2)}%`, metricaUsada];
-                if (name === "fitY") return [`${v.toFixed(2)}%`, "Fit log"];
-                return [String(value), String(name)];
-              }}
-              labelFormatter={(v) => `Duration ${Number(v).toFixed(2)} años`}
-            />
-            {fit && (
-              <Line
-                dataKey="fitY"
-                type="monotone"
-                stroke="#4488ff"
-                strokeWidth={2}
-                dot={false}
-                connectNulls
-                isAnimationActive={false}
+            <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
+              <XAxis
+                dataKey="Duration"
+                type="number"
+                domain={[xMin, xMax]}
+                ticks={xTicks}
+                tick={{ fill: "#808080", fontSize: 10 }}
+                axisLine={{ stroke: "#2a2a2a" }}
+                tickLine={false}
+                tickFormatter={(v: number) => v.toFixed(1)}
+                label={{ value: "Duration (años)", position: "insideBottom", offset: -4, fill: "#555555", fontSize: 10 }}
               />
-            )}
-            <Scatter dataKey="scatterY" fill="#00cc66" isAnimationActive={false}>
-              <LabelList
-                dataKey="Ticker"
-                position="top"
-                fill="#aaaaaa"
-                style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
+              <YAxis
+                domain={[yMin, yMax]}
+                ticks={yTicks}
+                tick={{ fill: "#808080", fontSize: 10 }}
+                axisLine={{ stroke: "#2a2a2a" }}
+                tickLine={false}
+                tickFormatter={(v: number) => `${v.toFixed(curva === "cer" ? 1 : 2)}%`}
               />
-            </Scatter>
-          </ComposedChart>
+              <Tooltip
+                contentStyle={{
+                  background: "#0e0e0e",
+                  border: "1px solid #2a2a2a",
+                  fontSize: 11,
+                  fontFamily: "JetBrains Mono, monospace",
+                }}
+                labelStyle={{ color: "#808080" }}
+                formatter={(value, name) => {
+                  const v = Number(value);
+                  const key = String(name);
+                  if (key.startsWith("scatterY_")) {
+                    const tipo = key.slice("scatterY_".length);
+                    const label = COLORES[tipo]?.label || metricaUsada;
+                    return [`${v.toFixed(2)}%`, label || metricaUsada];
+                  }
+                  if (key.startsWith("fitY_")) return [`${v.toFixed(2)}%`, "Fit log"];
+                  return [String(value), key];
+                }}
+                labelFormatter={(v) => `Duration ${Number(v).toFixed(2)} años`}
+              />
+              {tipos.map((t) => {
+                const c = COLORES[t] || COLORES.default;
+                if (!fitPorTipo[t]) return null;
+                return (
+                  <Line
+                    key={`fit-${t}`}
+                    dataKey={`fitY_${t}`}
+                    type="monotone"
+                    stroke={c.fit}
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                );
+              })}
+              {tipos.map((t) => {
+                const c = COLORES[t] || COLORES.default;
+                return (
+                  <Scatter
+                    key={`pts-${t}`}
+                    dataKey={`scatterY_${t}`}
+                    fill={c.scatter}
+                    isAnimationActive={false}
+                  >
+                    <LabelList
+                      dataKey={`Ticker_${t}`}
+                      position="top"
+                      fill="#aaaaaa"
+                      style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
+                    />
+                  </Scatter>
+                );
+              })}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
