@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 interface Escenario {
   tir: number;
   shock_pp: number | null;
-  precio_1anio: number;
-  retorno_total: number;
+  precio_objetivo: number;
+  upside: number;
 }
 
 type Modo = "absoluta" | "relativa";
@@ -22,8 +22,6 @@ interface BonoRow {
   tea_actual: number | null;
   duration: number | null;
   paridad: number | null;
-  cobrado_anio: number;
-  n_flujos_anio: number;
   escenarios: Escenario[];
 }
 
@@ -54,7 +52,6 @@ export function SensibilidadTable() {
   const [modo, setModo] = useState<Modo>("absoluta");
   const [tirsAbs, setTirsAbs] = useState("4,5,6,7,8,9,10,11");
   const [tirsRel, setTirsRel] = useState("-4,-3,-2,-1,0,1,2,3,4");
-  const [horizonteDias, setHorizonteDias] = useState(365);
   // Default solo globales — el usuario activa bonares manualmente.
   const [tipos, setTipos] = useState<Tipo[]>(["globales"]);
   const [data, setData] = useState<BonoRow[]>([]);
@@ -88,7 +85,7 @@ export function SensibilidadTable() {
         const res = await fetch(
           `/api/analitica/sensibilidad-retorno?curva=soberanos&modo=${modo}&tirs=${encodeURIComponent(
             tirsInput,
-          )}&horizonte_dias=${horizonteDias}&tipos=${encodeURIComponent(tiposParam)}`,
+          )}&tipos=${encodeURIComponent(tiposParam)}`,
           { cache: "no-store" },
         );
         if (!res.ok) {
@@ -117,7 +114,7 @@ export function SensibilidadTable() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [tirsInput, horizonteDias, modo, tiposParam]);
+  }, [tirsInput, modo, tiposParam]);
 
   // Clamping derivado (no state) para que la celda seleccionada sobreviva
   // cambios de shape sin violar react-hooks/set-state-in-effect.
@@ -132,8 +129,7 @@ export function SensibilidadTable() {
   }, [data, selIdx]);
 
   // Desglose del cálculo para la celda seleccionada. Recomputa con cada
-  // cambio de data / selección / horizonte para que el panel sea 100%
-  // dinámico.
+  // cambio de data / selección para que el panel sea 100% dinámico.
   const debug = useMemo(() => {
     if (data.length === 0) return null;
     const bono = data[effectiveIdx.bono];
@@ -141,16 +137,13 @@ export function SensibilidadTable() {
     const esc = bono.escenarios[effectiveIdx.esc];
     if (!esc) return null;
     const dTir = bono.tea_actual != null ? esc.tir - bono.tea_actual : null;
-    // Duration residual a horizonte vista = duration_actual − (horizonte/365).
-    // Aprox pero suficiente para el sanity check linealizado.
-    const durRes = bono.duration != null
-      ? Math.max(bono.duration - horizonteDias / 365, 0)
+    // Sanity check linealizado: ΔP/P ≈ -Duration × ΔTIR. Usa la duration
+    // actual (sin restar horizonte porque el upside es instantáneo).
+    const upsideLinear = (bono.duration != null && dTir != null)
+      ? -bono.duration * dTir
       : null;
-    const retLinear = (bono.tea_actual != null && durRes != null && dTir != null)
-      ? bono.tea_actual - durRes * dTir
-      : null;
-    return { bono, esc, dTir, durRes, retLinear };
-  }, [data, effectiveIdx, horizonteDias]);
+    return { bono, esc, dTir, upsideLinear };
+  }, [data, effectiveIdx]);
 
   // En absoluta las columnas son TIRs absolutas (las mismas para todos
   // los bonos). En relativa son shocks pp (también iguales para todos).
@@ -205,20 +198,6 @@ export function SensibilidadTable() {
             }
             placeholder={modo === "absoluta" ? "4,5,6,7,8,9,10,11" : "-4,-3,-2,-1,0,1,2,3,4"}
             className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-[#555]">
-            Horizonte (días)
-          </span>
-          <input
-            type="number"
-            value={horizonteDias}
-            min={30}
-            max={1095}
-            step={30}
-            onChange={(e) => setHorizonteDias(parseInt(e.target.value || "365", 10))}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -307,12 +286,11 @@ export function SensibilidadTable() {
                   {b.paridad ? `${b.paridad.toFixed(1)}%` : "—"}
                 </td>
                 {b.escenarios.map((e, i) => {
-                  const c = colorRetorno(e.retorno_total);
-                  // Tooltip: muestra TIR final + precio proyectado, útil
-                  // sobre todo en modo relativo donde el header no dice
-                  // la TIR absoluta sino el shock pp.
+                  const c = colorRetorno(e.upside);
+                  // Tooltip: TIR final + precio objetivo. En modo relativo
+                  // el header muestra el shock pp, acá sumamos la TIR real.
                   const tirReal = (e.tir * 100).toFixed(2);
-                  const tip = `TIR ${tirReal}% · Precio 1y ${e.precio_1anio.toFixed(2)} · click para debug`;
+                  const tip = `TIR ${tirReal}% · Precio obj ${e.precio_objetivo.toFixed(2)} · click para debug`;
                   const isSelected = effectiveIdx.bono === bonoIdx && effectiveIdx.esc === i;
                   return (
                     <td
@@ -324,7 +302,7 @@ export function SensibilidadTable() {
                       style={{ background: c.bg, color: c.fg }}
                       title={tip}
                     >
-                      {fmtPct(e.retorno_total)}
+                      {fmtPct(e.upside)}
                     </td>
                   );
                 })}
@@ -416,12 +394,6 @@ export function SensibilidadTable() {
                 <span className="text-right">
                   {debug.bono.paridad != null ? `${debug.bono.paridad.toFixed(2)}%` : "—"}
                 </span>
-                <span className="text-[#888]">Horizonte</span>
-                <span className="text-right">{horizonteDias} días</span>
-                <span className="text-[#888]">Flujos en horiz.</span>
-                <span className="text-right">{debug.bono.n_flujos_anio}</span>
-                <span className="text-[#888]">Carry (cobrado)</span>
-                <span className="text-right">{debug.bono.cobrado_anio.toFixed(4)}</span>
               </div>
             </div>
 
@@ -438,8 +410,8 @@ export function SensibilidadTable() {
                     ? `${debug.dTir >= 0 ? "+" : ""}${(debug.dTir * 100).toFixed(2)} pp`
                     : "—"}
                 </span>
-                <span className="text-[#888]">Precio 1y</span>
-                <span className="text-right">{debug.esc.precio_1anio.toFixed(4)}</span>
+                <span className="text-[#888]">Precio objetivo</span>
+                <span className="text-right">{debug.esc.precio_objetivo.toFixed(4)}</span>
               </div>
             </div>
 
@@ -448,41 +420,38 @@ export function SensibilidadTable() {
                 Cálculo (exacto)
               </div>
               <div className="text-[#d0d0d0] leading-[1.5]">
-                Retorno = (P<sub>1y</sub> + Carry) / P<sub>actual</sub> − 1
+                Upside = P<sub>objetivo</sub> / P<sub>actual</sub> − 1
               </div>
               <div className="text-[#888] mt-1 leading-[1.5]">
-                = ({debug.esc.precio_1anio.toFixed(4)} + {debug.bono.cobrado_anio.toFixed(4)}) / {debug.bono.precio_actual.toFixed(4)} − 1
-              </div>
-              <div className="text-[#888] leading-[1.5]">
-                = {(debug.esc.precio_1anio + debug.bono.cobrado_anio).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
+                = {debug.esc.precio_objetivo.toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
               </div>
               <div
                 className="mt-1 text-[13px] font-semibold"
-                style={{ color: colorRetorno(debug.esc.retorno_total).bg === "#1a1a1a" ? "#bdb" : "#fff" }}
+                style={{ color: colorRetorno(debug.esc.upside).bg === "#1a1a1a" ? "#bdb" : "#fff" }}
               >
-                = {fmtPct(debug.esc.retorno_total, 2)}
+                = {fmtPct(debug.esc.upside, 2)}
+              </div>
+              <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
+                P<sub>objetivo</sub> = PV de los flujos futuros descontados a la TIR objetivo desde HOY. Capital-only, sin carry.
               </div>
             </div>
 
-            {debug.retLinear != null && debug.durRes != null && debug.dTir != null && (
+            {debug.upsideLinear != null && debug.dTir != null && debug.bono.duration != null && (
               <div>
                 <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
                   Sanity check (lineal, Fabozzi)
                 </div>
                 <div className="text-[#d0d0d0] leading-[1.5]">
-                  ≈ TEA − Dur<sub>res</sub> × ΔTIR
+                  ≈ −Duration × ΔTIR
                 </div>
                 <div className="text-[#888] mt-1 leading-[1.5]">
-                  Dur<sub>res</sub> = {debug.bono.duration?.toFixed(3)} − {(horizonteDias / 365).toFixed(3)} = {debug.durRes.toFixed(3)}
+                  ≈ −{debug.bono.duration.toFixed(3)} × {(debug.dTir * 100).toFixed(2)} pp
                 </div>
                 <div className="text-[#888] leading-[1.5]">
-                  ≈ {fmtPctAbs(debug.bono.tea_actual)} − {debug.durRes.toFixed(3)} × {(debug.dTir * 100).toFixed(2)} pp
-                </div>
-                <div className="text-[#888] leading-[1.5]">
-                  ≈ {fmtPct(debug.retLinear, 2)}
+                  ≈ {fmtPct(debug.upsideLinear, 2)}
                 </div>
                 <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
-                  Diferencia vs exacto: {fmtPct(debug.esc.retorno_total - debug.retLinear, 2)} — explicada por convexidad y estructura de flujos.
+                  Diferencia vs exacto: {fmtPct(debug.esc.upside - debug.upsideLinear, 2)} — explicada por convexidad (siempre positiva, por eso el exacto es mejor que el lineal cuando la TIR baja y peor cuando sube).
                 </div>
               </div>
             )}
@@ -494,25 +463,26 @@ export function SensibilidadTable() {
       </div>
 
       {/* Leyenda compacta — siempre visible, explica la fórmula y la
-           interpretación del modo activo. Sustituye el "debug" individual
-           por un único bloque genérico al pie de la vista. */}
+           interpretación del modo activo. */}
       <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
-            Cálculo
+            Cálculo — Upside de precio (capital-only)
           </div>
           <div className="text-[#d0d0d0]">
-            Retorno = (Precio<sub>1y</sub> + Carry) / Precio<sub>actual</sub> − 1
+            Upside = Precio<sub>objetivo</sub> / Precio<sub>actual</sub> − 1
           </div>
           <div className="text-[#888] mt-1 leading-relaxed">
-            <b className="text-[#d0d0d0]">Precio<sub>1y</sub></b>: PV de flujos
-            remanentes (post horizonte) descontados a la TIR del escenario.
-            <br />
-            <b className="text-[#d0d0d0]">Carry</b>: cupones + amortizaciones
-            cobrados durante los próximos {horizonteDias} días.
+            <b className="text-[#d0d0d0]">Precio<sub>objetivo</sub></b>: PV de
+            los flujos futuros descontados a la TIR del escenario, desde HOY.
             <br />
             <b className="text-[#d0d0d0]">Precio<sub>actual</sub></b>: último
             precio del MarketSnapshot (USD para tickers .D / .C).
+            <br />
+            Upside <b className="text-[#d0d0d0]">negativo</b> si TIR objetivo &gt;
+            TEA actual (el bono debe caer para rendir más). Upside{" "}
+            <b className="text-[#d0d0d0]">positivo</b> si TIR objetivo &lt; TEA
+            actual. No incluye carry ni paso del tiempo.
           </div>
         </div>
         <div>
@@ -523,20 +493,20 @@ export function SensibilidadTable() {
             {modo === "absoluta" ? (
               <>
                 Las columnas son TIRs finales fijas, iguales para todos los
-                bonos. Útil para ver el retorno bajo escenarios definidos
+                bonos. Útil para ver el upside bajo escenarios definidos
                 de mercado (ej. compresión a 6%, stress a 11%).
               </>
             ) : (
               <>
                 Cada bono se evalúa con shifts centrados en su <b className="text-[#d0d0d0]">TEA actual</b>.
-                Columna <b className="text-[#d0d0d0]">TIR actual</b> = carry
-                puro sin cambio de TIR. <b className="text-[#d0d0d0]">TIR +2%</b> = TEA
+                Columna <b className="text-[#d0d0d0]">TIR actual</b> = upside 0
+                (sin cambio). <b className="text-[#d0d0d0]">TIR +2%</b> = TEA
                 actual + 2 puntos. Permite comparar sensibilidad apples-to-apples
                 entre bonos con TEAs distintas.
               </>
             )}
             <br />
-            <span className="text-[#555]">Hover sobre cualquier celda muestra TIR real + precio proyectado.</span>
+            <span className="text-[#555]">Hover sobre cualquier celda muestra TIR real + precio objetivo.</span>
           </div>
         </div>
       </div>
