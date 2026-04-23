@@ -457,10 +457,11 @@ function TabValidaciones() {
   const [dbfLoading, setDbfLoading] = useState(false);
   const [dbfData, setDbfData] = useState<{ tc_a: string; tc_b: string; tea_a: number | null; duration_a: number | null; ts_a: string | null; tea_b: number | null; duration_b: number | null; ts_b: string | null; forward: number | null; error: string | null; pasos: { paso: string; valor: string }[] } | null>(null);
 
-  // Debug Breakevens (por fila, desglose paso a paso — método Buscar Objetivo)
+  // Debug Breakevens (por fila, compara Buscar Objetivo vs Fisher)
   const [bkvDebugLoading, setBkvDebugLoading] = useState(false);
   const [bkvDebugData, setBkvDebugData] = useState<{
     fecha_cer_max: string | null;
+    cer_actual: number | null;
     pares: {
       lecap: string;
       cer: string;
@@ -468,13 +469,19 @@ function TabValidaciones() {
       dias: number;
       fecha_cer_liq: string | null;
       meses_pendientes: number | null;
-      tem_lecap: number;
-      paridad_cer: number;
-      retorno: number;
-      inflacion: number;
-      exponente: number;
-      be_mensual: number;
-      metodo: string;
+      precio_lecap: number | null;
+      flujo_vto_lecap: number | null;
+      precio_cer: number | null;
+      vn_cer: number | null;
+      cer_emision: number | null;
+      retorno_lecap: number | null;
+      factor_bo: number | null;
+      be_buscar_obj: number | null;
+      tem_lecap: number | null;
+      paridad_cer: number | null;
+      retorno_fisher: number | null;
+      inflacion_fisher: number | null;
+      be_fisher: number | null;
     }[];
   } | null>(null);
   const [bkvExpanded, setBkvExpanded] = useState<string | null>(null);
@@ -604,31 +611,36 @@ function TabValidaciones() {
         )}
       </CheckPanel>
 
-      <CheckPanel title="Debug Breakevens — desglose por par (método Buscar Objetivo)">
+      <CheckPanel title="Debug Breakevens — comparar Buscar Objetivo vs Fisher">
         <RunBtn onClick={runBkvDebug} loading={bkvDebugLoading} />
         {bkvDebugData && (
           <>
             <div className="text-[10px] text-[#555555] font-mono mb-2">
               CER publicado más reciente:{" "}
               <span className="text-[#ff9900]">{bkvDebugData.fecha_cer_max ?? "—"}</span>
+              {bkvDebugData.cer_actual != null && (
+                <> ({bkvDebugData.cer_actual.toFixed(4)})</>
+              )}
               {" · "}Click en una fila para el desglose paso a paso.
             </div>
             <table>
               <thead>
                 <tr>
                   <th>LECAP</th><th>CER</th>
-                  <th className="text-right">VTO</th>
-                  <th className="text-right">CER LIQ</th>
+                  <th className="text-right">DÍAS</th>
                   <th className="text-right">MESES PEND</th>
-                  <th className="text-right">TEM</th>
-                  <th className="text-right">PARIDAD</th>
-                  <th className="text-right">BE MEN.</th>
+                  <th className="text-right">BE BUSCAR OBJ</th>
+                  <th className="text-right">BE FISHER</th>
+                  <th className="text-right">Δ</th>
                 </tr>
               </thead>
               <tbody>
                 {bkvDebugData.pares.map((p) => {
                   const key = `${p.lecap}__${p.cer}`;
                   const expanded = bkvExpanded === key;
+                  const bo = p.be_buscar_obj;
+                  const fisher = p.be_fisher;
+                  const delta = bo != null && fisher != null ? (bo - fisher) * 100 : null;
                   return (
                     <>
                       <tr
@@ -638,49 +650,88 @@ function TabValidaciones() {
                       >
                         <td className="text-[#ff9900]">{p.lecap}</td>
                         <td className="text-[#808080]">{p.cer}</td>
-                        <td className="text-right text-[#808080] font-mono">{p.fecha_vto}</td>
-                        <td className="text-right text-[#808080] font-mono">{p.fecha_cer_liq ?? "—"}</td>
+                        <td className="text-right text-[#808080] font-mono">{p.dias}</td>
                         <td className="text-right font-mono">
                           {p.meses_pendientes != null ? p.meses_pendientes.toFixed(3) : "—"}
                         </td>
-                        <td className="text-right font-mono">{(p.tem_lecap * 100).toFixed(4)}%</td>
-                        <td className="text-right font-mono">{p.paridad_cer.toFixed(2)}%</td>
-                        <td className={`text-right font-bold font-mono ${p.be_mensual * 100 > 3 ? "text-[#ff3333]" : "text-[#00cc66]"}`}>
-                          {(p.be_mensual * 100).toFixed(2)}%
+                        <td className="text-right font-bold font-mono text-[#ff9900]">
+                          {bo != null ? `${(bo * 100).toFixed(2)}%` : "—"}
+                        </td>
+                        <td className="text-right font-mono text-[#808080]">
+                          {fisher != null ? `${(fisher * 100).toFixed(2)}%` : "—"}
+                        </td>
+                        <td
+                          className="text-right font-mono"
+                          style={{ color: delta != null && Math.abs(delta) > 0.5 ? "#ff9900" : "#888" }}
+                        >
+                          {delta != null ? `${delta > 0 ? "+" : ""}${delta.toFixed(2)}pp` : "—"}
                         </td>
                       </tr>
                       {expanded && (
                         <tr key={`${key}_detail`}>
-                          <td colSpan={8} className="!py-2 !px-3 bg-[#0a0a0a] border-l-2 border-l-[#ff9900]">
-                            <div className="font-mono text-[10px] text-[#d0d0d0] flex flex-col gap-1.5">
-                              <div>
-                                <span className="text-[#555]">Paso 1 · Retorno acumulado Lecap:</span>
+                          <td colSpan={7} className="!py-2 !px-3 bg-[#0a0a0a] border-l-2 border-l-[#ff9900]">
+                            <div className="font-mono text-[10px] text-[#d0d0d0] grid grid-cols-2 gap-4">
+                              {/* Buscar Objetivo */}
+                              <div className="flex flex-col gap-1">
+                                <div className="text-[#ff9900] font-semibold uppercase tracking-wide">
+                                  Buscar Objetivo
+                                </div>
+                                <div className="text-[#555]">Inputs:</div>
+                                <div>P<sub>lecap</sub> = {p.precio_lecap ?? "—"}</div>
+                                <div>Flujo<sub>vto lecap</sub> = {p.flujo_vto_lecap ?? "—"}</div>
+                                <div>P<sub>cer</sub> = {p.precio_cer ?? "—"}</div>
+                                <div>VN<sub>cer</sub> = {p.vn_cer ?? "—"}</div>
+                                <div>CER<sub>emision</sub> = {p.cer_emision ?? "—"}</div>
+                                <div>CER<sub>actual</sub> = {bkvDebugData.cer_actual?.toFixed(4) ?? "—"}</div>
+                                <div>Meses<sub>pend</sub> = {p.meses_pendientes?.toFixed(4) ?? "—"}</div>
+                                <div className="text-[#555] mt-1">Cálculo:</div>
+                                <div>
+                                  R<sub>lecap</sub> = Flujo/P − 1
+                                  <span className="text-[#ff9900] font-semibold">
+                                    {" = "}{p.retorno_lecap != null ? `${(p.retorno_lecap * 100).toFixed(3)}%` : "—"}
+                                  </span>
+                                </div>
+                                <div>
+                                  factor = (1+R) × (P<sub>cer</sub> × CER<sub>emi</sub>) / (VN × CER<sub>act</sub>)
+                                </div>
+                                <div className="text-[#888]">
+                                  {" = "}{p.factor_bo?.toFixed(6) ?? "—"}
+                                </div>
+                                <div>
+                                  BE = factor^(1/meses) − 1
+                                  <span className="text-[#00cc66] font-bold">
+                                    {" = "}{bo != null ? `${(bo * 100).toFixed(3)}%` : "—"}
+                                  </span>
+                                </div>
                               </div>
-                              <div>
-                                R = (1 + {(p.tem_lecap * 100).toFixed(4)}%)^({p.dias}/30) − 1
-                                = (1 + {(p.tem_lecap * 100).toFixed(4)}%)^{(p.dias / 30).toFixed(4)} − 1
-                                <span className="text-[#ff9900] font-semibold"> = {(p.retorno * 100).toFixed(3)}%</span>
-                              </div>
-                              <div className="mt-1">
-                                <span className="text-[#555]">Paso 2 · Inflación acumulada implícita:</span>
-                              </div>
-                              <div>
-                                π = (1 + {(p.retorno * 100).toFixed(3)}%) × ({p.paridad_cer.toFixed(2)}/100) − 1
-                                = {(1 + p.retorno).toFixed(4)} × {(p.paridad_cer / 100).toFixed(4)} − 1
-                                <span className="text-[#ff9900] font-semibold"> = {(p.inflacion * 100).toFixed(3)}%</span>
-                              </div>
-                              <div className="mt-1">
-                                <span className="text-[#555]">
-                                  Paso 3 · BE mensual ({p.metodo})
-                                  {p.meses_pendientes != null
-                                    ? ` — meses pendientes = (${p.fecha_cer_liq} − ${bkvDebugData.fecha_cer_max}) / 30 = ${p.meses_pendientes.toFixed(3)}`
-                                    : " — sin CER max, fallback Fisher (30/días)"}:
-                                </span>
-                              </div>
-                              <div>
-                                BE = (1 + {(p.inflacion * 100).toFixed(3)}%)^(1/{p.exponente > 0 ? (1 / p.exponente).toFixed(3) : "—"})
-                                = (1 + {(p.inflacion * 100).toFixed(3)}%)^{p.exponente.toFixed(4)} − 1
-                                <span className="text-[#00cc66] font-bold"> = {(p.be_mensual * 100).toFixed(3)}%</span>
+                              {/* Fisher */}
+                              <div className="flex flex-col gap-1">
+                                <div className="text-[#888] font-semibold uppercase tracking-wide">
+                                  Fisher (clásico)
+                                </div>
+                                <div className="text-[#555]">Inputs:</div>
+                                <div>TEM = {p.tem_lecap != null ? `${(p.tem_lecap * 100).toFixed(4)}%` : "—"}</div>
+                                <div>Paridad<sub>cer</sub> = {p.paridad_cer != null ? `${p.paridad_cer.toFixed(2)}%` : "—"}</div>
+                                <div>Días = {p.dias}</div>
+                                <div className="text-[#555] mt-1">Cálculo:</div>
+                                <div>
+                                  R = (1+TEM)^(días/30) − 1
+                                  <span className="text-[#888]">
+                                    {" = "}{p.retorno_fisher != null ? `${(p.retorno_fisher * 100).toFixed(3)}%` : "—"}
+                                  </span>
+                                </div>
+                                <div>
+                                  π = (1+R) × (paridad/100) − 1
+                                </div>
+                                <div className="text-[#888]">
+                                  {" = "}{p.inflacion_fisher != null ? `${(p.inflacion_fisher * 100).toFixed(3)}%` : "—"}
+                                </div>
+                                <div>
+                                  BE = (1+π)^(30/días) − 1
+                                  <span className="text-[#888] font-semibold">
+                                    {" = "}{fisher != null ? `${(fisher * 100).toFixed(3)}%` : "—"}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </td>
