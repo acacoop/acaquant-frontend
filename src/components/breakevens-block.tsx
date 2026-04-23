@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ComposedChart,
   Line,
@@ -29,6 +29,25 @@ interface BreakevenPar {
 interface BreakevenHistDoc {
   fecha: string;
   pares: BreakevenPar[];
+}
+
+interface RemAcumItem {
+  periodo: string;
+  fin_mes: string | null;
+  ipc_mensual_rem: number;
+  promedio_mensual_acum: number;
+  meses_acumulados: number;
+}
+
+interface RemAcumResp {
+  informe: string | null;
+  indicador: string;
+  serie: RemAcumItem[];
+}
+
+interface RemInforme {
+  informe: string;
+  n_registros: number;
 }
 
 type Modo = "live" | "hist";
@@ -72,6 +91,10 @@ export function BreakevensBlock({
   historico?: BreakevenHistDoc[];
 }) {
   const [modo, setModo] = useState<Modo>("live");
+  const [remOn, setRemOn] = useState(true);
+  const [informes, setInformes] = useState<RemInforme[]>([]);
+  const [informeSel, setInformeSel] = useState<string>(""); // "" = último
+  const [remSerie, setRemSerie] = useState<RemAcumItem[]>([]);
 
   const fechasOrdenadas = useMemo(
     () =>
@@ -98,6 +121,40 @@ export function BreakevensBlock({
 
   const hayHistorico = fechasOrdenadas.length > 0;
 
+  // Lista de informes REM disponibles (solo al montar).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/cotizaciones/rem/informes", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((j) => {
+        if (!cancelled && Array.isArray(j)) setInformes(j);
+      })
+      .catch(() => {
+        /* REM es best-effort: si falla el chart sigue funcionando */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Serie REM acumulada para el informe seleccionado.
+  useEffect(() => {
+    if (!remOn) return;
+    let cancelled = false;
+    const qs = informeSel ? `?informe=${encodeURIComponent(informeSel)}` : "";
+    fetch(`/api/cotizaciones/rem/breakeven-acumulado${qs}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: RemAcumResp | null) => {
+        if (!cancelled && j && Array.isArray(j.serie)) setRemSerie(j.serie);
+      })
+      .catch(() => {
+        if (!cancelled) setRemSerie([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [remOn, informeSel]);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 mb-2 shrink-0 flex-wrap">
@@ -111,6 +168,27 @@ export function BreakevensBlock({
         >
           HISTÓRICO
         </FilterBtn>
+
+        <div className="ml-2 h-4 w-px bg-[#222]" />
+
+        <FilterBtn active={remOn} onClick={() => setRemOn((v) => !v)}>
+          REM
+        </FilterBtn>
+        {remOn && informes.length > 0 && (
+          <select
+            value={informeSel}
+            onChange={(e) => setInformeSel(e.target.value)}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#4fc3f7] outline-none"
+            title="Informe REM a superponer"
+          >
+            <option value="">último</option>
+            {informes.map((i) => (
+              <option key={i.informe} value={i.informe}>
+                {i.informe}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {modo === "hist" && hayHistorico && (
@@ -132,7 +210,10 @@ export function BreakevensBlock({
 
       <div className="flex-1 min-h-0 grid grid-cols-[auto_1fr] gap-3 min-w-0">
         <BreakevensTabla pares={paresMostrar} />
-        <BreakevensGrafico pares={paresMostrar} />
+        <BreakevensGrafico
+          pares={paresMostrar}
+          remSerie={remOn ? remSerie : []}
+        />
       </div>
     </div>
   );
@@ -171,10 +252,44 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
   );
 }
 
-function BreakevensGrafico({ pares }: { pares: BreakevenPar[] }) {
+function BreakevensGrafico({
+  pares,
+  remSerie,
+}: {
+  pares: BreakevenPar[];
+  remSerie: RemAcumItem[];
+}) {
   const vpKey = useViewportKey();
 
-  if (pares.length === 0) {
+  const data = useMemo(() => {
+    // Mergea puntos de mercado + puntos del REM sobre el mismo eje X temporal.
+    // Key: timestamp ms del venc o del fin de mes REM.
+    const map = new Map<number, { vencTs: number; be?: number; rem?: number; ticker?: string }>();
+
+    pares
+      .filter((p) => p.breakeven_mensual != null)
+      .forEach((p) => {
+        const ts = new Date(p.fecha_vencimiento).getTime();
+        if (isNaN(ts)) return;
+        const entry = map.get(ts) ?? { vencTs: ts };
+        entry.be = +(p.breakeven_mensual * 100).toFixed(2);
+        entry.ticker = shortTicker(p.lecap);
+        map.set(ts, entry);
+      });
+
+    remSerie.forEach((r) => {
+      if (!r.fin_mes) return;
+      const ts = new Date(r.fin_mes).getTime();
+      if (isNaN(ts)) return;
+      const entry = map.get(ts) ?? { vencTs: ts };
+      entry.rem = +(r.promedio_mensual_acum * 100).toFixed(2);
+      map.set(ts, entry);
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.vencTs - b.vencTs);
+  }, [pares, remSerie]);
+
+  if (data.length === 0) {
     return (
       <p className="text-[#555555] text-xs py-4 text-center">
         SIN DATOS — MERCADO CERRADO
@@ -182,22 +297,10 @@ function BreakevensGrafico({ pares }: { pares: BreakevenPar[] }) {
     );
   }
 
-  const data = pares
-    .filter((p) => p.breakeven_mensual != null)
-    .map((p) => {
-      const d = new Date(p.fecha_vencimiento);
-      return {
-        vencTs: d.getTime(),
-        be: +(p.breakeven_mensual * 100).toFixed(2),
-        ticker: shortTicker(p.lecap),
-      };
-    })
-    .sort((a, b) => a.vencTs - b.vencTs);
-
-  const xTicks = data.map((d) => d.vencTs);
-  const beVals = data.map((d) => d.be);
-  const yScale = beVals.length
-    ? niceScale(Math.min(...beVals, 3), Math.max(...beVals, 3), 6)
+  const xTicks = data.filter((d) => d.be != null).map((d) => d.vencTs);
+  const allVals = data.flatMap((d) => [d.be, d.rem].filter((v): v is number => v != null));
+  const yScale = allVals.length
+    ? niceScale(Math.min(...allVals, 3), Math.max(...allVals, 3), 6)
     : { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5] };
 
   return (
@@ -232,12 +335,26 @@ function BreakevensGrafico({ pares }: { pares: BreakevenPar[] }) {
             contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
             labelStyle={{ color: "#808080" }}
             formatter={(value, name) => {
-              if (name === "be") return [`${Number(value).toFixed(2)}%`, "BE Mensual"];
+              if (value == null) return ["—", String(name)];
+              if (name === "be")  return [`${Number(value).toFixed(2)}%`, "BE Mercado"];
+              if (name === "rem") return [`${Number(value).toFixed(2)}%`, "REM (prom. acum.)"];
               return [String(value), String(name)];
             }}
             labelFormatter={(ts) => fmtMesAnio(new Date(Number(ts)).toISOString())}
           />
-          <Line dataKey="be" type="monotone" stroke="#ff9900" strokeWidth={2} dot={false} isAnimationActive={false} />
+          {/* REM (línea celeste, sin dots, conecta entre nulls) */}
+          <Line
+            dataKey="rem"
+            type="monotone"
+            stroke="#4fc3f7"
+            strokeWidth={1.5}
+            strokeDasharray="4 3"
+            dot={false}
+            isAnimationActive={false}
+            connectNulls
+          />
+          {/* Mercado (línea naranja + scatter con tickers) */}
+          <Line dataKey="be" type="monotone" stroke="#ff9900" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls />
           <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
             <LabelList dataKey="ticker" position="top" fill="#aaaaaa" style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }} />
           </Scatter>
