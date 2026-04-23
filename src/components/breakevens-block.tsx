@@ -99,6 +99,9 @@ export function BreakevensBlock({
   const [modo, setModo] = useState<Modo>("live");
   const [remOn, setRemOn] = useState(true);
   const [remSerie, setRemSerie] = useState<RemAcumItem[]>([]);
+  // Fila seleccionada para el panel de debug (del lado derecho).
+  const [selIdx, setSelIdx] = useState(0);
+  const [debugOpen, setDebugOpen] = useState(true);
 
   const fechasOrdenadas = useMemo(
     () =>
@@ -181,18 +184,35 @@ export function BreakevensBlock({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 grid grid-cols-[auto_1fr] gap-3 min-w-0">
-        <BreakevensTabla pares={paresMostrar} />
+      <div className="flex-1 min-h-0 grid grid-cols-[auto_1fr_auto] gap-3 min-w-0">
+        <BreakevensTabla
+          pares={paresMostrar}
+          selIdx={Math.min(Math.max(selIdx, 0), Math.max(0, paresMostrar.length - 1))}
+          onSelect={setSelIdx}
+        />
         <BreakevensGrafico
           pares={paresMostrar}
           remSerie={remOn ? remSerie : []}
+        />
+        <BreakevenDebugPanel
+          par={paresMostrar[Math.min(Math.max(selIdx, 0), Math.max(0, paresMostrar.length - 1))] ?? null}
+          isOpen={debugOpen}
+          onToggle={() => setDebugOpen((v) => !v)}
         />
       </div>
     </div>
   );
 }
 
-function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
+function BreakevensTabla({
+  pares,
+  selIdx,
+  onSelect,
+}: {
+  pares: BreakevenPar[];
+  selIdx: number;
+  onSelect: (i: number) => void;
+}) {
   if (pares.length === 0) return null;
   return (
     <div className="overflow-y-auto shrink-0">
@@ -209,11 +229,18 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
           </tr>
         </thead>
         <tbody>
-          {pares.map((p) => {
+          {pares.map((p, i) => {
             const be = p.breakeven_mensual * 100;
             const mesLabel = p.mes_inflacion ? fmtPeriodoMensual(p.mes_inflacion) : "—";
+            const isSel = i === selIdx;
             return (
-              <tr key={p.n}>
+              <tr
+                key={p.n}
+                onClick={() => onSelect(i)}
+                className={`cursor-pointer ${
+                  isSel ? "bg-[#ff9900]/10 outline outline-1 outline-[#ff9900] outline-offset-[-1px]" : ""
+                }`}
+              >
                 <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
                 <td className="text-[#808080]">{shortTicker(p.cer)}</td>
                 <td className="text-right text-[#d0d0d0] font-mono">{mesLabel}</td>
@@ -421,6 +448,169 @@ function BreakevensGrafico({
           </Scatter>
         </ComposedChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+function BreakevenDebugPanel({
+  par,
+  isOpen,
+  onToggle,
+}: {
+  par: BreakevenPar | null;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <aside
+      className={`shrink-0 border border-[#1a1a1a] bg-[#0a0a0a] text-[10px] font-mono transition-[width] duration-150 flex flex-col ${
+        isOpen ? "w-72" : "w-8"
+      }`}
+    >
+      {!isOpen ? (
+        <button
+          onClick={onToggle}
+          className="flex-1 flex flex-col items-center justify-center gap-2 text-[#ff9900] hover:bg-[#ff9900]/10 cursor-pointer"
+          title="Expandir panel de debug"
+        >
+          <span className="text-[11px]">◀</span>
+          <span
+            className="text-[10px] uppercase tracking-[0.2em] text-[#ff9900]"
+            style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+          >
+            DEBUG
+          </span>
+        </button>
+      ) : (
+        <div className="p-3 overflow-y-auto flex-1">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] uppercase tracking-widest text-[#ff9900]">
+              DEBUG · fila seleccionada
+            </span>
+            <button
+              onClick={onToggle}
+              className="text-[#555] hover:text-[#ff9900] text-[14px] leading-none cursor-pointer"
+              title="Minimizar panel"
+            >
+              ▶
+            </button>
+          </div>
+          {!par || par.breakeven_mensual == null ? (
+            <div className="text-[#555] text-[11px]">
+              Click en una fila de la tabla para ver el desglose del cálculo.
+            </div>
+          ) : (
+            <BreakevenDebugContent par={par} />
+          )}
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function BreakevenDebugContent({ par }: { par: BreakevenPar }) {
+  const tem = par.tem_lecap;
+  const paridad = par.paridad_cer;
+  const dias = par.dias;
+
+  const factorMeses = dias / 30;
+  const retorno = Math.pow(1 + tem, factorMeses) - 1;
+  const inflacion = (1 + retorno) * (paridad / 100) - 1;
+  const bkv = Math.pow(1 + inflacion, 30 / dias) - 1;
+
+  const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
+  const pctSigned = (x: number, d = 2) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(d)}%`;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[#ff9900] font-semibold text-[13px]">
+            {shortTicker(par.lecap)} · {shortTicker(par.cer)}
+          </span>
+          <span className="text-[#888]">
+            {par.mes_inflacion ? fmtPeriodoMensual(par.mes_inflacion) : "—"}
+          </span>
+        </div>
+        <div className="text-[#555] text-[9px] mt-0.5">
+          Vto {par.fecha_vencimiento} · {dias} días
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+          Inputs
+        </div>
+        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[#d0d0d0]">
+          <span className="text-[#888]">TEM Lecap</span>
+          <span className="text-right">{pct(tem, 4)}</span>
+          <span className="text-[#888]">Paridad CER</span>
+          <span className="text-right">{paridad.toFixed(2)}%</span>
+          <span className="text-[#888]">Días al vto</span>
+          <span className="text-right">{dias}</span>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+          Paso 1 · Retorno acumulado Lecap
+        </div>
+        <div className="text-[#d0d0d0] leading-[1.5]">
+          R = (1 + TEM)^(días/30) − 1
+        </div>
+        <div className="text-[#888] mt-1 leading-[1.5]">
+          = (1 + {pct(tem, 4)})^({dias}/30) − 1
+        </div>
+        <div className="text-[#888] leading-[1.5]">
+          = (1 + {pct(tem, 4)})^{factorMeses.toFixed(4)} − 1
+        </div>
+        <div className="text-[#d0d0d0] leading-[1.5] font-semibold">
+          = {pctSigned(retorno, 3)}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+          Paso 2 · Inflación acumulada implícita
+        </div>
+        <div className="text-[#d0d0d0] leading-[1.5]">
+          π = (1 + R) × (paridad/100) − 1
+        </div>
+        <div className="text-[#888] mt-1 leading-[1.5]">
+          = (1 + {pct(retorno, 3)}) × ({paridad.toFixed(2)}/100) − 1
+        </div>
+        <div className="text-[#888] leading-[1.5]">
+          = {(1 + retorno).toFixed(4)} × {(paridad / 100).toFixed(4)} − 1
+        </div>
+        <div className="text-[#d0d0d0] leading-[1.5] font-semibold">
+          = {pctSigned(inflacion, 3)}
+        </div>
+      </div>
+
+      <div>
+        <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+          Paso 3 · Breakeven mensual
+        </div>
+        <div className="text-[#d0d0d0] leading-[1.5]">
+          BE = (1 + π)^(30/días) − 1
+        </div>
+        <div className="text-[#888] mt-1 leading-[1.5]">
+          = (1 + {pct(inflacion, 3)})^(30/{dias}) − 1
+        </div>
+        <div className="text-[#888] leading-[1.5]">
+          = (1 + {pct(inflacion, 3)})^{(30 / dias).toFixed(4)} − 1
+        </div>
+        <div
+          className="mt-1 text-[13px] font-semibold"
+          style={{ color: bkv * 100 > 3 ? "#ff3333" : "#00cc66" }}
+        >
+          = {pct(bkv, 2)}
+        </div>
+        <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
+          Interpretación: inflación mensual implícita priceada por el mercado
+          para el IPC de {par.mes_inflacion ? fmtPeriodoMensual(par.mes_inflacion) : "—"}.
+        </div>
+      </div>
     </div>
   );
 }
