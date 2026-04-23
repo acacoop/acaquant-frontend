@@ -390,19 +390,18 @@ export function IntradayView() {
       )}
 
       {hayDatos && (
-        <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
-          {/* Tabla consolidada (agrupada visualmente por moneda).
-              Ancho natural al contenido — no se estira a toda la pantalla. */}
-          <div className="overflow-auto border border-[#1a1a1a] bg-[#080808] shrink-0 self-start max-h-full">
-            <table className="w-auto text-[11px] font-mono border-collapse">
+        <div className="flex-1 min-h-0 grid grid-cols-[1fr_auto] gap-3 overflow-hidden">
+          {/* Tabla consolidada (agrupada visualmente por moneda). */}
+          <div className="overflow-y-auto border border-[#1a1a1a] bg-[#080808]">
+            <table className="w-full text-[11px] font-mono border-collapse">
               <thead className="sticky top-0 bg-[#0c0c0c] z-10">
                 <tr className="border-b border-[#1a1a1a] text-[10px] uppercase tracking-wide text-[#ff9900]">
-                  <th className="!px-3 !py-1.5 text-left whitespace-nowrap">Símbolo</th>
-                  <th className="!px-3 !py-1.5 text-center whitespace-nowrap">Moneda</th>
-                  <th className="!px-3 !py-1.5 text-center whitespace-nowrap">Plazo</th>
-                  <th className="!px-3 !py-1.5 text-right whitespace-nowrap">Ops</th>
-                  <th className="!px-3 !py-1.5 text-right whitespace-nowrap">Cantidad neta</th>
-                  <th className="!px-3 !py-1.5 text-right whitespace-nowrap">Turnover neto</th>
+                  <th className="!px-2 !py-1.5 text-left">Símbolo</th>
+                  <th className="!px-2 !py-1.5 text-center">Moneda</th>
+                  <th className="!px-2 !py-1.5 text-center">Plazo</th>
+                  <th className="!px-2 !py-1.5 text-right">Ops</th>
+                  <th className="!px-2 !py-1.5 text-right">Cantidad neta</th>
+                  <th className="!px-2 !py-1.5 text-right">Turnover neto</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,22 +415,22 @@ export function IntradayView() {
                         divisor ? "border-t-2 border-t-[#1a1a1a]" : ""
                       }`}
                     >
-                      <td className="!px-3 !py-1 text-[#d0d0d0] whitespace-nowrap">{r.simbolo}</td>
+                      <td className="!px-2 !py-1 text-[#d0d0d0]">{r.simbolo}</td>
                       <td
-                        className="!px-3 !py-1 text-center font-semibold whitespace-nowrap"
+                        className="!px-2 !py-1 text-center font-semibold"
                         style={{ color: monedaColor(r.moneda) }}
                       >
                         {r.moneda}
                       </td>
-                      <td className="!px-3 !py-1 text-center text-[#888] whitespace-nowrap">{r.plazo}</td>
-                      <td className="!px-3 !py-1 text-right text-[#888] whitespace-nowrap">
+                      <td className="!px-2 !py-1 text-center text-[#888]">{r.plazo}</td>
+                      <td className="!px-2 !py-1 text-right text-[#888]">
                         {r.operaciones}
                       </td>
-                      <td className="!px-3 !py-1 text-right text-[#d0d0d0] whitespace-nowrap">
+                      <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
                         {fmtNum(r.cantidad_neta, 0)}
                       </td>
                       <td
-                        className="!px-3 !py-1 text-right font-semibold whitespace-nowrap"
+                        className="!px-2 !py-1 text-right font-semibold"
                         style={{ color: r.turnover_neto >= 0 ? "#00cc66" : "#ff3333" }}
                       >
                         {fmtNum(r.turnover_neto)}
@@ -444,7 +443,7 @@ export function IntradayView() {
           </div>
 
           {/* Sidebar derecho: totales + consolidado por especie */}
-          <div className="shrink-0 w-72 flex flex-col gap-3 overflow-hidden">
+          <div className="shrink-0 w-96 flex flex-col gap-3 overflow-hidden">
             <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 flex flex-col gap-2 shrink-0">
               <div className="text-[9px] uppercase tracking-widest text-[#ff9900]">
                 Totales por moneda
