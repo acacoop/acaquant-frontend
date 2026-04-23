@@ -49,11 +49,11 @@ function detectarMoneda(simbolo: string): string {
 
 function detectarPlazo(simbolo: string): string {
   const s = simbolo || "";
-  if (s.includes("-0001-")) return "CI";
-  if (s.includes("-0002-")) return "24hs";
-  // Símbolos de divisa (PESOS/DOLAR) son siempre contado inmediato = CI.
+  // Divisa (PESOS/DOLAR) siempre es CI, sin importar qué token traiga.
   const u = s.toUpperCase();
   if (u.includes("PESOS") || u.includes("DOLAR") || u.includes("DÓLAR")) return "CI";
+  if (s.includes("-0001-")) return "CI";
+  if (s.includes("-0002-")) return "24hs";
   return "otro";
 }
 
