@@ -457,6 +457,28 @@ function TabValidaciones() {
   const [dbfLoading, setDbfLoading] = useState(false);
   const [dbfData, setDbfData] = useState<{ tc_a: string; tc_b: string; tea_a: number | null; duration_a: number | null; ts_a: string | null; tea_b: number | null; duration_b: number | null; ts_b: string | null; forward: number | null; error: string | null; pasos: { paso: string; valor: string }[] } | null>(null);
 
+  // Debug Breakevens (por fila, desglose paso a paso — método Buscar Objetivo)
+  const [bkvDebugLoading, setBkvDebugLoading] = useState(false);
+  const [bkvDebugData, setBkvDebugData] = useState<{
+    fecha_cer_max: string | null;
+    pares: {
+      lecap: string;
+      cer: string;
+      fecha_vto: string;
+      dias: number;
+      fecha_cer_liq: string | null;
+      meses_pendientes: number | null;
+      tem_lecap: number;
+      paridad_cer: number;
+      retorno: number;
+      inflacion: number;
+      exponente: number;
+      be_mensual: number;
+      metodo: string;
+    }[];
+  } | null>(null);
+  const [bkvExpanded, setBkvExpanded] = useState<string | null>(null);
+
   // Debug Soberano
   const [tcSob, setTcSob] = useState("");
   const [sobLoading, setSobLoading] = useState(false);
@@ -483,6 +505,11 @@ function TabValidaciones() {
   const runFwd = () => { setFwdLoading(true); fetch("/api/manager/checks/forwards").then(r => r.json()).then(setFwdData).finally(() => setFwdLoading(false)); };
   const runCer = () => { setCerLoading(true); fetch("/api/manager/checks/cer").then(r => r.json()).then(setCerData).finally(() => setCerLoading(false)); };
   const runTf  = () => { setTfLoading(true);  fetch("/api/manager/checks/tasa-fija").then(r => r.json()).then(setTfData).finally(() => setTfLoading(false)); };
+  const runBkvDebug = () => {
+    setBkvDebugLoading(true);
+    fetch("/api/manager/checks/breakevens-debug")
+      .then(r => r.json()).then(setBkvDebugData).finally(() => setBkvDebugLoading(false));
+  };
   const runDbf = () => {
     if (!tcA || !tcB || tcA === tcB) return;
     setDbfLoading(true);
@@ -572,6 +599,97 @@ function TabValidaciones() {
                   <td className="text-right font-mono">{r.paridad?.toFixed(2) ?? "—"}</td>
                 </tr>
               ))}</tbody>
+            </table>
+          </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Debug Breakevens — desglose por par (método Buscar Objetivo)">
+        <RunBtn onClick={runBkvDebug} loading={bkvDebugLoading} />
+        {bkvDebugData && (
+          <>
+            <div className="text-[10px] text-[#555555] font-mono mb-2">
+              CER publicado más reciente:{" "}
+              <span className="text-[#ff9900]">{bkvDebugData.fecha_cer_max ?? "—"}</span>
+              {" · "}Click en una fila para el desglose paso a paso.
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>LECAP</th><th>CER</th>
+                  <th className="text-right">VTO</th>
+                  <th className="text-right">CER LIQ</th>
+                  <th className="text-right">MESES PEND</th>
+                  <th className="text-right">TEM</th>
+                  <th className="text-right">PARIDAD</th>
+                  <th className="text-right">BE MEN.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bkvDebugData.pares.map((p) => {
+                  const key = `${p.lecap}__${p.cer}`;
+                  const expanded = bkvExpanded === key;
+                  return (
+                    <>
+                      <tr
+                        key={key}
+                        onClick={() => setBkvExpanded(expanded ? null : key)}
+                        className="cursor-pointer hover:bg-[#ff9900]/10"
+                      >
+                        <td className="text-[#ff9900]">{p.lecap}</td>
+                        <td className="text-[#808080]">{p.cer}</td>
+                        <td className="text-right text-[#808080] font-mono">{p.fecha_vto}</td>
+                        <td className="text-right text-[#808080] font-mono">{p.fecha_cer_liq ?? "—"}</td>
+                        <td className="text-right font-mono">
+                          {p.meses_pendientes != null ? p.meses_pendientes.toFixed(3) : "—"}
+                        </td>
+                        <td className="text-right font-mono">{(p.tem_lecap * 100).toFixed(4)}%</td>
+                        <td className="text-right font-mono">{p.paridad_cer.toFixed(2)}%</td>
+                        <td className={`text-right font-bold font-mono ${p.be_mensual * 100 > 3 ? "text-[#ff3333]" : "text-[#00cc66]"}`}>
+                          {(p.be_mensual * 100).toFixed(2)}%
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr key={`${key}_detail`}>
+                          <td colSpan={8} className="!py-2 !px-3 bg-[#0a0a0a] border-l-2 border-l-[#ff9900]">
+                            <div className="font-mono text-[10px] text-[#d0d0d0] flex flex-col gap-1.5">
+                              <div>
+                                <span className="text-[#555]">Paso 1 · Retorno acumulado Lecap:</span>
+                              </div>
+                              <div>
+                                R = (1 + {(p.tem_lecap * 100).toFixed(4)}%)^({p.dias}/30) − 1
+                                = (1 + {(p.tem_lecap * 100).toFixed(4)}%)^{(p.dias / 30).toFixed(4)} − 1
+                                <span className="text-[#ff9900] font-semibold"> = {(p.retorno * 100).toFixed(3)}%</span>
+                              </div>
+                              <div className="mt-1">
+                                <span className="text-[#555]">Paso 2 · Inflación acumulada implícita:</span>
+                              </div>
+                              <div>
+                                π = (1 + {(p.retorno * 100).toFixed(3)}%) × ({p.paridad_cer.toFixed(2)}/100) − 1
+                                = {(1 + p.retorno).toFixed(4)} × {(p.paridad_cer / 100).toFixed(4)} − 1
+                                <span className="text-[#ff9900] font-semibold"> = {(p.inflacion * 100).toFixed(3)}%</span>
+                              </div>
+                              <div className="mt-1">
+                                <span className="text-[#555]">
+                                  Paso 3 · BE mensual ({p.metodo})
+                                  {p.meses_pendientes != null
+                                    ? ` — meses pendientes = (${p.fecha_cer_liq} − ${bkvDebugData.fecha_cer_max}) / 30 = ${p.meses_pendientes.toFixed(3)}`
+                                    : " — sin CER max, fallback Fisher (30/días)"}:
+                                </span>
+                              </div>
+                              <div>
+                                BE = (1 + {(p.inflacion * 100).toFixed(3)}%)^(1/{p.exponente > 0 ? (1 / p.exponente).toFixed(3) : "—"})
+                                = (1 + {(p.inflacion * 100).toFixed(3)}%)^{p.exponente.toFixed(4)} − 1
+                                <span className="text-[#00cc66] font-bold"> = {(p.be_mensual * 100).toFixed(3)}%</span>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
             </table>
           </>
         )}
