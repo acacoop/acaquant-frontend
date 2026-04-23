@@ -56,9 +56,11 @@ export function SensibilidadTable() {
   const [modo, setModo] = useState<Modo>("absoluta");
   const [tirsAbs, setTirsAbs] = useState("4,5,6,7,8,9,10,11");
   const [tirsRel, setTirsRel] = useState("-4,-3,-2,-1,0,1,2,3,4");
-  // 0 = upside instantáneo (foto de hoy). >0 = proyecta el precio a esa
-  // fecha (pull-to-par activo).
-  const [horizonteDias, setHorizonteDias] = useState(0);
+  // Horizonte default = 365 (1 año). El input usa un string intermedio
+  // para que el usuario pueda borrar y escribir sin que cada tecla
+  // dispare un fetch — solo commitea al salir del campo o Enter.
+  const [horizonteDias, setHorizonteDias] = useState(365);
+  const [horizonteInput, setHorizonteInput] = useState("365");
   // Default solo globales — el usuario activa bonares manualmente.
   const [tipos, setTipos] = useState<Tipo[]>(["globales"]);
   // Con carry = retorno total (suma cupones cobrados en el horizonte).
@@ -148,7 +150,9 @@ export function SensibilidadTable() {
     if (!bono) return null;
     const esc = bono.escenarios[effectiveIdx.esc];
     if (!esc) return null;
-    const upside = modoCarry === "con_carry" ? esc.upside_con_carry : esc.upside_sin_carry;
+    const upside = modoCarry === "con_carry"
+      ? (esc.upside_con_carry ?? esc.upside_sin_carry ?? 0)
+      : (esc.upside_sin_carry ?? 0);
     const dTir = bono.tea_actual != null ? esc.tir - bono.tea_actual : null;
     // Sanity check linealizado del upside SIN carry: ΔP/P ≈ -Dur_res × ΔTIR.
     // Para el CON carry sumamos aprox el carry/precio actual.
@@ -158,7 +162,7 @@ export function SensibilidadTable() {
     let upsideLinear: number | null = null;
     if (durRes != null && dTir != null) {
       upsideLinear = -durRes * dTir;
-      if (modoCarry === "con_carry") {
+      if (modoCarry === "con_carry" && bono.cobrado_horizonte != null && bono.precio_actual) {
         upsideLinear += bono.cobrado_horizonte / bono.precio_actual;
       }
     }
@@ -251,13 +255,26 @@ export function SensibilidadTable() {
           </span>
           <input
             type="number"
-            value={horizonteDias}
+            value={horizonteInput}
             min={0}
             max={1095}
             step={30}
-            onChange={(e) => setHorizonteDias(parseInt(e.target.value || "0", 10))}
+            onChange={(e) => setHorizonteInput(e.target.value)}
+            onBlur={() => {
+              const n = parseInt(horizonteInput, 10);
+              if (!isNaN(n) && n >= 0 && n <= 1095) {
+                setHorizonteDias(n);
+                setHorizonteInput(String(n));
+              } else {
+                // Valor inválido → revertir visual al último válido.
+                setHorizonteInput(String(horizonteDias));
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+            }}
             className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
-            title="0 = upside instantáneo (foto de hoy). >0 = proyecta el precio a esa fecha (pull-to-par activo, sin carry)."
+            title="0 = upside instantáneo. >0 = proyecta el precio. Enter o click fuera para aplicar."
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -346,7 +363,9 @@ export function SensibilidadTable() {
                   {b.paridad ? `${b.paridad.toFixed(1)}%` : "—"}
                 </td>
                 {b.escenarios.map((e, i) => {
-                  const upside = modoCarry === "con_carry" ? e.upside_con_carry : e.upside_sin_carry;
+                  const upside = modoCarry === "con_carry"
+                    ? (e.upside_con_carry ?? e.upside_sin_carry ?? 0)
+                    : (e.upside_sin_carry ?? 0);
                   const c = colorRetorno(upside);
                   const tirReal = (e.tir * 100).toFixed(2);
                   const tip = `TIR ${tirReal}% · Precio obj ${e.precio_objetivo.toFixed(2)} · click para debug`;
@@ -463,9 +482,9 @@ export function SensibilidadTable() {
                 {modoCarry === "con_carry" && horizonteDias > 0 && (
                   <>
                     <span className="text-[#888]">Flujos en horiz.</span>
-                    <span className="text-right">{debug.bono.n_flujos_horizonte}</span>
+                    <span className="text-right">{debug.bono.n_flujos_horizonte ?? "—"}</span>
                     <span className="text-[#888]">Carry cobrado</span>
-                    <span className="text-right">{debug.bono.cobrado_horizonte.toFixed(4)}</span>
+                    <span className="text-right">{debug.bono.cobrado_horizonte?.toFixed(4) ?? "—"}</span>
                   </>
                 )}
               </div>
@@ -499,10 +518,10 @@ export function SensibilidadTable() {
                     Retorno = (P<sub>obj</sub> + Carry) / P<sub>actual</sub> − 1
                   </div>
                   <div className="text-[#888] mt-1 leading-[1.5]">
-                    = ({debug.esc.precio_objetivo.toFixed(4)} + {debug.bono.cobrado_horizonte.toFixed(4)}) / {debug.bono.precio_actual.toFixed(4)} − 1
+                    = ({debug.esc.precio_objetivo.toFixed(4)} + {(debug.bono.cobrado_horizonte ?? 0).toFixed(4)}) / {debug.bono.precio_actual.toFixed(4)} − 1
                   </div>
                   <div className="text-[#888] leading-[1.5]">
-                    = {(debug.esc.precio_objetivo + debug.bono.cobrado_horizonte).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
+                    = {(debug.esc.precio_objetivo + (debug.bono.cobrado_horizonte ?? 0)).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
                   </div>
                 </>
               ) : (
@@ -543,7 +562,7 @@ export function SensibilidadTable() {
                 <div className="text-[#888] mt-1 leading-[1.5]">
                   ≈ −{debug.durRes.toFixed(3)} × {(debug.dTir * 100).toFixed(2)} pp
                   {modoCarry === "con_carry" && horizonteDias > 0 && (
-                    <> + {debug.bono.cobrado_horizonte.toFixed(4)} / {debug.bono.precio_actual.toFixed(4)}</>
+                    <> + {(debug.bono.cobrado_horizonte ?? 0).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)}</>
                   )}
                 </div>
                 <div className="text-[#888] leading-[1.5]">
