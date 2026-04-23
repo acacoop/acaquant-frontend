@@ -289,15 +289,24 @@ function BreakevensGrafico({
     pares
       .filter((p) => p.breakeven_mensual != null)
       .forEach((p) => {
-        // El BE corresponde al IPC del mes vto − 2m (o al mes del vto si
-        // falta mes_inflacion). Ubicamos el punto en el mes del vto del
-        // bono para que se alinee con la grilla mensual.
-        const vto = new Date(p.fecha_vencimiento);
-        const ts = Date.UTC(vto.getUTCFullYear(), vto.getUTCMonth(), 15);
+        // El BE pricea el IPC del mes (vto − 2m). El punto va EN ESE MES,
+        // no en el mes del vto del bono. Fallback al vto solo si falta
+        // mes_inflacion (data vieja del backend).
+        let ts: number;
+        if (p.mes_inflacion) {
+          ts = Date.UTC(
+            parseInt(p.mes_inflacion.slice(0, 4), 10),
+            parseInt(p.mes_inflacion.slice(5, 7), 10) - 1,
+            15,
+          );
+        } else {
+          const vto = new Date(p.fecha_vencimiento);
+          ts = Date.UTC(vto.getUTCFullYear(), vto.getUTCMonth(), 15);
+        }
         if (isNaN(ts)) return;
         beByMonth.set(ts, {
           be:     +(p.breakeven_mensual * 100).toFixed(2),
-          ticker: p.mes_inflacion ? fmtPeriodoMensual(p.mes_inflacion) : shortTicker(p.lecap),
+          ticker: shortTicker(p.lecap),
         });
       });
 
@@ -418,10 +427,10 @@ function BreakevensGrafico({
             isAnimationActive={false}
             connectNulls
           />
-          {/* BE de mercado: la LÍNEA usa `be` con forward-fill (valor
-              arrastrado desde el último mes con dato cuando falta bono).
-              El scatter y los labels de ticker usan `beReal` (solo meses
-              que tienen un bono real detrás del valor). */}
+          {/* BE de mercado: línea naranja con forward-fill mes a mes.
+              El scatter pinta un punto EN CADA MES del grid (incluso los
+              que no tienen bono propio — ahí el valor viene arrastrado).
+              Los labels de ticker solo aparecen en meses con bono real. */}
           <Line
             dataKey="be"
             type="stepAfter"
@@ -431,7 +440,7 @@ function BreakevensGrafico({
             isAnimationActive={false}
             connectNulls
           />
-          <Scatter dataKey="beReal" fill="#ff9900" isAnimationActive={false}>
+          <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false}>
             <LabelList dataKey="ticker" position="top" fill="#aaaaaa" style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }} />
           </Scatter>
         </ComposedChart>
