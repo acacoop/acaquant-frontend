@@ -41,13 +41,8 @@ interface RemAcumItem {
 
 interface RemAcumResp {
   informe: string | null;
-  indicador: string;
+  indicador: string | null;
   serie: RemAcumItem[];
-}
-
-interface RemInforme {
-  informe: string;
-  n_registros: number;
 }
 
 type Modo = "live" | "hist";
@@ -92,8 +87,6 @@ export function BreakevensBlock({
 }) {
   const [modo, setModo] = useState<Modo>("live");
   const [remOn, setRemOn] = useState(true);
-  const [informes, setInformes] = useState<RemInforme[]>([]);
-  const [informeSel, setInformeSel] = useState<string>(""); // "" = último
   const [remSerie, setRemSerie] = useState<RemAcumItem[]>([]);
 
   const fechasOrdenadas = useMemo(
@@ -121,39 +114,23 @@ export function BreakevensBlock({
 
   const hayHistorico = fechasOrdenadas.length > 0;
 
-  // Lista de informes REM disponibles (solo al montar).
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/cotizaciones/rem/informes", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((j) => {
-        if (!cancelled && Array.isArray(j)) setInformes(j);
-      })
-      .catch(() => {
-        /* REM es best-effort: si falla el chart sigue funcionando */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Serie REM acumulada para el informe seleccionado.
+  // Serie REM acumulada, siempre del último informe disponible.
   useEffect(() => {
     if (!remOn) return;
     let cancelled = false;
-    const qs = informeSel ? `?informe=${encodeURIComponent(informeSel)}` : "";
-    fetch(`/api/cotizaciones/rem/breakeven-acumulado${qs}`, { cache: "no-store" })
+    fetch("/api/cotizaciones/rem/breakeven-acumulado", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j: RemAcumResp | null) => {
         if (!cancelled && j && Array.isArray(j.serie)) setRemSerie(j.serie);
       })
       .catch(() => {
+        /* REM best-effort: si falla el chart sigue funcionando */
         if (!cancelled) setRemSerie([]);
       });
     return () => {
       cancelled = true;
     };
-  }, [remOn, informeSel]);
+  }, [remOn]);
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -174,21 +151,6 @@ export function BreakevensBlock({
         <FilterBtn active={remOn} onClick={() => setRemOn((v) => !v)}>
           REM
         </FilterBtn>
-        {remOn && informes.length > 0 && (
-          <select
-            value={informeSel}
-            onChange={(e) => setInformeSel(e.target.value)}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#4fc3f7] outline-none"
-            title="Informe REM a superponer"
-          >
-            <option value="">último</option>
-            {informes.map((i) => (
-              <option key={i.informe} value={i.informe}>
-                {i.informe}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
 
       {modo === "hist" && hayHistorico && (
