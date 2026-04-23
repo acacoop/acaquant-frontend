@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useViewportKey } from "@/lib/use-viewport-key";
 import { DualRange } from "./dual-range";
 import { SensibilidadTable } from "./sensibilidad-table";
+import { CanjeTab } from "./canje-tab";
 import {
   CartesianGrid,
   Legend,
@@ -44,8 +45,10 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje";
+
 export function RetornoTotalView() {
-  const [tab, setTab] = useState<"retorno_total" | "sensibilidad">("retorno_total");
+  const [tab, setTab] = useState<EstrategiaTab>("retorno_total");
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -63,10 +66,16 @@ export function RetornoTotalView() {
           active={tab === "sensibilidad"}
           onClick={() => setTab("sensibilidad")}
         />
+        <TabPill
+          label="CANJE"
+          active={tab === "canje"}
+          onClick={() => setTab("canje")}
+        />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "retorno_total" && <HistoricoTab />}
         {tab === "sensibilidad" && <SensibilidadTable />}
+        {tab === "canje" && <CanjeTab />}
       </div>
     </div>
   );
