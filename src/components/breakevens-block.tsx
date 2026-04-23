@@ -22,6 +22,7 @@ interface BreakevenPar {
   fecha_vencimiento: string;
   fecha_vto_cer?: string;
   gap_cer_dias?: number;  // días entre vto Lecap y vto CER (positivo = CER posterior)
+  mes_inflacion?: string; // 'YYYY-MM' — IPC del mes que pricea este BE (vto_lecap − 2m)
   dias: number;
   tem_lecap: number;
   paridad_cer: number;
@@ -195,6 +196,9 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
             <th className="text-right" title="Días entre vto Lecap y vto CER. Target=60d (CER 2m posterior para corregir rezago).">
               GAP
             </th>
+            <th className="text-right" title="IPC del mes cuya inflación queda implicada (vto Lecap − 2 meses).">
+              IPC MES
+            </th>
             <th className="text-right">DÍAS</th>
             <th className="text-right">BE MEN.</th>
           </tr>
@@ -210,6 +214,7 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
               const distTarget = Math.abs(gap - 60);
               gapColor = distTarget <= 15 ? "#00cc66" : "#ff9900";
             }
+            const mesLabel = p.mes_inflacion ? fmtMesAnio(`${p.mes_inflacion}-01`) : "—";
             return (
               <tr key={p.n}>
                 <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
@@ -217,6 +222,7 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
                 <td className="text-right font-mono" style={{ color: gapColor }}>
                   {gap != null ? `+${gap}d` : "—"}
                 </td>
+                <td className="text-right text-[#d0d0d0] font-mono">{mesLabel}</td>
                 <td className="text-right text-[#808080]">{p.dias}</td>
                 <td className={`text-right font-bold ${be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"}`}>
                   {be.toFixed(2)}%
@@ -273,7 +279,11 @@ function BreakevensGrafico({
         if (isNaN(ts)) return;
         const entry = map.get(ts) ?? { vencTs: ts };
         entry.be = +(p.breakeven_mensual * 100).toFixed(2);
-        entry.ticker = shortTicker(p.lecap);
+        // Label del punto = mes de inflación implicada (vto − 2m). Fallback
+        // al ticker de la Lecap si el backend todavía no envía mes_inflacion.
+        entry.ticker = p.mes_inflacion
+          ? fmtMesAnio(`${p.mes_inflacion}-01`)
+          : shortTicker(p.lecap);
         map.set(ts, entry);
       });
 
