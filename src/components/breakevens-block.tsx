@@ -514,14 +514,10 @@ function BreakevenDebugContent({ par }: { par: BreakevenPar }) {
   const tem = par.tem_lecap;
   const paridad = par.paridad_cer;
   const dias = par.dias;
-  // Plazo efectivo de la inflación = hasta la liquidación del CER
-  // (vto − 10 hábiles ≈ vto − 14 corridos). Si el backend no lo envía
-  // (data vieja), fallback a `dias`.
-  const diasCer = par.dias_cer ?? dias;
 
   const retorno = Math.pow(1 + tem, dias / 30) - 1;
   const inflacion = (1 + retorno) * (paridad / 100) - 1;
-  const bkv = Math.pow(1 + inflacion, 30 / diasCer) - 1;
+  const bkv = Math.pow(1 + inflacion, 30 / dias) - 1;
 
   const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
   const pctSigned = (x: number, d = 2) => `${x >= 0 ? "+" : ""}${(x * 100).toFixed(d)}%`;
@@ -538,7 +534,7 @@ function BreakevenDebugContent({ par }: { par: BreakevenPar }) {
           </span>
         </div>
         <div className="text-[#555] text-[9px] mt-0.5">
-          Vto {par.fecha_vencimiento} · {dias}d hasta vto · {diasCer}d hasta CER-liq
+          Vto {par.fecha_vencimiento} · {dias} días
         </div>
       </div>
 
@@ -553,11 +549,6 @@ function BreakevenDebugContent({ par }: { par: BreakevenPar }) {
           <span className="text-right">{paridad.toFixed(2)}%</span>
           <span className="text-[#888]">Días al vto</span>
           <span className="text-right">{dias}</span>
-          <span className="text-[#888]">Días CER-liq</span>
-          <span className="text-right">
-            {diasCer}
-            {par.fecha_cer_liq ? <span className="text-[#555]"> ({par.fecha_cer_liq})</span> : null}
-          </span>
         </div>
       </div>
 
@@ -599,27 +590,22 @@ function BreakevenDebugContent({ par }: { par: BreakevenPar }) {
 
       <div>
         <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
-          Paso 3 · Breakeven mensual (anualización sobre CER-liq)
+          Paso 3 · Breakeven mensual
         </div>
         <div className="text-[#d0d0d0] leading-[1.5]">
-          BE = (1 + π)^(30/días<sub>CER</sub>) − 1
+          BE = (1 + π)^(30/días) − 1
         </div>
         <div className="text-[#888] mt-1 leading-[1.5]">
-          = (1 + {pct(inflacion, 3)})^(30/{diasCer}) − 1
+          = (1 + {pct(inflacion, 3)})^(30/{dias}) − 1
         </div>
         <div className="text-[#888] leading-[1.5]">
-          = (1 + {pct(inflacion, 3)})^{(30 / diasCer).toFixed(4)} − 1
+          = (1 + {pct(inflacion, 3)})^{(30 / dias).toFixed(4)} − 1
         </div>
         <div
           className="mt-1 text-[13px] font-semibold"
           style={{ color: bkv * 100 > 3 ? "#ff3333" : "#00cc66" }}
         >
           = {pct(bkv, 2)}
-        </div>
-        <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
-          Usamos días<sub>CER</sub> (no días al vto) porque el CER se fija
-          a T-10 hábiles; la inflación implícita corresponde a ese plazo,
-          no al plazo del bono. Equivalente al "Buscar Objetivo" de Excel.
         </div>
       </div>
     </div>
