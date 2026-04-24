@@ -19,9 +19,14 @@ interface JobStatus {
   nombre: string; ultimo: string | null; hace: string;
   frecuencia: string; estado: "ok" | "atrasado" | "critico" | "sin_datos" | "error_parse";
 }
+interface ApiStatus {
+  nombre: string; ultimo: string | null; hace: string;
+  cadencia: string; umbral?: string;
+  estado: "ok" | "lento" | "critico" | "fuera_rueda" | "sin_datos" | "error_parse";
+}
 interface StatusData {
   ahora_ar: string; en_rueda: boolean;
-  motores: MotorStatus[]; jobs: JobStatus[];
+  motores: MotorStatus[]; jobs: JobStatus[]; apis: ApiStatus[];
 }
 interface Job { status: "running" | "done" | "error"; tipo: string; result?: string; started_at?: string; finished_at?: string }
 
@@ -133,6 +138,24 @@ function TabDiagnostico() {
                 <td className="font-mono text-[#808080]">{j.hace}</td>
                 <td className="text-[#555555]">{j.frecuencia}</td>
                 <td><Badge estado={j.estado} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Panel>
+
+      <Panel title="APIS EXTERNAS (FUENTES DE DATOS)">
+        <table>
+          <thead><tr><th>FUENTE</th><th>ÚLTIMO DATO</th><th>HACE</th><th>CADENCIA</th><th>UMBRAL</th><th>ESTADO</th></tr></thead>
+          <tbody>
+            {(data?.apis ?? []).map((a) => (
+              <tr key={a.nombre}>
+                <td className="text-[#d0d0d0] font-semibold">{a.nombre}</td>
+                <td className="font-mono">{a.ultimo ?? "—"}</td>
+                <td className="font-mono text-[#808080]">{a.hace}</td>
+                <td className="text-[#555555]">{a.cadencia}</td>
+                <td className="font-mono text-[#555555]">{a.umbral ?? "—"}</td>
+                <td><Badge estado={a.estado} /></td>
               </tr>
             ))}
           </tbody>
