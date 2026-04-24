@@ -108,6 +108,25 @@ export function CostoHistoricoChart({
     return { min, max, ultimo, primero, delta };
   }, [serie]);
 
+  // Domain ajustado a la serie real (con padding 10%) para que la línea
+  // ocupe todo el alto. Sin esto Recharts arranca en 0 y los movimientos
+  // chicos quedan aplastados.
+  const yDomain = useMemo<[number, number] | ["auto", "auto"]>(() => {
+    if (!serie.length) return ["auto", "auto"];
+    const vals = serie.map((p) => p.costo);
+    if (typeof costoLive === "number" && costoLive !== 0) {
+      vals.push(costoLive);
+    }
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    if (min === max) {
+      // Todos iguales → forzar un rango chico para no colapsar
+      return [Math.floor(min - 1), Math.ceil(max + 1)];
+    }
+    const pad = (max - min) * 0.1;
+    return [Math.floor(min - pad), Math.ceil(max + pad)];
+  }, [serie, costoLive]);
+
   if (loading) {
     return (
       <p className="text-[#555555] text-xs py-4 text-center">
@@ -194,11 +213,14 @@ export function CostoHistoricoChart({
               scale="time"
             />
             <YAxis
+              domain={yDomain}
               tick={{ fill: "#808080", fontSize: 9 }}
               axisLine={{ stroke: "#2a2a2a" }}
               tickLine={false}
               tickFormatter={fmtCosto}
+              tickCount={6}
               width={60}
+              allowDecimals={false}
             />
             <Tooltip
               contentStyle={{
