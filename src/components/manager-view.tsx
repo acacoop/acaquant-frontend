@@ -6,6 +6,8 @@ import { IntelPanel } from "./intel-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { LogsPanel } from "./logs-panel";
 import { RecursosPanel } from "./recursos-panel";
+import { RolesPanel } from "./roles-panel";
+import { UsuariosPanel } from "./usuarios-panel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -902,7 +904,17 @@ function TabValidaciones() {
   );
 }
 
-type Tab = "diagnostico" | "backfills" | "jobs" | "validaciones" | "asistente" | "intel" | "recursos" | "logs";
+type Tab =
+  | "diagnostico"
+  | "backfills"
+  | "jobs"
+  | "validaciones"
+  | "asistente"
+  | "intel"
+  | "recursos"
+  | "logs"
+  | "usuarios"
+  | "roles";
 
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
@@ -916,6 +928,8 @@ export function ManagerView() {
     { id: "logs",         label: "LOGS"         },
     { id: "asistente",    label: "ASISTENTE"    },
     { id: "intel",        label: "INTEL"        },
+    { id: "usuarios",     label: "USUARIOS"     },
+    { id: "roles",        label: "ROLES Y PERMISOS" },
   ];
 
   return (
@@ -938,6 +952,8 @@ export function ManagerView() {
         {tab === "logs"         && <LogsPanel />}
         {tab === "asistente"    && <AsistenteDashboard />}
         {tab === "intel"        && <IntelPanel />}
+        {tab === "usuarios"     && <UsuariosPanel />}
+        {tab === "roles"        && <RolesPanel />}
       </div>
     </div>
   );

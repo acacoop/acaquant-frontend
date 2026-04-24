@@ -22,6 +22,10 @@ async function proxy(req: Request, path: string[]) {
       headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
       headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
     }
+    // Propagar la identidad del user para que el backend loguee el actor
+    // real en Manager.RoleAudit (sin esto el audit diría "service:...").
+    const userEmail = req.headers.get("cf-access-authenticated-user-email");
+    if (userEmail) headers["cf-access-authenticated-user-email"] = userEmail;
 
     const method = req.method.toUpperCase();
     const init: RequestInit = { method, headers, cache: "no-store" };
