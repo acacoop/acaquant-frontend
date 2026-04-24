@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Header } from "@/components/header";
 import { PauseBanner } from "@/components/pause-banner";
 import { TopTicker } from "@/components/top-ticker";
+import { getMe } from "@/lib/me";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,23 +10,15 @@ export const metadata: Metadata = {
   description: "TradingAV — Terminal para mercados argentinos",
 };
 
-async function computeIsManager(): Promise<boolean> {
-  const managerEmails = (process.env.MANAGER_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  if (managerEmails.length === 0) return true; // dev mode
-  const hdrs = await headers();
-  const email = (hdrs.get("cf-access-authenticated-user-email") ?? "").toLowerCase();
-  return managerEmails.includes(email);
-}
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isManager = await computeIsManager();
+  const me = await getMe();
+  // Si el backend no responde (dev sin API_URL, o caído) → modules=null
+  // y el Header muestra todo (modo permissive para no romper local dev).
+  const modules = me?.modules ?? null;
   return (
     <html lang="es" className="h-full">
       <head>
@@ -36,7 +28,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="h-full flex flex-col">
-        <Header isManager={isManager} />
+        <Header modules={modules} />
         <PauseBanner />
         <TopTicker />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>

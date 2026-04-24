@@ -4,21 +4,28 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const NAV_LINKS = [
-  { href: "/", label: "HOME" },
-  { href: "/renta-fija", label: "RENTA FIJA" },
-  { href: "/derivados", label: "DERIVADOS" },
-  { href: "/retorno", label: "ESTRATEGIA" },
-  { href: "/operaciones", label: "OPERACIONES" },
-  { href: "/portfolios", label: "PORTFOLIOS" },
-  { href: "/aum",     label: "AUM"     },
-  { href: "/asistente", label: "ASISTENTE", admin: true },
-  { href: "/manager", label: "MANAGER", admin: true },
+// module coincide con core/roles.py::MODULES en el backend. Link visible
+// si el user tiene ese módulo en /api/me.modules.
+const NAV_LINKS: { href: string; label: string; module: string }[] = [
+  { href: "/",           label: "HOME",        module: "home" },
+  { href: "/renta-fija", label: "RENTA FIJA",  module: "renta-fija" },
+  { href: "/derivados",  label: "DERIVADOS",   module: "derivados" },
+  { href: "/retorno",    label: "ESTRATEGIA",  module: "estrategia" },
+  { href: "/operaciones",label: "OPERACIONES", module: "operaciones" },
+  { href: "/portfolios", label: "PORTFOLIOS",  module: "portfolios" },
+  { href: "/aum",        label: "AUM",         module: "portfolios" },
+  { href: "/asistente",  label: "ASISTENTE",   module: "asistente" },
+  { href: "/manager",    label: "MANAGER",     module: "manager" },
 ];
 
-export function Header({ isManager = false }: { isManager?: boolean }) {
+export function Header({ modules = null }: { modules?: string[] | null }) {
   const pathname = usePathname();
-  const links = NAV_LINKS.filter((l) => isManager || !l.admin);
+  // modules === null → dev mode / backend caído: mostrar todos los links.
+  // modules === [] o distinto → filtrar por pertenencia.
+  const links =
+    modules === null
+      ? NAV_LINKS
+      : NAV_LINKS.filter((l) => modules.includes(l.module));
   return (
     <header className="flex items-center h-10 px-3 bg-[#094293] border-b border-[#062d66]">
       <Link href="/" className="flex items-center gap-2 mr-6">
