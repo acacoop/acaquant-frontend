@@ -127,6 +127,24 @@ export function CostoHistoricoChart({
     return [Math.floor(min - pad), Math.ceil(max + pad)];
   }, [serie, costoLive]);
 
+  // Un tick por día (el primer bucket de cada día). Evita repetir la hora
+  // de cierre 5 veces — basta con ver la fecha. El tooltip sigue mostrando
+  // hora completa al hover.
+  const xTicks = useMemo<number[]>(() => {
+    if (!serie.length) return [];
+    const seen = new Set<string>();
+    const out: number[] = [];
+    for (const p of serie) {
+      const d = new Date(p.t);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(p.t);
+      }
+    }
+    return out;
+  }, [serie]);
+
   if (loading) {
     return (
       <p className="text-[#555555] text-xs py-4 text-center">
@@ -151,7 +169,17 @@ export function CostoHistoricoChart({
 
   const fmtCosto = (v: number) =>
     v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-  const fmtFecha = (t: number) => {
+  // Tick corto: solo DD/MM. Como forzamos 1 tick por día (xTicks), no
+  // tiene sentido repetir hora — la serie cruza varios días y ver "20/04
+  // 16:45" + "21/04 16:45" + ... es ruido.
+  const fmtTickFecha = (t: number) => {
+    const d = new Date(t);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(
+      d.getMonth() + 1,
+    ).padStart(2, "0")}`;
+  };
+  // En el tooltip sí mantenemos fecha + hora porque querés ver el bucket exacto.
+  const fmtTooltipFecha = (t: number) => {
     const d = new Date(t);
     return `${String(d.getDate()).padStart(2, "0")}/${String(
       d.getMonth() + 1,
@@ -206,11 +234,13 @@ export function CostoHistoricoChart({
               dataKey="t"
               type="number"
               domain={["dataMin", "dataMax"]}
+              ticks={xTicks}
               tick={{ fill: "#808080", fontSize: 9 }}
               axisLine={{ stroke: "#2a2a2a" }}
               tickLine={false}
-              tickFormatter={fmtFecha}
+              tickFormatter={fmtTickFecha}
               scale="time"
+              minTickGap={30}
             />
             <YAxis
               domain={yDomain}
@@ -229,7 +259,7 @@ export function CostoHistoricoChart({
                 fontSize: 11,
                 fontFamily: "JetBrains Mono, monospace",
               }}
-              labelFormatter={(v) => fmtFecha(Number(v))}
+              labelFormatter={(v) => fmtTooltipFecha(Number(v))}
               formatter={(value, key, item) => {
                 if (key === "costo") {
                   const p = item.payload as (typeof serie)[0];
