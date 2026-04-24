@@ -9,6 +9,7 @@ type User = {
   notes?: string;
   created_at?: string;
   updated_at?: string;
+  auto_registered?: boolean;
 };
 
 type UsersResponse = {
@@ -228,7 +229,17 @@ function UserRow({
   };
   return (
     <div className="grid grid-cols-[1fr_120px_90px_1fr_140px_80px] gap-2 px-3 py-1.5 border-b border-[#141414] text-xs items-center hover:bg-[#0e0e0e]">
-      <div className="text-[#d0d0d0] font-mono truncate">{user.email}</div>
+      <div className="text-[#d0d0d0] font-mono truncate flex items-center gap-1.5">
+        <span className="truncate">{user.email}</span>
+        {user.auto_registered && (
+          <span
+            title="Detectado automáticamente en primera visita — revisar role"
+            className="text-[8px] px-1 py-0.5 border border-[#ff9900]/40 text-[#ff9900] bg-[#ff9900]/10 shrink-0"
+          >
+            AUTO
+          </span>
+        )}
+      </div>
       <select
         value={user.role}
         disabled={busy}
