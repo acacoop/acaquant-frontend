@@ -195,6 +195,10 @@ export interface EstrategiaRow {
   gamma: number | null;
   theta: number | null;
   legs: ResolvedLeg[];
+  // Legs del template original (con offsets). Usado por el chart de costo
+  // histórico que necesita recomputar la estrategia por bucket sobre el
+  // ATM de cada día (no sobre los strikes de hoy).
+  tplLegs: Leg[];
 }
 
 type PorStrike = Record<number, { CALL?: OpcionDoc; PUT?: OpcionDoc }>;
@@ -315,6 +319,7 @@ export function calcularEstrategias(
       gamma: valid ? gNet : null,
       theta: valid ? tNet : null,
       legs: valid ? resolvedLegs : [],
+      tplLegs: tpl.legs,
     });
   }
   return rows;

@@ -6,6 +6,7 @@ import { OpcionesTableCompact } from "./opciones-table-compact";
 import { EstrategiasTabla } from "./estrategias-tabla";
 import { PayoffChart } from "./payoff-chart";
 import { EscenariosTabla } from "./escenarios-tabla";
+import { CostoHistoricoChart } from "./costo-historico-chart";
 import { usePoll } from "@/lib/use-poll";
 import {
   buildPorStrike,
@@ -186,7 +187,7 @@ export function DerivadosView({
           </Panel>
         </div>
 
-        <div className="min-w-0 min-h-0">
+        <div className="min-w-0 min-h-0 grid grid-rows-[3fr_2fr] gap-3">
           <Panel
             title={
               selRow
@@ -225,6 +226,19 @@ export function DerivadosView({
                 spot={spot}
                 costo={selCosto || 0}
                 tasa={meta.tasa}
+              />
+            )}
+          </Panel>
+          <Panel title="COSTO HISTÓRICO" fill>
+            {!selRow || !selRow.tplLegs?.length ? (
+              <p className="text-[#555555] text-xs py-4 text-center">
+                Seleccioná una estrategia para ver la serie de costo del OPEX.
+              </p>
+            ) : (
+              <CostoHistoricoChart
+                legs={selRow.tplLegs}
+                bucketMin={15}
+                costoLive={selCosto || 0}
               />
             )}
           </Panel>
