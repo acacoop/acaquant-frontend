@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AsistenteDashboard } from "./asistente-dashboard";
-import { IntelPanel } from "./intel-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { LogsPanel } from "./logs-panel";
 import { RecursosPanel } from "./recursos-panel";
@@ -933,7 +932,6 @@ type Tab =
   | "jobs"
   | "validaciones"
   | "asistente"
-  | "intel"
   | "recursos"
   | "logs"
   | "usuarios"
@@ -950,7 +948,6 @@ export function ManagerView() {
     { id: "recursos",     label: "RECURSOS"     },
     { id: "logs",         label: "LOGS"         },
     { id: "asistente",    label: "ASISTENTE"    },
-    { id: "intel",        label: "INTEL"        },
     { id: "usuarios",     label: "USUARIOS"     },
     { id: "roles",        label: "ROLES Y PERMISOS" },
   ];
@@ -974,7 +971,6 @@ export function ManagerView() {
         {tab === "recursos"     && <RecursosPanel />}
         {tab === "logs"         && <LogsPanel />}
         {tab === "asistente"    && <AsistenteDashboard />}
-        {tab === "intel"        && <IntelPanel />}
         {tab === "usuarios"     && <UsuariosPanel />}
         {tab === "roles"        && <RolesPanel />}
       </div>

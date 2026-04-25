@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 // Soporta GET / POST / PATCH / DELETE y tanto JSON como multipart/form-data
-// (necesario para /api/manager/intel/extract con upload de PDFs).
+// (genérico — el branch de multipart queda por si algún endpoint futuro lo necesita).
 const API_URL = process.env.API_URL || "https://api.acaquant.com";
 const API_KEY = process.env.API_KEY || "";
 const CF_CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID || "";
