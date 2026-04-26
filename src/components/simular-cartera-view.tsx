@@ -449,10 +449,11 @@ function PosicionesTable({
       <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-[#666] border-b border-[#1a1a1a] bg-[#0a0a0a]">
         Posiciones
       </div>
+      <AgregarPosicionForm tickers={tickers} onAdd={onAdd} />
       <div className="flex-1 overflow-auto">
         {posiciones.length === 0 && (
           <div className="px-3 py-4 text-[11px] text-[#666]">
-            Agregá un ticker abajo para empezar.
+            Agregá un ticker arriba para empezar.
           </div>
         )}
         {posiciones.length > 0 && (
@@ -508,7 +509,6 @@ function PosicionesTable({
           </table>
         )}
       </div>
-      <AgregarPosicionForm tickers={tickers} onAdd={onAdd} />
     </div>
   );
 }
@@ -551,7 +551,7 @@ function AgregarPosicionForm({
   }
 
   return (
-    <div className="border-t border-[#1a1a1a] bg-[#0a0a0a] px-3 py-2">
+    <div className="border-b border-[#1a1a1a] bg-[#0a0a0a] px-3 py-2">
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <input
@@ -565,7 +565,7 @@ function AgregarPosicionForm({
             className="w-full bg-[#0f0f0f] border border-[#222] px-2 py-1 text-[11px] text-[#ddd] outline-none focus:border-[#ff9900]"
           />
           {showOpts && sugerencias.length > 0 && (
-            <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#0a0a0a] border border-[#2a2a2a] max-h-60 overflow-auto z-10">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-[#0a0a0a] border border-[#2a2a2a] max-h-60 overflow-auto z-10">
               {sugerencias.map((s) => (
                 <div
                   key={s.ticker}
@@ -647,10 +647,9 @@ function MetricasCards({ metricas }: { metricas: Analytics["metricas"] }) {
     { label: "Monto total", value: fmtImporte(metricas.monto_total) },
     { label: "Duration",    value: fmtNumber(metricas.duration_ponderada, 2) },
     { label: "TEA",         value: fmtPct(metricas.tea_ponderada) },
-    { label: "Paridad",     value: fmtNumber(metricas.paridad_ponderada, 1) },
   ];
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-3 gap-2">
       {items.map((m) => (
         <div key={m.label} className="border border-[#1a1a1a] bg-[#0a0a0a] px-3 py-2">
           <div className="text-[9px] uppercase tracking-widest text-[#666]">{m.label}</div>
