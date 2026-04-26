@@ -68,46 +68,79 @@ interface VisibleTurn {
   carteraReq?: CarteraRequest;
 }
 
-// Persistencia del chat en localStorage para que la conversación sobreviva
-// cambios de tab/ruta. Versionar la key permite invalidar todo si más
-// adelante cambia el shape de turns/history.
-const STORAGE_KEY = "acaquant:chat:state:v1";
+// Persistencia del chat en localStorage. Esquema multi-conversación:
+// `acaquant:chat:conversations:v1` es un dict { [id]: conversación }.
+// El id coincide con conversation_id del backend (Manager.AsistenteLogs)
+// para poder cruzar logs si hace falta.
+//
+// Antes existía `acaquant:chat:state:v1` con UNA sola conversación.
+// `migrateLegacyIfAny` lo importa como una conversación inicial y borra
+// el storage viejo para no duplicar.
+const CONVS_KEY = "acaquant:chat:conversations:v1";
+const LEGACY_KEY = "acaquant:chat:state:v1";
 
-interface PersistedChatState {
+interface PersistedConversation {
+  id: string;
   turns: VisibleTurn[];
   history: GeminiMessage[];
-  conversationId?: string | null;
+  lastUpdated: number;  // ms epoch
 }
 
-function loadChatState(): PersistedChatState | null {
-  if (typeof window === "undefined") return null;
+type ConversationsStorage = Record<string, PersistedConversation>;
+
+function loadConversations(): ConversationsStorage {
+  if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedChatState;
-    if (!Array.isArray(parsed?.turns) || !Array.isArray(parsed?.history)) return null;
-    return parsed;
+    const raw = window.localStorage.getItem(CONVS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
   } catch {
-    return null;
+    return {};
   }
 }
 
-function saveChatState(state: PersistedChatState): void {
+function saveConversations(c: ConversationsStorage): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(CONVS_KEY, JSON.stringify(c));
   } catch {
-    // localStorage lleno o deshabilitado — silencioso, no rompemos UX
+    // localStorage lleno o deshabilitado — silencioso
   }
 }
 
-function clearChatState(): void {
-  if (typeof window === "undefined") return;
+function migrateLegacyIfAny(current: ConversationsStorage): ConversationsStorage {
+  if (typeof window === "undefined") return current;
   try {
-    window.localStorage.removeItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(LEGACY_KEY);
+    if (!raw) return current;
+    const parsed = JSON.parse(raw) as {
+      turns?: VisibleTurn[];
+      history?: GeminiMessage[];
+      conversationId?: string | null;
+    };
+    window.localStorage.removeItem(LEGACY_KEY);
+    if (!Array.isArray(parsed?.turns) || parsed.turns.length === 0) return current;
+    const id = parsed.conversationId || `local-${Date.now().toString(36)}`;
+    if (current[id]) return current;
+    return {
+      ...current,
+      [id]: {
+        id,
+        turns: parsed.turns,
+        history: Array.isArray(parsed.history) ? parsed.history : [],
+        lastUpdated: Date.now(),
+      },
+    };
   } catch {
-    // ignorar
+    return current;
   }
+}
+
+function previewConv(c: PersistedConversation): string {
+  const firstUser = c.turns.find((t) => t.role === "user");
+  const txt = firstUser?.text ?? "(sin mensajes)";
+  return txt.length > 60 ? txt.slice(0, 60) + "…" : txt;
 }
 
 /**
@@ -242,9 +275,15 @@ async function parseError(res: Response): Promise<AppError> {
 }
 
 export function ChatView() {
+  // Conversación ACTIVA en el panel de chat.
   const [turns, setTurns] = useState<VisibleTurn[]>([]);
   const [history, setHistory] = useState<GeminiMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+
+  // Lista completa de conversaciones guardadas (cargada de localStorage).
+  const [conversations, setConversations] = useState<ConversationsStorage>({});
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
@@ -259,23 +298,37 @@ export function ChatView() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hydratedRef = useRef(false);
 
-  // Hidratar desde localStorage al montar. Hacemos esto en useEffect (no en
-  // useState lazy initializer) porque localStorage no existe durante SSR.
+  // Cargar conversaciones desde localStorage al montar. NO se carga ninguna
+  // como activa — siempre arranca conversación en blanco; las pasadas viven
+  // en el sidebar.
   useEffect(() => {
-    const persisted = loadChatState();
-    if (persisted) {
-      setTurns(persisted.turns);
-      setHistory(persisted.history);
-      setConversationId(persisted.conversationId ?? null);
-    }
+    const fromStorage = loadConversations();
+    const migrated = migrateLegacyIfAny(fromStorage);
+    if (migrated !== fromStorage) saveConversations(migrated);
+    setConversations(migrated);
     hydratedRef.current = true;
   }, []);
 
-  // Persistir cuando turns/history/conversationId cambian — sólo después de
-  // hidratar para no pisar el storage con [] vacíos durante el primer render.
+  // Auto-save de la conversación activa cuando cambian sus turns/history,
+  // pero solo si tiene conversation_id (asignado al recibir la primera
+  // respuesta del backend) y al menos un turn. Conversaciones recién
+  // arrancadas que aún no tuvieron respuesta no se persisten.
   useEffect(() => {
     if (!hydratedRef.current) return;
-    saveChatState({ turns, history, conversationId });
+    if (!conversationId || turns.length === 0) return;
+    setConversations((prev) => {
+      const next: ConversationsStorage = {
+        ...prev,
+        [conversationId]: {
+          id: conversationId,
+          turns,
+          history,
+          lastUpdated: Date.now(),
+        },
+      };
+      saveConversations(next);
+      return next;
+    });
   }, [turns, history, conversationId]);
 
   useEffect(() => {
@@ -442,15 +495,55 @@ export function ChatView() {
   }
 
   function resetear() {
+    // Conversación nueva: vacía el panel pero NO borra las guardadas.
     setTurns([]);
     setHistory([]);
     setConversationId(null);
     setError(null);
-    clearChatState();
+    setLastMessage(null);
+    setCarteraFormOpen(false);
   }
 
+  function abrirConversacion(id: string) {
+    const conv = conversations[id];
+    if (!conv) return;
+    setTurns(conv.turns);
+    setHistory(conv.history);
+    setConversationId(conv.id);
+    setError(null);
+    setCarteraFormOpen(false);
+  }
+
+  function eliminarConversacion(id: string) {
+    if (!confirm("¿Eliminar esta conversación?")) return;
+    setConversations((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      saveConversations(next);
+      return next;
+    });
+    // Si era la activa, vaciamos el panel.
+    if (id === conversationId) resetear();
+  }
+
+  // Lista de conversaciones ordenadas por última actividad desc para el
+  // sidebar. Memoizada implícitamente vía dependencia de `conversations`.
+  const convsList = Object.values(conversations).sort(
+    (a, b) => b.lastUpdated - a.lastUpdated,
+  );
+
   return (
-    <div className="h-full flex flex-col bg-[#080808]">
+    <div className="h-full flex bg-[#080808]">
+      <ConversationsSidebar
+        conversations={convsList}
+        activeId={conversationId}
+        onSelect={abrirConversacion}
+        onNueva={resetear}
+        onEliminar={eliminarConversacion}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
+      />
+      <div className="flex-1 min-w-0 flex flex-col">
       <div className="border-b border-[#1a1a1a] px-3 py-1.5 flex items-center gap-3 shrink-0">
         <span className="text-[10px] tracking-wide text-[#555555] uppercase">Asistente</span>
         <span className="text-[10px] text-[#ff9900]">Claude · haiku/sonnet auto</span>
@@ -639,6 +732,98 @@ export function ChatView() {
           </button>
         </div>
       </div>
+      </div>
     </div>
+  );
+}
+
+
+function ConversationsSidebar({
+  conversations, activeId, onSelect, onNueva, onEliminar, open, onToggle,
+}: {
+  conversations: PersistedConversation[];
+  activeId: string | null;
+  onSelect: (id: string) => void;
+  onNueva: () => void;
+  onEliminar: (id: string) => void;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  // Versión colapsada: barra delgada con toggle + nueva + conteo.
+  if (!open) {
+    return (
+      <aside className="w-8 shrink-0 border-r border-[#1a1a1a] flex flex-col items-center bg-[#0a0a0a] py-2 gap-1">
+        <button
+          onClick={onToggle}
+          title="Expandir conversaciones"
+          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900]"
+        >
+          ▶
+        </button>
+        <button
+          onClick={onNueva}
+          title="Nueva conversación"
+          className="w-6 h-6 flex items-center justify-center text-[14px] font-bold bg-[#ff9900] text-black hover:bg-[#ffaa22]"
+        >
+          +
+        </button>
+        {conversations.length > 0 && (
+          <div className="text-[9px] text-[#666] mt-1">{conversations.length}</div>
+        )}
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="w-64 shrink-0 border-r border-[#1a1a1a] flex flex-col bg-[#0a0a0a]">
+      <div className="px-3 py-2 border-b border-[#1a1a1a] flex items-center gap-2">
+        <button
+          onClick={onNueva}
+          className="flex-1 px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[#ff9900] text-black hover:bg-[#ffaa22]"
+        >
+          + NUEVA CONVERSACIÓN
+        </button>
+        <button
+          onClick={onToggle}
+          title="Colapsar"
+          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900] border border-[#2a2a2a]"
+        >
+          ◀
+        </button>
+      </div>
+      <div className="flex-1 overflow-auto">
+        {conversations.length === 0 && (
+          <div className="px-3 py-4 text-[11px] text-[#555]">
+            Sin conversaciones guardadas.
+          </div>
+        )}
+        {conversations.map((c) => (
+          <div
+            key={c.id}
+            className={`group flex items-center px-3 py-2 border-b border-[#1a1a1a] cursor-pointer ${
+              activeId === c.id ? "bg-[#1a1a1a]" : "hover:bg-[#121212]"
+            }`}
+            onClick={() => onSelect(c.id)}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-semibold text-[#ddd] truncate">
+                {previewConv(c)}
+              </div>
+              <div className="text-[10px] text-[#666]">
+                {c.turns.length} turn{c.turns.length === 1 ? "" : "s"} ·{" "}
+                {new Date(c.lastUpdated).toLocaleDateString("es-AR")}
+              </div>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onEliminar(c.id); }}
+              className="opacity-0 group-hover:opacity-100 px-1.5 text-[12px] text-[#888] hover:text-[#ff6666]"
+              title="Eliminar"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+    </aside>
   );
 }
