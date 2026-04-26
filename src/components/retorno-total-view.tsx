@@ -6,6 +6,7 @@ import { DualRange } from "./dual-range";
 import { SensibilidadTable } from "./sensibilidad-table";
 import { CanjeTab } from "./canje-tab";
 import { CarryTradeTab } from "./carry-trade-tab";
+import { SimularCarteraView } from "./simular-cartera-view";
 import {
   CartesianGrid,
   Legend,
@@ -54,7 +55,7 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "carry_trade";
+type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "carry_trade" | "simular_cartera";
 
 export function RetornoTotalView() {
   const [tab, setTab] = useState<EstrategiaTab>("retorno_total");
@@ -85,12 +86,18 @@ export function RetornoTotalView() {
           active={tab === "carry_trade"}
           onClick={() => setTab("carry_trade")}
         />
+        <TabPill
+          label="SIMULAR CARTERA"
+          active={tab === "simular_cartera"}
+          onClick={() => setTab("simular_cartera")}
+        />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "retorno_total" && <HistoricoTab />}
         {tab === "sensibilidad" && <SensibilidadTable />}
         {tab === "canje" && <CanjeTab />}
         {tab === "carry_trade" && <CarryTradeTab />}
+        {tab === "simular_cartera" && <SimularCarteraView />}
       </div>
     </div>
   );
