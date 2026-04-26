@@ -14,6 +14,9 @@ export interface RentaFijaDoc {
     low_price?: number;
     closing_price?: number;
     open_price?: number;
+    duration?: number;
+    mod_duration?: number;
+    convexity?: number;
   };
 }
 

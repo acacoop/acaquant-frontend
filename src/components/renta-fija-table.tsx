@@ -1,21 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { RentaFijaDoc } from "@/lib/types";
 import { shortTicker, fmtPrice, fmtVol } from "./ui";
 import { LibroPanel } from "./libro-panel";
-
-interface RentaFijaDoc {
-  instrumento: string;
-  metrics?: {
-    last_price?: number;
-    vwap?: number;
-    total_nominals?: number;
-    high_price?: number;
-    low_price?: number;
-    closing_price?: number;
-    open_price?: number;
-  };
-}
 
 interface FlujoTicker {
   ticker: string;
@@ -62,10 +50,12 @@ export function RentaFijaTable({
 
   const sorted = filtered
     .filter((r) => r.metrics?.last_price)
-    .sort(
-      (a, b) =>
-        (b.metrics?.total_nominals || 0) - (a.metrics?.total_nominals || 0)
-    );
+    .sort((a, b) => {
+      // Bonos sin duration al final (ej. tickers nuevos sin enrich todavía).
+      const da = a.metrics?.duration ?? Infinity;
+      const db = b.metrics?.duration ?? Infinity;
+      return da - db;
+    });
 
   return (
     <div>
@@ -103,9 +93,9 @@ export function RentaFijaTable({
                 {curva === "tasa_fija" && (
                   <th className="!px-1 text-center">TEM</th>
                 )}
-                <th className="!px-1 text-center">HIGH</th>
-                <th className="!px-1 text-center">LOW</th>
-                <th className="!px-1 text-center">CIERRE</th>
+                <th className="!px-1 text-center">DURATION</th>
+                <th className="!px-1 text-center">MOD DUR</th>
+                <th className="!px-1 text-center">CONVEXITY</th>
                 <th className="!px-1 text-center">VOL NOM</th>
               </tr>
             </thead>
@@ -172,14 +162,20 @@ export function RentaFijaTable({
                         {tem !== null ? `${tem.toFixed(2)}%` : "--"}
                       </td>
                     )}
-                    <td className="!px-1 text-right text-[#00cc66]">
-                      {fmtPrice(r.metrics?.high_price)}
+                    <td className="!px-1 text-right text-[#d0d0d0]">
+                      {r.metrics?.duration !== undefined
+                        ? r.metrics.duration.toFixed(2)
+                        : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#ff3333]">
-                      {fmtPrice(r.metrics?.low_price)}
+                    <td className="!px-1 text-right text-[#d0d0d0]">
+                      {r.metrics?.mod_duration !== undefined
+                        ? r.metrics.mod_duration.toFixed(2)
+                        : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#808080]">
-                      {fmtPrice(close)}
+                    <td className="!px-1 text-right text-[#d0d0d0]">
+                      {r.metrics?.convexity !== undefined
+                        ? r.metrics.convexity.toFixed(2)
+                        : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#ffaa00]">
                       {fmtVol(r.metrics?.total_nominals)}
