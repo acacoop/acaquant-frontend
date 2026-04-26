@@ -154,6 +154,7 @@ export function SimularCarteraView() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Cargar lista de simulaciones al montar.
   useEffect(() => {
@@ -298,6 +299,8 @@ export function SimularCarteraView() {
         onSelect={handleSelect}
         onNueva={handleNueva}
         onEliminar={handleEliminar}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
       />
       <div className="flex-1 min-w-0 flex flex-col">
         <EditorHeader
@@ -337,22 +340,58 @@ export function SimularCarteraView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({
-  simulaciones, activeId, onSelect, onNueva, onEliminar,
+  simulaciones, activeId, onSelect, onNueva, onEliminar, open, onToggle,
 }: {
   simulaciones: Simulacion[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onNueva: () => void;
   onEliminar: (id: string) => void;
+  open: boolean;
+  onToggle: () => void;
 }) {
-  return (
-    <aside className="w-56 shrink-0 border-r border-[#1a1a1a] flex flex-col bg-[#0a0a0a]">
-      <div className="px-3 py-2 border-b border-[#1a1a1a]">
+  // Versión colapsada: barra delgada con dos botones (toggle expandir +
+  // crear nueva). El conteo de carteras se ve como dot debajo del +
+  // para que el user sepa que hay guardadas.
+  if (!open) {
+    return (
+      <aside className="w-8 shrink-0 border-r border-[#1a1a1a] flex flex-col items-center bg-[#0a0a0a] py-2 gap-1">
+        <button
+          onClick={onToggle}
+          title="Expandir lista de carteras"
+          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900]"
+        >
+          ▶
+        </button>
         <button
           onClick={onNueva}
-          className="w-full px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[#ff9900] text-black hover:bg-[#ffaa22]"
+          title="Nueva cartera"
+          className="w-6 h-6 flex items-center justify-center text-[14px] font-bold bg-[#ff9900] text-black hover:bg-[#ffaa22]"
+        >
+          +
+        </button>
+        {simulaciones.length > 0 && (
+          <div className="text-[9px] text-[#666] mt-1">{simulaciones.length}</div>
+        )}
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="w-56 shrink-0 border-r border-[#1a1a1a] flex flex-col bg-[#0a0a0a]">
+      <div className="px-3 py-2 border-b border-[#1a1a1a] flex items-center gap-2">
+        <button
+          onClick={onNueva}
+          className="flex-1 px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[#ff9900] text-black hover:bg-[#ffaa22]"
         >
           + NUEVA CARTERA
+        </button>
+        <button
+          onClick={onToggle}
+          title="Colapsar lista de carteras"
+          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900] border border-[#2a2a2a]"
+        >
+          ◀
         </button>
       </div>
       <div className="flex-1 overflow-auto">
