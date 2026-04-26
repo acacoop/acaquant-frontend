@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { CarteraForm, type CarteraRequest } from "./cartera-form";
+import { CarteraResponse, type CarteraData } from "./cartera-response";
+
 /**
  * Tipos que refleja el backend (api/routers/chat.py).
  * El history se guarda en formato Gemini (role + parts) y se envía de vuelta
@@ -55,6 +58,14 @@ interface VisibleTurn {
   text: string;
   toolCalls?: ToolCall[];
   meta?: { steps: number; elapsed_s: number; tokens?: number; model?: string };
+  // Si presente, este turn assistant se renderiza con CarteraResponse en
+  // lugar de texto. El campo `text` queda como descripción corta para el
+  // history persistido (ej: "Cartera generada").
+  carteraData?: CarteraData | null;
+  carteraMeta?: { pesos_ok: boolean; pesos_suma: number; error?: string | null };
+  // Si presente, el user turn lleva la última request enviada para que el
+  // botón "modificar parámetros" pueda reabrir el form precargado.
+  carteraReq?: CarteraRequest;
 }
 
 // Persistencia del chat en localStorage para que la conversación sobreviva
@@ -238,6 +249,12 @@ export function ChatView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
+  // Form de cartera abierto inline. Si tiene initial, viene de "modificar
+  // parámetros" sobre una respuesta previa.
+  const [carteraFormOpen, setCarteraFormOpen] = useState(false);
+  const [carteraFormInitial, setCarteraFormInitial] = useState<Partial<CarteraRequest> | undefined>(
+    undefined,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const hydratedRef = useRef(false);
@@ -331,6 +348,92 @@ export function ChatView() {
     if (lastMessage) enviar(lastMessage, { isRetry: true });
   }
 
+  function summarizeCarteraReq(req: CarteraRequest): string {
+    const parts = [
+      `Cartera ${req.perfil} · ${req.exposicion} · ${req.plazo}`,
+      `benchmark ${req.benchmark.replace("_", " ")}`,
+    ];
+    if (req.monto_estimado_ars) {
+      parts.push(`ARS ${req.monto_estimado_ars.toLocaleString("es-AR")}`);
+    }
+    if (req.restricciones && req.restricciones.length > 0) {
+      parts.push(`restr: ${req.restricciones.join(", ")}`);
+    }
+    return parts.join(" · ");
+  }
+
+  async function enviarCartera(req: CarteraRequest) {
+    if (loading) return;
+    setCarteraFormOpen(false);
+    setError(null);
+    setLoading(true);
+    // Insertamos el "user message" sintético + un placeholder assistant
+    // mientras se genera. El placeholder se reemplaza al recibir respuesta.
+    const userTurn: VisibleTurn = {
+      role: "user",
+      text: summarizeCarteraReq(req),
+      carteraReq: req,
+    };
+    setTurns((t) => [...t, userTurn]);
+
+    try {
+      const res = await fetch("/api/chat/structured/cartera", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req),
+      });
+      if (!res.ok) {
+        const parsed = await parseError(res);
+        setError(parsed);
+        return;
+      }
+      const data = (await res.json()) as {
+        data: CarteraData | null;
+        usage?: { totalTokenCount?: number; model_alias?: string };
+        steps: number;
+        elapsed_s: number;
+        truncated?: boolean;
+        model_used?: string;
+        pesos_ok?: boolean;
+        pesos_suma?: number;
+        error?: string | null;
+      };
+      setTurns((t) => [
+        ...t,
+        {
+          role: "assistant",
+          text: data.data ? "Cartera generada" : (data.error ?? "Sin output"),
+          carteraData: data.data,
+          carteraMeta: {
+            pesos_ok: data.pesos_ok ?? true,
+            pesos_suma: data.pesos_suma ?? 0,
+            error: data.error,
+          },
+          meta: {
+            steps: data.steps,
+            elapsed_s: data.elapsed_s,
+            tokens: data.usage?.totalTokenCount,
+            model: data.model_used ?? data.usage?.model_alias,
+          },
+        },
+      ]);
+    } catch (e) {
+      setError({
+        title: "Sin conexión",
+        message: e instanceof Error ? e.message : "No pude alcanzar el servidor.",
+        hint: "Chequeá tu internet.",
+        retryable: false,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function abrirFormCartera(initial?: Partial<CarteraRequest>) {
+    setCarteraFormInitial(initial);
+    setCarteraFormOpen(true);
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -365,44 +468,82 @@ export function ChatView() {
           <div className="text-[#555555] text-sm">Preguntale a ACAQuant.</div>
         )}
 
-        {turns.map((t, i) => (
-          <div key={i}>
-            {t.role === "user" ? (
-              <div className="flex justify-end">
-                <div className="max-w-[80%] bg-[#094293]/20 border border-[#094293]/40 px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
-                  {t.text}
+        {turns.map((t, i) => {
+          // Buscar la última request de cartera asociada — el botón
+          // "modificar parámetros" debe reabrir el form precargado.
+          const lastCarteraReq = (() => {
+            for (let j = i; j >= 0; j--) {
+              if (turns[j]?.carteraReq) return turns[j].carteraReq;
+            }
+            return undefined;
+          })();
+          return (
+            <div key={i}>
+              {t.role === "user" ? (
+                <div className="flex justify-end">
+                  <div className="max-w-[80%] bg-[#094293]/20 border border-[#094293]/40 px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
+                    {t.text}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex">
-                <div className="max-w-[90%] bg-[#0e0e0e] border border-[#1a1a1a] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
-                  {renderMarkdown(t.text)}
-                  {t.toolCalls && t.toolCalls.length > 0 && (
-                    <details className="mt-2 text-[10px] text-[#555555]">
-                      <summary className="cursor-pointer hover:text-[#ff9900] uppercase tracking-wide">
-                        Fuentes ({t.toolCalls.length})
-                      </summary>
-                      <div className="mt-1 space-y-0.5 font-mono">
-                        {t.toolCalls.map((tc, j) => (
-                          <div key={j}>
-                            {tc.ok ? "✓" : "✗"} {tc.name}({JSON.stringify(tc.args)})
-                          </div>
-                        ))}
+              ) : t.carteraData !== undefined ? (
+                // Turn estructurado de cartera — renderer dedicado.
+                <div className="flex">
+                  <div className="max-w-[95%] w-full">
+                    <CarteraResponse
+                      data={t.carteraData}
+                      pesos_ok={t.carteraMeta?.pesos_ok ?? true}
+                      pesos_suma={t.carteraMeta?.pesos_suma ?? 0}
+                      meta={t.meta}
+                      error={t.carteraMeta?.error}
+                      onModificar={() => abrirFormCartera(lastCarteraReq)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex">
+                  <div className="max-w-[90%] bg-[#0e0e0e] border border-[#1a1a1a] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
+                    {renderMarkdown(t.text)}
+                    {t.toolCalls && t.toolCalls.length > 0 && (
+                      <details className="mt-2 text-[10px] text-[#555555]">
+                        <summary className="cursor-pointer hover:text-[#ff9900] uppercase tracking-wide">
+                          Fuentes ({t.toolCalls.length})
+                        </summary>
+                        <div className="mt-1 space-y-0.5 font-mono">
+                          {t.toolCalls.map((tc, j) => (
+                            <div key={j}>
+                              {tc.ok ? "✓" : "✗"} {tc.name}({JSON.stringify(tc.args)})
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                    {t.meta && (
+                      <div className="mt-1 text-[9px] text-[#555555] tracking-wide uppercase">
+                        {t.meta.steps} step{t.meta.steps !== 1 ? "s" : ""} · {t.meta.elapsed_s}s
+                        {t.meta.tokens ? ` · ${t.meta.tokens} tok` : ""}
+                        {t.meta.model ? ` · ${t.meta.model}` : ""}
                       </div>
-                    </details>
-                  )}
-                  {t.meta && (
-                    <div className="mt-1 text-[9px] text-[#555555] tracking-wide uppercase">
-                      {t.meta.steps} step{t.meta.steps !== 1 ? "s" : ""} · {t.meta.elapsed_s}s
-                      {t.meta.tokens ? ` · ${t.meta.tokens} tok` : ""}
-                      {t.meta.model ? ` · ${t.meta.model}` : ""}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          );
+        })}
+
+        {/* Form de cartera abierto inline (vive entre los turns) */}
+        {carteraFormOpen && (
+          <div className="flex">
+            <div className="max-w-[95%] w-full">
+              <CarteraForm
+                initial={carteraFormInitial}
+                onSubmit={enviarCartera}
+                onCancel={() => setCarteraFormOpen(false)}
+                loading={loading}
+              />
+            </div>
           </div>
-        ))}
+        )}
 
         {loading && (
           <div className="flex">
@@ -449,6 +590,32 @@ export function ChatView() {
       </div>
 
       <div className="border-t border-[#1a1a1a] px-3 py-2 shrink-0">
+        {/* Chips de acciones rápidas. Por ahora solo "Recomendar cartera"
+            está habilitado; los otros van como placeholders disabled para
+            mostrar la dirección. */}
+        <div className="flex items-center gap-1 mb-1.5">
+          <button
+            onClick={() => abrirFormCartera()}
+            disabled={loading || carteraFormOpen}
+            className="text-[10px] px-2 py-0.5 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            + Recomendar cartera
+          </button>
+          <button
+            disabled
+            title="Próximamente"
+            className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#555555] uppercase tracking-wide cursor-not-allowed"
+          >
+            + Análisis bono
+          </button>
+          <button
+            disabled
+            title="Próximamente"
+            className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#555555] uppercase tracking-wide cursor-not-allowed"
+          >
+            + Comparar curvas
+          </button>
+        </div>
         <textarea
           ref={inputRef}
           value={input}
