@@ -13,6 +13,7 @@ import {
 } from "recharts";
 
 import { useViewportKey } from "@/lib/use-viewport-key";
+import { DualRange } from "./dual-range";
 
 // ─────────────────────────────────────────────────────────────────
 // Types — espejan el shape devuelto por
@@ -98,13 +99,15 @@ function colorRet(n: number): string {
   return "text-[#808080]";
 }
 
-// Default: hasta = ayer (date-only en hora local); desde = 30 días antes.
-// El backend valida si hubo trades; si no, devuelve error y mostramos mensaje.
-function isoDaysAgo(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+function fmtFechaCorta(s: string): string {
+  const iso = s.length >= 10 ? s.slice(0, 10) : s;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
+
+// Ventana default = ~22 ruedas (≈ 1 mes hábil).
+const VENTANA_DEFAULT_RUEDAS = 22;
 
 // ─────────────────────────────────────────────────────────────────
 // Componente principal
@@ -155,14 +158,53 @@ export function DescomposicionTab() {
 // ─────────────────────────────────────────────────────────────────
 
 function RealizadoView({ metodo }: { metodo: Metodo }) {
-  const [desde, setDesde] = useState(() => isoDaysAgo(30));
-  const [hasta, setHasta] = useState(() => isoDaysAgo(1));
+  // Lista de fechas con trades reales (de /api/historico-curva tasa_fija).
+  // El slider solo se mueve sobre estas — imposible elegir un día sin data.
+  const [fechas, setFechas] = useState<string[]>([]);
+  const [rangoIdx, setRangoIdx] = useState<[number, number] | null>(null);
   const [data, setData] = useState<RealizadoResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const vpKey = useViewportKey();
 
+  // 1) Una sola vez: cargo el universo de fechas hábiles para tasa_fija.
   useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/historico-curva?curva=tasa_fija`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { fecha: string }[]) => {
+        if (cancelled) return;
+        const set = new Set(rows.map((r) => r.fecha));
+        setFechas(Array.from(set).sort());
+      })
+      .catch(() => {
+        if (!cancelled) setFechas([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Rango efectivo: default últimas ~22 ruedas; respetar los handles del usuario.
+  const effectiveRango: [number, number] =
+    fechas.length > 0
+      ? rangoIdx == null
+        ? [Math.max(0, fechas.length - 1 - VENTANA_DEFAULT_RUEDAS), fechas.length - 1]
+        : [
+            Math.min(Math.max(0, rangoIdx[0]), fechas.length - 1),
+            Math.min(Math.max(rangoIdx[0], rangoIdx[1]), fechas.length - 1),
+          ]
+      : [0, 0];
+
+  const fechaDesde = fechas[effectiveRango[0]] || "";
+  const fechaHasta = fechas[effectiveRango[1]] || "";
+
+  // 2) Disparo descomposición cada vez que cambian las fechas o el método.
+  useEffect(() => {
+    if (!fechaDesde || !fechaHasta || fechaDesde === fechaHasta) {
+      setData(null);
+      return;
+    }
     let cancelled = false;
     const run = async () => {
       try {
@@ -170,8 +212,8 @@ function RealizadoView({ metodo }: { metodo: Metodo }) {
         setError(null);
         const url =
           `/api/analitica/descomposicion-retorno` +
-          `?desde=${encodeURIComponent(desde)}` +
-          `&hasta=${encodeURIComponent(hasta)}` +
+          `?desde=${encodeURIComponent(fechaDesde)}` +
+          `&hasta=${encodeURIComponent(fechaHasta)}` +
           `&metodo=${metodo}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -193,7 +235,7 @@ function RealizadoView({ metodo }: { metodo: Metodo }) {
     return () => {
       cancelled = true;
     };
-  }, [desde, hasta, metodo]);
+  }, [fechaDesde, fechaHasta, metodo]);
 
   const chartData = useMemo(() => {
     if (!data?.bonos) return [];
@@ -209,8 +251,30 @@ function RealizadoView({ metodo }: { metodo: Metodo }) {
   return (
     <div className="h-full flex flex-col min-h-0 gap-3">
       <div className="border border-[#1a1a1a] bg-[#080808] p-2 shrink-0 flex items-center gap-3 flex-wrap">
-        <DateInput label="DESDE" value={desde} onChange={setDesde} />
-        <DateInput label="HASTA" value={hasta} onChange={setHasta} />
+        {fechas.length < 2 ? (
+          <span className="text-[10px] text-[#555]">cargando fechas…</span>
+        ) : (
+          <div className="flex items-center gap-2 flex-1 min-w-[300px]">
+            <span className="text-[10px] text-[#ff9900] font-mono min-w-[42px]">
+              {fmtFechaCorta(fechaDesde)}
+            </span>
+            <DualRange
+              min={0}
+              max={fechas.length - 1}
+              lo={effectiveRango[0]}
+              hi={effectiveRango[1]}
+              setLo={(v) =>
+                setRangoIdx([v, Math.max(v, effectiveRango[1])])
+              }
+              setHi={(v) =>
+                setRangoIdx([Math.min(v, effectiveRango[0]), v])
+              }
+            />
+            <span className="text-[10px] text-[#ff9900] font-mono min-w-[42px] text-right">
+              {fmtFechaCorta(fechaHasta)}
+            </span>
+          </div>
+        )}
         {data?.dias != null && (
           <span className="text-[10px] text-[#808080] font-mono">
             {data.dias} días · {data.bonos?.length || 0} bonos
@@ -538,24 +602,3 @@ function FilterBtn({
   );
 }
 
-function DateInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="flex items-center gap-1 text-[10px] text-[#555]">
-      <span className="tracking-wider">{label}</span>
-      <input
-        type="date"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:outline-none focus:border-[#ff9900]"
-      />
-    </label>
-  );
-}
