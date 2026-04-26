@@ -533,7 +533,8 @@ function AgregarPosicionForm({
   const [query, setQuery] = useState("");
   const [importe, setImporte] = useState<string>("");
   const [showOpts, setShowOpts] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const tickerInputRef = useRef<HTMLInputElement>(null);
+  const importeInputRef = useRef<HTMLInputElement>(null);
 
   const sugerencias = useMemo(() => {
     if (!query.trim()) return [];
@@ -546,15 +547,26 @@ function AgregarPosicionForm({
       .slice(0, 10);
   }, [query, tickers]);
 
-  function trySubmit(ticker?: string) {
-    const tk = (ticker ?? query).trim().toUpperCase();
+  // Confirma y agrega la posición (enter en importe / click en +).
+  function confirmar() {
+    const tk = query.trim().toUpperCase();
     const imp = parseFloat(importe.replace(/[^\d.]/g, "")) || 0;
     if (!tk || imp <= 0) return;
     onAdd(tk, imp);
     setQuery("");
     setImporte("");
     setShowOpts(false);
-    inputRef.current?.focus();
+    tickerInputRef.current?.focus();
+  }
+
+  // Click en una sugerencia: solo carga el ticker en el input y mueve el
+  // foco al importe. NO agrega — el user todavía tiene que escribir el
+  // monto. Antes el click llamaba trySubmit() y, si no había importe,
+  // el ticker se perdía sin feedback (bug reportado por el user).
+  function elegirSugerencia(ticker: string) {
+    setQuery(ticker);
+    setShowOpts(false);
+    importeInputRef.current?.focus();
   }
 
   return (
@@ -562,11 +574,13 @@ function AgregarPosicionForm({
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
           <input
-            ref={inputRef}
+            ref={tickerInputRef}
             type="text"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setShowOpts(true); }}
             onFocus={() => setShowOpts(true)}
+            // onMouseDown del item se dispara ANTES que onBlur del input,
+            // así el click en una sugerencia ejecuta elegirSugerencia.
             onBlur={() => setTimeout(() => setShowOpts(false), 200)}
             placeholder="Ticker (ej. TZX26)"
             className="w-full bg-[#0f0f0f] border border-[#222] px-2 py-1 text-[11px] text-[#ddd] outline-none focus:border-[#ff9900]"
@@ -576,7 +590,12 @@ function AgregarPosicionForm({
               {sugerencias.map((s) => (
                 <div
                   key={s.ticker}
-                  onClick={() => trySubmit(s.ticker)}
+                  // onMouseDown en vez de onClick: dispara antes que el
+                  // onBlur del input que cierra el dropdown.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    elegirSugerencia(s.ticker);
+                  }}
                   className="px-2 py-1 text-[11px] hover:bg-[#1a1a1a] cursor-pointer flex justify-between gap-2"
                 >
                   <span className="text-[#ddd] font-mono">{s.ticker}</span>
@@ -589,17 +608,18 @@ function AgregarPosicionForm({
           )}
         </div>
         <input
+          ref={importeInputRef}
           type="number"
           value={importe}
           onChange={(e) => setImporte(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") trySubmit(); }}
+          onKeyDown={(e) => { if (e.key === "Enter") confirmar(); }}
           placeholder="Importe"
           min={0}
           step={1000}
           className="w-32 bg-[#0f0f0f] border border-[#222] px-2 py-1 text-[11px] text-right text-[#ddd] outline-none focus:border-[#ff9900]"
         />
         <button
-          onClick={() => trySubmit()}
+          onClick={confirmar}
           disabled={!query.trim() || !importe}
           className="px-3 py-1 text-[11px] font-semibold bg-[#ff9900] text-black hover:bg-[#ffaa22] disabled:bg-[#2a2a2a] disabled:text-[#555]"
         >
