@@ -6,6 +6,7 @@ import { DualRange } from "./dual-range";
 import { SensibilidadTable } from "./sensibilidad-table";
 import { CanjeTab } from "./canje-tab";
 import { CarryTradeTab } from "./carry-trade-tab";
+import { DescomposicionTab } from "./descomposicion-tab";
 import { SimularCarteraView } from "./simular-cartera-view";
 import {
   CartesianGrid,
@@ -55,7 +56,7 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "carry_trade" | "simular_cartera";
+type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "carry_trade" | "simular_cartera" | "descomposicion";
 
 export function RetornoTotalView() {
   const [tab, setTab] = useState<EstrategiaTab>("retorno_total");
@@ -91,6 +92,11 @@ export function RetornoTotalView() {
           active={tab === "simular_cartera"}
           onClick={() => setTab("simular_cartera")}
         />
+        <TabPill
+          label="DESCOMPOSICIÓN"
+          active={tab === "descomposicion"}
+          onClick={() => setTab("descomposicion")}
+        />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "retorno_total" && <HistoricoTab />}
@@ -98,6 +104,7 @@ export function RetornoTotalView() {
         {tab === "canje" && <CanjeTab />}
         {tab === "carry_trade" && <CarryTradeTab />}
         {tab === "simular_cartera" && <SimularCarteraView />}
+        {tab === "descomposicion" && <DescomposicionTab />}
       </div>
     </div>
   );
