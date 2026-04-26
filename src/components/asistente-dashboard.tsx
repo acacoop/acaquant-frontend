@@ -41,6 +41,7 @@ interface ToolCall {
 interface LogEntry {
   ts: string;
   user?: string;
+  conversation_id?: string;
   message: string;
   reply?: string;
   tool_calls?: ToolCall[];
@@ -54,6 +55,17 @@ interface LogEntry {
   truncated?: boolean;
   estado?: "ok" | "error" | "truncated";
   error?: { code?: string; message?: string };
+}
+
+interface Conversation {
+  conversation_id: string;
+  user: string;
+  first_ts: string;
+  last_ts: string;
+  turns: number;
+  tokens: number;
+  errors: number;
+  preview: string;
 }
 
 interface TimeseriesPoint {
@@ -240,38 +252,48 @@ const HORAS_OPTS = [
 const ESTADO_OPTS = [
   { v: "all", label: "Todos" },
   { v: "ok", label: "OK" },
-  { v: "error", label: "Error" },
-  { v: "truncated", label: "Truncated" },
+  { v: "error", label: "Con errores" },
 ];
 
 export function AsistenteDashboard() {
   const [horas, setHoras] = useState<number>(24);
   const [estadoFiltro, setEstadoFiltro] = useState<string>("all");
   const [stats, setStats] = useState<Stats | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [series, setSeries] = useState<TimeseriesPoint[]>([]);
   const [tools, setTools] = useState<ToolRank[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Cache de detalles cargados por conversation_id (lazy on expand).
+  const [convDetails, setConvDetails] = useState<Record<string, LogEntry[]>>({});
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [statsRes, logsRes, seriesRes, toolsRes] = await Promise.all([
+      const [statsRes, convRes, seriesRes, toolsRes] = await Promise.all([
         fetch(`/api/manager/asistente/stats?horas=${horas}`, { cache: "no-store" }),
         fetch(
-          `/api/manager/asistente/logs?limit=100&horas=${horas}&estado=${estadoFiltro}`,
+          `/api/manager/asistente/conversations?limit=100&horas=${horas}`,
           { cache: "no-store" },
         ),
         fetch(`/api/manager/asistente/timeseries?horas=${horas}`, { cache: "no-store" }),
         fetch(`/api/manager/asistente/tools-ranking?horas=${horas}`, { cache: "no-store" }),
       ]);
-      if (!statsRes.ok || !logsRes.ok || !seriesRes.ok || !toolsRes.ok) {
+      if (!statsRes.ok || !convRes.ok || !seriesRes.ok || !toolsRes.ok) {
         throw new Error("Alguna API respondió con error");
       }
       setStats(await statsRes.json());
-      setLogs(await logsRes.json());
+      const convs: Conversation[] = await convRes.json();
+      // Filtrar client-side por estado: una conversación tiene "errors" si
+      // tuvo al menos un turn con error. El selector "ok" la excluye, "error"
+      // la incluye solo a ella.
+      const filtered = convs.filter((c) => {
+        if (estadoFiltro === "ok") return c.errors === 0;
+        if (estadoFiltro === "error") return c.errors > 0;
+        return true;
+      });
+      setConversations(filtered);
       setSeries(await seriesRes.json());
       setTools(await toolsRes.json());
       setLastUpdate(new Date());
@@ -282,6 +304,28 @@ export function AsistenteDashboard() {
       setLoading(false);
     }
   }, [horas, estadoFiltro]);
+
+  const expandConversation = useCallback(async (convId: string) => {
+    if (expanded === convId) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(convId);
+    if (!convDetails[convId]) {
+      try {
+        const res = await fetch(
+          `/api/manager/asistente/conversations/${encodeURIComponent(convId)}`,
+          { cache: "no-store" },
+        );
+        if (res.ok) {
+          const turns: LogEntry[] = await res.json();
+          setConvDetails((prev) => ({ ...prev, [convId]: turns }));
+        }
+      } catch {
+        // Silencioso: el panel del detalle queda vacío y el usuario puede colapsar/reintentar.
+      }
+    }
+  }, [expanded, convDetails]);
 
   useEffect(() => {
     fetchAll();
@@ -478,55 +522,52 @@ export function AsistenteDashboard() {
           </div>
         </div>
 
-        {/* Tabla de conversaciones */}
+        {/* Tabla de conversaciones (agrupadas por conversation_id) */}
         <div className="border border-[#1a1a1a] bg-[#080808]">
           <div className="px-3 py-1.5 border-b border-[#1a1a1a] flex items-center">
             <span className="text-[10px] text-[#555555] uppercase tracking-wide">
-              Últimas conversaciones ({logs.length})
+              Conversaciones ({conversations.length})
             </span>
           </div>
           <table className="w-full text-[10px] font-mono">
             <thead>
               <tr className="text-[#555555] border-b border-[#1a1a1a]">
-                <th className="px-2 py-1 text-left w-[90px]">Hora</th>
+                <th className="px-2 py-1 text-left w-[90px]">Inicio</th>
                 <th className="px-2 py-1 text-left w-[140px]">Usuario</th>
-                <th className="px-2 py-1 text-left">Pregunta</th>
-                <th className="px-2 py-1 text-right w-[40px]">Steps</th>
-                <th className="px-2 py-1 text-right w-[60px]">Elapsed</th>
+                <th className="px-2 py-1 text-left">Primer mensaje</th>
+                <th className="px-2 py-1 text-right w-[50px]">Turns</th>
                 <th className="px-2 py-1 text-right w-[60px]">Tokens</th>
                 <th className="px-2 py-1 text-left w-[80px]">Estado</th>
               </tr>
             </thead>
             <tbody>
-              {logs.map((l, idx) => {
-                const id = `${l.ts}-${idx}`;
-                const isExp = expanded === id;
-                const estado = l.estado ?? (l.truncated ? "truncated" : "ok");
+              {conversations.map((c) => {
+                const isExp = expanded === c.conversation_id;
+                const hasErrors = c.errors > 0;
+                const estado = hasErrors ? "error" : "ok";
                 const estadoColor = ESTADO_COLOR[estado] ?? "#555555";
+                const turns = convDetails[c.conversation_id];
                 return (
-                  <Fragment key={id}>
+                  <Fragment key={c.conversation_id}>
                     <tr
-                      onClick={() => setExpanded(isExp ? null : id)}
+                      onClick={() => expandConversation(c.conversation_id)}
                       className={`border-b border-[#1a1a1a] cursor-pointer hover:bg-[#0e0e0e] ${
                         isExp ? "bg-[#0e0e0e]" : ""
                       }`}
                     >
-                      <td className="px-2 py-1 text-[#888888] whitespace-nowrap">{fmtTime(l.ts)}</td>
+                      <td className="px-2 py-1 text-[#888888] whitespace-nowrap">{fmtTime(c.first_ts)}</td>
                       <td
                         className="px-2 py-1 text-[#888888] truncate max-w-[180px]"
-                        title={l.user || undefined}
+                        title={c.user || undefined}
                       >
-                        {l.user && l.user !== "anon" ? l.user : "—"}
+                        {c.user && c.user !== "anon" ? c.user : "—"}
                       </td>
                       <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-0">
-                        {truncate(l.message, 100)}
+                        {truncate(c.preview, 100)}
                       </td>
-                      <td className="px-2 py-1 text-right text-[#888888]">{l.steps ?? "—"}</td>
+                      <td className="px-2 py-1 text-right text-[#888888]">{c.turns}</td>
                       <td className="px-2 py-1 text-right text-[#888888]">
-                        {l.elapsed_s ? `${l.elapsed_s}s` : "—"}
-                      </td>
-                      <td className="px-2 py-1 text-right text-[#888888]">
-                        {fmtK(l.usage?.totalTokenCount)}
+                        {fmtK(c.tokens)}
                       </td>
                       <td className="px-2 py-1">
                         <span
@@ -537,23 +578,42 @@ export function AsistenteDashboard() {
                             backgroundColor: `${estadoColor}12`,
                           }}
                         >
-                          {estado.toUpperCase()}
+                          {hasErrors ? `${c.errors} ERR` : "OK"}
                         </span>
                       </td>
                     </tr>
                     {isExp && (
                       <tr>
-                        <td colSpan={7} className="p-0">
-                          <ExpandedRow log={l} />
+                        <td colSpan={6} className="p-0">
+                          {turns === undefined ? (
+                            <div className="bg-[#050505] border-t border-[#1a1a1a] p-3 text-[10px] text-[#555555] font-mono">
+                              cargando turns…
+                            </div>
+                          ) : turns.length === 0 ? (
+                            <div className="bg-[#050505] border-t border-[#1a1a1a] p-3 text-[10px] text-[#555555] font-mono">
+                              (sin turns)
+                            </div>
+                          ) : (
+                            <div className="bg-[#050505] border-t border-[#1a1a1a]">
+                              {turns.map((t, i) => (
+                                <div key={i} className="border-b border-[#1a1a1a] last:border-b-0">
+                                  <div className="px-3 py-1 text-[9px] text-[#555555] uppercase tracking-wide bg-[#0a0a0a]">
+                                    Turn {i + 1} · {fmtTime(t.ts)}
+                                  </div>
+                                  <ExpandedRow log={t} />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}
                   </Fragment>
                 );
               })}
-              {logs.length === 0 && !loading && (
+              {conversations.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-4 text-center text-[#555555]">
+                  <td colSpan={6} className="px-3 py-4 text-center text-[#555555]">
                     Sin conversaciones en el período seleccionado.
                   </td>
                 </tr>

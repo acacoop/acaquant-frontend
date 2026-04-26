@@ -47,6 +47,7 @@ interface ChatResponse {
   elapsed_s: number;
   truncated?: boolean;
   model_used?: string;
+  conversation_id?: string;
 }
 
 interface VisibleTurn {
@@ -54,6 +55,48 @@ interface VisibleTurn {
   text: string;
   toolCalls?: ToolCall[];
   meta?: { steps: number; elapsed_s: number; tokens?: number; model?: string };
+}
+
+// Persistencia del chat en localStorage para que la conversación sobreviva
+// cambios de tab/ruta. Versionar la key permite invalidar todo si más
+// adelante cambia el shape de turns/history.
+const STORAGE_KEY = "acaquant:chat:state:v1";
+
+interface PersistedChatState {
+  turns: VisibleTurn[];
+  history: GeminiMessage[];
+  conversationId?: string | null;
+}
+
+function loadChatState(): PersistedChatState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedChatState;
+    if (!Array.isArray(parsed?.turns) || !Array.isArray(parsed?.history)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveChatState(state: PersistedChatState): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // localStorage lleno o deshabilitado — silencioso, no rompemos UX
+  }
+}
+
+function clearChatState(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignorar
+  }
 }
 
 /**
@@ -190,12 +233,33 @@ async function parseError(res: Response): Promise<AppError> {
 export function ChatView() {
   const [turns, setTurns] = useState<VisibleTurn[]>([]);
   const [history, setHistory] = useState<GeminiMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const hydratedRef = useRef(false);
+
+  // Hidratar desde localStorage al montar. Hacemos esto en useEffect (no en
+  // useState lazy initializer) porque localStorage no existe durante SSR.
+  useEffect(() => {
+    const persisted = loadChatState();
+    if (persisted) {
+      setTurns(persisted.turns);
+      setHistory(persisted.history);
+      setConversationId(persisted.conversationId ?? null);
+    }
+    hydratedRef.current = true;
+  }, []);
+
+  // Persistir cuando turns/history/conversationId cambian — sólo después de
+  // hidratar para no pisar el storage con [] vacíos durante el primer render.
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    saveChatState({ turns, history, conversationId });
+  }, [turns, history, conversationId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -217,7 +281,11 @@ export function ChatView() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, history }),
+        body: JSON.stringify({
+          message: msg,
+          history,
+          conversation_id: conversationId,
+        }),
       });
       if (!res.ok) {
         const parsed = await parseError(res);
@@ -226,6 +294,11 @@ export function ChatView() {
       }
       const data: ChatResponse = await res.json();
       setHistory(data.history);
+      // Si era el primer turn, el backend nos devuelve un conversation_id
+      // recién generado. Lo guardamos para mandarlo en los próximos turns.
+      if (data.conversation_id && data.conversation_id !== conversationId) {
+        setConversationId(data.conversation_id);
+      }
       setTurns((t) => [
         ...t,
         {
@@ -268,7 +341,9 @@ export function ChatView() {
   function resetear() {
     setTurns([]);
     setHistory([]);
+    setConversationId(null);
     setError(null);
+    clearChatState();
   }
 
   return (
