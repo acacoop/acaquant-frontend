@@ -69,10 +69,10 @@ interface PosicionEnriquecida {
   emisor: string | null;
   calificacion: string | null;
   moneda: string | null;
+  cartera: string | null;
   fecha_vencimiento: string | null;
   tea: number | null;
   duration: number | null;
-  paridad: number | null;
 }
 
 interface ComposicionItem {
@@ -81,21 +81,24 @@ interface ComposicionItem {
   pct: number;
 }
 
-interface Analytics {
-  posiciones_enriquecidas: PosicionEnriquecida[];
+interface GrupoCartera {
+  cartera: string;
+  monto_total: number;
+  posiciones: PosicionEnriquecida[];
   cashflows: { mes: string; monto: number }[];
   composicion: {
     por_curva: ComposicionItem[];
     por_clase_activo: ComposicionItem[];
     por_emisor: ComposicionItem[];
-    por_moneda: ComposicionItem[];
   };
   metricas: {
-    monto_total: number;
     duration_ponderada: number | null;
     tea_ponderada: number | null;
-    paridad_ponderada: number | null;
   };
+}
+
+interface Analytics {
+  grupos: GrupoCartera[];
   alertas: string[];
 }
 
@@ -313,7 +316,7 @@ export function SimularCarteraView() {
           <div className="border-r border-[#1a1a1a] flex flex-col min-h-0">
             <PosicionesTable
               posiciones={posiciones}
-              enriquecidas={analytics?.posiciones_enriquecidas ?? []}
+              enriquecidas={analytics?.grupos.flatMap((g) => g.posiciones) ?? []}
               tickers={tickers}
               onAdd={handleAddPosicion}
               onEdit={handleEditImporte}
@@ -461,6 +464,7 @@ function PosicionesTable({
             <thead className="sticky top-0 bg-[#0a0a0a]">
               <tr className="text-[10px] uppercase tracking-wider text-[#666]">
                 <th className="text-left px-3 py-1.5 font-medium">Ticker</th>
+                <th className="text-left px-3 py-1.5 font-medium">Cartera</th>
                 <th className="text-right px-3 py-1.5 font-medium">Importe</th>
                 <th className="text-right px-3 py-1.5 font-medium">VN</th>
                 <th className="text-right px-3 py-1.5 font-medium">Precio</th>
@@ -476,6 +480,9 @@ function PosicionesTable({
                 return (
                   <tr key={p.ticker} className="border-t border-[#151515]">
                     <td className="px-3 py-1.5 text-[#ddd] font-mono">{p.ticker}</td>
+                    <td className="px-3 py-1.5 text-[#888] truncate max-w-[140px]">
+                      {meta?.cartera ?? "—"}
+                    </td>
                     <td className="px-3 py-1 text-right">
                       <input
                         type="number"
@@ -622,14 +629,6 @@ function AnalyticsPanel({
   }
   return (
     <div className={`p-3 space-y-4 ${calculando ? "opacity-60" : ""}`}>
-      <MetricasCards metricas={analytics.metricas} />
-      <CashflowChart cashflows={analytics.cashflows} />
-      <div className="grid grid-cols-2 gap-3">
-        <ComposicionTabla titulo="Por curva"        items={analytics.composicion.por_curva} />
-        <ComposicionTabla titulo="Por moneda"       items={analytics.composicion.por_moneda} />
-        <ComposicionTabla titulo="Por clase activo" items={analytics.composicion.por_clase_activo} />
-        <ComposicionTabla titulo="Por emisor"       items={analytics.composicion.por_emisor} />
-      </div>
       {analytics.alertas.length > 0 && (
         <div className="border border-[#3a3010] bg-[#1a1408] p-2 text-[11px] text-[#ffcc66]">
           <div className="font-semibold mb-1">Alertas</div>
@@ -638,15 +637,57 @@ function AnalyticsPanel({
           </ul>
         </div>
       )}
+      {analytics.grupos.length === 0 && (
+        <div className="text-[11px] text-[#555]">
+          Sin grupos calculados.
+        </div>
+      )}
+      {analytics.grupos.map((g) => (
+        <GrupoCard key={g.cartera} grupo={g} />
+      ))}
     </div>
   );
 }
 
-function MetricasCards({ metricas }: { metricas: Analytics["metricas"] }) {
+function GrupoCard({ grupo }: { grupo: GrupoCartera }) {
+  return (
+    <div className="border border-[#1a1a1a] bg-[#080808]">
+      <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] flex items-center justify-between">
+        <span className="text-[11px] font-semibold tracking-widest text-[#ff9900] uppercase">
+          {grupo.cartera}
+        </span>
+        <span className="text-[10px] text-[#666]">
+          {grupo.posiciones.length} posición{grupo.posiciones.length === 1 ? "" : "es"}
+        </span>
+      </div>
+      <div className="p-2 space-y-3">
+        <MetricasCards
+          monto={grupo.monto_total}
+          duration={grupo.metricas.duration_ponderada}
+          tea={grupo.metricas.tea_ponderada}
+        />
+        <CashflowChart cashflows={grupo.cashflows} />
+        <div className="grid grid-cols-2 gap-2">
+          <ComposicionTabla titulo="Por curva"        items={grupo.composicion.por_curva} />
+          <ComposicionTabla titulo="Por clase activo" items={grupo.composicion.por_clase_activo} />
+          <ComposicionTabla titulo="Por emisor"       items={grupo.composicion.por_emisor} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricasCards({
+  monto, duration, tea,
+}: {
+  monto: number;
+  duration: number | null;
+  tea: number | null;
+}) {
   const items = [
-    { label: "Monto total", value: fmtImporte(metricas.monto_total) },
-    { label: "Duration",    value: fmtNumber(metricas.duration_ponderada, 2) },
-    { label: "TEA",         value: fmtPct(metricas.tea_ponderada) },
+    { label: "Monto total", value: fmtImporte(monto) },
+    { label: "Duration",    value: fmtNumber(duration, 2) },
+    { label: "TEA",         value: fmtPct(tea) },
   ];
   return (
     <div className="grid grid-cols-3 gap-2">
@@ -660,7 +701,7 @@ function MetricasCards({ metricas }: { metricas: Analytics["metricas"] }) {
   );
 }
 
-function CashflowChart({ cashflows }: { cashflows: Analytics["cashflows"] }) {
+function CashflowChart({ cashflows }: { cashflows: GrupoCartera["cashflows"] }) {
   if (cashflows.length === 0) {
     return (
       <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 text-[11px] text-[#666]">
