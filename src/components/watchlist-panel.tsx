@@ -38,9 +38,17 @@ function fmtTna(v: number | null | undefined): string {
   return `${v.toFixed(2)}%`;
 }
 
-function fmtVencimiento(yyyymmdd: string): string {
-  if (yyyymmdd.length !== 8) return yyyymmdd;
-  return `${yyyymmdd.slice(6, 8)}/${yyyymmdd.slice(4, 6)}/${yyyymmdd.slice(2, 4)}`;
+// Mapea el `fuente_spot` que escribe el motor de futuros DLR a un label
+// corto para mostrar al operador. Si la fuente cae al fallback MEP, lo
+// dejamos visible ("MEP fb") para que se note que algo está stale.
+function fmtFuenteSpot(s: string | null | undefined): string {
+  switch (s) {
+    case "oficial_dolarapi":   return "oficial";
+    case "mayorista_dolarapi": return "mayorista";
+    case "a3500_bcra":         return "A3500 BCRA";
+    case "mep_fallback":       return "MEP fb";
+    default:                   return s || "—";
+  }
 }
 
 function PctCell({ v }: { v: number | null | undefined }) {
@@ -64,7 +72,11 @@ interface FuturoDlrDoc {
   bid_price: number | null;
   offer_price: number | null;
   last_price: number | null;
+  // tasa_implicita_tna se calcula sobre el mid (bid+offer)/2.
   tasa_implicita_tna: number | null;
+  tasa_implicita_tna_offer: number | null;
+  spot_referencia: number | null;
+  fuente_spot: string | null;
 }
 
 interface ArgyDoc {
@@ -288,47 +300,61 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
         {/* ── Tabla FUTUROS ROFEX (DLR outrights con tasa implícita) ── */}
         {visiblesFuturosDlr.length > 0 && (
-          <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-[#080808] z-10 border-b border-[#1a1a1a]">
-              <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
-                <th className="px-2 py-1 text-left">Ticker</th>
-                <th className="px-2 py-1 text-right">Vto</th>
-                <th className="px-2 py-1 text-right">Días</th>
-                <th className="px-2 py-1 text-right">Bid</th>
-                <th className="px-2 py-1 text-right">Último</th>
-                <th className="px-2 py-1 text-right">Offer</th>
-                <th className="px-2 py-1 text-right">TNA Impl.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visiblesFuturosDlr.map((f) => (
-                <tr key={f.ticker} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
-                  <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{f.ticker}</td>
-                  <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
-                    {fmtVencimiento(f.vencimiento)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
-                    {f.dias_a_vto}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#00cc66] tabular-nums">
-                    {fmtPriceDlr(f.bid_price)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
-                    {fmtPriceDlr(f.last_price)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#ff3333] tabular-nums">
-                    {fmtPriceDlr(f.offer_price)}
-                  </td>
-                  <td
-                    className="px-2 py-0.5 text-right tabular-nums font-semibold"
-                    style={{ color: "#ffcc00" }}
-                  >
-                    {fmtTna(f.tasa_implicita_tna)}
-                  </td>
+          <>
+            {/* TC usado por el motor para calcular la TNA implícita.
+                Todos los outrights comparten el mismo, alcanza con leer
+                el primero. */}
+            {visiblesFuturosDlr[0]?.spot_referencia && (
+              <div className="px-2 py-1 text-[9px] text-[#888888] font-mono border-b border-[#0e0e0e]">
+                TC:{" "}
+                <span className="text-[#d0d0d0] tabular-nums">
+                  {fmtPriceDlr(visiblesFuturosDlr[0].spot_referencia)}
+                </span>{" "}
+                · {fmtFuenteSpot(visiblesFuturosDlr[0].fuente_spot)}
+              </div>
+            )}
+            <table className="w-full text-[10px] font-mono">
+              <thead className="sticky top-0 bg-[#080808] z-10 border-b border-[#1a1a1a]">
+                <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
+                  <th className="px-2 py-1 text-left">Ticker</th>
+                  <th className="px-2 py-1 text-right">Días</th>
+                  <th className="px-2 py-1 text-right">Bid</th>
+                  <th className="px-2 py-1 text-right">Último</th>
+                  <th className="px-2 py-1 text-right">Offer</th>
+                  <th className="px-2 py-1 text-right">TNA Mid</th>
+                  <th className="px-2 py-1 text-right">TNA Offer</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visiblesFuturosDlr.map((f) => (
+                  <tr key={f.ticker} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
+                    <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{f.ticker}</td>
+                    <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
+                      {f.dias_a_vto}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-[#00cc66] tabular-nums">
+                      {fmtPriceDlr(f.bid_price)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
+                      {fmtPriceDlr(f.last_price)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-[#ff3333] tabular-nums">
+                      {fmtPriceDlr(f.offer_price)}
+                    </td>
+                    <td
+                      className="px-2 py-0.5 text-right tabular-nums font-semibold"
+                      style={{ color: "#ffcc00" }}
+                    >
+                      {fmtTna(f.tasa_implicita_tna)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "#ff8855" }}>
+                      {fmtTna(f.tasa_implicita_tna_offer)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
 
         {/* ── Tabla ARGY (MEP, CCL, canje, cauciones) con returns ── */}
