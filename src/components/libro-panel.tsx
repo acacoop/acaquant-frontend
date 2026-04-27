@@ -208,15 +208,13 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
         </span>
       </div>
 
-      {/* @container habilita queries por ancho del contenedor (no del
-          viewport). Hasta 640px de ancho se apila chart-arriba / tape-abajo
-          (más legible que una columna chiquita). De 640px para arriba pasa
-          a layout side-by-side con tape de 240px (antes era 320px, le
-          quitaba demasiado espacio al chart). h-full + min-h-0 para que el
-          contenedor llene lo que dé el Panel padre, en vez de los 348px
-          fijos que tenía antes. */}
-      <div className="@container flex-1 min-h-0">
-        <div className="grid grid-cols-1 grid-rows-[1fr_180px] @[640px]:grid-rows-1 @[640px]:grid-cols-[1fr_240px] gap-2 h-full">
+      {/* Side-by-side siempre. El panel Libro vive dentro de RENTA FIJA,
+          que es ~50% horizontal × ~50% vertical de la ventana — espacio
+          chico, hay que aprovecharlo. Tape angosto (180px) para dejarle
+          la mayor parte al chart, y el chart con fontSize chico ya entra.
+          flex-1 min-h-0 = llena toda la altura del Panel padre. */}
+      <div className="flex-1 min-h-0">
+        <div className="grid grid-cols-[1fr_180px] gap-1 h-full">
           <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#0a0a0a] relative">
             {todayTrades.length === 0 && !loading ? (
               <div className="absolute inset-0 flex items-center justify-center text-[#555555] text-[10px]">
@@ -271,18 +269,26 @@ function LastMinutesChart({
       layout: {
         background: { type: ColorType.Solid, color: "#0a0a0a" },
         textColor: "#808080",
-        fontSize: 10,
+        // fontSize 9 (antes 10): el panel es chico, las labels del eje X
+        // y las del price scale derecho tienen que entrar sí o sí.
+        fontSize: 9,
         fontFamily: "JetBrains Mono, monospace",
       },
       grid: {
         vertLines: { color: "#1a1a1a" },
         horzLines: { color: "#1a1a1a" },
       },
-      rightPriceScale: { borderColor: "#2a2a2a" },
+      rightPriceScale: {
+        borderColor: "#2a2a2a",
+        // Margins chicos para que la price scale no le coma ancho al chart.
+        scaleMargins: { top: 0.05, bottom: 0.2 },
+      },
       timeScale: {
         borderColor: "#2a2a2a",
         timeVisible: true,
         secondsVisible: false,
+        // Más densidad de labels antes de ocultar — aprovecha el espacio.
+        minBarSpacing: 2,
       },
       crosshair: {
         vertLine: { color: "#ff9900", width: 1, style: 2 },
@@ -306,7 +312,10 @@ function LastMinutesChart({
       priceLineVisible: false,
     });
     chart.priceScale("volume").applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
+      // 0.88 (antes 0.8): el volumen ocupa solo el 12% inferior del chart
+      // y el precio se queda con el 88%. En un Panel chico la línea de
+      // precio necesita la mayor parte del espacio vertical posible.
+      scaleMargins: { top: 0.88, bottom: 0 },
     });
 
     chartRef.current = chart;
