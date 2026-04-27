@@ -96,6 +96,9 @@ export function RentaFijaTable({
                 <th className="!px-1 text-center">DURATION</th>
                 <th className="!px-1 text-center">MOD DUR</th>
                 <th className="!px-1 text-center">CONVEXITY</th>
+                {curva === "tasa_fija" && (
+                  <th className="!px-1 text-center">TC BE</th>
+                )}
                 <th className="!px-1 text-center">VOL NOM</th>
               </tr>
             </thead>
@@ -177,6 +180,13 @@ export function RentaFijaTable({
                         ? r.metrics.convexity.toFixed(2)
                         : "--"}
                     </td>
+                    {curva === "tasa_fija" && (
+                      <td className="!px-1 text-right text-[#ffcc00] font-semibold tabular-nums">
+                        {r.metrics?.tc_breakeven != null
+                          ? fmtPrice(r.metrics.tc_breakeven)
+                          : "--"}
+                      </td>
+                    )}
                     <td className="!px-1 text-right text-[#ffaa00]">
                       {fmtVol(r.metrics?.total_nominals)}
                     </td>

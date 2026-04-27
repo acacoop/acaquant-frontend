@@ -17,6 +17,9 @@ export interface RentaFijaDoc {
     duration?: number;
     mod_duration?: number;
     convexity?: number;
+    // TC breakeven = MEP × (flujo_vto / last). Sólo populado para
+    // bonos de tasa fija (nativa o CER ya fijado por el BCRA).
+    tc_breakeven?: number | null;
   };
 }
 
