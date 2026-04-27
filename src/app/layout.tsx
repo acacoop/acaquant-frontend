@@ -5,6 +5,13 @@ import { TopTicker } from "@/components/top-ticker";
 import { getMe } from "@/lib/me";
 import "./globals.css";
 
+// CRÍTICO para RBAC: el layout se renderea por user (cada user puede tener
+// modules distintos). Sin esto, Vercel/Next cachea el render del layout y
+// puede servir el HTML de un admin a un trader → el nav muestra MANAGER
+// que el trader no debería ver. force-dynamic obliga a re-renderear cada
+// request (con su cookie/headers de CF Access).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "ACA Valores — Terminal",
   description: "TradingAV — Terminal para mercados argentinos",
@@ -16,9 +23,14 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const me = await getMe();
-  // Si el backend no responde (dev sin API_URL, o caído) → modules=null
-  // y el Header muestra todo (modo permissive para no romper local dev).
-  const modules = me?.modules ?? null;
+  // Si el backend no responde:
+  //   - dev (sin API_URL definido) → modules=null = mostrar todo, no romper
+  //     el local dev sin Cloudflare Access.
+  //   - prod (API_URL definido pero el fetch falla) → modules=[] = solo
+  //     módulos públicos. Antes era null/permissive y se filtraba MANAGER
+  //     en el nav cuando el getMe fallaba. Fail-closed por seguridad.
+  const isProd = !!process.env.API_URL;
+  const modules = me?.modules ?? (isProd ? [] : null);
   return (
     <html lang="es" className="h-full">
       <head>

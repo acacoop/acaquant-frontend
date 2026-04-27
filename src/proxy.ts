@@ -60,9 +60,21 @@ export async function proxy(request: NextRequest) {
     headers["CF-Access-Client-Secret"] = cfSecret;
   }
 
+  // En prod (API_URL definido) si el fetch a /api/me falla cerramos por
+  // defecto: redirigimos al home en vez de dejar pasar. El comentario
+  // viejo decía "no es agujero porque el backend tiene su gate" — eso
+  // sigue siendo cierto para los endpoints /api/* (el backend devuelve
+  // 403 igual), pero el HTML de las pages restringidas (/manager, etc.)
+  // quedaba accesible visualmente por unos segundos antes de que los
+  // fetches fallaran. Un trader llegando vía URL directa veía la página
+  // por un instante. Fail-closed evita ese flash.
   try {
     const res = await fetch(`${apiUrl}/api/me`, { headers, cache: "no-store" });
-    if (!res.ok) return NextResponse.next(); // fail-open
+    if (!res.ok) {
+      return path.startsWith("/api/")
+        ? NextResponse.json({ error: "auth_failed" }, { status: 502 })
+        : NextResponse.redirect(new URL("/", request.url));
+    }
     const me = (await res.json()) as { modules: string[] };
     if (!me.modules?.includes(requiredModule)) {
       if (path.startsWith("/api/")) {
@@ -74,7 +86,9 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   } catch {
-    return NextResponse.next(); // fail-open
+    return path.startsWith("/api/")
+      ? NextResponse.json({ error: "auth_failed" }, { status: 502 })
+      : NextResponse.redirect(new URL("/", request.url));
   }
 
   return NextResponse.next();
