@@ -1,19 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import {
-  createChart,
-  ColorType,
-  IChartApi,
-  ISeriesApi,
-  LineData,
-  LineSeries,
-  HistogramData,
-  HistogramSeries,
-  Time,
-  IPriceLine,
-  LineStyle,
-} from "lightweight-charts";
 import { shortTicker, fmtNum } from "./ui";
 
 interface RentaFijaDoc {
@@ -115,10 +102,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
     };
   }, [effectiveSelected]);
 
-  const vwap = useMemo(() => {
-    const doc = data.find((r) => r.instrumento === effectiveSelected);
-    return doc?.metrics?.vwap;
-  }, [data, effectiveSelected]);
+  // vwap memo removido junto con el chart — ya no se grafica la línea VWAP.
 
   const { todayTrades, sessionLabel } = useMemo(() => {
     if (trades.length === 0) return { todayTrades: [], sessionLabel: "" };
@@ -208,191 +192,31 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
         </span>
       </div>
 
-      {/* Side-by-side siempre. El panel Libro vive dentro de RENTA FIJA,
-          que es ~50% horizontal × ~50% vertical de la ventana — espacio
-          chico, hay que aprovecharlo. Tape angosto (180px) para dejarle
-          la mayor parte al chart, y el chart con fontSize chico ya entra.
-          flex-1 min-h-0 = llena toda la altura del Panel padre. */}
-      <div className="flex-1 min-h-0">
-        <div className="grid grid-cols-[1fr_180px] gap-1 h-full">
-          <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#0a0a0a] relative">
-            {todayTrades.length === 0 && !loading ? (
-              <div className="absolute inset-0 flex items-center justify-center text-[#555555] text-[10px]">
-                SIN TRADES
-              </div>
-            ) : (
-              <LastMinutesChart
-                key={effectiveSelected || "none"}
-                trades={todayTrades}
-                vwap={vwap}
-              />
-            )}
-          </div>
-          <div className="min-h-0 border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden flex flex-col">
-            <div className="flex items-center px-2 py-1 border-b border-[#1a1a1a] bg-[#ff9900]/10">
-              <span className="text-[10px] text-[#ff9900] tracking-wide font-semibold">
-                TIME &amp; SALES
-              </span>
-              {sessionLabel && sessionLabel !== "HOY" && (
-                <span className="ml-auto text-[9px] text-[#808080]">
-                  {sessionLabel}
-                </span>
-              )}
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              <TimeSalesTape trades={tapeTrades} />
-            </div>
-          </div>
+      {/* El chart fue removido por pedido de la mesa — ocupaba mucho
+          espacio en un panel chico (~50%×50% de pantalla) y el eje X no
+          se entendía. Time & Sales solo, full width. */}
+      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden flex flex-col">
+        <div className="flex items-center px-2 py-1 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+          <span className="text-[10px] text-[#ff9900] tracking-wide font-semibold">
+            TIME &amp; SALES
+          </span>
+          {sessionLabel && sessionLabel !== "HOY" && (
+            <span className="ml-auto text-[9px] text-[#808080]">
+              {sessionLabel}
+            </span>
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <TimeSalesTape trades={tapeTrades} />
         </div>
       </div>
     </div>
   );
 }
 
-function LastMinutesChart({
-  trades,
-  vwap,
-}: {
-  trades: Trade[];
-  vwap?: number;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
-  const vwapLineRef = useRef<IPriceLine | null>(null);
-  const hasLoadedRef = useRef(false);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const chart = createChart(containerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#0a0a0a" },
-        textColor: "#808080",
-        // fontSize 9 (antes 10): el panel es chico, las labels del eje X
-        // y las del price scale derecho tienen que entrar sí o sí.
-        fontSize: 9,
-        fontFamily: "JetBrains Mono, monospace",
-      },
-      grid: {
-        vertLines: { color: "#1a1a1a" },
-        horzLines: { color: "#1a1a1a" },
-      },
-      rightPriceScale: {
-        borderColor: "#2a2a2a",
-        // Margins chicos para que la price scale no le coma ancho al chart.
-        scaleMargins: { top: 0.05, bottom: 0.2 },
-      },
-      timeScale: {
-        borderColor: "#2a2a2a",
-        timeVisible: true,
-        secondsVisible: false,
-        // Más densidad de labels antes de ocultar — aprovecha el espacio.
-        minBarSpacing: 2,
-      },
-      crosshair: {
-        vertLine: { color: "#ff9900", width: 1, style: 2 },
-        horzLine: { color: "#ff9900", width: 1, style: 2 },
-      },
-      autoSize: true,
-    });
-
-    const series = chart.addSeries(LineSeries, {
-      color: "#ff9900",
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-    });
-
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      color: "#ff9900",
-      priceFormat: { type: "volume" },
-      priceScaleId: "volume",
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
-    chart.priceScale("volume").applyOptions({
-      // 0.88 (antes 0.8): el volumen ocupa solo el 12% inferior del chart
-      // y el precio se queda con el 88%. En un Panel chico la línea de
-      // precio necesita la mayor parte del espacio vertical posible.
-      scaleMargins: { top: 0.88, bottom: 0 },
-    });
-
-    chartRef.current = chart;
-    seriesRef.current = series;
-    volumeSeriesRef.current = volumeSeries;
-
-    hasLoadedRef.current = false;
-    return () => {
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-      volumeSeriesRef.current = null;
-      vwapLineRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const series = seriesRef.current;
-    const volumeSeries = volumeSeriesRef.current;
-    if (!series) return;
-
-    const priceMap = new Map<number, number>();
-    const volMap = new Map<number, { size: number; side?: string }>();
-    for (const t of trades) {
-      const ts = Math.floor(new Date(t.timestamp).getTime() / 1000);
-      priceMap.set(ts, t.price);
-      const prev = volMap.get(ts);
-      volMap.set(ts, {
-        size: (prev?.size || 0) + (t.size || 0),
-        side: t.side || prev?.side,
-      });
-    }
-    const data: LineData[] = Array.from(priceMap.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([time, value]) => ({ time: time as Time, value }));
-
-    series.setData(data);
-
-    if (volumeSeries) {
-      const volData: HistogramData[] = Array.from(volMap.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([time, v]) => {
-          const side = (v.side || "").toUpperCase();
-          const color =
-            side === "BUY"
-              ? "#00cc66"
-              : side === "SELL"
-              ? "#ff3333"
-              : "#808080";
-          return { time: time as Time, value: v.size, color };
-        });
-      volumeSeries.setData(volData);
-    }
-
-    if (vwapLineRef.current) {
-      series.removePriceLine(vwapLineRef.current);
-      vwapLineRef.current = null;
-    }
-    if (vwap && vwap > 0) {
-      vwapLineRef.current = series.createPriceLine({
-        price: vwap,
-        color: "#00cc66",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: "VWAP",
-      });
-    }
-
-    if (data.length > 0 && !hasLoadedRef.current) {
-      chartRef.current?.timeScale().fitContent();
-      hasLoadedRef.current = true;
-    }
-  }, [trades, vwap]);
-
-  return <div ref={containerRef} className="w-full h-full" />;
-}
+// LastMinutesChart removido — el chart ocupaba demasiado espacio en un
+// Panel chico (~50%×50% de pantalla) y el eje X de horas no era legible.
+// Time & Sales ahora usa todo el ancho disponible.
 
 function TimeSalesTape({ trades }: { trades: Trade[] }) {
   if (trades.length === 0) {
