@@ -1,10 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Quote } from "@/lib/types";
 
 const POLL_MS = 30_000;
 const POLL_LOCAL_MS = 5_000;   // ARGY + futuros DLR refrescan cada 5s (live)
+
+// Default cuando el filtro cambia y el ticker actual no aplica más
+// (ej: estabas viendo curva DLR y volvés a Índices). MERVAL siempre vive
+// en TradingView (BCBA:IMV vía mapSymbol).
+const DEFAULT_TICKER_AL_SALIR_DE_DLR = "MERVAL";
 
 // ── Helpers de formateo ──
 
@@ -168,6 +173,29 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
       setFiltro(gruposPresentes[0]);
     }
   }, [filtro, gruposPresentes]);
+
+  // Reset del chart cuando se cambia el filtro y el ticker activo deja
+  // de aplicar. Hoy: si estabas viendo la curva DLR (selected="DLR/*")
+  // y cambiás a otra categoría, volvés a MERVAL. Sin esto el chart
+  // queda en la curva DLR aunque el filtro ya no la muestre.
+  // Ref del selected para no incluirlo en deps y evitar loops.
+  const selectedRef = useRef(selected);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  useEffect(() => {
+    const sel = selectedRef.current;
+    if (
+      onSelect &&
+      filtro &&
+      filtro !== "FUTUROS ROFEX" &&
+      sel &&
+      sel.startsWith("DLR/")
+    ) {
+      onSelect(DEFAULT_TICKER_AL_SALIR_DE_DLR);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtro]);
 
   // ── Filas para grupos globales (Índices, Regiones, ...) ──
   const visiblesGlobales = useMemo(() => {
