@@ -175,12 +175,9 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   }, [filtro, gruposPresentes]);
 
   // Sincronización chart ↔ filtro (sin requerir click en una fila):
-  //   - Entrás a FUTUROS ROFEX     → chart se linkea automáticamente
-  //                                    a la curva DLR (selected="FUTUROS ROFEX",
-  //                                    home-view la interpreta como trigger
-  //                                    del chart custom).
-  //   - Salís de FUTUROS ROFEX     → si el ticker activo era un DLR/*,
-  //                                    volvés a MERVAL (TradingView).
+  //   - Entrás a FUTUROS ROFEX  → chart se linkea a la curva DLR.
+  //   - Entrás a ARGY           → chart se linkea al chart de dólares.
+  //   - Cambiás a otra cat      → si el ticker activo era custom, vuelve a MERVAL.
   // Ref del selected para no incluirlo en deps y evitar loops.
   const selectedRef = useRef(selected);
   useEffect(() => {
@@ -189,15 +186,23 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   useEffect(() => {
     const sel = selectedRef.current;
     if (!onSelect || !filtro) return;
+
+    const esDlr = (s: string | null | undefined) =>
+      !!s && (s.startsWith("DLR/") || s === "FUTUROS ROFEX");
+    const esArgy = (s: string | null | undefined) =>
+      s === "ARGY" || s === "DOLAR MEP" || s === "DOLAR CCL" ||
+      s === "DOLAR OFICIAL";
+
     if (filtro === "FUTUROS ROFEX") {
-      // Entrando: solo cambiamos si el chart NO estaba en la curva DLR.
-      if (!sel || (!sel.startsWith("DLR/") && sel !== "FUTUROS ROFEX")) {
-        onSelect("FUTUROS ROFEX");
-      }
+      if (!esDlr(sel)) onSelect("FUTUROS ROFEX");
       return;
     }
-    // Saliendo de FUTUROS ROFEX con DLR seleccionado → reset.
-    if (sel && (sel.startsWith("DLR/") || sel === "FUTUROS ROFEX")) {
+    if (filtro === "ARGY") {
+      if (!esArgy(sel)) onSelect("ARGY");
+      return;
+    }
+    // Saliendo a otra categoría: si el ticker activo era custom, reset.
+    if (esDlr(sel) || esArgy(sel)) {
       onSelect(DEFAULT_TICKER_AL_SALIR_DE_DLR);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -424,8 +429,26 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     : "#ffcc00"
                   : "#00cc66";
                 const labelExtra = r.plazo_dias ? ` ${r.plazo_dias}D` : "";
+                // Solo los 3 dólares disparan el chart custom (highlightean
+                // su línea). Las cauciones no aplican al chart de dólares.
+                const dispara =
+                  r.label === "DOLAR MEP" ||
+                  r.label === "DOLAR CCL" ||
+                  r.label === "DOLAR OFICIAL";
+                const isSel = selected === r.label;
+                const clickable = !!onSelect && dispara;
                 return (
-                  <tr key={r.label} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
+                  <tr
+                    key={r.label}
+                    onClick={clickable ? () => onSelect!(r.label) : undefined}
+                    className={`border-b border-[#0e0e0e] ${
+                      isSel
+                        ? "bg-[#ff9900]/15"
+                        : clickable
+                        ? "hover:bg-[#0e0e0e] cursor-pointer"
+                        : "hover:bg-[#0e0e0e]"
+                    }`}
+                  >
                     <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">
                       {r.label}
                       {labelExtra && (

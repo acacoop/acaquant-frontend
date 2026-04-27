@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DolaresChart } from "@/components/dolares-chart";
 import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
 import { TradingViewChart } from "@/components/tradingview-chart";
@@ -13,6 +14,19 @@ const DEFAULT_TICKER = "MERVAL";   // BCBA:IMV en TradingView (mapSymbol)
 // futuro en particular vale poco; lo que importa es la curva del momento.
 function esTickerDlr(t: string): boolean {
   return t.startsWith("DLR/") || t === "FUTUROS ROFEX";
+}
+
+// Tickers ARGY que disparan el chart custom de dólares (MEP/CCL/Oficial).
+// "ARGY" es el sintético cuando el user solo elige el filtro; los labels
+// individuales aparecen cuando clickea una fila específica de la tabla
+// ARGY de la watchlist.
+function esTickerArgy(t: string): boolean {
+  return (
+    t === "ARGY" ||
+    t === "DOLAR MEP" ||
+    t === "DOLAR CCL" ||
+    t === "DOLAR OFICIAL"
+  );
 }
 
 export function HomeView() {
@@ -29,8 +43,11 @@ export function HomeView() {
   }, [maximized]);
 
   const isDlr = esTickerDlr(selectedTicker);
+  const isArgy = !isDlr && esTickerArgy(selectedTicker);
   const chartContent = isDlr ? (
     <FuturosDlrCurveChart selectedTicker={selectedTicker} />
+  ) : isArgy ? (
+    <DolaresChart selectedTicker={selectedTicker} />
   ) : (
     <TradingViewChart symbol={selectedTicker} />
   );
@@ -45,7 +62,7 @@ export function HomeView() {
       </span>
       <span className="ml-auto flex items-center gap-2">
         <span className="text-[9px] text-[#555555]">
-          {isDlr ? "Curva DLR" : "TradingView"}
+          {isDlr ? "Curva DLR" : isArgy ? "Dólares" : "TradingView"}
         </span>
         <button
           onClick={() => setMaximized((m) => !m)}
