@@ -294,48 +294,59 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
               <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Ticker</th>
                 <th className="px-2 py-1 text-right">Días</th>
-                <th className="px-2 py-1 text-right">Bid</th>
                 <th className="px-2 py-1 text-right">Último</th>
-                <th className="px-2 py-1 text-right">Offer</th>
                 <th className="px-2 py-1 text-right">TC</th>
+                <th className="px-2 py-1 text-right">Directo</th>
+                <th className="px-2 py-1 text-right">DEVA</th>
                 <th className="px-2 py-1 text-right">TNA Bid</th>
                 <th className="px-2 py-1 text-right">TNA Last</th>
                 <th className="px-2 py-1 text-right">TNA Offer</th>
               </tr>
             </thead>
             <tbody>
-              {visiblesFuturosDlr.map((f) => (
-                <tr key={f.ticker} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
-                  <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{f.ticker}</td>
-                  <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
-                    {f.dias_a_vto}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#00cc66] tabular-nums">
-                    {fmtPriceDlr(f.bid_price)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
-                    {fmtPriceDlr(f.last_price)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#ff3333] tabular-nums">
-                    {fmtPriceDlr(f.offer_price)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
-                    {fmtPriceDlr(f.spot_referencia)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "#00cc66" }}>
-                    {fmtTna(f.tasa_implicita_tna_bid)}
-                  </td>
-                  <td
-                    className="px-2 py-0.5 text-right tabular-nums font-semibold"
-                    style={{ color: "#ffcc00" }}
-                  >
-                    {fmtTna(f.tasa_implicita_tna)}
-                  </td>
-                  <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "#ff3333" }}>
-                    {fmtTna(f.tasa_implicita_tna_offer)}
-                  </td>
-                </tr>
-              ))}
+              {visiblesFuturosDlr.map((f, idx) => {
+                // Directo = futuro/spot - 1 (sobre el last del DLR).
+                const directo =
+                  f.last_price && f.spot_referencia && f.spot_referencia > 0
+                    ? (f.last_price / f.spot_referencia - 1) * 100
+                    : null;
+                // DEVA implícita = last_actual/last_anterior - 1.
+                // El "anterior" es el outright que vence antes (lista
+                // ordenada por vto ascendente — idx 0 no tiene anterior).
+                const anterior = idx > 0 ? visiblesFuturosDlr[idx - 1] : null;
+                const deva =
+                  f.last_price && anterior?.last_price && anterior.last_price > 0
+                    ? (f.last_price / anterior.last_price - 1) * 100
+                    : null;
+                return (
+                  <tr key={f.ticker} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
+                    <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{f.ticker}</td>
+                    <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
+                      {f.dias_a_vto}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
+                      {fmtPriceDlr(f.last_price)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
+                      {fmtPriceDlr(f.spot_referencia)}
+                    </td>
+                    <PctCell v={directo} />
+                    <PctCell v={deva} />
+                    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "#00cc66" }}>
+                      {fmtTna(f.tasa_implicita_tna_bid)}
+                    </td>
+                    <td
+                      className="px-2 py-0.5 text-right tabular-nums font-semibold"
+                      style={{ color: "#ffcc00" }}
+                    >
+                      {fmtTna(f.tasa_implicita_tna)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "#ff3333" }}>
+                      {fmtTna(f.tasa_implicita_tna_offer)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
