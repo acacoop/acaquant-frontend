@@ -174,10 +174,13 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     }
   }, [filtro, gruposPresentes]);
 
-  // Reset del chart cuando se cambia el filtro y el ticker activo deja
-  // de aplicar. Hoy: si estabas viendo la curva DLR (selected="DLR/*")
-  // y cambiás a otra categoría, volvés a MERVAL. Sin esto el chart
-  // queda en la curva DLR aunque el filtro ya no la muestre.
+  // Sincronización chart ↔ filtro (sin requerir click en una fila):
+  //   - Entrás a FUTUROS ROFEX     → chart se linkea automáticamente
+  //                                    a la curva DLR (selected="FUTUROS ROFEX",
+  //                                    home-view la interpreta como trigger
+  //                                    del chart custom).
+  //   - Salís de FUTUROS ROFEX     → si el ticker activo era un DLR/*,
+  //                                    volvés a MERVAL (TradingView).
   // Ref del selected para no incluirlo en deps y evitar loops.
   const selectedRef = useRef(selected);
   useEffect(() => {
@@ -185,13 +188,16 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   }, [selected]);
   useEffect(() => {
     const sel = selectedRef.current;
-    if (
-      onSelect &&
-      filtro &&
-      filtro !== "FUTUROS ROFEX" &&
-      sel &&
-      sel.startsWith("DLR/")
-    ) {
+    if (!onSelect || !filtro) return;
+    if (filtro === "FUTUROS ROFEX") {
+      // Entrando: solo cambiamos si el chart NO estaba en la curva DLR.
+      if (!sel || (!sel.startsWith("DLR/") && sel !== "FUTUROS ROFEX")) {
+        onSelect("FUTUROS ROFEX");
+      }
+      return;
+    }
+    // Saliendo de FUTUROS ROFEX con DLR seleccionado → reset.
+    if (sel && (sel.startsWith("DLR/") || sel === "FUTUROS ROFEX")) {
       onSelect(DEFAULT_TICKER_AL_SALIR_DE_DLR);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
