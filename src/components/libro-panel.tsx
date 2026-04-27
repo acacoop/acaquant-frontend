@@ -164,7 +164,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
   }, [todayTrades]);
 
   return (
-    <div>
+    <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-[10px] text-[#555555] tracking-wide">TICKER</span>
         <div className="relative">
@@ -208,33 +208,42 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-[1fr_320px] gap-2 h-[348px]">
-        <div className="min-w-0 border border-[#1a1a1a] bg-[#0a0a0a] relative">
-          {todayTrades.length === 0 && !loading ? (
-            <div className="absolute inset-0 flex items-center justify-center text-[#555555] text-[10px]">
-              SIN TRADES
-            </div>
-          ) : (
-            <LastMinutesChart
-              key={effectiveSelected || "none"}
-              trades={todayTrades}
-              vwap={vwap}
-            />
-          )}
-        </div>
-        <div className="border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden flex flex-col">
-          <div className="flex items-center px-2 py-1 border-b border-[#1a1a1a] bg-[#ff9900]/10">
-            <span className="text-[10px] text-[#ff9900] tracking-wide font-semibold">
-              TIME &amp; SALES
-            </span>
-            {sessionLabel && sessionLabel !== "HOY" && (
-              <span className="ml-auto text-[9px] text-[#808080]">
-                {sessionLabel}
-              </span>
+      {/* @container habilita queries por ancho del contenedor (no del
+          viewport). Hasta 640px de ancho se apila chart-arriba / tape-abajo
+          (más legible que una columna chiquita). De 640px para arriba pasa
+          a layout side-by-side con tape de 240px (antes era 320px, le
+          quitaba demasiado espacio al chart). h-full + min-h-0 para que el
+          contenedor llene lo que dé el Panel padre, en vez de los 348px
+          fijos que tenía antes. */}
+      <div className="@container flex-1 min-h-0">
+        <div className="grid grid-cols-1 grid-rows-[1fr_180px] @[640px]:grid-rows-1 @[640px]:grid-cols-[1fr_240px] gap-2 h-full">
+          <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#0a0a0a] relative">
+            {todayTrades.length === 0 && !loading ? (
+              <div className="absolute inset-0 flex items-center justify-center text-[#555555] text-[10px]">
+                SIN TRADES
+              </div>
+            ) : (
+              <LastMinutesChart
+                key={effectiveSelected || "none"}
+                trades={todayTrades}
+                vwap={vwap}
+              />
             )}
           </div>
-          <div className="flex-1 overflow-y-auto">
-            <TimeSalesTape trades={tapeTrades} />
+          <div className="min-h-0 border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden flex flex-col">
+            <div className="flex items-center px-2 py-1 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+              <span className="text-[10px] text-[#ff9900] tracking-wide font-semibold">
+                TIME &amp; SALES
+              </span>
+              {sessionLabel && sessionLabel !== "HOY" && (
+                <span className="ml-auto text-[9px] text-[#808080]">
+                  {sessionLabel}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <TimeSalesTape trades={tapeTrades} />
+            </div>
           </div>
         </div>
       </div>
