@@ -318,8 +318,23 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                   f.last_price && anterior?.last_price && anterior.last_price > 0
                     ? (f.last_price / anterior.last_price - 1) * 100
                     : null;
+                // Cualquier outright DLR dispara la curva en home-view
+                // (el chart custom interpreta tickers DLR/* como "mostrar
+                // curva entera"). Highlighteamos la fila seleccionada.
+                const isSel = selected === f.ticker;
+                const clickable = !!onSelect;
                 return (
-                  <tr key={f.ticker} className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]">
+                  <tr
+                    key={f.ticker}
+                    onClick={clickable ? () => onSelect!(f.ticker) : undefined}
+                    className={`border-b border-[#0e0e0e] ${
+                      isSel
+                        ? "bg-[#ff9900]/15"
+                        : clickable
+                        ? "hover:bg-[#0e0e0e] cursor-pointer"
+                        : "hover:bg-[#0e0e0e]"
+                    }`}
+                  >
                     <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{f.ticker}</td>
                     <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
                       {f.dias_a_vto}

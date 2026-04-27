@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
 const DEFAULT_TICKER = "MERVAL";   // BCBA:IMV en TradingView (mapSymbol)
+
+// Cualquier ticker DLR (outright, ej "DLR/MAY26") muestra la curva entera —
+// TradingView no tiene los outrights de ROFEX y la serie temporal de un
+// futuro en particular vale poco; lo que importa es la curva del momento.
+function esTickerDlr(t: string): boolean {
+  return t.startsWith("DLR/") || t === "FUTUROS ROFEX";
+}
 
 export function HomeView() {
   const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_TICKER);
@@ -20,6 +28,13 @@ export function HomeView() {
     return () => window.removeEventListener("keydown", onKey);
   }, [maximized]);
 
+  const isDlr = esTickerDlr(selectedTicker);
+  const chartContent = isDlr ? (
+    <FuturosDlrCurveChart selectedTicker={selectedTicker} />
+  ) : (
+    <TradingViewChart symbol={selectedTicker} />
+  );
+
   const chartHeader = (
     <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center">
       <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
@@ -29,7 +44,9 @@ export function HomeView() {
         {selectedTicker}
       </span>
       <span className="ml-auto flex items-center gap-2">
-        <span className="text-[9px] text-[#555555]">TradingView</span>
+        <span className="text-[9px] text-[#555555]">
+          {isDlr ? "Curva DLR" : "TradingView"}
+        </span>
         <button
           onClick={() => setMaximized((m) => !m)}
           aria-label={maximized ? "Minimizar" : "Maximizar"}
@@ -57,7 +74,7 @@ export function HomeView() {
             <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[#080808] overflow-hidden">
               {chartHeader}
               <div className="flex-1 min-h-0">
-                {!maximized && <TradingViewChart symbol={selectedTicker} />}
+                {!maximized && chartContent}
               </div>
             </div>
           </div>
@@ -81,7 +98,7 @@ export function HomeView() {
           >
             {chartHeader}
             <div className="flex-1 min-h-0">
-              <TradingViewChart symbol={selectedTicker} />
+              {chartContent}
             </div>
           </div>
         </div>
