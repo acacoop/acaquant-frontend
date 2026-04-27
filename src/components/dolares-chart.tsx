@@ -12,10 +12,10 @@ import {
   CartesianGrid,
 } from "recharts";
 
-const POLL_MS = 30_000;
+const POLL_MS = 60_000;   // daily close: refresh 1 min alcanza
 
 interface SeriePunto {
-  ts: string;     // ISO datetime
+  ts: string;     // "YYYY-MM-DD"
   valor: number;
 }
 
@@ -25,39 +25,15 @@ interface DolaresResp {
   oficial: SeriePunto[];
 }
 
-// Para el LineChart hago una "merge" en buckets de timestamps por minuto,
-// así las 3 series quedan en el mismo eje X aunque vengan a granularidades
-// distintas. Si en un minuto no hay dato de una serie, queda null y la
-// línea se interrumpe (que es lo correcto fuera de horario de mercado).
-interface PuntoMerged {
-  ts: number;       // millis para ordenar
+// Una fila por fecha, con los 3 valores. Si una serie no tiene dato ese
+// día, queda null y la línea CONECTA por encima (connectNulls=true) — así
+// no hay cortes los fines de semana ni feriados.
+interface FilaFecha {
+  fecha: string;        // YYYY-MM-DD
+  fechaLabel: string;   // dd/mm
   mep: number | null;
   ccl: number | null;
   oficial: number | null;
-}
-
-function bucketsPorMinuto(resp: DolaresResp): PuntoMerged[] {
-  const map = new Map<number, PuntoMerged>();
-  const upsert = (campo: "mep" | "ccl" | "oficial", arr: SeriePunto[]) => {
-    for (const p of arr) {
-      const t = new Date(p.ts).getTime();
-      if (!isFinite(t)) continue;
-      const bucket = Math.floor(t / 60_000) * 60_000;
-      let row = map.get(bucket);
-      if (!row) {
-        row = { ts: bucket, mep: null, ccl: null, oficial: null };
-        map.set(bucket, row);
-      }
-      // El último valor del minuto pisa al anterior (si hay 5 ticks en
-      // un minuto, mostramos el último — comportamiento "close" de
-      // resampleo).
-      row[campo] = p.valor;
-    }
-  };
-  upsert("mep", resp.mep);
-  upsert("ccl", resp.ccl);
-  upsert("oficial", resp.oficial);
-  return Array.from(map.values()).sort((a, b) => a.ts - b.ts);
 }
 
 function fmtPrice(v: number | null | undefined): string {
@@ -68,9 +44,35 @@ function fmtPrice(v: number | null | undefined): string {
   });
 }
 
-function fmtDateTick(ts: number): string {
-  const d = new Date(ts);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+function fechaCorta(yyyymmdd: string): string {
+  // "2026-04-27" → "27/04"
+  if (yyyymmdd.length < 10) return yyyymmdd;
+  return `${yyyymmdd.slice(8, 10)}/${yyyymmdd.slice(5, 7)}`;
+}
+
+function mergePorFecha(resp: DolaresResp): FilaFecha[] {
+  const map = new Map<string, FilaFecha>();
+  const upsert = (campo: "mep" | "ccl" | "oficial", arr: SeriePunto[]) => {
+    for (const p of arr) {
+      const fecha = p.ts.slice(0, 10);
+      let row = map.get(fecha);
+      if (!row) {
+        row = {
+          fecha,
+          fechaLabel: fechaCorta(fecha),
+          mep: null,
+          ccl: null,
+          oficial: null,
+        };
+        map.set(fecha, row);
+      }
+      row[campo] = p.valor;
+    }
+  };
+  upsert("mep", resp.mep);
+  upsert("ccl", resp.ccl);
+  upsert("oficial", resp.oficial);
+  return Array.from(map.values()).sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
 function ultimoValor(arr: SeriePunto[]): number | null {
@@ -94,7 +96,7 @@ export function DolaresChart({ selectedTicker }: Props) {
     async function fetchData() {
       try {
         const res = await fetch(
-          "/api/dolares-historico?ventana_dias=7",
+          "/api/dolares-historico?ventana_dias=30",
           { cache: "no-store" },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -114,10 +116,7 @@ export function DolaresChart({ selectedTicker }: Props) {
     };
   }, []);
 
-  const puntos = useMemo(
-    () => (data ? bucketsPorMinuto(data) : []),
-    [data],
-  );
+  const filas = useMemo(() => (data ? mergePorFecha(data) : []), [data]);
 
   const ultMep = data ? ultimoValor(data.mep) : null;
   const ultCcl = data ? ultimoValor(data.ccl) : null;
@@ -131,7 +130,7 @@ export function DolaresChart({ selectedTicker }: Props) {
     : selectedTicker === "DOLAR OFICIAL" ? "oficial"
     : null;
 
-  if (error && puntos.length === 0) {
+  if (error && filas.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-[#ff3333] font-mono text-xs">
         Error: {error}
@@ -139,7 +138,7 @@ export function DolaresChart({ selectedTicker }: Props) {
     );
   }
 
-  if (!data || puntos.length === 0) {
+  if (!data || filas.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-[#888888] font-mono text-xs">
         Esperando datos del histórico de dólares…
@@ -175,23 +174,23 @@ export function DolaresChart({ selectedTicker }: Props) {
             </span>
           </span>
         )}
+        <span className="ml-auto text-[#555555] text-[9px]">
+          últimos {filas.length} días · close diario
+        </span>
       </div>
 
       <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
-            data={puntos}
+            data={filas}
             margin={{ top: 16, right: 32, bottom: 24, left: 48 }}
           >
             <CartesianGrid stroke="#161616" strokeDasharray="2 4" />
             <XAxis
-              type="number"
-              dataKey="ts"
-              domain={["dataMin", "dataMax"]}
-              tickFormatter={fmtDateTick}
-              tick={{ fill: "#888888", fontSize: 9, fontFamily: "monospace" }}
+              dataKey="fechaLabel"
+              tick={{ fill: "#888888", fontSize: 10, fontFamily: "monospace" }}
               stroke="#1a1a1a"
-              minTickGap={40}
+              minTickGap={20}
             />
             <YAxis
               tick={{ fill: "#888888", fontSize: 10, fontFamily: "monospace" }}
@@ -208,9 +207,6 @@ export function DolaresChart({ selectedTicker }: Props) {
               }}
               labelStyle={{ color: "#d0d0d0" }}
               cursor={{ stroke: "#333333", strokeDasharray: "3 3" }}
-              labelFormatter={(label) =>
-                typeof label === "number" ? fmtDateTick(label) : ""
-              }
               formatter={(value, name) => {
                 if (typeof value !== "number") return ["—", String(name)];
                 return [fmtPrice(value), String(name)];
@@ -228,7 +224,7 @@ export function DolaresChart({ selectedTicker }: Props) {
               strokeWidth={highlight === "mep" ? 2.5 : 1.5}
               dot={false}
               isAnimationActive={false}
-              connectNulls={false}
+              connectNulls
             />
             <Line
               type="monotone"
@@ -238,7 +234,7 @@ export function DolaresChart({ selectedTicker }: Props) {
               strokeWidth={highlight === "ccl" ? 2.5 : 1.5}
               dot={false}
               isAnimationActive={false}
-              connectNulls={false}
+              connectNulls
             />
             <Line
               type="monotone"
@@ -248,7 +244,7 @@ export function DolaresChart({ selectedTicker }: Props) {
               strokeWidth={highlight === "oficial" ? 2.5 : 1.5}
               dot={false}
               isAnimationActive={false}
-              connectNulls={false}
+              connectNulls
             />
           </LineChart>
         </ResponsiveContainer>
