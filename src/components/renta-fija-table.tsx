@@ -80,7 +80,11 @@ export function RentaFijaTable({
       {vista === "libro" ? (
         <LibroPanel data={data} />
       ) : sorted.length > 0 ? (
-        <div className="h-[380px] overflow-y-auto">
+        // Sin overflow propio: el componente Panel padre ya scrolea
+        // (overflow-y-auto en su content). El wrapper antiguo con altura
+        // fija h-[380px] generaba doble scrollbar — pasa más visible en
+        // CER que tiene más filas que tasa_fija.
+        <div>
           <table className="w-full">
             <thead>
               <tr>
