@@ -24,9 +24,9 @@ export function RentaFijaTable({
   flujos: FlujoTicker[];
   forwards?: ForwardDoc[];
 }) {
-  const [vista, setVista] = useState<"tasa_fija" | "cer" | "soberanos" | "libro">(
-    "tasa_fija"
-  );
+  const [vista, setVista] = useState<
+    "tasa_fija" | "cer" | "soberanos" | "dolar_linked" | "libro"
+  >("tasa_fija");
   const curva = vista === "libro" ? "tasa_fija" : vista;
 
   const tickerCurvaMap: Record<string, string> = {};
@@ -71,6 +71,9 @@ export function RentaFijaTable({
         </FilterBtn>
         <FilterBtn active={vista === "soberanos"} onClick={() => setVista("soberanos")}>
           GLOBALES
+        </FilterBtn>
+        <FilterBtn active={vista === "dolar_linked"} onClick={() => setVista("dolar_linked")}>
+          DOLAR LINKED
         </FilterBtn>
         <FilterBtn active={vista === "libro"} onClick={() => setVista("libro")}>
           LIBRO

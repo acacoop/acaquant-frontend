@@ -50,7 +50,7 @@ interface Punto {
   y: number;
 }
 
-type Curva = "tasa_fija" | "cer" | "soberanos";
+type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked";
 type Metrica = "TEA" | "TEM";
 type Modo = "live" | "hist";
 
@@ -378,6 +378,9 @@ export function CurvasChart({
         </FilterBtn>
         <FilterBtn active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>
           GLOBALES
+        </FilterBtn>
+        <FilterBtn active={curva === "dolar_linked"} onClick={() => setCurva("dolar_linked")}>
+          DOLAR LINKED
         </FilterBtn>
         {curva === "tasa_fija" && (
           <div className="ml-1 flex items-center gap-1">
