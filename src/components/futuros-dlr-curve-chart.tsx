@@ -178,11 +178,12 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
               }}
               labelStyle={{ color: "#d0d0d0" }}
               cursor={{ stroke: "#333333", strokeDasharray: "3 3" }}
-              formatter={(value: number, _name: string, ctx: { payload?: Punto }) => {
-                if (!ctx.payload) return [String(value), ""];
+              formatter={(_value, _name, ctx) => {
+                const p = (ctx as { payload?: Punto })?.payload;
+                if (!p) return ["", ""];
                 return [
-                  `${fmtPrice(ctx.payload.precio)}  ·  ${ctx.payload.dias} días`,
-                  ctx.payload.ticker_short,
+                  `${fmtPrice(p.precio)}  ·  ${p.dias} días`,
+                  p.ticker_short,
                 ];
               }}
               labelFormatter={() => ""}
