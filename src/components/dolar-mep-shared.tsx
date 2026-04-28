@@ -157,15 +157,21 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
   );
 }
 
-// Monedas que mostramos en el SaldoBox cuando aparecen con valor distinto
-// de cero. ARS / USD D siempre se muestran (aunque sean 0) porque son las
-// que la operativa MEP usa. Las otras solo si tienen movimiento o saldo.
-const MONEDAS_FIJAS = ["ARS", "USD D"];
-const MONEDAS_OPCIONALES = ["U$S", "USD C", "USD G", "USD R", "USD UY", "USD MtR", "USD DB"];
+// Panel horizontal de saldo — replica la vista de Primary para las 2
+// monedas que importan en operativa MEP (ARS y USD D = USD MEP). El
+// resto de monedas (USD C, USD G, U$S, etc.) viene en el endpoint pero
+// no se muestra acá; si alguna vez son relevantes, se inspeccionan vía
+// /api/risk/account/report.
+function _color(value: number | null, opts?: { ref?: number }): string {
+  if (value === null) return "text-[#888]";
+  if (value < 0) return "text-[#ff7f7f]";
+  if (opts?.ref !== undefined && opts.ref > 0 && value < opts.ref) return "text-[#ff9900]";
+  return "text-[#7fff7f]";
+}
 
-function _esRelevante(m: SaldoMoneda | undefined): boolean {
-  if (!m) return false;
-  return (m.available ?? 0) !== 0 || (m.consumed ?? 0) !== 0;
+function _colorMov(value: number | null): string {
+  if (value === null || value === 0) return "text-[#666]";
+  return value < 0 ? "text-[#ff7f7f]" : "text-[#7fff7f]";
 }
 
 export function SaldoBox({
@@ -177,75 +183,89 @@ export function SaldoBox({
   montoRequerido: number;
   onRefresh?: () => void;
 }) {
-  const monedas = saldo?.monedas ?? {};
-  // Orden: fijas primero (ARS, USD D), después las opcionales con valor.
-  const codigos = [
-    ...MONEDAS_FIJAS,
-    ...MONEDAS_OPCIONALES.filter((c) => _esRelevante(monedas[c])),
-  ];
+  const ars = saldo?.monedas?.["ARS"] ?? {
+    available: saldo?.saldo_ars ?? null,
+    consumed: saldo?.movimiento_ars ?? null,
+  };
+  const usd = saldo?.monedas?.["USD D"] ?? {
+    available: saldo?.saldo_usd_d ?? null,
+    consumed: saldo?.movimiento_usd_d ?? null,
+  };
 
   return (
-    <div className="flex flex-col gap-0.5 min-w-[280px] px-2 border-l border-[#2a2a2a]">
-      <div className="flex items-center gap-1">
+    <div className="flex items-center gap-6 px-3 py-2 bg-[#080808] border border-[#1a1a1a]">
+      <div className="flex items-center gap-2 min-w-[110px]">
         <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
         {onRefresh && (
           <button
             onClick={onRefresh}
             title="Refrescar saldo"
-            className="text-[#888] hover:text-[#ff9900] text-[10px] leading-none"
+            className="text-[#888] hover:text-[#ff9900] text-[11px] leading-none"
           >
             ↻
           </button>
         )}
       </div>
-      <table className="text-[10px] tabular-nums">
-        <thead>
-          <tr className="text-[#666]">
-            <th className="text-left font-normal pr-2">moneda</th>
-            <th className="text-right font-normal pr-3">disponible</th>
-            <th className="text-right font-normal">movim.</th>
-          </tr>
-        </thead>
-        <tbody>
-          {codigos.map((c) => {
-            const m = monedas[c] ?? { available: null, consumed: null };
-            const av = m.available;
-            const cs = m.consumed;
-            const isAr = c === "ARS";
-            const avColor =
-              av === null
-                ? "text-[#888]"
-                : av < 0
-                ? "text-[#ff7f7f]"
-                : isAr && montoRequerido > 0 && av < montoRequerido
-                ? "text-[#ff9900]"
-                : "text-[#7fff7f]";
-            const csColor =
-              cs === null || cs === 0
-                ? "text-[#666]"
-                : cs < 0
-                ? "text-[#ff7f7f]"
-                : "text-[#7fff7f]";
-            const fmtMoneda = isAr ? fmtSignedAr : fmtSignedUsd;
-            return (
-              <tr key={c}>
-                <td className="text-[#aaa] pr-2">{c}</td>
-                <td className={`text-right pr-3 ${avColor}`}>
-                  {av !== null ? fmtMoneda(av) : "—"}
-                </td>
-                <td className={`text-right ${csColor}`}>
-                  {cs !== null && cs !== 0 ? fmtMoneda(cs) : "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+      <Cell
+        label="ARS DISPONIBLE"
+        value={ars.available}
+        fmt={fmtSignedAr}
+        color={_color(ars.available, { ref: montoRequerido })}
+      />
+      <Cell
+        label="ARS MOVIM."
+        value={ars.consumed}
+        fmt={fmtSignedAr}
+        color={_colorMov(ars.consumed)}
+        zeroAsDash
+      />
+      <Cell
+        label="USD D DISPONIBLE"
+        value={usd.available}
+        fmt={fmtSignedUsd}
+        color={_color(usd.available)}
+      />
+      <Cell
+        label="USD D MOVIM."
+        value={usd.consumed}
+        fmt={fmtSignedUsd}
+        color={_colorMov(usd.consumed)}
+        zeroAsDash
+      />
+
       {saldo?.last_calc && (
-        <span className="text-[9px] text-[#666]" title={saldo.last_calc}>
+        <span
+          className="ml-auto text-[9px] text-[#666] tabular-nums"
+          title={saldo.last_calc}
+        >
           last {fmtTime(saldo.last_calc)}
         </span>
       )}
+    </div>
+  );
+}
+
+function Cell({
+  label,
+  value,
+  fmt,
+  color,
+  zeroAsDash,
+}: {
+  label: string;
+  value: number | null | undefined;
+  fmt: (n: number) => string;
+  color: string;
+  zeroAsDash?: boolean;
+}) {
+  const v = value ?? null;
+  const txt =
+    v === null || (zeroAsDash && v === 0) ? "—" : fmt(v);
+  return (
+    <div className="flex flex-col gap-0.5 leading-tight">
+      <span className="text-[8px] tracking-wider text-[#666]">{label}</span>
+      <span className={`text-[12px] font-semibold tabular-nums ${color}`}>{txt}</span>
     </div>
   );
 }

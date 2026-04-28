@@ -175,6 +175,9 @@ export function DolarMepTradingView({
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
+      {/* Saldo — panel propio, replica vista de Primary */}
+      <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
+
       <div className="flex gap-2 items-end p-3 bg-[#080808] border border-[#1a1a1a] flex-wrap">
         <Field label="MONTO ARS" className="w-[160px]">
           <input
@@ -240,7 +243,6 @@ export function DolarMepTradingView({
             placeholder="ej. 1390"
           />
         </Field>
-        <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
         <button
           onClick={handleArmar}
           disabled={submitting}
