@@ -39,6 +39,15 @@ interface OperativaMep {
   wrapper_status?: string;
 }
 
+interface SaldoCuenta {
+  account: string;
+  rueda: Rueda;
+  saldo_ars: number | null;
+  saldo_usd_d: number | null;
+  settlement_date?: string | null;
+  last_calc?: string | null;
+}
+
 const ACCOUNT_DEFAULT = "805"; // hoy hay solo 1 cuenta — del .env del server
 
 export function DolarMepView() {
@@ -49,6 +58,7 @@ export function DolarMepView() {
 
   const [cot, setCot] = useState<Cotizacion | null>(null);
   const [operativas, setOperativas] = useState<OperativaMep[]>([]);
+  const [saldo, setSaldo] = useState<SaldoCuenta | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -73,17 +83,35 @@ export function DolarMepView() {
     }
   }
 
+  async function fetchSaldo() {
+    try {
+      const r = await fetch(`/api/risk/account/saldo?rueda=${rueda}&account=${account}`, {
+        cache: "no-store",
+      });
+      if (r.ok) {
+        setSaldo(await r.json());
+      } else {
+        setSaldo(null);
+      }
+    } catch {
+      // ignore — backend cachea 3s, no es crítico si una request falla
+    }
+  }
+
   useEffect(() => {
     fetchCot();
     fetchOperativas();
+    fetchSaldo();
     const idCot = setInterval(fetchCot, 2000);
     const idOps = setInterval(fetchOperativas, 3000);
+    const idSal = setInterval(fetchSaldo, 3000);
     return () => {
       clearInterval(idCot);
       clearInterval(idOps);
+      clearInterval(idSal);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rueda]);
+  }, [rueda, account]);
 
   // Cálculo informativo en vivo (lo final lo calcula el backend con el último precio
   // al momento de mandar — esto solo es preview).
@@ -191,6 +219,7 @@ export function DolarMepView() {
             <option value={ACCOUNT_DEFAULT}>{ACCOUNT_DEFAULT}</option>
           </select>
         </Field>
+        <SaldoBox saldo={saldo} montoRequerido={montoNum} />
         <button
           onClick={handleEjecutar}
           disabled={submitting}
@@ -273,6 +302,52 @@ export function DolarMepView() {
 
 const inputCls =
   "bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] w-full focus:border-[#ff9900] outline-none";
+
+function SaldoBox({
+  saldo,
+  montoRequerido,
+}: {
+  saldo: SaldoCuenta | null;
+  montoRequerido: number;
+}) {
+  const ars = saldo?.saldo_ars ?? null;
+  const usd = saldo?.saldo_usd_d ?? null;
+
+  // Coloreo del ARS contra el monto requerido para la operativa.
+  // <0 → rojo (cuenta sobregirada), <monto → naranja (no alcanza),
+  // >=monto → verde.
+  const arsColor =
+    ars === null
+      ? "text-[#888]"
+      : ars < 0
+      ? "text-[#ff7f7f]"
+      : montoRequerido > 0 && ars < montoRequerido
+      ? "text-[#ff9900]"
+      : "text-[#7fff7f]";
+  const usdColor = usd === null ? "text-[#888]" : usd < 0 ? "text-[#ff7f7f]" : "text-[#7fff7f]";
+
+  return (
+    <div className="flex flex-col gap-0.5 min-w-[160px] px-2 border-l border-[#2a2a2a]">
+      <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
+      <span className={`text-[12px] font-semibold tabular-nums ${arsColor}`}>
+        ARS {ars !== null ? fmtSignedAr(ars) : "—"}
+      </span>
+      <span className={`text-[10px] tabular-nums ${usdColor}`}>
+        USD MEP {usd !== null ? fmtSignedUsd(usd) : "—"}
+      </span>
+    </div>
+  );
+}
+
+function fmtSignedAr(n: number): string {
+  const sign = n < 0 ? "-" : "";
+  return `${sign}$${Math.abs(n).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+}
+
+function fmtSignedUsd(n: number): string {
+  const sign = n < 0 ? "-" : "";
+  return `${sign}US$${Math.abs(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
+}
 
 function Field({
   label,
