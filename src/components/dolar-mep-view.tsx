@@ -115,14 +115,19 @@ export function DolarMepView() {
 
   // Cálculo informativo en vivo (lo final lo calcula el backend con el último precio
   // al momento de mandar — esto solo es preview).
+  // Convención BYMA: los bonos cotizan precio por 100 VN, así que dividimos por
+  // (precio × 0.01) para pasar a precio por 1 VN (la unidad real del `size`).
+  const PRICE_FACTOR = 0.01;
   const montoNum = parseFloat(monto) || 0;
   const comNum = parseFloat(comision) || 0;
   const arsNeto = montoNum * (1 - comNum / 100);
   const precioAl30 = cot?.al30?.price ?? null;
   const precioAl30d = cot?.al30d?.price ?? null;
   const mep = cot?.mep_implicito ?? null;
-  const nominalesEstim = precioAl30 && precioAl30 > 0 ? Math.floor(arsNeto / precioAl30) : null;
-  const usdEstim = nominalesEstim && precioAl30d ? nominalesEstim * precioAl30d : null;
+  const nominalesEstim =
+    precioAl30 && precioAl30 > 0 ? Math.floor(arsNeto / (precioAl30 * PRICE_FACTOR)) : null;
+  const usdEstim =
+    nominalesEstim && precioAl30d ? nominalesEstim * (precioAl30d * PRICE_FACTOR) : null;
 
   async function handleEjecutar() {
     if (!montoNum || montoNum <= 0) {
