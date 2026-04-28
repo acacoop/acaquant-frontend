@@ -26,7 +26,14 @@ export async function getMe(): Promise<Me | null> {
   const email = hdrs.get("cf-access-authenticated-user-email") ?? "";
 
   const authHeaders: Record<string, string> = {};
-  if (email) authHeaders["cf-access-authenticated-user-email"] = email;
+  // CF Access estripa cf-access-authenticated-user-email cuando el origin
+  // recibe el request autenticado por service token (Vercel SSR →
+  // api.acaquant.com). x-acaquant-user-email no es CF-controlled, pasa
+  // intacto y el backend lo lee con prioridad. Mandamos los dos por compat.
+  if (email) {
+    authHeaders["cf-access-authenticated-user-email"] = email;
+    authHeaders["x-acaquant-user-email"] = email;
+  }
   if (API_KEY) authHeaders["Authorization"] = `Bearer ${API_KEY}`;
   if (CF_ID && CF_SECRET) {
     authHeaders["CF-Access-Client-Id"] = CF_ID;
