@@ -19,12 +19,14 @@ const PATH_MODULES: [string, string][] = [
   ["/manager", "manager"],
   ["/asistente", "asistente"],
   ["/api/chat", "asistente"],
+  // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
+  ["/operar", "operar"],
+  ["/api/ordenes", "operar"],
+  ["/api/operativa", "operar"],
+  ["/api/risk", "operar"],
+  // /operaciones (mesa, flujo, contrapartes) — módulo `operaciones`
   ["/operaciones", "operaciones"],
-  ["/operar", "operaciones"],
   ["/api/operaciones", "operaciones"],
-  ["/api/ordenes", "operaciones"],
-  ["/api/operativa", "operaciones"],
-  ["/api/risk", "operaciones"],
   ["/api/cuentas", "operaciones"],
   ["/portfolios", "portfolios"],
   ["/aum", "portfolios"],

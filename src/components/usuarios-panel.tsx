@@ -9,6 +9,7 @@ type User = {
   notes?: string;
   created_at?: string;
   updated_at?: string;
+  last_seen_at?: string;
   auto_registered?: boolean;
 };
 
@@ -177,7 +178,7 @@ export function UsuariosPanel() {
           <div>ROLE</div>
           <div>ENABLED</div>
           <div>NOTAS</div>
-          <div>ÚLT. ACT.</div>
+          <div>ÚLT. VISTO</div>
           <div></div>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -267,7 +268,9 @@ function UserRow({
         </span>
       </label>
       <div className="text-[#808080] text-[11px] truncate">{user.notes || "—"}</div>
-      <div className="text-[#555] text-[10px]">{fmtDate(user.updated_at)}</div>
+      <div className="text-[#555] text-[10px]">
+        {fmtDate(user.last_seen_at ?? user.updated_at)}
+      </div>
       <button
         onClick={onDelete}
         disabled={busy}
