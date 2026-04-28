@@ -100,8 +100,12 @@ export function DolarMepShell() {
     }
     fetchCot();
     fetchSaldo();
-    const idCot = setInterval(fetchCot, 2000);
-    const idSal = setInterval(fetchSaldo, 5000);
+    // Cotización cada 5s (AL30 saca trade cada varios seg, 5s alcanza).
+    // Saldo cada 60s — el broker recalcula los balances con poca
+    // frecuencia, refrescar más seguido es desperdicio. El user tiene
+    // el botón ↻ del SaldoBox para forzar refresh inmediato post-operativa.
+    const idCot = setInterval(fetchCot, 5000);
+    const idSal = setInterval(fetchSaldo, 60000);
     return () => {
       alive = false;
       clearInterval(idCot);

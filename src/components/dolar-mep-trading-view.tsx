@@ -67,7 +67,10 @@ export function DolarMepTradingView({
 
   useEffect(() => {
     fetchTriggers();
-    const id = setInterval(fetchTriggers, 2000);
+    // 10s — el scanner del backend evalúa cada 1s, así que 10s en
+    // pantalla es retraso máximo de 10s para ver el cambio de estado
+    // de un trigger (ACTIVE → EXECUTED, etc.). Suficiente.
+    const id = setInterval(fetchTriggers, 10000);
     return () => clearInterval(id);
   }, []);
 
