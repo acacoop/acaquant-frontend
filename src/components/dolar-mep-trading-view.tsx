@@ -17,7 +17,7 @@ import {
   fmtArs,
   fmtTime,
 } from "./dolar-mep-shared";
-import { DolarMepTimeSalesChart } from "./dolar-mep-timesales-chart";
+import { DolarMepBoard } from "./dolar-mep-board";
 
 // Vista TRADING: trigger condicional. El user define un MEP objetivo y
 // el scanner del backend dispara la operativa cuando MEP <= objetivo.
@@ -175,9 +175,6 @@ export function DolarMepTradingView({
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
-      {/* Saldo — panel propio, replica vista de Primary */}
-      <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
-
       <div className="flex gap-2 items-end p-3 bg-[#080808] border border-[#1a1a1a] flex-wrap">
         <Field label="MONTO ARS" className="w-[160px]">
           <input
@@ -251,7 +248,7 @@ export function DolarMepTradingView({
           {submitting ? "ARMANDO…" : tieneBracket ? "ARMAR BRACKET" : "ARMAR TRIGGER"}
         </button>
 
-        <div className="ml-auto flex flex-col gap-0.5 text-[10px] text-[#888]">
+        <div className="flex items-center gap-4 text-[10px] text-[#888]">
           <span>Nominales estim.: {nominalesEstim ?? "—"}</span>
           <span>MEP actual: {mep !== null ? `$${mep.toFixed(2)}` : "—"}</span>
           <span className={dist !== null && dist <= 0 ? "text-[#ff9900]" : ""}>
@@ -259,6 +256,9 @@ export function DolarMepTradingView({
           </span>
         </div>
       </div>
+
+      {/* Saldo — debajo del form (la lógica es: primero elegís cuenta, después ves saldo) */}
+      <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
 
       {feedback && (
         <div
@@ -272,18 +272,8 @@ export function DolarMepTradingView({
         </div>
       )}
 
-      {/* Split horizontal: chart izq 50% + tabla der 50% */}
-      <div className="flex-1 min-h-0 flex gap-3">
-        <div className="w-1/2 bg-[#080808] border border-[#1a1a1a] p-2">
-          <div className="text-[9px] tracking-wider text-[#888] mb-1 px-1">
-            MEP {rueda} · MINUTO CLOSE · ÚLTIMAS 24H
-          </div>
-          <div className="h-[calc(100%-1.25rem)]">
-            <DolarMepTimeSalesChart rueda={rueda} />
-          </div>
-        </div>
-
-        <div className="w-1/2 min-h-0 overflow-auto bg-[#080808] border border-[#1a1a1a]">
+      {/* Chart + tabla triggers — split compartido con COMPRA (sólo cambia la tabla) */}
+      <DolarMepBoard rueda={rueda}>
         <table className="w-full text-[11px]">
           <thead className="bg-[#1a1a1a] sticky top-0">
             <tr>
@@ -367,8 +357,7 @@ export function DolarMepTradingView({
             })}
           </tbody>
         </table>
-        </div>
-      </div>
+      </DolarMepBoard>
     </div>
   );
 }

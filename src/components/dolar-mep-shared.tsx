@@ -162,16 +162,11 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
 // resto de monedas (USD C, USD G, U$S, etc.) viene en el endpoint pero
 // no se muestra acá; si alguna vez son relevantes, se inspeccionan vía
 // /api/risk/account/report.
-function _color(value: number | null, opts?: { ref?: number }): string {
+function _colorDisp(value: number | null, opts?: { ref?: number }): string {
   if (value === null) return "text-[#888]";
   if (value < 0) return "text-[#ff7f7f]";
   if (opts?.ref !== undefined && opts.ref > 0 && value < opts.ref) return "text-[#ff9900]";
   return "text-[#7fff7f]";
-}
-
-function _colorMov(value: number | null): string {
-  if (value === null || value === 0) return "text-[#666]";
-  return value < 0 ? "text-[#ff7f7f]" : "text-[#7fff7f]";
 }
 
 export function SaldoBox({
@@ -211,26 +206,29 @@ export function SaldoBox({
         label="ARS DISPONIBLE"
         value={ars.available}
         fmt={fmtSignedAr}
-        color={_color(ars.available, { ref: montoRequerido })}
+        color={_colorDisp(ars.available, { ref: montoRequerido })}
       />
       <Cell
         label="ARS MOVIM."
         value={ars.consumed}
-        fmt={fmtSignedAr}
-        color={_colorMov(ars.consumed)}
+        // Movimientos: sin signo y en gris neutro — informativos, no
+        // direccionales. El signo del broker indica dirección, pero acá
+        // mostramos magnitud (lo que se operó).
+        fmt={(n) => fmtSignedAr(Math.abs(n))}
+        color="text-[#aaa]"
         zeroAsDash
       />
       <Cell
         label="USD D DISPONIBLE"
         value={usd.available}
         fmt={fmtSignedUsd}
-        color={_color(usd.available)}
+        color={_colorDisp(usd.available)}
       />
       <Cell
         label="USD D MOVIM."
         value={usd.consumed}
-        fmt={fmtSignedUsd}
-        color={_colorMov(usd.consumed)}
+        fmt={(n) => fmtSignedUsd(Math.abs(n))}
+        color="text-[#aaa]"
         zeroAsDash
       />
 

@@ -18,6 +18,7 @@ import {
   fmtArs,
   fmtTime,
 } from "./dolar-mep-shared";
+import { DolarMepBoard } from "./dolar-mep-board";
 
 // El shell maneja rueda/monto/comision/account/cot/saldo y los pasa por props.
 // Esta vista solo se ocupa de "operativa instantánea": form EJECUTAR + tabla
@@ -125,10 +126,7 @@ export function DolarMepCompraView({
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
-      {/* Saldo — panel propio, replica vista de Primary */}
-      <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
-
-      {/* Form */}
+      {/* Form: inputs + EJECUTAR + cálculos horizontales pegados al botón */}
       <div className="flex gap-2 items-end p-3 bg-[#080808] border border-[#1a1a1a] flex-wrap">
         <Field label="MONTO ARS" className="w-[160px]">
           <input
@@ -169,12 +167,15 @@ export function DolarMepCompraView({
           {submitting ? "EJECUTANDO…" : "EJECUTAR"}
         </button>
 
-        <div className="ml-auto flex flex-col gap-0.5 text-[10px] text-[#888]">
+        <div className="flex items-center gap-4 text-[10px] text-[#888]">
           <span>ARS neto: ${arsNeto.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>
           <span>Nominales estim.: {nominalesEstim ?? "—"}</span>
           <span>USD estim.: {usdEstim ? `US$${usdEstim.toFixed(2)}` : "—"}</span>
         </div>
       </div>
+
+      {/* Saldo — debajo del form (la lógica es: primero elegís cuenta, después ves saldo) */}
+      <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
 
       {feedback && (
         <div
@@ -188,7 +189,8 @@ export function DolarMepCompraView({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-auto bg-[#080808] border border-[#1a1a1a]">
+      {/* Chart + tabla operativas — split compartido con TRADING (sólo cambia la tabla) */}
+      <DolarMepBoard rueda={rueda}>
         <table className="w-full text-[11px]">
           <thead className="bg-[#1a1a1a] sticky top-0">
             <tr>
@@ -230,7 +232,7 @@ export function DolarMepCompraView({
             ))}
           </tbody>
         </table>
-      </div>
+      </DolarMepBoard>
     </div>
   );
 }
