@@ -292,12 +292,8 @@ export function DolarMepView() {
                 <Td right>{fmtArs(op.monto_ars)}</Td>
                 <Td right>{op.nominales ?? "—"}</Td>
                 <Td right>{op.mep_inicial ?? "—"}</Td>
-                <Td className={statusColor(op.buy?.status)}>
-                  {op.buy?.status ?? "—"}
-                </Td>
-                <Td className={statusColor(op.sell?.status)}>
-                  {op.sell?.status ?? "—"}
-                </Td>
+                <PataCell pata={op.buy} />
+                <PataCell pata={op.sell} />
                 <Td right>{op.usd_efectivo ? `US$${op.usd_efectivo.toFixed(2)}` : "—"}</Td>
                 <Td right className="text-[#ff9900]">{op.mep_efectivo ?? "—"}</Td>
                 <Td className={estadoColor(op.estado)}>{op.estado ?? ""}</Td>
@@ -401,6 +397,28 @@ function Td({
   return (
     <td className={`px-2 py-1 ${right ? "text-right tabular-nums" : ""} ${className ?? ""}`}>
       {children}
+    </td>
+  );
+}
+
+function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
+  // Celda compuesta: status arriba, motivo de rechazo abajo en gris chico.
+  // El motivo completo queda en el title (tooltip) por si está truncado.
+  const status = pata?.status;
+  const reason = pata?.reject_reason ?? null;
+  return (
+    <td className={`px-2 py-1 align-top ${statusColor(status)}`}>
+      <div className="flex flex-col">
+        <span>{status ?? "—"}</span>
+        {reason && (
+          <span
+            className="text-[9px] text-[#888] mt-0.5 max-w-[200px] truncate"
+            title={reason}
+          >
+            {reason}
+          </span>
+        )}
+      </div>
     </td>
   );
 }
