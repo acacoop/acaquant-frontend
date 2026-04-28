@@ -1,25 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  ComposedChart,
-  Scatter,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  LabelList,
-  ResponsiveContainer,
-} from "recharts";
 import type { FairValueBono, FairValueDoc } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
-import { useViewportKey } from "@/lib/use-viewport-key";
 import { FairValueModal } from "./fair-value-modal";
 
 type Curva = "tasa_fija" | "cer";
 
 const POLL_LIVE_MS = 90_000;
-const Z_THRESHOLD_HI = 1.5;
 
 type SortKey = "z_temporal" | "ticker" | "duration" | "tea_obs" | "residuo_bps" | "z_estatico";
 
@@ -63,14 +51,16 @@ interface Props {
 
 export function FairValueView({ curva, initialDoc }: Props) {
   const endpoint = `/api/cotizaciones/fair-value?curva=${encodeURIComponent(curva)}`;
-  const initial: FairValueDoc = initialDoc ?? {
+  // ⚠ MUST be useMemo: usePoll dispara setState si initial cambia de
+  // identidad (ver renta-fija-live.tsx). Sin esto, cada render crea
+  // objeto nuevo → setState → re-render → loop (React error #185).
+  const initial: FairValueDoc = useMemo(() => initialDoc ?? {
     curva,
     beta0: 0, beta1: 0, beta2: 0, r2: 0,
     sigma_dia_bps: 0, n_bonos_universo: 0,
     bonos: [],
-  };
+  }, [curva, initialDoc]);
   const { data: doc } = usePoll<FairValueDoc>(endpoint, initial, POLL_LIVE_MS);
-  const vpKey = useViewportKey();
 
   const [sort, setSort] = useState<SortState>({ key: "z_temporal", dir: "desc" });
   const [tickerSel, setTickerSel] = useState<string | null>(null);
@@ -106,56 +96,6 @@ export function FairValueView({ curva, initialDoc }: Props) {
     return arr;
   }, [bonos, sort]);
 
-  // Línea cuadrática del cierre (β del último cron) sobre el rango de durations.
-  const fitData = useMemo(() => {
-    if (!hayDatos) return [] as { Duration: number; fitY: number }[];
-    const xs = bonos.map((b) => b.duration);
-    const xMin = Math.min(...xs);
-    const xMax = Math.max(...xs);
-    const steps = 80;
-    const out: { Duration: number; fitY: number }[] = [];
-    for (let i = 0; i <= steps; i++) {
-      const x = xMin + ((xMax - xMin) * i) / steps;
-      const y = doc.beta0 + doc.beta1 * x + doc.beta2 * x * x;
-      out.push({ Duration: +x.toFixed(4), fitY: +(y * 100).toFixed(4) });
-    }
-    return out;
-  }, [bonos, doc, hayDatos]);
-
-  // Dataset combinado para el ComposedChart: scatter + fit.
-  const merged = useMemo(() => {
-    const map = new Map<number, Record<string, number | string>>();
-    const ensure = (d: number) => {
-      let r = map.get(d);
-      if (!r) {
-        r = { Duration: d };
-        map.set(d, r);
-      }
-      return r;
-    };
-    for (const b of bonos) {
-      const r = ensure(+b.duration.toFixed(4));
-      r.scatterY = +(b.tea_obs * 100).toFixed(4);
-      r.Ticker = b.ticker_corto ?? shortTicker(b.ticker);
-      r.zTemp = b.z_temporal ?? Number.NaN;
-      r.residuoBps = b.residuo_bps;
-    }
-    for (const f of fitData) {
-      const r = ensure(f.Duration);
-      r.fitY = f.fitY;
-    }
-    return Array.from(map.values()).sort(
-      (a, b) => (a.Duration as number) - (b.Duration as number),
-    );
-  }, [bonos, fitData]);
-
-  const xs = bonos.map((b) => b.duration);
-  const ys = bonos.map((b) => b.tea_obs * 100);
-  const xMin = xs.length ? Math.min(...xs) * 0.95 : 0;
-  const xMax = xs.length ? Math.max(...xs) * 1.05 : 1;
-  const yMin = ys.length ? Math.min(...ys) - 1 : 0;
-  const yMax = ys.length ? Math.max(...ys) + 1 : 1;
-
   const renderHeader = (label: string, key: SortKey, align: "left" | "right" = "right") => (
     <th
       onClick={() =>
@@ -181,110 +121,14 @@ export function FairValueView({ curva, initialDoc }: Props) {
         {doc.error && <span className="text-[#c0271a]">⚠ {doc.error}</span>}
       </div>
 
-      {/* Scatter + cuadrática */}
-      <div className="h-[320px] shrink-0">
-        {hayDatos ? (
-          <ResponsiveContainer key={vpKey} width="100%" height="100%">
-            <ComposedChart data={merged} margin={{ top: 16, right: 12, bottom: 8, left: 8 }}>
-              <XAxis
-                dataKey="Duration"
-                type="number"
-                domain={[xMin, xMax]}
-                tick={{ fill: "#808080", fontSize: 10 }}
-                axisLine={{ stroke: "#2a2a2a" }}
-                tickLine={false}
-                tickFormatter={(v: number) => v.toFixed(1)}
-              />
-              <YAxis
-                domain={[yMin, yMax]}
-                tick={{ fill: "#808080", fontSize: 10 }}
-                axisLine={{ stroke: "#2a2a2a" }}
-                tickLine={false}
-                tickFormatter={(v: number) => `${v.toFixed(1)}%`}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#0e0e0e",
-                  border: "1px solid #2a2a2a",
-                  fontSize: 11,
-                  fontFamily: "JetBrains Mono, monospace",
-                }}
-                formatter={(value, name, item) => {
-                  const key = String(name);
-                  const v = Number(value);
-                  if (key === "scatterY") {
-                    const p = item.payload as Record<string, number | string>;
-                    const r = p.residuoBps as number;
-                    const z = p.zTemp as number;
-                    return [
-                      `${v.toFixed(2)}% · res ${fmtBps(r)}bps · z ${fmtZ(Number.isFinite(z) ? z : null)}`,
-                      String(p.Ticker),
-                    ];
-                  }
-                  if (key === "fitY") return [`${v.toFixed(2)}%`, "Cuadrática"];
-                  return [String(value), key];
-                }}
-                labelFormatter={(v) => `Duration ${Number(v).toFixed(2)} años`}
-              />
-              <Line
-                dataKey="fitY"
-                type="monotone"
-                stroke="#4488ff"
-                strokeWidth={2}
-                dot={false}
-                connectNulls
-                isAnimationActive={false}
-              />
-              <Scatter
-                dataKey="scatterY"
-                isAnimationActive={false}
-                onClick={(p) => {
-                  const tk = (p?.payload as Record<string, unknown> | undefined)?.Ticker;
-                  if (typeof tk === "string") {
-                    const found = bonos.find((b) => (b.ticker_corto ?? shortTicker(b.ticker)) === tk);
-                    if (found) setTickerSel(found.ticker);
-                  }
-                }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                shape={(props: any) => {
-                  const cx = Number(props.cx);
-                  const cy = Number(props.cy);
-                  const payload = (props.payload || {}) as Record<string, unknown>;
-                  const z = Number(payload.zTemp);
-                  let fill = "#00cc66";
-                  let stroke = "transparent";
-                  let strokeWidth = 0;
-                  if (Number.isFinite(z)) {
-                    if (z >= Z_THRESHOLD_HI) {
-                      fill = "#3fbf6f";
-                      stroke = "#1f8a3e";
-                      strokeWidth = 2;
-                    } else if (z <= -Z_THRESHOLD_HI) {
-                      fill = "#d97706";
-                      stroke = "#c0271a";
-                      strokeWidth = 2;
-                    }
-                  }
-                  return (
-                    <circle cx={cx} cy={cy} r={4} fill={fill} stroke={stroke} strokeWidth={strokeWidth} style={{ cursor: "pointer" }} />
-                  );
-                }}
-              >
-                <LabelList
-                  dataKey="Ticker"
-                  position="top"
-                  fill="#aaaaaa"
-                  style={{ fontSize: 10, fontFamily: "JetBrains Mono, monospace" }}
-                />
-              </Scatter>
-            </ComposedChart>
-          </ResponsiveContainer>
-        ) : (
-          <p className="text-[#555555] text-xs py-4 text-center">
-            {doc.error ? doc.error : "SIN DATOS — corré jobs.snapshot_cierre + jobs.fair_value"}
-          </p>
-        )}
-      </div>
+      {/* El user pidió que en modo fair-value solo se vea la tabla;
+         el scatter + cuadrática quedó deshabilitado. Si querés volverlo,
+         está en el commit anterior (git log -- fair-value-view.tsx). */}
+      {!hayDatos && (
+        <p className="text-[#555555] text-xs py-4 text-center">
+          {doc.error ? doc.error : "SIN DATOS — corré jobs.snapshot_cierre + jobs.fair_value"}
+        </p>
+      )}
 
       {/* Tabla rankeable */}
       {hayDatos && (

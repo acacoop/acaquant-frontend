@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type {
   BreakevenDoc,
   BreakevenHistDoc,
@@ -52,11 +53,16 @@ export function RentaFijaLiveView({
   forwardsZscore,
   fairValueInicial,
 }: Props) {
-  const initialSnapshot: SnapshotLive = {
+  // ⚠ MUST be useMemo: usePoll dispara un setState si initial cambia de
+  // identidad. Sin useMemo, este objeto se recrea en cada render, lo que
+  // disparaba el setState, lo que causa re-render → loop infinito
+  // (React error #185 "Maximum update depth exceeded").
+  const initialSnapshot: SnapshotLive = useMemo(() => ({
     renta_fija: initialRentaFija,
     forwards:   initialForwards,
     breakevens: initialBreakevens,
-  };
+  }), [initialRentaFija, initialForwards, initialBreakevens]);
+
   const { data: snapshot, lastAt } = usePoll<SnapshotLive>(
     "/api/cotizaciones/snapshot-live", initialSnapshot, POLL_SNAPSHOT_MS,
   );
