@@ -169,7 +169,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
   );
 
   return (
-    <div className="h-full flex flex-col min-h-0 gap-2">
+    <div className="h-full overflow-y-auto flex flex-col gap-2">
       {/* Header con métricas del fit */}
       <div className="flex items-center gap-3 text-[10px] text-[#808080] shrink-0 flex-wrap">
         <span>
@@ -182,7 +182,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
       </div>
 
       {/* Scatter + cuadrática */}
-      <div className="flex-1 min-h-0">
+      <div className="h-[320px] shrink-0">
         {hayDatos ? (
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
             <ComposedChart data={merged} margin={{ top: 16, right: 12, bottom: 8, left: 8 }}>
@@ -288,7 +288,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
 
       {/* Tabla rankeable */}
       {hayDatos && (
-        <div className="max-h-[180px] overflow-auto border-t border-[#2a2a2a] shrink-0">
+        <div className="border-t border-[#2a2a2a] shrink-0">
           <table className="w-full text-[11px]">
             <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[#2a2a2a]">
               <tr className="text-[#808080]">
