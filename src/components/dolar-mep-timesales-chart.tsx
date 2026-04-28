@@ -127,8 +127,17 @@ export function DolarMepTimeSalesChart({ rueda }: { rueda: Rueda }) {
   );
 }
 
+// Hora ART explícita — el backend devuelve UTC real con tz, acá lo
+// localizamos a Buenos Aires sin depender de la timezone del browser.
+const HORA_ART = new Intl.DateTimeFormat("es-AR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "America/Argentina/Buenos_Aires",
+});
+
 function hhmm(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toISOString().substring(11, 16); // HH:MM
+  return HORA_ART.format(d);
 }
