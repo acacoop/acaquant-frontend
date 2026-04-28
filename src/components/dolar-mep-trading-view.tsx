@@ -32,6 +32,7 @@ interface Props {
   setAccount: (v: string) => void;
   cot: Cotizacion | null;
   saldo: SaldoCuenta | null;
+  onRefreshSaldo?: () => void;
 }
 
 export function DolarMepTradingView({
@@ -40,6 +41,7 @@ export function DolarMepTradingView({
   comision, setComision,
   account, setAccount,
   cot, saldo,
+  onRefreshSaldo,
 }: Props) {
   const [tcObjetivo, setTcObjetivo] = useState("");
   const [tpObjetivo, setTpObjetivo] = useState("");
@@ -204,7 +206,7 @@ export function DolarMepTradingView({
             <option value={ACCOUNT_DEFAULT}>{ACCOUNT_DEFAULT}</option>
           </select>
         </Field>
-        <Field label="ENTRY ≤" className="w-[120px]">
+        <Field label="MEP ENTRY ≤" className="w-[120px]">
           <input
             type="number"
             value={tcObjetivo}
@@ -215,7 +217,7 @@ export function DolarMepTradingView({
             placeholder="ej. 1420"
           />
         </Field>
-        <Field label="TP ≥ (opc)" className="w-[110px]">
+        <Field label="MEP TP ≥ (opc)" className="w-[120px]">
           <input
             type="number"
             value={tpObjetivo}
@@ -223,10 +225,10 @@ export function DolarMepTradingView({
             className={inputCls}
             step="0.01"
             min={0}
-            placeholder="—"
+            placeholder="ej. 1480"
           />
         </Field>
-        <Field label="SL ≤ (opc)" className="w-[110px]">
+        <Field label="MEP SL ≤ (opc)" className="w-[120px]">
           <input
             type="number"
             value={slObjetivo}
@@ -234,10 +236,10 @@ export function DolarMepTradingView({
             className={inputCls}
             step="0.01"
             min={0}
-            placeholder="—"
+            placeholder="ej. 1390"
           />
         </Field>
-        <SaldoBox saldo={saldo} montoRequerido={montoNum} />
+        <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
         <button
           onClick={handleArmar}
           disabled={submitting}

@@ -27,6 +27,19 @@ export function DolarMepShell() {
   const [cot, setCot] = useState<Cotizacion | null>(null);
   const [saldo, setSaldo] = useState<SaldoCuenta | null>(null);
 
+  async function fetchSaldoNow() {
+    try {
+      const r = await fetch(
+        `/api/risk/account/saldo?rueda=${rueda}&account=${account}`,
+        { cache: "no-store" },
+      );
+      if (r.ok) setSaldo(await r.json());
+      else setSaldo(null);
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     let alive = true;
     async function fetchCot() {
@@ -38,28 +51,19 @@ export function DolarMepShell() {
       }
     }
     async function fetchSaldo() {
-      try {
-        const r = await fetch(
-          `/api/risk/account/saldo?rueda=${rueda}&account=${account}`,
-          { cache: "no-store" },
-        );
-        if (alive) {
-          if (r.ok) setSaldo(await r.json());
-          else setSaldo(null);
-        }
-      } catch {
-        // ignore
-      }
+      if (!alive) return;
+      await fetchSaldoNow();
     }
     fetchCot();
     fetchSaldo();
     const idCot = setInterval(fetchCot, 2000);
-    const idSal = setInterval(fetchSaldo, 3000);
+    const idSal = setInterval(fetchSaldo, 5000);
     return () => {
       alive = false;
       clearInterval(idCot);
       clearInterval(idSal);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rueda, account]);
 
   const mep = cot?.mep_implicito ?? null;
@@ -107,6 +111,7 @@ export function DolarMepShell() {
             setAccount={setAccount}
             cot={cot}
             saldo={saldo}
+            onRefreshSaldo={fetchSaldoNow}
           />
         ) : (
           <DolarMepTradingView
@@ -120,6 +125,7 @@ export function DolarMepShell() {
             setAccount={setAccount}
             cot={cot}
             saldo={saldo}
+            onRefreshSaldo={fetchSaldoNow}
           />
         )}
       </div>

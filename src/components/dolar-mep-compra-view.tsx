@@ -33,6 +33,7 @@ interface Props {
   setRueda: (r: Rueda) => void;
   cot: Cotizacion | null;
   saldo: SaldoCuenta | null;
+  onRefreshSaldo?: () => void;
 }
 
 export function DolarMepCompraView({
@@ -41,6 +42,7 @@ export function DolarMepCompraView({
   comision, setComision,
   account, setAccount,
   cot, saldo,
+  onRefreshSaldo,
 }: Props) {
   const [operativas, setOperativas] = useState<OperativaMep[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
@@ -156,7 +158,7 @@ export function DolarMepCompraView({
             <option value={ACCOUNT_DEFAULT}>{ACCOUNT_DEFAULT}</option>
           </select>
         </Field>
-        <SaldoBox saldo={saldo} montoRequerido={montoNum} />
+        <SaldoBox saldo={saldo} montoRequerido={montoNum} onRefresh={onRefreshSaldo} />
         <button
           onClick={handleEjecutar}
           disabled={submitting}

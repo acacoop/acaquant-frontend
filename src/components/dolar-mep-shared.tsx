@@ -152,9 +152,11 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
 export function SaldoBox({
   saldo,
   montoRequerido,
+  onRefresh,
 }: {
   saldo: SaldoCuenta | null;
   montoRequerido: number;
+  onRefresh?: () => void;
 }) {
   const ars = saldo?.saldo_ars ?? null;
   const usd = saldo?.saldo_usd_d ?? null;
@@ -171,13 +173,29 @@ export function SaldoBox({
 
   return (
     <div className="flex flex-col gap-0.5 min-w-[160px] px-2 border-l border-[#2a2a2a]">
-      <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
+      <div className="flex items-center gap-1">
+        <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
+        {onRefresh && (
+          <button
+            onClick={onRefresh}
+            title="Refrescar saldo"
+            className="text-[#888] hover:text-[#ff9900] text-[10px] leading-none"
+          >
+            ↻
+          </button>
+        )}
+      </div>
       <span className={`text-[12px] font-semibold tabular-nums ${arsColor}`}>
         ARS {ars !== null ? fmtSignedAr(ars) : "—"}
       </span>
       <span className={`text-[10px] tabular-nums ${usdColor}`}>
         USD MEP {usd !== null ? fmtSignedUsd(usd) : "—"}
       </span>
+      {saldo?.last_calc && (
+        <span className="text-[9px] text-[#666]" title={saldo.last_calc}>
+          last {fmtTime(saldo.last_calc)}
+        </span>
+      )}
     </div>
   );
 }
