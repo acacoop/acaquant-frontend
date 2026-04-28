@@ -12,6 +12,7 @@ const SERVICES = [
   { id: "motor_caucion",     label: "motor_caucion"     },
   { id: "motor_futuros_dlr", label: "motor_futuros_dlr" },
   { id: "motor_dolares",     label: "motor_dolares"     },
+  { id: "motor_ordenes",     label: "motor_ordenes"     },
   { id: "api",               label: "api"               },
   { id: "cloudflared",       label: "cloudflared"       },
 ];
