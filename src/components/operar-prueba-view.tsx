@@ -23,7 +23,7 @@ type Side = "BUY" | "SELL";
 type OrderType = "LIMIT" | "MARKET";
 type Tif = "DAY" | "IOC" | "FOK" | "GTC";
 
-export function OperarView() {
+export function OperarPruebaView() {
   const [ticker, setTicker] = useState("MERV - XMEV - AL30 - 24hs");
   const [side, setSide] = useState<Side>("BUY");
   const [size, setSize] = useState("1");
