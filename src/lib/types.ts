@@ -51,6 +51,51 @@ export interface ForwardZscoreDoc {
   stats?: Record<string, Record<string, ForwardZscoreStats>>;
 }
 
+export interface FairValueBono {
+  ticker: string;
+  ticker_corto?: string | null;
+  duration: number;
+  tea_obs: number;
+  tea_teorica: number;
+  residuo_bps: number;
+  z_estatico: number | null;
+  z_temporal: number | null;
+  n_obs?: number | null;
+  en_universo?: boolean;
+}
+
+export interface FairValueDoc {
+  curva: string;
+  ts_cierre_beta?: string;     // live trae el ts_cierre del cual son los β
+  ts_cierre?: string;           // cierre persistido trae fecha del cierre
+  beta0: number;
+  beta1: number;
+  beta2: number;
+  r2: number;
+  sigma_dia_bps: number;
+  n_bonos_universo: number;
+  updated_at?: string | null;
+  bonos: FairValueBono[];
+  error?: string;
+}
+
+export interface FairValueHistRow {
+  fecha: string;
+  residuo_bps: number;
+  z_temporal: number | null;
+  z_estatico: number | null;
+  tea_obs: number;
+  tea_teorica: number;
+  duration: number;
+}
+
+export interface FairValueHistorico {
+  ticker: string;
+  curva?: string | null;
+  dias: number;
+  serie: FairValueHistRow[];
+}
+
 export interface FlujoTicker {
   ticker: string;
   curva: string;

@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import type {
   BreakevenDoc,
   BreakevenHistDoc,
+  FairValueDoc,
   FlujoTicker,
   ForwardDoc,
   ForwardHistDoc,
@@ -36,6 +37,8 @@ export default async function Home() {
     breakevensHist,
     forwardsHist,
     forwardsZscore,
+    fairValueTF,
+    fairValueCER,
   ] = await Promise.all([
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
@@ -44,6 +47,8 @@ export default async function Home() {
     safeFetch<BreakevenHistDoc[]>("/api/cotizaciones/historico/breakevens", [], 300),
     safeFetch<ForwardHistDoc[]>("/api/cotizaciones/historico/forwards", [], 300),
     safeFetch<ForwardZscoreDoc[]>("/api/cotizaciones/forwards-zscore", [], 300),
+    safeFetch<FairValueDoc | { error: string }>("/api/cotizaciones/fair-value?curva=tasa_fija", { error: "init" }, 60),
+    safeFetch<FairValueDoc | { error: string }>("/api/cotizaciones/fair-value?curva=cer", { error: "init" }, 60),
   ]);
 
   const allFlujos: FlujoTicker[] = flujos.map((f) => ({
@@ -51,6 +56,10 @@ export default async function Home() {
     curva: f.curva,
     fecha_vencimiento: f.fecha_vencimiento,
   }));
+
+  const fairValueInicial: Record<string, FairValueDoc> = {};
+  if ("bonos" in fairValueTF) fairValueInicial.tasa_fija = fairValueTF;
+  if ("bonos" in fairValueCER) fairValueInicial.cer = fairValueCER;
 
   return (
     <RentaFijaLiveView
@@ -61,6 +70,7 @@ export default async function Home() {
       breakevensHist={breakevensHist}
       forwardsHist={forwardsHist}
       forwardsZscore={forwardsZscore}
+      fairValueInicial={fairValueInicial}
     />
   );
 }

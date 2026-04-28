@@ -3,6 +3,7 @@
 import type {
   BreakevenDoc,
   BreakevenHistDoc,
+  FairValueDoc,
   FlujoTicker,
   ForwardDoc,
   ForwardHistDoc,
@@ -33,6 +34,7 @@ interface Props {
   breakevensHist:        BreakevenHistDoc[];
   forwardsHist:          ForwardHistDoc[];
   forwardsZscore:        ForwardZscoreDoc[];
+  fairValueInicial?:     Record<string, FairValueDoc>;
 }
 
 export function RentaFijaLiveView({
@@ -43,6 +45,7 @@ export function RentaFijaLiveView({
   breakevensHist,
   forwardsHist,
   forwardsZscore,
+  fairValueInicial,
 }: Props) {
   const { data: rentaFija,  lastAt: atRenta } = usePoll<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", initialRentaFija, POLL_RENTA_MS);
   const { data: forwards,   lastAt: atFwd   } = usePoll<ForwardDoc[]>("/api/cotizaciones/forwards",    initialForwards,  POLL_FORWARDS_MS);
@@ -65,7 +68,7 @@ export function RentaFijaLiveView({
           </Panel>
 
           <Panel title="CURVAS" sub={subFwd} fill expandable>
-            <CurvasChart forwards={forwards} flujos={flujos} />
+            <CurvasChart forwards={forwards} flujos={flujos} fairValueInicial={fairValueInicial} />
           </Panel>
         </div>
 

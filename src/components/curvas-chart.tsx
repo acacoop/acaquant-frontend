@@ -12,6 +12,8 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useViewportKey } from "@/lib/use-viewport-key";
+import { FairValueView } from "./fair-value-view";
+import type { FairValueDoc } from "@/lib/types";
 
 interface ForwardDoc {
   curva: string;
@@ -52,7 +54,7 @@ interface Punto {
 
 type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked";
 type Metrica = "TEA" | "TEM";
-type Modo = "live" | "hist";
+type Modo = "live" | "hist" | "fair";
 
 // Para soberanos, dividimos los puntos en familias (globales / bonares).
 // Para las otras curvas, todo cae en "default" y se renderiza igual que antes.
@@ -103,9 +105,11 @@ function logFit(xs: number[], ys: number[]): { a: number; b: number } | null {
 export function CurvasChart({
   forwards,
   flujos,
+  fairValueInicial,
 }: {
   forwards: ForwardDoc[];
   flujos: FlujoTicker[];
+  fairValueInicial?: Record<string, FairValueDoc>;
 }) {
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [metrica, setMetrica] = useState<Metrica>("TEA");
@@ -181,6 +185,12 @@ export function CurvasChart({
   }, [histByCurva, curva]);
 
   const [fechaIdx, setFechaIdx] = useState<number | null>(null);
+
+  // Modo efectivo: si el usuario tiene "fair" seleccionado pero cambió a una
+  // curva sin soporte (soberanos / dolar_linked), renderizamos como "live"
+  // sin tocar el state. Cuando vuelva a tasa_fija/cer reaparece el modo fair.
+  const modoEfectivo: Modo =
+    modo === "fair" && curva !== "tasa_fija" && curva !== "cer" ? "live" : modo;
 
   // Reset del slider cuando cambia curva o modo, para que el default
   // (último = más reciente) se aplique sin arrastrar el valor anterior.
@@ -399,6 +409,11 @@ export function CurvasChart({
         <FilterBtn active={modo === "hist"} onClick={() => setModo("hist")}>
           HISTÓRICO
         </FilterBtn>
+        {(curva === "tasa_fija" || curva === "cer") && (
+          <FilterBtn active={modo === "fair"} onClick={() => setModo("fair")}>
+            FAIR VALUE
+          </FilterBtn>
+        )}
 
         {mostrarLegend && (
           <div className="ml-auto flex items-center gap-3 text-[10px]">
@@ -447,7 +462,11 @@ export function CurvasChart({
         </div>
       )}
 
-      {totalPuntos >= 2 ? (
+      {modoEfectivo === "fair" && (curva === "tasa_fija" || curva === "cer") ? (
+        <div className="flex-1 min-h-0">
+          <FairValueView key={curva} curva={curva} initialDoc={fairValueInicial?.[curva]} />
+        </div>
+      ) : totalPuntos >= 2 ? (
         <div className="flex-1 min-h-0">
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
             <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
