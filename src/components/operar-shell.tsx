@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DolarMepView } from "./dolar-mep-view";
+import { DolarMepShell } from "./dolar-mep-shell";
 import { OperarPruebaView } from "./operar-prueba-view";
 
 type Tab = "dolar-mep" | "prueba";
@@ -21,7 +21,7 @@ export function OperarShell() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "dolar-mep" ? <DolarMepView /> : <OperarPruebaView />}
+        {tab === "dolar-mep" ? <DolarMepShell /> : <OperarPruebaView />}
       </div>
     </div>
   );
