@@ -17,6 +17,7 @@ import {
   fmtArs,
   fmtTime,
 } from "./dolar-mep-shared";
+import { DolarMepTimeSalesChart } from "./dolar-mep-timesales-chart";
 
 // Vista TRADING: trigger condicional. El user define un MEP objetivo y
 // el scanner del backend dispara la operativa cuando MEP <= objetivo.
@@ -269,7 +270,18 @@ export function DolarMepTradingView({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-auto bg-[#080808] border border-[#1a1a1a]">
+      {/* Split horizontal: chart izq 50% + tabla der 50% */}
+      <div className="flex-1 min-h-0 flex gap-3">
+        <div className="w-1/2 bg-[#080808] border border-[#1a1a1a] p-2">
+          <div className="text-[9px] tracking-wider text-[#888] mb-1 px-1">
+            MEP {rueda} · MINUTO CLOSE · ÚLTIMAS 24H
+          </div>
+          <div className="h-[calc(100%-1.25rem)]">
+            <DolarMepTimeSalesChart rueda={rueda} />
+          </div>
+        </div>
+
+        <div className="w-1/2 min-h-0 overflow-auto bg-[#080808] border border-[#1a1a1a]">
         <table className="w-full text-[11px]">
           <thead className="bg-[#1a1a1a] sticky top-0">
             <tr>
@@ -353,6 +365,7 @@ export function DolarMepTradingView({
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
