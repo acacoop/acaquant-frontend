@@ -118,7 +118,8 @@ export function DolarMepView() {
   // Convención BYMA: los bonos cotizan precio por 100 VN, así que dividimos por
   // (precio × 0.01) para pasar a precio por 1 VN (la unidad real del `size`).
   const PRICE_FACTOR = 0.01;
-  const montoNum = parseFloat(monto) || 0;
+  const montoNum = parseInt(monto, 10) || 0;
+  const montoDisplay = montoNum ? montoNum.toLocaleString("es-AR") : "";
   const comNum = parseFloat(comision) || 0;
   const arsNeto = montoNum * (1 - comNum / 100);
   const precioAl30 = cot?.al30?.price ?? null;
@@ -196,11 +197,16 @@ export function DolarMepView() {
       <div className="flex gap-2 items-end p-3 bg-[#080808] border border-[#1a1a1a] flex-wrap">
         <Field label="MONTO ARS" className="w-[160px]">
           <input
-            type="number"
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            value={montoDisplay}
+            onChange={(e) => {
+              // Quita cualquier cosa que no sea dígito (puntos, comas, letras).
+              // El state guarda solo dígitos crudos; el display se reformatea.
+              setMonto(e.target.value.replace(/\D/g, ""));
+            }}
             className={inputCls}
-            min={1}
+            placeholder="0"
           />
         </Field>
         <Field label="COMISIÓN %" className="w-[110px]">
