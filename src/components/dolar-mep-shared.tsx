@@ -57,14 +57,22 @@ export interface TriggerMep {
   comision_pct: number;
   rueda: Rueda;
   tc_objetivo: number;
+  tp_objetivo?: number | null;
+  sl_objetivo?: number | null;
   estado: string;
   operativa_id?: string | null;
+  operativa_exit_id?: string | null;
+  nominales_entry?: number | null;
   last_seen_mep?: number | null;
   created_at?: string;
   updated_at?: string;
   fired_at?: string | null;
   fired_at_mep?: number | null;
+  exit_fired_at?: string | null;
+  exit_fired_mep?: number | null;
+  exit_motivo?: string | null;
   error?: string | null;
+  exit_error?: string | null;
 }
 
 export const ACCOUNT_DEFAULT = "805";

@@ -42,6 +42,8 @@ export function DolarMepTradingView({
   cot, saldo,
 }: Props) {
   const [tcObjetivo, setTcObjetivo] = useState("");
+  const [tpObjetivo, setTpObjetivo] = useState("");
+  const [slObjetivo, setSlObjetivo] = useState("");
   const [triggers, setTriggers] = useState<TriggerMep[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -68,6 +70,8 @@ export function DolarMepTradingView({
   const montoDisplay = montoNum ? montoNum.toLocaleString("es-AR") : "";
   const comNum = parseFloat(comision) || 0;
   const tcNum = parseFloat(tcObjetivo) || 0;
+  const tpNum = parseFloat(tpObjetivo) || 0;
+  const slNum = parseFloat(slObjetivo) || 0;
   const mep = cot?.mep_implicito ?? null;
   const arsNeto = montoNum * (1 - comNum / 100);
   const precioAl30 = cot?.al30?.price ?? null;
@@ -77,6 +81,7 @@ export function DolarMepTradingView({
   // Distancia entre MEP actual y el objetivo. Negativa si el objetivo está
   // por encima del MEP actual (el trigger se dispararía YA).
   const dist = mep !== null && tcNum > 0 ? mep - tcNum : null;
+  const tieneBracket = tpNum > 0 || slNum > 0;
 
   async function handleArmar() {
     if (!montoNum || montoNum <= 0) {
@@ -93,13 +98,22 @@ export function DolarMepTradingView({
         ? `\n\n⚠ El MEP actual ($${mep?.toFixed(2)}) ya está ≤ que tu objetivo ($${tcNum.toFixed(2)}). El trigger va a disparar al instante.`
         : "";
 
+    const bracketLines = tieneBracket
+      ? [
+          tpNum > 0 ? `• Take Profit: vender cuando MEP ≥ $${tpNum.toFixed(2)}` : null,
+          slNum > 0 ? `• Stop Loss: vender cuando MEP ≤ $${slNum.toFixed(2)}` : null,
+          `• ⚠ Si entrás pero no dispara TP/SL antes de las 16:50 ART, te quedás con USD overnight.`,
+        ].filter(Boolean).join("\n")
+      : "";
+
     if (!confirm(
       `Armar trigger MEP ${rueda}:\n\n` +
       `• Monto: $${montoNum.toLocaleString("es-AR")} ARS\n` +
       `• Comisión: ${comNum}%\n` +
-      `• MEP objetivo (≤): $${tcNum.toFixed(2)}\n` +
+      `• Entry: comprar cuando MEP ≤ $${tcNum.toFixed(2)}\n` +
+      (bracketLines ? bracketLines + "\n" : "") +
       `• MEP actual: $${mep?.toFixed(2) ?? "?"}\n` +
-      `• Auto-cancela a las 16:50 ART si no dispara.${aviso}\n\n` +
+      `• Auto-cancela el trigger a las 16:50 ART.${aviso}\n\n` +
       `¿Confirmar?`,
     )) return;
 
@@ -114,6 +128,8 @@ export function DolarMepTradingView({
           comision_pct: comNum,
           rueda,
           tc_objetivo: tcNum,
+          tp_objetivo: tpNum > 0 ? tpNum : null,
+          sl_objetivo: slNum > 0 ? slNum : null,
           account: account || null,
         }),
       });
@@ -121,6 +137,8 @@ export function DolarMepTradingView({
       if (r.ok && data.ok) {
         setFeedback({ kind: "ok", msg: `Trigger armado · ${data.trigger_id.substring(0, 8)}` });
         setTcObjetivo("");
+        setTpObjetivo("");
+        setSlObjetivo("");
         await fetchTriggers();
       } else {
         const msg = data.error || data.detail || `error ${r.status}`;
@@ -186,7 +204,7 @@ export function DolarMepTradingView({
             <option value={ACCOUNT_DEFAULT}>{ACCOUNT_DEFAULT}</option>
           </select>
         </Field>
-        <Field label="TC OBJETIVO ≤" className="w-[140px]">
+        <Field label="ENTRY ≤" className="w-[120px]">
           <input
             type="number"
             value={tcObjetivo}
@@ -197,13 +215,35 @@ export function DolarMepTradingView({
             placeholder="ej. 1420"
           />
         </Field>
+        <Field label="TP ≥ (opc)" className="w-[110px]">
+          <input
+            type="number"
+            value={tpObjetivo}
+            onChange={(e) => setTpObjetivo(e.target.value)}
+            className={inputCls}
+            step="0.01"
+            min={0}
+            placeholder="—"
+          />
+        </Field>
+        <Field label="SL ≤ (opc)" className="w-[110px]">
+          <input
+            type="number"
+            value={slObjetivo}
+            onChange={(e) => setSlObjetivo(e.target.value)}
+            className={inputCls}
+            step="0.01"
+            min={0}
+            placeholder="—"
+          />
+        </Field>
         <SaldoBox saldo={saldo} montoRequerido={montoNum} />
         <button
           onClick={handleArmar}
           disabled={submitting}
           className="bg-[#ff9900] text-black font-bold tracking-wide px-5 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
         >
-          {submitting ? "ARMANDO…" : "ARMAR TRIGGER"}
+          {submitting ? "ARMANDO…" : tieneBracket ? "ARMAR BRACKET" : "ARMAR TRIGGER"}
         </button>
 
         <div className="ml-auto flex flex-col gap-0.5 text-[10px] text-[#888]">
@@ -234,10 +274,13 @@ export function DolarMepTradingView({
               <Th>HORA</Th>
               <Th>RUEDA</Th>
               <Th right>MONTO ARS</Th>
-              <Th right>TC OBJETIVO</Th>
+              <Th right>ENTRY ≤</Th>
+              <Th right>TP ≥</Th>
+              <Th right>SL ≤</Th>
               <Th right>MEP ÚLT</Th>
               <Th>ESTADO</Th>
-              <Th>OPERATIVA</Th>
+              <Th>OP. ENTRY</Th>
+              <Th>OP. EXIT</Th>
               <Th>USER</Th>
               <Th></Th>
             </tr>
@@ -245,37 +288,52 @@ export function DolarMepTradingView({
           <tbody>
             {triggers.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-4 text-center text-[#666]">
+                <td colSpan={12} className="px-3 py-4 text-center text-[#666]">
                   Sin triggers hoy
                 </td>
               </tr>
             )}
             {triggers.map((t) => {
-              const cancelable = t.estado === "ACTIVE";
+              const cancelable = t.estado === "ACTIVE" || t.estado === "WAITING_EXIT";
+              const errMsg = t.exit_error || t.error;
               return (
                 <tr key={t.trigger_id} className="border-b border-[#1a1a1a]">
                   <Td>{fmtTime(t.created_at)}</Td>
                   <Td>{t.rueda}</Td>
                   <Td right>{fmtArs(t.monto_ars)}</Td>
                   <Td right className="text-[#ff9900]">${t.tc_objetivo.toFixed(2)}</Td>
+                  <Td right className="text-[#7fff7f]">
+                    {t.tp_objetivo ? `$${t.tp_objetivo.toFixed(2)}` : "—"}
+                  </Td>
+                  <Td right className="text-[#ff7f7f]">
+                    {t.sl_objetivo ? `$${t.sl_objetivo.toFixed(2)}` : "—"}
+                  </Td>
                   <Td right>{t.last_seen_mep !== null && t.last_seen_mep !== undefined
                     ? `$${t.last_seen_mep.toFixed(2)}`
                     : "—"}</Td>
                   <Td className={estadoColor(t.estado)}>
                     <div className="flex flex-col">
                       <span>{t.estado}</span>
-                      {t.error && (
+                      {t.exit_motivo && t.estado === "EXITED" && (
+                        <span className="text-[9px] text-[#888] mt-0.5">
+                          via {t.exit_motivo}
+                        </span>
+                      )}
+                      {errMsg && (
                         <span
                           className="text-[9px] text-[#888] mt-0.5 max-w-[200px] truncate"
-                          title={t.error}
+                          title={errMsg}
                         >
-                          {t.error}
+                          {errMsg}
                         </span>
                       )}
                     </div>
                   </Td>
                   <Td className="font-mono text-[10px]">
                     {t.operativa_id ? t.operativa_id.substring(0, 8) : ""}
+                  </Td>
+                  <Td className="font-mono text-[10px]">
+                    {t.operativa_exit_id ? t.operativa_exit_id.substring(0, 8) : ""}
                   </Td>
                   <Td className="text-[#888]">{t.actor_email ?? ""}</Td>
                   <Td>
