@@ -40,11 +40,19 @@ export interface OperativaMep {
   wrapper_status?: string;
 }
 
+export interface SaldoMoneda {
+  available: number | null;
+  consumed: number | null;
+}
+
 export interface SaldoCuenta {
   account: string;
   rueda: Rueda;
   saldo_ars: number | null;
   saldo_usd_d: number | null;
+  movimiento_ars?: number | null;
+  movimiento_usd_d?: number | null;
+  monedas?: Record<string, SaldoMoneda>;
   settlement_date?: string | null;
   last_calc?: string | null;
 }
@@ -149,6 +157,17 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
   );
 }
 
+// Monedas que mostramos en el SaldoBox cuando aparecen con valor distinto
+// de cero. ARS / USD D siempre se muestran (aunque sean 0) porque son las
+// que la operativa MEP usa. Las otras solo si tienen movimiento o saldo.
+const MONEDAS_FIJAS = ["ARS", "USD D"];
+const MONEDAS_OPCIONALES = ["U$S", "USD C", "USD G", "USD R", "USD UY", "USD MtR", "USD DB"];
+
+function _esRelevante(m: SaldoMoneda | undefined): boolean {
+  if (!m) return false;
+  return (m.available ?? 0) !== 0 || (m.consumed ?? 0) !== 0;
+}
+
 export function SaldoBox({
   saldo,
   montoRequerido,
@@ -158,21 +177,15 @@ export function SaldoBox({
   montoRequerido: number;
   onRefresh?: () => void;
 }) {
-  const ars = saldo?.saldo_ars ?? null;
-  const usd = saldo?.saldo_usd_d ?? null;
-
-  const arsColor =
-    ars === null
-      ? "text-[#888]"
-      : ars < 0
-      ? "text-[#ff7f7f]"
-      : montoRequerido > 0 && ars < montoRequerido
-      ? "text-[#ff9900]"
-      : "text-[#7fff7f]";
-  const usdColor = usd === null ? "text-[#888]" : usd < 0 ? "text-[#ff7f7f]" : "text-[#7fff7f]";
+  const monedas = saldo?.monedas ?? {};
+  // Orden: fijas primero (ARS, USD D), después las opcionales con valor.
+  const codigos = [
+    ...MONEDAS_FIJAS,
+    ...MONEDAS_OPCIONALES.filter((c) => _esRelevante(monedas[c])),
+  ];
 
   return (
-    <div className="flex flex-col gap-0.5 min-w-[160px] px-2 border-l border-[#2a2a2a]">
+    <div className="flex flex-col gap-0.5 min-w-[280px] px-2 border-l border-[#2a2a2a]">
       <div className="flex items-center gap-1">
         <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
         {onRefresh && (
@@ -185,12 +198,49 @@ export function SaldoBox({
           </button>
         )}
       </div>
-      <span className={`text-[12px] font-semibold tabular-nums ${arsColor}`}>
-        ARS {ars !== null ? fmtSignedAr(ars) : "—"}
-      </span>
-      <span className={`text-[10px] tabular-nums ${usdColor}`}>
-        USD MEP {usd !== null ? fmtSignedUsd(usd) : "—"}
-      </span>
+      <table className="text-[10px] tabular-nums">
+        <thead>
+          <tr className="text-[#666]">
+            <th className="text-left font-normal pr-2">moneda</th>
+            <th className="text-right font-normal pr-3">disponible</th>
+            <th className="text-right font-normal">movim.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {codigos.map((c) => {
+            const m = monedas[c] ?? { available: null, consumed: null };
+            const av = m.available;
+            const cs = m.consumed;
+            const isAr = c === "ARS";
+            const avColor =
+              av === null
+                ? "text-[#888]"
+                : av < 0
+                ? "text-[#ff7f7f]"
+                : isAr && montoRequerido > 0 && av < montoRequerido
+                ? "text-[#ff9900]"
+                : "text-[#7fff7f]";
+            const csColor =
+              cs === null || cs === 0
+                ? "text-[#666]"
+                : cs < 0
+                ? "text-[#ff7f7f]"
+                : "text-[#7fff7f]";
+            const fmtMoneda = isAr ? fmtSignedAr : fmtSignedUsd;
+            return (
+              <tr key={c}>
+                <td className="text-[#aaa] pr-2">{c}</td>
+                <td className={`text-right pr-3 ${avColor}`}>
+                  {av !== null ? fmtMoneda(av) : "—"}
+                </td>
+                <td className={`text-right ${csColor}`}>
+                  {cs !== null && cs !== 0 ? fmtMoneda(cs) : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
       {saldo?.last_calc && (
         <span className="text-[9px] text-[#666]" title={saldo.last_calc}>
           last {fmtTime(saldo.last_calc)}
@@ -204,11 +254,21 @@ export function SaldoBox({
 // Format helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Hora ART explícita (HH:MM:SS) — el backend devuelve UTC con tz, acá lo
+// localizamos a Buenos Aires sin depender de la timezone del browser.
+const _HORA_ART_HMS = new Intl.DateTimeFormat("es-AR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: "America/Argentina/Buenos_Aires",
+});
+
 export function fmtTime(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toISOString().substring(11, 19);
+  return _HORA_ART_HMS.format(d);
 }
 
 export function fmtArs(n?: number | null): string {
