@@ -83,7 +83,19 @@ export interface TriggerMep {
   exit_error?: string | null;
 }
 
-export const ACCOUNT_DEFAULT = "805";
+// Fallback solo si /api/risk/account/listado todavía no devolvió nada
+// (job descubrir_cuentas no corrió, primer load del frontend, etc.).
+// La cuenta operativa real viene del listado, no de acá.
+export const ACCOUNT_DEFAULT_FALLBACK = "";
+
+export interface CuentaDescubierta {
+  account_id: string;
+  ars_disponible: number | null;
+  usd_d_disponible: number | null;
+  n_posiciones: number;
+  activa: boolean;
+  last_discovered_at?: string | null;
+}
 
 export const inputCls =
   "bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] w-full focus:border-[#ff9900] outline-none";

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import {
-  ACCOUNT_DEFAULT,
   Cotizacion,
+  CuentaDescubierta,
   Field,
   inputCls,
   PRICE_FACTOR_BONOS,
@@ -31,6 +31,7 @@ interface Props {
   setComision: (v: string) => void;
   account: string;
   setAccount: (v: string) => void;
+  cuentas: CuentaDescubierta[];
   cot: Cotizacion | null;
   saldo: SaldoCuenta | null;
   onRefreshSaldo?: () => void;
@@ -41,6 +42,7 @@ export function DolarMepTradingView({
   monto, setMonto,
   comision, setComision,
   account, setAccount,
+  cuentas,
   cot, saldo,
   onRefreshSaldo,
 }: Props) {
@@ -202,9 +204,18 @@ export function DolarMepTradingView({
             <option value="24hs">MEP 24</option>
           </select>
         </Field>
-        <Field label="CUENTA" className="w-[120px]">
+        <Field label="CUENTA" className="w-[140px]">
           <select value={account} onChange={(e) => setAccount(e.target.value)} className={inputCls}>
-            <option value={ACCOUNT_DEFAULT}>{ACCOUNT_DEFAULT}</option>
+            {cuentas.length === 0 ? (
+              <option value="">— sin cuentas —</option>
+            ) : (
+              cuentas.map((c) => (
+                <option key={c.account_id} value={c.account_id}>
+                  {c.account_id}
+                  {c.activa ? "" : " (vacía)"}
+                </option>
+              ))
+            )}
           </select>
         </Field>
         <Field label="MEP ENTRY ≤" className="w-[120px]">

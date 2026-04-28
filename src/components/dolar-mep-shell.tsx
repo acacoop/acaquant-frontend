@@ -4,14 +4,17 @@ import { useEffect, useState } from "react";
 import { DolarMepCompraView } from "./dolar-mep-compra-view";
 import { DolarMepTradingView } from "./dolar-mep-trading-view";
 import {
-  ACCOUNT_DEFAULT,
+  ACCOUNT_DEFAULT_FALLBACK,
   Cotizacion,
+  CuentaDescubierta,
   Rueda,
   SaldoCuenta,
   fmtTime,
 } from "./dolar-mep-shared";
 
 type SubTab = "compra" | "trading";
+
+const ACCOUNT_LS_KEY = "trd-fx-mep-account";
 
 export function DolarMepShell() {
   // Estado compartido entre las sub-tabs (rueda/monto/comision/account).
@@ -20,14 +23,19 @@ export function DolarMepShell() {
   const [rueda, setRueda] = useState<Rueda>("CI");
   const [monto, setMonto] = useState("100000");
   const [comision, setComision] = useState("0.62");
-  const [account, setAccount] = useState(ACCOUNT_DEFAULT);
+  const [account, setAccount] = useState(ACCOUNT_DEFAULT_FALLBACK);
 
-  // Cotización + saldo: shared para no duplicar polls. La cotización se
-  // muestra en el header siempre visible; cada sub-tab la usa para preview.
+  // Cuentas descubiertas — populadas por jobs.descubrir_cuentas en el
+  // backend. El frontend las trae 1 vez al montar (no cambian durante la
+  // sesión). Si la lista está vacía, mostramos un mensaje en el form.
+  const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
+
+  // Cotización + saldo: shared para no duplicar polls.
   const [cot, setCot] = useState<Cotizacion | null>(null);
   const [saldo, setSaldo] = useState<SaldoCuenta | null>(null);
 
   async function fetchSaldoNow() {
+    if (!account) return;
     try {
       const r = await fetch(
         `/api/risk/account/saldo?rueda=${rueda}&account=${account}`,
@@ -39,6 +47,42 @@ export function DolarMepShell() {
       // ignore
     }
   }
+
+  // Cargar listado de cuentas (1 vez al montar). Default elegida con
+  // prioridad: localStorage → primera activa del listado → primera del
+  // listado → fallback ("").
+  useEffect(() => {
+    let alive = true;
+    async function fetchCuentas() {
+      try {
+        const r = await fetch("/api/risk/account/listado", { cache: "no-store" });
+        if (!alive || !r.ok) return;
+        const list = (await r.json()) as CuentaDescubierta[];
+        setCuentas(list);
+        const persisted = typeof window !== "undefined"
+          ? window.localStorage.getItem(ACCOUNT_LS_KEY)
+          : null;
+        const persistedExists = list.some((c) => c.account_id === persisted);
+        const firstActiva = list.find((c) => c.activa)?.account_id;
+        const first = list[0]?.account_id;
+        const next = persistedExists ? persisted! : (firstActiva ?? first ?? "");
+        if (next) setAccount(next);
+      } catch {
+        // ignore
+      }
+    }
+    void fetchCuentas();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Persistir la elección del user para que la próxima visita arranque ahí.
+  useEffect(() => {
+    if (account && typeof window !== "undefined") {
+      window.localStorage.setItem(ACCOUNT_LS_KEY, account);
+    }
+  }, [account]);
 
   useEffect(() => {
     let alive = true;
@@ -109,6 +153,7 @@ export function DolarMepShell() {
             setComision={setComision}
             account={account}
             setAccount={setAccount}
+            cuentas={cuentas}
             cot={cot}
             saldo={saldo}
             onRefreshSaldo={fetchSaldoNow}
@@ -123,6 +168,7 @@ export function DolarMepShell() {
             setComision={setComision}
             account={account}
             setAccount={setAccount}
+            cuentas={cuentas}
             cot={cot}
             saldo={saldo}
             onRefreshSaldo={fetchSaldoNow}
