@@ -49,14 +49,14 @@ async function proxy(req: Request, path: string[]) {
   }
 }
 
-export async function GET(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
   return proxy(req, (await params).path ?? []);
 }
 
-export async function POST(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
   return proxy(req, (await params).path ?? []);
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ path: string[] }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
   return proxy(req, (await params).path ?? []);
 }
