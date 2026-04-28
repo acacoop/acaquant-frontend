@@ -195,7 +195,6 @@ export function DolarMepCompraView({
           <thead className="bg-[#1a1a1a] sticky top-0">
             <tr>
               <Th>HORA</Th>
-              <Th>RUEDA</Th>
               <Th right>MONTO ARS</Th>
               <Th right>NOMINALES</Th>
               <Th right>MEP INI</Th>
@@ -210,7 +209,7 @@ export function DolarMepCompraView({
           <tbody>
             {operativas.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-3 py-4 text-center text-[#666]">
+                <td colSpan={10} className="px-3 py-4 text-center text-[#666]">
                   Sin operativas hoy
                 </td>
               </tr>
@@ -218,7 +217,6 @@ export function DolarMepCompraView({
             {operativas.map((op) => (
               <tr key={op.operativa_id} className="border-b border-[#1a1a1a]">
                 <Td>{fmtTime(op.created_at)}</Td>
-                <Td>{op.rueda}</Td>
                 <Td right>{fmtArs(op.monto_ars)}</Td>
                 <Td right>{op.nominales ?? "—"}</Td>
                 <Td right>{op.mep_inicial ?? "—"}</Td>
