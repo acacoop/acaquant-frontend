@@ -24,8 +24,14 @@ async function proxy(req: Request, path: string[]) {
     }
     // Propagar la identidad del user para que el backend loguee el actor
     // real en Manager.RoleAudit (sin esto el audit diría "service:...").
+    // CF Access ESTRIPA cf-access-authenticated-user-email cuando el
+    // request viene autenticado por service token — por eso mandamos
+    // x-acaquant-user-email también, que CF deja pasar tal cual.
     const userEmail = req.headers.get("cf-access-authenticated-user-email");
-    if (userEmail) headers["cf-access-authenticated-user-email"] = userEmail;
+    if (userEmail) {
+      headers["cf-access-authenticated-user-email"] = userEmail;
+      headers["x-acaquant-user-email"] = userEmail;
+    }
 
     const method = req.method.toUpperCase();
     const init: RequestInit = { method, headers, cache: "no-store" };

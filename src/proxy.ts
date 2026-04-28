@@ -57,7 +57,14 @@ export async function proxy(request: NextRequest) {
   const cfSecret = process.env.CF_ACCESS_CLIENT_SECRET || "";
 
   const headers: Record<string, string> = {};
-  if (email) headers["cf-access-authenticated-user-email"] = email;
+  // CF Access estripa cf-access-authenticated-user-email cuando el request
+  // viene autenticado por service token (CF_ACCESS_CLIENT_ID/SECRET).
+  // x-acaquant-user-email NO está en el namespace CF, pasa intacto y el
+  // backend lo lee con prioridad. Mandamos los dos por compat.
+  if (email) {
+    headers["cf-access-authenticated-user-email"] = email;
+    headers["x-acaquant-user-email"] = email;
+  }
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
   if (cfId && cfSecret) {
     headers["CF-Access-Client-Id"] = cfId;

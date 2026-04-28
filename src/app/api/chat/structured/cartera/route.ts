@@ -25,8 +25,13 @@ export async function POST(req: Request) {
       headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
       headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
     }
+    // CF Access estripa cf-access-authenticated-user-email con service
+    // token; mandamos x-acaquant-user-email también.
     const email = req.headers.get("cf-access-authenticated-user-email");
-    if (email) headers["cf-access-authenticated-user-email"] = email;
+    if (email) {
+      headers["cf-access-authenticated-user-email"] = email;
+      headers["x-acaquant-user-email"] = email;
+    }
 
     const body = await req.text();
 

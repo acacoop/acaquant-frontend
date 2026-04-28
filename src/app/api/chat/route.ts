@@ -30,8 +30,13 @@ export async function POST(req: Request) {
       headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
     }
     // Propagar el email de Cloudflare Access para auditar en AsistenteLogs.
+    // CF Access estripa cf-access-authenticated-user-email cuando entra
+    // por service token; x-acaquant-user-email lo deja pasar.
     const email = req.headers.get("cf-access-authenticated-user-email");
-    if (email) headers["cf-access-authenticated-user-email"] = email;
+    if (email) {
+      headers["cf-access-authenticated-user-email"] = email;
+      headers["x-acaquant-user-email"] = email;
+    }
 
     const body = await req.text();
 

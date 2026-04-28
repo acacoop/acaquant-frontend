@@ -23,9 +23,14 @@ async function proxy(req: Request, path: string[]) {
       headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
     }
     // Propagar identidad del user para que el audit log persista quien
-    // mandó/canceló cada orden (sin esto el actor_email queda vacío).
+    // mandó/canceló cada orden. CF Access estripa
+    // cf-access-authenticated-user-email cuando entra por service token;
+    // x-acaquant-user-email lo deja pasar.
     const userEmail = req.headers.get("cf-access-authenticated-user-email");
-    if (userEmail) headers["cf-access-authenticated-user-email"] = userEmail;
+    if (userEmail) {
+      headers["cf-access-authenticated-user-email"] = userEmail;
+      headers["x-acaquant-user-email"] = userEmail;
+    }
 
     const method = req.method.toUpperCase();
     const init: RequestInit = { method, headers, cache: "no-store" };

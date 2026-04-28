@@ -9,9 +9,15 @@ const CF_CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
 
 export async function GET(req: Request) {
   try {
+    // CF Access estripa cf-access-authenticated-user-email con service
+    // token; mandamos x-acaquant-user-email también (el que el backend
+    // mira con prioridad cuando el JWT es de service token).
     const email = req.headers.get("cf-access-authenticated-user-email") ?? "";
     const headers: Record<string, string> = {};
-    if (email) headers["cf-access-authenticated-user-email"] = email;
+    if (email) {
+      headers["cf-access-authenticated-user-email"] = email;
+      headers["x-acaquant-user-email"] = email;
+    }
     if (API_KEY) headers["Authorization"] = `Bearer ${API_KEY}`;
     if (CF_CLIENT_ID && CF_CLIENT_SECRET) {
       headers["CF-Access-Client-Id"] = CF_CLIENT_ID;

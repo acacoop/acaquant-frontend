@@ -21,8 +21,13 @@ async function proxy(req: Request, path: string[]) {
       headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
       headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
     }
+    // CF Access estripa cf-access-authenticated-user-email con service
+    // token; mandamos x-acaquant-user-email también (CF lo deja pasar).
     const userEmail = req.headers.get("cf-access-authenticated-user-email");
-    if (userEmail) headers["cf-access-authenticated-user-email"] = userEmail;
+    if (userEmail) {
+      headers["cf-access-authenticated-user-email"] = userEmail;
+      headers["x-acaquant-user-email"] = userEmail;
+    }
 
     const method = req.method.toUpperCase();
     const init: RequestInit = { method, headers, cache: "no-store" };
