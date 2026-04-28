@@ -6,6 +6,7 @@ import type {
   FlujoTicker,
   ForwardDoc,
   ForwardHistDoc,
+  ForwardZscoreDoc,
   RentaFijaDoc,
 } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
@@ -31,6 +32,7 @@ interface Props {
   flujos:                FlujoTicker[];
   breakevensHist:        BreakevenHistDoc[];
   forwardsHist:          ForwardHistDoc[];
+  forwardsZscore:        ForwardZscoreDoc[];
 }
 
 export function RentaFijaLiveView({
@@ -40,6 +42,7 @@ export function RentaFijaLiveView({
   flujos,
   breakevensHist,
   forwardsHist,
+  forwardsZscore,
 }: Props) {
   const { data: rentaFija,  lastAt: atRenta } = usePoll<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", initialRentaFija, POLL_RENTA_MS);
   const { data: forwards,   lastAt: atFwd   } = usePoll<ForwardDoc[]>("/api/cotizaciones/forwards",    initialForwards,  POLL_FORWARDS_MS);
@@ -68,7 +71,7 @@ export function RentaFijaLiveView({
 
         <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
           <Panel title="FORWARDS" sub={subFwd} expandable>
-            <ForwardsPanel forwards={forwards} historico={forwardsHist} />
+            <ForwardsPanel forwards={forwards} historico={forwardsHist} zscoreInicial={forwardsZscore} />
           </Panel>
 
           <Panel title="BREAKEVENS" sub={subBe} fill expandable>

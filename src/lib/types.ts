@@ -37,6 +37,20 @@ export interface ForwardHistDoc {
   matrix: Record<string, Record<string, number>>;
 }
 
+export interface ForwardZscoreStats {
+  media: number;
+  desvio: number;
+  n_obs: number;
+}
+
+export interface ForwardZscoreDoc {
+  curva: string;
+  fecha_calculo?: string;
+  ventana_dias_habiles?: number;
+  n_obs_min?: number;
+  stats?: Record<string, Record<string, ForwardZscoreStats>>;
+}
+
 export interface FlujoTicker {
   ticker: string;
   curva: string;

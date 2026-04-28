@@ -12,8 +12,11 @@ import {
   CartesianGrid,
 } from "recharts";
 import { ForwardMatrix } from "./forward-matrix";
+import { ForwardMatrixZscore } from "./forward-matrix-zscore";
 import { fmtTs, shortTicker } from "./ui";
 import { useViewportKey } from "@/lib/use-viewport-key";
+import { usePoll } from "@/lib/use-poll";
+import type { ForwardZscoreDoc } from "@/lib/types";
 
 interface ForwardDoc {
   curva: string;
@@ -29,7 +32,12 @@ interface ForwardHistDoc {
 }
 
 type Curva = "tasa_fija" | "cer";
-type Modo = "live" | "grafico";
+type Modo = "live" | "grafico" | "zscore";
+
+// Coeficientes (media/desvío) cambian 1x/día post-cierre. Polleamos lento
+// para que cuando llega el cierre, el front lo refleje sin esperar a que
+// el usuario recargue.
+const POLL_ZSCORE_MS = 5 * 60 * 1000;
 
 const PALETA = [
   "#ff9900",
@@ -52,13 +60,26 @@ function fmtFechaCorta(s: string): string {
 export function ForwardsPanel({
   forwards,
   historico,
+  zscoreInicial,
 }: {
   forwards: ForwardDoc[];
   historico?: ForwardHistDoc[];
+  zscoreInicial?: ForwardZscoreDoc[];
 }) {
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [modo, setModo] = useState<Modo>("live");
   const vpKey = useViewportKey();
+
+  const { data: zscoreDocs } = usePoll<ForwardZscoreDoc[]>(
+    "/api/cotizaciones/forwards-zscore",
+    zscoreInicial ?? [],
+    POLL_ZSCORE_MS,
+  );
+  const zStats = useMemo(
+    () => zscoreDocs.find((d) => d.curva === curva)?.stats,
+    [zscoreDocs, curva],
+  );
+  const hayZscore = !!zStats && Object.keys(zStats).length > 0;
 
   const fw = forwards.find((f) => f.curva === curva);
   const hasData = !!fw?.matrix && !!fw?.tickers && fw.tickers.length >= 2;
@@ -157,6 +178,13 @@ export function ForwardsPanel({
         >
           GRÁFICO
         </FilterBtn>
+        <FilterBtn
+          active={modo === "zscore"}
+          onClick={() => hayZscore && setModo("zscore")}
+          disabled={!hayZscore}
+        >
+          Z-SCORE
+        </FilterBtn>
         {modo === "grafico" && (
           <div className="relative ml-1">
             <input
@@ -210,6 +238,11 @@ export function ForwardsPanel({
             {histCurva.length} días
           </span>
         )}
+        {modo === "zscore" && fw?.updated_at && (
+          <span className="ml-auto text-[10px] text-[#555555]">
+            {fmtTs(fw.updated_at)} · 30d
+          </span>
+        )}
       </div>
 
       {modo === "live" ? (
@@ -219,6 +252,24 @@ export function ForwardsPanel({
           ) : (
             <p className="text-[#555555] text-xs py-4 text-center">
               SIN DATOS — MERCADO CERRADO
+            </p>
+          )}
+        </div>
+      ) : modo === "zscore" ? (
+        <div className="h-[380px] overflow-auto">
+          {hasData && hayZscore ? (
+            <ForwardMatrixZscore
+              tickers={fw!.tickers!}
+              matrix={fw!.matrix!}
+              stats={zStats}
+            />
+          ) : !hasData ? (
+            <p className="text-[#555555] text-xs py-4 text-center">
+              SIN DATOS LIVE — MERCADO CERRADO
+            </p>
+          ) : (
+            <p className="text-[#555555] text-xs py-4 text-center">
+              SIN DATOS DE Z-SCORE — ESPERAR CIERRE
             </p>
           )}
         </div>

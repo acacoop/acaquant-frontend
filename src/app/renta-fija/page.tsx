@@ -5,6 +5,7 @@ import type {
   FlujoTicker,
   ForwardDoc,
   ForwardHistDoc,
+  ForwardZscoreDoc,
   RentaFijaDoc,
 } from "@/lib/types";
 import { RentaFijaLiveView } from "@/components/renta-fija-live";
@@ -34,6 +35,7 @@ export default async function Home() {
     breakevens,
     breakevensHist,
     forwardsHist,
+    forwardsZscore,
   ] = await Promise.all([
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
@@ -41,6 +43,7 @@ export default async function Home() {
     safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", [], 30),
     safeFetch<BreakevenHistDoc[]>("/api/cotizaciones/historico/breakevens", [], 300),
     safeFetch<ForwardHistDoc[]>("/api/cotizaciones/historico/forwards", [], 300),
+    safeFetch<ForwardZscoreDoc[]>("/api/cotizaciones/forwards-zscore", [], 300),
   ]);
 
   const allFlujos: FlujoTicker[] = flujos.map((f) => ({
@@ -57,6 +60,7 @@ export default async function Home() {
       flujos={allFlujos}
       breakevensHist={breakevensHist}
       forwardsHist={forwardsHist}
+      forwardsZscore={forwardsZscore}
     />
   );
 }
