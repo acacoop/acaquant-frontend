@@ -524,6 +524,21 @@ function TabValidaciones() {
   } | null>(null);
   const [sobError, setSobError] = useState<string | null>(null);
 
+  // Debug TNA Futuros DLR
+  const [tnaLoading, setTnaLoading] = useState(false);
+  const [tnaData, setTnaData] = useState<{
+    spot: { valor: number | null; fuente: string | null };
+    filas: {
+      ticker: string; vto: string; dias: number;
+      bid: number | null; last: number | null; offer: number | null; mid_book: number | null;
+      directo_last: number | null; tna_lineal_last: number | null; tea_compuesta_last: number | null;
+      tna_lineal_mid: number | null; tea_compuesta_mid: number | null;
+      tna_persistida: number | null;
+    }[];
+    total: number;
+    nota: string;
+  } | null>(null);
+
   useEffect(() => {
     fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
       setTickers(d);
@@ -546,6 +561,11 @@ function TabValidaciones() {
     setDbfLoading(true);
     fetch(`/api/manager/checks/debug-forward?tc_a=${tcA}&tc_b=${tcB}`)
       .then(r => r.json()).then(setDbfData).finally(() => setDbfLoading(false));
+  };
+  const runTna = () => {
+    setTnaLoading(true);
+    fetch("/api/manager/checks/debug-tna-futuros")
+      .then(r => r.json()).then(setTnaData).finally(() => setTnaLoading(false));
   };
   const runSob = () => {
     if (!tcSob) return;
@@ -918,6 +938,69 @@ function TabValidaciones() {
                 </tr>
               ))}</tbody>
             </table>
+          </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Debug TNA Futuros DLR (TNA lineal vs TEA compuesta)">
+        <RunBtn onClick={runTna} loading={tnaLoading} />
+        {tnaData && (
+          <>
+            <div className="text-[10px] text-[#808080] mb-2">
+              Spot referencia: <span className="font-mono text-[#d0d0d0]">
+                {tnaData.spot.valor?.toFixed(2) ?? "—"}
+              </span>{" "}
+              <span className="text-[#666]">(fuente: {tnaData.spot.fuente ?? "—"})</span>
+              {" · "}{tnaData.total} outrights
+            </div>
+            <div className="text-[10px] text-[#888] mb-2 italic">{tnaData.nota}</div>
+            <table className="w-full text-[10px] font-mono tabular-nums">
+              <thead className="text-[#666] text-[9px] tracking-widest">
+                <tr>
+                  <th className="text-left">TICKER</th>
+                  <th className="text-right">DÍAS</th>
+                  <th className="text-right">LAST</th>
+                  <th className="text-right">MID BOOK</th>
+                  <th className="text-right">DIRECTO%</th>
+                  <th className="text-right text-[#3fbf6f]">TNA LIN (last)</th>
+                  <th className="text-right text-[#ff9900]">TEA COMP (last)</th>
+                  <th className="text-right text-[#3fbf6f]">TNA LIN (mid)</th>
+                  <th className="text-right text-[#ff9900]">TEA COMP (mid)</th>
+                  <th className="text-right">PERSISTIDA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tnaData.filas.map((f) => (
+                  <tr key={f.ticker} className="border-b border-[#1a1a1a]">
+                    <td className="text-[#d0d0d0]">{f.ticker}</td>
+                    <td className="text-right">{f.dias}</td>
+                    <td className="text-right">{f.last?.toFixed(2) ?? "—"}</td>
+                    <td className="text-right text-[#888]">{f.mid_book?.toFixed(2) ?? "—"}</td>
+                    <td className="text-right">{f.directo_last?.toFixed(3) ?? "—"}%</td>
+                    <td className="text-right text-[#3fbf6f]">
+                      {f.tna_lineal_last?.toFixed(2) ?? "—"}%
+                    </td>
+                    <td className="text-right text-[#ff9900]">
+                      {f.tea_compuesta_last?.toFixed(2) ?? "—"}%
+                    </td>
+                    <td className="text-right text-[#3fbf6f]">
+                      {f.tna_lineal_mid?.toFixed(2) ?? "—"}%
+                    </td>
+                    <td className="text-right text-[#ff9900]">
+                      {f.tea_compuesta_mid?.toFixed(2) ?? "—"}%
+                    </td>
+                    <td className="text-right text-[#d0d0d0] font-semibold">
+                      {f.tna_persistida?.toFixed(2) ?? "—"}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="text-[10px] text-[#666] mt-2">
+              <span className="text-[#3fbf6f]">TNA LIN</span> = directo × 365/días (lineal — terminal Rofex){" "}
+              · <span className="text-[#ff9900]">TEA COMP</span> = (1+directo)^(365/días) − 1 (compuesta) ·{" "}
+              <span className="text-[#d0d0d0]">PERSISTIDA</span> = lo que el motor escribe a Mongo (hoy = TEA COMP)
+            </div>
           </>
         )}
       </CheckPanel>
