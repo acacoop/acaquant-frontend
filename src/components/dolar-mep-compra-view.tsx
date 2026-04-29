@@ -18,6 +18,7 @@ import {
   fmtArs,
   fmtTime,
 } from "./dolar-mep-shared";
+import { AccountPicker } from "./account-picker";
 import { DolarMepBoard } from "./dolar-mep-board";
 
 // El shell maneja rueda/monto/comision/account/cot/saldo y los pasa por props.
@@ -157,18 +158,7 @@ export function DolarMepCompraView({
           </select>
         </Field>
         <Field label="CUENTA" className="w-[140px]">
-          <select value={account} onChange={(e) => setAccount(e.target.value)} className={inputCls}>
-            {cuentas.length === 0 ? (
-              <option value="">— sin cuentas —</option>
-            ) : (
-              cuentas.map((c) => (
-                <option key={c.account_id} value={c.account_id}>
-                  {c.account_id}
-                  {c.activa ? "" : " (vacía)"}
-                </option>
-              ))
-            )}
-          </select>
+          <AccountPicker value={account} onChange={setAccount} cuentas={cuentas} />
         </Field>
         <button
           onClick={handleEjecutar}

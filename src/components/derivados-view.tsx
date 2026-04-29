@@ -32,9 +32,11 @@ type DetalleTab = "payoff" | "escenarios";
 export function DerivadosView({
   docs: initialDocs,
   metaInicial,
+  isAdmin = false,
 }: {
   docs: OpcionDoc[];
   metaInicial: Meta;
+  isAdmin?: boolean;
 }) {
   // Polling live de la chain de opciones; el SSR provee el initialData
   // para carga rápida. Antes docs venía sólo del SSR y la vista quedaba
@@ -141,25 +143,35 @@ export function DerivadosView({
           <span className="text-[10px] text-[#808080] tracking-wide">
             TASA R
           </span>
-          <input
-            type="number"
-            step="0.005"
-            min="0"
-            max="3"
-            value={tasaInput}
-            onChange={(e) => setTasaInput(e.target.value)}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-16"
-          />
-          <button
-            onClick={guardarTasa}
-            disabled={savingTasa || parseFloat(tasaInput) === meta.tasa}
-            className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#ff9900] hover:border-[#ff9900] disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {savingTasa ? "..." : "OK"}
-          </button>
-          <span className="text-[9px] text-[#555]">
-            ({(meta.tasa * 100).toFixed(1)}%)
-          </span>
+          {isAdmin ? (
+            <>
+              <input
+                type="number"
+                step="0.005"
+                min="0"
+                max="3"
+                value={tasaInput}
+                onChange={(e) => setTasaInput(e.target.value)}
+                className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-16"
+              />
+              <button
+                onClick={guardarTasa}
+                disabled={savingTasa || parseFloat(tasaInput) === meta.tasa}
+                className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#ff9900] hover:border-[#ff9900] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {savingTasa ? "..." : "OK"}
+              </button>
+              <span className="text-[9px] text-[#555]">
+                ({(meta.tasa * 100).toFixed(1)}%)
+              </span>
+            </>
+          ) : (
+            // Read-only para todos los users que no son admin: la tasa
+            // risk-free es global y afecta los Greeks de toda la mesa.
+            <span className="text-[#ff9900] font-mono text-[11px] px-1">
+              {(meta.tasa * 100).toFixed(1)}%
+            </span>
+          )}
         </div>
         <span className="ml-auto text-[10px] text-[#555]">
           ÚLT. ACT {ultimoDisplay}

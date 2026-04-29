@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api";
 import { DerivadosView } from "@/components/derivados-view";
 import type { OpcionDoc } from "@/lib/estrategias";
+import { getMe } from "@/lib/me";
 
 export const dynamic = "force-dynamic";
 
@@ -20,14 +21,21 @@ async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<
 }
 
 export default async function DerivadosPage() {
-  const [opciones, meta] = await Promise.all([
+  const [opciones, meta, me] = await Promise.all([
     safeFetch<OpcionDoc[]>("/api/cotizaciones/opciones", [], 10),
     safeFetch<Meta>(
       "/api/cotizaciones/opciones/meta",
       { tasa: 0.242, vr_local: 0, vr_adr: 0 },
       30
     ),
+    getMe(),
   ]);
 
-  return <DerivadosView docs={opciones} metaInicial={meta} />;
+  return (
+    <DerivadosView
+      docs={opciones}
+      metaInicial={meta}
+      isAdmin={me?.is_admin ?? false}
+    />
+  );
 }

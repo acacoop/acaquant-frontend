@@ -85,9 +85,14 @@ export function CostoHistoricoChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legsKey, bucketMin]);
 
+  // serie indexada (idx categórico) — el eje X usa el índice del bucket,
+  // no el timestamp real, así dos buckets consecutivos quedan pegados
+  // aunque haya un fin de semana o feriado entre ellos. Sin esto el
+  // chart abre un hueco visual durante 2-3 días por mes que se ve mal.
   const serie = useMemo(
     () =>
-      data.map((p) => ({
+      data.map((p, idx) => ({
+        idx,
         t: new Date(p.ts).getTime(),
         costo: p.costo,
         atm: p.atm,
@@ -127,9 +132,8 @@ export function CostoHistoricoChart({
     return [Math.floor(min - pad), Math.ceil(max + pad)];
   }, [serie, costoLive]);
 
-  // Un tick por día (el primer bucket de cada día). Evita repetir la hora
-  // de cierre 5 veces — basta con ver la fecha. El tooltip sigue mostrando
-  // hora completa al hover.
+  // Un tick por día. Como el eje X es ahora `idx` (categórico), guardo
+  // el `idx` del primer bucket de cada día en lugar del timestamp.
   const xTicks = useMemo<number[]>(() => {
     if (!serie.length) return [];
     const seen = new Set<string>();
@@ -139,7 +143,7 @@ export function CostoHistoricoChart({
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!seen.has(key)) {
         seen.add(key);
-        out.push(p.t);
+        out.push(p.idx);
       }
     }
     return out;
@@ -169,18 +173,21 @@ export function CostoHistoricoChart({
 
   const fmtCosto = (v: number) =>
     v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-  // Tick corto: solo DD/MM. Como forzamos 1 tick por día (xTicks), no
-  // tiene sentido repetir hora — la serie cruza varios días y ver "20/04
-  // 16:45" + "21/04 16:45" + ... es ruido.
-  const fmtTickFecha = (t: number) => {
-    const d = new Date(t);
+  // El eje X es idx — buscamos el timestamp real del bucket en `serie`
+  // y lo formateamos a DD/MM.
+  const fmtTickFecha = (idx: number) => {
+    const p = serie[idx];
+    if (!p) return "";
+    const d = new Date(p.t);
     return `${String(d.getDate()).padStart(2, "0")}/${String(
       d.getMonth() + 1,
     ).padStart(2, "0")}`;
   };
-  // En el tooltip sí mantenemos fecha + hora porque querés ver el bucket exacto.
-  const fmtTooltipFecha = (t: number) => {
-    const d = new Date(t);
+  // Tooltip: ídem, mapea idx → ts → DD/MM HH:MM.
+  const fmtTooltipFecha = (idx: number) => {
+    const p = serie[idx];
+    if (!p) return "";
+    const d = new Date(p.t);
     return `${String(d.getDate()).padStart(2, "0")}/${String(
       d.getMonth() + 1,
     ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
@@ -231,15 +238,14 @@ export function CostoHistoricoChart({
           >
             <CartesianGrid stroke="#1a1a1a" vertical={false} />
             <XAxis
-              dataKey="t"
+              dataKey="idx"
               type="number"
-              domain={["dataMin", "dataMax"]}
+              domain={[0, Math.max(0, serie.length - 1)]}
               ticks={xTicks}
               tick={{ fill: "#808080", fontSize: 9 }}
               axisLine={{ stroke: "#2a2a2a" }}
               tickLine={false}
               tickFormatter={fmtTickFecha}
-              scale="time"
               minTickGap={30}
             />
             <YAxis
