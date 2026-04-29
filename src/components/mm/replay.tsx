@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { Activity, AlertTriangle, Pause, Play, RotateCcw } from "lucide-react";
+import { InfoIcon } from "../info-icon";
 import type { SessionInfo, SpecTrade } from "./types";
 
 // ============================================================
@@ -764,20 +765,7 @@ function Legend({ dot, label }: { dot: string; label: string }) {
   );
 }
 
-// Tooltip simple — `?` chiquito que al hover muestra una explicación.
-// CSS-only con `group hover:block`, sin estado React.
-function InfoIcon({ tip }: { tip: string }) {
-  return (
-    <span className="relative inline-block group cursor-help align-middle">
-      <span className="text-[8px] text-[#555] hover:text-[#ff9900] border border-[#333] rounded-full px-[3px] leading-[1.2] font-mono">
-        ?
-      </span>
-      <span className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-[260px] bg-black border border-[#2a2a2a] p-2 text-[10px] text-[#d0d0d0] leading-relaxed shadow-xl normal-case tracking-normal whitespace-normal pointer-events-none">
-        {tip}
-      </span>
-    </span>
-  );
-}
+// (InfoIcon importado desde ../info-icon — se sacó la versión local)
 
 function Perilla({
   label,

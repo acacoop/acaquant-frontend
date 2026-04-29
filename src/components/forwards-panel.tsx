@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { ForwardMatrix } from "./forward-matrix";
 import { ForwardMatrixZscore } from "./forward-matrix-zscore";
+import { InfoIcon } from "./info-icon";
 import { fmtTs, shortTicker } from "./ui";
 import { useViewportKey } from "@/lib/use-viewport-key";
 import { usePoll } from "@/lib/use-poll";
@@ -239,8 +240,26 @@ export function ForwardsPanel({
           </span>
         )}
         {modo === "zscore" && fw?.updated_at && (
-          <span className="ml-auto text-[10px] text-[#555555]">
+          <span className="ml-auto flex items-center gap-1 text-[10px] text-[#555555]">
             {fmtTs(fw.updated_at)} · 30d
+            <InfoIcon
+              width="380px"
+              align="right"
+              tip={
+                "Z-SCORE de FORWARDS — qué tan apartada está la tasa forward implícita LIVE de su nivel histórico de los últimos 30 días.\n\n" +
+                "Para cada par de Lecaps/Boncaps (corto → largo) se calcula el forward implícito que ata sus dos curvas (1+TEA_largo)^t_largo / (1+TEA_corto)^t_corto, anualizado.\n\n" +
+                "Cómo se calcula el Z:\n" +
+                "  Z = (forward HOY − media forward 30d) / desvío forward 30d\n\n" +
+                "Cómo interpretar:\n" +
+                "• > +1.5 (verde fuerte) — forward hoy ANCHO vs su historia. El mercado pricea más devaluación / inflación que de costumbre. Posible oportunidad de SHORT forward (vender largo, comprar corto).\n" +
+                "• > +0.5 (verde suave) — leve desviación al alza, todavía dentro de rango.\n" +
+                "• ±0.5 (gris) — neutral, dentro de banda.\n" +
+                "• < −0.5 (naranja) — leve desviación a la baja.\n" +
+                "• < −1.5 (rojo) — forward COMPRIMIDO vs historia. Mercado pricea menos. Posible LONG forward.\n\n" +
+                "Importante: el Z mide desviación, NO valor absoluto. Un forward del 2% puede ser Z negativo si históricamente venía rindiendo 4%; uno del 5% puede ser Z positivo si venía en 3%. La señal es relativa al régimen reciente.\n\n" +
+                "El cálculo se actualiza al cierre de cada día con la nueva ventana móvil de 30 días."
+              }
+            />
           </span>
         )}
       </div>

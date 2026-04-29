@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { FairValueBono, FairValueDoc } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
 import { FairValueModal } from "./fair-value-modal";
+import { InfoIcon } from "./info-icon";
 
 type Curva = "tasa_fija" | "cer";
 
@@ -119,6 +120,33 @@ export function FairValueView({ curva, initialDoc }: Props) {
         <span>σ <span className="text-[#ff9900]">{doc.sigma_dia_bps.toFixed(1)} bps</span></span>
         <span>universo <span className="text-[#ff9900]">{doc.n_bonos_universo}</span></span>
         {doc.error && <span className="text-[#c0271a]">⚠ {doc.error}</span>}
+        <span className="ml-auto flex items-center gap-1">
+          <span className="text-[9px] text-[#666]">qué mira esta tabla</span>
+          <InfoIcon
+            width="380px"
+            align="right"
+            tip={
+              "FAIR VALUE — modelo cuadrático de TEA vs Duration ajustado al cierre del día.\n\n" +
+              "Cada noche se ajusta TEA = β0 + β1·Dur + β2·Dur² sobre el universo de bonos elegibles. Los β quedan fijos para el día siguiente. Durante la rueda comparamos la TEA observada de cada bono contra la TEA teórica del modelo y vemos cuánto se aparta.\n\n" +
+              "Columnas:\n" +
+              "• TICKER — bono.\n" +
+              "• DUR — duration en años.\n" +
+              "• TEA — TEA observada con el último precio.\n" +
+              "• TEA TEÓRICA — TEA que predice el modelo (β0+β1·Dur+β2·Dur²).\n" +
+              "• RES bps — residuo en bps = (TEA − TEA teórica) × 10000. Positivo = bono BARATO (rinde más que la curva). Negativo = CARO.\n" +
+              "• Z EST — z-score estático = residuo del bono / σ del fit del día. Cuánto se aparta vs los demás bonos AHORA.\n" +
+              "• Z TEMP — z-score temporal = residuo de hoy / desvío histórico del residuo de ESE bono. Compara cada bono contra SU PROPIA historia (más útil para detectar cambios).\n" +
+              "• N — observaciones de histórico que tiene el bono.\n\n" +
+              "Cómo interpretar Z TEMP (la columna que se colorea):\n" +
+              "• > +1.5 verde fuerte = barato vs su historia (oportunidad de compra).\n" +
+              "• > +0.5 verde clara.\n" +
+              "• ±0.5 neutral.\n" +
+              "• < −0.5 naranja.\n" +
+              "• < −1.5 rojo = caro vs su historia.\n\n" +
+              "R² mide qué tan bien el modelo explica la curva (más cerca de 1 = más fiable). σ del fit es el desvío de los residuos del día (sirve para normalizar Z EST)."
+            }
+          />
+        </span>
       </div>
 
       {/* El user pidió que en modo fair-value solo se vea la tabla;
