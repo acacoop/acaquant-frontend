@@ -1250,6 +1250,7 @@ function TabAssets() {
 
   // CFI seleccionado + drill-down de sus instruments.
   const [selectedCfi, setSelectedCfi] = useState<string>("");
+  const [selectedUnderlying, setSelectedUnderlying] = useState<string>("__ALL__");
   const [instruments, setInstruments] = useState<CfiInstrument[]>([]);
   const [instLoading, setInstLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -1279,23 +1280,38 @@ function TabAssets() {
     }
     setInstLoading(true);
     setSearch("");
+    setSelectedUnderlying("__ALL__");
     fetch(`/api/manager/checks/instruments-by-cfi?cficode=${encodeURIComponent(selectedCfi)}`)
       .then((r) => r.json())
       .then((d: { instruments?: CfiInstrument[] }) => setInstruments(d.instruments ?? []))
       .finally(() => setInstLoading(false));
   }, [selectedCfi]);
 
-  const cfiActual = discData?.by_cficode.find((g) => g.cficode === selectedCfi);
+  // Underlyings ordenados desde los instruments cargados (para tener
+  // counts por underlying en el dropdown). discData.by_cficode trae solo
+  // el set de nombres sin counts.
+  const underlyingsConCount = (() => {
+    const counts: Record<string, number> = {};
+    for (const inst of instruments) {
+      counts[inst.underlying] = (counts[inst.underlying] ?? 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  })();
 
   const filteredInst = (() => {
-    if (!search.trim()) return instruments;
-    const q = search.trim().toLowerCase();
-    return instruments.filter(
-      (inst) =>
-        inst.ticker.toLowerCase().includes(q) ||
-        inst.underlying.toLowerCase().includes(q) ||
-        inst.maturity.includes(q),
-    );
+    let list = instruments;
+    if (selectedUnderlying !== "__ALL__") {
+      list = list.filter((inst) => inst.underlying === selectedUnderlying);
+    }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(
+        (inst) =>
+          inst.ticker.toLowerCase().includes(q) ||
+          inst.maturity.includes(q),
+      );
+    }
+    return list;
   })();
 
   return (
@@ -1315,14 +1331,30 @@ function TabAssets() {
           <select
             value={selectedCfi}
             onChange={(e) => setSelectedCfi(e.target.value)}
-            className="bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#ff9900] font-mono min-w-[260px] focus:border-[#ff9900] focus:outline-none"
+            className="bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#ff9900] font-mono min-w-[180px] focus:border-[#ff9900] focus:outline-none"
             disabled={!discData?.ok}
           >
             {!discData?.ok && <option value="">— sin data —</option>}
             {discData?.ok && discData.by_cficode.map((g) => (
               <option key={g.cficode} value={g.cficode}>
-                {g.cficode}  ({g.count})  ·  {g.underlyings.slice(0, 2).join(", ")}
-                {g.underlyings.length > 2 ? "…" : ""}
+                {g.cficode}  ({g.count})
+              </option>
+            ))}
+          </select>
+
+          <span className="text-[9px] tracking-widest text-[#666]">UNDERLYING</span>
+          <select
+            value={selectedUnderlying}
+            onChange={(e) => setSelectedUnderlying(e.target.value)}
+            className="bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono min-w-[300px] focus:border-[#ff9900] focus:outline-none"
+            disabled={instruments.length === 0}
+          >
+            <option value="__ALL__">
+              — todos ({instruments.length}) —
+            </option>
+            {underlyingsConCount.map(([u, n]) => (
+              <option key={u} value={u}>
+                {u} ({n})
               </option>
             ))}
           </select>
@@ -1331,8 +1363,8 @@ function TabAssets() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filtrar ticker / underlying / maturity"
-            className="flex-1 min-w-[260px] bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            placeholder="Buscar ticker o maturity"
+            className="flex-1 min-w-[200px] bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
             disabled={!instruments.length}
           />
 
@@ -1358,16 +1390,6 @@ function TabAssets() {
       {discData && !discData.ok && (
         <div className="border border-[#ff7f7f]/40 bg-[#1a0808] p-3 text-[10px] text-[#ff7f7f] italic">
           {discData.message}
-        </div>
-      )}
-
-      {/* Underlyings del CFI actual */}
-      {cfiActual && (
-        <div className="border border-[#1a1a1a] bg-[#080808] p-3 text-[10px]">
-          <span className="text-[9px] text-[#666] tracking-widest mr-2">
-            UNDERLYINGS ({cfiActual.underlyings.length})
-          </span>
-          <span className="text-[#d0d0d0]">{cfiActual.underlyings.join(" · ")}</span>
         </div>
       )}
 
