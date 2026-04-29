@@ -242,24 +242,7 @@ export function ForwardsPanel({
         {modo === "zscore" && fw?.updated_at && (
           <span className="ml-auto flex items-center gap-1 text-[10px] text-[#555555]">
             {fmtTs(fw.updated_at)} · 30d
-            <InfoIcon
-              width="380px"
-              align="right"
-              tip={
-                "Z-SCORE de FORWARDS — qué tan apartada está la tasa forward implícita LIVE de su nivel histórico de los últimos 30 días.\n\n" +
-                "Para cada par de Lecaps/Boncaps (corto → largo) se calcula el forward implícito que ata sus dos curvas (1+TEA_largo)^t_largo / (1+TEA_corto)^t_corto, anualizado.\n\n" +
-                "Cómo se calcula el Z:\n" +
-                "  Z = (forward HOY − media forward 30d) / desvío forward 30d\n\n" +
-                "Cómo interpretar:\n" +
-                "• > +1.5 (verde fuerte) — forward hoy ANCHO vs su historia. El mercado pricea más devaluación / inflación que de costumbre. Posible oportunidad de SHORT forward (vender largo, comprar corto).\n" +
-                "• > +0.5 (verde suave) — leve desviación al alza, todavía dentro de rango.\n" +
-                "• ±0.5 (gris) — neutral, dentro de banda.\n" +
-                "• < −0.5 (naranja) — leve desviación a la baja.\n" +
-                "• < −1.5 (rojo) — forward COMPRIMIDO vs historia. Mercado pricea menos. Posible LONG forward.\n\n" +
-                "Importante: el Z mide desviación, NO valor absoluto. Un forward del 2% puede ser Z negativo si históricamente venía rindiendo 4%; uno del 5% puede ser Z positivo si venía en 3%. La señal es relativa al régimen reciente.\n\n" +
-                "El cálculo se actualiza al cierre de cada día con la nueva ventana móvil de 30 días."
-              }
-            />
+            <InfoIcon width="380px" align="right" tip={<ForwardsZScoreHelp />} />
           </span>
         )}
       </div>
@@ -370,6 +353,74 @@ export function ForwardsPanel({
         </div>
       )}
     </div>
+  );
+}
+
+// Texto explicativo del tooltip — separado del componente principal
+// para que sea fácil de editar/mantener.
+function ForwardsZScoreHelp() {
+  return (
+    <>
+      <h4>QUÉ ES UN FORWARD</h4>
+      <p>
+        Es la tasa <strong>implícita</strong> entre dos Lecaps (uno corto y uno
+        largo) — la tasa que el mercado pricea entre sus dos vencimientos.
+      </p>
+      <p>
+        Si el corto vence en 30 días y el largo en 90, el forward es lo que
+        vas a rendir desde el día 30 hasta el día 90 si comprás hoy.
+      </p>
+
+      <h4>FÓRMULA</h4>
+      <p>
+        <code>(1 + TEA_largo)^t_largo / (1 + TEA_corto)^t_corto</code>
+        <br />
+        anualizado por el plazo (t_largo − t_corto).
+      </p>
+
+      <h4>QUÉ ES EL Z-SCORE</h4>
+      <p>
+        Mide cuánto se aparta el forward de HOY de su nivel típico de los
+        últimos 30 días.
+      </p>
+      <p>
+        <code>Z = (forward hoy − media 30d) / desvío 30d</code>
+      </p>
+
+      <h4>CÓMO INTERPRETAR</h4>
+      <ul>
+        <li>
+          <strong className="text-[#7fff7f]">{">"} +1.5</strong> · verde fuerte:
+          forward HOY más ANCHO de lo normal. El mercado pricea más
+          devaluación / inflación que en el último mes.
+        </li>
+        <li>
+          <strong className="text-[#3fbf6f]">+0.5 a +1.5</strong> · verde clara:
+          un poco más ancho.
+        </li>
+        <li>
+          <strong className="text-[#888]">±0.5</strong> · gris: neutral.
+        </li>
+        <li>
+          <strong className="text-[#d97706]">−0.5 a −1.5</strong> · naranja: un
+          poco más comprimido.
+        </li>
+        <li>
+          <strong className="text-[#c0271a]">{"<"} −1.5</strong> · rojo:
+          forward COMPRIMIDO. Mercado pricea menos que en el último mes.
+        </li>
+      </ul>
+
+      <h4>IMPORTANTE</h4>
+      <p>
+        El Z mide <strong>desviación</strong>, no valor absoluto.
+      </p>
+      <p>
+        Un forward del 2% puede ser Z negativo si venía rindiendo 4%. Y uno
+        del 5% puede ser Z positivo si venía en 3%. La señal es relativa al
+        régimen reciente, no a un nivel objetivo.
+      </p>
+    </>
   );
 }
 

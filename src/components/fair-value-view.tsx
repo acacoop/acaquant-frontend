@@ -45,6 +45,111 @@ function shortTicker(full: string): string {
   return parts.length >= 3 ? parts[2] : full;
 }
 
+// Texto explicativo del tooltip — separado del componente principal
+// para que sea fácil de editar/mantener.
+function FairValueHelp() {
+  return (
+    <>
+      <h4>QUÉ ES</h4>
+      <p>
+        Un modelo que dice cuánto <strong>debería</strong> rendir cada bono según su
+        duration, y compara contra cuánto rinde de verdad ahora mismo. Sirve para
+        detectar bonos baratos (rinden más de lo que el modelo predice) o caros
+        (rinden menos).
+      </p>
+
+      <h4>CÓMO FUNCIONA</h4>
+      <p>
+        Cada noche, después del cierre, se ajusta una curva cuadrática:
+        <br />
+        <code>TEA = β0 + β1·Dur + β2·Dur²</code>
+      </p>
+      <p>
+        Esa curva queda <strong>fija</strong> al día siguiente. Durante la rueda
+        comparamos cada bono contra ella y vemos cuánto se aparta.
+      </p>
+
+      <h4>QUÉ ES CADA COLUMNA</h4>
+
+      <p>
+        <strong>TICKER</strong> · bono.
+      </p>
+      <p>
+        <strong>DUR</strong> · duration en años (cuánto se mueve el precio si las
+        tasas suben 1%).
+      </p>
+      <p>
+        <strong>TEA</strong> · la tasa observada hoy con el último precio operado.
+      </p>
+      <p>
+        <strong>TEA TEÓRICA</strong> · la tasa que el modelo dice que debería
+        rendir un bono con esa duration.
+      </p>
+      <p>
+        <strong>RES bps</strong> · diferencia entre las dos en puntos básicos.
+        <br />
+        Positivo = bono <strong>barato</strong> (rinde más que la curva).
+        <br />
+        Negativo = <strong>caro</strong> (rinde menos).
+      </p>
+      <p>
+        <strong>Z EST</strong> · cuántas desviaciones se aparta vs los otros bonos
+        del día. Mira la foto del momento.
+      </p>
+      <p>
+        <strong>Z TEMP</strong> · cuántas desviaciones se aparta vs su propia
+        historia. Mira si un bono se está moviendo más de lo normal. <em>Es la
+        columna importante</em>.
+      </p>
+      <p>
+        <strong>N</strong> · cuántas observaciones históricas tiene ese bono. Más
+        N, más confiable el Z TEMP.
+      </p>
+
+      <h4>CÓMO INTERPRETAR Z TEMP</h4>
+
+      <p>
+        La columna se colorea según el valor:
+      </p>
+      <ul>
+        <li>
+          <strong className="text-[#7fff7f]">{">"} +1.5</strong> · verde fuerte:
+          BARATO vs su historia. Oportunidad de compra.
+        </li>
+        <li>
+          <strong className="text-[#3fbf6f]">+0.5 a +1.5</strong> · verde clara:
+          algo barato.
+        </li>
+        <li>
+          <strong className="text-[#888]">±0.5</strong> · gris: neutral, dentro
+          de rango.
+        </li>
+        <li>
+          <strong className="text-[#d97706]">−0.5 a −1.5</strong> · naranja: algo
+          caro.
+        </li>
+        <li>
+          <strong className="text-[#c0271a]">{"<"} −1.5</strong> · rojo: CARO vs
+          su historia.
+        </li>
+      </ul>
+
+      <h4>OTROS CAMPOS DEL ENCABEZADO</h4>
+      <p>
+        <strong>β cierre</strong> · fecha en que se ajustó la curva.
+      </p>
+      <p>
+        <strong>R²</strong> · qué tan bien el modelo explica la curva (1 =
+        perfecto, 0 = no explica nada). Si está bajo, fiarse menos del Z.
+      </p>
+      <p>
+        <strong>σ</strong> · desvío de los residuos del día. Sirve para normalizar
+        el Z EST.
+      </p>
+    </>
+  );
+}
+
 interface Props {
   curva: Curva;
   initialDoc?: FairValueDoc;
@@ -122,30 +227,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
         {doc.error && <span className="text-[#c0271a]">⚠ {doc.error}</span>}
         <span className="ml-auto flex items-center gap-1">
           <span className="text-[9px] text-[#666]">qué mira esta tabla</span>
-          <InfoIcon
-            width="380px"
-            align="right"
-            tip={
-              "FAIR VALUE — modelo cuadrático de TEA vs Duration ajustado al cierre del día.\n\n" +
-              "Cada noche se ajusta TEA = β0 + β1·Dur + β2·Dur² sobre el universo de bonos elegibles. Los β quedan fijos para el día siguiente. Durante la rueda comparamos la TEA observada de cada bono contra la TEA teórica del modelo y vemos cuánto se aparta.\n\n" +
-              "Columnas:\n" +
-              "• TICKER — bono.\n" +
-              "• DUR — duration en años.\n" +
-              "• TEA — TEA observada con el último precio.\n" +
-              "• TEA TEÓRICA — TEA que predice el modelo (β0+β1·Dur+β2·Dur²).\n" +
-              "• RES bps — residuo en bps = (TEA − TEA teórica) × 10000. Positivo = bono BARATO (rinde más que la curva). Negativo = CARO.\n" +
-              "• Z EST — z-score estático = residuo del bono / σ del fit del día. Cuánto se aparta vs los demás bonos AHORA.\n" +
-              "• Z TEMP — z-score temporal = residuo de hoy / desvío histórico del residuo de ESE bono. Compara cada bono contra SU PROPIA historia (más útil para detectar cambios).\n" +
-              "• N — observaciones de histórico que tiene el bono.\n\n" +
-              "Cómo interpretar Z TEMP (la columna que se colorea):\n" +
-              "• > +1.5 verde fuerte = barato vs su historia (oportunidad de compra).\n" +
-              "• > +0.5 verde clara.\n" +
-              "• ±0.5 neutral.\n" +
-              "• < −0.5 naranja.\n" +
-              "• < −1.5 rojo = caro vs su historia.\n\n" +
-              "R² mide qué tan bien el modelo explica la curva (más cerca de 1 = más fiable). σ del fit es el desvío de los residuos del día (sirve para normalizar Z EST)."
-            }
-          />
+          <InfoIcon width="380px" align="right" tip={<FairValueHelp />} />
         </span>
       </div>
 
