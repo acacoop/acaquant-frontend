@@ -17,6 +17,8 @@ import { NextRequest, NextResponse } from "next/server";
  */
 const PATH_MODULES: [string, string][] = [
   ["/manager", "manager"],
+  ["/mm", "mm"],
+  ["/api/mm", "mm"],
   ["/asistente", "asistente"],
   ["/api/chat", "asistente"],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
@@ -116,6 +118,8 @@ export const config = {
     "/portfolios/:path*",
     "/aum/:path*",
     "/api/chat/:path*",
+    "/api/mm/:path*",
+    "/mm/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
     "/api/operativa/:path*",
