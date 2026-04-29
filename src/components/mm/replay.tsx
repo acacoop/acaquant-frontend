@@ -634,49 +634,86 @@ export function MMReplay({
         <ToxPanel score={display.toxScore} count={display.toxCount} />
       </div>
 
-      {/* Chart price + bid/offer — más alto, con eje X de horas */}
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-2 h-[420px]">
-        <div className="flex items-center gap-3 text-[9px] tracking-widest text-[#666] mb-1 px-1">
-          <span>PRICE · MID · QUOTES</span>
-          <span className="text-[#666]">·</span>
-          <Legend dot="#666" label="trade" />
-          <Legend dot="#ff9900" label="mid" />
-          <Legend dot="#3fbf6f" label="bid" />
-          <Legend dot="#ff7f7f" label="offer" />
+      {/* Chart (~70%) lado a lado con FILLS TAPE (~30%) — ambos a 480px */}
+      <div className="grid grid-cols-1 md:grid-cols-[7fr_3fr] gap-2 h-[480px]">
+        <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-2 min-h-0 flex flex-col">
+          <div className="flex items-center gap-3 text-[9px] tracking-widest text-[#666] mb-1 px-1 shrink-0">
+            <span>PRICE · MID · QUOTES</span>
+            <span className="text-[#666]">·</span>
+            <Legend dot="#666" label="trade" />
+            <Legend dot="#ff9900" label="mid" />
+            <Legend dot="#3fbf6f" label="bid" />
+            <Legend dot="#ff7f7f" label="offer" />
+          </div>
+          <div className="flex-1 min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={display.history} margin={{ top: 6, right: 12, left: 4, bottom: 4 }}>
+                <XAxis
+                  dataKey="ts"
+                  tick={{ fill: "#666", fontSize: 9 }}
+                  axisLine={{ stroke: "#2a2a2a" }}
+                  tickLine={false}
+                  minTickGap={50}
+                  tickFormatter={(v: string) => (v ? v.substring(0, 5) : "")}
+                />
+                <YAxis
+                  domain={["dataMin - 0.1", "dataMax + 0.1"]}
+                  tick={{ fill: "#666", fontSize: 9 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={50}
+                  tickFormatter={(v: number) => v.toFixed(2)}
+                />
+                <Tooltip
+                  contentStyle={{ background: "#0a0a0a", border: "1px solid #2a2a2a", fontSize: 10 }}
+                  labelFormatter={(ts) => `${ts}`}
+                />
+                <Line dataKey="price" stroke="#666" dot={false} isAnimationActive={false} />
+                <Line dataKey="mid" stroke="#ff9900" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                <Line dataKey="bid" stroke="#3fbf6f" strokeDasharray="3 3" dot={false} isAnimationActive={false} />
+                <Line dataKey="offer" stroke="#ff7f7f" strokeDasharray="3 3" dot={false} isAnimationActive={false} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="h-[calc(100%-1.5rem)]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={display.history} margin={{ top: 6, right: 12, left: 4, bottom: 4 }}>
-              <XAxis
-                dataKey="ts"
-                tick={{ fill: "#666", fontSize: 9 }}
-                axisLine={{ stroke: "#2a2a2a" }}
-                tickLine={false}
-                minTickGap={50}
-                tickFormatter={(v: string) => (v ? v.substring(0, 5) : "")}
-              />
-              <YAxis
-                domain={["dataMin - 0.1", "dataMax + 0.1"]}
-                tick={{ fill: "#666", fontSize: 9 }}
-                axisLine={false}
-                tickLine={false}
-                width={50}
-                tickFormatter={(v: number) => v.toFixed(2)}
-              />
-              <Tooltip
-                contentStyle={{ background: "#0a0a0a", border: "1px solid #2a2a2a", fontSize: 10 }}
-                labelFormatter={(ts) => `${ts}`}
-              />
-              <Line dataKey="price" stroke="#666" dot={false} isAnimationActive={false} />
-              <Line dataKey="mid" stroke="#ff9900" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-              <Line dataKey="bid" stroke="#3fbf6f" strokeDasharray="3 3" dot={false} isAnimationActive={false} />
-              <Line dataKey="offer" stroke="#ff7f7f" strokeDasharray="3 3" dot={false} isAnimationActive={false} />
-            </ComposedChart>
-          </ResponsiveContainer>
+
+        {/* Fills tape — al lado del chart, mismo alto */}
+        <div className="bg-[#0a0a0a] border border-[#1a1a1a] flex flex-col min-h-0">
+          <div className="border-b border-[#1a1a1a] px-3 py-1 text-[9px] tracking-widest text-[#666] shrink-0 flex items-center gap-1">
+            FILLS TAPE
+            <span className="text-[#444]">({display.fills.length})</span>
+            <InfoIcon tip="Cada fila es una operación que el simulador completó. B (verde) = vos compraste al bid. S (rojo) = vos vendiste al offer. Las columnas son hora, lado, precio del fill, tamaño en VN." />
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {display.fills.length === 0 ? (
+              <div className="text-center text-[10px] text-[#444] py-3">— sin fills aún —</div>
+            ) : (
+              <table className="w-full text-[10px] font-mono">
+                <tbody>
+                  {display.fills.map((f, idx) => (
+                    <tr key={idx} className="border-b border-[#1a1a1a]">
+                      <td className="px-2 py-0.5 text-[#888]">{f.ts}</td>
+                      <td
+                        className={`px-2 py-0.5 font-bold ${
+                          f.side === "B" ? "text-[#3fbf6f]" : "text-[#ff7f7f]"
+                        }`}
+                      >
+                        {f.side}
+                      </td>
+                      <td className="px-2 py-0.5 text-right">{f.px.toFixed(3)}</td>
+                      <td className="px-2 py-0.5 text-right text-[#666]">
+                        {f.size.toLocaleString("es-AR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Sweep results */}
+      {/* Sweep results (si hay) — debajo del split chart+fills */}
       {sweepResults && (
         <SweepResults
           results={sweepResults}
@@ -685,37 +722,6 @@ export function MMReplay({
           onClose={() => setSweepResults(null)}
         />
       )}
-
-      {/* Fills tape */}
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] max-h-[180px] overflow-auto">
-        <div className="sticky top-0 bg-[#0a0a0a] border-b border-[#1a1a1a] px-3 py-1 text-[9px] tracking-widest text-[#666]">
-          FILLS TAPE ({display.fills.length})
-        </div>
-        {display.fills.length === 0 ? (
-          <div className="text-center text-[10px] text-[#444] py-3">— sin fills aún —</div>
-        ) : (
-          <table className="w-full text-[10px] font-mono">
-            <tbody>
-              {display.fills.map((f, idx) => (
-                <tr key={idx} className="border-b border-[#1a1a1a]">
-                  <td className="px-2 py-0.5 text-[#888]">{f.ts}</td>
-                  <td
-                    className={`px-2 py-0.5 ${
-                      f.side === "B" ? "text-[#3fbf6f]" : "text-[#ff7f7f]"
-                    }`}
-                  >
-                    {f.side}
-                  </td>
-                  <td className="px-2 py-0.5 text-right">{f.px.toFixed(3)}</td>
-                  <td className="px-2 py-0.5 text-right text-[#666]">
-                    {f.size.toLocaleString("es-AR")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   );
 }
