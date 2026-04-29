@@ -1223,6 +1223,15 @@ function TabValidaciones() {
 // Reemplaza al panel discovery que vivía dentro de Validaciones — acá hay más
 // espacio + búsqueda para identificar productos antes de extender el motor.
 
+interface CfiInstrument {
+  ticker: string; maturity: string; underlying: string;
+  currency?: string; tickSize?: number;
+  contractMultiplier?: number;
+  putOrCall?: string; strikePrice?: number;
+  minTradeVol?: number; maxTradeVol?: number;
+  lowLimitPrice?: number; highLimitPrice?: number;
+}
+
 function TabAssets() {
   const [discLoading, setDiscLoading] = useState(false);
   const [discData, setDiscData] = useState<{
@@ -1238,7 +1247,11 @@ function TabAssets() {
     generated_at: string | null;
     stale_h: number | null;
   } | null>(null);
-  const [discExpanded, setDiscExpanded] = useState<string | null>(null);
+
+  // CFI seleccionado + drill-down de sus instruments.
+  const [selectedCfi, setSelectedCfi] = useState<string>("");
+  const [instruments, setInstruments] = useState<CfiInstrument[]>([]);
+  const [instLoading, setInstLoading] = useState(false);
   const [search, setSearch] = useState("");
 
   const runDisc = () => {
@@ -1247,37 +1260,47 @@ function TabAssets() {
       .then(r => r.json()).then(setDiscData).finally(() => setDiscLoading(false));
   };
 
-  // Auto-cargar al montar.
+  // Auto-cargar summary al montar.
   useEffect(() => { runDisc(); }, []);
 
-  const filtered = (() => {
-    if (!discData?.by_cficode) return [];
+  // Cuando llega el summary y no hay CFI seleccionado, default = primero
+  // (el que tiene más count, vienen ordenados desc).
+  useEffect(() => {
+    if (discData?.ok && discData.by_cficode.length > 0 && !selectedCfi) {
+      setSelectedCfi(discData.by_cficode[0].cficode);
+    }
+  }, [discData, selectedCfi]);
+
+  // Fetch instruments cuando cambia el CFI seleccionado.
+  useEffect(() => {
+    if (!selectedCfi) {
+      setInstruments([]);
+      return;
+    }
+    setInstLoading(true);
+    setSearch("");
+    fetch(`/api/manager/checks/instruments-by-cfi?cficode=${encodeURIComponent(selectedCfi)}`)
+      .then((r) => r.json())
+      .then((d: { instruments?: CfiInstrument[] }) => setInstruments(d.instruments ?? []))
+      .finally(() => setInstLoading(false));
+  }, [selectedCfi]);
+
+  const cfiActual = discData?.by_cficode.find((g) => g.cficode === selectedCfi);
+
+  const filteredInst = (() => {
+    if (!search.trim()) return instruments;
     const q = search.trim().toLowerCase();
-    if (!q) return discData.by_cficode;
-    return discData.by_cficode
-      .map((g) => {
-        const cfiMatch = g.cficode.toLowerCase().includes(q);
-        const underMatches = g.underlyings.filter((u) => u.toLowerCase().includes(q));
-        const sampleMatches = g.samples.filter(
-          (s) =>
-            s.ticker.toLowerCase().includes(q) ||
-            s.underlying.toLowerCase().includes(q),
-        );
-        if (cfiMatch || underMatches.length > 0 || sampleMatches.length > 0) {
-          return {
-            ...g,
-            // Si el match es por underlying o ticker, expandimos solo lo que matchea.
-            underlyings: cfiMatch ? g.underlyings : underMatches.length > 0 ? underMatches : g.underlyings,
-            samples: cfiMatch ? g.samples : sampleMatches.length > 0 ? sampleMatches : g.samples,
-          };
-        }
-        return null;
-      })
-      .filter((g): g is NonNullable<typeof g> => g !== null);
+    return instruments.filter(
+      (inst) =>
+        inst.ticker.toLowerCase().includes(q) ||
+        inst.underlying.toLowerCase().includes(q) ||
+        inst.maturity.includes(q),
+    );
   })();
 
   return (
     <div className="space-y-3">
+      {/* Header con selector + refresh */}
       <div className="border border-[#1a1a1a] bg-[#080808] p-3">
         <div className="flex items-center gap-3 flex-wrap">
           <button
@@ -1287,22 +1310,37 @@ function TabAssets() {
           >
             {discLoading ? "Cargando…" : "↻ Recargar"}
           </button>
+
+          <span className="text-[9px] tracking-widest text-[#666]">CFI</span>
+          <select
+            value={selectedCfi}
+            onChange={(e) => setSelectedCfi(e.target.value)}
+            className="bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#ff9900] font-mono min-w-[260px] focus:border-[#ff9900] focus:outline-none"
+            disabled={!discData?.ok}
+          >
+            {!discData?.ok && <option value="">— sin data —</option>}
+            {discData?.ok && discData.by_cficode.map((g) => (
+              <option key={g.cficode} value={g.cficode}>
+                {g.cficode}  ({g.count})  ·  {g.underlyings.slice(0, 2).join(", ")}
+                {g.underlyings.length > 2 ? "…" : ""}
+              </option>
+            ))}
+          </select>
+
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar CFI / underlying / ticker (ej: soja, FXXXSX, DLR)"
-            className="flex-1 min-w-[280px] bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            placeholder="Filtrar ticker / underlying / maturity"
+            className="flex-1 min-w-[260px] bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            disabled={!instruments.length}
           />
+
           {discData?.ok && (
             <div className="text-[10px] text-[#808080]">
-              <span className="font-mono text-[#d0d0d0]">{discData.total_instruments}</span> instruments
+              <span className="font-mono text-[#d0d0d0]">{discData.total_instruments}</span> total
               {" · "}
-              <span className="font-mono text-[#d0d0d0]">{discData.by_cficode.length}</span> CFI groups
-              {filtered.length !== discData.by_cficode.length && (
-                <>{" · "}
-                <span className="text-[#ff9900]">{filtered.length} matches</span></>
-              )}
+              <span className="font-mono text-[#d0d0d0]">{discData.by_cficode.length}</span> CFI
             </div>
           )}
         </div>
@@ -1316,201 +1354,76 @@ function TabAssets() {
         )}
       </div>
 
+      {/* Banner si no hay data */}
       {discData && !discData.ok && (
         <div className="border border-[#ff7f7f]/40 bg-[#1a0808] p-3 text-[10px] text-[#ff7f7f] italic">
           {discData.message}
         </div>
       )}
 
-      {discData?.ok && (
+      {/* Underlyings del CFI actual */}
+      {cfiActual && (
+        <div className="border border-[#1a1a1a] bg-[#080808] p-3 text-[10px]">
+          <span className="text-[9px] text-[#666] tracking-widest mr-2">
+            UNDERLYINGS ({cfiActual.underlyings.length})
+          </span>
+          <span className="text-[#d0d0d0]">{cfiActual.underlyings.join(" · ")}</span>
+        </div>
+      )}
+
+      {/* Tabla única de instruments */}
+      {selectedCfi && (
         <div className="border border-[#1a1a1a] bg-[#080808]">
-          <table className="w-full text-[10px] font-mono tabular-nums">
-            <thead className="text-[#666] text-[9px] tracking-widest border-b border-[#1a1a1a]">
-              <tr>
-                <th className="text-left px-3 py-2">CFI</th>
-                <th className="text-right px-3 py-2">COUNT</th>
-                <th className="text-left px-3 py-2">UNDERLYINGS</th>
-                <th className="text-left px-3 py-2">SAMPLES (ticker)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((g) => {
-                const isOpen = discExpanded === g.cficode;
-                return (
-                  <FragmentRow
-                    key={g.cficode}
-                    g={g}
-                    isOpen={isOpen}
-                    onToggle={() => setDiscExpanded(isOpen ? null : g.cficode)}
-                  />
-                );
-              })}
-              {filtered.length === 0 && (
+          <div className="px-3 py-2 border-b border-[#1a1a1a] flex items-center gap-2 text-[10px]">
+            <span className="text-[9px] text-[#666] tracking-widest">INSTRUMENTS</span>
+            <span className="font-mono text-[#d0d0d0]">{filteredInst.length}</span>
+            {search && filteredInst.length !== instruments.length && (
+              <span className="text-[#666]">de {instruments.length}</span>
+            )}
+            {instLoading && <span className="text-[#666] italic ml-2">Cargando…</span>}
+          </div>
+          <div className="max-h-[600px] overflow-y-auto">
+            <table className="w-full text-[10px] font-mono tabular-nums">
+              <thead className="text-[#666] text-[9px] tracking-widest sticky top-0 bg-[#080808] border-b border-[#1a1a1a]">
                 <tr>
-                  <td colSpan={4} className="px-3 py-4 text-center text-[#666]">
-                    Sin matches para &quot;{search}&quot;
-                  </td>
+                  <th className="text-left px-3 py-2">TICKER</th>
+                  <th className="text-left px-3 py-2">MATURITY</th>
+                  <th className="text-left px-3 py-2">UNDERLYING</th>
+                  <th className="text-right px-3 py-2">CCY</th>
+                  <th className="text-right px-3 py-2">TICK</th>
+                  <th className="text-right px-3 py-2">MULT</th>
+                  <th className="text-right px-3 py-2">STRIKE</th>
+                  <th className="text-right px-3 py-2">P/C</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredInst.map((inst, i) => (
+                  <tr key={`${inst.ticker}-${i}`} className="border-b border-[#1a1a1a] hover:bg-[#0e0e0e]">
+                    <td className="px-3 py-1 text-[#3fbf6f]">{inst.ticker}</td>
+                    <td className="px-3 py-1 text-[#888]">{inst.maturity}</td>
+                    <td className="px-3 py-1 text-[#d0d0d0]">{inst.underlying}</td>
+                    <td className="px-3 py-1 text-right text-[#888]">{inst.currency ?? "—"}</td>
+                    <td className="px-3 py-1 text-right text-[#888]">{inst.tickSize ?? "—"}</td>
+                    <td className="px-3 py-1 text-right text-[#888]">{inst.contractMultiplier ?? "—"}</td>
+                    <td className="px-3 py-1 text-right text-[#888]">{inst.strikePrice ?? "—"}</td>
+                    <td className="px-3 py-1 text-right text-[#888]">{inst.putOrCall ?? "—"}</td>
+                  </tr>
+                ))}
+                {!instLoading && filteredInst.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-4 text-center text-[#666]">
+                      {instruments.length === 0
+                        ? "Sin instruments para este CFI. ¿Corriste scripts.discovery_pyrofex tras el último deploy?"
+                        : `Sin matches para "${search}"`}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
-  );
-}
-
-interface CfiInstrument {
-  ticker: string; maturity: string; underlying: string;
-  currency?: string; tickSize?: number;
-  contractMultiplier?: number;
-  putOrCall?: string; strikePrice?: number;
-  minTradeVol?: number; maxTradeVol?: number;
-  lowLimitPrice?: number; highLimitPrice?: number;
-}
-
-function FragmentRow({
-  g,
-  isOpen,
-  onToggle,
-}: {
-  g: {
-    cficode: string;
-    count: number;
-    underlyings: string[];
-    samples: { ticker: string; maturity: string; underlying: string }[];
-  };
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  const [drillData, setDrillData] = useState<CfiInstrument[] | null>(null);
-  const [drillLoading, setDrillLoading] = useState(false);
-  const [drillSearch, setDrillSearch] = useState("");
-
-  // Lazy load: solo fetcha cuando se expande la primera vez.
-  useEffect(() => {
-    if (!isOpen || drillData !== null) return;
-    setDrillLoading(true);
-    fetch(`/api/manager/checks/instruments-by-cfi?cficode=${encodeURIComponent(g.cficode)}`)
-      .then((r) => r.json())
-      .then((d: { instruments?: CfiInstrument[] }) => setDrillData(d.instruments ?? []))
-      .finally(() => setDrillLoading(false));
-  }, [isOpen, drillData, g.cficode]);
-
-  const filteredInst = drillData?.filter((inst) => {
-    if (!drillSearch.trim()) return true;
-    const q = drillSearch.trim().toLowerCase();
-    return (
-      inst.ticker.toLowerCase().includes(q) ||
-      inst.underlying.toLowerCase().includes(q) ||
-      inst.maturity.includes(q)
-    );
-  }) ?? [];
-
-  return (
-    <>
-      <tr
-        className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#0e0e0e]"
-        onClick={onToggle}
-      >
-        <td className="px-3 py-1.5 text-[#ff9900] font-semibold">
-          <span className="text-[#555] mr-1">{isOpen ? "▾" : "▸"}</span>
-          {g.cficode}
-        </td>
-        <td className="px-3 py-1.5 text-right">{g.count}</td>
-        <td className="px-3 py-1.5 text-[#d0d0d0]">
-          <span className="line-clamp-1">
-            {g.underlyings.slice(0, 4).join(", ")}
-            {g.underlyings.length > 4 && (
-              <span className="text-[#666]"> (+{g.underlyings.length - 4})</span>
-            )}
-          </span>
-        </td>
-        <td className="px-3 py-1.5 text-[#888] text-[9px]">
-          <span className="line-clamp-1">
-            {g.samples.slice(0, 3).map((s) => s.ticker).join("  ·  ")}
-          </span>
-        </td>
-      </tr>
-      {isOpen && (
-        <tr className="border-b border-[#1a1a1a] bg-[#050505]">
-          <td colSpan={4} className="p-3 space-y-3">
-            <div>
-              <div className="text-[9px] text-[#666] tracking-widest mb-1">
-                UNDERLYINGS ({g.underlyings.length})
-              </div>
-              <div className="text-[10px] text-[#d0d0d0]">
-                {g.underlyings.join(" · ")}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <div className="text-[9px] text-[#666] tracking-widest">
-                  TODOS LOS INSTRUMENTS ({drillData?.length ?? "—"})
-                </div>
-                {drillData && drillData.length > 0 && (
-                  <input
-                    type="text"
-                    value={drillSearch}
-                    onChange={(e) => setDrillSearch(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    placeholder="Filtrar ticker / underlying / maturity"
-                    className="ml-auto bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-[260px]"
-                  />
-                )}
-              </div>
-              {drillLoading && (
-                <div className="text-[10px] text-[#666] italic">Cargando…</div>
-              )}
-              {drillData && drillData.length === 0 && (
-                <div className="text-[10px] text-[#ff7f7f] italic">
-                  Sin instruments. ¿Corriste scripts.discovery_pyrofex después del último deploy?
-                </div>
-              )}
-              {drillData && drillData.length > 0 && (
-                <div className="max-h-[400px] overflow-y-auto border border-[#1a1a1a]">
-                  <table className="w-full text-[10px] font-mono tabular-nums">
-                    <thead className="text-[#555] text-[9px] sticky top-0 bg-[#050505]">
-                      <tr>
-                        <th className="text-left px-2 py-1">TICKER</th>
-                        <th className="text-left px-2 py-1">MAT</th>
-                        <th className="text-left px-2 py-1">UNDERLYING</th>
-                        <th className="text-right px-2 py-1">CCY</th>
-                        <th className="text-right px-2 py-1">TICK</th>
-                        <th className="text-right px-2 py-1">MULT</th>
-                        <th className="text-right px-2 py-1">STRIKE</th>
-                        <th className="text-right px-2 py-1">P/C</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredInst.map((inst, i) => (
-                        <tr key={`${inst.ticker}-${i}`} className="border-b border-[#1a1a1a]">
-                          <td className="px-2 py-0.5 text-[#3fbf6f]">{inst.ticker}</td>
-                          <td className="px-2 py-0.5 text-[#888]">{inst.maturity}</td>
-                          <td className="px-2 py-0.5 text-[#d0d0d0]">{inst.underlying}</td>
-                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.currency ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.tickSize ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.contractMultiplier ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.strikePrice ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.putOrCall ?? "—"}</td>
-                        </tr>
-                      ))}
-                      {filteredInst.length === 0 && drillSearch && (
-                        <tr>
-                          <td colSpan={8} className="px-2 py-2 text-center text-[#666]">
-                            Sin matches
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
   );
 }
 
