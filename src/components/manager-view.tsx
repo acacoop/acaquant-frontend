@@ -944,13 +944,18 @@ function TabValidaciones() {
 
       <CheckPanel title="Debug TNA Futuros DLR (TNA lineal vs TEA compuesta)">
         <RunBtn onClick={runTna} loading={tnaLoading} />
-        {tnaData && (
+        {tnaData && tnaData.total === 0 && (
+          <div className="text-[10px] text-[#ff7f7f] italic">
+            {tnaData.nota || "Sin datos en FuturosDLRSnapshot."}
+          </div>
+        )}
+        {tnaData && tnaData.total > 0 && (
           <>
             <div className="text-[10px] text-[#808080] mb-2">
               Spot referencia: <span className="font-mono text-[#d0d0d0]">
-                {tnaData.spot.valor?.toFixed(2) ?? "—"}
+                {tnaData.spot?.valor?.toFixed(2) ?? "—"}
               </span>{" "}
-              <span className="text-[#666]">(fuente: {tnaData.spot.fuente ?? "—"})</span>
+              <span className="text-[#666]">(fuente: {tnaData.spot?.fuente ?? "—"})</span>
               {" · "}{tnaData.total} outrights
             </div>
             <div className="text-[10px] text-[#888] mb-2 italic">{tnaData.nota}</div>
