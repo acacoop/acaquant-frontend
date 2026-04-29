@@ -1360,6 +1360,15 @@ function TabAssets() {
   );
 }
 
+interface CfiInstrument {
+  ticker: string; maturity: string; underlying: string;
+  currency?: string; tickSize?: number;
+  contractMultiplier?: number;
+  putOrCall?: string; strikePrice?: number;
+  minTradeVol?: number; maxTradeVol?: number;
+  lowLimitPrice?: number; highLimitPrice?: number;
+}
+
 function FragmentRow({
   g,
   isOpen,
@@ -1374,6 +1383,30 @@ function FragmentRow({
   isOpen: boolean;
   onToggle: () => void;
 }) {
+  const [drillData, setDrillData] = useState<CfiInstrument[] | null>(null);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [drillSearch, setDrillSearch] = useState("");
+
+  // Lazy load: solo fetcha cuando se expande la primera vez.
+  useEffect(() => {
+    if (!isOpen || drillData !== null) return;
+    setDrillLoading(true);
+    fetch(`/api/manager/checks/instruments-by-cfi?cficode=${encodeURIComponent(g.cficode)}`)
+      .then((r) => r.json())
+      .then((d: { instruments?: CfiInstrument[] }) => setDrillData(d.instruments ?? []))
+      .finally(() => setDrillLoading(false));
+  }, [isOpen, drillData, g.cficode]);
+
+  const filteredInst = drillData?.filter((inst) => {
+    if (!drillSearch.trim()) return true;
+    const q = drillSearch.trim().toLowerCase();
+    return (
+      inst.ticker.toLowerCase().includes(q) ||
+      inst.underlying.toLowerCase().includes(q) ||
+      inst.maturity.includes(q)
+    );
+  }) ?? [];
+
   return (
     <>
       <tr
@@ -1401,41 +1434,78 @@ function FragmentRow({
       </tr>
       {isOpen && (
         <tr className="border-b border-[#1a1a1a] bg-[#050505]">
-          <td colSpan={4} className="p-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-[9px] text-[#666] tracking-widest mb-1">
-                  UNDERLYINGS ({g.underlyings.length})
-                </div>
-                <ul className="text-[10px] text-[#d0d0d0] space-y-0.5">
-                  {g.underlyings.map((u) => (
-                    <li key={u}>· {u}</li>
-                  ))}
-                </ul>
+          <td colSpan={4} className="p-3 space-y-3">
+            <div>
+              <div className="text-[9px] text-[#666] tracking-widest mb-1">
+                UNDERLYINGS ({g.underlyings.length})
               </div>
-              <div>
-                <div className="text-[9px] text-[#666] tracking-widest mb-1">
-                  SAMPLES ({g.samples.length})
+              <div className="text-[10px] text-[#d0d0d0]">
+                {g.underlyings.join(" · ")}
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="text-[9px] text-[#666] tracking-widest">
+                  TODOS LOS INSTRUMENTS ({drillData?.length ?? "—"})
                 </div>
-                <table className="w-full text-[10px] font-mono">
-                  <thead className="text-[#555] text-[9px]">
-                    <tr>
-                      <th className="text-left">TICKER</th>
-                      <th className="text-left">MATURITY</th>
-                      <th className="text-left">UNDERLYING</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.samples.map((s, i) => (
-                      <tr key={`${s.ticker}-${i}`}>
-                        <td className="text-[#3fbf6f]">{s.ticker}</td>
-                        <td className="text-[#888]">{s.maturity}</td>
-                        <td className="text-[#d0d0d0]">{s.underlying}</td>
+                {drillData && drillData.length > 0 && (
+                  <input
+                    type="text"
+                    value={drillSearch}
+                    onChange={(e) => setDrillSearch(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Filtrar ticker / underlying / maturity"
+                    className="ml-auto bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-[260px]"
+                  />
+                )}
+              </div>
+              {drillLoading && (
+                <div className="text-[10px] text-[#666] italic">Cargando…</div>
+              )}
+              {drillData && drillData.length === 0 && (
+                <div className="text-[10px] text-[#ff7f7f] italic">
+                  Sin instruments. ¿Corriste scripts.discovery_pyrofex después del último deploy?
+                </div>
+              )}
+              {drillData && drillData.length > 0 && (
+                <div className="max-h-[400px] overflow-y-auto border border-[#1a1a1a]">
+                  <table className="w-full text-[10px] font-mono tabular-nums">
+                    <thead className="text-[#555] text-[9px] sticky top-0 bg-[#050505]">
+                      <tr>
+                        <th className="text-left px-2 py-1">TICKER</th>
+                        <th className="text-left px-2 py-1">MAT</th>
+                        <th className="text-left px-2 py-1">UNDERLYING</th>
+                        <th className="text-right px-2 py-1">CCY</th>
+                        <th className="text-right px-2 py-1">TICK</th>
+                        <th className="text-right px-2 py-1">MULT</th>
+                        <th className="text-right px-2 py-1">STRIKE</th>
+                        <th className="text-right px-2 py-1">P/C</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {filteredInst.map((inst, i) => (
+                        <tr key={`${inst.ticker}-${i}`} className="border-b border-[#1a1a1a]">
+                          <td className="px-2 py-0.5 text-[#3fbf6f]">{inst.ticker}</td>
+                          <td className="px-2 py-0.5 text-[#888]">{inst.maturity}</td>
+                          <td className="px-2 py-0.5 text-[#d0d0d0]">{inst.underlying}</td>
+                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.currency ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.tickSize ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.contractMultiplier ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.strikePrice ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-right text-[#888]">{inst.putOrCall ?? "—"}</td>
+                        </tr>
+                      ))}
+                      {filteredInst.length === 0 && drillSearch && (
+                        <tr>
+                          <td colSpan={8} className="px-2 py-2 text-center text-[#666]">
+                            Sin matches
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </td>
         </tr>
