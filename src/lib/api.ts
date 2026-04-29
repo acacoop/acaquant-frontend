@@ -4,17 +4,38 @@
  * Headers enviados en cada request:
  * - Authorization: Bearer <API_KEY>          → auth de la API FastAPI
  * - CF-Access-Client-Id / Secret             → bypass Cloudflare Access (Service Token)
+ * - x-acaquant-user-email                    → email del user (para RBAC backend)
+ * - cf-access-authenticated-user-email       → idem (CF Access lo estripa con service
+ *                                              token, lo mandamos por compat)
+ *
+ * Identidad del user: leemos el header `cf-access-authenticated-user-email`
+ * que CF inyecta al request del browser cuando atraviesa Cloudflare Access.
+ * En SSR (page.tsx) y route handlers (route.ts) se accede vía
+ * `next/headers::headers()`. Si no hay (dev / unauthenticated), seguimos sin
+ * propagar y el backend cae en service:* → DEFAULT_ROLE.
  *
  * Opciones:
  * - revalidate: segundos que Next cachea la respuesta del upstream. Omitir o
  *               pasar 0 → no-store (siempre fresh, como antes). Por defecto
  *               no cachea para evitar cambios no deseados en rutas viejas.
  */
+import { headers as nextHeaders } from "next/headers";
 
 const API_URL = process.env.API_URL || "https://api.acaquant.com";
 const API_KEY = process.env.API_KEY || "";
 const CF_CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID || "";
 const CF_CLIENT_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
+
+async function _readUserEmail(): Promise<string | null> {
+  // next/headers::headers() es async desde Next 15+. Falla silenciosa si
+  // se llama fuera de contexto request (ej. al construir un módulo).
+  try {
+    const h = await nextHeaders();
+    return h.get("cf-access-authenticated-user-email");
+  } catch {
+    return null;
+  }
+}
 
 interface FetchOpts {
   revalidate?: number;
@@ -38,6 +59,16 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   if (CF_CLIENT_ID && CF_CLIENT_SECRET) {
     headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
     headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
+  }
+  // Propagar identidad del user — sin esto el backend ve `service:<cn>` y
+  // rechaza con 403 cualquier endpoint con módulo restringido (portfolios,
+  // operaciones, etc.). El header `x-acaquant-user-email` no es CF-controlled,
+  // CF lo deja pasar tal cual (a diferencia de cf-access-authenticated-user-email
+  // que CF estripa cuando entra service token).
+  const userEmail = await _readUserEmail();
+  if (userEmail) {
+    headers["cf-access-authenticated-user-email"] = userEmail;
+    headers["x-acaquant-user-email"] = userEmail;
   }
   if (opts.body) {
     headers["Content-Type"] = "application/json";
