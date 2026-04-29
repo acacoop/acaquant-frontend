@@ -16,12 +16,14 @@ import type { SessionInfo, SpecTrade } from "./types";
 // ============================================================
 // Constantes — port de docs/mm_workstation.jsx (NO tocar sin sincronizar
 // el backend service `api/services/mm.py::run_backtest_dia`).
+// MID_WINDOW, FILLS_MAX, TOX_LOOKAHEAD se exportan para que MMLive las
+// reuse y los dos modos den resultados comparables.
 // ============================================================
-const MID_WINDOW = 20;
+export const MID_WINDOW = 20;
 const HISTORY_MAX = 220;
-const FILLS_MAX = 80;
+export const FILLS_MAX = 80;
 const TICK_MS = 220;
-const TOX_LOOKAHEAD = 30;
+export const TOX_LOOKAHEAD = 30;
 const SPEEDS = [10, 30, 60, 120, 300];
 
 // ============================================================
@@ -731,7 +733,7 @@ export function MMReplay({
 // SUB-COMPONENTS
 // ============================================================
 
-function Stat({
+export function Stat({
   label,
   value,
   color,
@@ -753,7 +755,7 @@ function Stat({
   );
 }
 
-function Legend({ dot, label }: { dot: string; label: string }) {
+export function Legend({ dot, label }: { dot: string; label: string }) {
   return (
     <span className="flex items-center gap-1 text-[#888]">
       <span
@@ -767,7 +769,7 @@ function Legend({ dot, label }: { dot: string; label: string }) {
 
 // (InfoIcon importado desde ../info-icon — se sacó la versión local)
 
-function Perilla({
+export function Perilla({
   label,
   value,
   min,
@@ -811,7 +813,7 @@ function Perilla({
   );
 }
 
-function QuoteBox({
+export function QuoteBox({
   mid,
   bid,
   offer,
@@ -857,7 +859,7 @@ function QuoteBox({
   );
 }
 
-function InventoryBox({ inv, cap }: { inv: number; cap: number }) {
+export function InventoryBox({ inv, cap }: { inv: number; cap: number }) {
   const pct = cap > 0 ? (inv / cap) * 100 : 0;
   const color = inv > 0 ? "text-[#3fbf6f]" : inv < 0 ? "text-[#ff7f7f]" : "text-[#888]";
   return (
@@ -886,7 +888,7 @@ function InventoryBox({ inv, cap }: { inv: number; cap: number }) {
   );
 }
 
-function ToxPanel({ score, count }: { score: number; count: number }) {
+export function ToxPanel({ score, count }: { score: number; count: number }) {
   const abs = Math.abs(score);
   const zone = abs > 1 ? "TOX" : abs > 0.5 ? "WATCH" : abs > 0.2 ? "NEUTRAL" : "FAVOR";
   const color =

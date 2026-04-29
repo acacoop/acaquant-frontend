@@ -91,6 +91,27 @@ export interface BacktestSpreadStats {
   fills_avg: number;
 }
 
+// ============================================================
+// Live snapshot — payload de GET /api/mm/live-snapshot.
+// Polleado a 1Hz por MMLive para hacer paper trading sobre datos vivos.
+// ============================================================
+export interface BookLevel {
+  price: number;
+  size: number;
+}
+
+export interface LiveSnapshot {
+  instrumento_full: string;
+  ts_now: string; // cursor opaco para la próxima llamada (naive ART)
+  book: {
+    bids:   BookLevel[];
+    offers: BookLevel[];
+  };
+  last_price: number | null;
+  book_updated_at: string | null;
+  new_trades: ApiTrade[]; // trades con timestamp > since_ts del request
+}
+
 export interface BacktestDayResult {
   fecha: string;
   spread: number;

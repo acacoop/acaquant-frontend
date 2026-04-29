@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { MMReplay } from "./replay";
 import { MMBacktest } from "./backtest";
+import { MMLive } from "./live";
 import { apiToSpecTrade, buildSessionInfo } from "./adapter";
 import { CURVAS, type ApiTrade, type Curva, type CurvaBond, type SessionInfo, type SpecTrade } from "./types";
 
-type Tab = "replay" | "backtest";
+type Tab = "replay" | "live" | "backtest";
 
 interface InitialBondsByCurve {
   [curva: string]: CurvaBond[];
@@ -113,6 +114,9 @@ export function MMShell({ initialBondsByCurve }: { initialBondsByCurve: InitialB
           <TabBtn active={tab === "replay"} onClick={() => setTab("replay")}>
             REPLAY
           </TabBtn>
+          <TabBtn active={tab === "live"} onClick={() => setTab("live")}>
+            LIVE
+          </TabBtn>
           <TabBtn active={tab === "backtest"} onClick={() => setTab("backtest")}>
             BACKTEST
           </TabBtn>
@@ -122,6 +126,12 @@ export function MMShell({ initialBondsByCurve }: { initialBondsByCurve: InitialB
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "replay" ? (
           <ReplayLoader bond={bond} />
+        ) : tab === "live" ? (
+          bond ? (
+            <MMLive key={bond.ticker_corto} bond={bond} />
+          ) : (
+            <Empty msg="Elegí un instrumento para arrancar." />
+          )
         ) : bond ? (
           <MMBacktest instrumentoFull={bond.ticker} />
         ) : (
