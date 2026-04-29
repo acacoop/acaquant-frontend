@@ -524,6 +524,23 @@ function TabValidaciones() {
   } | null>(null);
   const [sobError, setSobError] = useState<string | null>(null);
 
+  // Discovery pyRofex
+  const [discLoading, setDiscLoading] = useState(false);
+  const [discData, setDiscData] = useState<{
+    ok: boolean;
+    message?: string;
+    total_instruments: number;
+    by_cficode: {
+      cficode: string;
+      count: number;
+      underlyings: string[];
+      samples: { ticker: string; maturity: string; underlying: string }[];
+    }[];
+    generated_at: string | null;
+    stale_h: number | null;
+  } | null>(null);
+  const [discExpanded, setDiscExpanded] = useState<string | null>(null);
+
   // Debug TNA Futuros DLR
   const [tnaLoading, setTnaLoading] = useState(false);
   const [tnaData, setTnaData] = useState<{
@@ -566,6 +583,11 @@ function TabValidaciones() {
     setTnaLoading(true);
     fetch("/api/manager/checks/debug-tna-futuros")
       .then(r => r.json()).then(setTnaData).finally(() => setTnaLoading(false));
+  };
+  const runDisc = () => {
+    setDiscLoading(true);
+    fetch("/api/manager/checks/discovery-pyrofex")
+      .then(r => r.json()).then(setDiscData).finally(() => setDiscLoading(false));
   };
   const runSob = () => {
     if (!tcSob) return;
@@ -1005,6 +1027,102 @@ function TabValidaciones() {
               <span className="text-[#3fbf6f]">TNA LIN</span> = directo × 365/días (lineal — terminal Rofex){" "}
               · <span className="text-[#ff9900]">TEA COMP</span> = (1+directo)^(365/días) − 1 (compuesta) ·{" "}
               <span className="text-[#d0d0d0]">PERSISTIDA</span> = lo que el motor escribe a Mongo (hoy = TEA COMP)
+            </div>
+          </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Discovery pyRofex (todos los CFI codes disponibles)">
+        <RunBtn onClick={runDisc} loading={discLoading} />
+        {discData && !discData.ok && (
+          <div className="text-[10px] text-[#ff7f7f] italic">
+            {discData.message}
+          </div>
+        )}
+        {discData && discData.ok && (
+          <>
+            <div className="text-[10px] text-[#808080] mb-2">
+              Total instruments: <span className="font-mono text-[#d0d0d0]">{discData.total_instruments}</span>
+              {" · "}
+              <span className="text-[#666]">
+                generado {discData.generated_at ? new Date(discData.generated_at).toLocaleString("es-AR") : "—"}
+                {discData.stale_h !== null && ` (hace ${discData.stale_h}h)`}
+              </span>
+            </div>
+            {discData.stale_h !== null && discData.stale_h > 24 && (
+              <div className="text-[10px] text-[#ff9900] italic mb-2">
+                Data &gt; 24h. Considerar refrescar:{" "}
+                <code className="text-[#3fbf6f]">python -m scripts.discovery_pyrofex</code> en el Droplet.
+              </div>
+            )}
+            <table className="w-full text-[10px] font-mono tabular-nums">
+              <thead className="text-[#666] text-[9px] tracking-widest">
+                <tr>
+                  <th className="text-left">CFI</th>
+                  <th className="text-right">COUNT</th>
+                  <th className="text-left">UNDERLYINGS</th>
+                  <th className="text-left">SAMPLES</th>
+                </tr>
+              </thead>
+              <tbody>
+                {discData.by_cficode.map((g) => {
+                  const isOpen = discExpanded === g.cficode;
+                  return (
+                    <>
+                      <tr
+                        key={g.cficode}
+                        className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#0e0e0e]"
+                        onClick={() => setDiscExpanded(isOpen ? null : g.cficode)}
+                      >
+                        <td className="text-[#ff9900] font-semibold">
+                          <span className="text-[#555] mr-1">{isOpen ? "▾" : "▸"}</span>
+                          {g.cficode}
+                        </td>
+                        <td className="text-right">{g.count}</td>
+                        <td className="text-[#d0d0d0] truncate max-w-[300px]">
+                          {g.underlyings.slice(0, 3).join(", ")}
+                          {g.underlyings.length > 3 && ` (+${g.underlyings.length - 3})`}
+                        </td>
+                        <td className="text-[#888] text-[9px]">
+                          {g.samples.slice(0, 3).map((s) => s.ticker).join("  ·  ")}
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="border-b border-[#1a1a1a] bg-[#050505]">
+                          <td colSpan={4} className="p-2">
+                            <div className="text-[9px] text-[#666] mb-1">UNDERLYINGS ({g.underlyings.length})</div>
+                            <div className="text-[10px] text-[#d0d0d0] mb-2">{g.underlyings.join(" · ")}</div>
+                            <div className="text-[9px] text-[#666] mb-1">SAMPLES</div>
+                            <table className="w-full text-[10px] font-mono">
+                              <thead className="text-[#555] text-[9px]">
+                                <tr>
+                                  <th className="text-left">TICKER</th>
+                                  <th className="text-left">MATURITY</th>
+                                  <th className="text-left">UNDERLYING</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {g.samples.map((s) => (
+                                  <tr key={s.ticker}>
+                                    <td className="text-[#3fbf6f]">{s.ticker}</td>
+                                    <td className="text-[#888]">{s.maturity}</td>
+                                    <td className="text-[#d0d0d0]">{s.underlying}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="text-[10px] text-[#666] mt-2">
+              Click en una fila para ver underlyings completos + samples. Para refrescar:{" "}
+              <code className="text-[#3fbf6f]">python -m scripts.discovery_pyrofex</code>{" "}
+              en el Droplet (ssh + venv activado).
             </div>
           </>
         )}
