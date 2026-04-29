@@ -10,6 +10,36 @@ import { UsuariosPanel } from "./usuarios-panel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface CurvaDebugResp {
+  ok: boolean;
+  message?: string;
+  instrumento?: {
+    ticker: string; ticker_corto: string; curva: string;
+    fecha_emision: string; fecha_vencimiento: string | null;
+    valor_nominal: number; cer_emision: number | null; n_flujos: number;
+  };
+  trade?: {
+    timestamp: string | null; price: number;
+    TEA_persistido: number | null; TEM_persistido: number | null;
+    duration_persistido: number | null; mod_duration_persistido: number | null;
+    convexity_persistido: number | null; paridad_persistido: number | null;
+  };
+  settlement?: {
+    fecha_trade: string; fecha_settlement: string;
+    dias_a_vto_trade: number; dias_a_vto_settle: number; regla: string;
+  };
+  cer_info?: { cer_emision: number; cer_liq: number; ratio: number } | null;
+  tc_info?: { fuente: string; valor: number | null; precio_usd?: number } | null;
+  flujos_futuros?: { fecha: string; monto: number; raw: Record<string, unknown> }[];
+  cashflow_xirr?: { fecha: string; monto: number; concepto: string }[];
+  calculado?: {
+    TEA?: number; TEM?: number; duration?: number;
+    mod_duration?: number; convexity?: number; paridad?: number;
+  };
+  diff?: Record<string, string>;
+  error_calc?: string | null;
+}
+
 interface MotorStatus {
   nombre: string; ultima: string | null; hace: string;
   umbral: number; estado: "ok" | "lento" | "critico" | "fuera_rueda" | "sin_datos";
@@ -524,6 +554,11 @@ function TabValidaciones() {
   } | null>(null);
   const [sobError, setSobError] = useState<string | null>(null);
 
+  // Debug TEA Curvas (renta fija)
+  const [curvaTickerInput, setCurvaTickerInput] = useState("");
+  const [curvaLoading, setCurvaLoading] = useState(false);
+  const [curvaData, setCurvaData] = useState<CurvaDebugResp | null>(null);
+
   // Debug TNA Futuros DLR
   const [tnaLoading, setTnaLoading] = useState(false);
   const [tnaData, setTnaData] = useState<{
@@ -566,6 +601,12 @@ function TabValidaciones() {
     setTnaLoading(true);
     fetch("/api/manager/checks/debug-tna-futuros")
       .then(r => r.json()).then(setTnaData).finally(() => setTnaLoading(false));
+  };
+  const runCurva = () => {
+    if (!curvaTickerInput.trim()) return;
+    setCurvaLoading(true);
+    fetch(`/api/manager/checks/debug-curva-tea?ticker=${encodeURIComponent(curvaTickerInput.trim())}`)
+      .then(r => r.json()).then(setCurvaData).finally(() => setCurvaLoading(false));
   };
   const runSob = () => {
     if (!tcSob) return;
@@ -939,6 +980,169 @@ function TabValidaciones() {
               ))}</tbody>
             </table>
           </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Debug TEA Curvas (renta fija — tasa_fija / cer / soberanos / dolar_linked)">
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            type="text"
+            value={curvaTickerInput}
+            onChange={(e) => setCurvaTickerInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") runCurva(); }}
+            placeholder="ticker_corto (ej: TX26, AL30D, T15E7, S30M6)"
+            className="flex-1 max-w-[280px] bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          />
+          <button
+            onClick={runCurva}
+            disabled={curvaLoading || !curvaTickerInput.trim()}
+            className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+          >
+            {curvaLoading ? "Calculando…" : "▶ Ejecutar"}
+          </button>
+        </div>
+
+        {curvaData && !curvaData.ok && (
+          <div className="text-[10px] text-[#ff7f7f] italic">{curvaData.message}</div>
+        )}
+
+        {curvaData?.ok && curvaData.instrumento && curvaData.trade && (
+          <div className="space-y-3">
+            {/* Instrumento + trade */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px]">
+              <div className="border border-[#1a1a1a] p-2">
+                <div className="text-[9px] text-[#666] tracking-widest mb-1">INSTRUMENTO</div>
+                <div className="font-mono space-y-0.5">
+                  <div><span className="text-[#666]">ticker</span> <span className="text-[#ff9900]">{curvaData.instrumento.ticker_corto}</span> <span className="text-[#555]">({curvaData.instrumento.curva})</span></div>
+                  <div><span className="text-[#666]">vto</span> {curvaData.instrumento.fecha_vencimiento ?? "—"}</div>
+                  <div><span className="text-[#666]">VN</span> {curvaData.instrumento.valor_nominal}</div>
+                  {curvaData.instrumento.cer_emision !== null && (
+                    <div><span className="text-[#666]">cer_emision</span> {curvaData.instrumento.cer_emision}</div>
+                  )}
+                  <div><span className="text-[#666]">flujos en JSON</span> {curvaData.instrumento.n_flujos}</div>
+                </div>
+              </div>
+              <div className="border border-[#1a1a1a] p-2">
+                <div className="text-[9px] text-[#666] tracking-widest mb-1">ÚLTIMO TRADE (TimeSales)</div>
+                <div className="font-mono space-y-0.5">
+                  <div><span className="text-[#666]">ts</span> {curvaData.trade.timestamp ? new Date(curvaData.trade.timestamp).toLocaleString("es-AR") : "—"}</div>
+                  <div><span className="text-[#666]">price</span> <span className="text-[#d0d0d0]">{curvaData.trade.price.toFixed(3)}</span></div>
+                  <div><span className="text-[#666]">TEA persistido</span> <span className="text-[#ff9900]">{curvaData.trade.TEA_persistido !== null ? `${(curvaData.trade.TEA_persistido * 100).toFixed(4)}%` : "—"}</span></div>
+                  <div><span className="text-[#666]">duration persistido</span> {curvaData.trade.duration_persistido?.toFixed(4) ?? "—"}</div>
+                  <div><span className="text-[#666]">paridad persistido</span> {curvaData.trade.paridad_persistido?.toFixed(2) ?? "—"}{curvaData.trade.paridad_persistido !== null && "%"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Settlement + CER/TC */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10px]">
+              {curvaData.settlement && (
+                <div className="border border-[#1a1a1a] p-2">
+                  <div className="text-[9px] text-[#666] tracking-widest mb-1">SETTLEMENT</div>
+                  <div className="font-mono space-y-0.5">
+                    <div><span className="text-[#666]">fecha trade</span> {curvaData.settlement.fecha_trade}</div>
+                    <div><span className="text-[#666]">fecha settle</span> <span className="text-[#3fbf6f]">{curvaData.settlement.fecha_settlement}</span></div>
+                    <div><span className="text-[#666]">días al vto (trade)</span> {curvaData.settlement.dias_a_vto_trade}</div>
+                    <div><span className="text-[#666]">días al vto (settle)</span> {curvaData.settlement.dias_a_vto_settle}</div>
+                    <div className="text-[#555] text-[9px] italic mt-1">{curvaData.settlement.regla}</div>
+                  </div>
+                </div>
+              )}
+              {curvaData.cer_info && (
+                <div className="border border-[#1a1a1a] p-2">
+                  <div className="text-[9px] text-[#666] tracking-widest mb-1">CER (T-10 hábiles del settlement)</div>
+                  <div className="font-mono space-y-0.5">
+                    <div><span className="text-[#666]">CER emisión</span> {curvaData.cer_info.cer_emision.toFixed(4)}</div>
+                    <div><span className="text-[#666]">CER liquidación</span> {curvaData.cer_info.cer_liq.toFixed(4)}</div>
+                    <div><span className="text-[#666]">ratio (CER_liq / CER_em)</span> <span className="text-[#ff9900]">{curvaData.cer_info.ratio.toFixed(6)}</span></div>
+                  </div>
+                </div>
+              )}
+              {curvaData.tc_info && (
+                <div className="border border-[#1a1a1a] p-2">
+                  <div className="text-[9px] text-[#666] tracking-widest mb-1">TC ({curvaData.tc_info.fuente})</div>
+                  <div className="font-mono space-y-0.5">
+                    <div><span className="text-[#666]">valor</span> {curvaData.tc_info.valor?.toFixed(4) ?? "—"}</div>
+                    {curvaData.tc_info.precio_usd !== undefined && (
+                      <div><span className="text-[#666]">precio_usd</span> <span className="text-[#3fbf6f]">{curvaData.tc_info.precio_usd.toFixed(6)}</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Cashflow para XIRR */}
+            {curvaData.cashflow_xirr && curvaData.cashflow_xirr.length > 0 && (
+              <div className="border border-[#1a1a1a] p-2">
+                <div className="text-[9px] text-[#666] tracking-widest mb-1">CASHFLOW XIRR ({curvaData.cashflow_xirr.length})</div>
+                <table className="w-full text-[10px] font-mono">
+                  <thead className="text-[#555] text-[9px]">
+                    <tr><th className="text-left">FECHA</th><th className="text-left">CONCEPTO</th><th className="text-right">MONTO</th></tr>
+                  </thead>
+                  <tbody>
+                    {curvaData.cashflow_xirr.map((c, i) => (
+                      <tr key={i}>
+                        <td className="text-[#888]">{c.fecha}</td>
+                        <td className="text-[#666]">{c.concepto}</td>
+                        <td className={`text-right ${c.monto < 0 ? "text-[#ff7f7f]" : "text-[#3fbf6f]"}`}>{c.monto.toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Resultado calculado vs persistido */}
+            <div className="border border-[#ff9900]/40 p-2">
+              <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">RESULTADO CALCULADO vs PERSISTIDO</div>
+              {curvaData.error_calc ? (
+                <div className="text-[10px] text-[#ff7f7f] italic">⚠ {curvaData.error_calc}</div>
+              ) : (
+                <table className="w-full text-[10px] font-mono">
+                  <thead className="text-[#555] text-[9px]">
+                    <tr>
+                      <th className="text-left">CAMPO</th>
+                      <th className="text-right">CALCULADO</th>
+                      <th className="text-right">PERSISTIDO</th>
+                      <th className="text-right">DIFF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { k: "TEA",          c: curvaData.calculado?.TEA,          p: curvaData.trade.TEA_persistido,          pct: true },
+                      { k: "TEM",          c: curvaData.calculado?.TEM,          p: curvaData.trade.TEM_persistido,          pct: true },
+                      { k: "duration",     c: curvaData.calculado?.duration,     p: curvaData.trade.duration_persistido,     pct: false },
+                      { k: "mod_duration", c: curvaData.calculado?.mod_duration, p: curvaData.trade.mod_duration_persistido, pct: false },
+                      { k: "convexity",    c: curvaData.calculado?.convexity,    p: curvaData.trade.convexity_persistido,    pct: false },
+                      { k: "paridad",      c: curvaData.calculado?.paridad,      p: curvaData.trade.paridad_persistido,      pct: false, suffix: "%" },
+                    ].map((row) => {
+                      const diff = curvaData.diff?.[row.k];
+                      const diffOk = diff === "OK";
+                      return (
+                        <tr key={row.k} className="border-b border-[#1a1a1a]">
+                          <td className="text-[#d0d0d0]">{row.k}</td>
+                          <td className="text-right text-[#3fbf6f]">
+                            {row.c !== undefined && row.c !== null
+                              ? (row.pct ? `${(row.c * 100).toFixed(4)}%` : `${row.c.toFixed(4)}${row.suffix ?? ""}`)
+                              : "—"}
+                          </td>
+                          <td className="text-right text-[#888]">
+                            {row.p !== null && row.p !== undefined
+                              ? (row.pct ? `${(row.p * 100).toFixed(4)}%` : `${row.p.toFixed(4)}${row.suffix ?? ""}`)
+                              : "—"}
+                          </td>
+                          <td className={`text-right ${diffOk ? "text-[#3fbf6f]" : diff === "—" ? "text-[#666]" : "text-[#ff9900]"}`}>{diff ?? "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+              <div className="text-[9px] text-[#666] mt-2 italic">
+                Si DIFF ≠ OK, los inputs cambiaron desde que se persistió el trade (precio nuevo, CER nuevo, MEP nuevo, etc.). El motor reescribe TEA/duration cada 5s al detectar trade sin <code>duration</code>; trades viejos pueden tener valores estáticos del momento.
+              </div>
+            </div>
+          </div>
         )}
       </CheckPanel>
 
