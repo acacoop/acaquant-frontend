@@ -169,7 +169,13 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
   useEffect(() => {
     if (!filtro && gruposPresentes.length > 0) {
-      setFiltro(gruposPresentes[0]);
+      // Default = FUTUROS ROFEX si está disponible (pedido de la mesa).
+      // Si el motor de futuros está caído y no hay docs, cae al primero
+      // del orden visual (típicamente ARGY).
+      const preferido = "FUTUROS ROFEX";
+      setFiltro(
+        gruposPresentes.includes(preferido) ? preferido : gruposPresentes[0],
+      );
     }
   }, [filtro, gruposPresentes]);
 
