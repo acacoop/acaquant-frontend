@@ -114,6 +114,22 @@ function runBacktest(trades: SpecTrade[], p: BacktestParams): BacktestResult {
 
 const SWEEP_SPREADS = [0.04, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15, 0.18, 0.22, 0.27, 0.32, 0.4];
 
+// Formatters compactos para el header session.
+function fmtVN(n: number): string {
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(0)}k`;
+  return n.toFixed(0);
+}
+
+function fmtMoney(n: number): string {
+  // Factor 100 BYMA ya viene aplicado por el caller (n = size × price / 100).
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}k`;
+  return `$${n.toFixed(0)}`;
+}
+
 // ============================================================
 // Estado mutable del simulador (vive en useRef para no causar re-renders
 // por cada print procesado — patrón crítico para correr a 300x sin lag).
@@ -127,7 +143,7 @@ interface SimState {
   fillsSell: number;
   volTraded: number;
   midWindow: number[];
-  history: { i: number; mid: number; bid: number; offer: number; price: number }[];
+  history: { i: number; mid: number; bid: number; offer: number; price: number; ts: string }[];
   fills: { ts: string; side: "B" | "S"; px: number; size: number; idxAtFill: number }[];
   pendingFills: { side: "B" | "S"; midAtFill: number; idxAtFill: number; size: number }[];
   toxScores: number[];
@@ -307,7 +323,7 @@ export function MMReplay({
 
       // Push history (sub-sampleado para no saturar el chart).
       if (s.index % 10 === 0) {
-        s.history.push({ i: s.index, mid, bid, offer, price: trade.p });
+        s.history.push({ i: s.index, mid, bid, offer, price: trade.p, ts: trade.ts });
         if (s.history.length > HISTORY_MAX) s.history.shift();
       }
 
@@ -427,23 +443,41 @@ export function MMReplay({
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-3 bg-black text-[#d0d0d0]">
-      {/* Header session info */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2 px-3 py-2 bg-[#0a0a0a] border border-[#1a1a1a] text-[10px]">
-        <Stat label="TICKER" value={session.ticker} />
-        <Stat label="FECHA" value={session.date} />
-        <Stat label="OPEN" value={session.open.toFixed(3)} />
-        <Stat label="CLOSE" value={session.close.toFixed(3)} />
-        <Stat label="HIGH/LOW" value={`${session.high.toFixed(2)} / ${session.low.toFixed(2)}`} />
-        <Stat
-          label="VOL VN"
-          value={session.total_volume_vn.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-        />
-        <Stat label="DUR" value={session.duration.toFixed(2)} />
-        <Stat label="MOD DUR" value={session.mod_duration.toFixed(2)} />
-        <Stat label="TEA" value={`${(session.tea * 100).toFixed(2)}%`} />
-        <Stat label="PARIDAD" value={session.paridad.toFixed(2)} />
-        <Stat label="# TRADES" value={String(session.num_trades)} />
-        <Stat label="MONEY" value={`$${(session.total_money_ars / 1e6).toFixed(1)}M`} />
+      {/* Header session info — 1 línea compacta. Formato money con factor
+         100 BYMA (size × price / 100) y abreviatura M/B según escala. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 bg-[#0a0a0a] border border-[#1a1a1a] text-[10px] font-mono">
+        <span className="text-[#ff9900] font-bold">{session.ticker}</span>
+        <span className="text-[#666]">{session.date}</span>
+        <span>
+          <span className="text-[#666]">O</span> {session.open.toFixed(3)}
+        </span>
+        <span>
+          <span className="text-[#666]">H</span> {session.high.toFixed(2)}
+        </span>
+        <span>
+          <span className="text-[#666]">L</span> {session.low.toFixed(2)}
+        </span>
+        <span>
+          <span className="text-[#666]">C</span> {session.close.toFixed(3)}
+        </span>
+        <span>
+          <span className="text-[#666]">DUR</span> {session.duration.toFixed(2)}
+        </span>
+        <span>
+          <span className="text-[#666]">TEA</span> {(session.tea * 100).toFixed(2)}%
+        </span>
+        <span>
+          <span className="text-[#666]">PAR</span> {session.paridad.toFixed(2)}
+        </span>
+        <span>
+          <span className="text-[#666]">VOL</span>{" "}
+          {fmtVN(session.total_volume_vn)}
+        </span>
+        <span>
+          <span className="text-[#666]">$</span>{" "}
+          {fmtMoney(session.total_money_ars / 100)}
+        </span>
+        <span className="text-[#666]">{session.num_trades} trades</span>
       </div>
 
       {/* Controles */}
@@ -504,6 +538,7 @@ export function MMReplay({
           step={0.01}
           onChange={setSpread}
           display={`$${spread.toFixed(2)}`}
+          tip="Distancia entre tu bid y tu offer. Más chico (4-6c) = más fills + spread captured pero más exposición a inventory. Más ancho (20c+) = casi no fillea pero cada uno paga más."
         />
         <Perilla
           label="TAMAÑO (VN)"
@@ -513,6 +548,7 @@ export function MMReplay({
           step={1_000}
           onChange={setQuoteSize}
           display={`${(quoteSize / 1000).toFixed(0)}k`}
+          tip="Cuántos VN poner por punta. Más grande = capturás más mercado pero un fill malo te clava la posición. Más chico = inventory más manejable pero menos volumen capturado."
         />
         <Perilla
           label="SKEW INT."
@@ -523,9 +559,13 @@ export function MMReplay({
           onChange={setSkewIntensity}
           display={`${skewIntensity.toFixed(1)}x`}
           disabled={!autoSkew}
+          tip="Cuánto se inclinan tus puntas según el inventory. 0x = sin skew (las puntas no se mueven). 1x = skew estándar. 2x = agresivo (cuando estás muy long, baja fuerte el offer para descargar)."
         />
         <div className="flex flex-col gap-1">
-          <span className="text-[9px] tracking-widest text-[#666]">AUTO-SKEW</span>
+          <span className="text-[9px] tracking-widest text-[#666] flex items-center gap-1">
+            AUTO-SKEW
+            <InfoIcon tip="ON = el sistema mueve bid/offer automáticamente cuando crece el inventory (defensa activa). OFF = sistema neutro, peligroso si no manejás manual el inventory." />
+          </span>
           <button
             onClick={() => setAutoSkew(!autoSkew)}
             className={`text-[11px] font-mono px-2 py-1 border ${
@@ -545,6 +585,7 @@ export function MMReplay({
           step={10_000}
           onChange={setInvCap}
           display={`${(invCap / 1000).toFixed(0)}k`}
+          tip="Tope máximo de posición que el sistema permite. Si llegás al cap, deja de fillear de un lado. Más chico = más conservador (riesgo limitado, menos fills). Más grande = más agresivo."
         />
       </div>
 
@@ -554,24 +595,29 @@ export function MMReplay({
           label="TOTAL PnL"
           value={`$${totalPnL.toFixed(0)}`}
           color={totalPnL >= 0 ? "text-[#7fff7f]" : "text-[#ff7f7f]"}
+          tip="PnL total = SPREAD CAPTURED + INVENTORY MTM. Es lo que te llevás si cerrás todo a mid actual. Día sano: alto y verde con inv chico. Día tóxico: spread captured grande pero inv MTM negativo se lo come."
         />
         <Stat
           label="SPREAD CAPTURED"
           value={`$${spreadPnL.toFixed(0)}`}
           color="text-[#7fff7f]"
+          tip="Lo bueno: ganancia 'pura' del MM. Por cada fill ganás (offer - mid) si vendiste o (mid - bid) si compraste. Esto suma siempre — es tu edge realizado."
         />
         <Stat
           label="INVENTORY MTM"
           value={`$${invPnL.toFixed(0)}`}
           color={invPnL >= 0 ? "text-[#7fff7f]" : "text-[#ff7f7f]"}
+          tip="Lo arriesgado: tu posición abierta valuada al mid actual. Si quedás long y el mercado baja, esto se vuelve negativo y se come al spread captured. Cero al final del día = MM perfecto."
         />
         <Stat
           label="FILLS"
           value={`${display.fillsBuy + display.fillsSell} (${display.fillsBuy}B/${display.fillsSell}S)`}
+          tip="Cantidad total de operaciones ejecutadas. B = vos compraste (te pegaron en el bid), S = vos vendiste (te pegaron en el offer). Idealmente cerca de 50/50."
         />
         <Stat
           label="VOL"
           value={display.volTraded.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+          tip="Volumen total operado en VN — la suma de tamaños de todos los fills. Indicador de cuánto mercado capturaste."
         />
       </div>
 
@@ -588,26 +634,38 @@ export function MMReplay({
         <ToxPanel score={display.toxScore} count={display.toxCount} />
       </div>
 
-      {/* Chart price + bid/offer */}
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-2 h-[260px]">
-        <div className="text-[9px] tracking-widest text-[#666] mb-1 px-1">
-          PRICE · MID · QUOTES
+      {/* Chart price + bid/offer — más alto, con eje X de horas */}
+      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-2 h-[420px]">
+        <div className="flex items-center gap-3 text-[9px] tracking-widest text-[#666] mb-1 px-1">
+          <span>PRICE · MID · QUOTES</span>
+          <span className="text-[#666]">·</span>
+          <Legend dot="#666" label="trade" />
+          <Legend dot="#ff9900" label="mid" />
+          <Legend dot="#3fbf6f" label="bid" />
+          <Legend dot="#ff7f7f" label="offer" />
         </div>
-        <div className="h-[calc(100%-1.25rem)]">
+        <div className="h-[calc(100%-1.5rem)]">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={display.history}>
-              <XAxis dataKey="i" hide />
+            <ComposedChart data={display.history} margin={{ top: 6, right: 12, left: 4, bottom: 4 }}>
+              <XAxis
+                dataKey="ts"
+                tick={{ fill: "#666", fontSize: 9 }}
+                axisLine={{ stroke: "#2a2a2a" }}
+                tickLine={false}
+                minTickGap={50}
+                tickFormatter={(v: string) => (v ? v.substring(0, 5) : "")}
+              />
               <YAxis
                 domain={["dataMin - 0.1", "dataMax + 0.1"]}
                 tick={{ fill: "#666", fontSize: 9 }}
                 axisLine={false}
                 tickLine={false}
-                width={40}
+                width={50}
                 tickFormatter={(v: number) => v.toFixed(2)}
               />
               <Tooltip
                 contentStyle={{ background: "#0a0a0a", border: "1px solid #2a2a2a", fontSize: 10 }}
-                labelFormatter={(i) => `tick ${i}`}
+                labelFormatter={(ts) => `${ts}`}
               />
               <Line dataKey="price" stroke="#666" dot={false} isAnimationActive={false} />
               <Line dataKey="mid" stroke="#ff9900" strokeWidth={1.5} dot={false} isAnimationActive={false} />
@@ -666,12 +724,52 @@ export function MMReplay({
 // SUB-COMPONENTS
 // ============================================================
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function Stat({
+  label,
+  value,
+  color,
+  tip,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  tip?: string;
+}) {
   return (
     <div className="flex flex-col leading-tight">
-      <span className="text-[8px] tracking-widest text-[#666]">{label}</span>
+      <span className="text-[8px] tracking-widest text-[#666] flex items-center gap-1">
+        {label}
+        {tip && <InfoIcon tip={tip} />}
+      </span>
       <span className={`font-mono ${color ?? "text-[#d0d0d0]"}`}>{value}</span>
     </div>
+  );
+}
+
+function Legend({ dot, label }: { dot: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1 text-[#888]">
+      <span
+        className="inline-block w-2 h-2 rounded-full"
+        style={{ background: dot }}
+      />
+      {label}
+    </span>
+  );
+}
+
+// Tooltip simple — `?` chiquito que al hover muestra una explicación.
+// CSS-only con `group hover:block`, sin estado React.
+function InfoIcon({ tip }: { tip: string }) {
+  return (
+    <span className="relative inline-block group cursor-help align-middle">
+      <span className="text-[8px] text-[#555] hover:text-[#ff9900] border border-[#333] rounded-full px-[3px] leading-[1.2] font-mono">
+        ?
+      </span>
+      <span className="absolute left-0 top-full mt-1 z-50 hidden group-hover:block w-[260px] bg-black border border-[#2a2a2a] p-2 text-[10px] text-[#d0d0d0] leading-relaxed shadow-xl normal-case tracking-normal whitespace-normal pointer-events-none">
+        {tip}
+      </span>
+    </span>
   );
 }
 
@@ -684,6 +782,7 @@ function Perilla({
   onChange,
   display,
   disabled,
+  tip,
 }: {
   label: string;
   value: number;
@@ -693,11 +792,15 @@ function Perilla({
   onChange: (v: number) => void;
   display: string;
   disabled?: boolean;
+  tip?: string;
 }) {
   return (
     <div className={`flex flex-col gap-1 ${disabled ? "opacity-40" : ""}`}>
       <div className="flex justify-between items-baseline">
-        <span className="text-[9px] tracking-widest text-[#666]">{label}</span>
+        <span className="text-[9px] tracking-widest text-[#666] flex items-center gap-1">
+          {label}
+          {tip && <InfoIcon tip={tip} />}
+        </span>
         <span className="text-[11px] font-mono text-[#ff9900]">{display}</span>
       </div>
       <input
@@ -730,8 +833,16 @@ function QuoteBox({
   return (
     <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-2">
       <div className="flex items-center justify-between text-[9px] tracking-widest text-[#666]">
-        <span>QUOTES</span>
-        {skewActive && <span className="text-[#ff9900]">SKEW</span>}
+        <span className="flex items-center gap-1">
+          QUOTES
+          <InfoIcon tip="BID = precio al que estás dispuesto a comprar (te llenan si llega un trade SELL ≤ tu bid). MID = precio teórico (SMA de los últimos 20 prints). OFFER = precio al que estás dispuesto a vender." />
+        </span>
+        {skewActive && (
+          <span className="text-[#ff9900] flex items-center gap-1">
+            SKEW
+            <InfoIcon tip="El skew está activo: tus puntas se desplazaron del mid según tu inventory. Long → bid y offer bajan (descargás). Short → suben (recomprás)." />
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-3 gap-2 mt-1 text-[11px] font-mono tabular-nums">
         <div>
@@ -757,7 +868,10 @@ function InventoryBox({ inv, cap }: { inv: number; cap: number }) {
   const color = inv > 0 ? "text-[#3fbf6f]" : inv < 0 ? "text-[#ff7f7f]" : "text-[#888]";
   return (
     <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-2">
-      <div className="text-[9px] tracking-widest text-[#666]">INVENTORY</div>
+      <div className="text-[9px] tracking-widest text-[#666] flex items-center gap-1">
+        INVENTORY
+        <InfoIcon tip="Tu posición acumulada en VN. Positivo = long (querés que suba el mid o cerrarla rápido). Negativo = short. Cero = neutral. El % te dice cuánto del INV CAP estás usando." />
+      </div>
       <div className={`text-[14px] font-mono tabular-nums ${color}`}>
         {inv.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
       </div>
@@ -794,6 +908,7 @@ function ToxPanel({ score, count }: { score: number; count: number }) {
       <div className="flex items-center gap-1 text-[9px] tracking-widest text-[#666]">
         {zone === "TOX" && <AlertTriangle size={10} />}
         FLOW {zone}
+        <InfoIcon tip="Adverse selection: ¿el mercado se mueve contra vos después de cada fill? Mide drift del mid 30 prints después de cada fill, normalizado por medio-spread (en σ). FAVOR < 0.2 = OK · NEUTRAL 0.2-0.5 · WATCH 0.5-1 = cuidado · TÓX > 1 = alguien te está cazando, ensanchá spread." />
       </div>
       <div className="text-[14px] font-mono tabular-nums">{score.toFixed(2)}σ</div>
       <div className="text-[9px] text-[#666]">{count} fills evaluados</div>
