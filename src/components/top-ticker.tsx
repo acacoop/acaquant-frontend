@@ -6,12 +6,8 @@ interface MepResponse {
   mep: number;
   ccl?: number | null;
   canje?: number | null;
+  oficial?: number | null;   // MAE UST$T mayorista (DolarOficialLive)
   timestamp: string;
-}
-
-interface DolarResponse {
-  fecha: string;
-  valor: number;
 }
 
 interface RentaFijaDoc {
@@ -47,14 +43,12 @@ function fmtTna(v: number | null | undefined): string {
 }
 
 export async function TopTicker() {
-  const [mep, dolar, rentaFija, caucion] = await Promise.all([
+  const [mep, rentaFija, caucion] = await Promise.all([
     safeFetch<MepResponse | null>("/api/cotizaciones/mep", null, 30),
-    safeFetch<DolarResponse[]>("/api/cotizaciones/dolar", [], 3600),
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<CaucionDoc[]>("/api/cotizaciones/caucion", [], 15),
   ]);
 
-  const lastDolar = dolar.length > 0 ? dolar[dolar.length - 1] : null;
   const items: { label: string; value: string; color: string }[] = [];
 
   if (mep) {
@@ -77,13 +71,13 @@ export async function TopTicker() {
         color: mep.canje >= 0 ? "#00cc66" : "#ff3333",
       });
     }
-  }
-  if (lastDolar) {
-    items.push({
-      label: "DOLAR OFICIAL",
-      value: `$${fmtNum(lastDolar.valor)}`,
-      color: "#d0d0d0",
-    });
+    if (mep.oficial !== null && mep.oficial !== undefined) {
+      items.push({
+        label: "DOLAR OFICIAL",
+        value: `$${fmtNum(mep.oficial)}`,
+        color: "#d0d0d0",
+      });
+    }
   }
 
   // Caución: TNA del plazo más corto (típicamente 1D, viernes 3D).
