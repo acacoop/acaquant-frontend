@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AccountPicker } from "./account-picker";
+import { CuentaDescubierta } from "./dolar-mep-shared";
 
 const TERMINAL_STATES = new Set(["FILLED", "CANCELLED", "REJECTED", "EXPIRED"]);
+const ACCOUNT_LS_KEY = "trd-fx-prueba-account";
 
 interface Orden {
   cl_ord_id: string;
@@ -17,6 +20,7 @@ interface Orden {
   created_at?: string;
   actor_email?: string;
   proprietary?: string;
+  account?: string;
 }
 
 type Side = "BUY" | "SELL";
@@ -30,6 +34,8 @@ export function OperarPruebaView() {
   const [orderType, setOrderType] = useState<OrderType>("LIMIT");
   const [price, setPrice] = useState("");
   const [tif, setTif] = useState<Tif>("DAY");
+  const [account, setAccount] = useState("");
+  const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
 
   const [orders, setOrders] = useState<Orden[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
@@ -52,6 +58,40 @@ export function OperarPruebaView() {
     const id = setInterval(fetchOrders, 3000);
     return () => clearInterval(id);
   }, []);
+
+  // Cuentas: misma lógica que /operar (DOLAR MEP). Default = la persistida
+  // en localStorage, o primera activa, o primera del listado.
+  useEffect(() => {
+    let alive = true;
+    async function fetchCuentas() {
+      try {
+        const r = await fetch("/api/risk/account/listado", { cache: "no-store" });
+        if (!alive || !r.ok) return;
+        const list = (await r.json()) as CuentaDescubierta[];
+        setCuentas(list);
+        const persisted = typeof window !== "undefined"
+          ? window.localStorage.getItem(ACCOUNT_LS_KEY)
+          : null;
+        const persistedExists = list.some((c) => c.account_id === persisted);
+        const firstActiva = list.find((c) => c.activa)?.account_id;
+        const first = list[0]?.account_id;
+        const next = persistedExists ? persisted! : (firstActiva ?? first ?? "");
+        if (next) setAccount(next);
+      } catch {
+        // ignore
+      }
+    }
+    void fetchCuentas();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (account && typeof window !== "undefined") {
+      window.localStorage.setItem(ACCOUNT_LS_KEY, account);
+    }
+  }, [account]);
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -79,6 +119,7 @@ export function OperarPruebaView() {
           order_type: orderType,
           price: priceNum,
           tif,
+          account: account || null,
         }),
       });
       const data = await r.json();
@@ -126,6 +167,9 @@ export function OperarPruebaView() {
             onChange={(e) => setTicker(e.target.value)}
             className={inputCls}
           />
+        </Field>
+        <Field label="CUENTA" className="w-[140px]">
+          <AccountPicker value={account} onChange={setAccount} cuentas={cuentas} />
         </Field>
         <Field label="SIDE" className="w-[80px]">
           <select value={side} onChange={(e) => setSide(e.target.value as Side)} className={inputCls}>
@@ -197,6 +241,7 @@ export function OperarPruebaView() {
           <thead className="bg-[#1a1a1a] sticky top-0">
             <tr>
               <Th>HORA</Th>
+              <Th>CUENTA</Th>
               <Th>CL_ORD_ID</Th>
               <Th>TICKER</Th>
               <Th>SIDE</Th>
@@ -213,7 +258,7 @@ export function OperarPruebaView() {
           <tbody>
             {orders.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-3 py-4 text-center text-[#666]">
+                <td colSpan={13} className="px-3 py-4 text-center text-[#666]">
                   Sin órdenes hoy
                 </td>
               </tr>
@@ -223,6 +268,7 @@ export function OperarPruebaView() {
               return (
                 <tr key={o.cl_ord_id} className="border-b border-[#1a1a1a]">
                   <Td>{fmtTime(o.created_at)}</Td>
+                  <Td className="text-[#888]">{o.account ?? "—"}</Td>
                   <Td className="font-mono">{o.cl_ord_id}</Td>
                   <Td>{o.ticker ?? ""}</Td>
                   <Td className={o.side === "BUY" ? "text-[#7fff7f]" : "text-[#ff7f7f]"}>
