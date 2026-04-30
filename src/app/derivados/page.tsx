@@ -45,8 +45,12 @@ export default async function DerivadosPage() {
   const me = await getMe();
   const isAdmin = me?.is_admin ?? false;
 
-  const [opciones, meta, agro] = await Promise.all([
-    safeFetch<OpcionDoc[]>("/api/cotizaciones/opciones", [], 10),
+  // Las opciones (chain) NO se fetchean en SSR — la pantalla la usa muy poca
+  // gente y cargar la chain en cada navegación a /derivados gasta cómputo
+  // Vercel sin necesidad. El cliente (DerivadosView con usePoll
+  // fetchOnMount=true) hace el primer fetch al montar la sub-tab. Si el
+  // user solo va a ver agro, opciones nunca se compula.
+  const [meta, agro] = await Promise.all([
     safeFetch<Meta>(
       "/api/cotizaciones/opciones/meta",
       { tasa: 0.242, vr_local: 0, vr_adr: 0 },
@@ -54,6 +58,7 @@ export default async function DerivadosPage() {
     ),
     isAdmin ? safeFetch<AgroResp | null>("/api/derivados/agro", null, 0) : Promise.resolve(null),
   ]);
+  const opciones: OpcionDoc[] = [];
 
   return (
     <DerivadosShell

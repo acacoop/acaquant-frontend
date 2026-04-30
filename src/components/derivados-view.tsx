@@ -16,9 +16,11 @@ import {
 } from "@/lib/estrategias";
 
 // Intervalo de polling para la chain de opciones. El motor de opciones
-// replacea el snapshot cada 1 s; 5 s es un compromise razonable entre
-// frescura y carga de red.
-const POLL_OPCIONES_MS = 5_000;
+// replacea el snapshot cada 1 s, pero la pantalla la usa muy poca gente
+// y cada poll es una invocación serverless en Vercel — bajamos a 30 s
+// para reducir 6× la carga sin perder utilidad práctica (las opciones
+// no son trade activo en la mesa).
+const POLL_OPCIONES_MS = 30_000;
 
 interface Meta {
   tasa: number;
@@ -38,13 +40,15 @@ export function DerivadosView({
   metaInicial: Meta;
   isAdmin?: boolean;
 }) {
-  // Polling live de la chain de opciones; el SSR provee el initialData
-  // para carga rápida. Antes docs venía sólo del SSR y la vista quedaba
-  // estática hasta F5.
+  // Polling live de la chain de opciones. Antes el SSR de /derivados/page.tsx
+  // hacía el fetch inicial — lo sacamos para que Vercel no compute opciones
+  // si el user solo va a ver agro. fetchOnMount=true compensa el initial
+  // vacío para que la pantalla cargue al primer render.
   const { data: docs, lastAt: atDocs } = usePoll<OpcionDoc[]>(
     "/api/cotizaciones/opciones",
     initialDocs,
     POLL_OPCIONES_MS,
+    { fetchOnMount: true },
   );
 
   const [meta, setMeta] = useState<Meta>(metaInicial);

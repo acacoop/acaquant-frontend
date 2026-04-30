@@ -17,7 +17,9 @@ export function usePoll<T>(
   endpoint: string,
   initial: T,
   intervalMs: number,
+  options: { fetchOnMount?: boolean } = {},
 ): { data: T; lastAt: number } {
+  const { fetchOnMount = false } = options;
   const [data, setData] = useState<T>(initial);
   // 0 = "todavía no hubo fetch"; se setea al timestamp real en el primer
   // poll exitoso. Evita llamar Date.now() dentro del render
@@ -42,13 +44,18 @@ export function usePoll<T>(
       }
     }
 
-    // No disparamos tick inmediato: el initialData ya es reciente.
+    // Por defecto NO disparamos tick inmediato (asumimos initial reciente
+    // del SSR). fetchOnMount=true para vistas que no tienen SSR previo —
+    // así no quedan vacías hasta el primer interval.
+    if (fetchOnMount) {
+      void tick();
+    }
     const id = setInterval(tick, intervalMs);
     return () => {
       alive = false;
       clearInterval(id);
     };
-  }, [endpoint, intervalMs]);
+  }, [endpoint, intervalMs, fetchOnMount]);
 
   // Si initial cambia de verdad (navigate + SSR otra vez), resetear.
   useEffect(() => {
