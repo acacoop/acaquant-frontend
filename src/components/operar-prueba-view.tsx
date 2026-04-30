@@ -245,10 +245,10 @@ export function OperarPruebaView() {
         <Field label="CUENTA" className="w-[140px]">
           <AccountPicker value={account} onChange={setAccount} cuentas={cuentas} />
         </Field>
-        <Field label="SIDE" className="w-[80px]">
+        <Field label="C/V" className="w-[80px]">
           <select value={side} onChange={(e) => setSide(e.target.value as Side)} className={inputCls}>
-            <option value="BUY">BUY</option>
-            <option value="SELL">SELL</option>
+            <option value="BUY">COMPRA</option>
+            <option value="SELL">VENTA</option>
           </select>
         </Field>
         <Field label="SIZE" className="w-[90px]">
@@ -318,7 +318,7 @@ export function OperarPruebaView() {
               <Th>CUENTA</Th>
               <Th>CL_ORD_ID</Th>
               <Th>TICKER</Th>
-              <Th>SIDE</Th>
+              <Th>C/V</Th>
               <Th right>SIZE</Th>
               <Th right>PRECIO</Th>
               <Th>STATUS</Th>
@@ -346,7 +346,7 @@ export function OperarPruebaView() {
                   <Td className="font-mono">{o.cl_ord_id}</Td>
                   <Td>{o.ticker ?? ""}</Td>
                   <Td className={o.side === "BUY" ? "text-[#7fff7f]" : "text-[#ff7f7f]"}>
-                    {o.side ?? ""}
+                    {o.side === "BUY" ? "COMPRA" : o.side === "SELL" ? "VENTA" : (o.side ?? "")}
                   </Td>
                   <Td right>{o.size ?? ""}</Td>
                   <Td right>{o.price ?? "—"}</Td>
