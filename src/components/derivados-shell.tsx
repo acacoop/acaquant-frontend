@@ -38,28 +38,36 @@ export function DerivadosShell({
   isAdmin,
   agroInitial,
   canEditAgro,
+  showAgroTab,
 }: {
   opcionesDocs: OpcionDoc[];
   opcionesMeta: OpcionesMeta;
   isAdmin: boolean;
-  agroInitial: AgroResp;
+  agroInitial: AgroResp | null;
   canEditAgro: boolean;
+  showAgroTab: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("opciones");
+
+  // Si por alguna razón el state queda en "agro" pero el user no tiene
+  // permiso, forzamos el fallback a "opciones".
+  const activeTab: Tab = tab === "agro" && !showAgroTab ? "opciones" : tab;
 
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="border-b border-[#1a1a1a] bg-[#080808] px-3 flex items-center gap-1 shrink-0">
-        <TabBtn active={tab === "opciones"} onClick={() => setTab("opciones")}>
+        <TabBtn active={activeTab === "opciones"} onClick={() => setTab("opciones")}>
           Opciones
         </TabBtn>
-        <TabBtn active={tab === "agro"} onClick={() => setTab("agro")}>
-          Agro
-        </TabBtn>
+        {showAgroTab ? (
+          <TabBtn active={activeTab === "agro"} onClick={() => setTab("agro")}>
+            Agro
+          </TabBtn>
+        ) : null}
       </div>
 
       <div className="flex-1 min-h-0">
-        {tab === "opciones" ? (
+        {activeTab === "opciones" || !agroInitial ? (
           <DerivadosView
             docs={opcionesDocs}
             metaInicial={opcionesMeta}

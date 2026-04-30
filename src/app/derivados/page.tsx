@@ -30,16 +30,6 @@ interface AgroResp {
   }[];
 }
 
-const AGRO_EMPTY: AgroResp = {
-  oficial: { value: null, ts: null, source: "none" },
-  ts: "",
-  bloques: [
-    { commodity: "TRIGO", rows: [] },
-    { commodity: "MAIZ", rows: [] },
-    { commodity: "SOJA", rows: [] },
-  ],
-};
-
 async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<T> {
   try {
     return await apiFetch<T>(path, { revalidate });
@@ -49,27 +39,30 @@ async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<
 }
 
 export default async function DerivadosPage() {
-  const [opciones, meta, me, agro] = await Promise.all([
+  // Resolvemos /me primero para decidir si fetchear agro: el endpoint está
+  // gated a admin en backend, no tiene sentido llamarlo si no es admin (y
+  // ahorramos el 403).
+  const me = await getMe();
+  const isAdmin = me?.is_admin ?? false;
+
+  const [opciones, meta, agro] = await Promise.all([
     safeFetch<OpcionDoc[]>("/api/cotizaciones/opciones", [], 10),
     safeFetch<Meta>(
       "/api/cotizaciones/opciones/meta",
       { tasa: 0.242, vr_local: 0, vr_adr: 0 },
       30
     ),
-    getMe(),
-    safeFetch<AgroResp>("/api/derivados/agro", AGRO_EMPTY, 0),
+    isAdmin ? safeFetch<AgroResp | null>("/api/derivados/agro", null, 0) : Promise.resolve(null),
   ]);
-
-  const role = me?.role ?? "sales";
-  const canEditAgro = role === "trader" || role === "admin";
 
   return (
     <DerivadosShell
       opcionesDocs={opciones}
       opcionesMeta={meta}
-      isAdmin={me?.is_admin ?? false}
+      isAdmin={isAdmin}
       agroInitial={agro}
-      canEditAgro={canEditAgro}
+      canEditAgro={isAdmin}
+      showAgroTab={isAdmin}
     />
   );
 }
