@@ -37,19 +37,14 @@ interface AgroResp {
   bloques: AgroBloque[];
 }
 
-const EMPTY: AgroResp = {
-  oficial: { value: null, ts: null, source: "none" },
-  ts: "",
-  bloques: [
-    { commodity: "TRIGO", rows: [] },
-    { commodity: "MAIZ", rows: [] },
-    { commodity: "SOJA", rows: [] },
-  ],
-};
+const COMMODITIES: Commodity[] = ["TRIGO", "MAIZ", "SOJA"];
 
 function fmtPx(n: number | null | undefined, dec = 2): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
-  return n.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  return n.toLocaleString("es-AR", {
+    minimumFractionDigits: dec,
+    maximumFractionDigits: dec,
+  });
 }
 
 function fmtPct(n: number | null | undefined): string {
@@ -59,12 +54,13 @@ function fmtPct(n: number | null | undefined): string {
 
 function fmtArs(n: number | null | undefined): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
-  return `$${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${n.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function fmtFechaVtoFuturo(yyyymmdd: string | null): string {
-  // El motor agro persiste maturityDate como YYYYMMDD (string). Las
-  // pizarras se guardan ISO YYYY-MM-DD. Manejamos ambos.
   if (!yyyymmdd) return "—";
   const s = yyyymmdd.replace(/-/g, "");
   if (s.length !== 8) return yyyymmdd;
@@ -81,6 +77,15 @@ function isoFromAny(s: string | null | undefined): string {
   return "";
 }
 
+function pasecolor(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "text-[#666]";
+  return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
+}
+function tnavColor(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "text-[#666]";
+  return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
+}
+
 export function DerivadosAgroView({
   initial,
   canEdit,
@@ -93,52 +98,125 @@ export function DerivadosAgroView({
     initial,
     POLL_MS,
   );
+  const [commodity, setCommodity] = useState<Commodity>("TRIGO");
 
   const ultimoDisplay = lastAt > 0 ? fmtHoraAR(lastAt) : "—";
 
   const oficial = data.oficial?.value ?? null;
   const oficialSource = data.oficial?.source ?? "none";
 
+  const bloque = useMemo(
+    () => data.bloques.find((b) => b.commodity === commodity),
+    [data.bloques, commodity],
+  );
+
+  const counts = useMemo(() => {
+    const m: Record<Commodity, number> = { TRIGO: 0, MAIZ: 0, SOJA: 0 };
+    for (const b of data.bloques) {
+      m[b.commodity] = b.rows.filter((r) => r.tipo === "futuro").length;
+    }
+    return m;
+  }, [data.bloques]);
+
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex flex-wrap items-center gap-4 shrink-0">
+      {/* Header KPIs + selector commodity */}
+      <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex flex-wrap items-center gap-3 shrink-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-[#808080] tracking-wide">DÓLAR OFICIAL</span>
+          <span className="text-[10px] text-[#808080] tracking-wide">
+            DÓLAR OFICIAL
+          </span>
           <span className="text-[#ff9900] font-mono text-[11px]">
             {oficial ? fmtArs(oficial) : "—"}
           </span>
           <span className="text-[9px] text-[#555]">({oficialSource})</span>
         </div>
-        <span className="ml-auto text-[10px] text-[#555]">ÚLT. ACT {ultimoDisplay}</span>
+
+        <div className="flex items-center gap-1 ml-3">
+          {COMMODITIES.map((c) => (
+            <CommodityBtn
+              key={c}
+              active={c === commodity}
+              onClick={() => setCommodity(c)}
+            >
+              {c} ({counts[c]})
+            </CommodityBtn>
+          ))}
+        </div>
+
+        <span className="ml-auto text-[10px] text-[#555]">
+          ÚLT. ACT {ultimoDisplay}
+        </span>
       </div>
 
+      {/* Tabla del commodity activo */}
       <div className="flex-1 min-h-0 overflow-auto">
-        <Panel title="PASE AGRO" fill>
+        <Panel title={`PASE AGRO — ${commodity}`} fill>
           <table className="w-full text-[11px] font-mono">
             <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
               <tr>
-                <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">Vencimiento</th>
-                <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">Posición</th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">US$</th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Pase</th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">$</th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">TNAV US$</th>
+                <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">
+                  Vencimiento
+                </th>
+                <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">
+                  Posición
+                </th>
+                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  US$
+                </th>
+                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  Pase
+                </th>
+                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  $
+                </th>
+                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  TNAV US$
+                </th>
               </tr>
             </thead>
             <tbody>
-              {data.bloques.map((b) => (
+              {bloque ? (
                 <BloqueRows
-                  key={b.commodity}
-                  bloque={b}
+                  bloque={bloque}
                   oficial={oficial}
                   canEdit={canEdit}
                 />
-              ))}
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-2 py-3 text-center text-[#666]">
+                    Sin data para {commodity}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </Panel>
       </div>
     </div>
+  );
+}
+
+function CommodityBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-[11px] tracking-wide uppercase px-2.5 py-1 border ${
+        active
+          ? "bg-[#ff9900]/10 text-[#ff9900] border-[#ff9900]"
+          : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0] hover:border-[#3a3a3a]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -167,7 +245,10 @@ function BloqueRows({
         }
         if (r.tipo === "dispo") {
           return (
-            <tr key={`${bloque.commodity}-dispo`} className="border-b border-[#101010]">
+            <tr
+              key={`${bloque.commodity}-dispo`}
+              className="border-b border-[#101010]"
+            >
               <td className="px-2 py-1 text-[#666]">
                 {r.vencimiento ? fmtFechaVtoFuturo(r.vencimiento) : "—"}
               </td>
@@ -180,27 +261,31 @@ function BloqueRows({
           );
         }
         return (
-          <tr key={`${bloque.commodity}-${i}`} className="border-b border-[#101010] hover:bg-[#0d0d0d]">
-            <td className="px-2 py-1 text-[#a0a0a0]">{fmtFechaVtoFuturo(r.vencimiento)}</td>
+          <tr
+            key={`${bloque.commodity}-${i}`}
+            className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+          >
+            <td className="px-2 py-1 text-[#a0a0a0]">
+              {fmtFechaVtoFuturo(r.vencimiento)}
+            </td>
             <td className="px-2 py-1 text-[#d0d0d0]">{r.posicion}</td>
-            <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtPx(r.us)}</td>
-            <td className={`px-2 py-1 text-right ${pasecolor(r.pase)}`}>{fmtPx(r.pase)}</td>
-            <td className="px-2 py-1 text-right text-[#a0a0a0]">{fmtArs(r.ars)}</td>
-            <td className={`px-2 py-1 text-right ${tnavColor(r.tnav_us)}`}>{fmtPct(r.tnav_us)}</td>
+            <td className="px-2 py-1 text-right text-[#d0d0d0]">
+              {fmtPx(r.us)}
+            </td>
+            <td className={`px-2 py-1 text-right ${pasecolor(r.pase)}`}>
+              {fmtPx(r.pase)}
+            </td>
+            <td className="px-2 py-1 text-right text-[#a0a0a0]">
+              {fmtArs(r.ars)}
+            </td>
+            <td className={`px-2 py-1 text-right ${tnavColor(r.tnav_us)}`}>
+              {fmtPct(r.tnav_us)}
+            </td>
           </tr>
         );
       })}
     </>
   );
-}
-
-function pasecolor(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "text-[#666]";
-  return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
-}
-function tnavColor(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "text-[#666]";
-  return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
 }
 
 function PizarraRow({
@@ -222,20 +307,16 @@ function PizarraRow({
   const remoteVtoRef = useRef(isoFromAny(row.vencimiento));
   const remoteUsRef = useRef(row.us != null ? String(row.us) : "");
 
-  // Sync remoto si el polling traiga cambios externos (otro user editó),
-  // pero NO pisar lo que el user está typeando localmente.
   useEffect(() => {
     const newVto = isoFromAny(row.vencimiento);
     if (newVto !== remoteVtoRef.current) {
       remoteVtoRef.current = newVto;
-      if (vto === remoteVtoRef.current) return;
-      setVto(newVto);
+      if (vto !== remoteVtoRef.current) setVto(newVto);
     }
     const newUs = row.us != null ? String(row.us) : "";
     if (newUs !== remoteUsRef.current) {
       remoteUsRef.current = newUs;
-      if (us === remoteUsRef.current) return;
-      setUs(newUs);
+      if (us !== remoteUsRef.current) setUs(newUs);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.vencimiento, row.us]);
@@ -246,7 +327,10 @@ function PizarraRow({
     return v * oficial;
   }, [us, oficial]);
 
-  function scheduleSave(payload: { vencimiento_pizarra?: string; us_pizarra?: number }) {
+  function scheduleSave(payload: {
+    vencimiento_pizarra?: string;
+    us_pizarra?: number;
+  }) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSaving(true);
@@ -304,15 +388,21 @@ function PizarraRow({
               className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-20 text-right"
             />
             {saving && <span className="text-[9px] text-[#888]">…</span>}
-            {savedOk === true && <span className="text-[9px] text-[#4ade80]">✓</span>}
-            {savedOk === false && <span className="text-[9px] text-[#f87171]">✗</span>}
+            {savedOk === true && (
+              <span className="text-[9px] text-[#4ade80]">✓</span>
+            )}
+            {savedOk === false && (
+              <span className="text-[9px] text-[#f87171]">✗</span>
+            )}
           </div>
         ) : (
           fmtPx(row.us)
         )}
       </td>
       <td className="px-2 py-1 text-right text-[#666]">—</td>
-      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtArs(arsCalc ?? row.ars)}</td>
+      <td className="px-2 py-1 text-right text-[#d0d0d0]">
+        {fmtArs(arsCalc ?? row.ars)}
+      </td>
       <td className="px-2 py-1 text-right text-[#666]">—</td>
     </tr>
   );
