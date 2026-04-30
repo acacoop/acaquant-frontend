@@ -20,6 +20,7 @@ import {
 } from "./dolar-mep-shared";
 import { AccountPicker } from "./account-picker";
 import { DolarMepBoard } from "./dolar-mep-board";
+import { DolarMepDetalleDrawer } from "./dolar-mep-detalle-drawer";
 
 // El shell maneja rueda/monto/comision/account/cot/saldo y los pasa por props.
 // Esta vista solo se ocupa de "operativa instantánea": form EJECUTAR + tabla
@@ -51,6 +52,7 @@ export function DolarMepCompraView({
   const [operativas, setOperativas] = useState<OperativaMep[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [detalleId, setDetalleId] = useState<string | null>(null);
 
   async function fetchOperativas() {
     try {
@@ -216,7 +218,12 @@ export function DolarMepCompraView({
               </tr>
             )}
             {operativas.map((op) => (
-              <tr key={op.operativa_id} className="border-b border-[#1a1a1a]">
+              <tr
+                key={op.operativa_id}
+                className="border-b border-[#1a1a1a] hover:bg-[#0e0e0e] cursor-pointer"
+                onClick={() => setDetalleId(op.operativa_id)}
+                title="Click para ver detalle de la operativa"
+              >
                 <Td>{fmtTime(op.created_at)}</Td>
                 <Td right>{fmtArs(op.monto_ars)}</Td>
                 <Td right>{op.nominales ?? "—"}</Td>
@@ -232,6 +239,11 @@ export function DolarMepCompraView({
           </tbody>
         </table>
       </DolarMepBoard>
+
+      <DolarMepDetalleDrawer
+        operativaId={detalleId}
+        onClose={() => setDetalleId(null)}
+      />
     </div>
   );
 }
