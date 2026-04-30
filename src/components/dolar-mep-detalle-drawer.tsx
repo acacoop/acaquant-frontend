@@ -2,202 +2,55 @@
 
 import { useEffect, useState } from "react";
 
-interface OrdenLive {
-  cl_ord_id?: string;
-  ticker?: string;
-  side?: string;
-  account?: string;
-  status?: string;
-  size?: number;
-  cum_qty?: number;
-  leaves_qty?: number;
-  avg_px?: number;
-  last_px?: number;
-  last_qty?: number;
-  order_type?: string;
-  tif?: string;
-  proprietary?: string;
-  source?: string;
-  created_at?: string;
-  updated_at?: string;
-  reject_reason?: string | null;
-}
-
-interface AuditEntry {
-  ts: string;
-  kind: string;
-  payload: Record<string, unknown> | null;
-}
-
-interface PataDetalle {
-  live: OrdenLive | null;
-  audit: AuditEntry[];
-}
-
 interface DetalleResp {
-  operativa: Record<string, unknown> | null;
-  buy: PataDetalle;
-  sell: PataDetalle;
+  operativa: {
+    operativa_id?: string;
+    created_at?: string;
+    account?: string;
+    rueda?: string;
+    actor_email?: string;
+    monto_ars?: number;
+    nominales?: number;
+    mep_inicial?: number;
+    status?: string;
+  } | null;
   metricas: {
+    precio_compra_al30?: number;
+    precio_venta_al30d?: number;
     usd_efectivo?: number;
+    ars_operados?: number;
     mep_efectivo?: number;
+    mep_costo_cliente?: number;
     slippage_pct?: number;
-    duracion_ms?: number;
   };
 }
 
 function fmtTime(iso: string | undefined): string {
   if (!iso) return "—";
   try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString("es-AR", {
+    return new Date(iso).toLocaleTimeString("es-AR", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
-      fractionalSecondDigits: 3,
     });
   } catch {
     return iso;
   }
 }
 
-function fmtNum(v: number | null | undefined, decimals = 2): string {
+function fmtArs(v: number | null | undefined): string {
   if (v === null || v === undefined) return "—";
   return v.toLocaleString("es-AR", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 }
 
 function statusColor(st: string | undefined): string {
   if (!st) return "#888";
-  if (st === "FILLED") return "#00cc66";
-  if (st === "PARTIALLY_FILLED" || st === "NEW" || st === "PENDING_NEW") return "#ffcc00";
-  if (st === "REJECTED" || st === "CANCELLED" || st === "EXPIRED") return "#ff3333";
-  return "#888";
-}
-
-function PataPanel({ titulo, pata }: { titulo: string; pata: PataDetalle }) {
-  const live = pata.live;
-  if (!live) {
-    return (
-      <div className="border border-[#1a1a1a] p-3 mb-3">
-        <div className="text-[11px] tracking-wider text-[#888] mb-2">{titulo}</div>
-        <div className="text-[#555] text-[11px]">Sin orden registrada</div>
-      </div>
-    );
-  }
-  return (
-    <div className="border border-[#1a1a1a] p-3 mb-3">
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-[11px] tracking-wider text-[#888]">{titulo}</span>
-        <span className="text-[11px] text-[#d0d0d0] font-mono">{live.ticker}</span>
-        <span
-          className="ml-auto text-[10px] font-semibold tabular-nums"
-          style={{ color: statusColor(live.status) }}
-        >
-          {live.status}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono">
-        <Row k="cl_ord_id" v={live.cl_ord_id} />
-        <Row k="cuenta" v={live.account} />
-        <Row k="size" v={live.size?.toString()} />
-        <Row k="filled / leaves" v={`${live.cum_qty ?? 0} / ${live.leaves_qty ?? 0}`} />
-        <Row k="avg px" v={fmtNum(live.avg_px, 2)} />
-        <Row k="last px" v={fmtNum(live.last_px, 2)} />
-        <Row k="last qty" v={live.last_qty?.toString()} />
-        <Row k="tipo / TIF" v={`${live.order_type ?? "—"} / ${live.tif ?? "—"}`} />
-        <Row k="enviada" v={fmtTime(live.created_at)} />
-        <Row k="updated" v={fmtTime(live.updated_at)} />
-        <Row k="proprietary" v={live.proprietary} />
-        <Row k="source" v={live.source} />
-      </div>
-      {live.reject_reason && (
-        <div className="mt-2 text-[10px] text-[#ff3333] font-mono">
-          reject_reason: {live.reject_reason}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Row({ k, v }: { k: string; v: string | undefined }) {
-  return (
-    <>
-      <div className="text-[#666]">{k}</div>
-      <div className="text-[#d0d0d0] tabular-nums break-all">{v ?? "—"}</div>
-    </>
-  );
-}
-
-function AuditTimeline({ buy, sell }: { buy: AuditEntry[]; sell: AuditEntry[] }) {
-  // Combinamos los 2 audit logs en una sola línea de tiempo, indicando pata.
-  const merged = [
-    ...buy.map((a) => ({ ...a, pata: "BUY" })),
-    ...sell.map((a) => ({ ...a, pata: "SELL" })),
-  ].sort((a, b) => a.ts.localeCompare(b.ts));
-
-  if (merged.length === 0) {
-    return (
-      <div className="text-[#555] text-[11px] mt-2">
-        Sin execution reports registrados
-      </div>
-    );
-  }
-  return (
-    <div className="border border-[#1a1a1a] p-3">
-      <div className="text-[11px] tracking-wider text-[#888] mb-2">
-        EXECUTION TIMELINE
-      </div>
-      <table className="w-full text-[10px] font-mono">
-        <thead>
-          <tr className="text-[#666] border-b border-[#1a1a1a]">
-            <th className="text-left py-1 px-1">ts</th>
-            <th className="text-left py-1 px-1">pata</th>
-            <th className="text-left py-1 px-1">kind</th>
-            <th className="text-left py-1 px-1">status</th>
-            <th className="text-right py-1 px-1">last px</th>
-            <th className="text-right py-1 px-1">qty</th>
-            <th className="text-right py-1 px-1">cum</th>
-          </tr>
-        </thead>
-        <tbody>
-          {merged.map((a, i) => {
-            const p = (a.payload || {}) as Record<string, unknown>;
-            const status = (p.status as string) ?? "";
-            const lastPx = p.lastPx as number | undefined;
-            const lastQty = p.lastQty as number | undefined;
-            const cumQty = p.cumQty as number | undefined;
-            return (
-              <tr key={i} className="border-b border-[#0a0a0a]">
-                <td className="py-0.5 px-1 text-[#d0d0d0]">{fmtTime(a.ts)}</td>
-                <td
-                  className="py-0.5 px-1 font-semibold"
-                  style={{ color: a.pata === "BUY" ? "#00cc66" : "#4488ff" }}
-                >
-                  {a.pata}
-                </td>
-                <td className="py-0.5 px-1 text-[#888]">{a.kind}</td>
-                <td className="py-0.5 px-1" style={{ color: statusColor(status) }}>
-                  {status}
-                </td>
-                <td className="py-0.5 px-1 text-right tabular-nums text-[#d0d0d0]">
-                  {fmtNum(lastPx, 2)}
-                </td>
-                <td className="py-0.5 px-1 text-right tabular-nums text-[#d0d0d0]">
-                  {lastQty ?? "—"}
-                </td>
-                <td className="py-0.5 px-1 text-right tabular-nums text-[#d0d0d0]">
-                  {cumQty ?? "—"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  if (st === "OK" || st === "FILLED") return "#00cc66";
+  if (st.startsWith("OK_")) return "#ffcc00";
+  return "#ff3333";
 }
 
 interface Props {
@@ -210,7 +63,6 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ESC cierra el drawer
   useEffect(() => {
     if (!operativaId) return;
     const onKey = (e: KeyboardEvent) => {
@@ -220,7 +72,6 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [operativaId, onClose]);
 
-  // Fetch al abrir
   useEffect(() => {
     if (!operativaId) {
       setData(null);
@@ -251,33 +102,17 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
 
   if (!operativaId) return null;
 
-  const op = data?.operativa as
-    | {
-        operativa_id?: string;
-        created_at?: string;
-        account?: string;
-        rueda?: string;
-        actor_email?: string;
-        monto_ars?: number;
-        nominales?: number;
-        mep_inicial?: number;
-        status?: string;
-      }
-    | undefined;
+  const op = data?.operativa;
+  const m = data?.metricas;
 
   return (
     <>
-      {/* Backdrop semitransparente — click cierra */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40"
-        onClick={onClose}
-      />
-      {/* Drawer lateral derecho */}
-      <div className="fixed right-0 top-0 h-full w-[640px] max-w-[95vw] bg-[#080808] border-l border-[#1a1a1a] z-50 flex flex-col">
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full w-[420px] max-w-[95vw] bg-[#080808] border-l border-[#1a1a1a] z-50 flex flex-col">
         {/* Header */}
         <div className="flex items-center px-4 py-3 border-b border-[#1a1a1a] shrink-0">
           <span className="text-[12px] tracking-wider text-[#ff9900] font-semibold uppercase">
-            Detalle operativa MEP
+            Detalle operativa
           </span>
           <button
             onClick={onClose}
@@ -289,7 +124,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {loading && (
             <div className="text-[#888] text-[11px]">Cargando…</div>
           )}
@@ -298,73 +133,85 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
               Error: {error}
             </div>
           )}
-          {data && op && (
+          {data && op && m && (
             <>
-              {/* Header de la operativa */}
-              <div className="border border-[#1a1a1a] p-3">
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] font-mono">
-                  <Row k="operativa_id" v={op.operativa_id} />
-                  <Row k="created_at" v={fmtTime(op.created_at)} />
-                  <Row k="cuenta" v={op.account} />
-                  <Row k="rueda" v={op.rueda} />
-                  <Row k="actor" v={op.actor_email} />
-                  <Row k="status" v={op.status} />
-                  <Row k="monto ARS" v={fmtNum(op.monto_ars, 2)} />
-                  <Row k="nominales" v={op.nominales?.toString()} />
-                  <Row k="MEP inicial" v={fmtNum(op.mep_inicial, 2)} />
-                  <Row
-                    k="duración"
-                    v={
-                      data.metricas.duracion_ms !== undefined
-                        ? `${data.metricas.duracion_ms} ms`
-                        : undefined
-                    }
-                  />
-                </div>
+              {/* Mini-header */}
+              <div className="flex items-baseline gap-2 text-[11px] font-mono">
+                <span className="text-[#d0d0d0]">{fmtTime(op.created_at)}</span>
+                <span className="text-[#666]">·</span>
+                <span className="text-[#888]">cuenta {op.account}</span>
+                <span className="text-[#666]">·</span>
+                <span className="text-[#888]">{op.rueda}</span>
+                <span className="text-[#888]">· {op.nominales} VN</span>
+                <span
+                  className="ml-auto text-[10px] font-semibold"
+                  style={{ color: statusColor(op.status) }}
+                >
+                  {op.status}
+                </span>
               </div>
 
-              {/* Patas */}
-              <PataPanel titulo="PATA BUY" pata={data.buy} />
-              <PataPanel titulo="PATA SELL" pata={data.sell} />
-
-              {/* Métricas finales */}
-              <div className="border border-[#1a1a1a] p-3">
-                <div className="text-[11px] tracking-wider text-[#888] mb-2">
-                  RESULTADO
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] font-mono">
-                  <Row
-                    k="USD efectivo"
-                    v={
-                      data.metricas.usd_efectivo !== undefined
-                        ? `US$${fmtNum(data.metricas.usd_efectivo, 2)}`
-                        : undefined
-                    }
-                  />
-                  <Row
-                    k="MEP efectivo"
-                    v={fmtNum(data.metricas.mep_efectivo, 2)}
-                  />
-                  <Row
-                    k="slippage vs MEP ini"
-                    v={
-                      data.metricas.slippage_pct !== undefined
-                        ? `${data.metricas.slippage_pct >= 0 ? "+" : ""}${data.metricas.slippage_pct}%`
-                        : undefined
-                    }
-                  />
-                </div>
+              {/* Lo justo y necesario */}
+              <div className="border border-[#1a1a1a]">
+                <Linea label="Compra AL30" value={`$${fmtArs(m.precio_compra_al30)}`} color="#00cc66" />
+                <Linea label="Venta AL30D" value={`US$${fmtArs(m.precio_venta_al30d)}`} color="#4488ff" />
+                <Linea label="USD obtenidos" value={m.usd_efectivo !== undefined ? `US$${fmtArs(m.usd_efectivo)}` : "—"} color="#d0d0d0" />
+                <Linea
+                  label="TC efectivo"
+                  value={m.mep_efectivo !== undefined ? `$${fmtArs(m.mep_efectivo)}` : "—"}
+                  color="#ff9900"
+                  bold
+                />
               </div>
 
-              {/* Audit timeline */}
-              <AuditTimeline
-                buy={data.buy.audit}
-                sell={data.sell.audit}
-              />
+              {/* Slippage discreto */}
+              {m.slippage_pct !== undefined && op.mep_inicial && (
+                <div className="text-[10px] text-[#666] font-mono px-1">
+                  MEP inicial $ {fmtArs(op.mep_inicial)} · slippage{" "}
+                  <span style={{ color: m.slippage_pct >= 0 ? "#ff3333" : "#00cc66" }}>
+                    {m.slippage_pct >= 0 ? "+" : ""}
+                    {m.slippage_pct}%
+                  </span>
+                </div>
+              )}
+
+              {/* Costo cliente final (con comisión) — opcional, abajo */}
+              {m.mep_costo_cliente !== undefined && op.monto_ars && (
+                <div className="text-[10px] text-[#666] font-mono px-1 leading-relaxed">
+                  Cliente pagó ${fmtArs(op.monto_ars)} brutos →{" "}
+                  TC con comisión <span className="text-[#888]">${fmtArs(m.mep_costo_cliente)}</span>
+                </div>
+              )}
             </>
           )}
         </div>
       </div>
     </>
+  );
+}
+
+function Linea({
+  label,
+  value,
+  color,
+  bold = false,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  bold?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between px-3 py-2 border-b border-[#1a1a1a] last:border-b-0">
+      <span className="text-[11px] tracking-wide text-[#888] uppercase">
+        {label}
+      </span>
+      <span
+        className={`font-mono tabular-nums ${bold ? "text-[14px] font-semibold" : "text-[12px]"}`}
+        style={{ color }}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
