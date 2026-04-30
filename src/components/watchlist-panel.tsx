@@ -434,25 +434,10 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     : "#ffcc00"
                   : "#00cc66";
                 const labelExtra = r.plazo_dias ? ` ${r.plazo_dias}D` : "";
-                // Solo los 3 dólares disparan el chart custom (highlightean
-                // su línea). Las cauciones no aplican al chart de dólares.
-                const dispara =
-                  r.label === "DOLAR MEP" ||
-                  r.label === "DOLAR CCL" ||
-                  r.label === "DOLAR OFICIAL";
-                const isSel = selected === r.label;
-                const clickable = !!onSelect && dispara;
                 return (
                   <tr
                     key={r.label}
-                    onClick={clickable ? () => onSelect!(r.label) : undefined}
-                    className={`border-b border-[#0e0e0e] ${
-                      isSel
-                        ? "bg-[#ff9900]/15"
-                        : clickable
-                        ? "hover:bg-[#0e0e0e] cursor-pointer"
-                        : "hover:bg-[#0e0e0e]"
-                    }`}
+                    className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]"
                   >
                     <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">
                       {r.label}
