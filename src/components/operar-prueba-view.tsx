@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AccountPicker } from "./account-picker";
 import { CuentaDescubierta } from "./dolar-mep-shared";
 
 const TERMINAL_STATES = new Set(["FILLED", "CANCELLED", "REJECTED", "EXPIRED"]);
 const ACCOUNT_LS_KEY = "trd-fx-prueba-account";
+
+interface SymbolHit {
+  ticker: string;
+  underlying: string;
+  maturity?: string;
+  currency?: string;
+  cficode?: string;
+}
 
 interface Orden {
   cl_ord_id: string;
@@ -40,6 +48,13 @@ export function OperarPruebaView() {
   const [orders, setOrders] = useState<Orden[]>([]);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Autocomplete del ticker: busca en Manager.PyRofexInstruments. Mantiene
+  // el input editable libre — si lo que escribís no está en el catálogo
+  // igual te deja enviarlo (escape hatch para tickers raros).
+  const [tickerHits, setTickerHits] = useState<SymbolHit[]>([]);
+  const [tickerOpen, setTickerOpen] = useState(false);
+  const tickerWrapRef = useRef<HTMLDivElement | null>(null);
 
   async function fetchOrders() {
     try {
@@ -92,6 +107,36 @@ export function OperarPruebaView() {
       window.localStorage.setItem(ACCOUNT_LS_KEY, account);
     }
   }, [account]);
+
+  // Autocomplete del ticker: debounced 250ms. <2 chars no dispara fetch.
+  useEffect(() => {
+    const q = ticker.trim();
+    if (q.length < 2) {
+      setTickerHits([]);
+      return;
+    }
+    const id = setTimeout(() => {
+      fetch(`/api/ordenes/symbols?q=${encodeURIComponent(q)}&limit=20`, {
+        cache: "no-store",
+      })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((hits: SymbolHit[]) => setTickerHits(Array.isArray(hits) ? hits : []))
+        .catch(() => setTickerHits([]));
+    }, 250);
+    return () => clearTimeout(id);
+  }, [ticker]);
+
+  // Cerrar el dropdown al click fuera del wrap del combobox.
+  useEffect(() => {
+    if (!tickerOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (tickerWrapRef.current && !tickerWrapRef.current.contains(e.target as Node)) {
+        setTickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [tickerOpen]);
 
   async function handleSubmit() {
     setSubmitting(true);
@@ -162,11 +207,40 @@ export function OperarPruebaView() {
 
       <div className="flex gap-2 items-end p-3 bg-[#080808] border border-[#1a1a1a] flex-wrap">
         <Field label="TICKER" className="flex-1 min-w-[280px]">
-          <input
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-            className={inputCls}
-          />
+          <div className="relative" ref={tickerWrapRef}>
+            <input
+              value={ticker}
+              onChange={(e) => {
+                setTicker(e.target.value);
+                setTickerOpen(true);
+              }}
+              onFocus={() => setTickerOpen(true)}
+              className={inputCls}
+              placeholder="AL30, GD30, DLR/MAY26… (mín. 2 letras)"
+              autoComplete="off"
+            />
+            {tickerOpen && tickerHits.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-px bg-[#080808] border border-[#1a1a1a] z-20 max-h-[260px] overflow-y-auto shadow-lg">
+                {tickerHits.map((h) => (
+                  <div
+                    key={h.ticker}
+                    onClick={() => {
+                      setTicker(h.ticker);
+                      setTickerOpen(false);
+                    }}
+                    className="px-2 py-1 text-[11px] hover:bg-[#1a1a1a] cursor-pointer border-b border-[#0e0e0e] last:border-b-0"
+                  >
+                    <div className="text-[#d0d0d0] font-mono">{h.ticker}</div>
+                    <div className="text-[9px] text-[#666] flex gap-2">
+                      {h.underlying && <span>{h.underlying}</span>}
+                      {h.maturity && <span>· vto {h.maturity}</span>}
+                      {h.currency && <span>· {h.currency}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </Field>
         <Field label="CUENTA" className="w-[140px]">
           <AccountPicker value={account} onChange={setAccount} cuentas={cuentas} />
