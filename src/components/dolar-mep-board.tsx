@@ -17,7 +17,7 @@ export function DolarMepBoard({
     <div className="flex-1 min-h-0 flex gap-3">
       <div className="w-1/2 bg-[#080808] border border-[#1a1a1a] p-2 flex flex-col">
         <div className="text-[9px] tracking-wider text-[#888] mb-1 px-1">
-          MEP {rueda} · MINUTO CLOSE · ÚLTIMAS 24H
+          MEP {rueda} · MINUTO CLOSE · HOY
         </div>
         <div className="flex-1 min-h-0">
           <DolarMepTimeSalesChart rueda={rueda} />
