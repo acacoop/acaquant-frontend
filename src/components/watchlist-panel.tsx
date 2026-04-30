@@ -468,6 +468,8 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                         ? "—"
                         : isPct
                         ? `${r.value.toFixed(2)}%`
+                        : r.label === "DOLAR OFICIAL"
+                        ? `$${fmtPriceDlr(r.value)}`
                         : `$${fmtPrice(r.value)}`}
                     </td>
                     <PctCell v={r.ret_day} />
