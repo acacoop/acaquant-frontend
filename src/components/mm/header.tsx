@@ -26,10 +26,10 @@ function Stat({
     amber: "text-amber-400",
   };
   return (
-    <div className="flex flex-col px-4 py-2">
-      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</span>
-      <span className={`text-[18px] font-semibold tabular-nums ${colors[tone]}`}>{value}</span>
-      {sub && <span className="text-[10px] text-zinc-500">{sub}</span>}
+    <div className="flex min-w-[100px] flex-col px-3 py-1.5">
+      <span className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</span>
+      <span className={`text-[14px] font-semibold tabular-nums ${colors[tone]}`}>{value}</span>
+      {sub && <span className="text-[9px] text-zinc-500">{sub}</span>}
     </div>
   );
 }
@@ -42,10 +42,10 @@ export function MMHeader({ data, loading }: Props) {
 
   return (
     <div className="flex flex-wrap items-stretch border-b border-zinc-800 bg-zinc-950">
-      <div className="flex flex-col justify-center border-r border-zinc-800 px-5 py-2">
-        <span className="text-[10px] uppercase tracking-wide text-zinc-500">Ticker</span>
-        <span className="text-[14px] font-semibold text-zinc-100">{data?.ticker ?? "—"}</span>
-        <span className="text-[10px] text-zinc-500">{loading ? "loading…" : data?.ts_book ? `book ${fmtTimeAr(data.ts_book)}` : "sin book"}</span>
+      <div className="flex flex-col justify-center border-r border-zinc-800 px-3 py-1.5">
+        <span className="text-[9px] uppercase tracking-wide text-zinc-500">Ticker</span>
+        <span className="text-[12px] font-semibold text-zinc-100">{data?.ticker?.replace("MERV - XMEV - ", "") ?? "—"}</span>
+        <span className="text-[9px] text-zinc-500">{loading ? "loading…" : data?.ts_book ? `book ${fmtTimeAr(data.ts_book)}` : "sin book"}</span>
       </div>
       <Stat label="Mid" value={m?.mid != null ? fmt(m.mid, 4) : "—"} tone="amber" />
       <Stat
@@ -77,9 +77,9 @@ export function MMHeader({ data, loading }: Props) {
         }
       />
       {data?.last_trade && (
-        <div className="ml-auto flex flex-col justify-center border-l border-zinc-800 px-4 py-2">
-          <span className="text-[10px] uppercase tracking-wide text-zinc-500">Last trade</span>
-          <span className="text-[13px] tabular-nums text-zinc-200">
+        <div className="ml-auto flex flex-col justify-center border-l border-zinc-800 px-3 py-1.5">
+          <span className="text-[9px] uppercase tracking-wide text-zinc-500">Last trade</span>
+          <span className="text-[12px] tabular-nums text-zinc-200">
             {fmt(data.last_trade.price, 3)} ×{" "}
             <span className="text-zinc-400">{fmt(data.last_trade.size, 0)}</span>{" "}
             <span
@@ -94,7 +94,7 @@ export function MMHeader({ data, loading }: Props) {
               {data.last_trade.side}
             </span>
           </span>
-          <span className="text-[10px] text-zinc-500">
+          <span className="text-[9px] text-zinc-500">
             {fmtTimeAr(data.last_trade.timestamp)} · es {data.last_trade.es_bps != null ? `${fmt(data.last_trade.es_bps, 1)}bps` : "—"}
           </span>
         </div>

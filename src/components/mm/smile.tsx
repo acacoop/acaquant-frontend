@@ -61,7 +61,7 @@ function Chart({ title, buckets, maxVal, getter, format, color }: ChartProps) {
   return (
     <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
       <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">{title}</div>
-      <div className="flex h-24 items-end gap-1">
+      <div className="flex h-32 items-end gap-1">
         {buckets.map((b, i) => {
           const v = getter(b);
           const h = v != null ? (v / maxVal) * 100 : 0;

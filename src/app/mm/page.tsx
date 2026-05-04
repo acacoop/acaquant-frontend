@@ -27,33 +27,33 @@ export default function MMPage() {
   const tape = usePoll<TapeResp>(tapeUrl, POLL_TAPE);
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-200">
+    <div className="flex h-screen flex-col bg-zinc-950 text-zinc-200">
       <MMHeader data={live.data} loading={live.loading} />
 
-      <div className="grid grid-cols-1 gap-3 p-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2 p-2 md:grid-cols-2">
         <BookL2 book={live.data?.book ?? null} mid={live.data?.metrics?.mid ?? null} />
         <Tape data={tape.data} loading={tape.loading} error={tape.error} />
       </div>
 
-      <div className="border-t border-zinc-800">
-        <div className="flex gap-0 border-b border-zinc-800 bg-zinc-950 px-3">
+      <div className="flex flex-1 flex-col overflow-hidden border-t border-zinc-800">
+        <div className="flex gap-0 border-b border-zinc-800 bg-zinc-950 px-2">
           <TabBtn active={tab === "intraday"} onClick={() => setTab("intraday")}>
-            Intraday (cap 4)
+            Intraday
           </TabBtn>
           <TabBtn active={tab === "impact"} onClick={() => setTab("impact")}>
-            Impact b/k (cap 4)
+            Impact b/k
           </TabBtn>
           <TabBtn active={tab === "smile"} onClick={() => setTab("smile")}>
-            Smile en U (cap 4)
+            Smile U
           </TabBtn>
           <TabBtn active={tab === "sf"} onClick={() => setTab("sf")}>
-            Stylized Facts (cap 3)
+            Stylized Facts
           </TabBtn>
           <TabBtn active={tab === "lectura"} onClick={() => setTab("lectura")}>
-            Lectura (cap 1-2)
+            Lectura
           </TabBtn>
         </div>
-        <div className="p-3">
+        <div className="flex-1 overflow-auto p-3">
           {tab === "intraday" && <IntradayPanel ticker={TICKER} />}
           {tab === "impact" && <ImpactPanel ticker={TICKER} />}
           {tab === "smile" && <SmilePanel ticker={TICKER} />}
@@ -62,9 +62,9 @@ export default function MMPage() {
         </div>
       </div>
 
-      <div className="mt-auto flex items-center gap-3 border-t border-zinc-800 bg-zinc-950 px-3 py-2 text-[10px] text-zinc-500">
-        <span>data · Trading.OrderBookL2 (motor order_book_l2.py) + Trading.TimeSales</span>
-        <span className="ml-auto">refresh book {POLL_LIVE / 1000}s · tape {POLL_TAPE / 1000}s</span>
+      <div className="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-2 py-1 text-[9px] text-zinc-500">
+        <span>data · OrderBookL2 + TimeSales</span>
+        <span className="ml-auto">book {POLL_LIVE / 1000}s · tape {POLL_TAPE / 1000}s</span>
       </div>
     </div>
   );
@@ -83,7 +83,7 @@ function TabBtn({
     <button
       onClick={onClick}
       className={
-        "border-b-2 px-3 py-2 text-[11px] uppercase tracking-wide transition " +
+        "border-b-2 px-3 py-1.5 text-[10px] uppercase tracking-wide transition " +
         (active
           ? "border-amber-400 text-amber-400"
           : "border-transparent text-zinc-500 hover:text-zinc-300")

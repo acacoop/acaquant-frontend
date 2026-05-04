@@ -54,7 +54,7 @@ function NofChart({ buckets }: { buckets: IntradayResp["buckets"] }) {
       <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
         Net Order Flow (Lee-Ready) por bucket — buy_size − sell_size
       </div>
-      <div className="flex h-20 items-end gap-[1px]">
+      <div className="flex h-28 items-end gap-[1px]">
         {buckets.map((b, i) => {
           const h = (Math.abs(b.nof || 0) / max) * 100;
           const positive = (b.nof || 0) >= 0;
@@ -89,7 +89,7 @@ function QesChart({ buckets }: { buckets: IntradayResp["buckets"] }) {
       <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
         qES — quantity-weighted effective spread por bucket (abs)
       </div>
-      <div className="flex h-16 items-end gap-[1px]">
+      <div className="flex h-24 items-end gap-[1px]">
         {buckets.map((b, i) => {
           const v = b.qES;
           const h = v != null ? (v / max) * 100 : 0;
@@ -117,7 +117,7 @@ function RealizedVolChart({ buckets }: { buckets: IntradayResp["buckets"] }) {
       <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
         Realized vol (bps) por bucket — stdev de retornos sobre mid
       </div>
-      <div className="flex h-16 items-end gap-[1px]">
+      <div className="flex h-24 items-end gap-[1px]">
         {buckets.map((b, i) => {
           const v = b.realized_vol;
           const h = v != null ? (v / max) * 100 : 0;
