@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 // Proxy a /api/analitica/* del backend FastAPI.
 // Sin cache: las analíticas pueden cambiar al ritmo de los trades.
+// dynamic + revalidate fuerzan que Next no cachee el handler en el edge.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const API_URL = process.env.API_URL || "https://api.acaquant.com";
 const API_KEY = process.env.API_KEY || "";
 const CF_CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID || "";
