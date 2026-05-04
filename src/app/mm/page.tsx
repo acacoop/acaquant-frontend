@@ -27,7 +27,7 @@ export default function MMPage() {
   const tape = usePoll<TapeResp>(tapeUrl, POLL_TAPE);
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-950 text-zinc-200">
+    <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-200">
       <MMHeader data={live.data} loading={live.loading} />
 
       <div className="grid grid-cols-1 gap-2 p-2 md:grid-cols-2">
@@ -35,8 +35,8 @@ export default function MMPage() {
         <Tape data={tape.data} loading={tape.loading} error={tape.error} />
       </div>
 
-      <div className="flex flex-1 flex-col overflow-hidden border-t border-zinc-800">
-        <div className="flex gap-0 border-b border-zinc-800 bg-zinc-950 px-2">
+      <div className="border-t border-zinc-800">
+        <div className="sticky top-0 z-10 flex gap-0 border-b border-zinc-800 bg-zinc-950 px-2">
           <TabBtn active={tab === "intraday"} onClick={() => setTab("intraday")}>
             Intraday
           </TabBtn>
@@ -53,7 +53,7 @@ export default function MMPage() {
             Lectura
           </TabBtn>
         </div>
-        <div className="flex-1 overflow-auto p-3">
+        <div className="p-3">
           {tab === "intraday" && <IntradayPanel ticker={TICKER} />}
           {tab === "impact" && <ImpactPanel ticker={TICKER} />}
           {tab === "smile" && <SmilePanel ticker={TICKER} />}
@@ -62,7 +62,7 @@ export default function MMPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-2 py-1 text-[9px] text-zinc-500">
+      <div className="mt-auto flex items-center gap-2 border-t border-zinc-800 bg-zinc-950 px-2 py-1 text-[9px] text-zinc-500">
         <span>data · OrderBookL2 + TimeSales</span>
         <span className="ml-auto">book {POLL_LIVE / 1000}s · tape {POLL_TAPE / 1000}s</span>
       </div>
