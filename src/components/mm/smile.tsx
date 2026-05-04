@@ -68,11 +68,10 @@ function Chart({ title, buckets, maxVal, getter, format, color }: ChartProps) {
           return (
             <div
               key={i}
-              className="flex flex-1 flex-col items-center"
               title={`${b.ts_ar} · ${v != null ? format(v) : "—"} (${b.n_dias_obs} días)`}
-            >
-              <div className="w-full self-end" style={{ height: `${h}%`, background: color }} />
-            </div>
+              className="flex-1 self-end"
+              style={{ height: `${h}%`, background: color }}
+            />
           );
         })}
       </div>
