@@ -1,6 +1,8 @@
 "use client";
 
+import { InfoIcon } from "@/components/info-icon";
 import { fmt, fmtBps, fmtTimeAr } from "./fmt";
+import { tips } from "./tips";
 import type { LiveResp } from "./types";
 
 interface Props {
@@ -13,11 +15,13 @@ function Stat({
   value,
   sub,
   tone = "default",
+  tip,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "default" | "green" | "red" | "amber";
+  tip?: import("react").ReactNode;
 }) {
   const colors: Record<string, string> = {
     default: "text-zinc-100",
@@ -27,7 +31,10 @@ function Stat({
   };
   return (
     <div className="flex min-w-[100px] flex-col px-3 py-1.5">
-      <span className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</span>
+      <span className="flex items-center gap-1 text-[9px] uppercase tracking-wide text-zinc-500">
+        {label}
+        {tip && <InfoIcon tip={tip} width="340px" />}
+      </span>
       <span className={`text-[14px] font-semibold tabular-nums ${colors[tone]}`}>{value}</span>
       {sub && <span className="text-[9px] text-zinc-500">{sub}</span>}
     </div>
@@ -47,7 +54,12 @@ export function MMHeader({ data, loading }: Props) {
         <span className="text-[12px] font-semibold text-zinc-100">{data?.ticker?.replace("MERV - XMEV - ", "") ?? "—"}</span>
         <span className="text-[9px] text-zinc-500">{loading ? "loading…" : data?.ts_book ? `book ${fmtTimeAr(data.ts_book)}` : "sin book"}</span>
       </div>
-      <Stat label="Mid" value={m?.mid != null ? fmt(m.mid, 4) : "—"} tone="amber" />
+      <Stat
+        label="Mid"
+        value={m?.mid != null ? fmt(m.mid, 4) : "—"}
+        tone="amber"
+        tip={tips.mid}
+      />
       <Stat
         label="Microprice"
         value={m?.microprice != null ? fmt(m.microprice, 4) : "—"}
@@ -56,17 +68,20 @@ export function MMHeader({ data, loading }: Props) {
             ? `${m.microprice > m.mid ? "+" : ""}${fmt((m.microprice - m.mid) * 1000, 2)} mp - mid (×10³)`
             : undefined
         }
+        tip={tips.microprice}
       />
       <Stat
         label="OBI"
         value={obi != null ? `${obiSign}${fmt(obi, 3)}` : "—"}
         sub="(bid - ask) / (bid + ask)"
         tone={obiTone}
+        tip={tips.obi}
       />
       <Stat
         label="Quoted Spread"
         value={m?.qs_bps != null ? fmtBps(m.qs_bps) : "—"}
         sub={m?.quoted_spread != null ? `${fmt(m.quoted_spread, 3)} abs` : undefined}
+        tip={tips.qs}
       />
       <Stat
         label="Top size bid / ask"

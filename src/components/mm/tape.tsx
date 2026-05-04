@@ -1,6 +1,8 @@
 "use client";
 
+import { InfoIcon } from "@/components/info-icon";
 import { fmt, fmtTimeAr } from "./fmt";
+import { tips } from "./tips";
 import type { TapeResp } from "./types";
 
 interface Props {
@@ -30,9 +32,15 @@ export function Tape({ data, loading, error }: Props) {
               <th className="px-2 py-0.5 text-right font-normal">Px</th>
               <th className="px-2 py-0.5 text-right font-normal">Sz</th>
               <th className="px-2 py-0.5 text-center font-normal">Sd</th>
-              <th className="px-2 py-0.5 text-center font-normal">LR</th>
-              <th className="px-2 py-0.5 text-right font-normal">ES bps</th>
-              <th className="px-2 py-0.5 text-center font-normal">W</th>
+              <th className="px-2 py-0.5 text-center font-normal">
+                <span className="inline-flex items-center gap-1">LR <InfoIcon tip={tips.leeReady} width="340px" align="right" /></span>
+              </th>
+              <th className="px-2 py-0.5 text-right font-normal">
+                <span className="inline-flex items-center gap-1">ES bps <InfoIcon tip={tips.effectiveSpread} width="340px" align="right" /></span>
+              </th>
+              <th className="px-2 py-0.5 text-center font-normal">
+                <span className="inline-flex items-center gap-1">W <InfoIcon tip={tips.walking} width="340px" align="right" /></span>
+              </th>
             </tr>
           </thead>
           <tbody>

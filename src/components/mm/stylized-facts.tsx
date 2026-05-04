@@ -1,7 +1,9 @@
 "use client";
 
+import { InfoIcon } from "@/components/info-icon";
 import { useFetchOnce } from "./use-poll";
 import { fmt } from "./fmt";
+import { tips } from "./tips";
 import type { StylizedFactsResp } from "./types";
 
 interface Props {
@@ -34,42 +36,49 @@ export function StylizedFactsPanel({ ticker }: Props) {
           label="Skewness"
           value={data.skewness != null ? fmt(data.skewness, 3) : "—"}
           tone={Math.abs(data.skewness ?? 0) > 0.5 ? "amber" : "default"}
+          tip={tips.skewness}
         />
         <Stat
           label="Kurtosis"
           value={data.kurtosis != null ? fmt(data.kurtosis, 2) : "—"}
           sub={data.exceso_kurt != null ? `exceso ${fmt(data.exceso_kurt, 2)}` : undefined}
           tone={(data.kurtosis ?? 0) > 4 ? "amber" : "default"}
+          tip={tips.kurtosis}
         />
         <Stat
           label="ACF(1) mid"
           value={data.acf1_mid != null ? fmt(data.acf1_mid, 3) : "—"}
           sub="≈ 0 esperado (eficiencia direccional)"
+          tip={tips.acf1}
         />
         <Stat
           label="ACF(1) last"
           value={data.acf1_last != null ? fmt(data.acf1_last, 3) : "—"}
           sub="< 0 = bid-ask bounce"
           tone={(data.acf1_last ?? 0) < -0.05 ? "amber" : "default"}
+          tip={tips.acf1}
         />
         <Stat
           label="Persist. ACF|r|"
           value={data.acf_abs_persistencia != null ? `${data.acf_abs_persistencia}/20` : "—"}
           sub="lags > 0.05 → vol clustering"
           tone={(data.acf_abs_persistencia ?? 0) >= 5 ? "amber" : "default"}
+          tip={tips.acfAbs}
         />
         <Stat
           label="Jarque-Bera"
           value={data.jarque_bera != null ? fmt(data.jarque_bera, 1) : "—"}
           sub={data.jb_p != null ? `p = ${fmt(data.jb_p, 4)}` : undefined}
           tone={(data.jb_p ?? 1) < 0.05 ? "amber" : "default"}
+          tip={tips.jarqueBera}
         />
       </div>
 
       {data.acf_abs && (
         <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
-          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
+          <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-zinc-500">
             ACF de |r| · lags 1-20 (volatility clustering)
+            <InfoIcon tip={tips.acfAbs} width="380px" />
           </div>
           <div className="flex h-16 items-end gap-1">
             {data.acf_abs.map((v, i) => {
@@ -112,16 +121,21 @@ function Stat({
   value,
   sub,
   tone = "default",
+  tip,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "default" | "amber";
+  tip?: React.ReactNode;
 }) {
   const valColor = tone === "amber" ? "text-amber-400" : "text-zinc-100";
   return (
     <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-zinc-500">
+        {label}
+        {tip && <InfoIcon tip={tip} width="380px" />}
+      </div>
       <div className={`text-[16px] font-semibold tabular-nums ${valColor}`}>{value}</div>
       {sub && <div className="text-[9px] text-zinc-500">{sub}</div>}
     </div>

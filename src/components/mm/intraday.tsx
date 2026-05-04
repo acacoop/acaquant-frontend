@@ -1,7 +1,9 @@
 "use client";
 
+import { InfoIcon } from "@/components/info-icon";
 import { useFetchOnce } from "./use-poll";
 import { fmt } from "./fmt";
+import { tips } from "./tips";
 import type { IntradayResp } from "./types";
 
 interface Props {
@@ -51,8 +53,9 @@ function NofChart({ buckets }: { buckets: IntradayResp["buckets"] }) {
   const max = Math.max(...buckets.map((b) => Math.abs(b.nof || 0)), 1);
   return (
     <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
+      <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-zinc-500">
         Net Order Flow (Lee-Ready) por bucket — buy_size − sell_size
+        <InfoIcon tip={tips.nof} width="340px" />
       </div>
       <div className="flex h-28 items-end gap-[1px]">
         {buckets.map((b, i) => {
@@ -86,8 +89,9 @@ function QesChart({ buckets }: { buckets: IntradayResp["buckets"] }) {
 
   return (
     <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
+      <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-zinc-500">
         qES — quantity-weighted effective spread por bucket (abs)
+        <InfoIcon tip={tips.qES} width="340px" />
       </div>
       <div className="flex h-24 items-end gap-[1px]">
         {buckets.map((b, i) => {
@@ -114,8 +118,9 @@ function RealizedVolChart({ buckets }: { buckets: IntradayResp["buckets"] }) {
 
   return (
     <div className="rounded border border-zinc-800 bg-zinc-950 p-2">
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
+      <div className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wide text-zinc-500">
         Realized vol (bps) por bucket — stdev de retornos sobre mid
+        <InfoIcon tip={tips.realizedVol} width="340px" />
       </div>
       <div className="flex h-24 items-end gap-[1px]">
         {buckets.map((b, i) => {

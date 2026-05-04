@@ -1,7 +1,9 @@
 "use client";
 
+import { InfoIcon } from "@/components/info-icon";
 import { useFetchOnce } from "./use-poll";
 import { fmt } from "./fmt";
+import { tips } from "./tips";
 import type { ImpactResp } from "./types";
 
 interface Props {
@@ -18,7 +20,7 @@ export function ImpactPanel({ ticker }: Props) {
 
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <Card title="Permanent impact (b)">
+      <Card title="Permanent impact (b)" tip={tips.impactB}>
         <Equation>{`ΔS_n = b · π_n + ε`}</Equation>
         <Big>{data.permanent_impact.b != null ? fmt(data.permanent_impact.b, 6) : "—"}</Big>
         <Detail>
@@ -31,7 +33,7 @@ export function ImpactPanel({ ticker }: Props) {
         </Note>
       </Card>
 
-      <Card title="Temporary impact (k)">
+      <Card title="Temporary impact (k)" tip={tips.impactK}>
         <Equation>{`|S^exec − mid| = k · Q + ε`}</Equation>
         <Big>{data.temporary_impact.k != null ? fmt(data.temporary_impact.k, 6) : "—"}</Big>
         <Detail>
@@ -47,10 +49,21 @@ export function ImpactPanel({ ticker }: Props) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  children,
+  tip,
+}: {
+  title: string;
+  children: React.ReactNode;
+  tip?: React.ReactNode;
+}) {
   return (
     <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
-      <div className="mb-2 text-[11px] uppercase tracking-wide text-zinc-400">{title}</div>
+      <div className="mb-2 flex items-center gap-1 text-[11px] uppercase tracking-wide text-zinc-400">
+        {title}
+        {tip && <InfoIcon tip={tip} width="380px" />}
+      </div>
       {children}
     </div>
   );

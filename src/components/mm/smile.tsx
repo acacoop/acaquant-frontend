@@ -1,7 +1,9 @@
 "use client";
 
+import { InfoIcon } from "@/components/info-icon";
 import { useFetchOnce } from "./use-poll";
 import { fmt } from "./fmt";
+import { tips } from "./tips";
 import type { SmileResp } from "./types";
 
 interface Props {
@@ -22,9 +24,10 @@ export function SmilePanel({ ticker }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="text-[11px] text-zinc-400">
+      <div className="flex items-center gap-1 text-[11px] text-zinc-400">
         Promedios por bucket de {data.bucket_min} min sobre los últimos {data.dias} días con trades.
         Esperás forma U: pico apertura, mínimo mediodía, pico mayor cierre.
+        <InfoIcon tip={tips.smile} width="400px" />
       </div>
 
       <Chart

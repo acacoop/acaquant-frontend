@@ -1,6 +1,8 @@
 "use client";
 
+import { InfoIcon } from "@/components/info-icon";
 import { fmt, fmtSize } from "./fmt";
+import { tips } from "./tips";
 import type { BookSnapshot } from "./types";
 
 interface Props {
@@ -30,7 +32,10 @@ export function BookL2({ book, mid }: Props) {
   return (
     <div className="rounded-md border border-zinc-800 bg-zinc-950">
       <div className="flex items-center justify-between border-b border-zinc-800 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
-        <span>Book L2</span>
+        <span className="flex items-center gap-1">
+          Book L2
+          <InfoIcon tip={tips.bookL2} width="340px" />
+        </span>
         <span className="font-mono text-[10px] text-amber-400">
           MID {mid != null ? fmt(mid, 4) : "—"}
           {spread != null && (
