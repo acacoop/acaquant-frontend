@@ -452,11 +452,11 @@ export function NegocioView() {
       {fechasDisp.length > 0 && (
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
-          {/* COLUMNA IZQUIERDA */}
+          {/* COLUMNA IZQUIERDA — POR CATEGORÍA arriba, chart debajo */}
           <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
-            {/* CHART panel */}
-            <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+            {/* CHART panel (queda como flex-1 para ocupar el resto del alto) */}
+            <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden order-2">
               <div className="flex items-center px-3 py-2 border-b border-[#1a1a1a] shrink-0 flex-wrap gap-2">
                 <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
                   Volumen operado · {moneda}
@@ -580,8 +580,8 @@ export function NegocioView() {
               </div>
             </div>
 
-            {/* POR CATEGORÍA leaderboard */}
-            <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden shrink-0">
+            {/* POR CATEGORÍA leaderboard (order-1 → arriba) */}
+            <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden shrink-0 order-1">
               <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
                 <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
                   Por categoría · {fecha ? fmtFechaCorta(fecha) : "—"}
