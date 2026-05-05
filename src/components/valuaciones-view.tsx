@@ -109,6 +109,33 @@ function fmtPrice(n: number | null | undefined): string {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 }
 
+// Escala "nice" para Y-axis: no forzar 0, redondear a valores limpios
+// alrededor del rango real. Mismo helper que aum-view.tsx.
+function niceScale(
+  min: number,
+  max: number,
+  maxTicks = 5,
+): { min: number; max: number; ticks: number[] } {
+  if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };
+  if (min === max) {
+    const d = Math.abs(min) || 1;
+    return { min: min - d, max: max + d, ticks: [min - d, min, min + d] };
+  }
+  const range = max - min;
+  const roughStep = range / Math.max(1, maxTicks - 1);
+  const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
+  const normalized = roughStep / pow10;
+  const niceStep =
+    normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10;
+  const step = niceStep * pow10;
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let t = niceMin; t <= niceMax + step / 2; t += step)
+    ticks.push(+t.toFixed(10));
+  return { min: niceMin, max: niceMax, ticks };
+}
+
 // ── Componente ────────────────────────────────────────────────────────────
 
 export function ValuacionesView({ idCuenta }: Props) {
@@ -170,6 +197,17 @@ export function ValuacionesView({ idCuenta }: Props) {
       }));
   }, [mensualResp]);
 
+  // Y-axis scale: niceScale sobre los valores reales, no fuerza 0.
+  // Si el portfolio fluctúa entre 25M y 35M, el chart muestra ese rango,
+  // no 0-35M (donde la variación se aplana).
+  const yScale = useMemo(() => {
+    if (chartData.length < 2) {
+      return { min: 0, max: 1, ticks: [0, 1] };
+    }
+    const vals = chartData.map((d) => d.valuacion);
+    return niceScale(Math.min(...vals), Math.max(...vals), 5);
+  }, [chartData]);
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-[#555555] text-sm">
@@ -206,7 +244,7 @@ export function ValuacionesView({ idCuenta }: Props) {
     n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
 
   return (
-    <div className="h-full grid grid-cols-[1.6fr_1fr] gap-3 p-3 overflow-hidden">
+    <div className="h-full grid grid-cols-[1fr_1.2fr] gap-3 p-3 overflow-hidden">
 
       {/* COLUMNA IZQUIERDA: chart arriba + tabla mensual abajo */}
       <div className="min-h-0 grid grid-rows-[3fr_2fr] gap-3 overflow-hidden">
@@ -257,6 +295,8 @@ export function ValuacionesView({ idCuenta }: Props) {
                     height={38}
                   />
                   <YAxis
+                    domain={[yScale.min, yScale.max]}
+                    ticks={yScale.ticks}
                     tick={{ fill: "#808080", fontSize: 10 }}
                     axisLine={{ stroke: "#2a2a2a" }}
                     tickLine={false}
