@@ -520,10 +520,11 @@ export function NegocioView() {
                         axisLine={{ stroke: "#2a2a2a" }}
                         tickLine={false}
                         tickFormatter={fmtFechaCorta}
-                        interval={Math.max(0, Math.floor(chartData.length / 8))}
-                        angle={-30}
+                        interval={Math.max(0, Math.floor(chartData.length / 14))}
+                        angle={-35}
                         textAnchor="end"
-                        height={32}
+                        height={40}
+                        minTickGap={4}
                       />
                       <YAxis
                         tick={{ fill: "#808080", fontSize: 10 }}
