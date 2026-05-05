@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 
 interface Parsed {
   op: string;
@@ -195,17 +195,12 @@ export function AunesaExplorarPanel() {
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a] text-[#d0d0d0]">
       {/* HEADER */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-[#1a1a1a] px-3 py-2 shrink-0 bg-[#080808]">
-        <input
-          type="date"
-          value={fecha}
-          onChange={(e) => setFecha(e.target.value)}
-          className="bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
-        />
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#1a1a1a] px-3 py-2 shrink-0 bg-[#080808]">
+        <DatePickerCompact value={fecha} onChange={setFecha} />
         <button
           onClick={explorar}
           disabled={loading}
-          className="bg-[#ff9900] text-black px-3 py-0.5 text-[10px] font-semibold tracking-wider disabled:opacity-50"
+          className="bg-[#ff9900] text-black px-3 py-1 text-[10px] font-semibold tracking-wider disabled:opacity-50"
         >
           {loading ? "EXPLORANDO…" : "EXPLORAR"}
         </button>
@@ -597,5 +592,229 @@ function Inline({
       <span className="text-[#666] uppercase tracking-wider">{label}: </span>
       <span style={{ color }} className="font-mono">{value}</span>
     </span>
+  );
+}
+
+// ── DatePickerCompact ──────────────────────────────────────────────────────
+// Selector de fecha con navegación rápida (← → · HOY) + dropdown con
+// calendario inline navegable. No usa <input type="date"> nativo.
+
+const MESES_AR = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const DIAS_AR = ["L", "M", "X", "J", "V", "S", "D"];
+
+function parseISO(s: string): Date {
+  // "YYYY-MM-DD" → Date local sin issue de tz.
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function toISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function fmtDisplay(s: string): string {
+  const d = parseISO(s);
+  const dia = DIAS_AR[(d.getDay() + 6) % 7]; // domingo=0 → 6
+  return `${dia} ${d.getDate()} ${MESES_AR[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`;
+}
+
+function addDays(s: string, n: number): string {
+  const d = parseISO(s);
+  d.setDate(d.getDate() + n);
+  return toISO(d);
+}
+
+function DatePickerCompact({
+  value, onChange,
+}: {
+  value: string;
+  onChange: (s: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState<Date>(() => parseISO(value));
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Sync viewDate cuando cambia el value externamente.
+  useEffect(() => { setViewDate(parseISO(value)); }, [value]);
+
+  // Click fuera para cerrar.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const today = todayART();
+  const isToday = value === today;
+  const isFuture = parseISO(value) > parseISO(today);
+
+  return (
+    <div ref={wrapperRef} className="relative inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+      <button
+        onClick={() => onChange(addDays(value, -1))}
+        className="px-2 text-[#888] hover:text-[#ff9900] hover:bg-[#1a1a1a]"
+        title="Día anterior"
+      >
+        ‹
+      </button>
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className={
+          "px-3 py-1 text-[11px] font-mono min-w-[170px] text-center " +
+          (open ? "bg-[#1a1a1a] text-[#ff9900]" : "bg-black text-[#d0d0d0] hover:bg-[#0f0f0f]")
+        }
+      >
+        {fmtDisplay(value)}
+      </button>
+      <button
+        onClick={() => onChange(addDays(value, 1))}
+        disabled={isFuture}
+        className="px-2 text-[#888] hover:text-[#ff9900] hover:bg-[#1a1a1a] disabled:text-[#333] disabled:hover:bg-transparent"
+        title="Día siguiente"
+      >
+        ›
+      </button>
+      <button
+        onClick={() => onChange(today)}
+        disabled={isToday}
+        className={
+          "px-2 text-[10px] uppercase tracking-wider " +
+          (isToday
+            ? "bg-[#0a0a0a] text-[#444]"
+            : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900] hover:bg-[#1a1a1a]")
+        }
+      >
+        Hoy
+      </button>
+
+      {open && (
+        <CalendarPopup
+          value={value}
+          viewDate={viewDate}
+          setViewDate={setViewDate}
+          onPick={(d) => { onChange(d); setOpen(false); }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CalendarPopup({
+  value, viewDate, setViewDate, onPick,
+}: {
+  value: string;
+  viewDate: Date;
+  setViewDate: (d: Date) => void;
+  onPick: (s: string) => void;
+  onClose: () => void;
+}) {
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  // Primer día del mes y total de días.
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // Lunes=0 ... Domingo=6
+  const startCol = (firstDay.getDay() + 6) % 7;
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startCol; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = todayART();
+  const todayD = parseISO(today);
+  const valD = parseISO(value);
+
+  return (
+    <div className="absolute top-full left-0 mt-1 z-50 bg-black border border-[#ff9900] p-3 shadow-2xl min-w-[260px]">
+      {/* Header — mes/año + nav */}
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={() => setViewDate(new Date(year, month - 1, 1))}
+          className="px-2 text-[#888] hover:text-[#ff9900]"
+        >
+          ‹
+        </button>
+        <div className="text-[11px] font-mono text-[#ff9900]">
+          {MESES_AR[month]} {year}
+        </div>
+        <button
+          onClick={() => setViewDate(new Date(year, month + 1, 1))}
+          className="px-2 text-[#888] hover:text-[#ff9900]"
+        >
+          ›
+        </button>
+      </div>
+
+      {/* Header días */}
+      <div className="grid grid-cols-7 gap-0.5 mb-1 text-[9px] uppercase text-[#666] text-center">
+        {DIAS_AR.map((d) => (
+          <div key={d} className="py-0.5">{d}</div>
+        ))}
+      </div>
+
+      {/* Grid días */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((d, i) => {
+          if (d == null) return <div key={i} />;
+          const dDate = new Date(year, month, d);
+          const dISO = toISO(dDate);
+          const isSelected = dISO === value;
+          const isToday = dDate.getTime() === todayD.getTime();
+          const isFuture = dDate > todayD;
+          const isWeekend = dDate.getDay() === 0 || dDate.getDay() === 6;
+          const baseClasses = "py-1 text-[11px] font-mono text-center transition";
+          let cls = "";
+          if (isSelected) {
+            cls = "bg-[#ff9900] text-black font-semibold";
+          } else if (isToday) {
+            cls = "border border-[#ff9900] text-[#ff9900] hover:bg-[#1a1a1a]";
+          } else if (isFuture) {
+            cls = "text-[#333] cursor-not-allowed";
+          } else if (isWeekend) {
+            cls = "text-[#555] hover:bg-[#1a1a1a] hover:text-[#888]";
+          } else {
+            cls = "text-[#d0d0d0] hover:bg-[#1a1a1a] hover:text-[#ff9900]";
+          }
+          return (
+            <button
+              key={i}
+              onClick={() => !isFuture && onPick(dISO)}
+              disabled={isFuture}
+              className={`${baseClasses} ${cls}`}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#1a1a1a] text-[9px] uppercase tracking-wider">
+        <button
+          onClick={() => onPick(today)}
+          className="text-[#888] hover:text-[#ff9900]"
+        >
+          → Hoy
+        </button>
+        <span className="text-[#444]">
+          Día seleccionado: {valD.getDate()}/{valD.getMonth() + 1}/{valD.getFullYear()}
+        </span>
+      </div>
+    </div>
   );
 }
