@@ -14,25 +14,9 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-interface Boleto {
-  fecha: string;
-  comprobante: string;
-  cuenta: string | null;
-  categoria: string;
-  op: string | null;
-  ticker: string | null;
-  cantidad: number | null;
-  precio: number | null;
-  importe: number | null;
-  moneda: string | null;
-  plazo: string | null;
-  lugar: string | null;
-  estado: string | null;
-  informacion: string | null;
-  n_lineas: number;
-  ingestado_en?: string;
-}
-
+// /api/operaciones/negocio?fecha=... ahora solo devuelve meta — el array
+// completo de boletos no era usado por la UI rediseñada y costaba ~800ms.
+// El detalle por cuenta vive en /negocio/cuentas (período).
 interface NegocioResp {
   meta: {
     fecha: string;
@@ -40,7 +24,6 @@ interface NegocioResp {
     n_categorias: number;
     ultima_ingesta: string | null;
   };
-  boletos: Boleto[];
 }
 
 interface SeriePoint {
