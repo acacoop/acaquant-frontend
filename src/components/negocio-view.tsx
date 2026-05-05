@@ -39,7 +39,9 @@ type Moneda = "ARS" | "USD";
 type RangoKey = "1W" | "1M" | "3M" | "ALL";
 type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
 type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
-type DetalleMode = "DIA" | "PERIODO";
+// Vista global: DIA = todo scopeado al día seleccionado en el calendario.
+// TODOS = todo scopeado al período visible del chart (1W/1M/3M/ALL).
+type VistaMode = "DIA" | "TODOS";
 
 // Color de barras "muteadas" cuando hay un día seleccionado y queremos
 // que el día elegido resalte sobre el resto.
@@ -201,11 +203,16 @@ export function NegocioView() {
   const [agg, setAgg] = useState<AggKey>("DIARIO");
   const [catSel, setCatSel] = useState<NegocioCat | null>(null);
   const [filtroCta, setFiltroCta] = useState<CuentaFilter>("todas");
-  const [detalleMode, setDetalleMode] = useState<DetalleMode>("PERIODO");
-  // Foco día: cuando está ON (default), muteamos las barras que no
-  // pertenecen al bucket de la fecha seleccionada. Apagarlo deja todas las
-  // barras en su color de categoría — útil para printing/reports.
+  // Modo global de vista — afecta POR CATEGORÍA y DETALLE simultáneamente:
+  // DIA: día seleccionado vía calendar. TODOS: período visible del chart.
+  const [vistaMode, setVistaMode] = useState<VistaMode>("DIA");
+  // Foco día: cuando está ON (default) Y vistaMode=DIA, muteamos las barras
+  // del chart que no pertenecen al bucket de la fecha seleccionada.
   const [focoDia, setFocoDia] = useState<boolean>(true);
+  // Búsqueda de cuenta: si tiene un valor exacto en cuentasList, todas las
+  // queries se scopean a esa cuenta (override del cuenta_filter).
+  const [cuentaSearch, setCuentaSearch] = useState<string>("");
+  const [cuentasList, setCuentasList] = useState<string[]>([]);
   const [cuentasPeriodo, setCuentasPeriodo] = useState<{ cuenta: string; importe_abs: number; n: number }[]>([]);
   const [loadingCuentas, setLoadingCuentas] = useState(false);
 
@@ -254,13 +261,22 @@ export function NegocioView() {
     if (fecha) void fetchData(fecha);
   }, [fecha]);
 
-  // ── Fetch: serie histórica (depende de moneda + filtro de cuenta) ──────
+  // Cuenta efectiva: si el user escribió en el search Y el texto coincide
+  // exactamente con una cuenta de la lista, se manda como override. Si el
+  // texto no matchea, ignoramos (no scopeamos a un valor que no existe).
+  const cuentaExacta = useMemo(
+    () => (cuentasList.includes(cuentaSearch) ? cuentaSearch : null),
+    [cuentaSearch, cuentasList],
+  );
+
+  // ── Fetch: serie histórica (depende de moneda + cuenta_filter + cuenta) ──
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingSerie(true);
       try {
-        const url = `/api/operaciones/negocio/serie?moneda=${moneda}&cuenta_filter=${filtroCta}`;
+        let url = `/api/operaciones/negocio/serie?moneda=${moneda}&cuenta_filter=${filtroCta}`;
+        if (cuentaExacta) url += `&cuenta=${encodeURIComponent(cuentaExacta)}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: { serie: SeriePoint[] } = await res.json();
@@ -276,7 +292,26 @@ export function NegocioView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [moneda, filtroCta]);
+  }, [moneda, filtroCta, cuentaExacta]);
+
+  // ── Fetch: lista completa de cuentas (autocomplete) — una vez ─────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/operaciones/negocio/cuentas-list", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const j: { cuentas: string[] } = await res.json();
+        if (cancelled) return;
+        setCuentasList(Array.isArray(j.cuentas) ? j.cuentas : []);
+      } catch {
+        // Silencioso — el autocomplete simplemente no muestra sugerencias.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Derivados ────────────────────────────────────────────────────────────
 
@@ -294,26 +329,10 @@ export function NegocioView() {
   const goNext = () => { if (hayNext) setFecha(fechasOrdenadasAsc[idxActual + 1]); };
   const goLatest = () => { if (ultimaFecha) setFecha(ultimaFecha); };
 
-  // Totales del DÍA seleccionado (no del rango ni del bucket).
-  const totalesHoy = useMemo<Record<NegocioCat, number>>(() => {
-    const empty: Record<NegocioCat, number> = {
-      compra: 0, venta: 0, suscripciones: 0, cauc_tom: 0, cauc_col: 0,
-    };
-    const row = serie.find((s) => s.fecha === fecha);
-    if (!row) return empty;
-    return {
-      compra:        row.compra,
-      venta:         row.venta,
-      suscripciones: row.suscripciones,
-      cauc_tom:      row.cauc_tom,
-      cauc_col:      row.cauc_col,
-    };
-  }, [serie, fecha]);
-
-  const totalDia = useMemo(
-    () => NEGOCIO_CATS.reduce((a, c) => a + totalesHoy[c], 0),
-    [totalesHoy],
-  );
+  // Totales para POR CATEGORÍA: depende del vistaMode global.
+  // - DIA: solo la fila de la fecha seleccionada en la serie.
+  // - TODOS: suma de las filas dentro del rango visible (serieRango más abajo).
+  // Se computa una vez serieRango está disponible — definido más abajo.
 
   // Pre-aggregation: serie filtrada por rango (DIARIO). Sirve para
   // obtener desde/hasta exactos del período visible — necesario para la
@@ -336,12 +355,44 @@ export function NegocioView() {
     return s;
   }, [serieRango]);
 
-  // Drill-down: cuentas de la categoría seleccionada — sobre el período
-  // visible (default) o sobre el día seleccionado (modo DIA). Server-side
-  // aggregation via /negocio/cuentas, ordenado desc por |importe|.
-  // Refetch cuando cambia (catSel, moneda, filtroCta, mode, fecha o rango).
-  const detalleDesde = detalleMode === "DIA" ? fecha : periodoDesde;
-  const detalleHasta = detalleMode === "DIA" ? fecha : periodoHasta;
+  // Totales para POR CATEGORÍA — bifurcación según vistaMode.
+  const totalesActuales = useMemo<Record<NegocioCat, number>>(() => {
+    const empty: Record<NegocioCat, number> = {
+      compra: 0, venta: 0, suscripciones: 0, cauc_tom: 0, cauc_col: 0,
+    };
+    if (vistaMode === "DIA") {
+      const row = serie.find((s) => s.fecha === fecha);
+      if (!row) return empty;
+      return {
+        compra:        row.compra,
+        venta:         row.venta,
+        suscripciones: row.suscripciones,
+        cauc_tom:      row.cauc_tom,
+        cauc_col:      row.cauc_col,
+      };
+    }
+    // TODOS: sum de todo el rango visible.
+    const acc = { ...empty };
+    for (const p of serieRango) {
+      acc.compra        += p.compra;
+      acc.venta         += p.venta;
+      acc.suscripciones += p.suscripciones;
+      acc.cauc_tom      += p.cauc_tom;
+      acc.cauc_col      += p.cauc_col;
+    }
+    return acc;
+  }, [vistaMode, serie, fecha, serieRango]);
+
+  const totalActual = useMemo(
+    () => NEGOCIO_CATS.reduce((a, c) => a + totalesActuales[c], 0),
+    [totalesActuales],
+  );
+
+  // Drill-down DETALLE: cuentas para la categoría seleccionada. Rango y
+  // scope determinados por vistaMode (DIA = solo fecha, TODOS = período
+  // visible) y cuentaExacta (override del cuenta_filter si está en lista).
+  const detalleDesde = vistaMode === "DIA" ? fecha : periodoDesde;
+  const detalleHasta = vistaMode === "DIA" ? fecha : periodoHasta;
 
   useEffect(() => {
     if (!catSel || !detalleDesde || !detalleHasta) {
@@ -352,12 +403,13 @@ export function NegocioView() {
     (async () => {
       setLoadingCuentas(true);
       try {
-        const url =
+        let url =
           `/api/operaciones/negocio/cuentas?moneda=${moneda}` +
           `&cuenta_filter=${filtroCta}` +
           `&categoria=${catSel}` +
           `&desde=${detalleDesde}` +
           `&hasta=${detalleHasta}`;
+        if (cuentaExacta) url += `&cuenta=${encodeURIComponent(cuentaExacta)}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: { cuentas: { cuenta: string; importe_abs: number; n: number }[] } = await res.json();
@@ -373,7 +425,7 @@ export function NegocioView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [catSel, moneda, filtroCta, detalleDesde, detalleHasta]);
+  }, [catSel, moneda, filtroCta, detalleDesde, detalleHasta, cuentaExacta]);
 
   // Alias por consistencia con el render abajo (mismo nombre que antes).
   const cuentasDetalle = cuentasPeriodo;
@@ -437,8 +489,35 @@ export function NegocioView() {
           >Última</button>
         </div>
 
-        <div className="text-[14px] font-mono text-[#ff9900]">
-          {fecha ? fmtFechaDisplay(fecha) : "—"}
+        {/* Modo global DIA/TODOS — afecta POR CATEGORÍA + DETALLE */}
+        <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+          {(["DIA", "TODOS"] as VistaMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setVistaMode(m)}
+              className={
+                "px-3 py-1 text-[10px] uppercase tracking-wider " +
+                (vistaMode === m
+                  ? "bg-[#ff9900] text-black"
+                  : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+              }
+              title={m === "DIA"
+                ? "Vista del día seleccionado"
+                : "Vista de todo el período visible del chart"}
+            >
+              {m === "DIA" ? "Día" : "Todos"}
+            </button>
+          ))}
+        </div>
+
+        <div className={
+          "text-[14px] font-mono " + (vistaMode === "DIA" ? "text-[#ff9900]" : "text-[#888]")
+        }>
+          {vistaMode === "DIA"
+            ? (fecha ? fmtFechaDisplay(fecha) : "—")
+            : (periodoDesde && periodoHasta
+                ? `${fmtFechaCorta(periodoDesde)} → ${fmtFechaCorta(periodoHasta)}`
+                : "—")}
         </div>
 
         {data && (
@@ -461,12 +540,48 @@ export function NegocioView() {
           <span className="text-[10px] text-[#888]">cargando…</span>
         )}
 
+        {/* Búsqueda de cuenta — autocomplete via datalist nativo. Si el
+            valor matchea una cuenta de cuentasList, se manda como override
+            al backend y todos los paneles se re-scopean a esa cuenta. */}
+        <input
+          type="text"
+          list="negocio-cuentas-list"
+          value={cuentaSearch}
+          onChange={(e) => setCuentaSearch(e.target.value)}
+          placeholder="Buscar cuenta…"
+          className={
+            "ml-auto bg-black border px-2 py-1 text-[11px] font-mono outline-none w-[200px] " +
+            (cuentaExacta ? "border-[#ff9900] text-[#ff9900]" : "border-[#333] text-[#d0d0d0]")
+          }
+          title="Escribí parte del nombre de cuenta. Las sugerencias filtran live; al elegir una, todos los paneles muestran solo esa cuenta."
+        />
+        <datalist id="negocio-cuentas-list">
+          {cuentasList.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+        {cuentaSearch && (
+          <button
+            onClick={() => setCuentaSearch("")}
+            className="text-[10px] text-[#888] hover:text-[#ff9900]"
+            title="Limpiar búsqueda de cuenta"
+          >×</button>
+        )}
+
         {/* Filtro de tipo de cuenta — mirror del de cashflow-view */}
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as CuentaFilter)}
-          className="ml-auto bg-black border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider text-[#d0d0d0] outline-none hover:text-[#ff9900]"
-          title="Filtrar por tipo de cuenta"
+          disabled={!!cuentaExacta}
+          className={
+            "bg-black border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider outline-none " +
+            (cuentaExacta
+              ? "text-[#444] cursor-not-allowed"
+              : "text-[#d0d0d0] hover:text-[#ff9900]")
+          }
+          title={cuentaExacta
+            ? "Deshabilitado: hay una cuenta específica seleccionada"
+            : "Filtrar por tipo de cuenta"}
         >
           {(Object.keys(FILTRO_LABEL) as CuentaFilter[]).map((k) => (
             <option key={k} value={k}>
@@ -652,7 +767,10 @@ export function NegocioView() {
                           isAnimationActive={false}
                         >
                           {chartData.map((d, i) => {
-                            const sel = focoDia && fecha ? bucketKey(fecha, agg) : null;
+                            // En modo TODOS no hay día foco; en DIA respetamos focoDia.
+                            const sel = vistaMode === "DIA" && focoDia && fecha
+                              ? bucketKey(fecha, agg)
+                              : null;
                             const selInData = !!sel && chartData.some((x) => x.fecha === sel);
                             const muted = selInData && d.fecha !== sel;
                             return (
@@ -684,10 +802,12 @@ export function NegocioView() {
             <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden shrink-0 order-1">
               <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
                 <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-                  Por categoría · {fecha ? fmtFechaCorta(fecha) : "—"}
+                  Por categoría · {vistaMode === "DIA"
+                    ? (fecha ? fmtFechaCorta(fecha) : "—")
+                    : "Período"}
                 </span>
                 <span className="ml-auto text-[10px] text-[#888] font-mono">
-                  Total {fmtCompact(totalDia)} {moneda}
+                  Total {fmtCompact(totalActual)} {moneda}
                 </span>
               </div>
               <table className="w-full text-[11px] font-mono tabular-nums">
@@ -700,8 +820,8 @@ export function NegocioView() {
                 </thead>
                 <tbody>
                   {NEGOCIO_CATS.map((cat) => {
-                    const v = totalesHoy[cat];
-                    const pct = totalDia > 0 ? (v / totalDia) * 100 : 0;
+                    const v = totalesActuales[cat];
+                    const pct = totalActual > 0 ? (v / totalActual) * 100 : 0;
                     const active = catSel === cat;
                     return (
                       <tr
@@ -734,37 +854,20 @@ export function NegocioView() {
             </div>
           </div>
 
-          {/* COLUMNA DERECHA · DETALLE (DIA o PERIODO según toggle) */}
+          {/* COLUMNA DERECHA · DETALLE (scope global vía vistaMode) */}
           <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-                Detalle {detalleMode === "DIA" ? "día" : "período"}
+                Detalle {vistaMode === "DIA" ? "día" : "período"}
                 {catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
               </span>
               {catSel && detalleDesde && detalleHasta && (
                 <span className="text-[9px] text-[#555] font-mono">
-                  {detalleMode === "DIA"
+                  {vistaMode === "DIA"
                     ? fmtFechaCorta(detalleDesde)
                     : `${fmtFechaCorta(detalleDesde)} → ${fmtFechaCorta(detalleHasta)}`}
                 </span>
               )}
-              {/* Toggle DIA / PERIODO */}
-              <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
-                {(["DIA", "PERIODO"] as DetalleMode[]).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setDetalleMode(m)}
-                    className={
-                      "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (detalleMode === m
-                        ? "bg-[#ff9900] text-black"
-                        : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
-                    }
-                  >
-                    {m === "DIA" ? "Día" : "Período"}
-                  </button>
-                ))}
-              </div>
               {catSel && (
                 <>
                   <span className="ml-auto text-[10px] text-[#888] font-mono">
@@ -791,7 +894,7 @@ export function NegocioView() {
               ) : cuentasDetalle.length === 0 && !loadingCuentas ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
                   Sin boletos en {CAT_LABEL[catSel]} para{" "}
-                  {detalleMode === "DIA" ? "el día" : "el período"} · {moneda}.
+                  {vistaMode === "DIA" ? "el día" : "el período"} · {moneda}.
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
