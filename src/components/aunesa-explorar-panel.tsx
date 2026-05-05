@@ -2,6 +2,15 @@
 
 import { useState, useMemo } from "react";
 
+interface Parsed {
+  op: string;
+  ticker: string;
+  cantidad: number;
+  precio: number;
+  moneda: string;
+  plazo: string;
+}
+
 interface Movimiento {
   comprobante?: string;
   informacion?: string;
@@ -13,32 +22,87 @@ interface Movimiento {
   lugar?: string;
   uso?: string;
   _capturado: boolean;
+  _categoria: string;
+  _parsed: Parsed | null;
+  _total_cliente: number | null;
   [k: string]: unknown;
 }
 
-interface TipoStat {
-  informacion: string;
-  count: number;
+interface Boleto {
+  comprobante: string | null;
+  cuenta: string | null;
+  fecha: string | null;
+  informacion: string | null;
+  categoria: string;
   capturado: boolean;
+  op: string | null;
+  ticker: string | null;
+  cantidad: number | null;
+  precio: number | null;
+  importe: number | null;
+  moneda: string | null;
+  plazo: string | null;
+  lugar: string | null;
+  estado: string | null;
+  n_lineas: number;
+  lineas: Movimiento[];
 }
 
 interface ExplorarResp {
   meta: {
     fecha: string;
     tiposCuenta: string;
+    raw_total: number;
+    excluidos: number;
     total: number;
     capturados: number;
     descartados: number;
     pct_capturados: number;
     pct_descartados: number;
+    n_boletos: number;
     palabras_clave_actuales: string[];
+    excluir_substrings: string[];
   };
-  tipos: TipoStat[];
+  tipos: { informacion: string; count: number; capturado: boolean }[];
+  categorias: { categoria: string; count: number }[];
   movimientos: Movimiento[];
-  keys_universo: string[];
+  boletos: Boleto[];
 }
 
-type FilterKind = "all" | "capturados" | "descartados";
+type Vista = "consolidado" | "raw";
+type CapFilter = "all" | "capturados" | "descartados";
+
+const CATEGORIA_COLOR: Record<string, string> = {
+  compra:                 "#3fbf6f",
+  venta:                  "#ff5d6c",
+  suscripcion_fci:        "#3fbf6f",
+  rescate_fci:            "#ff5d6c",
+  solicitud_suscripcion_fci: "#3fbf6f",
+  solicitud_rescate_fci:  "#ff5d6c",
+  acreencia:              "#9bd2ff",
+  deposito:               "#ffd56b",
+  extraccion:             "#ffa552",
+  transferencia:          "#c19fff",
+  comision:               "#888",
+  impuesto:               "#888",
+  otro:                   "#666",
+};
+
+const CATEGORIA_LABEL: Record<string, string> = {
+  compra:                 "Compra",
+  venta:                  "Venta",
+  suscripcion_fci:        "Susc FCI",
+  rescate_fci:            "Resc FCI",
+  solicitud_suscripcion_fci: "Sol Susc FCI",
+  solicitud_rescate_fci:  "Sol Resc FCI",
+  acreencia:              "Acreencia",
+  deposito:               "Depósito",
+  extraccion:             "Extracción",
+  transferencia:          "Transfer",
+  comision:               "Comisión",
+  impuesto:               "Impuesto",
+  otro:                   "Otro",
+};
 
 function todayART(): string {
   const now = new Date();
@@ -47,15 +111,21 @@ function todayART(): string {
   return ar.toISOString().slice(0, 10);
 }
 
+const fmtNum = (n: number | null | undefined, dec = 2): string => {
+  if (n == null || Number.isNaN(n)) return "—";
+  return n.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+};
+
 export function AunesaExplorarPanel() {
   const [fecha, setFecha] = useState<string>(todayART());
   const [data, setData] = useState<ExplorarResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [filter, setFilter] = useState<FilterKind>("all");
+  const [vista, setVista] = useState<Vista>("consolidado");
+  const [capFilter, setCapFilter] = useState<CapFilter>("all");
   const [search, setSearch] = useState("");
-  const [tipoFiltro, setTipoFiltro] = useState<string>("");
+  const [catFilter, setCatFilter] = useState<string>("");
   const [openId, setOpenId] = useState<string | null>(null);
 
   const explorar = async () => {
@@ -80,12 +150,29 @@ export function AunesaExplorarPanel() {
     }
   };
 
-  const filtered: Movimiento[] = useMemo(() => {
+  const filteredBoletos = useMemo<Boleto[]>(() => {
+    if (!data) return [];
+    let out = data.boletos;
+    if (capFilter === "capturados") out = out.filter((b) => b.capturado);
+    if (capFilter === "descartados") out = out.filter((b) => !b.capturado);
+    if (catFilter) out = out.filter((b) => b.categoria === catFilter);
+    if (search) {
+      const q = search.toLowerCase();
+      out = out.filter((b) =>
+        [b.comprobante, b.cuenta, b.informacion, b.ticker]
+          .map((v) => String(v ?? "").toLowerCase())
+          .some((s) => s.includes(q)),
+      );
+    }
+    return out;
+  }, [data, capFilter, catFilter, search]);
+
+  const filteredMovs = useMemo<Movimiento[]>(() => {
     if (!data) return [];
     let out = data.movimientos;
-    if (filter === "capturados") out = out.filter((m) => m._capturado);
-    if (filter === "descartados") out = out.filter((m) => !m._capturado);
-    if (tipoFiltro) out = out.filter((m) => m.informacion === tipoFiltro);
+    if (capFilter === "capturados") out = out.filter((m) => m._capturado);
+    if (capFilter === "descartados") out = out.filter((m) => !m._capturado);
+    if (catFilter) out = out.filter((m) => m._categoria === catFilter);
     if (search) {
       const q = search.toLowerCase();
       out = out.filter((m) =>
@@ -93,11 +180,11 @@ export function AunesaExplorarPanel() {
       );
     }
     return out;
-  }, [data, filter, tipoFiltro, search]);
+  }, [data, capFilter, catFilter, search]);
 
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a] text-[#d0d0d0]">
-      {/* ── HEADER (fila única: fecha + botón + stats inline) ── */}
+      {/* HEADER */}
       <div className="flex flex-wrap items-center gap-3 border-b border-[#1a1a1a] px-3 py-2 shrink-0 bg-[#080808]">
         <input
           type="date"
@@ -115,8 +202,9 @@ export function AunesaExplorarPanel() {
 
         {data && (
           <>
-            <Pipe />
+            <span className="text-[#333]">│</span>
             <Inline label="Total" value={data.meta.total} />
+            <Inline label="Boletos" value={data.meta.n_boletos} />
             <Inline
               label="Capt"
               value={`${data.meta.capturados} (${data.meta.pct_capturados}%)`}
@@ -127,16 +215,27 @@ export function AunesaExplorarPanel() {
               value={`${data.meta.descartados} (${data.meta.pct_descartados}%)`}
               color="#ff9900"
             />
-            <Inline label="Tipos" value={data.tipos.length} />
-            <Pipe />
-            <span className="text-[9px] text-[#666]">filtros actuales:</span>
-            {data.meta.palabras_clave_actuales.map((p) => (
-              <code key={p} className="text-[9px] bg-black px-1 text-[#ff9900]">
-                {p}
-              </code>
-            ))}
+            <span className="text-[#333]">│</span>
+            <Inline label="Excluidos OTC" value={data.meta.excluidos} color="#666" />
           </>
         )}
+
+        <span className="ml-auto inline-flex border border-[#333] divide-x divide-[#333]">
+          {(["consolidado", "raw"] as Vista[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => { setVista(v); setOpenId(null); }}
+              className={
+                "px-3 py-0.5 text-[10px] uppercase tracking-wider " +
+                (vista === v
+                  ? "bg-[#ff9900] text-black"
+                  : "bg-[#0f0f0f] text-[#888] hover:text-[#ddd]")
+              }
+            >
+              {v}
+            </button>
+          ))}
+        </span>
       </div>
 
       {error && (
@@ -152,71 +251,57 @@ export function AunesaExplorarPanel() {
       )}
 
       {data && (
-        <div className="flex-1 grid grid-cols-[280px_1fr] min-h-0">
-          {/* ── SIDEBAR — distribución por tipo clickable ── */}
+        <div className="flex-1 grid grid-cols-[260px_1fr] min-h-0">
+          {/* SIDEBAR — categorías */}
           <div className="border-r border-[#1a1a1a] flex flex-col min-h-0">
             <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#666] border-b border-[#1a1a1a] flex items-center justify-between">
-              <span>Tipos ({data.tipos.length})</span>
-              {tipoFiltro && (
+              <span>Categorías ({data.categorias.length})</span>
+              {catFilter && (
                 <button
-                  onClick={() => setTipoFiltro("")}
+                  onClick={() => setCatFilter("")}
                   className="text-[#888] hover:text-[#ff9900]"
-                  title="Limpiar filtro"
                 >
                   × clear
                 </button>
               )}
             </div>
             <div className="flex-1 overflow-auto">
-              {data.tipos.map((t) => {
-                const active = tipoFiltro === t.informacion;
+              {data.categorias.map((c) => {
+                const active = catFilter === c.categoria;
+                const color = CATEGORIA_COLOR[c.categoria] ?? "#666";
+                const label = CATEGORIA_LABEL[c.categoria] ?? c.categoria;
                 return (
                   <button
-                    key={t.informacion}
-                    onClick={() => setTipoFiltro(active ? "" : t.informacion)}
+                    key={c.categoria}
+                    onClick={() => setCatFilter(active ? "" : c.categoria)}
                     className={
-                      "w-full flex items-baseline gap-1.5 px-2 py-1 text-left text-[10px] font-mono leading-tight " +
+                      "w-full flex items-center gap-2 px-3 py-1 text-left text-[11px] font-mono " +
                       (active
                         ? "bg-[#1a1a1a] border-l-2 border-[#ff9900]"
                         : "hover:bg-[#0f0f0f] border-l-2 border-transparent")
                     }
                   >
-                    <span
-                      className={
-                        "w-3 text-center shrink-0 " +
-                        (t.capturado ? "text-[#3fbf6f]" : "text-[#aa6666]")
-                      }
-                    >
-                      {t.capturado ? "✓" : "✗"}
-                    </span>
-                    <span className="w-10 text-right shrink-0 text-[#d0d0d0]">{t.count}</span>
-                    <span
-                      className={
-                        "flex-1 truncate " +
-                        (t.capturado ? "text-[#d0d0d0]" : "text-[#aa6666]")
-                      }
-                      title={t.informacion}
-                    >
-                      {t.informacion}
-                    </span>
+                    <span className="w-2 h-2 inline-block" style={{ background: color }} />
+                    <span className="w-10 text-right text-[#d0d0d0]">{c.count}</span>
+                    <span className="text-[#d0d0d0] flex-1">{label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* ── MAIN — filtros + tabla ── */}
+          {/* MAIN */}
           <div className="flex flex-col min-h-0">
             {/* Filtros */}
             <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] shrink-0">
               <div className="flex items-center gap-0.5">
-                {(["all", "capturados", "descartados"] as FilterKind[]).map((f) => (
+                {(["all", "capturados", "descartados"] as CapFilter[]).map((f) => (
                   <button
                     key={f}
-                    onClick={() => setFilter(f)}
+                    onClick={() => setCapFilter(f)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (filter === f
+                      (capFilter === f
                         ? "bg-[#ff9900] text-black"
                         : "bg-[#0f0f0f] text-[#888] hover:text-[#ddd]")
                     }
@@ -229,47 +314,29 @@ export function AunesaExplorarPanel() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="buscar (cualquier campo)…"
-                className="flex-1 min-w-[180px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
+                placeholder="buscar…"
+                className="flex-1 min-w-[150px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
               />
               <span className="text-[9px] text-[#888]">
-                {filtered.length} / {data.movimientos.length}
+                {vista === "consolidado"
+                  ? `${filteredBoletos.length} / ${data.boletos.length} boletos`
+                  : `${filteredMovs.length} / ${data.movimientos.length} mov`}
               </span>
             </div>
 
-            {/* Tabla con scroll interno */}
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666] z-10">
-                  <tr>
-                    <th className="px-2 py-1 text-center w-6"></th>
-                    <th className="px-2 py-1 text-left">Comprobante</th>
-                    <th className="px-2 py-1 text-left">Información</th>
-                    <th className="px-2 py-1 text-left">Cuenta</th>
-                    <th className="px-2 py-1 text-right">Total</th>
-                    <th className="px-2 py-1 text-left">Unidad</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((m, i) => {
-                    const id = `${m.comprobante ?? "?"}-${i}`;
-                    const isOpen = openId === id;
-                    return (
-                      <FragRow
-                        key={id}
-                        id={id}
-                        m={m}
-                        open={isOpen}
-                        onToggle={() => setOpenId(isOpen ? null : id)}
-                      />
-                    );
-                  })}
-                </tbody>
-              </table>
-              {filtered.length === 0 && (
-                <div className="p-6 text-center text-[11px] text-[#666]">
-                  Sin movimientos para los filtros aplicados.
-                </div>
+              {vista === "consolidado" ? (
+                <BoletoTable
+                  boletos={filteredBoletos}
+                  openId={openId}
+                  onToggle={setOpenId}
+                />
+              ) : (
+                <RawTable
+                  movs={filteredMovs}
+                  openId={openId}
+                  onToggle={setOpenId}
+                />
               )}
             </div>
           </div>
@@ -279,50 +346,226 @@ export function AunesaExplorarPanel() {
   );
 }
 
-function FragRow({
-  id,
-  m,
-  open,
-  onToggle,
+// ── Tabla CONSOLIDADO (1 fila por boleto) ──────────────────────────────────
+
+function BoletoTable({
+  boletos, openId, onToggle,
+}: {
+  boletos: Boleto[];
+  openId: string | null;
+  onToggle: (id: string | null) => void;
+}) {
+  return (
+    <table className="w-full text-[11px] font-mono tabular-nums">
+      <thead className="sticky top-0 bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666] z-10">
+        <tr>
+          <th className="px-2 py-1 text-left w-24">Categoría</th>
+          <th className="px-2 py-1 text-left">Comprobante</th>
+          <th className="px-2 py-1 text-left">Cuenta</th>
+          <th className="px-2 py-1 text-left">Op</th>
+          <th className="px-2 py-1 text-left">Ticker</th>
+          <th className="px-2 py-1 text-right">Cantidad</th>
+          <th className="px-2 py-1 text-right">Precio</th>
+          <th className="px-2 py-1 text-right">Importe</th>
+          <th className="px-2 py-1 text-left">Moneda</th>
+          <th className="px-2 py-1 text-left">Plazo</th>
+          <th className="px-2 py-1 text-left">Lugar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {boletos.map((b, i) => {
+          const id = `${b.comprobante ?? "X"}-${i}`;
+          const open = openId === id;
+          const color = CATEGORIA_COLOR[b.categoria] ?? "#666";
+          const label = CATEGORIA_LABEL[b.categoria] ?? b.categoria;
+          return (
+            <FragBoleto
+              key={id}
+              id={id}
+              b={b}
+              color={color}
+              label={label}
+              open={open}
+              onToggle={() => onToggle(open ? null : id)}
+            />
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function FragBoleto({
+  id, b, color, label, open, onToggle,
 }: {
   id: string;
-  m: Movimiento;
+  b: Boleto;
+  color: string;
+  label: string;
   open: boolean;
   onToggle: () => void;
 }) {
-  const cap = m._capturado;
+  const cantClr = (b.cantidad ?? 0) > 0 ? "text-[#3fbf6f]" : (b.cantidad ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
+  const impClr  = (b.importe ?? 0) > 0 ? "text-[#3fbf6f]" : (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
   return (
     <>
       <tr
         onClick={onToggle}
-        className={
-          "border-t border-[#1a1a1a] cursor-pointer hover:bg-[#0f0f0f] " +
-          (cap ? "" : "bg-[#1a0e08]/30")
-        }
+        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[#0f0f0f]"
       >
-        <td className={"px-2 py-1 text-center " + (cap ? "text-[#3fbf6f]" : "text-[#aa6666]")}>
-          {cap ? "✓" : "✗"}
+        <td className="px-2 py-1">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 inline-block" style={{ background: color }} />
+            <span style={{ color }}>{label}</span>
+          </span>
         </td>
-        <td className="px-2 py-1 text-[#888]">{m.comprobante ?? "—"}</td>
-        <td className={cap ? "px-2 py-1 text-[#d0d0d0]" : "px-2 py-1 text-[#aa6666]"}>
-          {m.informacion ?? "—"}
+        <td className="px-2 py-1 text-[#888]">{b.comprobante ?? "—"}</td>
+        <td className="px-2 py-1 text-[#888] truncate max-w-[180px]" title={b.cuenta ?? ""}>
+          {b.cuenta ?? "—"}
         </td>
-        <td className="px-2 py-1 text-[#888] truncate max-w-[180px]">{m.cuenta ?? "—"}</td>
-        <td className="px-2 py-1 text-right">{fmtTotal(m.total)}</td>
-        <td className="px-2 py-1 text-[#888] truncate max-w-[200px]">{m.unidad ?? "—"}</td>
+        <td className="px-2 py-1 text-[#d0d0d0]">{b.op ?? "—"}</td>
+        <td className="px-2 py-1 text-[#ff9900]">{b.ticker ?? "—"}</td>
+        <td className={`px-2 py-1 text-right ${cantClr}`}>{fmtNum(b.cantidad, 2)}</td>
+        <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(b.precio, 2)}</td>
+        <td className={`px-2 py-1 text-right ${impClr}`}>{fmtNum(b.importe, 2)}</td>
+        <td className="px-2 py-1 text-[#888]">{b.moneda ?? "—"}</td>
+        <td className="px-2 py-1 text-[#888]">{b.plazo ?? "—"}</td>
+        <td className="px-2 py-1 text-[#888]">{b.lugar ?? "—"}</td>
       </tr>
       {open && (
-        <tr className="bg-[#080808]" key={`${id}-ex`}>
-          <td colSpan={6} className="px-4 py-2">
+        <tr className="bg-[#080808]">
+          <td colSpan={11} className="px-4 py-3">
+            <div className="text-[10px] text-[#666] mb-2">
+              <strong className="text-[#ff9900]">{b.informacion}</strong> · {b.n_lineas} líneas raw
+            </div>
+            <table className="w-full text-[10px] font-mono">
+              <thead className="text-[9px] uppercase text-[#666]">
+                <tr>
+                  <th className="px-2 py-0.5 text-left">unidad</th>
+                  <th className="px-2 py-0.5 text-right">total raw</th>
+                  <th className="px-2 py-0.5 text-right">total cliente</th>
+                  <th className="px-2 py-0.5 text-left">uso</th>
+                  <th className="px-2 py-0.5 text-left">lugar</th>
+                  <th className="px-2 py-0.5 text-left">estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {b.lineas.map((l, i) => (
+                  <tr key={i} className="border-b border-[#111]">
+                    <td className="px-2 py-0.5 text-[#d0d0d0] truncate max-w-[300px]" title={String(l.unidad)}>{String(l.unidad)}</td>
+                    <td className="px-2 py-0.5 text-right text-[#888]">{fmtNum(l.total, 2)}</td>
+                    <td className="px-2 py-0.5 text-right text-[#d0d0d0]">{fmtNum(l._total_cliente, 2)}</td>
+                    <td className="px-2 py-0.5 text-[#888]">{String(l.uso ?? "")}</td>
+                    <td className="px-2 py-0.5 text-[#888]">{String(l.lugar ?? "")}</td>
+                    <td className="px-2 py-0.5 text-[#888]">{String(l.estado ?? "")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ── Tabla RAW (1 fila por movimiento) ──────────────────────────────────────
+
+function RawTable({
+  movs, openId, onToggle,
+}: {
+  movs: Movimiento[];
+  openId: string | null;
+  onToggle: (id: string | null) => void;
+}) {
+  return (
+    <table className="w-full text-[11px] font-mono tabular-nums">
+      <thead className="sticky top-0 bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666] z-10">
+        <tr>
+          <th className="px-2 py-1 text-left w-24">Categoría</th>
+          <th className="px-2 py-1 text-left">Comprobante</th>
+          <th className="px-2 py-1 text-left">Información</th>
+          <th className="px-2 py-1 text-left">Cuenta</th>
+          <th className="px-2 py-1 text-right">Total raw</th>
+          <th className="px-2 py-1 text-right">Cliente</th>
+          <th className="px-2 py-1 text-left">Unidad</th>
+          <th className="px-2 py-1 text-left">Uso</th>
+        </tr>
+      </thead>
+      <tbody>
+        {movs.map((m, i) => {
+          const id = `${m.comprobante ?? "X"}-${i}`;
+          const open = openId === id;
+          const color = CATEGORIA_COLOR[m._categoria] ?? "#666";
+          const label = CATEGORIA_LABEL[m._categoria] ?? m._categoria;
+          return (
+            <FragMov
+              key={id}
+              id={id}
+              m={m}
+              color={color}
+              label={label}
+              open={open}
+              onToggle={() => onToggle(open ? null : id)}
+            />
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function FragMov({
+  id, m, color, label, open, onToggle,
+}: {
+  id: string;
+  m: Movimiento;
+  color: string;
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const tcClr = (m._total_cliente ?? 0) > 0 ? "text-[#3fbf6f]" : (m._total_cliente ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[#0f0f0f]"
+      >
+        <td className="px-2 py-1">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 inline-block" style={{ background: color }} />
+            <span style={{ color }}>{label}</span>
+          </span>
+        </td>
+        <td className="px-2 py-1 text-[#888]">{m.comprobante ?? "—"}</td>
+        <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[400px]" title={m.informacion ?? ""}>
+          {m.informacion ?? "—"}
+        </td>
+        <td className="px-2 py-1 text-[#888] truncate max-w-[180px]" title={m.cuenta ?? ""}>
+          {m.cuenta ?? "—"}
+        </td>
+        <td className="px-2 py-1 text-right text-[#888]">{fmtNum(m.total, 2)}</td>
+        <td className={`px-2 py-1 text-right ${tcClr}`}>{fmtNum(m._total_cliente, 2)}</td>
+        <td className="px-2 py-1 text-[#888] truncate max-w-[200px]" title={m.unidad ?? ""}>
+          {m.unidad ?? "—"}
+        </td>
+        <td className="px-2 py-1 text-[#888]">{m.uso ?? "—"}</td>
+      </tr>
+      {open && (
+        <tr className="bg-[#080808]">
+          <td colSpan={8} className="px-4 py-3">
             <table className="w-full text-[10px] font-mono">
               <tbody>
                 {Object.entries(m)
-                  .filter(([k]) => k !== "_capturado")
+                  .filter(([k]) => !k.startsWith("_") || k === "_categoria" || k === "_total_cliente" || k === "_capturado" || k === "_parsed")
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([k, v]) => (
                     <tr key={k} className="border-b border-[#111]">
                       <td className="px-2 py-0.5 text-[#666] w-40">{k}</td>
-                      <td className="px-2 py-0.5 text-[#d0d0d0]">{String(v ?? "")}</td>
+                      <td className="px-2 py-0.5 text-[#d0d0d0]">
+                        {typeof v === "object" ? JSON.stringify(v) : String(v ?? "")}
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -334,22 +577,10 @@ function FragRow({
   );
 }
 
-function fmtTotal(v: unknown): string {
-  if (v == null || v === "") return "—";
-  if (typeof v === "number") {
-    return v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-  return String(v);
-}
-
 function Inline({
-  label,
-  value,
-  color = "#d0d0d0",
+  label, value, color = "#d0d0d0",
 }: {
-  label: string;
-  value: string | number;
-  color?: string;
+  label: string; value: string | number; color?: string;
 }) {
   return (
     <span className="text-[10px]">
@@ -357,8 +588,4 @@ function Inline({
       <span style={{ color }} className="font-mono">{value}</span>
     </span>
   );
-}
-
-function Pipe() {
-  return <span className="text-[#333]">│</span>;
 }
