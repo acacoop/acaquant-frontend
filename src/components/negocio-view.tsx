@@ -46,9 +46,9 @@ interface SeriePoint {
   fecha: string;
   compra: number;
   venta: number;
-  susc_fci: number;
-  sol_susc_fci: number;
-  cauc_tom_ap: number;
+  suscripciones: number;
+  cauc_tom: number;
+  cauc_col: number;
 }
 
 type Moneda = "ARS" | "USD";
@@ -60,35 +60,37 @@ type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
 const NEGOCIO_CATS = [
   "compra",
   "venta",
-  "susc_fci",
-  "sol_susc_fci",
-  "cauc_tom_ap",
+  "suscripciones",
+  "cauc_tom",
+  "cauc_col",
 ] as const;
 type NegocioCat = (typeof NEGOCIO_CATS)[number];
 
-// Mapeo entre las claves del chart (cortas) y la categoría persistida en el boleto.
-const CAT_BOLETO_KEY: Record<NegocioCat, string> = {
-  compra:       "compra",
-  venta:        "venta",
-  susc_fci:     "suscripcion_fci",
-  sol_susc_fci: "solicitud_suscripcion_fci",
-  cauc_tom_ap:  "caucion_tom_ap",
+// Mapeo de cada categoría UI a UNA O MÁS categorías persistidas en el
+// boleto. "suscripciones" agrupa susc + sol_susc (intención: dimensionar
+// flujos a FCI super sin importar si están en estado solicitud o ejecutado).
+const CAT_BOLETO_KEYS: Record<NegocioCat, readonly string[]> = {
+  compra:        ["compra"],
+  venta:         ["venta"],
+  suscripciones: ["suscripcion_fci", "solicitud_suscripcion_fci"],
+  cauc_tom:      ["caucion_tom_ap"],
+  cauc_col:      ["caucion_col_ap"],
 };
 
 const CAT_COLOR: Record<NegocioCat, string> = {
-  compra:       "#3fbf6f",
-  venta:        "#ff5d6c",
-  susc_fci:     "#94e7b3",
-  sol_susc_fci: "#5fc4f0",
-  cauc_tom_ap:  "#5fd0d0",
+  compra:        "#3fbf6f",
+  venta:         "#ff5d6c",
+  suscripciones: "#94e7b3",
+  cauc_tom:      "#d09060",  // tomadora — naranja apagado (financia)
+  cauc_col:      "#5fd0d0",  // colocadora — teal (presta/coloca cash)
 };
 
 const CAT_LABEL: Record<NegocioCat, string> = {
-  compra:       "Compras",
-  venta:        "Ventas",
-  susc_fci:     "Susc FCI",
-  sol_susc_fci: "Sol Susc FCI",
-  cauc_tom_ap:  "Cauc Tom Apert",
+  compra:        "Compras",
+  venta:         "Ventas",
+  suscripciones: "Suscripciones",
+  cauc_tom:      "Cauciones Tomadoras",
+  cauc_col:      "Cauciones Colocadoras",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -165,17 +167,17 @@ function aggregateSerie(serie: SeriePoint[], agg: AggKey): SeriePoint[] {
     if (cur) {
       cur.compra += p.compra;
       cur.venta += p.venta;
-      cur.susc_fci += p.susc_fci;
-      cur.sol_susc_fci += p.sol_susc_fci;
-      cur.cauc_tom_ap += p.cauc_tom_ap;
+      cur.suscripciones += p.suscripciones;
+      cur.cauc_tom += p.cauc_tom;
+      cur.cauc_col += p.cauc_col;
     } else {
       m.set(k, {
         fecha: k,
         compra: p.compra,
         venta: p.venta,
-        susc_fci: p.susc_fci,
-        sol_susc_fci: p.sol_susc_fci,
-        cauc_tom_ap: p.cauc_tom_ap,
+        suscripciones: p.suscripciones,
+        cauc_tom: p.cauc_tom,
+        cauc_col: p.cauc_col,
       });
     }
   }
@@ -295,16 +297,16 @@ export function NegocioView() {
   // Totales del DÍA seleccionado (no del rango ni del bucket).
   const totalesHoy = useMemo<Record<NegocioCat, number>>(() => {
     const empty: Record<NegocioCat, number> = {
-      compra: 0, venta: 0, susc_fci: 0, sol_susc_fci: 0, cauc_tom_ap: 0,
+      compra: 0, venta: 0, suscripciones: 0, cauc_tom: 0, cauc_col: 0,
     };
     const row = serie.find((s) => s.fecha === fecha);
     if (!row) return empty;
     return {
-      compra:       row.compra,
-      venta:        row.venta,
-      susc_fci:     row.susc_fci,
-      sol_susc_fci: row.sol_susc_fci,
-      cauc_tom_ap:  row.cauc_tom_ap,
+      compra:        row.compra,
+      venta:         row.venta,
+      suscripciones: row.suscripciones,
+      cauc_tom:      row.cauc_tom,
+      cauc_col:      row.cauc_col,
     };
   }, [serie, fecha]);
 
@@ -320,13 +322,15 @@ export function NegocioView() {
 
   // Drill-down: cuentas de la categoría seleccionada para el día y moneda
   // actuales. Sumar |importe| por cuenta, ordenar desc (mayor → menor).
+  // Una categoría UI puede mapear a múltiples categorías de boleto (ej.
+  // suscripciones = susc_fci + solicitud_suscripcion_fci).
   const cuentasDetalle = useMemo<{ cuenta: string; importe_abs: number; n: number }[]>(() => {
     if (!data || !catSel) return [];
-    const targetCat = CAT_BOLETO_KEY[catSel];
+    const targetCats = new Set<string>(CAT_BOLETO_KEYS[catSel]);
     const m = new Map<string, { importe_abs: number; n: number }>();
     for (const b of data.boletos) {
       if ((b.moneda ?? "ARS") !== moneda) continue;
-      if (b.categoria !== targetCat) continue;
+      if (!targetCats.has(b.categoria)) continue;
       const cuenta = b.cuenta ?? "(sin cuenta)";
       const cur = m.get(cuenta) ?? { importe_abs: 0, n: 0 };
       cur.importe_abs += Math.abs(b.importe ?? 0);
