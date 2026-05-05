@@ -219,6 +219,10 @@ export function NegocioView() {
   const [catSel, setCatSel] = useState<NegocioCat | null>(null);
   const [filtroCta, setFiltroCta] = useState<CuentaFilter>("todas");
   const [detalleMode, setDetalleMode] = useState<DetalleMode>("PERIODO");
+  // Foco día: cuando está ON (default), muteamos las barras que no
+  // pertenecen al bucket de la fecha seleccionada. Apagarlo deja todas las
+  // barras en su color de categoría — útil para printing/reports.
+  const [focoDia, setFocoDia] = useState<boolean>(true);
   const [cuentasPeriodo, setCuentasPeriodo] = useState<{ cuenta: string; importe_abs: number; n: number }[]>([]);
   const [loadingCuentas, setLoadingCuentas] = useState(false);
 
@@ -582,6 +586,22 @@ export function NegocioView() {
                     </button>
                   ))}
                 </div>
+                {/* Foco día: ON = highlight selected day, OFF = todas las
+                    barras en color (modo report/print). */}
+                <button
+                  onClick={() => setFocoDia((v) => !v)}
+                  className={
+                    "px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[#333] " +
+                    (focoDia
+                      ? "bg-[#ff9900] text-black"
+                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                  }
+                  title={focoDia
+                    ? "Foco día activo: el día elegido resalta. Apagá para imprimir / report."
+                    : "Foco día apagado: todas las barras en color (modo report)."}
+                >
+                  Foco día {focoDia ? "✓" : "○"}
+                </button>
               </div>
 
               <div className="flex-1 min-h-0 p-2">
@@ -637,11 +657,10 @@ export function NegocioView() {
                           CAT_LABEL[name as NegocioCat] ?? String(name),
                         ]}
                       />
-                      {/* Stacked bars con muting: bucket que contiene la
-                          fecha seleccionada se pinta con su color de categoría;
-                          el resto se muestra muteado (gris) para que el día
-                          elegido resalte. Si la fecha cae fuera del rango visible
-                          se desactiva el muteo (todos en color normal). */}
+                      {/* Stacked bars: si focoDia=ON el bucket que contiene
+                          la fecha seleccionada conserva su color de categoría
+                          y el resto va a gris muted (#222). Si focoDia=OFF
+                          (modo report/print) todas las barras en color normal. */}
                       {NEGOCIO_CATS.map((cat) => (
                         <Bar
                           key={cat}
@@ -650,7 +669,7 @@ export function NegocioView() {
                           isAnimationActive={false}
                         >
                           {chartData.map((d, i) => {
-                            const sel = fecha ? bucketKey(fecha, agg) : null;
+                            const sel = focoDia && fecha ? bucketKey(fecha, agg) : null;
                             const selInData = !!sel && chartData.some((x) => x.fecha === sel);
                             const muted = selInData && d.fecha !== sel;
                             return (
