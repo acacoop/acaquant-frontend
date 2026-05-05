@@ -54,6 +54,24 @@ interface SeriePoint {
 type Moneda = "ARS" | "USD";
 type RangoKey = "1W" | "1M" | "3M" | "ALL";
 type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
+type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
+
+interface Accionista {
+  cuenta: string;
+  nombre?: string;
+  grupo?: string;
+}
+
+// Mismo regex que cashflow-view.tsx para identificar cooperativas por
+// nombre (no hay un flag en la base — heurística aceptada por el equipo).
+const COOP_RE = /\bcoop/i;
+
+const FILTRO_LABEL: Record<CuentaFilter, string> = {
+  todas:           "Todas",
+  accionistas:     "Solo accionistas",
+  sin_accionistas: "Sin accionistas",
+  cooperativas:    "Solo cooperativas",
+};
 
 // ── Constantes ────────────────────────────────────────────────────────────
 
@@ -206,6 +224,8 @@ export function NegocioView() {
   const [rango, setRango] = useState<RangoKey>("ALL");
   const [agg, setAgg] = useState<AggKey>("DIARIO");
   const [catSel, setCatSel] = useState<NegocioCat | null>(null);
+  const [filtroCta, setFiltroCta] = useState<CuentaFilter>("todas");
+  const [accionistas, setAccionistas] = useState<Accionista[]>([]);
 
   // ── Fetch: lista de fechas con data ────────────────────────────────────
   useEffect(() => {
@@ -252,16 +272,14 @@ export function NegocioView() {
     if (fecha) void fetchData(fecha);
   }, [fecha]);
 
-  // ── Fetch: serie histórica (depende de la moneda) ──────────────────────
+  // ── Fetch: serie histórica (depende de moneda + filtro de cuenta) ──────
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingSerie(true);
       try {
-        const res = await fetch(
-          `/api/operaciones/negocio/serie?moneda=${moneda}`,
-          { cache: "no-store" },
-        );
+        const url = `/api/operaciones/negocio/serie?moneda=${moneda}&cuenta_filter=${filtroCta}`;
+        const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: { serie: SeriePoint[] } = await res.json();
         if (cancelled) return;
@@ -276,7 +294,30 @@ export function NegocioView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [moneda]);
+  }, [moneda, filtroCta]);
+
+  // ── Fetch: lista de accionistas (una sola vez, cacheado 1h en backend) ─
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/cuentas/accionistas", { cache: "no-store" });
+        if (!res.ok) return; // silencioso: el filtro de cuentas seguirá funcionando, solo no marca accionistas
+        const j: Accionista[] = await res.json();
+        if (cancelled) return;
+        setAccionistas(Array.isArray(j) ? j : []);
+      } catch {
+        // Sin error visible — los datos quedan sin map de accionistas y el filtro "todas" sigue OK.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Set de cuentas accionistas para lookup O(1) en el drill-down.
+  const accSet = useMemo(
+    () => new Set(accionistas.map((a) => a.cuenta).filter(Boolean)),
+    [accionistas],
+  );
 
   // ── Derivados ────────────────────────────────────────────────────────────
 
@@ -324,6 +365,8 @@ export function NegocioView() {
   // actuales. Sumar |importe| por cuenta, ordenar desc (mayor → menor).
   // Una categoría UI puede mapear a múltiples categorías de boleto (ej.
   // suscripciones = susc_fci + solicitud_suscripcion_fci).
+  // Aplica filtroCta (todas / accionistas / sin_accionistas / cooperativas)
+  // — mismo criterio que cashflow-view.tsx para consistencia.
   const cuentasDetalle = useMemo<{ cuenta: string; importe_abs: number; n: number }[]>(() => {
     if (!data || !catSel) return [];
     const targetCats = new Set<string>(CAT_BOLETO_KEYS[catSel]);
@@ -332,6 +375,13 @@ export function NegocioView() {
       if ((b.moneda ?? "ARS") !== moneda) continue;
       if (!targetCats.has(b.categoria)) continue;
       const cuenta = b.cuenta ?? "(sin cuenta)";
+      // Filtro por tipo de cuenta. "(sin cuenta)" cuenta como no-accionista
+      // y no-cooperativa.
+      const isAcc = accSet.has(cuenta);
+      const isCoop = !isAcc && COOP_RE.test(cuenta);
+      if (filtroCta === "accionistas" && !isAcc) continue;
+      if (filtroCta === "sin_accionistas" && isAcc) continue;
+      if (filtroCta === "cooperativas" && !isCoop) continue;
       const cur = m.get(cuenta) ?? { importe_abs: 0, n: 0 };
       cur.importe_abs += Math.abs(b.importe ?? 0);
       cur.n += 1;
@@ -340,7 +390,7 @@ export function NegocioView() {
     return [...m.entries()]
       .map(([cuenta, v]) => ({ cuenta, ...v }))
       .sort((a, b) => b.importe_abs - a.importe_abs);
-  }, [data, catSel, moneda]);
+  }, [data, catSel, moneda, filtroCta, accSet]);
 
   const totalCatSel = useMemo(
     () => cuentasDetalle.reduce((a, c) => a + c.importe_abs, 0),
@@ -425,7 +475,21 @@ export function NegocioView() {
           <span className="text-[10px] text-[#888]">cargando…</span>
         )}
 
-        <div className="ml-auto inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+        {/* Filtro de tipo de cuenta — mirror del de cashflow-view */}
+        <select
+          value={filtroCta}
+          onChange={(e) => setFiltroCta(e.target.value as CuentaFilter)}
+          className="ml-auto bg-black border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider text-[#d0d0d0] outline-none hover:text-[#ff9900]"
+          title="Filtrar por tipo de cuenta"
+        >
+          {(Object.keys(FILTRO_LABEL) as CuentaFilter[]).map((k) => (
+            <option key={k} value={k}>
+              {FILTRO_LABEL[k]}
+            </option>
+          ))}
+        </select>
+
+        <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
           {(["ARS", "USD"] as Moneda[]).map((m) => (
             <button
               key={m}
