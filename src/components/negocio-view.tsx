@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { Fragment, useState, useMemo, useEffect } from "react";
 import {
   Bar,
   BarChart,
@@ -230,6 +230,25 @@ export function NegocioView() {
   };
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
+  // Expand inline: en modo DIA, cuando user clickea una cuenta vemos
+  // los boletos individuales del día para esa cuenta. Caché por
+  // (cuenta, categoria, fecha) — al colapsar y re-expandir no refetch.
+  type BoletoRow = {
+    comprobante: string;
+    categoria: string;
+    op: string | null;
+    ticker: string | null;
+    cantidad: number | null;
+    precio: number | null;
+    importe: number | null;
+    plazo: string | null;
+    lugar: string | null;
+    estado: string | null;
+    informacion: string | null;
+  };
+  const [expandedCuenta, setExpandedCuenta] = useState<string | null>(null);
+  const [boletosCache, setBoletosCache] = useState<Record<string, BoletoRow[]>>({});
+  const [loadingBoletos, setLoadingBoletos] = useState(false);
 
   // ── Fetch: lista de fechas con data ────────────────────────────────────
   useEffect(() => {
@@ -484,6 +503,67 @@ export function NegocioView() {
     () => matrix.reduce((a, r) => a + r.total, 0),
     [matrix],
   );
+
+  // Tabla unificada: misma shape para default y single-cat. cuenta,
+  // importe (total o per-cat), n. La fuente difiere para mantener n
+  // fiel a la categoría seleccionada cuando aplica.
+  const tableRows = useMemo<{ cuenta: string; importe: number; n: number }[]>(() => {
+    if (!catSel) {
+      return matrix.map((r) => ({ cuenta: r.cuenta, importe: r.total, n: r.n }));
+    }
+    return cuentasDetalle.map((r) => ({
+      cuenta: r.cuenta, importe: r.importe_abs, n: r.n,
+    }));
+  }, [catSel, matrix, cuentasDetalle]);
+
+  const tableTotal = useMemo(
+    () => tableRows.reduce((a, r) => a + r.importe, 0),
+    [tableRows],
+  );
+
+  // Limpiar expand cuando cambia cualquier filtro / scope — los boletos
+  // expandidos ya no son válidos.
+  useEffect(() => {
+    setExpandedCuenta(null);
+  }, [catSel, vistaMode, moneda, filtroCta, fecha, rango, cuentaExacta]);
+
+  // Clave de cache de boletos: (fecha + cuenta + categoria_o_all).
+  const boletosKey = (cuenta: string, fecha_d: string, cat: string | null) =>
+    `${fecha_d}|${cuenta}|${cat ?? "all"}`;
+
+  // Fetch boletos cuando se expande una cuenta — solo en modo DIA.
+  useEffect(() => {
+    if (!expandedCuenta || vistaMode !== "DIA" || !fecha) return;
+    const key = boletosKey(expandedCuenta, fecha, catSel);
+    if (boletosCache[key]) return; // ya cacheado
+    let cancelled = false;
+    (async () => {
+      setLoadingBoletos(true);
+      try {
+        let url =
+          `/api/operaciones/negocio/boletos?fecha=${fecha}` +
+          `&cuenta=${encodeURIComponent(expandedCuenta)}` +
+          `&moneda=${moneda}`;
+        if (catSel) url += `&categoria=${catSel}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j: { boletos: BoletoRow[] } = await res.json();
+        if (cancelled) return;
+        setBoletosCache((prev) => ({
+          ...prev,
+          [key]: Array.isArray(j.boletos) ? j.boletos : [],
+        }));
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        if (!cancelled) setLoadingBoletos(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedCuenta, vistaMode, fecha, moneda, catSel]);
 
   const totalCatSel = useMemo(
     () => cuentasDetalle.reduce((a, c) => a + c.importe_abs, 0),
@@ -950,77 +1030,11 @@ export function NegocioView() {
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto">
-              {!catSel ? (
-                /* MATRIX consolidado: rows = cuentas, cols = 5 categorías + total. */
-                matrix.length === 0 && !loadingMatrix ? (
-                  <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
-                    Sin boletos para {vistaMode === "DIA" ? "el día" : "el período"} · {moneda}.
-                  </div>
-                ) : (
-                  <table className="w-full text-[11px] font-mono tabular-nums">
-                    <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
-                      <tr>
-                        <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
-                        {NEGOCIO_CATS.map((cat) => (
-                          <th
-                            key={cat}
-                            onClick={() => setCatSel(cat)}
-                            className="px-2 py-1.5 text-right border-b border-[#1a1a1a] cursor-pointer hover:text-[#ff9900]"
-                            title={`Drill-down: ${CAT_LABEL[cat]}`}
-                          >
-                            <span className="inline-flex items-center gap-1 justify-end">
-                              <span className="w-1.5 h-1.5 inline-block" style={{ background: CAT_COLOR[cat] }} />
-                              {CAT_LABEL[cat]}
-                            </span>
-                          </th>
-                        ))}
-                        <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a] text-[#ff9900]">Total</th>
-                        <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">N</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {matrix.map((r) => {
-                        const pct = matrixTotal > 0 ? (r.total / matrixTotal) * 100 : 0;
-                        return (
-                          <tr
-                            key={r.cuenta}
-                            onClick={() => setCuentaSearch(r.cuenta)}
-                            className="border-t border-[#111] hover:bg-[#0f0f0f] cursor-pointer"
-                            title={`Click para filtrar todos los paneles a ${r.cuenta}`}
-                          >
-                            <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[220px]" title={r.cuenta}>
-                              {r.cuenta}
-                            </td>
-                            {NEGOCIO_CATS.map((cat) => {
-                              const v = r[cat];
-                              return (
-                                <td
-                                  key={cat}
-                                  className={
-                                    "px-2 py-1 text-right " +
-                                    (v > 0 ? "text-[#d0d0d0]" : "text-[#444]")
-                                  }
-                                >
-                                  {v > 0 ? fmtCompact(v) : "—"}
-                                </td>
-                              );
-                            })}
-                            <td
-                              className="px-2 py-1 text-right text-[#ff9900] font-semibold"
-                              title={`${pct.toFixed(1)}% del total`}
-                            >
-                              {fmtCompact(r.total)}
-                            </td>
-                            <td className="px-2 py-1 text-right text-[#888]">{r.n}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )
-              ) : cuentasDetalle.length === 0 && !loadingCuentas ? (
+              {tableRows.length === 0 && !loadingMatrix && !loadingCuentas ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
-                  Sin boletos en {CAT_LABEL[catSel]} para{" "}
+                  {catSel
+                    ? `Sin boletos en ${CAT_LABEL[catSel]} para `
+                    : "Sin boletos para "}
                   {vistaMode === "DIA" ? "el día" : "el período"} · {moneda}.
                 </div>
               ) : (
@@ -1034,23 +1048,120 @@ export function NegocioView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {cuentasDetalle.map((c) => {
-                      const pct = totalCatSel > 0 ? (c.importe_abs / totalCatSel) * 100 : 0;
+                    {tableRows.map((r) => {
+                      const pct = tableTotal > 0 ? (r.importe / tableTotal) * 100 : 0;
+                      const expanded = expandedCuenta === r.cuenta;
+                      const canExpand = vistaMode === "DIA";
+                      const key = fecha ? boletosKey(r.cuenta, fecha, catSel) : "";
+                      const boletosForRow = key ? boletosCache[key] : undefined;
                       return (
-                        <tr key={c.cuenta} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                          <td className="px-3 py-1 text-[#d0d0d0] truncate max-w-[280px]" title={c.cuenta}>
-                            {c.cuenta}
-                          </td>
-                          <td className="px-3 py-1 text-right text-[#d0d0d0] font-semibold">
-                            {fmtCompact(c.importe_abs)}
-                          </td>
-                          <td className="px-3 py-1 text-right text-[#888]">
-                            {pct.toFixed(1)}%
-                          </td>
-                          <td className="px-3 py-1 text-right text-[#888]">
-                            {c.n}
-                          </td>
-                        </tr>
+                        <Fragment key={r.cuenta}>
+                          <tr
+                            onClick={() => {
+                              if (!canExpand) return;
+                              setExpandedCuenta(expanded ? null : r.cuenta);
+                            }}
+                            className={
+                              "border-t border-[#111] hover:bg-[#0f0f0f] " +
+                              (canExpand ? "cursor-pointer" : "cursor-default") +
+                              (expanded ? " bg-[#ff9900]/5" : "")
+                            }
+                            title={canExpand
+                              ? "Click: ver boletos del día para esta cuenta"
+                              : "Cambiá a vista DÍA para ver boletos individuales"}
+                          >
+                            <td className="px-3 py-1 text-[#d0d0d0] truncate max-w-[280px]" title={r.cuenta}>
+                              <span className="inline-flex items-center gap-1.5">
+                                {canExpand && (
+                                  <span className="text-[10px] text-[#666] w-2 inline-block">
+                                    {expanded ? "▾" : "▸"}
+                                  </span>
+                                )}
+                                {r.cuenta}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1 text-right text-[#d0d0d0] font-semibold">
+                              {fmtCompact(r.importe)}
+                            </td>
+                            <td className="px-3 py-1 text-right text-[#888]">
+                              {pct.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-1 text-right text-[#888]">
+                              {r.n}
+                            </td>
+                          </tr>
+                          {expanded && (
+                            <tr className="bg-[#060606]">
+                              <td colSpan={4} className="p-0 border-t border-[#1a1a1a]">
+                                {!boletosForRow ? (
+                                  <div className="px-3 py-2 text-[10px] text-[#666]">
+                                    {loadingBoletos ? "cargando boletos…" : "—"}
+                                  </div>
+                                ) : boletosForRow.length === 0 ? (
+                                  <div className="px-3 py-2 text-[10px] text-[#666]">
+                                    Sin boletos individuales.
+                                  </div>
+                                ) : (
+                                  <table className="w-full text-[10px] font-mono tabular-nums">
+                                    <thead className="text-[8px] uppercase tracking-widest text-[#555]">
+                                      <tr>
+                                        <th className="px-3 py-1 text-left">Comprobante</th>
+                                        <th className="px-2 py-1 text-left">Categ</th>
+                                        <th className="px-2 py-1 text-left">Op</th>
+                                        <th className="px-2 py-1 text-left">Ticker</th>
+                                        <th className="px-2 py-1 text-right">Cantidad</th>
+                                        <th className="px-2 py-1 text-right">Precio</th>
+                                        <th className="px-2 py-1 text-right">Importe</th>
+                                        <th className="px-2 py-1 text-left">Plazo</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {boletosForRow.map((b) => {
+                                        const catColor = CAT_COLOR[b.categoria as NegocioCat] ?? "#666";
+                                        return (
+                                          <tr
+                                            key={b.comprobante}
+                                            className="border-t border-[#111]"
+                                          >
+                                            <td className="px-3 py-0.5 text-[#888]">{b.comprobante}</td>
+                                            <td className="px-2 py-0.5">
+                                              <span className="inline-flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 inline-block" style={{ background: catColor }} />
+                                                <span className="text-[#888]">{b.categoria}</span>
+                                              </span>
+                                            </td>
+                                            <td className="px-2 py-0.5 text-[#d0d0d0]">{b.op ?? "—"}</td>
+                                            <td className="px-2 py-0.5 text-[#ff9900]">{b.ticker ?? "—"}</td>
+                                            <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                                              {b.cantidad != null
+                                                ? b.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 })
+                                                : "—"}
+                                            </td>
+                                            <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                                              {b.precio != null
+                                                ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 2 })
+                                                : "—"}
+                                            </td>
+                                            <td className={
+                                              "px-2 py-0.5 text-right " +
+                                              ((b.importe ?? 0) > 0 ? "text-[#3fbf6f]" :
+                                               (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]")
+                                            }>
+                                              {b.importe != null
+                                                ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 })
+                                                : "—"}
+                                            </td>
+                                            <td className="px-2 py-0.5 text-[#888]">{b.plazo ?? "—"}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
