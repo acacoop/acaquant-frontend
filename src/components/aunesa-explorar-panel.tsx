@@ -115,9 +115,9 @@ const CATEGORIA_LABEL: Record<string, string> = {
 };
 
 function todayART(): string {
-  const now = new Date();
-  const utc = now.getTime() + now.getTimezoneOffset() * 60_000;
-  const ar = new Date(utc - 3 * 60 * 60_000);
+  // ART = UTC-3. Restamos 3h al "ahora" UTC y leemos su date ISO.
+  // Independiente de la timezone del browser (Date.now() siempre UTC ms).
+  const ar = new Date(Date.now() - 3 * 60 * 60_000);
   return ar.toISOString().slice(0, 10);
 }
 
