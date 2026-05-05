@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -55,6 +56,11 @@ type Moneda = "ARS" | "USD";
 type RangoKey = "1W" | "1M" | "3M" | "ALL";
 type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
 type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
+type DetalleMode = "DIA" | "PERIODO";
+
+// Color de barras "muteadas" cuando hay un día seleccionado y queremos
+// que el día elegido resalte sobre el resto.
+const MUTED_BAR_COLOR = "#222";
 
 // El filtro accionistas/coop se resuelve server-side en /negocio/serie
 // y /negocio/cuentas (mismo regex que cashflow). Acá solo declaramos
@@ -212,6 +218,7 @@ export function NegocioView() {
   const [agg, setAgg] = useState<AggKey>("DIARIO");
   const [catSel, setCatSel] = useState<NegocioCat | null>(null);
   const [filtroCta, setFiltroCta] = useState<CuentaFilter>("todas");
+  const [detalleMode, setDetalleMode] = useState<DetalleMode>("PERIODO");
   const [cuentasPeriodo, setCuentasPeriodo] = useState<{ cuenta: string; importe_abs: number; n: number }[]>([]);
   const [loadingCuentas, setLoadingCuentas] = useState(false);
 
@@ -342,12 +349,15 @@ export function NegocioView() {
     return s;
   }, [serieRango]);
 
-  // Drill-down: cuentas de la categoría seleccionada acumuladas sobre
-  // TODO el período visible (no solo el día seleccionado). Server-side
+  // Drill-down: cuentas de la categoría seleccionada — sobre el período
+  // visible (default) o sobre el día seleccionado (modo DIA). Server-side
   // aggregation via /negocio/cuentas, ordenado desc por |importe|.
-  // Refetch cuando cambia (catSel, moneda, filtroCta, rango).
+  // Refetch cuando cambia (catSel, moneda, filtroCta, mode, fecha o rango).
+  const detalleDesde = detalleMode === "DIA" ? fecha : periodoDesde;
+  const detalleHasta = detalleMode === "DIA" ? fecha : periodoHasta;
+
   useEffect(() => {
-    if (!catSel || !periodoDesde || !periodoHasta) {
+    if (!catSel || !detalleDesde || !detalleHasta) {
       setCuentasPeriodo([]);
       return;
     }
@@ -359,8 +369,8 @@ export function NegocioView() {
           `/api/operaciones/negocio/cuentas?moneda=${moneda}` +
           `&cuenta_filter=${filtroCta}` +
           `&categoria=${catSel}` +
-          `&desde=${periodoDesde}` +
-          `&hasta=${periodoHasta}`;
+          `&desde=${detalleDesde}` +
+          `&hasta=${detalleHasta}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: { cuentas: { cuenta: string; importe_abs: number; n: number }[] } = await res.json();
@@ -376,7 +386,7 @@ export function NegocioView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [catSel, moneda, filtroCta, periodoDesde, periodoHasta]);
+  }, [catSel, moneda, filtroCta, detalleDesde, detalleHasta]);
 
   // Alias por consistencia con el render abajo (mismo nombre que antes).
   const cuentasDetalle = cuentasPeriodo;
@@ -627,14 +637,30 @@ export function NegocioView() {
                           CAT_LABEL[name as NegocioCat] ?? String(name),
                         ]}
                       />
+                      {/* Stacked bars con muting: bucket que contiene la
+                          fecha seleccionada se pinta con su color de categoría;
+                          el resto se muestra muteado (gris) para que el día
+                          elegido resalte. Si la fecha cae fuera del rango visible
+                          se desactiva el muteo (todos en color normal). */}
                       {NEGOCIO_CATS.map((cat) => (
                         <Bar
                           key={cat}
                           dataKey={cat}
                           stackId="total"
-                          fill={CAT_COLOR[cat]}
                           isAnimationActive={false}
-                        />
+                        >
+                          {chartData.map((d, i) => {
+                            const sel = fecha ? bucketKey(fecha, agg) : null;
+                            const selInData = !!sel && chartData.some((x) => x.fecha === sel);
+                            const muted = selInData && d.fecha !== sel;
+                            return (
+                              <Cell
+                                key={i}
+                                fill={muted ? MUTED_BAR_COLOR : CAT_COLOR[cat]}
+                              />
+                            );
+                          })}
+                        </Bar>
                       ))}
                     </BarChart>
                   </ResponsiveContainer>
@@ -706,17 +732,37 @@ export function NegocioView() {
             </div>
           </div>
 
-          {/* COLUMNA DERECHA · DETALLE (acumulado del período) */}
+          {/* COLUMNA DERECHA · DETALLE (DIA o PERIODO según toggle) */}
           <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-            <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-                Detalle período{catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
+                Detalle {detalleMode === "DIA" ? "día" : "período"}
+                {catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
               </span>
-              {catSel && periodoDesde && periodoHasta && (
-                <span className="ml-2 text-[9px] text-[#555] font-mono">
-                  {fmtFechaCorta(periodoDesde)} → {fmtFechaCorta(periodoHasta)}
+              {catSel && detalleDesde && detalleHasta && (
+                <span className="text-[9px] text-[#555] font-mono">
+                  {detalleMode === "DIA"
+                    ? fmtFechaCorta(detalleDesde)
+                    : `${fmtFechaCorta(detalleDesde)} → ${fmtFechaCorta(detalleHasta)}`}
                 </span>
               )}
+              {/* Toggle DIA / PERIODO */}
+              <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+                {(["DIA", "PERIODO"] as DetalleMode[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setDetalleMode(m)}
+                    className={
+                      "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                      (detalleMode === m
+                        ? "bg-[#ff9900] text-black"
+                        : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                    }
+                  >
+                    {m === "DIA" ? "Día" : "Período"}
+                  </button>
+                ))}
+              </div>
               {catSel && (
                 <>
                   <span className="ml-auto text-[10px] text-[#888] font-mono">
@@ -738,11 +784,12 @@ export function NegocioView() {
               {!catSel ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
                   Seleccioná una categoría a la izquierda
-                  <br />para ver el desglose por cuenta del período.
+                  <br />para ver el desglose por cuenta.
                 </div>
               ) : cuentasDetalle.length === 0 && !loadingCuentas ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
-                  Sin boletos en {CAT_LABEL[catSel]} para el período · {moneda}.
+                  Sin boletos en {CAT_LABEL[catSel]} para{" "}
+                  {detalleMode === "DIA" ? "el día" : "el período"} · {moneda}.
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
