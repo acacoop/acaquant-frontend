@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -23,22 +33,6 @@ interface Boleto {
   ingestado_en?: string;
 }
 
-interface Agregado {
-  categoria: string;
-  n: number;
-  importe_neto: number;
-  importe_abs: number;
-  n_cuentas: number;
-  n_tickers: number;
-  monedas: string[];
-}
-
-interface TopTicker {
-  ticker: string;
-  n: number;
-  importe_abs: number;
-}
-
 interface NegocioResp {
   meta: {
     fecha: string;
@@ -46,19 +40,65 @@ interface NegocioResp {
     n_categorias: number;
     ultima_ingesta: string | null;
   };
-  agregados: Agregado[];
-  top_tickers: TopTicker[];
   boletos: Boleto[];
 }
 
+interface SeriePoint {
+  fecha: string;
+  compra: number;
+  venta: number;
+  susc_fci: number;
+  sol_susc_fci: number;
+  cauc_tom_ap: number;
+}
+
+type Moneda = "ARS" | "USD";
+type RangoKey = "1W" | "1M" | "3M" | "ALL";
+
 // ── Constantes ────────────────────────────────────────────────────────────
 
-const CAT_COLOR: Record<string, string> = {
+const NEGOCIO_CATS = [
+  "compra",
+  "venta",
+  "susc_fci",
+  "sol_susc_fci",
+  "cauc_tom_ap",
+] as const;
+type NegocioCat = (typeof NEGOCIO_CATS)[number];
+
+// Mapeo entre las claves del chart (cortas) y las categorías de los boletos.
+const CAT_BOLETO_KEY: Record<NegocioCat, string> = {
+  compra:       "compra",
+  venta:        "venta",
+  susc_fci:     "suscripcion_fci",
+  sol_susc_fci: "solicitud_suscripcion_fci",
+  cauc_tom_ap:  "caucion_tom_ap",
+};
+
+const CAT_COLOR: Record<NegocioCat, string> = {
+  compra:       "#3fbf6f",
+  venta:        "#ff5d6c",
+  susc_fci:     "#94e7b3",
+  sol_susc_fci: "#5fc4f0",
+  cauc_tom_ap:  "#5fd0d0",
+};
+
+const CAT_LABEL: Record<NegocioCat, string> = {
+  compra:       "Compras",
+  venta:        "Ventas",
+  susc_fci:     "Susc FCI",
+  sol_susc_fci: "Sol Susc FCI",
+  cauc_tom_ap:  "Cauc Tom Apert",
+};
+
+// Para colorear filas/labels en la tabla de detalle (incluye categorías
+// que NO entran al chart pero sí aparecen como boletos del día).
+const TABLE_CAT_COLOR: Record<string, string> = {
   compra:                    "#3fbf6f",
   venta:                     "#ff5d6c",
-  suscripcion_fci:           "#3fbf6f",
+  suscripcion_fci:           "#94e7b3",
   rescate_fci:               "#ff5d6c",
-  solicitud_suscripcion_fci: "#3fbf6f",
+  solicitud_suscripcion_fci: "#5fc4f0",
   solicitud_rescate_fci:     "#ff5d6c",
   acreencia:                 "#9bd2ff",
   caucion_col_ap:            "#5fd0d0",
@@ -74,7 +114,7 @@ const CAT_COLOR: Record<string, string> = {
   otro:                      "#666",
 };
 
-const CAT_LABEL: Record<string, string> = {
+const TABLE_CAT_LABEL: Record<string, string> = {
   compra:                    "Compras",
   venta:                     "Ventas",
   suscripcion_fci:           "Susc FCI super",
@@ -96,13 +136,6 @@ const CAT_LABEL: Record<string, string> = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-
-function todayART(): string {
-  // ART = UTC-3. Restamos 3h al "ahora" UTC y leemos su date ISO.
-  // Independiente de la timezone del browser (Date.now() siempre UTC ms).
-  const ar = new Date(Date.now() - 3 * 60 * 60_000);
-  return ar.toISOString().slice(0, 10);
-}
 
 const fmtNum = (n: number | null | undefined, dec = 2): string => {
   if (n == null || Number.isNaN(n)) return "—";
@@ -131,8 +164,6 @@ function formatTime(iso: string | null): string {
   }
 }
 
-// ── DatePicker compacto (reusable, simplificado) ──────────────────────────
-
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
 function fmtFechaDisplay(s: string): string {
@@ -140,19 +171,33 @@ function fmtFechaDisplay(s: string): string {
   return `${d} ${MESES[m - 1]} ${y}`;
 }
 
-// (addDays() eliminada — ahora navegamos sólo entre fechas con data,
-// no día calendario.)
+function fmtFechaCorta(s: string): string {
+  const [y, m, d] = s.split("-");
+  return `${d}/${m}/${y.slice(-2)}`;
+}
+
+// Filtra serie por rango (1W/1M/3M/ALL). Cuenta hábiles desde la última fecha
+// de la serie hacia atrás — independiente de feriados, no de calendario.
+function filtrarRango(serie: SeriePoint[], rango: RangoKey): SeriePoint[] {
+  if (rango === "ALL" || serie.length === 0) return serie;
+  const n = rango === "1W" ? 5 : rango === "1M" ? 22 : 65;
+  return serie.slice(-n);
+}
 
 // ── Vista principal ───────────────────────────────────────────────────────
 
 export function NegocioView() {
-  const [fecha, setFecha] = useState<string>("");  // se setea al cargar fechas
+  const [fecha, setFecha] = useState<string>("");
   const [fechasDisp, setFechasDisp] = useState<{ fecha: string; n: number }[]>([]);
   const [fechasLoaded, setFechasLoaded] = useState(false);
   const [data, setData] = useState<NegocioResp | null>(null);
+  const [serie, setSerie] = useState<SeriePoint[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingSerie, setLoadingSerie] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [moneda, setMoneda] = useState<Moneda>("ARS");
+  const [rango, setRango] = useState<RangoKey>("ALL");
   const [catFiltro, setCatFiltro] = useState<string>("");
   const [search, setSearch] = useState("");
 
@@ -167,7 +212,7 @@ export function NegocioView() {
         const j: { fechas: { fecha: string; n: number }[] } = await res.json();
         setFechasDisp(j.fechas);
         if (j.fechas.length > 0 && !fecha) {
-          setFecha(j.fechas[0].fecha);  // la más reciente
+          setFecha(j.fechas[0].fecha);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -179,6 +224,7 @@ export function NegocioView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Detalle del día seleccionado.
   const fetchData = async (f: string) => {
     setLoading(true);
     setError(null);
@@ -201,10 +247,39 @@ export function NegocioView() {
   };
 
   useEffect(() => {
-    if (fecha) fetchData(fecha);
+    if (fecha) void fetchData(fecha);
   }, [fecha]);
 
-  // Navegación restringida a fechas disponibles.
+  // Serie histórica (depende de la moneda).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoadingSerie(true);
+      try {
+        const res = await fetch(
+          `/api/operaciones/negocio/serie?moneda=${moneda}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j: { serie: SeriePoint[] } = await res.json();
+        if (cancelled) return;
+        setSerie(Array.isArray(j.serie) ? j.serie : []);
+      } catch (e) {
+        if (!cancelled) {
+          setSerie([]);
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        if (!cancelled) setLoadingSerie(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [moneda]);
+
+  // ── Derivados ────────────────────────────────────────────────────────────
+
   const fechasOrdenadasAsc = useMemo(
     () => [...fechasDisp].map((f) => f.fecha).sort(),
     [fechasDisp],
@@ -215,19 +290,34 @@ export function NegocioView() {
   const ultimaFecha = fechasOrdenadasAsc[fechasOrdenadasAsc.length - 1];
   const isLatest = fecha === ultimaFecha;
 
-  const goPrev = () => {
-    if (hayPrev) setFecha(fechasOrdenadasAsc[idxActual - 1]);
-  };
-  const goNext = () => {
-    if (hayNext) setFecha(fechasOrdenadasAsc[idxActual + 1]);
-  };
-  const goLatest = () => {
-    if (ultimaFecha) setFecha(ultimaFecha);
-  };
+  const goPrev = () => { if (hayPrev) setFecha(fechasOrdenadasAsc[idxActual - 1]); };
+  const goNext = () => { if (hayNext) setFecha(fechasOrdenadasAsc[idxActual + 1]); };
+  const goLatest = () => { if (ultimaFecha) setFecha(ultimaFecha); };
 
+  // KPIs del día seleccionado (en la moneda elegida) — buscar en la serie
+  // por fecha exacta. Si no aparece, todos en 0.
+  const kpiHoy = useMemo<Record<NegocioCat, number>>(() => {
+    const empty: Record<NegocioCat, number> = {
+      compra: 0, venta: 0, susc_fci: 0, sol_susc_fci: 0, cauc_tom_ap: 0,
+    };
+    const row = serie.find((s) => s.fecha === fecha);
+    if (!row) return empty;
+    return {
+      compra:       row.compra,
+      venta:        row.venta,
+      susc_fci:     row.susc_fci,
+      sol_susc_fci: row.sol_susc_fci,
+      cauc_tom_ap:  row.cauc_tom_ap,
+    };
+  }, [serie, fecha]);
+
+  const chartData = useMemo(() => filtrarRango(serie, rango), [serie, rango]);
+
+  // Boletos filtrados para la tabla — siempre filtra por moneda elegida,
+  // luego por categoría/búsqueda si están aplicadas.
   const filteredBoletos = useMemo<Boleto[]>(() => {
     if (!data) return [];
-    let out = data.boletos;
+    let out = data.boletos.filter((b) => (b.moneda ?? "ARS") === moneda);
     if (catFiltro) out = out.filter((b) => b.categoria === catFiltro);
     if (search) {
       const q = search.toLowerCase();
@@ -238,14 +328,15 @@ export function NegocioView() {
       );
     }
     return out;
-  }, [data, catFiltro, search]);
+  }, [data, moneda, catFiltro, search]);
 
-  const totalImporteAbs = data?.agregados.reduce((acc, a) => acc + a.importe_abs, 0) || 0;
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="h-full overflow-auto bg-[#0a0a0a] text-[#d0d0d0]">
       <div className="p-4 space-y-4 max-w-full">
-        {/* HEADER con fecha + meta */}
+
+        {/* HEADER con fecha + meta + currency toggle */}
         <div className="flex flex-wrap items-center gap-3 border-b border-[#1a1a1a] pb-3">
           <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
             <button
@@ -301,10 +392,31 @@ export function NegocioView() {
             </>
           )}
 
-          {loading && <span className="text-[10px] text-[#888]">cargando…</span>}
+          {(loading || loadingSerie) && (
+            <span className="text-[10px] text-[#888]">cargando…</span>
+          )}
+
+          {/* Currency toggle (a la derecha) */}
+          <div className="ml-auto inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+            {(["ARS", "USD"] as Moneda[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMoneda(m)}
+                className={
+                  "px-3 py-1 text-[10px] uppercase tracking-wider " +
+                  (moneda === m
+                    ? "bg-[#ff9900] text-black"
+                    : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                }
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+
           <button
-            onClick={() => fetchData(fecha)}
-            className="ml-auto bg-[#0f0f0f] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[#888] hover:text-[#ff9900]"
+            onClick={() => fecha && void fetchData(fecha)}
+            className="bg-[#0f0f0f] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[#888] hover:text-[#ff9900]"
           >
             ↻ Refresh
           </button>
@@ -320,189 +432,283 @@ export function NegocioView() {
           <div className="border border-[#1a1a1a] p-8 text-center text-[12px] text-[#666]">
             Aún no hay datos persistidos en CashFlow.NegocioMovimientos.
             <div className="mt-2 text-[10px]">
-              El job corre cada hora 12-22 ART (L-V). Cuando arranque la primer
-              ingesta del día, esta vista va a poblarse automáticamente.
+              El job corre cada hora 12-22 ART (L-V).
             </div>
           </div>
         )}
 
-        {data && data.meta.n_boletos === 0 && !loading && fechasDisp.length > 0 && (
-          <div className="border border-[#1a1a1a] p-6 text-center text-[12px] text-[#666]">
-            Sin boletos en esta fecha.
-          </div>
-        )}
-
-        {data && data.agregados.length > 0 && (
+        {fechasDisp.length > 0 && (
           <>
-            {/* CARDS por categoría — el corazón gerencial */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-              {data.agregados.map((a) => {
-                const color = CAT_COLOR[a.categoria] ?? "#666";
-                const label = CAT_LABEL[a.categoria] ?? a.categoria;
-                const pct = totalImporteAbs > 0 ? (a.importe_abs / totalImporteAbs) * 100 : 0;
-                const active = catFiltro === a.categoria;
+            {/* KPIs — totales del día seleccionado en la moneda elegida */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {NEGOCIO_CATS.map((cat) => {
+                const v = kpiHoy[cat];
+                const color = CAT_COLOR[cat];
                 return (
-                  <button
-                    key={a.categoria}
-                    onClick={() => setCatFiltro(active ? "" : a.categoria)}
-                    className={
-                      "relative text-left border bg-[#080808] p-3 transition-colors " +
-                      (active
-                        ? "border-[#ff9900]"
-                        : "border-[#1a1a1a] hover:border-[#333]")
-                    }
+                  <div
+                    key={cat}
+                    className="border border-[#1a1a1a] bg-[#080808] p-3"
                   >
-                    {/* barra de proporción al fondo */}
-                    <div
-                      className="absolute inset-x-0 bottom-0 h-0.5"
-                      style={{ background: color, width: `${pct}%` }}
-                    />
                     <div className="flex items-center gap-1.5 mb-1">
                       <span className="w-2 h-2 inline-block" style={{ background: color }} />
                       <span className="text-[9px] uppercase tracking-widest text-[#888]">
-                        {label}
+                        {CAT_LABEL[cat]}
                       </span>
                     </div>
-                    <div className="text-[20px] font-mono tabular-nums text-[#d0d0d0]">
-                      {a.n}
+                    <div
+                      className="text-[20px] font-mono tabular-nums"
+                      style={{ color: v > 0 ? color : "#444" }}
+                    >
+                      {fmtCompact(v)}
                     </div>
-                    <div className="text-[10px] text-[#888] mt-1">
-                      <span className={a.importe_neto >= 0 ? "text-[#3fbf6f]" : "text-[#ff5d6c]"}>
-                        {fmtCompact(a.importe_neto)}
-                      </span>{" "}
-                      neto · <span className="text-[#888]">{fmtCompact(a.importe_abs)}</span> abs
-                    </div>
-                    <div className="text-[9px] text-[#666] mt-0.5">
-                      {a.n_cuentas} cta · {a.n_tickers} tck
-                      {a.monedas.length > 0 && ` · ${a.monedas.join(",")}`}
-                    </div>
-                    <div className="text-[9px] text-[#444] mt-0.5">{pct.toFixed(1)}% del total</div>
-                  </button>
+                    <div className="text-[9px] text-[#666] mt-0.5">{moneda}</div>
+                  </div>
                 );
               })}
             </div>
 
-            {/* TOP TICKERS — leaderboard */}
-            {data.top_tickers.length > 0 && (
-              <div className="border border-[#1a1a1a] bg-[#080808]">
-                <div className="px-3 py-2 border-b border-[#1a1a1a] text-[10px] uppercase tracking-widest text-[#666]">
-                  Top 20 tickers por volumen del día
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-3 gap-y-1 p-3">
-                  {data.top_tickers.map((t) => (
+            {/* CHART evolución diaria */}
+            <div className="border border-[#1a1a1a] bg-[#080808]">
+              <div className="flex items-center px-3 py-2 border-b border-[#1a1a1a]">
+                <span className="text-[10px] uppercase tracking-widest text-[#666]">
+                  Evolución diaria · {moneda}
+                </span>
+                {chartData.length > 0 && (
+                  <span className="ml-3 text-[9px] text-[#555] font-mono">
+                    {fmtFechaCorta(chartData[0].fecha)} → {fmtFechaCorta(chartData[chartData.length - 1].fecha)}
+                  </span>
+                )}
+                {/* Range filter */}
+                <div className="ml-auto inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+                  {(["1W", "1M", "3M", "ALL"] as RangoKey[]).map((k) => (
                     <button
-                      key={t.ticker}
-                      onClick={() => setSearch(t.ticker)}
-                      className="flex items-baseline gap-2 text-left hover:bg-[#0f0f0f] px-1 py-0.5"
+                      key={k}
+                      onClick={() => setRango(k)}
+                      className={
+                        "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                        (rango === k
+                          ? "bg-[#ff9900] text-black"
+                          : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      }
                     >
-                      <span className="w-16 text-[12px] text-[#ff9900] font-mono">{t.ticker}</span>
-                      <span className="text-[10px] text-[#666] w-6">{t.n}</span>
-                      <span className="text-[11px] font-mono text-[#d0d0d0]">
-                        {fmtCompact(t.importe_abs)}
-                      </span>
+                      {k}
                     </button>
                   ))}
                 </div>
               </div>
-            )}
 
-            {/* TABLA de boletos */}
-            <div className="border border-[#1a1a1a] bg-[#080808]">
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a]">
-                <span className="text-[10px] uppercase tracking-widest text-[#666]">
-                  Detalle ({filteredBoletos.length} / {data.boletos.length})
-                </span>
-                {catFiltro && (
-                  <button
-                    onClick={() => setCatFiltro("")}
-                    className="text-[9px] text-[#ff9900] hover:underline uppercase tracking-wider"
-                  >
-                    × {CAT_LABEL[catFiltro] ?? catFiltro}
-                  </button>
-                )}
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="buscar (cuenta / ticker / comprobante)…"
-                  className="ml-auto flex-1 max-w-[280px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    className="text-[10px] text-[#888] hover:text-[#ff9900]"
-                  >×</button>
+              <div className="p-2 h-[340px]">
+                {chartData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                    Sin datos para {moneda} en este rango.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 8, right: 16, bottom: 24, left: 8 }}
+                      onClick={(state) => {
+                        const f = state?.activeLabel;
+                        if (typeof f === "string" && fechasOrdenadasAsc.includes(f)) {
+                          setFecha(f);
+                        }
+                      }}
+                    >
+                      <CartesianGrid stroke="#161616" vertical={false} />
+                      <XAxis
+                        dataKey="fecha"
+                        tick={{ fill: "#808080", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2a2a" }}
+                        tickLine={false}
+                        tickFormatter={fmtFechaCorta}
+                        interval={Math.max(0, Math.floor(chartData.length / 8))}
+                        angle={-30}
+                        textAnchor="end"
+                        height={32}
+                      />
+                      <YAxis
+                        tick={{ fill: "#808080", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2a2a" }}
+                        tickLine={false}
+                        tickFormatter={(v: number) => fmtCompact(v)}
+                        width={56}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#0e0e0e",
+                          border: "1px solid #2a2a2a",
+                          fontSize: 11,
+                          fontFamily: "JetBrains Mono, monospace",
+                        }}
+                        labelStyle={{ color: "#808080" }}
+                        labelFormatter={(v) => fmtFechaCorta(String(v))}
+                        formatter={(v, name) => [
+                          fmtCompact(Number(v)),
+                          CAT_LABEL[name as NegocioCat] ?? String(name),
+                        ]}
+                      />
+                      {fecha && fechasOrdenadasAsc.includes(fecha) && (
+                        <ReferenceLine
+                          x={fecha}
+                          stroke="#ff9900"
+                          strokeDasharray="3 3"
+                          strokeOpacity={0.7}
+                        />
+                      )}
+                      {NEGOCIO_CATS.map((cat) => (
+                        <Line
+                          key={cat}
+                          type="monotone"
+                          dataKey={cat}
+                          stroke={CAT_COLOR[cat]}
+                          strokeWidth={1.8}
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                          isAnimationActive={false}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-[11px] font-mono tabular-nums">
-                  <thead className="bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666]">
-                    <tr>
-                      <th className="px-2 py-1 text-left">Categoría</th>
-                      <th className="px-2 py-1 text-left">Comprobante</th>
-                      <th className="px-2 py-1 text-left">Cuenta</th>
-                      <th className="px-2 py-1 text-left">Op</th>
-                      <th className="px-2 py-1 text-left">Ticker</th>
-                      <th className="px-2 py-1 text-right">Cantidad</th>
-                      <th className="px-2 py-1 text-right">Precio</th>
-                      <th className="px-2 py-1 text-right">Importe</th>
-                      <th className="px-2 py-1 text-left">Mon</th>
-                      <th className="px-2 py-1 text-left">Plazo</th>
-                      <th className="px-2 py-1 text-left">Lugar</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredBoletos.map((b) => {
-                      const color = CAT_COLOR[b.categoria] ?? "#666";
-                      const label = CAT_LABEL[b.categoria] ?? b.categoria;
-                      const cantClr = (b.cantidad ?? 0) > 0
-                        ? "text-[#3fbf6f]"
-                        : (b.cantidad ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
-                      const impClr = (b.importe ?? 0) > 0
-                        ? "text-[#3fbf6f]"
-                        : (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
-                      return (
-                        <tr
-                          key={b.comprobante}
-                          className="border-t border-[#1a1a1a] hover:bg-[#0f0f0f]"
-                        >
-                          <td className="px-2 py-1">
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="w-2 h-2 inline-block" style={{ background: color }} />
-                              <span style={{ color }}>{label}</span>
-                            </span>
-                          </td>
-                          <td className="px-2 py-1 text-[#888]">{b.comprobante}</td>
-                          <td className="px-2 py-1 text-[#888] truncate max-w-[200px]" title={b.cuenta ?? ""}>
-                            {b.cuenta ?? "—"}
-                          </td>
-                          <td className="px-2 py-1 text-[#d0d0d0]">{b.op ?? "—"}</td>
-                          <td className="px-2 py-1 text-[#ff9900]">{b.ticker ?? "—"}</td>
-                          <td className={`px-2 py-1 text-right ${cantClr}`}>
-                            {fmtNum(b.cantidad, 2)}
-                          </td>
-                          <td className="px-2 py-1 text-right text-[#d0d0d0]">
-                            {fmtNum(b.precio, 2)}
-                          </td>
-                          <td className={`px-2 py-1 text-right ${impClr}`}>
-                            {fmtNum(b.importe, 2)}
-                          </td>
-                          <td className="px-2 py-1 text-[#888]">{b.moneda ?? "—"}</td>
-                          <td className="px-2 py-1 text-[#888]">{b.plazo ?? "—"}</td>
-                          <td className="px-2 py-1 text-[#888]">{b.lugar ?? "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {filteredBoletos.length === 0 && (
-                  <div className="p-8 text-center text-[11px] text-[#666]">
-                    Sin boletos para los filtros aplicados.
+              {/* Leyenda manual (legend nativa de recharts no permite color-code custom labels limpios) */}
+              <div className="flex flex-wrap gap-3 px-3 pb-2 pt-1 text-[10px]">
+                {NEGOCIO_CATS.map((cat) => (
+                  <div key={cat} className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-0.5 inline-block" style={{ background: CAT_COLOR[cat] }} />
+                    <span className="text-[#888]">{CAT_LABEL[cat]}</span>
                   </div>
-                )}
+                ))}
               </div>
             </div>
+
+            {/* TABLA detalle del día */}
+            {data && data.boletos.length > 0 && (
+              <div className="border border-[#1a1a1a] bg-[#080808]">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a] flex-wrap">
+                  <span className="text-[10px] uppercase tracking-widest text-[#666]">
+                    Detalle ({filteredBoletos.length} / {data.boletos.length})
+                  </span>
+                  {/* Chips de filtro por categoría — solo las 5 del chart */}
+                  <div className="flex items-center gap-1">
+                    {NEGOCIO_CATS.map((cat) => {
+                      const boletoKey = CAT_BOLETO_KEY[cat];
+                      const active = catFiltro === boletoKey;
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => setCatFiltro(active ? "" : boletoKey)}
+                          className={
+                            "px-2 py-0.5 text-[9px] uppercase tracking-wider border transition-colors " +
+                            (active
+                              ? "border-[#ff9900] text-[#ff9900]"
+                              : "border-[#222] text-[#666] hover:text-[#ccc] hover:border-[#444]")
+                          }
+                          style={active ? undefined : { borderLeftColor: CAT_COLOR[cat], borderLeftWidth: 2 }}
+                        >
+                          {CAT_LABEL[cat]}
+                        </button>
+                      );
+                    })}
+                    {catFiltro && !NEGOCIO_CATS.some((c) => CAT_BOLETO_KEY[c] === catFiltro) && (
+                      <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[#ff9900] text-[#ff9900]">
+                        {TABLE_CAT_LABEL[catFiltro] ?? catFiltro}
+                        <button onClick={() => setCatFiltro("")} className="ml-1 hover:text-[#fff]">×</button>
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="buscar (cuenta / ticker / comprobante)…"
+                    className="ml-auto flex-1 max-w-[280px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch("")}
+                      className="text-[10px] text-[#888] hover:text-[#ff9900]"
+                    >×</button>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px] font-mono tabular-nums">
+                    <thead className="bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666]">
+                      <tr>
+                        <th className="px-2 py-1 text-left">Categoría</th>
+                        <th className="px-2 py-1 text-left">Comprobante</th>
+                        <th className="px-2 py-1 text-left">Cuenta</th>
+                        <th className="px-2 py-1 text-left">Op</th>
+                        <th className="px-2 py-1 text-left">Ticker</th>
+                        <th className="px-2 py-1 text-right">Cantidad</th>
+                        <th className="px-2 py-1 text-right">Precio</th>
+                        <th className="px-2 py-1 text-right">Importe</th>
+                        <th className="px-2 py-1 text-left">Mon</th>
+                        <th className="px-2 py-1 text-left">Plazo</th>
+                        <th className="px-2 py-1 text-left">Lugar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredBoletos.map((b) => {
+                        const color = TABLE_CAT_COLOR[b.categoria] ?? "#666";
+                        const label = TABLE_CAT_LABEL[b.categoria] ?? b.categoria;
+                        const cantClr = (b.cantidad ?? 0) > 0
+                          ? "text-[#3fbf6f]"
+                          : (b.cantidad ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
+                        const impClr = (b.importe ?? 0) > 0
+                          ? "text-[#3fbf6f]"
+                          : (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
+                        return (
+                          <tr
+                            key={b.comprobante}
+                            className="border-t border-[#1a1a1a] hover:bg-[#0f0f0f]"
+                          >
+                            <td className="px-2 py-1">
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="w-2 h-2 inline-block" style={{ background: color }} />
+                                <span style={{ color }}>{label}</span>
+                              </span>
+                            </td>
+                            <td className="px-2 py-1 text-[#888]">{b.comprobante}</td>
+                            <td className="px-2 py-1 text-[#888] truncate max-w-[200px]" title={b.cuenta ?? ""}>
+                              {b.cuenta ?? "—"}
+                            </td>
+                            <td className="px-2 py-1 text-[#d0d0d0]">{b.op ?? "—"}</td>
+                            <td className="px-2 py-1 text-[#ff9900]">{b.ticker ?? "—"}</td>
+                            <td className={`px-2 py-1 text-right ${cantClr}`}>
+                              {fmtNum(b.cantidad, 2)}
+                            </td>
+                            <td className="px-2 py-1 text-right text-[#d0d0d0]">
+                              {fmtNum(b.precio, 2)}
+                            </td>
+                            <td className={`px-2 py-1 text-right ${impClr}`}>
+                              {fmtNum(b.importe, 2)}
+                            </td>
+                            <td className="px-2 py-1 text-[#888]">{b.moneda ?? "—"}</td>
+                            <td className="px-2 py-1 text-[#888]">{b.plazo ?? "—"}</td>
+                            <td className="px-2 py-1 text-[#888]">{b.lugar ?? "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {filteredBoletos.length === 0 && (
+                    <div className="p-8 text-center text-[11px] text-[#666]">
+                      Sin boletos para los filtros aplicados.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {data && data.boletos.length === 0 && !loading && (
+              <div className="border border-[#1a1a1a] p-6 text-center text-[12px] text-[#666]">
+                Sin boletos en esta fecha.
+              </div>
+            )}
           </>
         )}
       </div>
