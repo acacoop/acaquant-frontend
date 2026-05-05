@@ -140,26 +140,44 @@ function fmtFechaDisplay(s: string): string {
   return `${d} ${MESES[m - 1]} ${y}`;
 }
 
-function addDays(s: string, n: number): string {
-  const [y, m, d] = s.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + n);
-  const yy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
+// (addDays() eliminada — ahora navegamos sólo entre fechas con data,
+// no día calendario.)
 
 // ── Vista principal ───────────────────────────────────────────────────────
 
 export function NegocioView() {
-  const [fecha, setFecha] = useState<string>(todayART());
+  const [fecha, setFecha] = useState<string>("");  // se setea al cargar fechas
+  const [fechasDisp, setFechasDisp] = useState<{ fecha: string; n: number }[]>([]);
+  const [fechasLoaded, setFechasLoaded] = useState(false);
   const [data, setData] = useState<NegocioResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [catFiltro, setCatFiltro] = useState<string>("");
   const [search, setSearch] = useState("");
+
+  // Carga inicial: fechas con data → setea la más reciente como fecha actual.
+  useEffect(() => {
+    const loadFechas = async () => {
+      try {
+        const res = await fetch("/api/operaciones/negocio/fechas", {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j: { fechas: { fecha: string; n: number }[] } = await res.json();
+        setFechasDisp(j.fechas);
+        if (j.fechas.length > 0 && !fecha) {
+          setFecha(j.fechas[0].fecha);  // la más reciente
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setFechasLoaded(true);
+      }
+    };
+    void loadFechas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchData = async (f: string) => {
     setLoading(true);
@@ -183,12 +201,29 @@ export function NegocioView() {
   };
 
   useEffect(() => {
-    fetchData(fecha);
+    if (fecha) fetchData(fecha);
   }, [fecha]);
 
-  const today = todayART();
-  const isToday = fecha === today;
-  const isFuture = fecha > today;
+  // Navegación restringida a fechas disponibles.
+  const fechasOrdenadasAsc = useMemo(
+    () => [...fechasDisp].map((f) => f.fecha).sort(),
+    [fechasDisp],
+  );
+  const idxActual = fechasOrdenadasAsc.indexOf(fecha);
+  const hayPrev = idxActual > 0;
+  const hayNext = idxActual >= 0 && idxActual < fechasOrdenadasAsc.length - 1;
+  const ultimaFecha = fechasOrdenadasAsc[fechasOrdenadasAsc.length - 1];
+  const isLatest = fecha === ultimaFecha;
+
+  const goPrev = () => {
+    if (hayPrev) setFecha(fechasOrdenadasAsc[idxActual - 1]);
+  };
+  const goNext = () => {
+    if (hayNext) setFecha(fechasOrdenadasAsc[idxActual + 1]);
+  };
+  const goLatest = () => {
+    if (ultimaFecha) setFecha(ultimaFecha);
+  };
 
   const filteredBoletos = useMemo<Boleto[]>(() => {
     if (!data) return [];
@@ -214,30 +249,40 @@ export function NegocioView() {
         <div className="flex flex-wrap items-center gap-3 border-b border-[#1a1a1a] pb-3">
           <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
             <button
-              onClick={() => setFecha(addDays(fecha, -1))}
-              className="px-2 text-[#888] hover:text-[#ff9900]"
+              onClick={goPrev}
+              disabled={!hayPrev}
+              className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333] disabled:hover:bg-transparent"
+              title="Día con data anterior"
             >‹</button>
-            <input
-              type="date"
+            <select
               value={fecha}
-              max={today}
               onChange={(e) => setFecha(e.target.value)}
-              className="bg-black px-2 py-1 text-[12px] font-mono text-[#d0d0d0]"
-            />
+              disabled={fechasDisp.length === 0}
+              className="bg-black px-2 py-1 text-[12px] font-mono text-[#d0d0d0] outline-none disabled:opacity-50"
+            >
+              {fechasDisp.length === 0 && <option value="">— sin datos —</option>}
+              {fechasDisp.map((f) => (
+                <option key={f.fecha} value={f.fecha}>
+                  {fmtFechaDisplay(f.fecha)} ({f.n})
+                </option>
+              ))}
+            </select>
             <button
-              onClick={() => setFecha(addDays(fecha, 1))}
-              disabled={isFuture}
-              className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333]"
+              onClick={goNext}
+              disabled={!hayNext}
+              className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333] disabled:hover:bg-transparent"
+              title="Día con data siguiente"
             >›</button>
             <button
-              onClick={() => setFecha(today)}
-              disabled={isToday}
+              onClick={goLatest}
+              disabled={isLatest || !ultimaFecha}
               className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[#888] hover:text-[#ff9900] disabled:text-[#444]"
-            >Hoy</button>
+              title="Última fecha con data"
+            >Última</button>
           </div>
 
           <div className="text-[14px] font-mono text-[#ff9900]">
-            {fmtFechaDisplay(fecha)}
+            {fecha ? fmtFechaDisplay(fecha) : "—"}
           </div>
 
           {data && (
@@ -271,12 +316,19 @@ export function NegocioView() {
           </div>
         )}
 
-        {data && data.meta.n_boletos === 0 && !loading && (
+        {fechasLoaded && fechasDisp.length === 0 && !loading && (
           <div className="border border-[#1a1a1a] p-8 text-center text-[12px] text-[#666]">
-            Sin boletos para esta fecha.
+            Aún no hay datos persistidos en CashFlow.NegocioMovimientos.
             <div className="mt-2 text-[10px]">
-              El job corre cada hora 12-22 ART (L-V). Si es muy temprano o fin de semana, todavía no hay data.
+              El job corre cada hora 12-22 ART (L-V). Cuando arranque la primer
+              ingesta del día, esta vista va a poblarse automáticamente.
             </div>
+          </div>
+        )}
+
+        {data && data.meta.n_boletos === 0 && !loading && fechasDisp.length > 0 && (
+          <div className="border border-[#1a1a1a] p-6 text-center text-[12px] text-[#666]">
+            Sin boletos en esta fecha.
           </div>
         )}
 
