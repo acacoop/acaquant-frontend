@@ -56,16 +56,9 @@ type RangoKey = "1W" | "1M" | "3M" | "ALL";
 type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
 type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
 
-interface Accionista {
-  cuenta: string;
-  nombre?: string;
-  grupo?: string;
-}
-
-// Mismo regex que cashflow-view.tsx para identificar cooperativas por
-// nombre (no hay un flag en la base — heurística aceptada por el equipo).
-const COOP_RE = /\bcoop/i;
-
+// El filtro accionistas/coop se resuelve server-side en /negocio/serie
+// y /negocio/cuentas (mismo regex que cashflow). Acá solo declaramos
+// las opciones del dropdown.
 const FILTRO_LABEL: Record<CuentaFilter, string> = {
   todas:           "Todas",
   accionistas:     "Solo accionistas",
@@ -84,16 +77,10 @@ const NEGOCIO_CATS = [
 ] as const;
 type NegocioCat = (typeof NEGOCIO_CATS)[number];
 
-// Mapeo de cada categoría UI a UNA O MÁS categorías persistidas en el
-// boleto. "suscripciones" agrupa susc + sol_susc (intención: dimensionar
-// flujos a FCI super sin importar si están en estado solicitud o ejecutado).
-const CAT_BOLETO_KEYS: Record<NegocioCat, readonly string[]> = {
-  compra:        ["compra"],
-  venta:         ["venta"],
-  suscripciones: ["suscripcion_fci", "solicitud_suscripcion_fci"],
-  cauc_tom:      ["caucion_tom_ap"],
-  cauc_col:      ["caucion_col_ap"],
-};
+// Mapeo categoría UI → categorías de boleto (suscripciones agrupa susc +
+// sol_susc) está en el backend ahora — _NEGOCIO_UI_CAT_MAP en
+// api/routers/operaciones.py. El frontend solo manda la cat UI y el
+// servicio resuelve.
 
 const CAT_COLOR: Record<NegocioCat, string> = {
   compra:        "#3fbf6f",
@@ -225,7 +212,8 @@ export function NegocioView() {
   const [agg, setAgg] = useState<AggKey>("DIARIO");
   const [catSel, setCatSel] = useState<NegocioCat | null>(null);
   const [filtroCta, setFiltroCta] = useState<CuentaFilter>("todas");
-  const [accionistas, setAccionistas] = useState<Accionista[]>([]);
+  const [cuentasPeriodo, setCuentasPeriodo] = useState<{ cuenta: string; importe_abs: number; n: number }[]>([]);
+  const [loadingCuentas, setLoadingCuentas] = useState(false);
 
   // ── Fetch: lista de fechas con data ────────────────────────────────────
   useEffect(() => {
@@ -296,29 +284,6 @@ export function NegocioView() {
     return () => { cancelled = true; };
   }, [moneda, filtroCta]);
 
-  // ── Fetch: lista de accionistas (una sola vez, cacheado 1h en backend) ─
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/cuentas/accionistas", { cache: "no-store" });
-        if (!res.ok) return; // silencioso: el filtro de cuentas seguirá funcionando, solo no marca accionistas
-        const j: Accionista[] = await res.json();
-        if (cancelled) return;
-        setAccionistas(Array.isArray(j) ? j : []);
-      } catch {
-        // Sin error visible — los datos quedan sin map de accionistas y el filtro "todas" sigue OK.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Set de cuentas accionistas para lookup O(1) en el drill-down.
-  const accSet = useMemo(
-    () => new Set(accionistas.map((a) => a.cuenta).filter(Boolean)),
-    [accionistas],
-  );
-
   // ── Derivados ────────────────────────────────────────────────────────────
 
   const fechasOrdenadasAsc = useMemo(
@@ -356,41 +321,65 @@ export function NegocioView() {
     [totalesHoy],
   );
 
-  // Datos para el chart: rango primero, luego aggregation.
-  const chartData = useMemo(() => {
-    return aggregateSerie(filtrarRango(serie, rango), agg);
-  }, [serie, rango, agg]);
+  // Pre-aggregation: serie filtrada por rango (DIARIO). Sirve para
+  // obtener desde/hasta exactos del período visible — necesario para la
+  // query a /negocio/cuentas que requiere fechas YYYY-MM-DD.
+  const serieRango = useMemo(() => filtrarRango(serie, rango), [serie, rango]);
 
-  // Drill-down: cuentas de la categoría seleccionada para el día y moneda
-  // actuales. Sumar |importe| por cuenta, ordenar desc (mayor → menor).
-  // Una categoría UI puede mapear a múltiples categorías de boleto (ej.
-  // suscripciones = susc_fci + solicitud_suscripcion_fci).
-  // Aplica filtroCta (todas / accionistas / sin_accionistas / cooperativas)
-  // — mismo criterio que cashflow-view.tsx para consistencia.
-  const cuentasDetalle = useMemo<{ cuenta: string; importe_abs: number; n: number }[]>(() => {
-    if (!data || !catSel) return [];
-    const targetCats = new Set<string>(CAT_BOLETO_KEYS[catSel]);
-    const m = new Map<string, { importe_abs: number; n: number }>();
-    for (const b of data.boletos) {
-      if ((b.moneda ?? "ARS") !== moneda) continue;
-      if (!targetCats.has(b.categoria)) continue;
-      const cuenta = b.cuenta ?? "(sin cuenta)";
-      // Filtro por tipo de cuenta. "(sin cuenta)" cuenta como no-accionista
-      // y no-cooperativa.
-      const isAcc = accSet.has(cuenta);
-      const isCoop = !isAcc && COOP_RE.test(cuenta);
-      if (filtroCta === "accionistas" && !isAcc) continue;
-      if (filtroCta === "sin_accionistas" && isAcc) continue;
-      if (filtroCta === "cooperativas" && !isCoop) continue;
-      const cur = m.get(cuenta) ?? { importe_abs: 0, n: 0 };
-      cur.importe_abs += Math.abs(b.importe ?? 0);
-      cur.n += 1;
-      m.set(cuenta, cur);
+  // Datos para el chart: aggregation aplicada a la serie filtrada.
+  const chartData = useMemo(() => aggregateSerie(serieRango, agg), [serieRango, agg]);
+
+  // desde/hasta del período visible (días reales, no buckets).
+  const periodoDesde = serieRango[0]?.fecha ?? null;
+  const periodoHasta = serieRango[serieRango.length - 1]?.fecha ?? null;
+
+  // Total del período (sumar todas las categorías de todos los días visibles).
+  const totalPeriodo = useMemo(() => {
+    let s = 0;
+    for (const p of serieRango) {
+      s += p.compra + p.venta + p.suscripciones + p.cauc_tom + p.cauc_col;
     }
-    return [...m.entries()]
-      .map(([cuenta, v]) => ({ cuenta, ...v }))
-      .sort((a, b) => b.importe_abs - a.importe_abs);
-  }, [data, catSel, moneda, filtroCta, accSet]);
+    return s;
+  }, [serieRango]);
+
+  // Drill-down: cuentas de la categoría seleccionada acumuladas sobre
+  // TODO el período visible (no solo el día seleccionado). Server-side
+  // aggregation via /negocio/cuentas, ordenado desc por |importe|.
+  // Refetch cuando cambia (catSel, moneda, filtroCta, rango).
+  useEffect(() => {
+    if (!catSel || !periodoDesde || !periodoHasta) {
+      setCuentasPeriodo([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingCuentas(true);
+      try {
+        const url =
+          `/api/operaciones/negocio/cuentas?moneda=${moneda}` +
+          `&cuenta_filter=${filtroCta}` +
+          `&categoria=${catSel}` +
+          `&desde=${periodoDesde}` +
+          `&hasta=${periodoHasta}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j: { cuentas: { cuenta: string; importe_abs: number; n: number }[] } = await res.json();
+        if (cancelled) return;
+        setCuentasPeriodo(Array.isArray(j.cuentas) ? j.cuentas : []);
+      } catch (e) {
+        if (!cancelled) {
+          setCuentasPeriodo([]);
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        if (!cancelled) setLoadingCuentas(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [catSel, moneda, filtroCta, periodoDesde, periodoHasta]);
+
+  // Alias por consistencia con el render abajo (mismo nombre que antes).
+  const cuentasDetalle = cuentasPeriodo;
 
   const totalCatSel = useMemo(
     () => cuentasDetalle.reduce((a, c) => a + c.importe_abs, 0),
@@ -541,6 +530,12 @@ export function NegocioView() {
                 {chartData.length > 0 && (
                   <span className="text-[9px] text-[#555] font-mono">
                     {fmtBucket(chartData[0].fecha, agg)} → {fmtBucket(chartData[chartData.length - 1].fecha, agg)}
+                  </span>
+                )}
+                {totalPeriodo > 0 && (
+                  <span className="text-[10px] font-mono">
+                    <span className="text-[#666] uppercase tracking-wider">Total período: </span>
+                    <span className="text-[#ff9900] font-semibold">{fmtCompact(totalPeriodo)}</span>
                   </span>
                 )}
                 {/* Aggregation toggle */}
@@ -711,17 +706,25 @@ export function NegocioView() {
             </div>
           </div>
 
-          {/* COLUMNA DERECHA · DETALLE */}
+          {/* COLUMNA DERECHA · DETALLE (acumulado del período) */}
           <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-                Detalle{catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
+                Detalle período{catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
               </span>
+              {catSel && periodoDesde && periodoHasta && (
+                <span className="ml-2 text-[9px] text-[#555] font-mono">
+                  {fmtFechaCorta(periodoDesde)} → {fmtFechaCorta(periodoHasta)}
+                </span>
+              )}
               {catSel && (
                 <>
                   <span className="ml-auto text-[10px] text-[#888] font-mono">
                     {cuentasDetalle.length} cuentas · {fmtCompact(totalCatSel)} {moneda}
                   </span>
+                  {loadingCuentas && (
+                    <span className="ml-2 text-[9px] text-[#888]">cargando…</span>
+                  )}
                   <button
                     onClick={() => setCatSel(null)}
                     className="ml-2 text-[#888] hover:text-[#ff9900] text-[14px] leading-none"
@@ -735,11 +738,11 @@ export function NegocioView() {
               {!catSel ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
                   Seleccioná una categoría a la izquierda
-                  <br />para ver el desglose por cuenta.
+                  <br />para ver el desglose por cuenta del período.
                 </div>
-              ) : cuentasDetalle.length === 0 ? (
+              ) : cuentasDetalle.length === 0 && !loadingCuentas ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
-                  Sin boletos en {CAT_LABEL[catSel]} para {fecha ? fmtFechaCorta(fecha) : "—"} · {moneda}.
+                  Sin boletos en {CAT_LABEL[catSel]} para el período · {moneda}.
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
