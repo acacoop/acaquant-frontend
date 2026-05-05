@@ -1,49 +1,58 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
-interface Posicion {
-  ticker: string;
-  tipo: string | null;
-  fecha_vencimiento: string | null;
-  moneda: string;
-  cantidad: number;
-  precio_promedio: number;
-  precio_actual: number | null;
-  costo_total: number;
-  valor_mercado: number;
-  pnl_no_realizado: number;
-  pnl_no_realizado_pct: number | null;
-  pnl_realizado: number;
-  n_compras: number;
-  n_ventas: number;
-  completeness: "completa" | "parcial";
+// ── Types ─────────────────────────────────────────────────────────────────
+
+interface SeriePoint {
+  fecha: string;
+  valuacion: number;
+  n: number;
 }
 
-interface Totales {
-  costo_total: number;
-  valor_mercado: number;
-  pnl_no_realizado: number;
-  pnl_realizado: number;
-  pnl_total: number;
-  pnl_total_pct: number | null;
-}
-
-interface ValuacionesResp {
+interface SerieResp {
   id_cuenta: string;
+  desde: string | null;
   hasta: string | null;
-  posiciones: Posicion[];
-  totales: Totales;
-  n_tickers: number;
-  n_boletos: number;
+  serie: SeriePoint[];
+  ultimo: SeriePoint | null;
+  primero: SeriePoint | null;
+}
+
+interface MensualRow {
+  mes: string;             // "YYYY-MM"
+  ultimo_dia: string;      // "YYYY-MM-DD"
+  valuacion_cierre: number;
+  depositos: number;
+  extracciones: number;
+  flujo_neto: number;
+  delta_valuacion: number | null;
+  n_posiciones: number;
+}
+
+interface MensualResp {
+  id_cuenta: string;
+  meses: MensualRow[];
+  n_meses: number;
 }
 
 interface Props {
-  /** id_cuenta para MVP — typicamente "805". */
+  /** id_cuenta MVP — typicamente "805". */
   idCuenta: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+
+const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
 function fmtCompact(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -61,62 +70,22 @@ function fmtSigned(n: number | null | undefined): string {
   return (n >= 0 ? "+" : "") + fmtCompact(n);
 }
 
-function fmtPct(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return "—";
-  return (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
-}
-
-function fmtQty(n: number | null | undefined): string {
-  if (n == null || Number.isNaN(n)) return "—";
-  return n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
-}
-
-function fmtPrice(n: number | null | undefined, dec = 2): string {
-  if (n == null || Number.isNaN(n)) return "—";
-  return n.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
-}
-
-function fmtVto(s: string | null): string {
-  if (!s) return "—";
-  const [y, m, d] = s.slice(0, 10).split("-");
+function fmtFechaCorta(s: string): string {
+  const [y, m, d] = s.split("-");
   return `${d}/${m}/${y.slice(-2)}`;
 }
 
-const TIPO_COLOR: Record<string, string> = {
-  cer:           "#5fc4f0",
-  tasa_fija:     "#3fbf6f",
-  globales:      "#ff9900",
-  bonares:       "#ff9900",
-  tamar:         "#bb66ff",
-  dolar_linked:  "#94e7b3",
-};
-
-function tipoColor(tipo: string | null): string {
-  if (!tipo) return "#666";
-  return TIPO_COLOR[tipo] ?? "#888";
+function fmtMesAnio(s: string): string {
+  // "YYYY-MM" → "Abr 2026"
+  const [y, m] = s.split("-").map(Number);
+  return `${MESES[m - 1]} ${y}`;
 }
-
-function tipoBadge(tipo: string | null): string {
-  if (!tipo) return "—";
-  if (tipo === "cer") return "CER";
-  if (tipo === "tasa_fija") return "TF";
-  if (tipo === "globales") return "GLOB";
-  if (tipo === "bonares") return "BON";
-  if (tipo === "tamar") return "TAMAR";
-  if (tipo === "dolar_linked") return "DL";
-  return tipo.toUpperCase();
-}
-
-const monedaColor = (m: string): string => {
-  if (m === "ARS") return "#4a9eff";
-  if (m === "USD") return "#00cc66";
-  return "#888";
-};
 
 // ── Componente ────────────────────────────────────────────────────────────
 
 export function ValuacionesView({ idCuenta }: Props) {
-  const [data, setData] = useState<ValuacionesResp | null>(null);
+  const [serieResp, setSerieResp] = useState<SerieResp | null>(null);
+  const [mensualResp, setMensualResp] = useState<MensualResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,14 +95,21 @@ export function ValuacionesView({ idCuenta }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(
-          `/api/valuaciones/${encodeURIComponent(idCuenta)}/posiciones`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j: ValuacionesResp = await res.json();
+        const [s, m] = await Promise.all([
+          fetch(`/api/valuaciones/${encodeURIComponent(idCuenta)}/serie`,
+                { cache: "no-store" }).then((r) => {
+            if (!r.ok) throw new Error(`serie HTTP ${r.status}`);
+            return r.json() as Promise<SerieResp>;
+          }),
+          fetch(`/api/valuaciones/${encodeURIComponent(idCuenta)}/mensual`,
+                { cache: "no-store" }).then((r) => {
+            if (!r.ok) throw new Error(`mensual HTTP ${r.status}`);
+            return r.json() as Promise<MensualResp>;
+          }),
+        ]);
         if (cancelled) return;
-        setData(j);
+        setSerieResp(s);
+        setMensualResp(m);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -143,10 +119,22 @@ export function ValuacionesView({ idCuenta }: Props) {
     return () => { cancelled = true; };
   }, [idCuenta]);
 
-  const sortedPositions = useMemo<Posicion[]>(
-    () => (data?.posiciones ?? []).slice().sort((a, b) => b.valor_mercado - a.valor_mercado),
-    [data],
-  );
+  const serie = serieResp?.serie ?? [];
+  const meses = mensualResp?.meses ?? [];
+  const ultimo = serieResp?.ultimo ?? null;
+
+  // KPI: variación entre primer y último día disponible.
+  const variacionTotal = useMemo(() => {
+    if (!serieResp?.primero || !serieResp?.ultimo) return null;
+    const a = serieResp.primero.valuacion;
+    const b = serieResp.ultimo.valuacion;
+    if (a === 0) return null;
+    return ((b - a) / Math.abs(a)) * 100;
+  }, [serieResp]);
+
+  // Color para deltas signados.
+  const colorDelta = (n: number | null | undefined) =>
+    n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
 
   if (loading) {
     return (
@@ -164,185 +152,216 @@ export function ValuacionesView({ idCuenta }: Props) {
     );
   }
 
-  if (!data || data.posiciones.length === 0) {
+  if (serie.length === 0 && meses.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-[#555555] text-sm p-6 text-center">
-        Sin posiciones para cuenta [{idCuenta}].
+        Sin datos de valuación para cuenta [{idCuenta}].
         <br />
         <span className="text-[#444] text-xs">
-          Asegurate que haya boletos en CashFlow.NegocioMovimientos para esta cuenta.
+          Asegurate que jobs/aum.py esté corriendo y haya snapshots en Valuaciones.AuM.
         </span>
       </div>
     );
   }
 
-  const t = data.totales;
-  const pnlColor = (n: number | null | undefined) =>
-    n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
-
   return (
     <div className="h-full flex flex-col p-3 gap-3 overflow-hidden">
 
       {/* KPIs row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 shrink-0">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
         <Kpi
-          label="VALOR MERCADO"
-          value={fmtCompact(t.valor_mercado)}
+          label="VALOR ACTUAL"
+          value={ultimo ? fmtCompact(ultimo.valuacion) : "—"}
+          sub={ultimo ? fmtFechaCorta(ultimo.fecha) : "—"}
           accent="#4a9eff"
         />
         <Kpi
-          label="COSTO TOTAL"
-          value={fmtCompact(t.costo_total)}
+          label="N POSICIONES"
+          value={ultimo ? String(ultimo.n) : "—"}
         />
         <Kpi
-          label="PNL NO REAL"
-          value={fmtSigned(t.pnl_no_realizado)}
-          accent={pnlColor(t.pnl_no_realizado)}
+          label="Δ DEL PERÍODO"
+          value={
+            variacionTotal != null
+              ? (variacionTotal >= 0 ? "+" : "") + variacionTotal.toFixed(2) + "%"
+              : "—"
+          }
+          accent={colorDelta(variacionTotal)}
+          sub={
+            serieResp?.primero
+              ? `desde ${fmtFechaCorta(serieResp.primero.fecha)}`
+              : undefined
+          }
         />
         <Kpi
-          label="PNL REALIZADO"
-          value={fmtSigned(t.pnl_realizado)}
-          accent={pnlColor(t.pnl_realizado)}
-        />
-        <Kpi
-          label="PNL TOTAL"
-          value={fmtSigned(t.pnl_total)}
-          accent={pnlColor(t.pnl_total)}
-        />
-        <Kpi
-          label="PNL TOTAL %"
-          value={fmtPct(t.pnl_total_pct)}
-          accent={pnlColor(t.pnl_total_pct)}
+          label="DÍAS CON DATA"
+          value={String(serie.length)}
         />
       </div>
 
-      {/* Posiciones table */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
-          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-            Posiciones · cuenta [{idCuenta}]
-          </span>
-          <span className="ml-auto text-[10px] text-[#888] font-mono">
-            {data.n_tickers} ticker{data.n_tickers !== 1 ? "s" : ""} · {data.n_boletos} boletos
-          </span>
+      {/* Layout: chart top, mensual table bottom */}
+      <div className="flex-1 min-h-0 grid grid-rows-[3fr_2fr] gap-3 overflow-hidden">
+
+        {/* Chart panel */}
+        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              Valuación diaria · cuenta [{idCuenta}]
+            </span>
+            {serie.length > 0 && (
+              <span className="ml-3 text-[9px] text-[#555] font-mono">
+                {fmtFechaCorta(serie[0].fecha)} → {fmtFechaCorta(serie[serie.length - 1].fecha)}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-h-0 p-2">
+            {serie.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                Sin serie diaria para esta cuenta.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={serie}
+                  margin={{ top: 8, right: 12, bottom: 28, left: 8 }}
+                >
+                  <CartesianGrid stroke="#161616" vertical={false} />
+                  <XAxis
+                    dataKey="fecha"
+                    tick={{ fill: "#808080", fontSize: 10 }}
+                    axisLine={{ stroke: "#2a2a2a" }}
+                    tickLine={false}
+                    tickFormatter={fmtFechaCorta}
+                    interval={Math.max(0, Math.floor(serie.length / 14))}
+                    angle={-35}
+                    textAnchor="end"
+                    height={42}
+                    minTickGap={4}
+                  />
+                  <YAxis
+                    tick={{ fill: "#808080", fontSize: 10 }}
+                    axisLine={{ stroke: "#2a2a2a" }}
+                    tickLine={false}
+                    tickFormatter={(v: number) => fmtCompact(v)}
+                    width={64}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "#ffffff08" }}
+                    contentStyle={{
+                      background: "#0e0e0e",
+                      border: "1px solid #2a2a2a",
+                      fontSize: 11,
+                      fontFamily: "JetBrains Mono, monospace",
+                    }}
+                    labelStyle={{ color: "#808080" }}
+                    itemStyle={{ color: "#d0d0d0" }}
+                    labelFormatter={(v) => fmtFechaCorta(String(v))}
+                    formatter={(v) => [fmtCompact(Number(v)), "Valuación"]}
+                  />
+                  <Bar
+                    dataKey="valuacion"
+                    fill="#4a9eff"
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
-              <tr>
-                <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Ticker</th>
-                <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Clase</th>
-                <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Mon</th>
-                <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Vto.</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">P. Entrada</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">P. Actual</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Cantidad</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Costo</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Valor Mdo</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">PNL $</th>
-                <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">PNL %</th>
-                <th className="px-2 py-1.5 text-center border-b border-[#1a1a1a]">✓</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedPositions.map((p) => (
-                <tr key={p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                  <td className="px-2 py-1 text-[#ff9900] font-semibold">{p.ticker}</td>
-                  <td className="px-2 py-1">
-                    <span
-                      className="px-1.5 py-0.5 text-[9px] uppercase tracking-wider"
-                      style={{
-                        background: `${tipoColor(p.tipo)}22`,
-                        color: tipoColor(p.tipo),
-                        border: `1px solid ${tipoColor(p.tipo)}55`,
-                      }}
-                    >
-                      {tipoBadge(p.tipo)}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 inline-block rounded-full" style={{ background: monedaColor(p.moneda) }} />
-                      <span className="text-[#888]">{p.moneda}</span>
-                    </span>
-                  </td>
-                  <td className="px-2 py-1 text-[#888]">{fmtVto(p.fecha_vencimiento)}</td>
-                  <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtPrice(p.precio_promedio, 2)}</td>
-                  <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtPrice(p.precio_actual, 2)}</td>
-                  <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
-                  <td className="px-2 py-1 text-right text-[#888]">{fmtCompact(p.costo_total)}</td>
-                  <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtCompact(p.valor_mercado)}</td>
-                  <td
-                    className="px-2 py-1 text-right font-semibold"
-                    style={{ color: pnlColor(p.pnl_no_realizado) }}
-                  >
-                    {fmtSigned(p.pnl_no_realizado)}
-                  </td>
-                  <td
-                    className="px-2 py-1 text-right"
-                    style={{ color: pnlColor(p.pnl_no_realizado_pct) }}
-                  >
-                    {fmtPct(p.pnl_no_realizado_pct)}
-                  </td>
-                  <td
-                    className="px-2 py-1 text-center text-[10px]"
-                    title={
-                      p.completeness === "completa"
-                        ? "Cost basis completo (todos los compras observadas)"
-                        : "⚠ Cost basis parcial — la cuenta tenía posición antes del primer boleto disponible. PnL es aproximado."
-                    }
-                  >
-                    {p.completeness === "completa" ? (
-                      <span className="text-[#00cc66]">✓</span>
-                    ) : (
-                      <span className="text-[#ff9900]">⚠</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              <tr className="border-t-2 border-[#2a2a2a] bg-[#0a0a0a] font-semibold">
-                <td className="px-2 py-1.5 text-[#ff9900]" colSpan={7}>TOTAL</td>
-                <td className="px-2 py-1.5 text-right text-[#888]">{fmtCompact(t.costo_total)}</td>
-                <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtCompact(t.valor_mercado)}</td>
-                <td
-                  className="px-2 py-1.5 text-right"
-                  style={{ color: pnlColor(t.pnl_no_realizado) }}
-                >
-                  {fmtSigned(t.pnl_no_realizado)}
-                </td>
-                <td
-                  className="px-2 py-1.5 text-right"
-                  style={{ color: pnlColor(t.pnl_total_pct) }}
-                >
-                  {fmtPct(t.pnl_total_pct)}
-                </td>
-                <td className="px-2 py-1.5"></td>
-              </tr>
-            </tbody>
-          </table>
+        {/* Monthly table */}
+        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              Cierre mensual · cuenta [{idCuenta}]
+            </span>
+            <span className="ml-auto text-[10px] text-[#888] font-mono">
+              {meses.length} mes{meses.length !== 1 ? "es" : ""}
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {meses.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                Sin datos mensuales.
+              </div>
+            ) : (
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Mes</th>
+                    <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cierre</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Valuación</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Δ valuación</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Depósitos</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Extracciones</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Flujo neto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meses.map((m) => (
+                    <tr key={m.mes} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+                      <td className="px-3 py-1 text-[#ff9900] font-semibold">{fmtMesAnio(m.mes)}</td>
+                      <td className="px-3 py-1 text-[#888]">{fmtFechaCorta(m.ultimo_dia)}</td>
+                      <td className="px-3 py-1 text-right text-[#d0d0d0] font-semibold">
+                        {fmtCompact(m.valuacion_cierre)}
+                      </td>
+                      <td
+                        className="px-3 py-1 text-right"
+                        style={{ color: colorDelta(m.delta_valuacion) }}
+                      >
+                        {m.delta_valuacion != null ? fmtSigned(m.delta_valuacion) : "—"}
+                      </td>
+                      <td className="px-3 py-1 text-right text-[#888]">
+                        {m.depositos !== 0 ? fmtCompact(m.depositos) : "—"}
+                      </td>
+                      <td className="px-3 py-1 text-right text-[#888]">
+                        {m.extracciones !== 0 ? fmtCompact(m.extracciones) : "—"}
+                      </td>
+                      <td
+                        className="px-3 py-1 text-right font-semibold"
+                        style={{ color: colorDelta(m.flujo_neto) }}
+                      >
+                        {m.flujo_neto !== 0 ? fmtSigned(m.flujo_neto) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
+
       </div>
 
-      {/* Footnote sobre completeness */}
+      {/* Footnote */}
       <div className="text-[9px] text-[#555] shrink-0">
-        ✓ = cost basis completo · ⚠ = parcial (la cuenta ya tenía la posición antes del primer boleto disponible — PnL aproximado).
-        PnL TOTAL incluye realizado + no realizado · MVP: solo posiciones con boletos en CashFlow.NegocioMovimientos.
+        Cierre = último fecha_snapshot del mes en Valuaciones.AuM (no
+        necesariamente el día 30/31). Flujos = depósitos + transferencias −
+        extracciones de CashFlow.NegocioMovimientos. Δ valuación =
+        cierre actual − cierre del mes anterior (incluye flujos + performance).
       </div>
     </div>
   );
 }
 
-function Kpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Kpi({
+  label, value, sub, accent,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: string;
+}) {
   return (
     <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2">
       <div className="text-[9px] text-[#555] uppercase tracking-wider mb-1">{label}</div>
       <div
-        className="text-[16px] font-mono font-semibold tabular-nums"
+        className="text-[18px] font-mono font-semibold tabular-nums leading-tight"
         style={accent ? { color: accent } : { color: "#d0d0d0" }}
       >
         {value}
       </div>
+      {sub && <div className="text-[9px] text-[#666] mt-0.5">{sub}</div>}
     </div>
   );
 }

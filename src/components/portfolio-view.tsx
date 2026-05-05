@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ValuacionesView } from "./valuaciones-view";
-
-type Tab = "composicion" | "valuaciones";
 
 interface Cuenta {
   id_cuenta: string;
@@ -70,7 +67,6 @@ function fmtVto(v: string | null): string {
 }
 
 export function PortfolioView({ mep, a3500 }: Props) {
-  const [tab, setTab] = useState<Tab>("composicion");
   const [cuentas, setCuentas] = useState<Cuenta[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [resumen, setResumen] = useState<ResumeData | null>(null);
@@ -153,24 +149,10 @@ export function PortfolioView({ mep, a3500 }: Props) {
   const carteras = Object.entries(mesActual).filter(([, v]) => v > 0);
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-        {(["composicion", "valuaciones"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={
-              "px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors " +
-              (tab === t
-                ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]")
-            }
-          >
-            {t === "composicion" ? "COMPOSICIÓN" : "VALUACIONES"}
-          </button>
-        ))}
-        <span className="text-[10px] text-[#555555] tracking-wide ml-4">CUENTA</span>
+    <div className="h-full flex flex-col min-h-0 p-3 gap-3">
+      {/* Header */}
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-[10px] text-[#555555] tracking-wide">CUENTA</span>
         <select
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
@@ -185,72 +167,6 @@ export function PortfolioView({ mep, a3500 }: Props) {
         {loading && <span className="text-[10px] text-[#555555]">cargando…</span>}
         <span className="ml-auto text-[10px] text-[#555555]">{hoy}</span>
       </div>
-
-      {tab === "valuaciones" ? (
-        <div className="flex-1 min-h-0">
-          <ValuacionesView idCuenta={selectedId || "805"} />
-        </div>
-      ) : (
-        <ComposicionTab
-          loading={loading}
-          mep={mep}
-          a3500={a3500}
-          totalActual={totalActual}
-          totalAnterior={totalAnterior}
-          totalVisible={totalVisible}
-          carteraFiltro={carteraFiltro}
-          setCarteraFiltro={setCarteraFiltro}
-          mesActual={mesActual}
-          mesAnterior={mesAnterior}
-          posFiltradas={posFiltradas}
-          sortCol={sortCol}
-          sortDir={sortDir}
-          toggleSort={toggleSort}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Composicion tab — extracted from PortfolioView body ───────────────────
-
-interface ComposicionProps {
-  loading: boolean;
-  mep: number;
-  a3500: number;
-  totalActual: number;
-  totalAnterior: number;
-  totalVisible: number;
-  carteraFiltro: string | null;
-  setCarteraFiltro: (c: string | null) => void;
-  mesActual: Record<string, number>;
-  mesAnterior: Record<string, number>;
-  posFiltradas: Posicion[];
-  sortCol: "ticker" | "valuacion";
-  sortDir: "asc" | "desc";
-  toggleSort: (col: "ticker" | "valuacion") => void;
-}
-
-function ComposicionTab({
-  loading, mep, a3500,
-  totalActual, totalAnterior, totalVisible,
-  carteraFiltro, setCarteraFiltro,
-  mesActual, mesAnterior,
-  posFiltradas, sortCol, sortDir, toggleSort,
-}: ComposicionProps) {
-  const kpis = [
-    { label: "DÓLAR MEP",    value: mep > 0 ? `$${fmtFull(mep)}` : "--",    highlight: true },
-    { label: "DÓLAR A3500",  value: a3500 > 0 ? `$${fmtFull(a3500)}` : "--", highlight: true },
-    { label: "VALUACIÓN ARS", value: totalVisible > 0 ? fmtARS(totalVisible) : "--" },
-    { label: "VAL A3500",    value: totalVisible > 0 && a3500 > 0 ? fmtARS(totalVisible / a3500) : "--" },
-    { label: "VAL USD MEP",  value: totalVisible > 0 && mep > 0 ? fmtARS(totalVisible / mep) : "--" },
-    { label: "MES ANTERIOR", value: totalAnterior > 0 ? fmtARS(totalAnterior) : "--" },
-  ];
-
-  const carteras = Object.entries(mesActual).filter(([, v]) => v > 0);
-
-  return (
-    <div className="flex-1 flex flex-col min-h-0 p-3 gap-3">{loading && null}
 
       {/* KPIs */}
       <div className="grid grid-cols-6 gap-2 shrink-0">
