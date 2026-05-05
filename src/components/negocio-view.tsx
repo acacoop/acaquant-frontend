@@ -53,6 +53,7 @@ interface SeriePoint {
 
 type Moneda = "ARS" | "USD";
 type RangoKey = "1W" | "1M" | "3M" | "ALL";
+type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
 
 // ── Constantes ────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ const NEGOCIO_CATS = [
 ] as const;
 type NegocioCat = (typeof NEGOCIO_CATS)[number];
 
-// Mapeo entre las claves del chart (cortas) y las categorías de los boletos.
+// Mapeo entre las claves del chart (cortas) y la categoría persistida en el boleto.
 const CAT_BOLETO_KEY: Record<NegocioCat, string> = {
   compra:       "compra",
   venta:        "venta",
@@ -90,56 +91,7 @@ const CAT_LABEL: Record<NegocioCat, string> = {
   cauc_tom_ap:  "Cauc Tom Apert",
 };
 
-// Para colorear filas/labels en la tabla de detalle (incluye categorías
-// que NO entran al chart pero sí aparecen como boletos del día).
-const TABLE_CAT_COLOR: Record<string, string> = {
-  compra:                    "#3fbf6f",
-  venta:                     "#ff5d6c",
-  suscripcion_fci:           "#94e7b3",
-  rescate_fci:               "#ff5d6c",
-  solicitud_suscripcion_fci: "#5fc4f0",
-  solicitud_rescate_fci:     "#ff5d6c",
-  acreencia:                 "#9bd2ff",
-  caucion_col_ap:            "#5fd0d0",
-  caucion_col_ci:            "#7be8e8",
-  caucion_tom_ap:            "#d09060",
-  caucion_tom_ci:            "#e8a878",
-  caucion_otro:              "#888",
-  deposito:                  "#ffd56b",
-  extraccion:                "#ffa552",
-  transferencia:             "#c19fff",
-  comision:                  "#888",
-  impuesto:                  "#888",
-  otro:                      "#666",
-};
-
-const TABLE_CAT_LABEL: Record<string, string> = {
-  compra:                    "Compras",
-  venta:                     "Ventas",
-  suscripcion_fci:           "Susc FCI super",
-  rescate_fci:               "Resc FCI super",
-  solicitud_suscripcion_fci: "Sol Susc FCI",
-  solicitud_rescate_fci:     "Sol Resc FCI",
-  acreencia:                 "Acreencias",
-  caucion_col_ap:            "Cauc Col Apertura",
-  caucion_col_ci:            "Cauc Col Cierre",
-  caucion_tom_ap:            "Cauc Tom Apertura",
-  caucion_tom_ci:            "Cauc Tom Cierre",
-  caucion_otro:              "Cauciones",
-  deposito:                  "Depósitos",
-  extraccion:                "Extracciones",
-  transferencia:             "Transferencias",
-  comision:                  "Comisiones",
-  impuesto:                  "Impuestos",
-  otro:                      "Otros",
-};
-
 // ── Helpers ───────────────────────────────────────────────────────────────
-
-const fmtNum = (n: number | null | undefined, dec = 2): string => {
-  if (n == null || Number.isNaN(n)) return "—";
-  return n.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
-};
 
 const fmtCompact = (n: number | null | undefined): string => {
   if (n == null || Number.isNaN(n)) return "—";
@@ -175,8 +127,61 @@ function fmtFechaCorta(s: string): string {
   return `${d}/${m}/${y.slice(-2)}`;
 }
 
-// Filtra serie por rango (1W/1M/3M/ALL). Cuenta hábiles desde la última fecha
-// de la serie hacia atrás — independiente de feriados, no de calendario.
+function fmtMesCorto(s: string): string {
+  // "2026-04" → "Abr 26"
+  const [y, m] = s.split("-").map(Number);
+  return `${MESES[m - 1]} ${String(y).slice(-2)}`;
+}
+
+// ── Aggregation ───────────────────────────────────────────────────────────
+
+// Datos son L-V; cualquier fecha de la serie es business day. El "lunes
+// hábil" de la semana = restar (weekday - 1) días al fecha dada.
+function lunesDeSemana(fechaIso: string): string {
+  const d = new Date(fechaIso + "T00:00:00Z");
+  const dow = d.getUTCDay(); // 0=Sun .. 1=Mon ... 5=Fri
+  const offset = dow === 0 ? -6 : 1 - dow;
+  const monday = new Date(d.getTime() + offset * 86400000);
+  return monday.toISOString().slice(0, 10);
+}
+
+function bucketKey(fechaIso: string, agg: AggKey): string {
+  if (agg === "MENSUAL") return fechaIso.slice(0, 7); // "YYYY-MM"
+  if (agg === "SEMANAL") return lunesDeSemana(fechaIso);
+  return fechaIso;
+}
+
+function fmtBucket(key: string, agg: AggKey): string {
+  if (agg === "MENSUAL") return fmtMesCorto(key);
+  return fmtFechaCorta(key);
+}
+
+function aggregateSerie(serie: SeriePoint[], agg: AggKey): SeriePoint[] {
+  if (agg === "DIARIO") return serie;
+  const m = new Map<string, SeriePoint>();
+  for (const p of serie) {
+    const k = bucketKey(p.fecha, agg);
+    const cur = m.get(k);
+    if (cur) {
+      cur.compra += p.compra;
+      cur.venta += p.venta;
+      cur.susc_fci += p.susc_fci;
+      cur.sol_susc_fci += p.sol_susc_fci;
+      cur.cauc_tom_ap += p.cauc_tom_ap;
+    } else {
+      m.set(k, {
+        fecha: k,
+        compra: p.compra,
+        venta: p.venta,
+        susc_fci: p.susc_fci,
+        sol_susc_fci: p.sol_susc_fci,
+        cauc_tom_ap: p.cauc_tom_ap,
+      });
+    }
+  }
+  return [...m.values()].sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
 function filtrarRango(serie: SeriePoint[], rango: RangoKey): SeriePoint[] {
   if (rango === "ALL" || serie.length === 0) return serie;
   const n = rango === "1W" ? 5 : rango === "1M" ? 22 : 65;
@@ -197,16 +202,14 @@ export function NegocioView() {
 
   const [moneda, setMoneda] = useState<Moneda>("ARS");
   const [rango, setRango] = useState<RangoKey>("ALL");
-  const [catFiltro, setCatFiltro] = useState<string>("");
-  const [search, setSearch] = useState("");
+  const [agg, setAgg] = useState<AggKey>("DIARIO");
+  const [catSel, setCatSel] = useState<NegocioCat | null>(null);
 
-  // Carga inicial: fechas con data → setea la más reciente como fecha actual.
+  // ── Fetch: lista de fechas con data ────────────────────────────────────
   useEffect(() => {
     const loadFechas = async () => {
       try {
-        const res = await fetch("/api/operaciones/negocio/fechas", {
-          cache: "no-store",
-        });
+        const res = await fetch("/api/operaciones/negocio/fechas", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: { fechas: { fecha: string; n: number }[] } = await res.json();
         setFechasDisp(j.fechas);
@@ -223,14 +226,12 @@ export function NegocioView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Detalle del día seleccionado.
+  // ── Fetch: detalle del día ─────────────────────────────────────────────
   const fetchData = async (f: string) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/operaciones/negocio?fecha=${f}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(`/api/operaciones/negocio?fecha=${f}`, { cache: "no-store" });
       if (!res.ok) {
         const txt = await res.text();
         throw new Error(`HTTP ${res.status}: ${txt.slice(0, 200)}`);
@@ -249,7 +250,7 @@ export function NegocioView() {
     if (fecha) void fetchData(fecha);
   }, [fecha]);
 
-  // Serie histórica (depende de la moneda).
+  // ── Fetch: serie histórica (depende de la moneda) ──────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -272,9 +273,7 @@ export function NegocioView() {
         if (!cancelled) setLoadingSerie(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [moneda]);
 
   // ── Derivados ────────────────────────────────────────────────────────────
@@ -293,9 +292,8 @@ export function NegocioView() {
   const goNext = () => { if (hayNext) setFecha(fechasOrdenadasAsc[idxActual + 1]); };
   const goLatest = () => { if (ultimaFecha) setFecha(ultimaFecha); };
 
-  // KPIs del día seleccionado (en la moneda elegida) — buscar en la serie
-  // por fecha exacta. Si no aparece, todos en 0.
-  const kpiHoy = useMemo<Record<NegocioCat, number>>(() => {
+  // Totales del DÍA seleccionado (no del rango ni del bucket).
+  const totalesHoy = useMemo<Record<NegocioCat, number>>(() => {
     const empty: Record<NegocioCat, number> = {
       compra: 0, venta: 0, susc_fci: 0, sol_susc_fci: 0, cauc_tom_ap: 0,
     };
@@ -310,175 +308,179 @@ export function NegocioView() {
     };
   }, [serie, fecha]);
 
-  const chartData = useMemo(() => filtrarRango(serie, rango), [serie, rango]);
+  const totalDia = useMemo(
+    () => NEGOCIO_CATS.reduce((a, c) => a + totalesHoy[c], 0),
+    [totalesHoy],
+  );
 
-  // Boletos filtrados para la tabla — siempre filtra por moneda elegida,
-  // luego por categoría/búsqueda si están aplicadas.
-  const filteredBoletos = useMemo<Boleto[]>(() => {
-    if (!data) return [];
-    let out = data.boletos.filter((b) => (b.moneda ?? "ARS") === moneda);
-    if (catFiltro) out = out.filter((b) => b.categoria === catFiltro);
-    if (search) {
-      const q = search.toLowerCase();
-      out = out.filter((b) =>
-        [b.comprobante, b.cuenta, b.ticker, b.informacion, b.op]
-          .map((v) => String(v ?? "").toLowerCase())
-          .some((s) => s.includes(q)),
-      );
+  // Datos para el chart: rango primero, luego aggregation.
+  const chartData = useMemo(() => {
+    return aggregateSerie(filtrarRango(serie, rango), agg);
+  }, [serie, rango, agg]);
+
+  // Drill-down: cuentas de la categoría seleccionada para el día y moneda
+  // actuales. Sumar |importe| por cuenta, ordenar desc (mayor → menor).
+  const cuentasDetalle = useMemo<{ cuenta: string; importe_abs: number; n: number }[]>(() => {
+    if (!data || !catSel) return [];
+    const targetCat = CAT_BOLETO_KEY[catSel];
+    const m = new Map<string, { importe_abs: number; n: number }>();
+    for (const b of data.boletos) {
+      if ((b.moneda ?? "ARS") !== moneda) continue;
+      if (b.categoria !== targetCat) continue;
+      const cuenta = b.cuenta ?? "(sin cuenta)";
+      const cur = m.get(cuenta) ?? { importe_abs: 0, n: 0 };
+      cur.importe_abs += Math.abs(b.importe ?? 0);
+      cur.n += 1;
+      m.set(cuenta, cur);
     }
-    return out;
-  }, [data, moneda, catFiltro, search]);
+    return [...m.entries()]
+      .map(([cuenta, v]) => ({ cuenta, ...v }))
+      .sort((a, b) => b.importe_abs - a.importe_abs);
+  }, [data, catSel, moneda]);
+
+  const totalCatSel = useMemo(
+    () => cuentasDetalle.reduce((a, c) => a + c.importe_abs, 0),
+    [cuentasDetalle],
+  );
 
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full overflow-auto bg-[#0a0a0a] text-[#d0d0d0]">
-      <div className="p-4 space-y-4 max-w-full">
+    <div className="h-full overflow-hidden bg-[#0a0a0a] text-[#d0d0d0] flex flex-col">
 
-        {/* HEADER con fecha + meta + currency toggle */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-[#1a1a1a] pb-3">
-          <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
-            <button
-              onClick={goPrev}
-              disabled={!hayPrev}
-              className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333] disabled:hover:bg-transparent"
-              title="Día con data anterior"
-            >‹</button>
-            <select
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              disabled={fechasDisp.length === 0}
-              className="bg-black px-2 py-1 text-[12px] font-mono text-[#d0d0d0] outline-none disabled:opacity-50"
-            >
-              {fechasDisp.length === 0 && <option value="">— sin datos —</option>}
-              {fechasDisp.map((f) => (
-                <option key={f.fecha} value={f.fecha}>
-                  {fmtFechaDisplay(f.fecha)} ({f.n})
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={goNext}
-              disabled={!hayNext}
-              className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333] disabled:hover:bg-transparent"
-              title="Día con data siguiente"
-            >›</button>
-            <button
-              onClick={goLatest}
-              disabled={isLatest || !ultimaFecha}
-              className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[#888] hover:text-[#ff9900] disabled:text-[#444]"
-              title="Última fecha con data"
-            >Última</button>
-          </div>
-
-          <div className="text-[14px] font-mono text-[#ff9900]">
-            {fecha ? fmtFechaDisplay(fecha) : "—"}
-          </div>
-
-          {data && (
-            <>
-              <span className="text-[#333]">│</span>
-              <div className="text-[10px]">
-                <span className="text-[#666] uppercase tracking-wider">Boletos: </span>
-                <span className="text-[#d0d0d0] font-mono">{data.meta.n_boletos}</span>
-              </div>
-              <div className="text-[10px]">
-                <span className="text-[#666] uppercase tracking-wider">Última ingesta: </span>
-                <span className="text-[#d0d0d0] font-mono">
-                  {formatTime(data.meta.ultima_ingesta)}
-                </span>
-              </div>
-            </>
-          )}
-
-          {(loading || loadingSerie) && (
-            <span className="text-[10px] text-[#888]">cargando…</span>
-          )}
-
-          {/* Currency toggle (a la derecha) */}
-          <div className="ml-auto inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
-            {(["ARS", "USD"] as Moneda[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMoneda(m)}
-                className={
-                  "px-3 py-1 text-[10px] uppercase tracking-wider " +
-                  (moneda === m
-                    ? "bg-[#ff9900] text-black"
-                    : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
-                }
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-
+      {/* HEADER */}
+      <div className="px-4 py-3 border-b border-[#1a1a1a] flex flex-wrap items-center gap-3 shrink-0">
+        <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
           <button
-            onClick={() => fecha && void fetchData(fecha)}
-            className="bg-[#0f0f0f] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[#888] hover:text-[#ff9900]"
+            onClick={goPrev}
+            disabled={!hayPrev}
+            className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333]"
+            title="Día anterior con data"
+          >‹</button>
+          <select
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            disabled={fechasDisp.length === 0}
+            className="bg-black px-2 py-1 text-[12px] font-mono text-[#d0d0d0] outline-none disabled:opacity-50"
           >
-            ↻ Refresh
-          </button>
+            {fechasDisp.length === 0 && <option value="">— sin datos —</option>}
+            {fechasDisp.map((f) => (
+              <option key={f.fecha} value={f.fecha}>
+                {fmtFechaDisplay(f.fecha)} ({f.n})
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={goNext}
+            disabled={!hayNext}
+            className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333]"
+            title="Día siguiente con data"
+          >›</button>
+          <button
+            onClick={goLatest}
+            disabled={isLatest || !ultimaFecha}
+            className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[#888] hover:text-[#ff9900] disabled:text-[#444]"
+            title="Última fecha con data"
+          >Última</button>
         </div>
 
-        {error && (
-          <div className="border border-[#aa3333] bg-[#1a0808] p-3 text-[11px] text-[#ff7777]">
-            {error}
-          </div>
-        )}
+        <div className="text-[14px] font-mono text-[#ff9900]">
+          {fecha ? fmtFechaDisplay(fecha) : "—"}
+        </div>
 
-        {fechasLoaded && fechasDisp.length === 0 && !loading && (
-          <div className="border border-[#1a1a1a] p-8 text-center text-[12px] text-[#666]">
-            Aún no hay datos persistidos en CashFlow.NegocioMovimientos.
-            <div className="mt-2 text-[10px]">
-              El job corre cada hora 12-22 ART (L-V).
-            </div>
-          </div>
-        )}
-
-        {fechasDisp.length > 0 && (
+        {data && (
           <>
-            {/* KPIs — totales del día seleccionado en la moneda elegida */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-              {NEGOCIO_CATS.map((cat) => {
-                const v = kpiHoy[cat];
-                const color = CAT_COLOR[cat];
-                return (
-                  <div
-                    key={cat}
-                    className="border border-[#1a1a1a] bg-[#080808] p-3"
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="w-2 h-2 inline-block" style={{ background: color }} />
-                      <span className="text-[9px] uppercase tracking-widest text-[#888]">
-                        {CAT_LABEL[cat]}
-                      </span>
-                    </div>
-                    <div
-                      className="text-[20px] font-mono tabular-nums"
-                      style={{ color: v > 0 ? color : "#444" }}
-                    >
-                      {fmtCompact(v)}
-                    </div>
-                    <div className="text-[9px] text-[#666] mt-0.5">{moneda}</div>
-                  </div>
-                );
-              })}
+            <span className="text-[#333]">│</span>
+            <div className="text-[10px]">
+              <span className="text-[#666] uppercase tracking-wider">Boletos: </span>
+              <span className="text-[#d0d0d0] font-mono">{data.meta.n_boletos}</span>
             </div>
+            <div className="text-[10px]">
+              <span className="text-[#666] uppercase tracking-wider">Última ingesta: </span>
+              <span className="text-[#d0d0d0] font-mono">
+                {formatTime(data.meta.ultima_ingesta)}
+              </span>
+            </div>
+          </>
+        )}
 
-            {/* CHART evolución diaria */}
-            <div className="border border-[#1a1a1a] bg-[#080808]">
-              <div className="flex items-center px-3 py-2 border-b border-[#1a1a1a]">
-                <span className="text-[10px] uppercase tracking-widest text-[#666]">
-                  Volumen operado por día · {moneda}
+        {(loading || loadingSerie) && (
+          <span className="text-[10px] text-[#888]">cargando…</span>
+        )}
+
+        <div className="ml-auto inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+          {(["ARS", "USD"] as Moneda[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMoneda(m)}
+              className={
+                "px-3 py-1 text-[10px] uppercase tracking-wider " +
+                (moneda === m
+                  ? "bg-[#ff9900] text-black"
+                  : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+              }
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => fecha && void fetchData(fecha)}
+          className="bg-[#0f0f0f] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[#888] hover:text-[#ff9900]"
+        >
+          ↻ Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="mx-4 mt-3 border border-[#aa3333] bg-[#1a0808] p-3 text-[11px] text-[#ff7777]">
+          {error}
+        </div>
+      )}
+
+      {fechasLoaded && fechasDisp.length === 0 && !loading && (
+        <div className="m-4 border border-[#1a1a1a] p-8 text-center text-[12px] text-[#666]">
+          Aún no hay datos persistidos en CashFlow.NegocioMovimientos.
+        </div>
+      )}
+
+      {fechasDisp.length > 0 && (
+        <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
+
+          {/* COLUMNA IZQUIERDA */}
+          <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+
+            {/* CHART panel */}
+            <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+              <div className="flex items-center px-3 py-2 border-b border-[#1a1a1a] shrink-0 flex-wrap gap-2">
+                <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
+                  Volumen operado · {moneda}
                 </span>
                 {chartData.length > 0 && (
-                  <span className="ml-3 text-[9px] text-[#555] font-mono">
-                    {fmtFechaCorta(chartData[0].fecha)} → {fmtFechaCorta(chartData[chartData.length - 1].fecha)}
+                  <span className="text-[9px] text-[#555] font-mono">
+                    {fmtBucket(chartData[0].fecha, agg)} → {fmtBucket(chartData[chartData.length - 1].fecha, agg)}
                   </span>
                 )}
-                {/* Range filter */}
+                {/* Aggregation toggle */}
                 <div className="ml-auto inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+                  {(["DIARIO", "SEMANAL", "MENSUAL"] as AggKey[]).map((k) => (
+                    <button
+                      key={k}
+                      onClick={() => setAgg(k)}
+                      className={
+                        "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                        (agg === k
+                          ? "bg-[#ff9900] text-black"
+                          : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      }
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+                {/* Range filter */}
+                <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
                   {(["1W", "1M", "3M", "ALL"] as RangoKey[]).map((k) => (
                     <button
                       key={k}
@@ -496,7 +498,7 @@ export function NegocioView() {
                 </div>
               </div>
 
-              <div className="p-2 h-[340px]">
+              <div className="flex-1 min-h-0 p-2">
                 {chartData.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
                     Sin datos para {moneda} en este rango.
@@ -505,8 +507,9 @@ export function NegocioView() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       data={chartData}
-                      margin={{ top: 8, right: 16, bottom: 24, left: 8 }}
+                      margin={{ top: 8, right: 12, bottom: 24, left: 4 }}
                       onClick={(state) => {
+                        if (agg !== "DIARIO") return;
                         const f = state?.activeLabel;
                         if (typeof f === "string" && fechasOrdenadasAsc.includes(f)) {
                           setFecha(f);
@@ -519,7 +522,7 @@ export function NegocioView() {
                         tick={{ fill: "#808080", fontSize: 10 }}
                         axisLine={{ stroke: "#2a2a2a" }}
                         tickLine={false}
-                        tickFormatter={fmtFechaCorta}
+                        tickFormatter={(v: string) => fmtBucket(v, agg)}
                         interval={Math.max(0, Math.floor(chartData.length / 14))}
                         angle={-35}
                         textAnchor="end"
@@ -542,7 +545,7 @@ export function NegocioView() {
                           fontFamily: "JetBrains Mono, monospace",
                         }}
                         labelStyle={{ color: "#808080" }}
-                        labelFormatter={(v) => fmtFechaCorta(String(v))}
+                        labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v, name) => [
                           fmtCompact(Number(v)),
                           CAT_LABEL[name as NegocioCat] ?? String(name),
@@ -562,8 +565,8 @@ export function NegocioView() {
                 )}
               </div>
 
-              {/* Leyenda manual (legend nativa de recharts no permite color-code custom labels limpios) */}
-              <div className="flex flex-wrap gap-3 px-3 pb-2 pt-1 text-[10px]">
+              {/* Leyenda manual */}
+              <div className="flex flex-wrap gap-3 px-3 pb-2 pt-1 text-[10px] shrink-0">
                 {NEGOCIO_CATS.map((cat) => (
                   <div key={cat} className="flex items-center gap-1.5">
                     <span className="w-2 h-2 inline-block" style={{ background: CAT_COLOR[cat] }} />
@@ -573,135 +576,127 @@ export function NegocioView() {
               </div>
             </div>
 
-            {/* TABLA detalle del día */}
-            {data && data.boletos.length > 0 && (
-              <div className="border border-[#1a1a1a] bg-[#080808]">
-                <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a] flex-wrap">
-                  <span className="text-[10px] uppercase tracking-widest text-[#666]">
-                    Detalle ({filteredBoletos.length} / {data.boletos.length})
+            {/* POR CATEGORÍA leaderboard */}
+            <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden shrink-0">
+              <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+                <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+                  Por categoría · {fecha ? fmtFechaCorta(fecha) : "—"}
+                </span>
+                <span className="ml-auto text-[10px] text-[#888] font-mono">
+                  Total {fmtCompact(totalDia)} {moneda}
+                </span>
+              </div>
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666]">
+                  <tr>
+                    <th className="px-3 py-1 text-left">Categoría</th>
+                    <th className="px-3 py-1 text-right">Importe</th>
+                    <th className="px-3 py-1 text-right">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {NEGOCIO_CATS.map((cat) => {
+                    const v = totalesHoy[cat];
+                    const pct = totalDia > 0 ? (v / totalDia) * 100 : 0;
+                    const active = catSel === cat;
+                    return (
+                      <tr
+                        key={cat}
+                        onClick={() => setCatSel(active ? null : cat)}
+                        className={
+                          "cursor-pointer border-t border-[#1a1a1a] transition-colors " +
+                          (active
+                            ? "bg-[#ff9900]/10 text-[#ff9900]"
+                            : "hover:bg-[#ff9900]/5")
+                        }
+                      >
+                        <td className="px-3 py-1.5">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="w-2 h-2 inline-block" style={{ background: CAT_COLOR[cat] }} />
+                            <span className={active ? "" : "text-[#d0d0d0]"}>{CAT_LABEL[cat]}</span>
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-semibold">
+                          {fmtCompact(v)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[#888]">
+                          {pct.toFixed(1)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* COLUMNA DERECHA · DETALLE */}
+          <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+            <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+                Detalle{catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
+              </span>
+              {catSel && (
+                <>
+                  <span className="ml-auto text-[10px] text-[#888] font-mono">
+                    {cuentasDetalle.length} cuentas · {fmtCompact(totalCatSel)} {moneda}
                   </span>
-                  {/* Chips de filtro por categoría — solo las 5 del chart */}
-                  <div className="flex items-center gap-1">
-                    {NEGOCIO_CATS.map((cat) => {
-                      const boletoKey = CAT_BOLETO_KEY[cat];
-                      const active = catFiltro === boletoKey;
+                  <button
+                    onClick={() => setCatSel(null)}
+                    className="ml-2 text-[#888] hover:text-[#ff9900] text-[14px] leading-none"
+                    title="Limpiar selección"
+                  >×</button>
+                </>
+              )}
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {!catSel ? (
+                <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
+                  Seleccioná una categoría a la izquierda
+                  <br />para ver el desglose por cuenta.
+                </div>
+              ) : cuentasDetalle.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
+                  Sin boletos en {CAT_LABEL[catSel]} para {fecha ? fmtFechaCorta(fecha) : "—"} · {moneda}.
+                </div>
+              ) : (
+                <table className="w-full text-[11px] font-mono tabular-nums">
+                  <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                    <tr>
+                      <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Importe</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">%</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">N</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cuentasDetalle.map((c) => {
+                      const pct = totalCatSel > 0 ? (c.importe_abs / totalCatSel) * 100 : 0;
                       return (
-                        <button
-                          key={cat}
-                          onClick={() => setCatFiltro(active ? "" : boletoKey)}
-                          className={
-                            "px-2 py-0.5 text-[9px] uppercase tracking-wider border transition-colors " +
-                            (active
-                              ? "border-[#ff9900] text-[#ff9900]"
-                              : "border-[#222] text-[#666] hover:text-[#ccc] hover:border-[#444]")
-                          }
-                          style={active ? undefined : { borderLeftColor: CAT_COLOR[cat], borderLeftWidth: 2 }}
-                        >
-                          {CAT_LABEL[cat]}
-                        </button>
+                        <tr key={c.cuenta} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+                          <td className="px-3 py-1 text-[#d0d0d0] truncate max-w-[280px]" title={c.cuenta}>
+                            {c.cuenta}
+                          </td>
+                          <td className="px-3 py-1 text-right text-[#d0d0d0] font-semibold">
+                            {fmtCompact(c.importe_abs)}
+                          </td>
+                          <td className="px-3 py-1 text-right text-[#888]">
+                            {pct.toFixed(1)}%
+                          </td>
+                          <td className="px-3 py-1 text-right text-[#888]">
+                            {c.n}
+                          </td>
+                        </tr>
                       );
                     })}
-                    {catFiltro && !NEGOCIO_CATS.some((c) => CAT_BOLETO_KEY[c] === catFiltro) && (
-                      <span className="px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[#ff9900] text-[#ff9900]">
-                        {TABLE_CAT_LABEL[catFiltro] ?? catFiltro}
-                        <button onClick={() => setCatFiltro("")} className="ml-1 hover:text-[#fff]">×</button>
-                      </span>
-                    )}
-                  </div>
-
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="buscar (cuenta / ticker / comprobante)…"
-                    className="ml-auto flex-1 max-w-[280px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
-                  />
-                  {search && (
-                    <button
-                      onClick={() => setSearch("")}
-                      className="text-[10px] text-[#888] hover:text-[#ff9900]"
-                    >×</button>
-                  )}
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[11px] font-mono tabular-nums">
-                    <thead className="bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666]">
-                      <tr>
-                        <th className="px-2 py-1 text-left">Categoría</th>
-                        <th className="px-2 py-1 text-left">Comprobante</th>
-                        <th className="px-2 py-1 text-left">Cuenta</th>
-                        <th className="px-2 py-1 text-left">Op</th>
-                        <th className="px-2 py-1 text-left">Ticker</th>
-                        <th className="px-2 py-1 text-right">Cantidad</th>
-                        <th className="px-2 py-1 text-right">Precio</th>
-                        <th className="px-2 py-1 text-right">Importe</th>
-                        <th className="px-2 py-1 text-left">Mon</th>
-                        <th className="px-2 py-1 text-left">Plazo</th>
-                        <th className="px-2 py-1 text-left">Lugar</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredBoletos.map((b) => {
-                        const color = TABLE_CAT_COLOR[b.categoria] ?? "#666";
-                        const label = TABLE_CAT_LABEL[b.categoria] ?? b.categoria;
-                        const cantClr = (b.cantidad ?? 0) > 0
-                          ? "text-[#3fbf6f]"
-                          : (b.cantidad ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
-                        const impClr = (b.importe ?? 0) > 0
-                          ? "text-[#3fbf6f]"
-                          : (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
-                        return (
-                          <tr
-                            key={b.comprobante}
-                            className="border-t border-[#1a1a1a] hover:bg-[#0f0f0f]"
-                          >
-                            <td className="px-2 py-1">
-                              <span className="inline-flex items-center gap-1.5">
-                                <span className="w-2 h-2 inline-block" style={{ background: color }} />
-                                <span style={{ color }}>{label}</span>
-                              </span>
-                            </td>
-                            <td className="px-2 py-1 text-[#888]">{b.comprobante}</td>
-                            <td className="px-2 py-1 text-[#888] truncate max-w-[200px]" title={b.cuenta ?? ""}>
-                              {b.cuenta ?? "—"}
-                            </td>
-                            <td className="px-2 py-1 text-[#d0d0d0]">{b.op ?? "—"}</td>
-                            <td className="px-2 py-1 text-[#ff9900]">{b.ticker ?? "—"}</td>
-                            <td className={`px-2 py-1 text-right ${cantClr}`}>
-                              {fmtNum(b.cantidad, 2)}
-                            </td>
-                            <td className="px-2 py-1 text-right text-[#d0d0d0]">
-                              {fmtNum(b.precio, 2)}
-                            </td>
-                            <td className={`px-2 py-1 text-right ${impClr}`}>
-                              {fmtNum(b.importe, 2)}
-                            </td>
-                            <td className="px-2 py-1 text-[#888]">{b.moneda ?? "—"}</td>
-                            <td className="px-2 py-1 text-[#888]">{b.plazo ?? "—"}</td>
-                            <td className="px-2 py-1 text-[#888]">{b.lugar ?? "—"}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                  {filteredBoletos.length === 0 && (
-                    <div className="p-8 text-center text-[11px] text-[#666]">
-                      Sin boletos para los filtros aplicados.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {data && data.boletos.length === 0 && !loading && (
-              <div className="border border-[#1a1a1a] p-6 text-center text-[12px] text-[#666]">
-                Sin boletos en esta fecha.
-              </div>
-            )}
-          </>
-        )}
-      </div>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
