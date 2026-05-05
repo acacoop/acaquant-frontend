@@ -884,6 +884,10 @@ export function NegocioView() {
                           fontFamily: "JetBrains Mono, monospace",
                         }}
                         labelStyle={{ color: "#808080" }}
+                        // Forzamos color del texto del tooltip — recharts por
+                        // default usa el fill del Cell, lo cual queda invisible
+                        // sobre fondo oscuro cuando la barra está muteada (#222).
+                        itemStyle={{ color: "#d0d0d0" }}
                         labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v, name) => [
                           fmtCompact(Number(v)),
