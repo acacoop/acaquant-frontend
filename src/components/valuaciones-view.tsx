@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,8 +21,6 @@ interface SeriePoint {
 
 interface SerieResp {
   id_cuenta: string;
-  desde: string | null;
-  hasta: string | null;
   serie: SeriePoint[];
   ultimo: SeriePoint | null;
   primero: SeriePoint | null;
@@ -35,7 +33,8 @@ interface MensualRow {
   depositos: number;
   extracciones: number;
   flujo_neto: number;
-  delta_valuacion: number | null;
+  delta_bruto: number | null;
+  delta_real: number | null;
   n_posiciones: number;
 }
 
@@ -45,10 +44,24 @@ interface MensualResp {
   n_meses: number;
 }
 
-interface Props {
-  /** id_cuenta MVP — typicamente "805". */
-  idCuenta: string;
+interface Posicion {
+  ticker: string;
+  tipo: string | null;
+  cantidad: number;
+  precio: number;
+  valuacion: number;
+  share: number | null;
 }
+
+interface PosicionesResp {
+  id_cuenta: string;
+  fecha: string | null;
+  posiciones: Posicion[];
+  total: number;
+  n: number;
+}
+
+interface Props { idCuenta: string }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -75,10 +88,25 @@ function fmtFechaCorta(s: string): string {
   return `${d}/${m}/${y.slice(-2)}`;
 }
 
+function fmtMesCorto(s: string): string {
+  // "YYYY-MM" o "YYYY-MM-DD" → "Abr 26"
+  const [y, m] = s.split("-").map(Number);
+  return `${MESES[m - 1]} ${String(y).slice(-2)}`;
+}
+
 function fmtMesAnio(s: string): string {
-  // "YYYY-MM" → "Abr 2026"
   const [y, m] = s.split("-").map(Number);
   return `${MESES[m - 1]} ${y}`;
+}
+
+function fmtQty(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+}
+
+function fmtPrice(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 }
 
 // ── Componente ────────────────────────────────────────────────────────────
@@ -86,6 +114,7 @@ function fmtMesAnio(s: string): string {
 export function ValuacionesView({ idCuenta }: Props) {
   const [serieResp, setSerieResp] = useState<SerieResp | null>(null);
   const [mensualResp, setMensualResp] = useState<MensualResp | null>(null);
+  const [posResp, setPosResp] = useState<PosicionesResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,21 +124,25 @@ export function ValuacionesView({ idCuenta }: Props) {
       setLoading(true);
       setError(null);
       try {
-        const [s, m] = await Promise.all([
-          fetch(`/api/valuaciones/${encodeURIComponent(idCuenta)}/serie`,
-                { cache: "no-store" }).then((r) => {
+        const base = `/api/valuaciones/${encodeURIComponent(idCuenta)}`;
+        const [s, m, p] = await Promise.all([
+          fetch(`${base}/serie`,                { cache: "no-store" }).then((r) => {
             if (!r.ok) throw new Error(`serie HTTP ${r.status}`);
             return r.json() as Promise<SerieResp>;
           }),
-          fetch(`/api/valuaciones/${encodeURIComponent(idCuenta)}/mensual`,
-                { cache: "no-store" }).then((r) => {
+          fetch(`${base}/mensual`,              { cache: "no-store" }).then((r) => {
             if (!r.ok) throw new Error(`mensual HTTP ${r.status}`);
             return r.json() as Promise<MensualResp>;
+          }),
+          fetch(`${base}/posiciones-actuales`,  { cache: "no-store" }).then((r) => {
+            if (!r.ok) throw new Error(`pos HTTP ${r.status}`);
+            return r.json() as Promise<PosicionesResp>;
           }),
         ]);
         if (cancelled) return;
         setSerieResp(s);
         setMensualResp(m);
+        setPosResp(p);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -119,22 +152,23 @@ export function ValuacionesView({ idCuenta }: Props) {
     return () => { cancelled = true; };
   }, [idCuenta]);
 
-  const serie = serieResp?.serie ?? [];
-  const meses = mensualResp?.meses ?? [];
-  const ultimo = serieResp?.ultimo ?? null;
-
-  // KPI: variación entre primer y último día disponible.
-  const variacionTotal = useMemo(() => {
-    if (!serieResp?.primero || !serieResp?.ultimo) return null;
-    const a = serieResp.primero.valuacion;
-    const b = serieResp.ultimo.valuacion;
-    if (a === 0) return null;
-    return ((b - a) / Math.abs(a)) * 100;
-  }, [serieResp]);
-
-  // Color para deltas signados.
-  const colorDelta = (n: number | null | undefined) =>
-    n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
+  // Datos del chart: mensual (ascendente). El último mes se actualiza con el
+  // ultimo fecha_snapshot disponible (ya está en valuacion_cierre del último
+  // doc del mes — backend hace $last). El user quiere ver el valor "live" del
+  // mes actual, lo cual ya está cubierto.
+  type ChartPoint = { mes: string; valuacion: number; ultimo: string };
+  const chartData = useMemo<ChartPoint[]>(() => {
+    if (!mensualResp) return [];
+    // El backend devuelve descendente; reversa para chart cronológico.
+    return mensualResp.meses
+      .slice()
+      .reverse()
+      .map((r) => ({
+        mes:       r.mes,
+        valuacion: r.valuacion_cierre,
+        ultimo:    r.ultimo_dia,
+      }));
+  }, [mensualResp]);
 
   if (loading) {
     return (
@@ -143,7 +177,6 @@ export function ValuacionesView({ idCuenta }: Props) {
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="h-full flex items-center justify-center text-[#ff3333] text-sm p-4">
@@ -152,91 +185,76 @@ export function ValuacionesView({ idCuenta }: Props) {
     );
   }
 
-  if (serie.length === 0 && meses.length === 0) {
+  const meses = mensualResp?.meses ?? [];
+  const posiciones = posResp?.posiciones ?? [];
+  const totalPos = posResp?.total ?? 0;
+  const ultimoSnap = posResp?.fecha;
+
+  if (chartData.length === 0 && meses.length === 0 && posiciones.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm p-6 text-center">
+      <div className="h-full flex items-center justify-center text-[#555] text-sm p-6 text-center">
         Sin datos de valuación para cuenta [{idCuenta}].
         <br />
         <span className="text-[#444] text-xs">
-          Asegurate que jobs/aum.py esté corriendo y haya snapshots en Valuaciones.AuM.
+          Asegurate que jobs/aum.py haya generado snapshots en Valuaciones.AuM.
         </span>
       </div>
     );
   }
 
+  const colorDelta = (n: number | null | undefined) =>
+    n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
+
   return (
-    <div className="h-full flex flex-col p-3 gap-3 overflow-hidden">
+    <div className="h-full grid grid-cols-[1.6fr_1fr] gap-3 p-3 overflow-hidden">
 
-      {/* KPIs row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
-        <Kpi
-          label="VALOR ACTUAL"
-          value={ultimo ? fmtCompact(ultimo.valuacion) : "—"}
-          sub={ultimo ? fmtFechaCorta(ultimo.fecha) : "—"}
-          accent="#4a9eff"
-        />
-        <Kpi
-          label="N POSICIONES"
-          value={ultimo ? String(ultimo.n) : "—"}
-        />
-        <Kpi
-          label="Δ DEL PERÍODO"
-          value={
-            variacionTotal != null
-              ? (variacionTotal >= 0 ? "+" : "") + variacionTotal.toFixed(2) + "%"
-              : "—"
-          }
-          accent={colorDelta(variacionTotal)}
-          sub={
-            serieResp?.primero
-              ? `desde ${fmtFechaCorta(serieResp.primero.fecha)}`
-              : undefined
-          }
-        />
-        <Kpi
-          label="DÍAS CON DATA"
-          value={String(serie.length)}
-        />
-      </div>
-
-      {/* Layout: chart top, mensual table bottom */}
-      <div className="flex-1 min-h-0 grid grid-rows-[3fr_2fr] gap-3 overflow-hidden">
+      {/* COLUMNA IZQUIERDA: chart arriba + tabla mensual abajo */}
+      <div className="min-h-0 grid grid-rows-[3fr_2fr] gap-3 overflow-hidden">
 
         {/* Chart panel */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-              Valuación diaria · cuenta [{idCuenta}]
+              Evolución mensual · cuenta [{idCuenta}]
             </span>
-            {serie.length > 0 && (
+            {chartData.length > 0 && (
               <span className="ml-3 text-[9px] text-[#555] font-mono">
-                {fmtFechaCorta(serie[0].fecha)} → {fmtFechaCorta(serie[serie.length - 1].fecha)}
+                {fmtMesCorto(chartData[0].mes)} → {fmtMesCorto(chartData[chartData.length - 1].mes)}
+              </span>
+            )}
+            {serieResp?.ultimo && (
+              <span className="ml-auto text-[10px] text-[#888] font-mono">
+                Último: <span className="text-[#4a9eff] font-semibold">{fmtCompact(serieResp.ultimo.valuacion)}</span> ({fmtFechaCorta(serieResp.ultimo.fecha)})
               </span>
             )}
           </div>
           <div className="flex-1 min-h-0 p-2">
-            {serie.length === 0 ? (
+            {chartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
-                Sin serie diaria para esta cuenta.
+                Sin meses con data.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={serie}
-                  margin={{ top: 8, right: 12, bottom: 28, left: 8 }}
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 8, right: 12, bottom: 24, left: 8 }}
                 >
+                  <defs>
+                    <linearGradient id="grad-val" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4a9eff" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="#4a9eff" stopOpacity={0.03} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid stroke="#161616" vertical={false} />
                   <XAxis
-                    dataKey="fecha"
+                    dataKey="mes"
                     tick={{ fill: "#808080", fontSize: 10 }}
                     axisLine={{ stroke: "#2a2a2a" }}
                     tickLine={false}
-                    tickFormatter={fmtFechaCorta}
-                    interval={Math.max(0, Math.floor(serie.length / 14))}
-                    angle={-35}
+                    tickFormatter={(v: string) => fmtMesCorto(v)}
+                    angle={-30}
                     textAnchor="end"
-                    height={42}
-                    minTickGap={4}
+                    height={38}
                   />
                   <YAxis
                     tick={{ fill: "#808080", fontSize: 10 }}
@@ -246,7 +264,7 @@ export function ValuacionesView({ idCuenta }: Props) {
                     width={64}
                   />
                   <Tooltip
-                    cursor={{ fill: "#ffffff08" }}
+                    cursor={{ stroke: "#ffffff20" }}
                     contentStyle={{
                       background: "#0e0e0e",
                       border: "1px solid #2a2a2a",
@@ -255,25 +273,29 @@ export function ValuacionesView({ idCuenta }: Props) {
                     }}
                     labelStyle={{ color: "#808080" }}
                     itemStyle={{ color: "#d0d0d0" }}
-                    labelFormatter={(v) => fmtFechaCorta(String(v))}
-                    formatter={(v) => [fmtCompact(Number(v)), "Valuación"]}
+                    labelFormatter={(v) => fmtMesAnio(String(v))}
+                    formatter={(v) => [fmtCompact(Number(v)), "Cierre"]}
                   />
-                  <Bar
+                  <Line
+                    type="monotone"
                     dataKey="valuacion"
-                    fill="#4a9eff"
+                    stroke="#4a9eff"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "#4a9eff" }}
+                    activeDot={{ r: 5 }}
                     isAnimationActive={false}
                   />
-                </BarChart>
+                </LineChart>
               </ResponsiveContainer>
             )}
           </div>
         </div>
 
-        {/* Monthly table */}
+        {/* Tabla mensual compacta */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-              Cierre mensual · cuenta [{idCuenta}]
+              Mensual
             </span>
             <span className="ml-auto text-[10px] text-[#888] font-mono">
               {meses.length} mes{meses.length !== 1 ? "es" : ""}
@@ -288,40 +310,36 @@ export function ValuacionesView({ idCuenta }: Props) {
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
-                    <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Mes</th>
-                    <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cierre</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Valuación</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Δ valuación</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Depósitos</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Extracciones</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Flujo neto</th>
+                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Mes</th>
+                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Cierre</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title="Depósitos − extracciones del mes"
+                    >Flujo neto</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title="Δ valuación REAL = (cierre_t − cierre_t−1) − flujo_neto. Aísla performance de inversiones."
+                    >Δ valor</th>
                   </tr>
                 </thead>
                 <tbody>
                   {meses.map((m) => (
                     <tr key={m.mes} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                      <td className="px-3 py-1 text-[#ff9900] font-semibold">{fmtMesAnio(m.mes)}</td>
-                      <td className="px-3 py-1 text-[#888]">{fmtFechaCorta(m.ultimo_dia)}</td>
-                      <td className="px-3 py-1 text-right text-[#d0d0d0] font-semibold">
+                      <td className="px-2 py-1 text-[#ff9900] font-semibold">{fmtMesCorto(m.mes)}</td>
+                      <td className="px-2 py-1 text-right text-[#d0d0d0] font-semibold">
                         {fmtCompact(m.valuacion_cierre)}
                       </td>
                       <td
-                        className="px-3 py-1 text-right"
-                        style={{ color: colorDelta(m.delta_valuacion) }}
-                      >
-                        {m.delta_valuacion != null ? fmtSigned(m.delta_valuacion) : "—"}
-                      </td>
-                      <td className="px-3 py-1 text-right text-[#888]">
-                        {m.depositos !== 0 ? fmtCompact(m.depositos) : "—"}
-                      </td>
-                      <td className="px-3 py-1 text-right text-[#888]">
-                        {m.extracciones !== 0 ? fmtCompact(m.extracciones) : "—"}
-                      </td>
-                      <td
-                        className="px-3 py-1 text-right font-semibold"
-                        style={{ color: colorDelta(m.flujo_neto) }}
+                        className="px-2 py-1 text-right"
+                        style={{ color: m.flujo_neto !== 0 ? colorDelta(m.flujo_neto) : "#666" }}
                       >
                         {m.flujo_neto !== 0 ? fmtSigned(m.flujo_neto) : "—"}
+                      </td>
+                      <td
+                        className="px-2 py-1 text-right font-semibold"
+                        style={{ color: colorDelta(m.delta_real) }}
+                      >
+                        {m.delta_real != null ? fmtSigned(m.delta_real) : "—"}
                       </td>
                     </tr>
                   ))}
@@ -333,35 +351,60 @@ export function ValuacionesView({ idCuenta }: Props) {
 
       </div>
 
-      {/* Footnote */}
-      <div className="text-[9px] text-[#555] shrink-0">
-        Cierre = último fecha_snapshot del mes en Valuaciones.AuM (no
-        necesariamente el día 30/31). Flujos = depósitos + transferencias −
-        extracciones de CashFlow.NegocioMovimientos. Δ valuación =
-        cierre actual − cierre del mes anterior (incluye flujos + performance).
+      {/* COLUMNA DERECHA: posición actual */}
+      <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+            Posición actual
+          </span>
+          {ultimoSnap && (
+            <span className="ml-2 text-[9px] text-[#555] font-mono">
+              {fmtFechaCorta(ultimoSnap)}
+            </span>
+          )}
+          <span className="ml-auto text-[10px] text-[#888] font-mono">
+            {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
+          </span>
+        </div>
+        <div className="flex-1 min-h-0 overflow-auto">
+          {posiciones.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+              Sin posiciones activas.
+            </div>
+          ) : (
+            <table className="w-full text-[11px] font-mono tabular-nums">
+              <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <tr>
+                  <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Ticker</th>
+                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Cant.</th>
+                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Precio</th>
+                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Valuación</th>
+                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {posiciones.map((p) => (
+                  <tr key={p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+                    <td className="px-2 py-1 text-[#ff9900] font-semibold">{p.ticker}</td>
+                    <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
+                    <td className="px-2 py-1 text-right text-[#888]">{fmtPrice(p.precio)}</td>
+                    <td
+                      className="px-2 py-1 text-right font-semibold"
+                      style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "#ff3333" }}
+                    >
+                      {fmtCompact(p.valuacion)}
+                    </td>
+                    <td className="px-2 py-1 text-right text-[#888]">
+                      {p.share != null ? p.share.toFixed(1) + "%" : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
-    </div>
-  );
-}
 
-function Kpi({
-  label, value, sub, accent,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: string;
-}) {
-  return (
-    <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2">
-      <div className="text-[9px] text-[#555] uppercase tracking-wider mb-1">{label}</div>
-      <div
-        className="text-[18px] font-mono font-semibold tabular-nums leading-tight"
-        style={accent ? { color: accent } : { color: "#d0d0d0" }}
-      >
-        {value}
-      </div>
-      {sub && <div className="text-[9px] text-[#666] mt-0.5">{sub}</div>}
     </div>
   );
 }
