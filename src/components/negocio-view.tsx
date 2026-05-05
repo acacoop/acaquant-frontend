@@ -361,19 +361,32 @@ export function NegocioView() {
             className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333]"
             title="Día anterior con data"
           >‹</button>
-          <select
+          {/* Calendario nativo: el browser muestra picker de mes. Constrained
+              por min/max al rango con data. Si el user elige un día sin data
+              (feriado, fin de semana, día previo a la primera fecha) hacemos
+              snap al próximo día disponible. */}
+          <input
+            type="date"
             value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
+            min={fechasOrdenadasAsc[0] || undefined}
+            max={ultimaFecha || undefined}
             disabled={fechasDisp.length === 0}
-            className="bg-black px-2 py-1 text-[12px] font-mono text-[#d0d0d0] outline-none disabled:opacity-50"
-          >
-            {fechasDisp.length === 0 && <option value="">— sin datos —</option>}
-            {fechasDisp.map((f) => (
-              <option key={f.fecha} value={f.fecha}>
-                {fmtFechaDisplay(f.fecha)} ({f.n})
-              </option>
-            ))}
-          </select>
+            onChange={(e) => {
+              const picked = e.target.value;
+              if (!picked) return;
+              if (fechasOrdenadasAsc.includes(picked)) {
+                setFecha(picked);
+                return;
+              }
+              // Snap forward: primer día con data >= picked. Si no hay,
+              // último (más reciente).
+              const nextAvail =
+                fechasOrdenadasAsc.find((f) => f >= picked) ??
+                fechasOrdenadasAsc[fechasOrdenadasAsc.length - 1];
+              if (nextAvail) setFecha(nextAvail);
+            }}
+            className="bg-black px-2 py-1 text-[12px] font-mono text-[#d0d0d0] outline-none disabled:opacity-50 [color-scheme:dark]"
+          />
           <button
             onClick={goNext}
             disabled={!hayNext}
