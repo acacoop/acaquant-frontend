@@ -42,7 +42,6 @@ type FilterKind = "all" | "capturados" | "descartados";
 
 function todayART(): string {
   const now = new Date();
-  // ART = UTC-3
   const utc = now.getTime() + now.getTimezoneOffset() * 60_000;
   const ar = new Date(utc - 3 * 60 * 60_000);
   return ar.toISOString().slice(0, 10);
@@ -56,13 +55,13 @@ export function AunesaExplorarPanel() {
 
   const [filter, setFilter] = useState<FilterKind>("all");
   const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [tipoFiltro, setTipoFiltro] = useState<string>(""); // "" = sin filtro
+  const [tipoFiltro, setTipoFiltro] = useState<string>("");
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const explorar = async () => {
     setLoading(true);
     setError(null);
-    setExpanded(new Set());
+    setOpenId(null);
     try {
       const res = await fetch(`/api/manager/aunesa/explorar?fecha=${fecha}`, {
         cache: "no-store",
@@ -96,138 +95,127 @@ export function AunesaExplorarPanel() {
     return out;
   }, [data, filter, tipoFiltro, search]);
 
-  const toggle = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   return (
-    <div className="h-full overflow-auto bg-[#0a0a0a] text-[#d0d0d0]">
-      <div className="p-4 space-y-4">
-        {/* ── Controles ── */}
-        <div className="flex flex-wrap items-end gap-3 border-b border-[#1a1a1a] pb-3">
-          <div>
-            <div className="text-[9px] uppercase tracking-widest text-[#666] mb-1">Fecha</div>
-            <input
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              className="bg-black border border-[#333] px-2 py-1 text-[12px] font-mono text-[#d0d0d0]"
-            />
-          </div>
-          <button
-            onClick={explorar}
-            disabled={loading}
-            className="bg-[#ff9900] text-black px-4 py-1 text-[11px] font-semibold tracking-wider disabled:opacity-50"
-          >
-            {loading ? "Explorando…" : "EXPLORAR"}
-          </button>
-          <div className="text-[10px] text-[#666] ml-2">
-            endpoint:{" "}
-            <code className="bg-black px-1 text-[#3fbf6f]">
-              /operaciones/consolidadosGenerales
-            </code>{" "}
-            · puede tardar 1-2 min con días de mucha actividad.
-          </div>
-        </div>
-
-        {error && (
-          <div className="border border-[#aa3333] bg-[#1a0808] p-3 text-[11px] text-[#ff7777]">
-            {error}
-          </div>
-        )}
+    <div className="h-full flex flex-col bg-[#0a0a0a] text-[#d0d0d0]">
+      {/* ── HEADER (fila única: fecha + botón + stats inline) ── */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-[#1a1a1a] px-3 py-2 shrink-0 bg-[#080808]">
+        <input
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          className="bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
+        />
+        <button
+          onClick={explorar}
+          disabled={loading}
+          className="bg-[#ff9900] text-black px-3 py-0.5 text-[10px] font-semibold tracking-wider disabled:opacity-50"
+        >
+          {loading ? "EXPLORANDO…" : "EXPLORAR"}
+        </button>
 
         {data && (
           <>
-            {/* ── Resumen ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Stat label="Total" value={data.meta.total} />
-              <Stat
-                label="Capturados (filtro actual)"
-                value={`${data.meta.capturados} (${data.meta.pct_capturados}%)`}
-                tone="green"
-              />
-              <Stat
-                label="Descartados"
-                value={`${data.meta.descartados} (${data.meta.pct_descartados}%)`}
-                tone="amber"
-              />
-              <Stat
-                label="Tipos distintos"
-                value={data.tipos.length}
-              />
-            </div>
+            <Pipe />
+            <Inline label="Total" value={data.meta.total} />
+            <Inline
+              label="Capt"
+              value={`${data.meta.capturados} (${data.meta.pct_capturados}%)`}
+              color="#3fbf6f"
+            />
+            <Inline
+              label="Desc"
+              value={`${data.meta.descartados} (${data.meta.pct_descartados}%)`}
+              color="#ff9900"
+            />
+            <Inline label="Tipos" value={data.tipos.length} />
+            <Pipe />
+            <span className="text-[9px] text-[#666]">filtros actuales:</span>
+            {data.meta.palabras_clave_actuales.map((p) => (
+              <code key={p} className="text-[9px] bg-black px-1 text-[#ff9900]">
+                {p}
+              </code>
+            ))}
+          </>
+        )}
+      </div>
 
-            <div className="text-[10px] text-[#888] -mt-2">
-              Filtro de captura actual (jobs/cashflow.py):{" "}
-              {data.meta.palabras_clave_actuales.map((p) => (
-                <code key={p} className="bg-black px-1 text-[#ff9900] mr-1">{p}</code>
-              ))}
-            </div>
+      {error && (
+        <div className="border-b border-[#aa3333] bg-[#1a0808] px-3 py-2 text-[11px] text-[#ff7777] shrink-0">
+          {error}
+        </div>
+      )}
 
-            {/* ── Distribución por tipo (clickable) ── */}
-            <div>
-              <div className="text-[9px] uppercase tracking-widest text-[#666] mb-2">
-                Distribución por tipo (click para filtrar la tabla)
-              </div>
-              <div className="space-y-0.5">
-                {data.tipos.map((t) => {
-                  const active = tipoFiltro === t.informacion;
-                  return (
-                    <button
-                      key={t.informacion}
-                      onClick={() => setTipoFiltro(active ? "" : t.informacion)}
-                      className={
-                        "w-full flex items-center gap-2 px-2 py-1 text-left text-[11px] font-mono " +
-                        (active
-                          ? "bg-[#1a1a1a] border-l-2 border-[#ff9900]"
-                          : "hover:bg-[#0f0f0f] border-l-2 border-transparent")
-                      }
-                    >
-                      <span
-                        className={
-                          "inline-block w-3 text-center " +
-                          (t.capturado ? "text-[#3fbf6f]" : "text-[#aa6666]")
-                        }
-                      >
-                        {t.capturado ? "✓" : "✗"}
-                      </span>
-                      <span className="w-12 text-right text-[#d0d0d0]">{t.count}</span>
-                      <span
-                        className={t.capturado ? "text-[#d0d0d0]" : "text-[#aa6666]"}
-                      >
-                        {t.informacion}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+      {!data && !loading && !error && (
+        <div className="flex-1 flex items-center justify-center text-[12px] text-[#555]">
+          Elegí fecha y hacé click en EXPLORAR.
+        </div>
+      )}
+
+      {data && (
+        <div className="flex-1 grid grid-cols-[280px_1fr] min-h-0">
+          {/* ── SIDEBAR — distribución por tipo clickable ── */}
+          <div className="border-r border-[#1a1a1a] flex flex-col min-h-0">
+            <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#666] border-b border-[#1a1a1a] flex items-center justify-between">
+              <span>Tipos ({data.tipos.length})</span>
               {tipoFiltro && (
-                <div className="mt-1 text-[10px] text-[#ff9900]">
-                  Filtrando por: <code>{tipoFiltro}</code>{" "}
-                  <button
-                    onClick={() => setTipoFiltro("")}
-                    className="ml-2 text-[#888] hover:text-[#ff9900]"
-                  >
-                    × limpiar
-                  </button>
-                </div>
+                <button
+                  onClick={() => setTipoFiltro("")}
+                  className="text-[#888] hover:text-[#ff9900]"
+                  title="Limpiar filtro"
+                >
+                  × clear
+                </button>
               )}
             </div>
+            <div className="flex-1 overflow-auto">
+              {data.tipos.map((t) => {
+                const active = tipoFiltro === t.informacion;
+                return (
+                  <button
+                    key={t.informacion}
+                    onClick={() => setTipoFiltro(active ? "" : t.informacion)}
+                    className={
+                      "w-full flex items-baseline gap-1.5 px-2 py-1 text-left text-[10px] font-mono leading-tight " +
+                      (active
+                        ? "bg-[#1a1a1a] border-l-2 border-[#ff9900]"
+                        : "hover:bg-[#0f0f0f] border-l-2 border-transparent")
+                    }
+                  >
+                    <span
+                      className={
+                        "w-3 text-center shrink-0 " +
+                        (t.capturado ? "text-[#3fbf6f]" : "text-[#aa6666]")
+                      }
+                    >
+                      {t.capturado ? "✓" : "✗"}
+                    </span>
+                    <span className="w-10 text-right shrink-0 text-[#d0d0d0]">{t.count}</span>
+                    <span
+                      className={
+                        "flex-1 truncate " +
+                        (t.capturado ? "text-[#d0d0d0]" : "text-[#aa6666]")
+                      }
+                      title={t.informacion}
+                    >
+                      {t.informacion}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-            {/* ── Filtros tabla ── */}
-            <div className="flex flex-wrap items-center gap-2 border-t border-[#1a1a1a] pt-3">
-              <div className="flex items-center gap-1">
+          {/* ── MAIN — filtros + tabla ── */}
+          <div className="flex flex-col min-h-0">
+            {/* Filtros */}
+            <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] shrink-0">
+              <div className="flex items-center gap-0.5">
                 {(["all", "capturados", "descartados"] as FilterKind[]).map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilter(f)}
                     className={
-                      "px-2 py-1 text-[10px] uppercase tracking-wider " +
+                      "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                       (filter === f
                         ? "bg-[#ff9900] text-black"
                         : "bg-[#0f0f0f] text-[#888] hover:text-[#ddd]")
@@ -242,19 +230,19 @@ export function AunesaExplorarPanel() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="buscar (cualquier campo)…"
-                className="flex-1 min-w-[200px] bg-black border border-[#333] px-2 py-1 text-[11px] font-mono text-[#d0d0d0]"
+                className="flex-1 min-w-[180px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
               />
-              <span className="text-[10px] text-[#888]">
+              <span className="text-[9px] text-[#888]">
                 {filtered.length} / {data.movimientos.length}
               </span>
             </div>
 
-            {/* ── Tabla ── */}
-            <div className="border border-[#1a1a1a]">
+            {/* Tabla con scroll interno */}
+            <div className="flex-1 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666] z-10">
                   <tr>
-                    <th className="px-2 py-1 text-center w-8">●</th>
+                    <th className="px-2 py-1 text-center w-6"></th>
                     <th className="px-2 py-1 text-left">Comprobante</th>
                     <th className="px-2 py-1 text-left">Información</th>
                     <th className="px-2 py-1 text-left">Cuenta</th>
@@ -265,14 +253,14 @@ export function AunesaExplorarPanel() {
                 <tbody>
                   {filtered.map((m, i) => {
                     const id = `${m.comprobante ?? "?"}-${i}`;
-                    const isOpen = expanded.has(id);
+                    const isOpen = openId === id;
                     return (
                       <FragRow
                         key={id}
                         id={id}
                         m={m}
                         open={isOpen}
-                        onToggle={() => toggle(id)}
+                        onToggle={() => setOpenId(isOpen ? null : id)}
                       />
                     );
                   })}
@@ -284,9 +272,9 @@ export function AunesaExplorarPanel() {
                 </div>
               )}
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -319,13 +307,13 @@ function FragRow({
         <td className={cap ? "px-2 py-1 text-[#d0d0d0]" : "px-2 py-1 text-[#aa6666]"}>
           {m.informacion ?? "—"}
         </td>
-        <td className="px-2 py-1 text-[#888] truncate max-w-[200px]">{m.cuenta ?? "—"}</td>
+        <td className="px-2 py-1 text-[#888] truncate max-w-[180px]">{m.cuenta ?? "—"}</td>
         <td className="px-2 py-1 text-right">{fmtTotal(m.total)}</td>
         <td className="px-2 py-1 text-[#888] truncate max-w-[200px]">{m.unidad ?? "—"}</td>
       </tr>
       {open && (
         <tr className="bg-[#080808]" key={`${id}-ex`}>
-          <td colSpan={6} className="px-4 py-3">
+          <td colSpan={6} className="px-4 py-2">
             <table className="w-full text-[10px] font-mono">
               <tbody>
                 {Object.entries(m)
@@ -354,21 +342,23 @@ function fmtTotal(v: unknown): string {
   return String(v);
 }
 
-function Stat({
+function Inline({
   label,
   value,
-  tone = "default",
+  color = "#d0d0d0",
 }: {
   label: string;
   value: string | number;
-  tone?: "default" | "green" | "amber";
+  color?: string;
 }) {
-  const color =
-    tone === "green" ? "text-[#3fbf6f]" : tone === "amber" ? "text-[#ff9900]" : "text-[#d0d0d0]";
   return (
-    <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3">
-      <div className="text-[9px] uppercase tracking-widest text-[#666]">{label}</div>
-      <div className={`text-[18px] font-mono mt-1 ${color}`}>{value}</div>
-    </div>
+    <span className="text-[10px]">
+      <span className="text-[#666] uppercase tracking-wider">{label}: </span>
+      <span style={{ color }} className="font-mono">{value}</span>
+    </span>
   );
+}
+
+function Pipe() {
+  return <span className="text-[#333]">│</span>;
 }
