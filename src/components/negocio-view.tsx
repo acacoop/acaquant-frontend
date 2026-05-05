@@ -2,10 +2,9 @@
 
 import { useState, useMemo, useEffect } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -471,7 +470,7 @@ export function NegocioView() {
             <div className="border border-[#1a1a1a] bg-[#080808]">
               <div className="flex items-center px-3 py-2 border-b border-[#1a1a1a]">
                 <span className="text-[10px] uppercase tracking-widest text-[#666]">
-                  Evolución diaria · {moneda}
+                  Volumen operado por día · {moneda}
                 </span>
                 {chartData.length > 0 && (
                   <span className="ml-3 text-[9px] text-[#555] font-mono">
@@ -504,7 +503,7 @@ export function NegocioView() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
+                    <BarChart
                       data={chartData}
                       margin={{ top: 8, right: 16, bottom: 24, left: 8 }}
                       onClick={(state) => {
@@ -534,6 +533,7 @@ export function NegocioView() {
                         width={56}
                       />
                       <Tooltip
+                        cursor={{ fill: "#ffffff08" }}
                         contentStyle={{
                           background: "#0e0e0e",
                           border: "1px solid #2a2a2a",
@@ -547,27 +547,16 @@ export function NegocioView() {
                           CAT_LABEL[name as NegocioCat] ?? String(name),
                         ]}
                       />
-                      {fecha && fechasOrdenadasAsc.includes(fecha) && (
-                        <ReferenceLine
-                          x={fecha}
-                          stroke="#ff9900"
-                          strokeDasharray="3 3"
-                          strokeOpacity={0.7}
-                        />
-                      )}
                       {NEGOCIO_CATS.map((cat) => (
-                        <Line
+                        <Bar
                           key={cat}
-                          type="monotone"
                           dataKey={cat}
-                          stroke={CAT_COLOR[cat]}
-                          strokeWidth={1.8}
-                          dot={false}
-                          activeDot={{ r: 4 }}
+                          stackId="total"
+                          fill={CAT_COLOR[cat]}
                           isAnimationActive={false}
                         />
                       ))}
-                    </LineChart>
+                    </BarChart>
                   </ResponsiveContainer>
                 )}
               </div>
@@ -576,7 +565,7 @@ export function NegocioView() {
               <div className="flex flex-wrap gap-3 px-3 pb-2 pt-1 text-[10px]">
                 {NEGOCIO_CATS.map((cat) => (
                   <div key={cat} className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-0.5 inline-block" style={{ background: CAT_COLOR[cat] }} />
+                    <span className="w-2 h-2 inline-block" style={{ background: CAT_COLOR[cat] }} />
                     <span className="text-[#888]">{CAT_LABEL[cat]}</span>
                   </div>
                 ))}
