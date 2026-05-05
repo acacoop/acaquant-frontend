@@ -215,6 +215,21 @@ export function NegocioView() {
   const [cuentasList, setCuentasList] = useState<string[]>([]);
   const [cuentasPeriodo, setCuentasPeriodo] = useState<{ cuenta: string; importe_abs: number; n: number }[]>([]);
   const [loadingCuentas, setLoadingCuentas] = useState(false);
+  // Matrix consolidada (cuenta × las 5 categorías) — default cuando no
+  // hay catSel. Permite ver de un vistazo qué hace cada cuenta sin tener
+  // que clickear de a una categoría.
+  type MatrixRow = {
+    cuenta: string;
+    compra: number;
+    venta: number;
+    suscripciones: number;
+    cauc_tom: number;
+    cauc_col: number;
+    total: number;
+    n: number;
+  };
+  const [matrix, setMatrix] = useState<MatrixRow[]>([]);
+  const [loadingMatrix, setLoadingMatrix] = useState(false);
 
   // ── Fetch: lista de fechas con data ────────────────────────────────────
   useEffect(() => {
@@ -429,6 +444,46 @@ export function NegocioView() {
 
   // Alias por consistencia con el render abajo (mismo nombre que antes).
   const cuentasDetalle = cuentasPeriodo;
+
+  // Fetch del matrix consolidado (default cuando no hay catSel).
+  // Mismas dependencies que cuentasDetalle pero NO categoria.
+  useEffect(() => {
+    if (catSel || !detalleDesde || !detalleHasta) {
+      // Cuando hay categoría seleccionada, mostramos cuentasDetalle (single cat).
+      setMatrix([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingMatrix(true);
+      try {
+        let url =
+          `/api/operaciones/negocio/cuentas-matrix?moneda=${moneda}` +
+          `&cuenta_filter=${filtroCta}` +
+          `&desde=${detalleDesde}` +
+          `&hasta=${detalleHasta}`;
+        if (cuentaExacta) url += `&cuenta=${encodeURIComponent(cuentaExacta)}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j: { cuentas: MatrixRow[] } = await res.json();
+        if (cancelled) return;
+        setMatrix(Array.isArray(j.cuentas) ? j.cuentas : []);
+      } catch (e) {
+        if (!cancelled) {
+          setMatrix([]);
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      } finally {
+        if (!cancelled) setLoadingMatrix(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [catSel, moneda, filtroCta, detalleDesde, detalleHasta, cuentaExacta]);
+
+  const matrixTotal = useMemo(
+    () => matrix.reduce((a, r) => a + r.total, 0),
+    [matrix],
+  );
 
   const totalCatSel = useMemo(
     () => cuentasDetalle.reduce((a, c) => a + c.importe_abs, 0),
@@ -868,7 +923,7 @@ export function NegocioView() {
                     : `${fmtFechaCorta(detalleDesde)} → ${fmtFechaCorta(detalleHasta)}`}
                 </span>
               )}
-              {catSel && (
+              {catSel ? (
                 <>
                   <span className="ml-auto text-[10px] text-[#888] font-mono">
                     {cuentasDetalle.length} cuentas · {fmtCompact(totalCatSel)} {moneda}
@@ -879,18 +934,90 @@ export function NegocioView() {
                   <button
                     onClick={() => setCatSel(null)}
                     className="ml-2 text-[#888] hover:text-[#ff9900] text-[14px] leading-none"
-                    title="Limpiar selección"
+                    title="Volver al matrix consolidado"
                   >×</button>
+                </>
+              ) : (
+                <>
+                  <span className="ml-auto text-[10px] text-[#888] font-mono">
+                    {matrix.length} cuentas · {fmtCompact(matrixTotal)} {moneda}
+                  </span>
+                  {loadingMatrix && (
+                    <span className="ml-2 text-[9px] text-[#888]">cargando…</span>
+                  )}
                 </>
               )}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-auto">
               {!catSel ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
-                  Seleccioná una categoría a la izquierda
-                  <br />para ver el desglose por cuenta.
-                </div>
+                /* MATRIX consolidado: rows = cuentas, cols = 5 categorías + total. */
+                matrix.length === 0 && !loadingMatrix ? (
+                  <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
+                    Sin boletos para {vistaMode === "DIA" ? "el día" : "el período"} · {moneda}.
+                  </div>
+                ) : (
+                  <table className="w-full text-[11px] font-mono tabular-nums">
+                    <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
+                        {NEGOCIO_CATS.map((cat) => (
+                          <th
+                            key={cat}
+                            onClick={() => setCatSel(cat)}
+                            className="px-2 py-1.5 text-right border-b border-[#1a1a1a] cursor-pointer hover:text-[#ff9900]"
+                            title={`Drill-down: ${CAT_LABEL[cat]}`}
+                          >
+                            <span className="inline-flex items-center gap-1 justify-end">
+                              <span className="w-1.5 h-1.5 inline-block" style={{ background: CAT_COLOR[cat] }} />
+                              {CAT_LABEL[cat]}
+                            </span>
+                          </th>
+                        ))}
+                        <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a] text-[#ff9900]">Total</th>
+                        <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">N</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matrix.map((r) => {
+                        const pct = matrixTotal > 0 ? (r.total / matrixTotal) * 100 : 0;
+                        return (
+                          <tr
+                            key={r.cuenta}
+                            onClick={() => setCuentaSearch(r.cuenta)}
+                            className="border-t border-[#111] hover:bg-[#0f0f0f] cursor-pointer"
+                            title={`Click para filtrar todos los paneles a ${r.cuenta}`}
+                          >
+                            <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[220px]" title={r.cuenta}>
+                              {r.cuenta}
+                            </td>
+                            {NEGOCIO_CATS.map((cat) => {
+                              const v = r[cat];
+                              return (
+                                <td
+                                  key={cat}
+                                  className={
+                                    "px-2 py-1 text-right " +
+                                    (v > 0 ? "text-[#d0d0d0]" : "text-[#444]")
+                                  }
+                                >
+                                  {v > 0 ? fmtCompact(v) : "—"}
+                                </td>
+                              );
+                            })}
+                            <td
+                              className="px-2 py-1 text-right text-[#ff9900] font-semibold"
+                              title={`${pct.toFixed(1)}% del total`}
+                            >
+                              {fmtCompact(r.total)}
+                            </td>
+                            <td className="px-2 py-1 text-right text-[#888]">{r.n}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )
               ) : cuentasDetalle.length === 0 && !loadingCuentas ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
                   Sin boletos en {CAT_LABEL[catSel]} para{" "}
