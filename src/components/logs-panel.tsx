@@ -4,17 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 // Lista de services a mostrar en el dropdown. Mismo orden que el backend.
 const SERVICES = [
-  { id: "motor_rofex",       label: "motor_rofex"       },
-  { id: "motor_options",     label: "motor_options"     },
-  { id: "motor_curvas",      label: "motor_curvas"      },
-  { id: "motor_forwards",    label: "motor_forwards"    },
-  { id: "motor_breakevens",  label: "motor_breakevens"  },
-  { id: "motor_caucion",     label: "motor_caucion"     },
-  { id: "motor_futuros_dlr", label: "motor_futuros_dlr" },
-  { id: "motor_dolares",     label: "motor_dolares"     },
-  { id: "motor_ordenes",     label: "motor_ordenes"     },
-  { id: "api",               label: "api"               },
-  { id: "cloudflared",       label: "cloudflared"       },
+  { id: "motor_rofex",         label: "motor_rofex"         },
+  { id: "motor_options",       label: "motor_options"       },
+  { id: "motor_curvas",        label: "motor_curvas"        },
+  { id: "motor_forwards",      label: "motor_forwards"      },
+  { id: "motor_breakevens",    label: "motor_breakevens"    },
+  { id: "motor_caucion",       label: "motor_caucion"       },
+  { id: "motor_futuros_dlr",   label: "motor_futuros_dlr"   },
+  { id: "motor_dolares",       label: "motor_dolares"       },
+  { id: "motor_agro",          label: "motor_agro"          },
+  { id: "motor_order_book_l2", label: "motor_order_book_l2" },
+  { id: "motor_ordenes",       label: "motor_ordenes"       },
+  { id: "api",                 label: "api"                 },
+  { id: "cloudflared",         label: "cloudflared"         },
 ];
 
 const PRIORITY_COLOR: Record<string, string> = {
