@@ -47,10 +47,28 @@ interface MensualResp {
 interface Posicion {
   ticker: string;
   tipo: string | null;
+  cartera: string;
   cantidad: number;
   precio: number;
   valuacion: number;
   share: number | null;
+}
+
+// Mismo mapeo que aum-view.tsx — paleta consistente entre vistas.
+const CARTERA_COLORS: Record<string, string> = {
+  "CARTERA ARS": "#4a9eff",
+  "CARTERA DL":  "#00cc66",
+  "CARTERA HD":  "#ff9900",
+  "CARTERA FCI": "#bb66ff",
+};
+
+function carteraColor(c: string): string {
+  return CARTERA_COLORS[c] ?? "#666";
+}
+
+function carteraShort(c: string): string {
+  if (!c) return "—";
+  return c.replace("CARTERA ", "");
 }
 
 interface PosicionesResp {
@@ -416,6 +434,7 @@ export function ValuacionesView({ idCuenta }: Props) {
               <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                 <tr>
                   <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Ticker</th>
+                  <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Cart.</th>
                   <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Cant.</th>
                   <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Precio</th>
                   <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Valuación</th>
@@ -426,6 +445,17 @@ export function ValuacionesView({ idCuenta }: Props) {
                 {posiciones.map((p) => (
                   <tr key={p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
                     <td className="px-2 py-1 text-[#ff9900] font-semibold">{p.ticker}</td>
+                    <td className="px-2 py-1">
+                      <span className="inline-flex items-center gap-1">
+                        <span
+                          className="w-1.5 h-1.5 rounded-full inline-block"
+                          style={{ background: carteraColor(p.cartera) }}
+                        />
+                        <span style={{ color: carteraColor(p.cartera) }}>
+                          {carteraShort(p.cartera)}
+                        </span>
+                      </span>
+                    </td>
                     <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
                     <td className="px-2 py-1 text-right text-[#888]">{fmtPrice(p.precio)}</td>
                     <td
