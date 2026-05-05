@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AsistenteDashboard } from "./asistente-dashboard";
+import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { LogsPanel } from "./logs-panel";
 import { RecursosPanel } from "./recursos-panel";
@@ -1455,6 +1456,7 @@ type Tab =
   | "jobs"
   | "validaciones"
   | "assets"
+  | "aunesa"
   | "asistente"
   | "recursos"
   | "logs"
@@ -1470,6 +1472,7 @@ export function ManagerView() {
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "assets",       label: "ASSETS"       },
+    { id: "aunesa",       label: "AUNESA"       },
     { id: "recursos",     label: "RECURSOS"     },
     { id: "logs",         label: "LOGS"         },
     { id: "asistente",    label: "ASISTENTE"    },
@@ -1494,6 +1497,7 @@ export function ManagerView() {
         {tab === "jobs"         && <JobsRunsPanel />}
         {tab === "validaciones" && <TabValidaciones />}
         {tab === "assets"       && <TabAssets />}
+        {tab === "aunesa"       && <AunesaExplorarPanel />}
         {tab === "recursos"     && <RecursosPanel />}
         {tab === "logs"         && <LogsPanel />}
         {tab === "asistente"    && <AsistenteDashboard />}
