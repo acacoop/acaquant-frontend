@@ -83,7 +83,9 @@ interface Movimiento {
   fecha: string;
   comprobante: string | null;
   categoria: string;
-  importe: number;
+  importe: number;       // En la moneda original (USD, ARS, etc).
+  importe_ars: number;   // Convertido a ARS al MEP de la fecha.
+  mep_rate: number | null;  // El MEP usado para la conversión, null si moneda=ARS.
   moneda: string | null;
   op: string | null;
   ticker: string | null;
@@ -640,8 +642,12 @@ export function ValuacionesView({ idCuenta }: Props) {
                   <tr>
                     <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Fecha</th>
                     <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Tipo</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Importe</th>
+                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Importe orig</th>
                     <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Mon</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title="Importe convertido a ARS al MEP de la fecha del movimiento"
+                    >Importe ARS</th>
                     <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Detalle</th>
                   </tr>
                 </thead>
@@ -663,14 +669,20 @@ export function ValuacionesView({ idCuenta }: Props) {
                           </span>
                         </td>
                         <td
-                          className="px-2 py-1 text-right font-semibold"
-                          style={{ color: (m.importe ?? 0) >= 0 ? "#00cc66" : "#ff5d6c" }}
+                          className="px-2 py-1 text-right text-[#888]"
+                          title={m.mep_rate ? `MEP usado: ${m.mep_rate.toLocaleString("es-AR")}` : ""}
                         >
                           {fmtSigned(m.importe)}
                         </td>
                         <td className="px-2 py-1 text-[#888]">{m.moneda ?? "—"}</td>
                         <td
-                          className="px-2 py-1 text-[#888] truncate max-w-[280px]"
+                          className="px-2 py-1 text-right font-semibold"
+                          style={{ color: (m.importe_ars ?? 0) >= 0 ? "#00cc66" : "#ff5d6c" }}
+                        >
+                          {fmtSigned(m.importe_ars)}
+                        </td>
+                        <td
+                          className="px-2 py-1 text-[#888] truncate max-w-[260px]"
                           title={m.informacion ?? ""}
                         >
                           {m.informacion ?? "—"}
