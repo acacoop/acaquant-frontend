@@ -378,8 +378,12 @@ const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
 ];
 
 export function AumView() {
-  const [tab, setTab] = useState<AumTab>("fci");
+  const [tab, setTab] = useState<AumTab>("total");
   const [cuentaFilter, setCuentaFilter] = useState<CuentaFilter>("todas");
+  // Selecciones del drill-down de TOTAL — independientes del emisorSel
+  // (cartera) del leaderboard izquierdo. Los tres se combinan con AND.
+  const [cuentaSel, setCuentaSel] = useState<string | null>(null);
+  const [unidadSel, setUnidadSel] = useState<string | null>(null);
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
   const [serie, setSerie] = useState<SeriePoint[]>([]);
@@ -511,6 +515,56 @@ export function AumView() {
       .sort((a, b) => b.valuacion - a.valuacion);
   }, [snapshot, snapshotTotal]);
 
+  // ── Drill-down para TOTAL ──────────────────────────────────────────────
+  // Snapshot filtrado por la cartera seleccionada en el leaderboard izquierdo
+  // (emisorSel cumple ambos roles: emisor para FCI, cartera para TOTAL).
+  const snapshotByCartera = useMemo(
+    () => (emisorSel ? snapshot.filter((r) => r.emisor === emisorSel) : snapshot),
+    [snapshot, emisorSel]
+  );
+
+  // Lista POR CUENTA: respeta filtro de cartera + filtro cruzado de unidad.
+  const porCuenta = useMemo(() => {
+    let base = snapshotByCartera;
+    if (unidadSel) base = base.filter((r) => r.ticker === unidadSel || r.unidad === unidadSel);
+    const agg: Record<string, number> = {};
+    for (const r of base) agg[r.cuenta] = (agg[r.cuenta] || 0) + r.valuacion;
+    const totalCtx = Object.values(agg).reduce((s, v) => s + v, 0);
+    return Object.entries(agg)
+      .map(([cuenta, val]) => ({
+        cuenta,
+        valuacion: val,
+        share: totalCtx ? (val / totalCtx) * 100 : 0,
+      }))
+      .sort((a, b) => b.valuacion - a.valuacion);
+  }, [snapshotByCartera, unidadSel]);
+
+  // Lista POR ASSET (unidad/ticker): respeta cartera + filtro cruzado de cuenta.
+  const porUnidad = useMemo(() => {
+    let base = snapshotByCartera;
+    if (cuentaSel) base = base.filter((r) => r.cuenta === cuentaSel);
+    const agg: Record<string, number> = {};
+    for (const r of base) {
+      const k = r.ticker || r.unidad;
+      agg[k] = (agg[k] || 0) + r.valuacion;
+    }
+    const totalCtx = Object.values(agg).reduce((s, v) => s + v, 0);
+    return Object.entries(agg)
+      .map(([ticker, val]) => ({
+        ticker,
+        valuacion: val,
+        share: totalCtx ? (val / totalCtx) * 100 : 0,
+      }))
+      .sort((a, b) => b.valuacion - a.valuacion);
+  }, [snapshotByCartera, cuentaSel]);
+
+  // Reset selecciones de drill-down si cambia tab, snapshot o cartera —
+  // los IDs viejos podrían ya no estar en el set actual.
+  useEffect(() => {
+    setCuentaSel(null);
+    setUnidadSel(null);
+  }, [tab, fechaSel, emisorSel]);
+
   const detalleEmisor = useMemo(() => {
     if (!emisorSel) return [];
     const sub = snapshot.filter((r) => r.emisor === emisorSel);
@@ -538,7 +592,7 @@ export function AumView() {
 
   const tabBar = (
     <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-      {(["fci", "total", "tasa_fija", "cer"] as AumTab[]).map((t) => (
+      {(["total", "fci", "tasa_fija", "cer"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
             tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
@@ -817,7 +871,7 @@ export function AumView() {
               </div>
               <div className="flex flex-col justify-end">
                 <div className="text-[10px] text-[#555555] uppercase tracking-wide">
-                  Total FCI
+                  {tab === "total" ? "Total AUM" : "Total FCI"}
                 </div>
                 <div
                   className="text-[20px] font-semibold"
@@ -829,45 +883,130 @@ export function AumView() {
             </div>
           </div>
 
-          <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
-            <PanelHeader
-              title="DETALLE"
-              sub={
-                emisorSel
-                  ? `${emisorSel} · ${fmtCompact(
-                      porEmisor.find((p) => p.emisor === emisorSel)
-                        ?.valuacion || 0
-                    )}`
-                  : "Seleccioná un emisor"
-              }
-            />
-            <div className="flex-1 min-h-0 overflow-y-auto p-2">
-              {snapErr ? (
-                <div className="text-[#ff3333] text-[11px] p-2">
-                  Error: {snapErr}
+          {tab === "total" ? (
+            // ── DETALLE TOTAL: dos sub-tablas (CUENTA + ASSET) con
+            //     filtro cruzado y reactivo a la cartera del leaderboard.
+            <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+              <PanelHeader
+                title="DETALLE"
+                sub={(() => {
+                  const parts: string[] = [];
+                  if (emisorSel) parts.push(`cartera: ${emisorSel}`);
+                  if (cuentaSel) parts.push(`cuenta: ${cuentaSel}`);
+                  if (unidadSel) parts.push(`asset: ${unidadSel}`);
+                  return parts.length ? parts.join(" · ") : "todos los assets y cuentas";
+                })()}
+              />
+              <div className="flex-1 min-h-0 overflow-y-auto p-2 grid grid-rows-2 gap-2">
+                {/* POR CUENTA */}
+                <div className="border border-[#1a1a1a] bg-[#0a0a0a] flex flex-col min-h-0">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center border-b border-[#1a1a1a]">
+                    <span>POR CUENTA</span>
+                    <span className="ml-2 text-[#555]">{porCuenta.length}</span>
+                    {(cuentaSel || unidadSel) && (
+                      <button
+                        onClick={() => { setCuentaSel(null); setUnidadSel(null); }}
+                        className="ml-auto text-[#666] hover:text-[#ff9900] text-[9px]"
+                      >
+                        ↺ limpiar
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {porCuenta.length === 0 ? (
+                      <div className="py-6 text-center text-[#555] text-[10px]">Sin datos.</div>
+                    ) : (
+                      porCuenta.map((c) => {
+                        const sel = cuentaSel === c.cuenta;
+                        return (
+                          <button
+                            key={c.cuenta}
+                            onClick={() => setCuentaSel(sel ? null : c.cuenta)}
+                            className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[#111] last:border-b-0 transition-colors ${
+                              sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
+                            }`}
+                          >
+                            <span className="text-left truncate" title={c.cuenta}>{c.cuenta}</span>
+                            <span className="font-mono">{fmtCompact(c.valuacion)}</span>
+                            <span className="text-[9px] text-[#666] w-10 text-right">{c.share.toFixed(1)}%</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              ) : !emisorSel ? (
-                <div className="py-6 text-center text-[#555555] text-[11px]">
-                  Seleccioná una sociedad gerente para ver sus fondos y cuentas.
+                {/* POR ASSET */}
+                <div className="border border-[#1a1a1a] bg-[#0a0a0a] flex flex-col min-h-0">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center border-b border-[#1a1a1a]">
+                    <span>POR ASSET</span>
+                    <span className="ml-2 text-[#555]">{porUnidad.length}</span>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {porUnidad.length === 0 ? (
+                      <div className="py-6 text-center text-[#555] text-[10px]">Sin datos.</div>
+                    ) : (
+                      porUnidad.map((u) => {
+                        const sel = unidadSel === u.ticker;
+                        return (
+                          <button
+                            key={u.ticker}
+                            onClick={() => setUnidadSel(sel ? null : u.ticker)}
+                            className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[#111] last:border-b-0 transition-colors ${
+                              sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
+                            }`}
+                          >
+                            <span className="text-left truncate" title={u.ticker}>{u.ticker}</span>
+                            <span className="font-mono">{fmtCompact(u.valuacion)}</span>
+                            <span className="text-[9px] text-[#666] w-10 text-right">{u.share.toFixed(1)}%</span>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              ) : detalleEmisor.length === 0 ? (
-                <div className="py-6 text-center text-[#555555] text-[11px]">
-                  Sin detalle.
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {detalleEmisor.map((t) => (
-                    <TickerCard
-                      key={t.ticker}
-                      ticker={t.ticker}
-                      valuacion={t.valuacion}
-                      cuentas={t.cuentas}
-                    />
-                  ))}
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+              <PanelHeader
+                title="DETALLE"
+                sub={
+                  emisorSel
+                    ? `${emisorSel} · ${fmtCompact(
+                        porEmisor.find((p) => p.emisor === emisorSel)
+                          ?.valuacion || 0
+                      )}`
+                    : "Seleccioná un emisor"
+                }
+              />
+              <div className="flex-1 min-h-0 overflow-y-auto p-2">
+                {snapErr ? (
+                  <div className="text-[#ff3333] text-[11px] p-2">
+                    Error: {snapErr}
+                  </div>
+                ) : !emisorSel ? (
+                  <div className="py-6 text-center text-[#555555] text-[11px]">
+                    Seleccioná una sociedad gerente para ver sus fondos y cuentas.
+                  </div>
+                ) : detalleEmisor.length === 0 ? (
+                  <div className="py-6 text-center text-[#555555] text-[11px]">
+                    Sin detalle.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {detalleEmisor.map((t) => (
+                      <TickerCard
+                        key={t.ticker}
+                        ticker={t.ticker}
+                        valuacion={t.valuacion}
+                        cuentas={t.cuentas}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
       </div>
