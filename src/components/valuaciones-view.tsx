@@ -162,7 +162,12 @@ export function ValuacionesView({ idCuenta }: Props) {
   const [posResp, setPosResp] = useState<PosicionesResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Fecha seleccionada para el panel Posición Actual. null = última disponible.
+  const [selectedFecha, setSelectedFecha] = useState<string | null>(null);
+  const [posLoading, setPosLoading] = useState(false);
 
+  // Initial load: serie + mensual son one-shot, posiciones se refetcha al
+  // cambiar selectedFecha (handler separado).
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -170,24 +175,19 @@ export function ValuacionesView({ idCuenta }: Props) {
       setError(null);
       try {
         const base = `/api/valuaciones/${encodeURIComponent(idCuenta)}`;
-        const [s, m, p] = await Promise.all([
-          fetch(`${base}/serie`,                { cache: "no-store" }).then((r) => {
+        const [s, m] = await Promise.all([
+          fetch(`${base}/serie`, { cache: "no-store" }).then((r) => {
             if (!r.ok) throw new Error(`serie HTTP ${r.status}`);
             return r.json() as Promise<SerieResp>;
           }),
-          fetch(`${base}/mensual`,              { cache: "no-store" }).then((r) => {
+          fetch(`${base}/mensual`, { cache: "no-store" }).then((r) => {
             if (!r.ok) throw new Error(`mensual HTTP ${r.status}`);
             return r.json() as Promise<MensualResp>;
-          }),
-          fetch(`${base}/posiciones-actuales`,  { cache: "no-store" }).then((r) => {
-            if (!r.ok) throw new Error(`pos HTTP ${r.status}`);
-            return r.json() as Promise<PosicionesResp>;
           }),
         ]);
         if (cancelled) return;
         setSerieResp(s);
         setMensualResp(m);
-        setPosResp(p);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -196,6 +196,29 @@ export function ValuacionesView({ idCuenta }: Props) {
     })();
     return () => { cancelled = true; };
   }, [idCuenta]);
+
+  // Posiciones — refetcha cuando cambia idCuenta o selectedFecha.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setPosLoading(true);
+      try {
+        const base = `/api/valuaciones/${encodeURIComponent(idCuenta)}`;
+        const url = selectedFecha
+          ? `${base}/posiciones-actuales?fecha=${selectedFecha}`
+          : `${base}/posiciones-actuales`;
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) throw new Error(`pos HTTP ${r.status}`);
+        const j: PosicionesResp = await r.json();
+        if (!cancelled) setPosResp(j);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setPosLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [idCuenta, selectedFecha]);
 
   // Datos del chart: mensual (ascendente). El último mes se actualiza con el
   // ultimo fecha_snapshot disponible (ya está en valuacion_cierre del último
@@ -381,26 +404,48 @@ export function ValuacionesView({ idCuenta }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {meses.map((m) => (
-                    <tr key={m.mes} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                      <td className="px-2 py-1 text-[#ff9900] font-semibold">{fmtMesCorto(m.mes)}</td>
-                      <td className="px-2 py-1 text-right text-[#d0d0d0] font-semibold">
-                        {fmtCompact(m.valuacion_cierre)}
-                      </td>
-                      <td
-                        className="px-2 py-1 text-right"
-                        style={{ color: m.flujo_neto !== 0 ? colorDelta(m.flujo_neto) : "#666" }}
+                  {meses.map((m) => {
+                    const active = selectedFecha === m.ultimo_dia;
+                    return (
+                      <tr
+                        key={m.mes}
+                        onClick={() => setSelectedFecha(active ? null : m.ultimo_dia)}
+                        className={
+                          "cursor-pointer border-t border-[#111] transition-colors " +
+                          (active
+                            ? "bg-[#ff9900]/15"
+                            : "hover:bg-[#0f0f0f]")
+                        }
+                        title={
+                          active
+                            ? "Click de nuevo para volver al snapshot más reciente"
+                            : `Ver posición al cierre de ${fmtMesAnio(m.mes)} (${m.ultimo_dia})`
+                        }
                       >
-                        {m.flujo_neto !== 0 ? fmtSigned(m.flujo_neto) : "—"}
-                      </td>
-                      <td
-                        className="px-2 py-1 text-right font-semibold"
-                        style={{ color: colorDelta(m.delta_real) }}
-                      >
-                        {m.delta_real != null ? fmtSigned(m.delta_real) : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className={
+                          "px-2 py-1 font-semibold " +
+                          (active ? "text-[#ff9900]" : "text-[#ff9900]")
+                        }>
+                          {active && "▶ "}{fmtMesCorto(m.mes)}
+                        </td>
+                        <td className="px-2 py-1 text-right text-[#d0d0d0] font-semibold">
+                          {fmtCompact(m.valuacion_cierre)}
+                        </td>
+                        <td
+                          className="px-2 py-1 text-right"
+                          style={{ color: m.flujo_neto !== 0 ? colorDelta(m.flujo_neto) : "#666" }}
+                        >
+                          {m.flujo_neto !== 0 ? fmtSigned(m.flujo_neto) : "—"}
+                        </td>
+                        <td
+                          className="px-2 py-1 text-right font-semibold"
+                          style={{ color: colorDelta(m.delta_real) }}
+                        >
+                          {m.delta_real != null ? fmtSigned(m.delta_real) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -409,16 +454,28 @@ export function ValuacionesView({ idCuenta }: Props) {
 
       </div>
 
-      {/* COLUMNA DERECHA: posición actual */}
+      {/* COLUMNA DERECHA: posición (a fecha seleccionada o última) */}
       <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-            Posición actual
+            {selectedFecha ? "Posición histórica" : "Posición actual"}
           </span>
           {ultimoSnap && (
-            <span className="ml-2 text-[9px] text-[#555] font-mono">
+            <span className="text-[9px] text-[#555] font-mono">
               {fmtFechaCorta(ultimoSnap)}
             </span>
+          )}
+          {selectedFecha && (
+            <button
+              onClick={() => setSelectedFecha(null)}
+              className="text-[9px] uppercase tracking-wider px-2 py-0.5 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900]/10"
+              title="Volver al snapshot más reciente"
+            >
+              Hoy ×
+            </button>
+          )}
+          {posLoading && (
+            <span className="text-[9px] text-[#888]">cargando…</span>
           )}
           <span className="ml-auto text-[10px] text-[#888] font-mono">
             {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>

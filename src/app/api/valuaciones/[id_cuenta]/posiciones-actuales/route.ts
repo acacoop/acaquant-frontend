@@ -5,13 +5,18 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id_cuenta: string }> },
 ) {
   try {
     const { id_cuenta } = await params;
+    const url = new URL(req.url);
+    const fecha = url.searchParams.get("fecha");
+    const q = new URLSearchParams();
+    if (fecha) q.set("fecha", fecha);
+    const suffix = q.toString() ? `?${q}` : "";
     const data = await apiFetch(
-      `/api/valuaciones/${encodeURIComponent(id_cuenta)}/posiciones-actuales`,
+      `/api/valuaciones/${encodeURIComponent(id_cuenta)}/posiciones-actuales${suffix}`,
       { revalidate: 0 },
     );
     return NextResponse.json(data, {
