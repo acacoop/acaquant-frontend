@@ -671,30 +671,47 @@ export function AumView() {
       {tabBar}
       <div className="flex-1 min-h-0 p-3 overflow-hidden">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* COLUMNA IZQUIERDA — evolución + stats */}
-        <div className="min-h-0 grid grid-rows-[auto_auto_1fr] gap-3">
+        {/* COLUMNA IZQUIERDA — evolución + stats.
+            En TOTAL: chart toma todo el espacio sobrante (1fr), KPI single,
+            leaderboard "POR CARTERA" content-based con max-height (suelen
+            ser pocas carteras, no llena la pantalla). */}
+        <div className={`min-h-0 grid gap-3 ${
+          tab === "total" ? "grid-rows-[auto_1fr_auto]" : "grid-rows-[auto_auto_1fr]"
+        }`}>
           {/* KPIs */}
-          <div className="grid grid-cols-3 gap-3">
-            <Kpi
-              label={tab === "total" ? "AUM TOTAL (HOY)" : "TOTAL FCI (HOY)"}
-              value={fmtCompact(ultimo?.total || 0)}
-              accent={BRAND_BLUE}
-            />
-            <Kpi
-              label={tab === "total" ? "CARTERAS" : "SOC. GERENTES"}
-              value={String(Object.keys(ultimo?.por_emisor || {}).length)}
-            />
-            <Kpi
-              label="SNAPSHOTS"
-              value={String(serie.length)}
-              sub={`desde ${fmtFecha(serie[0].fecha)}`}
-            />
-          </div>
+          {tab === "total" ? (
+            <div className="grid grid-cols-1">
+              <Kpi
+                label="AUM TOTAL (HOY)"
+                value={fmtCompact(ultimo?.total || 0)}
+                accent={BRAND_BLUE}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <Kpi
+                label="TOTAL FCI (HOY)"
+                value={fmtCompact(ultimo?.total || 0)}
+                accent={BRAND_BLUE}
+              />
+              <Kpi
+                label="SOC. GERENTES"
+                value={String(Object.keys(ultimo?.por_emisor || {}).length)}
+              />
+              <Kpi
+                label="SNAPSHOTS"
+                value={String(serie.length)}
+                sub={`desde ${fmtFecha(serie[0].fecha)}`}
+              />
+            </div>
+          )}
 
           {/* Chart evolución */}
-          <div className="border border-[#1a1a1a] bg-[#080808]">
+          <div className={`border border-[#1a1a1a] bg-[#080808] ${
+            tab === "total" ? "flex flex-col min-h-0" : ""
+          }`}>
             <PanelHeader
-              title="EVOLUCIÓN FCI"
+              title={tab === "total" ? "EVOLUCIÓN AUM" : "EVOLUCIÓN FCI"}
               sub={
                 chartData.length
                   ? `${fmtFecha(chartData[0].fecha)} → ${fmtFecha(
@@ -703,8 +720,8 @@ export function AumView() {
                   : ""
               }
             />
-            <div className="p-2">
-              <div className="h-[220px]">
+            <div className={`p-2 ${tab === "total" ? "flex-1 min-h-0 flex flex-col" : ""}`}>
+              <div className={tab === "total" ? "flex-1 min-h-0" : "h-[220px]"}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={chartData}
@@ -753,7 +770,7 @@ export function AumView() {
                       }}
                       labelStyle={{ color: "#808080" }}
                       labelFormatter={(v) => fmtFecha(String(v))}
-                      formatter={(v) => [fmtCompact(Number(v)), "Total FCI"]}
+                      formatter={(v) => [fmtCompact(Number(v)), tab === "total" ? "Total AUM" : "Total FCI"]}
                     />
                     <Area
                       type="monotone"
@@ -787,8 +804,12 @@ export function AumView() {
             </div>
           </div>
 
-          {/* Leaderboard del snapshot — por emisor (FCI) o por cartera (TOTAL) */}
-          <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+          {/* Leaderboard del snapshot — por emisor (FCI) o por cartera (TOTAL).
+              En TOTAL: max-height baja porque suelen ser pocas carteras —
+              dejamos respirar el chart de evolución. */}
+          <div className={`border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0 ${
+            tab === "total" ? "max-h-[28vh]" : ""
+          }`}>
             <PanelHeader
               title={`${tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"} · ${fmtFecha(fechaSel)}`}
               sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}`}
@@ -845,43 +866,56 @@ export function AumView() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA — snapshot date picker + drill-down */}
+        {/* COLUMNA DERECHA — snapshot date picker + drill-down.
+            En TOTAL: versión compacta sin PanelHeader ni label redundante. */}
         <div className="min-h-0 grid grid-rows-[auto_1fr] gap-3">
-          <div className="border border-[#1a1a1a] bg-[#080808]">
-            <PanelHeader title="SNAPSHOT" sub={fmtFecha(fechaSel)} />
-            <div className="p-3 grid grid-cols-2 gap-3">
-              <div>
-                <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
-                  Fecha snapshot
-                </div>
-                <select
-                  value={fechaSel}
-                  onChange={(e) => setFechaSel(e.target.value)}
-                  className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
-                >
-                  {fechasAll
-                    .slice()
-                    .reverse()
-                    .map((f) => (
-                      <option key={f} value={f}>
-                        {fmtFecha(f)}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <div className="flex flex-col justify-end">
-                <div className="text-[10px] text-[#555555] uppercase tracking-wide">
-                  {tab === "total" ? "Total AUM" : "Total FCI"}
-                </div>
-                <div
-                  className="text-[20px] font-semibold"
-                  style={{ color: BRAND_BLUE }}
-                >
+          {tab === "total" ? (
+            <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex items-center gap-3">
+              <select
+                value={fechaSel}
+                onChange={(e) => setFechaSel(e.target.value)}
+                className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none min-w-[140px]"
+              >
+                {fechasAll.slice().reverse().map((f) => (
+                  <option key={f} value={f}>{fmtFecha(f)}</option>
+                ))}
+              </select>
+              <div className="ml-auto flex items-baseline gap-2">
+                <span className="text-[9px] tracking-widest text-[#666]">TOTAL AUM</span>
+                <span className="text-[18px] font-semibold" style={{ color: BRAND_BLUE }}>
                   {fmtFull(snapshotTotal)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="border border-[#1a1a1a] bg-[#080808]">
+              <PanelHeader title="SNAPSHOT" sub={fmtFecha(fechaSel)} />
+              <div className="p-3 grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
+                    Fecha snapshot
+                  </div>
+                  <select
+                    value={fechaSel}
+                    onChange={(e) => setFechaSel(e.target.value)}
+                    className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+                  >
+                    {fechasAll.slice().reverse().map((f) => (
+                      <option key={f} value={f}>{fmtFecha(f)}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <div className="text-[10px] text-[#555555] uppercase tracking-wide">
+                    Total FCI
+                  </div>
+                  <div className="text-[20px] font-semibold" style={{ color: BRAND_BLUE }}>
+                    {fmtFull(snapshotTotal)}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {tab === "total" ? (
             // ── DETALLE TOTAL: dos sub-tablas (CUENTA + ASSET) con
