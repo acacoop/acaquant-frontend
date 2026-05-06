@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { ValuacionesView } from "@/components/valuaciones-view";
 
 interface SeriePoint {
   fecha: string;
@@ -367,7 +368,9 @@ function TabCer() {
   );
 }
 
-type AumTab = "fci" | "total" | "tasa_fija" | "cer";
+type AumTab = "total" | "fci" | "tasa_fija" | "cer" | "valuaciones";
+
+type CuentaDoc = { id_cuenta: string; cuenta: string };
 
 type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
 const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
@@ -390,6 +393,21 @@ export function AumView() {
   // Indicadores de MEP faltante para el banner.
   const [fechasSinMep, setFechasSinMep] = useState<string[]>([]);
   const [mepMissingSnap, setMepMissingSnap] = useState<boolean>(false);
+
+  // Selector de cuenta para la sub-tab VALUACIONES (vive bajo /aum como tab).
+  const [cuentas, setCuentas] = useState<CuentaDoc[]>([]);
+  const [valCuenta, setValCuenta] = useState<string>("");
+
+  useEffect(() => {
+    fetch("/api/portfolio-cuentas", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((d: { cuentas: CuentaDoc[] }) => {
+        const list = d.cuentas || [];
+        setCuentas(list);
+        if (list.length && !valCuenta) setValCuenta(list[0].id_cuenta);
+      })
+      .catch(() => { /* sin lista, el selector queda vacío */ });
+  }, [valCuenta]);
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
   const [serie, setSerie] = useState<SeriePoint[]>([]);
@@ -602,12 +620,12 @@ export function AumView() {
 
   const tabBar = (
     <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-      {(["total", "fci", "tasa_fija", "cer"] as AumTab[]).map((t) => (
+      {(["total", "fci", "tasa_fija", "cer", "valuaciones"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
             tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
           }`}>
-          {t === "fci" ? "FCI" : t === "total" ? "TOTAL" : t === "tasa_fija" ? "TASA FIJA" : "CER"}
+          {t === "fci" ? "FCI" : t === "total" ? "TOTAL" : t === "tasa_fija" ? "TASA FIJA" : t === "cer" ? "CER" : "VALUACIONES"}
         </button>
       ))}
       {(tab === "fci" || tab === "total") && (
@@ -646,6 +664,38 @@ export function AumView() {
       )}
     </div>
   );
+
+  if (tab === "valuaciones") {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        {tabBar}
+        <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+          <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
+          <select
+            value={valCuenta}
+            onChange={(e) => setValCuenta(e.target.value)}
+            className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none min-w-[280px]"
+          >
+            {cuentas.length === 0 && <option value="">— sin cuentas —</option>}
+            {cuentas.map((c) => (
+              <option key={c.id_cuenta} value={c.id_cuenta}>
+                [{c.id_cuenta}] {c.cuenta.replace(/^\[\d+\]\s*/, "")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1 min-h-0">
+          {valCuenta ? (
+            <ValuacionesView idCuenta={valCuenta} />
+          ) : (
+            <div className="h-full flex items-center justify-center text-[#555] text-sm">
+              Cargando cuentas…
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (tab === "tasa_fija") {
     return (
