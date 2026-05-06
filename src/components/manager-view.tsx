@@ -1233,7 +1233,199 @@ interface CfiInstrument {
   lowLimitPrice?: number; highLimitPrice?: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// TabAssets — auditoría de Valuaciones.Assets: lista assets con gaps
+// (CARTERA o EMISOR vacíos / "NO APLICA") y permite editarlos in-place.
+// PATCH a /api/manager/assets/{unidad} hace el update sobre UPPERCASE
+// (fuente de verdad). El cron de aum sincroniza después a TitulosAPI.AssetsAPI.
+// ─────────────────────────────────────────────────────────────────────────
+type AssetGap = {
+  unidad: string;
+  CARTERA?: string | null;
+  EMISOR?: string | null;
+  INSTRUMENTO?: string | null;
+  CLASE_ACTIVO?: string | null;
+  CALIFICACION?: string | null;
+  TICKER?: string | null;
+  VENCIMIENTO?: string | null;
+  actualizado_por?: string | null;
+  actualizado_at?: string | null;
+};
+
+type RowState = "idle" | "saving" | "saved" | "error";
+
 function TabAssets() {
+  const [assets, setAssets] = useState<AssetGap[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rowState, setRowState] = useState<Record<string, RowState>>({});
+  const [drafts, setDrafts] = useState<Record<string, { CARTERA: string; EMISOR: string }>>({});
+
+  const fetchGaps = () => {
+    setLoading(true);
+    setError(null);
+    fetch("/api/manager/assets/gaps")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((d: { assets: AssetGap[] }) => {
+        setAssets(d.assets || []);
+        const initial: Record<string, { CARTERA: string; EMISOR: string }> = {};
+        for (const a of d.assets || []) {
+          initial[a.unidad] = {
+            CARTERA: a.CARTERA ?? "",
+            EMISOR: a.EMISOR ?? "",
+          };
+        }
+        setDrafts(initial);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : "error"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchGaps(); }, []);
+
+  const setDraftField = (unidad: string, field: "CARTERA" | "EMISOR", value: string) => {
+    setDrafts((prev) => ({
+      ...prev,
+      [unidad]: { ...(prev[unidad] || { CARTERA: "", EMISOR: "" }), [field]: value },
+    }));
+  };
+
+  const saveRow = async (asset: AssetGap) => {
+    const draft = drafts[asset.unidad];
+    if (!draft) return;
+    const payload: Record<string, string> = {};
+    if (draft.CARTERA !== (asset.CARTERA ?? "")) payload.CARTERA = draft.CARTERA;
+    if (draft.EMISOR !== (asset.EMISOR ?? "")) payload.EMISOR = draft.EMISOR;
+    if (Object.keys(payload).length === 0) return;
+
+    setRowState((s) => ({ ...s, [asset.unidad]: "saving" }));
+    try {
+      const r = await fetch(`/api/manager/assets/${encodeURIComponent(asset.unidad)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const updated: AssetGap = await r.json();
+      setAssets((prev) => prev.map((a) => (a.unidad === asset.unidad ? updated : a)));
+      setRowState((s) => ({ ...s, [asset.unidad]: "saved" }));
+      setTimeout(() => {
+        setRowState((s) => ({ ...s, [asset.unidad]: "idle" }));
+      }, 1500);
+    } catch {
+      setRowState((s) => ({ ...s, [asset.unidad]: "error" }));
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">ASSETS — GAPS DE METADATA</span>
+        <span className="text-[10px] text-[#666]">{assets.length} con CARTERA o EMISOR vacío / "NO APLICA"</span>
+        <button
+          onClick={fetchGaps}
+          disabled={loading}
+          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+        >
+          {loading ? "Cargando…" : "↻ Recargar"}
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
+        {!error && loading && assets.length === 0 && (
+          <div className="p-3 text-[11px] text-[#555]">Cargando…</div>
+        )}
+        {!error && !loading && assets.length === 0 && (
+          <div className="p-3 text-[11px] text-[#555]">Sin gaps. Todos los assets tienen CARTERA y EMISOR.</div>
+        )}
+        {assets.length > 0 && (
+          <table className="w-full text-[11px] font-mono">
+            <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
+              <tr className="text-left text-[#888] tracking-widest text-[9px]">
+                <th className="px-3 py-2">UNIDAD</th>
+                <th className="px-3 py-2">CARTERA</th>
+                <th className="px-3 py-2">EMISOR</th>
+                <th className="px-3 py-2">CLASE_ACTIVO</th>
+                <th className="px-3 py-2">TICKER</th>
+                <th className="px-3 py-2">INSTRUMENTO</th>
+                <th className="px-3 py-2">EDITADO</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {assets.map((a) => {
+                const draft = drafts[a.unidad] || { CARTERA: "", EMISOR: "" };
+                const state = rowState[a.unidad] || "idle";
+                const dirty =
+                  draft.CARTERA !== (a.CARTERA ?? "") ||
+                  draft.EMISOR !== (a.EMISOR ?? "");
+                return (
+                  <tr key={a.unidad} className="border-b border-[#141414] hover:bg-[#0c0c0c]">
+                    <td className="px-3 py-1.5 text-[#d0d0d0]">{a.unidad}</td>
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="text"
+                        value={draft.CARTERA}
+                        onChange={(e) => setDraftField(a.unidad, "CARTERA", e.target.value)}
+                        onBlur={() => saveRow(a)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        }}
+                        placeholder={a.CARTERA || "—"}
+                        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="text"
+                        value={draft.EMISOR}
+                        onChange={(e) => setDraftField(a.unidad, "EMISOR", e.target.value)}
+                        onBlur={() => saveRow(a)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        }}
+                        placeholder={a.EMISOR || "—"}
+                        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-[#888]">{a.CLASE_ACTIVO || "—"}</td>
+                    <td className="px-3 py-1.5 text-[#888]">{a.TICKER || "—"}</td>
+                    <td className="px-3 py-1.5 text-[#888] truncate max-w-[260px]" title={a.INSTRUMENTO ?? ""}>
+                      {a.INSTRUMENTO || "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-[#666] text-[10px]">
+                      {a.actualizado_at ? (
+                        <>
+                          {new Date(a.actualizado_at).toLocaleString("es-AR", {
+                            year: "2-digit", month: "2-digit", day: "2-digit",
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                          {a.actualizado_por && <div className="text-[#444]">{a.actualizado_por}</div>}
+                        </>
+                      ) : "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-[10px]">
+                      {state === "saving" && <span className="text-[#ff9900]">Guardando…</span>}
+                      {state === "saved" && <span className="text-green-400">✓ guardado</span>}
+                      {state === "error" && <span className="text-red-400">✗ error</span>}
+                      {state === "idle" && dirty && <span className="text-[#666]">sin guardar</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TabInstrumentos() {
   const [discLoading, setDiscLoading] = useState(false);
   const [discData, setDiscData] = useState<{
     ok: boolean;
@@ -1455,6 +1647,7 @@ type Tab =
   | "backfills"
   | "jobs"
   | "validaciones"
+  | "instrumentos"
   | "assets"
   | "aunesa"
   | "asistente"
@@ -1471,6 +1664,7 @@ export function ManagerView() {
     { id: "backfills",    label: "BACKFILLS"    },
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
+    { id: "instrumentos", label: "INSTRUMENTOS" },
     { id: "assets",       label: "ASSETS"       },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "recursos",     label: "RECURSOS"     },
@@ -1496,6 +1690,7 @@ export function ManagerView() {
         {tab === "backfills"    && <TabBackfills />}
         {tab === "jobs"         && <JobsRunsPanel />}
         {tab === "validaciones" && <TabValidaciones />}
+        {tab === "instrumentos" && <TabInstrumentos />}
         {tab === "assets"       && <TabAssets />}
         {tab === "aunesa"       && <AunesaExplorarPanel />}
         {tab === "recursos"     && <RecursosPanel />}
