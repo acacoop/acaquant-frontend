@@ -445,7 +445,15 @@ export function AumView() {
         }));
         setSerie(arr);
         setFechasSinMep(Array.isArray(json.fechas_sin_mep) ? json.fechas_sin_mep : []);
-        if (arr.length) setFechaSel(arr[arr.length - 1].fecha);
+        // Preservar fechaSel si la nueva serie la contiene (cambió moneda
+        // pero las fechas son las mismas). Sólo cae al último cuando es la
+        // primera carga o cambió la tab (que sí puede traer fechas distintas).
+        if (arr.length) {
+          setFechaSel((prev) => {
+            if (prev && arr.some((p) => p.fecha === prev)) return prev;
+            return arr[arr.length - 1].fecha;
+          });
+        }
         setSerieErr(null);
       } catch (e) {
         if (!cancelled) setSerieErr(e instanceof Error ? e.message : "error");
@@ -468,7 +476,6 @@ export function AumView() {
     (async () => {
       try {
         setLoadingSnap(true);
-        setEmisorSel(null);
         const base = tab === "total" ? "/api/aum-total/snapshot" : "/api/aum-fci/snapshot";
         const q = new URLSearchParams({ fecha: fechaSel, moneda });
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
@@ -582,12 +589,16 @@ export function AumView() {
       .sort((a, b) => b.valuacion - a.valuacion);
   }, [snapshotByCartera, cuentaSel]);
 
-  // Reset selecciones de drill-down si cambia tab, snapshot o cartera —
-  // los IDs viejos podrían ya no estar en el set actual.
+  // Reset selecciones de drill-down sólo cuando cambia la tab (FCI ↔ TOTAL
+  // tienen shape distinto). Cambiar moneda, fecha o cartera preserva las
+  // selecciones — la lista de cuentas/assets sigue siendo la misma. Si la
+  // selección ya no existe en el dataset filtrado, las tablas se ven
+  // vacías y el botón "↺ limpiar" del panel resetea.
   useEffect(() => {
+    setEmisorSel(null);
     setCuentaSel(null);
     setUnidadSel(null);
-  }, [tab, fechaSel, emisorSel]);
+  }, [tab]);
 
   const detalleEmisor = useMemo(() => {
     if (!emisorSel) return [];
