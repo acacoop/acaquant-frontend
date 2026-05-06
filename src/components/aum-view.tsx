@@ -377,13 +377,19 @@ const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
   { value: "cooperativas",    label: "COOPERATIVAS" },
 ];
 
+type Moneda = "ARS" | "USD";
+
 export function AumView() {
   const [tab, setTab] = useState<AumTab>("total");
   const [cuentaFilter, setCuentaFilter] = useState<CuentaFilter>("todas");
+  const [moneda, setMoneda] = useState<Moneda>("ARS");
   // Selecciones del drill-down de TOTAL — independientes del emisorSel
   // (cartera) del leaderboard izquierdo. Los tres se combinan con AND.
   const [cuentaSel, setCuentaSel] = useState<string | null>(null);
   const [unidadSel, setUnidadSel] = useState<string | null>(null);
+  // Indicadores de MEP faltante para el banner.
+  const [fechasSinMep, setFechasSinMep] = useState<string[]>([]);
+  const [mepMissingSnap, setMepMissingSnap] = useState<boolean>(false);
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
   const [serie, setSerie] = useState<SeriePoint[]>([]);
@@ -401,9 +407,10 @@ export function AumView() {
     return d.toISOString().slice(0, 10);
   }, []);
 
-  // Serie FCI o TOTAL según la tab activa. Para TOTAL traducimos por_cartera
-  // → por_emisor para que el render del chart y la tabla "POR ..." reuse
-  // exactamente el mismo código sin sucursales (solo cambia el header label).
+  // Serie histórica — depende SOLO de desde / tab / moneda.
+  // No se filtra por `cuentaFilter`: el chart muestra siempre la evolución
+  // total y se navega con sus propios botones de rango (1M/3M/6M/YTD/ALL).
+  // El KPI "AUM HOY" se calcula desde el snapshot, no desde la serie.
   useEffect(() => {
     if (tab !== "fci" && tab !== "total") return;
     let cancelled = false;
@@ -411,8 +418,7 @@ export function AumView() {
       try {
         setLoadingSerie(true);
         const base = tab === "total" ? "/api/aum-total/serie" : "/api/aum-fci/serie";
-        const q = new URLSearchParams({ desde: desdeInit });
-        if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
+        const q = new URLSearchParams({ desde: desdeInit, moneda });
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -424,6 +430,7 @@ export function AumView() {
           por_emisor: p.por_emisor ?? p.por_cartera ?? {},
         }));
         setSerie(arr);
+        setFechasSinMep(Array.isArray(json.fechas_sin_mep) ? json.fechas_sin_mep : []);
         if (arr.length) setFechaSel(arr[arr.length - 1].fecha);
         setSerieErr(null);
       } catch (e) {
@@ -435,9 +442,11 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [desdeInit, tab, cuentaFilter]);
+  }, [desdeInit, tab, moneda]);
 
-  // Snapshot — mismo adapter (cartera → emisor para TOTAL).
+  // Snapshot — depende de fecha + cuentaFilter + moneda. Es lo que cambia
+  // cuando el usuario juega con los filtros; el chart de evolución se queda
+  // quieto.
   useEffect(() => {
     if (tab !== "fci" && tab !== "total") return;
     if (!fechaSel) return;
@@ -447,7 +456,7 @@ export function AumView() {
         setLoadingSnap(true);
         setEmisorSel(null);
         const base = tab === "total" ? "/api/aum-total/snapshot" : "/api/aum-fci/snapshot";
-        const q = new URLSearchParams({ fecha: fechaSel });
+        const q = new URLSearchParams({ fecha: fechaSel, moneda });
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -464,6 +473,7 @@ export function AumView() {
           cantidad:  d.cantidad,
         }));
         setSnapshot(rows);
+        setMepMissingSnap(Boolean(json.mep_missing));
         setSnapErr(null);
       } catch (e) {
         if (!cancelled) setSnapErr(e instanceof Error ? e.message : "error");
@@ -474,7 +484,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, fechaSel, cuentaFilter]);
+  }, [tab, fechaSel, cuentaFilter, moneda]);
 
   const fechasAll = useMemo(() => serie.map((s) => s.fecha), [serie]);
 
@@ -601,17 +611,37 @@ export function AumView() {
         </button>
       ))}
       {(tab === "fci" || tab === "total") && (
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[9px] tracking-widest text-[#666]">CUENTAS</span>
-          <select
-            value={cuentaFilter}
-            onChange={(e) => setCuentaFilter(e.target.value as CuentaFilter)}
-            className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
-          >
-            {CUENTA_FILTER_OPTS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+        <div className="ml-auto flex items-center gap-3">
+          {tab === "total" && (
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
+              {(["ARS", "USD"] as Moneda[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMoneda(m)}
+                  className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+                    moneda === m
+                      ? "bg-[#ff9900] text-black border-[#ff9900]"
+                      : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] tracking-widest text-[#666]">CUENTAS</span>
+            <select
+              value={cuentaFilter}
+              onChange={(e) => setCuentaFilter(e.target.value as CuentaFilter)}
+              className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            >
+              {CUENTA_FILTER_OPTS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
     </div>
@@ -669,8 +699,15 @@ export function AumView() {
   return (
     <div className="h-full flex flex-col min-h-0">
       {tabBar}
-      <div className="flex-1 min-h-0 p-3 overflow-hidden">
-      <div className="grid grid-cols-2 gap-3 h-full min-h-0">
+      <div className="flex-1 min-h-0 p-3 overflow-hidden flex flex-col gap-2">
+      {moneda === "USD" && fechasSinMep.length > 0 && (
+        <div className="border border-[#ff9900]/40 bg-[#ff9900]/5 px-3 py-1.5 text-[10px] text-[#ff9900]">
+          ⚠ Sin cotización MEP para {fechasSinMep.length} fecha{fechasSinMep.length > 1 ? "s" : ""} de la serie
+          {fechasSinMep.length <= 5 ? `: ${fechasSinMep.join(", ")}` : `. Ej: ${fechasSinMep.slice(0, 5).join(", ")}…`}.
+          Esos puntos quedan en ARS sin convertir; revisar feed `Valuaciones.Dolar` para esas fechas.
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
         {/* COLUMNA IZQUIERDA — evolución + stats.
             En TOTAL: chart toma todo el espacio sobrante (1fr), KPI single,
             leaderboard "POR CARTERA" content-based con max-height (suelen
@@ -682,9 +719,10 @@ export function AumView() {
           {tab === "total" ? (
             <div className="grid grid-cols-1">
               <Kpi
-                label="AUM TOTAL (HOY)"
-                value={fmtCompact(ultimo?.total || 0)}
+                label={`AUM TOTAL (HOY) · ${moneda}`}
+                value={fmtCompact(snapshotTotal)}
                 accent={BRAND_BLUE}
+                sub={fmtFecha(fechaSel)}
               />
             </div>
           ) : (
@@ -870,21 +908,30 @@ export function AumView() {
             En TOTAL: versión compacta sin PanelHeader ni label redundante. */}
         <div className="min-h-0 grid grid-rows-[auto_1fr] gap-3">
           {tab === "total" ? (
-            <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex items-center gap-3">
-              <select
-                value={fechaSel}
-                onChange={(e) => setFechaSel(e.target.value)}
-                className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none min-w-[140px]"
-              >
-                {fechasAll.slice().reverse().map((f) => (
-                  <option key={f} value={f}>{fmtFecha(f)}</option>
-                ))}
-              </select>
-              <div className="ml-auto flex items-baseline gap-2">
-                <span className="text-[9px] tracking-widest text-[#666]">TOTAL AUM</span>
-                <span className="text-[18px] font-semibold" style={{ color: BRAND_BLUE }}>
-                  {fmtFull(snapshotTotal)}
-                </span>
+            // Mismo padding (px-3 py-2) y borde que el Kpi del lado izquierdo
+            // — así los topes de las dos columnas quedan alineados al pixel.
+            <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2">
+              <div className="text-[10px] text-[#555555] uppercase tracking-wide">
+                FECHA SNAPSHOT
+              </div>
+              <div className="flex items-center gap-3 mt-0.5">
+                <select
+                  value={fechaSel}
+                  onChange={(e) => setFechaSel(e.target.value)}
+                  className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[14px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                >
+                  {fechasAll.slice().reverse().map((f) => (
+                    <option key={f} value={f}>{fmtFecha(f)}</option>
+                  ))}
+                </select>
+                {mepMissingSnap && moneda === "USD" && (
+                  <span className="text-[9px] tracking-widest text-[#ff9900] border border-[#ff9900]/40 px-2 py-0.5">
+                    ⚠ SIN MEP
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-[#666666] mt-0.5">
+                {snapshot.length} posiciones
               </div>
             </div>
           ) : (

@@ -11,6 +11,13 @@ interface SnapshotDoc {
   cantidad: number;
 }
 
+interface BackendResp {
+  docs: SnapshotDoc[];
+  moneda: "ARS" | "USD";
+  mep_used: number | null;
+  mep_missing: boolean;
+}
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -24,14 +31,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "fecha requerido" }, { status: 400 });
     }
     const cf = url.searchParams.get("cuenta_filter");
+    const moneda = url.searchParams.get("moneda");
     const q = new URLSearchParams({ fecha });
     if (cf) q.set("cuenta_filter", cf);
+    if (moneda) q.set("moneda", moneda);
 
-    const docs = await apiFetch<SnapshotDoc[]>(
+    const data = await apiFetch<BackendResp>(
       `/api/portfolio/total-snapshot?${q}`,
       { revalidate: 0 }
     );
-    return NextResponse.json({ docs }, { headers: NO_STORE });
+    return NextResponse.json(data, { headers: NO_STORE });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 502 });
