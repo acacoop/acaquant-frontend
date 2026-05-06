@@ -896,10 +896,13 @@ export function AumView() {
           }`}>
             <PanelHeader
               title={`${tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"} · ${fmtFecha(fechaSel)}`}
-              sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}`}
+              sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}${loadingSnap && snapshot.length > 0 ? " · actualizando…" : ""}`}
             />
             <div className="flex-1 min-h-0 overflow-y-auto">
-              {loadingSnap ? (
+              {/* Stale-while-revalidate: mantenemos las filas previas mientras
+                  carga el nuevo snapshot — evita el "bounce" del chart al
+                  colapsar la tabla al text "Cargando…" y volver a expandirla. */}
+              {snapshot.length === 0 && loadingSnap ? (
                 <div className="py-6 text-center text-[#555555] text-[11px]">
                   Cargando snapshot…
                 </div>
