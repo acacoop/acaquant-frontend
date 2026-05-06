@@ -79,6 +79,28 @@ interface PosicionesResp {
   n: number;
 }
 
+interface Movimiento {
+  fecha: string;
+  comprobante: string | null;
+  categoria: string;
+  importe: number;
+  moneda: string | null;
+  op: string | null;
+  ticker: string | null;
+  informacion: string | null;
+  cuenta: string | null;
+}
+
+interface MovimientosResp {
+  id_cuenta: string;
+  mes: string;
+  movimientos: Movimiento[];
+  n: number;
+  total_depositos: number;
+  total_extracciones: number;
+  total_neto: number;
+}
+
 interface Props { idCuenta: string }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -165,6 +187,13 @@ export function ValuacionesView({ idCuenta }: Props) {
   // Fecha seleccionada para el panel Posición Actual. null = última disponible.
   const [selectedFecha, setSelectedFecha] = useState<string | null>(null);
   const [posLoading, setPosLoading] = useState(false);
+  // Movimientos del mes — solo se fetcha cuando hay fecha seleccionada.
+  const [movResp, setMovResp] = useState<MovimientosResp | null>(null);
+  const [movLoading, setMovLoading] = useState(false);
+  // Toggle del panel derecho cuando hay fecha seleccionada: mostrar las
+  // posiciones (portfolio) o los movimientos del mes (flujo). Default
+  // portfolio. Si no hay fecha seleccionada, solo se muestra portfolio.
+  const [panelMode, setPanelMode] = useState<"portfolio" | "flujo">("portfolio");
 
   // Initial load: serie + mensual son one-shot, posiciones se refetcha al
   // cambiar selectedFecha (handler separado).
@@ -215,6 +244,30 @@ export function ValuacionesView({ idCuenta }: Props) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (!cancelled) setPosLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [idCuenta, selectedFecha]);
+
+  // Movimientos — solo cuando hay fecha seleccionada (panel oculto sino).
+  useEffect(() => {
+    if (!selectedFecha) {
+      setMovResp(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setMovLoading(true);
+      try {
+        const url = `/api/valuaciones/${encodeURIComponent(idCuenta)}/movimientos?fecha=${selectedFecha}`;
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) throw new Error(`mov HTTP ${r.status}`);
+        const j: MovimientosResp = await r.json();
+        if (!cancelled) setMovResp(j);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setMovLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -454,17 +507,47 @@ export function ValuacionesView({ idCuenta }: Props) {
 
       </div>
 
-      {/* COLUMNA DERECHA: posición (a fecha seleccionada o última) */}
+      {/* COLUMNA DERECHA: panel con toggle Portfolio/Flujo cuando hay fecha. */}
       <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
+        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-            {selectedFecha ? "Posición histórica" : "Posición actual"}
+            {!selectedFecha
+              ? "Posición actual"
+              : panelMode === "portfolio"
+                ? "Posición histórica"
+                : "Flujo del mes"}
           </span>
-          {ultimoSnap && (
+          {ultimoSnap && panelMode === "portfolio" && (
             <span className="text-[9px] text-[#555] font-mono">
               {fmtFechaCorta(ultimoSnap)}
             </span>
           )}
+          {selectedFecha && panelMode === "flujo" && movResp && (
+            <span className="text-[9px] text-[#555] font-mono">
+              {fmtMesAnio(movResp.mes)}
+            </span>
+          )}
+
+          {/* Toggle portfolio / flujo — solo cuando hay fecha seleccionada */}
+          {selectedFecha && (
+            <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333] ml-1">
+              {(["portfolio", "flujo"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setPanelMode(m)}
+                  className={
+                    "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                    (panelMode === m
+                      ? "bg-[#ff9900] text-black"
+                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                  }
+                >
+                  {m === "portfolio" ? "Portfolio" : "Flujo"}
+                </button>
+              ))}
+            </div>
+          )}
+
           {selectedFecha && (
             <button
               onClick={() => setSelectedFecha(null)}
@@ -474,60 +557,130 @@ export function ValuacionesView({ idCuenta }: Props) {
               Hoy ×
             </button>
           )}
-          {posLoading && (
+
+          {(panelMode === "portfolio" ? posLoading : movLoading) && (
             <span className="text-[9px] text-[#888]">cargando…</span>
           )}
+
+          {/* Header right: counts/totales según panel activo */}
           <span className="ml-auto text-[10px] text-[#888] font-mono">
-            {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
+            {panelMode === "portfolio" ? (
+              <>
+                {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
+              </>
+            ) : (
+              movResp && (
+                <>
+                  {movResp.n} · <span className="text-[#4a9eff] font-semibold">neto {fmtSigned(movResp.total_neto)}</span>
+                </>
+              )
+            )}
           </span>
         </div>
+
         <div className="flex-1 min-h-0 overflow-auto">
-          {posiciones.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
-              Sin posiciones activas.
-            </div>
-          ) : (
-            <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
-                <tr>
-                  <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Ticker</th>
-                  <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Cart.</th>
-                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Cant.</th>
-                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Precio</th>
-                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Valuación</th>
-                  <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {posiciones.map((p) => (
-                  <tr key={p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                    <td className="px-2 py-1 text-[#ff9900] font-semibold">{p.ticker}</td>
-                    <td className="px-2 py-1">
-                      <span className="inline-flex items-center gap-1">
-                        <span
-                          className="w-1.5 h-1.5 rounded-full inline-block"
-                          style={{ background: carteraColor(p.cartera) }}
-                        />
-                        <span style={{ color: carteraColor(p.cartera) }}>
-                          {carteraShort(p.cartera)}
-                        </span>
-                      </span>
-                    </td>
-                    <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
-                    <td className="px-2 py-1 text-right text-[#888]">{fmtPrice(p.precio)}</td>
-                    <td
-                      className="px-2 py-1 text-right font-semibold"
-                      style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "#ff3333" }}
-                    >
-                      {fmtCompact(p.valuacion)}
-                    </td>
-                    <td className="px-2 py-1 text-right text-[#888]">
-                      {p.share != null ? p.share.toFixed(1) + "%" : "—"}
-                    </td>
+          {panelMode === "portfolio" ? (
+            // ── PORTFOLIO ──────────────────────────────────────────────
+            posiciones.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                Sin posiciones activas.
+              </div>
+            ) : (
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <tr>
+                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Ticker</th>
+                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Cart.</th>
+                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Cant.</th>
+                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Precio</th>
+                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Valuación</th>
+                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">%</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {posiciones.map((p) => (
+                    <tr key={p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+                      <td className="px-2 py-1 text-[#ff9900] font-semibold">{p.ticker}</td>
+                      <td className="px-2 py-1">
+                        <span className="inline-flex items-center gap-1">
+                          <span
+                            className="w-1.5 h-1.5 rounded-full inline-block"
+                            style={{ background: carteraColor(p.cartera) }}
+                          />
+                          <span style={{ color: carteraColor(p.cartera) }}>
+                            {carteraShort(p.cartera)}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
+                      <td className="px-2 py-1 text-right text-[#888]">{fmtPrice(p.precio)}</td>
+                      <td
+                        className="px-2 py-1 text-right font-semibold"
+                        style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "#ff3333" }}
+                      >
+                        {fmtCompact(p.valuacion)}
+                      </td>
+                      <td className="px-2 py-1 text-right text-[#888]">
+                        {p.share != null ? p.share.toFixed(1) + "%" : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : (
+            // ── FLUJO ──────────────────────────────────────────────────
+            !movResp || movResp.movimientos.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+                Sin depósitos / extracciones / transferencias en el mes.
+              </div>
+            ) : (
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <tr>
+                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Fecha</th>
+                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Tipo</th>
+                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Importe</th>
+                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Mon</th>
+                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movResp.movimientos.map((m) => {
+                    const isDep = m.categoria === "deposito" || m.categoria === "transferencia";
+                    return (
+                      <tr key={m.comprobante ?? m.fecha} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+                        <td className="px-2 py-1 text-[#888]">{fmtFechaCorta(m.fecha)}</td>
+                        <td className="px-2 py-1">
+                          <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
+                            {m.categoria === "deposito"
+                              ? "Depósito"
+                              : m.categoria === "extraccion"
+                                ? "Extracción"
+                                : m.categoria === "transferencia"
+                                  ? "Transferencia"
+                                  : m.categoria}
+                          </span>
+                        </td>
+                        <td
+                          className="px-2 py-1 text-right font-semibold"
+                          style={{ color: (m.importe ?? 0) >= 0 ? "#00cc66" : "#ff5d6c" }}
+                        >
+                          {fmtSigned(m.importe)}
+                        </td>
+                        <td className="px-2 py-1 text-[#888]">{m.moneda ?? "—"}</td>
+                        <td
+                          className="px-2 py-1 text-[#888] truncate max-w-[280px]"
+                          title={m.informacion ?? ""}
+                        >
+                          {m.informacion ?? "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )
           )}
         </div>
       </div>
