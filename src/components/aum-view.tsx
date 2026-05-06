@@ -367,10 +367,19 @@ function TabCer() {
   );
 }
 
-type AumTab = "fci" | "tasa_fija" | "cer";
+type AumTab = "fci" | "total" | "tasa_fija" | "cer";
+
+type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
+const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
+  { value: "todas",           label: "TODAS" },
+  { value: "accionistas",     label: "ACCIONISTAS" },
+  { value: "sin_accionistas", label: "SIN ACCIONISTAS" },
+  { value: "cooperativas",    label: "COOPERATIVAS" },
+];
 
 export function AumView() {
   const [tab, setTab] = useState<AumTab>("fci");
+  const [cuentaFilter, setCuentaFilter] = useState<CuentaFilter>("todas");
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
   const [serie, setSerie] = useState<SeriePoint[]>([]);
@@ -388,21 +397,30 @@ export function AumView() {
     return d.toISOString().slice(0, 10);
   }, []);
 
+  // Serie FCI o TOTAL según la tab activa. Para TOTAL traducimos por_cartera
+  // → por_emisor para que el render del chart y la tabla "POR ..." reuse
+  // exactamente el mismo código sin sucursales (solo cambia el header label).
   useEffect(() => {
+    if (tab !== "fci" && tab !== "total") return;
     let cancelled = false;
     (async () => {
       try {
         setLoadingSerie(true);
-        const res = await fetch(
-          `/api/aum-fci/serie?desde=${desdeInit}`,
-          { cache: "no-store" }
-        );
+        const base = tab === "total" ? "/api/aum-total/serie" : "/api/aum-fci/serie";
+        const q = new URLSearchParams({ desde: desdeInit });
+        if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
+        const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
-        const arr: SeriePoint[] = Array.isArray(json.serie) ? json.serie : [];
+        const rawSerie = Array.isArray(json.serie) ? json.serie : [];
+        const arr: SeriePoint[] = rawSerie.map((p: { fecha: string; total: number; por_emisor?: Record<string, number>; por_cartera?: Record<string, number> }) => ({
+          fecha:      p.fecha,
+          total:      p.total,
+          por_emisor: p.por_emisor ?? p.por_cartera ?? {},
+        }));
         setSerie(arr);
-        if (arr.length && !fechaSel) setFechaSel(arr[arr.length - 1].fecha);
+        if (arr.length) setFechaSel(arr[arr.length - 1].fecha);
         setSerieErr(null);
       } catch (e) {
         if (!cancelled) setSerieErr(e instanceof Error ? e.message : "error");
@@ -413,23 +431,35 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [desdeInit, fechaSel]);
+  }, [desdeInit, tab, cuentaFilter]);
 
+  // Snapshot — mismo adapter (cartera → emisor para TOTAL).
   useEffect(() => {
+    if (tab !== "fci" && tab !== "total") return;
     if (!fechaSel) return;
     let cancelled = false;
     (async () => {
       try {
         setLoadingSnap(true);
         setEmisorSel(null);
-        const res = await fetch(
-          `/api/aum-fci/snapshot?fecha=${fechaSel}`,
-          { cache: "no-store" }
-        );
+        const base = tab === "total" ? "/api/aum-total/snapshot" : "/api/aum-fci/snapshot";
+        const q = new URLSearchParams({ fecha: fechaSel });
+        if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
+        const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
-        setSnapshot(Array.isArray(json.docs) ? json.docs : []);
+        const rawDocs = Array.isArray(json.docs) ? json.docs : [];
+        const rows: SnapshotRow[] = rawDocs.map((d: { unidad: string; emisor?: string; cartera?: string; ticker?: string; cuenta: string; id_cuenta: string; valuacion: number; cantidad: number }) => ({
+          unidad:    d.unidad,
+          emisor:    d.emisor ?? d.cartera ?? "—",
+          ticker:    d.ticker ?? d.unidad,
+          cuenta:    d.cuenta,
+          id_cuenta: d.id_cuenta,
+          valuacion: d.valuacion,
+          cantidad:  d.cantidad,
+        }));
+        setSnapshot(rows);
         setSnapErr(null);
       } catch (e) {
         if (!cancelled) setSnapErr(e instanceof Error ? e.message : "error");
@@ -440,7 +470,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [fechaSel]);
+  }, [tab, fechaSel, cuentaFilter]);
 
   const fechasAll = useMemo(() => serie.map((s) => s.fecha), [serie]);
 
@@ -508,14 +538,28 @@ export function AumView() {
 
   const tabBar = (
     <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-      {(["fci", "tasa_fija", "cer"] as AumTab[]).map((t) => (
+      {(["fci", "total", "tasa_fija", "cer"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
             tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
           }`}>
-          {t === "fci" ? "FCI" : t === "tasa_fija" ? "TASA FIJA" : "CER"}
+          {t === "fci" ? "FCI" : t === "total" ? "TOTAL" : t === "tasa_fija" ? "TASA FIJA" : "CER"}
         </button>
       ))}
+      {(tab === "fci" || tab === "total") && (
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-[9px] tracking-widest text-[#666]">CUENTAS</span>
+          <select
+            value={cuentaFilter}
+            onChange={(e) => setCuentaFilter(e.target.value as CuentaFilter)}
+            className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          >
+            {CUENTA_FILTER_OPTS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 
@@ -578,12 +622,12 @@ export function AumView() {
           {/* KPIs */}
           <div className="grid grid-cols-3 gap-3">
             <Kpi
-              label="TOTAL FCI (HOY)"
+              label={tab === "total" ? "AUM TOTAL (HOY)" : "TOTAL FCI (HOY)"}
               value={fmtCompact(ultimo?.total || 0)}
               accent={BRAND_BLUE}
             />
             <Kpi
-              label="SOC. GERENTES"
+              label={tab === "total" ? "CARTERAS" : "SOC. GERENTES"}
               value={String(Object.keys(ultimo?.por_emisor || {}).length)}
             />
             <Kpi
@@ -689,11 +733,11 @@ export function AumView() {
             </div>
           </div>
 
-          {/* Leaderboard por emisor del snapshot */}
+          {/* Leaderboard del snapshot — por emisor (FCI) o por cartera (TOTAL) */}
           <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
             <PanelHeader
-              title={`POR SOC. GERENTE · ${fmtFecha(fechaSel)}`}
-              sub={`${porEmisor.length} emisores`}
+              title={`${tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"} · ${fmtFecha(fechaSel)}`}
+              sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}`}
             />
             <div className="flex-1 min-h-0 overflow-y-auto">
               {loadingSnap ? (

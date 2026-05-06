@@ -3,8 +3,8 @@ import { apiFetch } from "@/lib/api";
 
 interface SnapshotDoc {
   unidad: string;
-  emisor: string;
-  ticker: string;
+  cartera: string;
+  tipo: string;
   cuenta: string;
   id_cuenta: string;
   valuacion: number;
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     if (cf) q.set("cuenta_filter", cf);
 
     const docs = await apiFetch<SnapshotDoc[]>(
-      `/api/portfolio/fci-snapshot?${q}`,
+      `/api/portfolio/total-snapshot?${q}`,
       { revalidate: 0 }
     );
     return NextResponse.json({ docs }, { headers: NO_STORE });
