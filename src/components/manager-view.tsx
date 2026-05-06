@@ -1260,6 +1260,8 @@ function TabAssets() {
   const [error, setError] = useState<string | null>(null);
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [drafts, setDrafts] = useState<Record<string, { CARTERA: string; EMISOR: string }>>({});
+  const [carteraOpts, setCarteraOpts] = useState<string[]>([]);
+  const [emisorOpts, setEmisorOpts] = useState<string[]>([]);
 
   const fetchGaps = () => {
     setLoading(true);
@@ -1283,6 +1285,19 @@ function TabAssets() {
       .catch((e) => setError(e instanceof Error ? e.message : "error"))
       .finally(() => setLoading(false));
   };
+
+  // Fetch valores únicos para autocomplete (datalist). Una sola vez al mount —
+  // no cambian cada minuto; si el user agrega uno nuevo lo verá en el próximo
+  // refresh natural de la tab.
+  useEffect(() => {
+    fetch("/api/manager/assets/values")
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((d: { carteras: string[]; emisores: string[] }) => {
+        setCarteraOpts(d.carteras || []);
+        setEmisorOpts(d.emisores || []);
+      })
+      .catch(() => { /* silencioso — sin sugerencias el input sigue funcionando */ });
+  }, []);
 
   useEffect(() => { fetchGaps(); }, []);
 
@@ -1322,6 +1337,13 @@ function TabAssets() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
+      {/* Datalists para autocomplete — un sólo doc, todos los inputs lo comparten via list="..." */}
+      <datalist id="cartera-options">
+        {carteraOpts.map((c) => <option key={c} value={c} />)}
+      </datalist>
+      <datalist id="emisor-options">
+        {emisorOpts.map((e) => <option key={e} value={e} />)}
+      </datalist>
       <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">ASSETS — GAPS DE METADATA</span>
         <span className="text-[10px] text-[#666]">{assets.length} con CARTERA o EMISOR vacío / "NO APLICA"</span>
@@ -1369,6 +1391,7 @@ function TabAssets() {
                     <td className="px-3 py-1.5">
                       <input
                         type="text"
+                        list="cartera-options"
                         value={draft.CARTERA}
                         onChange={(e) => setDraftField(a.unidad, "CARTERA", e.target.value)}
                         onBlur={() => saveRow(a)}
@@ -1382,6 +1405,7 @@ function TabAssets() {
                     <td className="px-3 py-1.5">
                       <input
                         type="text"
+                        list="emisor-options"
                         value={draft.EMISOR}
                         onChange={(e) => setDraftField(a.unidad, "EMISOR", e.target.value)}
                         onBlur={() => saveRow(a)}
