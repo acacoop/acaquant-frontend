@@ -340,10 +340,10 @@ export function ValuacionesView({ idCuenta }: Props) {
     n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
 
   return (
-    <div className="h-full grid grid-cols-[1fr_1.2fr] gap-3 p-3 overflow-hidden">
+    <div className="h-full grid grid-rows-[3fr_2fr] grid-cols-1 gap-3 p-3 overflow-hidden">
 
-      {/* COLUMNA IZQUIERDA: chart arriba + tabla mensual abajo */}
-      <div className="min-h-0 grid grid-rows-[3fr_2fr] gap-3 overflow-hidden">
+      {/* FILA SUPERIOR: chart de evolución + tabla mensual lado a lado */}
+      <div className="min-h-0 grid grid-cols-[1fr_1fr] gap-3 overflow-hidden">
 
         {/* Chart panel */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
@@ -509,7 +509,7 @@ export function ValuacionesView({ idCuenta }: Props) {
 
       </div>
 
-      {/* COLUMNA DERECHA: panel con toggle Portfolio/Flujo cuando hay fecha. */}
+      {/* FILA INFERIOR: panel de posiciones (full width) con toggle Portfolio/Flujo cuando hay fecha. */}
       <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
         <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -671,18 +671,7 @@ export function AumView() {
         {tabBar}
         <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
           <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
-          <select
-            value={valCuenta}
-            onChange={(e) => setValCuenta(e.target.value)}
-            className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none min-w-[280px]"
-          >
-            {cuentas.length === 0 && <option value="">— sin cuentas —</option>}
-            {cuentas.map((c) => (
-              <option key={c.id_cuenta} value={c.id_cuenta}>
-                [{c.id_cuenta}] {c.cuenta.replace(/^\[\d+\]\s*/, "")}
-              </option>
-            ))}
-          </select>
+          <CuentaCombobox cuentas={cuentas} value={valCuenta} onChange={setValCuenta} />
         </div>
         <div className="flex-1 min-h-0">
           {valCuenta ? (
@@ -1141,6 +1130,119 @@ export function AumView() {
         </div>
       </div>
       </div>
+    </div>
+  );
+}
+
+// Combobox tipeable — input con dropdown filtrable. UX: al hacer focus abre la
+// lista; al tipear filtra por id_cuenta o denominación; click en opción
+// selecciona; ESC o click afuera cierra.
+function CuentaCombobox({
+  cuentas,
+  value,
+  onChange,
+}: {
+  cuentas: CuentaDoc[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [highlighted, setHighlighted] = useState(0);
+
+  const selected = cuentas.find((c) => c.id_cuenta === value);
+  const display = selected
+    ? `[${selected.id_cuenta}] ${selected.cuenta.replace(/^\[\d+\]\s*/, "")}`
+    : "";
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return cuentas;
+    return cuentas.filter(
+      (c) =>
+        c.id_cuenta.toLowerCase().includes(q) ||
+        c.cuenta.toLowerCase().includes(q),
+    );
+  }, [cuentas, search]);
+
+  // Click afuera cierra. Usamos un ref por si seguís en el dropdown.
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const select = (id: string) => {
+    onChange(id);
+    setOpen(false);
+    setSearch("");
+  };
+
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setHighlighted((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlighted((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (filtered[highlighted]) select(filtered[highlighted].id_cuenta);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setSearch("");
+    }
+  };
+
+  return (
+    <div ref={wrapRef} className="relative min-w-[320px]">
+      <input
+        type="text"
+        value={open ? search : display}
+        onFocus={() => { setOpen(true); setHighlighted(0); }}
+        onChange={(e) => { setSearch(e.target.value); setOpen(true); setHighlighted(0); }}
+        onKeyDown={handleKey}
+        placeholder={cuentas.length === 0 ? "— sin cuentas —" : "Buscar cuenta…"}
+        className="w-full bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-[280px] overflow-auto bg-[#080808] border border-[#2a2a2a] shadow-lg">
+          {filtered.map((c, i) => {
+            const isSel = c.id_cuenta === value;
+            const isHi = i === highlighted;
+            return (
+              <li
+                key={c.id_cuenta}
+                onMouseEnter={() => setHighlighted(i)}
+                onMouseDown={(e) => { e.preventDefault(); select(c.id_cuenta); }}
+                className={`px-2 py-1 text-[10px] font-mono cursor-pointer ${
+                  isSel
+                    ? "text-[#ff9900]"
+                    : isHi
+                      ? "bg-[#ff9900]/10 text-[#d0d0d0]"
+                      : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
+                }`}
+              >
+                <span className="text-[#888]">[{c.id_cuenta}]</span>{" "}
+                {c.cuenta.replace(/^\[\d+\]\s*/, "")}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {open && filtered.length === 0 && (
+        <div className="absolute left-0 right-0 top-full mt-0.5 z-50 bg-[#080808] border border-[#2a2a2a] px-2 py-2 text-[10px] text-[#666]">
+          Sin resultados
+        </div>
+      )}
     </div>
   );
 }
