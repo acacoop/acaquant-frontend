@@ -368,7 +368,7 @@ function TabCer() {
   );
 }
 
-type AumTab = "total" | "fci" | "tasa_fija" | "cer" | "valuaciones";
+type AumTab = "total" | "fci" | "tasa_fija" | "cer" | "valuaciones" | "analisis_dinero";
 
 type CuentaDoc = { id_cuenta: string; cuenta: string };
 
@@ -426,12 +426,15 @@ export function AumView() {
   // mostraba los últimos 9 meses y se perdían fechas como Jul/2025).
   // El KPI "AUM HOY" se calcula desde el snapshot, no desde la serie.
   useEffect(() => {
-    if (tab !== "fci" && tab !== "total") return;
+    // ANÁLISIS DE DINERO también necesita la lista de fechas (la serie),
+    // aunque no use el chart — lo aprovechamos para alimentar los presets
+    // de plazo (Día anterior, MTD, etc).
+    if (tab !== "fci" && tab !== "total" && tab !== "analisis_dinero") return;
     let cancelled = false;
     (async () => {
       try {
         setLoadingSerie(true);
-        const base = tab === "total" ? "/api/aum-total/serie" : "/api/aum-fci/serie";
+        const base = tab === "fci" ? "/api/aum-fci/serie" : "/api/aum-total/serie";
         const q = new URLSearchParams({ moneda });
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -627,12 +630,17 @@ export function AumView() {
 
   const tabBar = (
     <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-      {(["total", "fci", "tasa_fija", "cer", "valuaciones"] as AumTab[]).map((t) => (
+      {(["total", "fci", "tasa_fija", "cer", "valuaciones", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
             tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
           }`}>
-          {t === "fci" ? "FCI" : t === "total" ? "TOTAL" : t === "tasa_fija" ? "TASA FIJA" : t === "cer" ? "CER" : "VALUACIONES"}
+          {t === "fci" ? "FCI"
+           : t === "total" ? "TOTAL"
+           : t === "tasa_fija" ? "TASA FIJA"
+           : t === "cer" ? "CER"
+           : t === "valuaciones" ? "VALUACIONES"
+           : "ANÁLISIS DE DINERO"}
         </button>
       ))}
       {(tab === "fci" || tab === "total") && (
@@ -671,6 +679,17 @@ export function AumView() {
       )}
     </div>
   );
+
+  if (tab === "analisis_dinero") {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        {tabBar}
+        <div className="flex-1 min-h-0">
+          <AnalisisDinero fechasAll={fechasAll} />
+        </div>
+      </div>
+    );
+  }
 
   if (tab === "valuaciones") {
     return (
@@ -1143,6 +1162,286 @@ export function AumView() {
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// AnalisisDinero — sub-tab de /aum: compara el saldo de cada cuenta entre
+// dos fechas snapshot, lista diferencias ordenadas por |diff|, marca
+// cuentas nuevas / cerradas, y muestra cards con totales.
+// ─────────────────────────────────────────────────────────────────────────
+
+type DiffPlazo = "previo" | "semana" | "mes" | "mtd" | "ytd" | "custom";
+type DiffMoneda = "ARS" | "USD";
+type DiffSortKey = "diff" | "actual" | "anterior" | "cuenta";
+
+interface DiffRow {
+  id_cuenta: string;
+  cuenta: string;
+  saldo_actual: number | null;
+  saldo_anterior: number | null;
+  diff: number;
+  es_nueva: boolean;
+  es_cerrada: boolean;
+}
+
+interface DiffResp {
+  fecha_actual_resuelta:   string;
+  fecha_anterior_resuelta: string;
+  moneda:                  DiffMoneda;
+  mep_missing_actual:      boolean;
+  mep_missing_anterior:    boolean;
+  filas:                   DiffRow[];
+  total_diff:              number;
+  n_total:                 number;
+  n_nuevas:                number;
+  n_cerradas:              number;
+}
+
+function AnalisisDinero({ fechasAll }: { fechasAll: string[] }) {
+  const [plazo, setPlazo] = useState<DiffPlazo>("previo");
+  const [moneda, setMoneda] = useState<DiffMoneda>("ARS");
+  const [customActual, setCustomActual] = useState<string>("");
+  const [customAnterior, setCustomAnterior] = useState<string>("");
+  const [data, setData] = useState<DiffResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<DiffSortKey>("diff");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // Resolver fecha actual y anterior según el preset elegido. Para presets
+  // tipo "−1 mes" buscamos la fecha disponible más cercana <= target.
+  const { fechaActual, fechaAnterior } = useMemo(() => {
+    if (!fechasAll.length) return { fechaActual: "", fechaAnterior: "" };
+    if (plazo === "custom") {
+      return { fechaActual: customActual, fechaAnterior: customAnterior };
+    }
+    const ultima = fechasAll[fechasAll.length - 1];
+    if (plazo === "previo") {
+      const prev = fechasAll.length >= 2 ? fechasAll[fechasAll.length - 2] : ultima;
+      return { fechaActual: ultima, fechaAnterior: prev };
+    }
+    const ultimaDt = new Date(ultima + "T00:00:00");
+    let target: Date;
+    if (plazo === "semana") {
+      target = new Date(ultimaDt); target.setDate(target.getDate() - 7);
+    } else if (plazo === "mes") {
+      target = new Date(ultimaDt); target.setMonth(target.getMonth() - 1);
+    } else if (plazo === "mtd") {
+      target = new Date(ultimaDt.getFullYear(), ultimaDt.getMonth(), 1);
+    } else { // ytd
+      target = new Date(ultimaDt.getFullYear(), 0, 1);
+    }
+    const targetStr = target.toISOString().slice(0, 10);
+    const candidatos = fechasAll.filter(f => f <= targetStr);
+    const prev = candidatos.length ? candidatos[candidatos.length - 1] : fechasAll[0];
+    return { fechaActual: ultima, fechaAnterior: prev };
+  }, [fechasAll, plazo, customActual, customAnterior]);
+
+  useEffect(() => {
+    if (!fechaActual || !fechaAnterior) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+        const q = new URLSearchParams({
+          fecha_actual:    fechaActual,
+          fecha_anterior:  fechaAnterior,
+          moneda,
+        });
+        const res = await fetch(`/api/aum-diff?${q}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (cancelled) return;
+        setData(json);
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : "error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [fechaActual, fechaAnterior, moneda]);
+
+  const filasOrdenadas = useMemo(() => {
+    if (!data) return [];
+    const sgn = sortDir === "asc" ? 1 : -1;
+    return [...data.filas].sort((a, b) => {
+      if (sortKey === "cuenta") {
+        return (a.cuenta || "").localeCompare(b.cuenta || "") * sgn;
+      }
+      const av = sortKey === "actual"   ? (a.saldo_actual   ?? Number.NEGATIVE_INFINITY)
+               : sortKey === "anterior" ? (a.saldo_anterior ?? Number.NEGATIVE_INFINITY)
+               : a.diff;
+      const bv = sortKey === "actual"   ? (b.saldo_actual   ?? Number.NEGATIVE_INFINITY)
+               : sortKey === "anterior" ? (b.saldo_anterior ?? Number.NEGATIVE_INFINITY)
+               : b.diff;
+      return (av - bv) * sgn;
+    });
+  }, [data, sortKey, sortDir]);
+
+  const toggleSort = (k: DiffSortKey) => {
+    if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(k); setSortDir("desc"); }
+  };
+
+  const arrow = (k: DiffSortKey) => sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "";
+
+  return (
+    <div className="h-full grid grid-cols-[200px_1fr] gap-3 p-3 overflow-hidden">
+      {/* Sidebar */}
+      <div className="border border-[#1a1a1a] bg-[#080808] p-3 flex flex-col gap-1.5 min-h-0 overflow-auto">
+        <div className="text-[9px] text-[#666] uppercase tracking-widest mb-1">Plazo</div>
+        {(["previo", "semana", "mes", "mtd", "ytd", "custom"] as DiffPlazo[]).map(p => (
+          <button key={p} onClick={() => setPlazo(p)}
+            className={`text-left px-2 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
+              plazo === p
+                ? "bg-[#ff9900] text-black border-[#ff9900]"
+                : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+            }`}>
+            {p === "previo" ? "DÍA ANTERIOR"
+             : p === "semana" ? "−7 DÍAS"
+             : p === "mes" ? "−1 MES"
+             : p === "mtd" ? "MTD"
+             : p === "ytd" ? "YTD"
+             : "CUSTOM"}
+          </button>
+        ))}
+
+        {plazo === "custom" && (
+          <>
+            <div className="text-[9px] text-[#666] uppercase tracking-widest mt-3 mb-1">Fecha actual</div>
+            <select value={customActual} onChange={e => setCustomActual(e.target.value)}
+              className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+              <option value="">—</option>
+              {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <div className="text-[9px] text-[#666] uppercase tracking-widest mb-1">Fecha anterior</div>
+            <select value={customAnterior} onChange={e => setCustomAnterior(e.target.value)}
+              className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+              <option value="">—</option>
+              {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </>
+        )}
+
+        <div className="text-[9px] text-[#666] uppercase tracking-widest mt-3 mb-1">Moneda</div>
+        <div className="flex gap-1">
+          {(["ARS", "USD"] as DiffMoneda[]).map(m => (
+            <button key={m} onClick={() => setMoneda(m)}
+              className={`flex-1 px-2 py-1 text-[10px] font-semibold border transition-colors ${
+                moneda === m
+                  ? "bg-[#ff9900] text-black border-[#ff9900]"
+                  : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+              }`}>
+              {m}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-[#1a1a1a] text-[9px] text-[#666] font-mono leading-tight">
+          {data ? (
+            <>
+              <div>actual: <span className="text-[#888]">{data.fecha_actual_resuelta}</span></div>
+              <div>anterior: <span className="text-[#888]">{data.fecha_anterior_resuelta}</span></div>
+              {(data.mep_missing_actual || data.mep_missing_anterior) && (
+                <div className="mt-1 text-[#ff9900]">⚠ MEP missing en una fecha</div>
+              )}
+            </>
+          ) : <span className="text-[#444]">—</span>}
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+        {/* Cards */}
+        <div className="grid grid-cols-3 gap-3">
+          <Kpi
+            label={`TOTAL DIFERENCIA · ${moneda}`}
+            value={data ? (data.total_diff > 0 ? "+" : "") + fmtCompact(data.total_diff) : "—"}
+            accent={data ? (data.total_diff >= 0 ? "#00cc66" : "#ff4d4d") : BRAND_BLUE}
+          />
+          <Kpi label="CUENTAS NUEVAS" value={data ? String(data.n_nuevas) : "—"}
+               sub={data ? `de ${data.n_total} totales` : ""} />
+          <Kpi label="CUENTAS CERRADAS" value={data ? String(data.n_cerradas) : "—"} />
+        </div>
+
+        {/* Tabla */}
+        <div className="border border-[#1a1a1a] bg-[#080808] flex-1 min-h-0 flex flex-col overflow-hidden">
+          {err ? (
+            <div className="p-3 text-[#ff4d4d] text-[11px]">Error: {err}</div>
+          ) : loading && !data ? (
+            <div className="p-6 text-center text-[#555] text-[11px]">Cargando…</div>
+          ) : data && data.filas.length === 0 ? (
+            <div className="p-6 text-center text-[#555] text-[11px]">Sin diferencias.</div>
+          ) : data ? (
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <table className="w-full text-[11px] font-mono">
+                <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a] z-10">
+                  <tr className="text-[9px] tracking-widest text-[#888]">
+                    <th onClick={() => toggleSort("cuenta")}
+                        className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
+                      CUENTA {arrow("cuenta")}
+                    </th>
+                    <th onClick={() => toggleSort("actual")}
+                        className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                      SALDO ACTUAL {arrow("actual")}
+                    </th>
+                    <th onClick={() => toggleSort("anterior")}
+                        className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                      SALDO ANTERIOR {arrow("anterior")}
+                    </th>
+                    <th onClick={() => toggleSort("diff")}
+                        className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                      DIFERENCIA {arrow("diff")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasOrdenadas.map((r) => {
+                    const tagNueva   = r.es_nueva && !r.es_cerrada;
+                    const tagCerrada = r.es_cerrada;
+                    return (
+                      <tr key={r.id_cuenta} className="border-b border-[#111] hover:bg-[#ff9900]/5">
+                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[480px]" title={r.cuenta}>
+                          <span className="text-[#666] mr-1">[{r.id_cuenta}]</span>
+                          {r.cuenta.replace(/^\[\d+\]\s*/, "")}
+                          {tagNueva && (
+                            <span className="ml-2 px-1 py-0.5 text-[9px] bg-[#00cc66]/15 text-[#00cc66] tracking-widest">
+                              NUEVA
+                            </span>
+                          )}
+                          {tagCerrada && (
+                            <span className="ml-2 px-1 py-0.5 text-[9px] bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">
+                              CERRADA
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                          {r.saldo_actual !== null ? fmtCompact(r.saldo_actual) : "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                          {r.saldo_anterior !== null ? fmtCompact(r.saldo_anterior) : "—"}
+                        </td>
+                        <td className={`px-3 py-1.5 text-right font-semibold ${
+                          r.diff > 0 ? "text-[#00cc66]" : r.diff < 0 ? "text-[#ff4d4d]" : "text-[#888]"
+                        }`}>
+                          {r.diff > 0 ? "+" : ""}{fmtCompact(r.diff)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-6 text-center text-[#555] text-[11px]">Esperando fechas…</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // Combobox tipeable — input con dropdown filtrable. UX: al hacer focus abre la
 // lista; al tipear filtra por id_cuenta o denominación; click en opción
