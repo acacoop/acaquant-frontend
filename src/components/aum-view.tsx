@@ -372,12 +372,13 @@ type AumTab = "total" | "fci" | "tasa_fija" | "cer" | "valuaciones" | "analisis_
 
 type CuentaDoc = { id_cuenta: string; cuenta: string };
 
-type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
+type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas" | "productores";
 const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
   { value: "todas",           label: "TODAS" },
   { value: "accionistas",     label: "ACCIONISTAS" },
   { value: "sin_accionistas", label: "SIN ACCIONISTAS" },
   { value: "cooperativas",    label: "COOPERATIVAS" },
+  { value: "productores",     label: "PRODUCTORES" },
 ];
 
 type Moneda = "ARS" | "USD";

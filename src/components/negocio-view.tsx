@@ -38,7 +38,7 @@ interface SeriePoint {
 type Moneda = "ARS" | "USD";
 type RangoKey = "1W" | "1M" | "3M" | "ALL";
 type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
-type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas";
+type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas" | "productores";
 // Vista global: DIA = todo scopeado al día seleccionado en el calendario.
 // TODOS = todo scopeado al período visible del chart (1W/1M/3M/ALL).
 type VistaMode = "DIA" | "TODOS";
@@ -55,6 +55,7 @@ const FILTRO_LABEL: Record<CuentaFilter, string> = {
   accionistas:     "Solo accionistas",
   sin_accionistas: "Sin accionistas",
   cooperativas:    "Solo cooperativas",
+  productores:     "Solo productores",
 };
 
 // ── Constantes ────────────────────────────────────────────────────────────
