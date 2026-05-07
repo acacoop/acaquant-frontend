@@ -7,14 +7,20 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 interface PnLRow {
   ticker: string;
   unidad: string;
-  cantidad_actual: number;
-  valor_actual: number;
-  cash_pagado: number;
-  cash_cobrado_venta: number;
-  cash_cobrado_pasivo: number;
+  qty_aum: number;
+  qty_calc: number;
+  qty_compras: number;
+  qty_ventas: number;
+  precio_actual: number;
+  precio_promedio: number | null;
+  costo_remanente: number;
+  valor_actual_aum: number;
+  valor_actual_calc: number;
+  pnl_realizado: number;
+  pnl_no_realizado: number | null;
+  pnl_pasivo: number;
   breakdown_pasivo: Record<string, number>;
   pnl_total: number;
-  pnl_pct: number | null;
   completeness: "completa" | "parcial" | "sin_boletos";
   moneda_mixta: boolean;
   n_movimientos: number;
@@ -26,17 +32,24 @@ interface PnLResp {
   fecha_actual: string | null;
   rows: PnLRow[];
   totales: {
-    cash_pagado:         number;
-    cash_cobrado_venta:  number;
-    cash_cobrado_pasivo: number;
-    valor_actual:        number;
-    pnl_total:           number;
-    pnl_pct:             number | null;
+    costo_remanente:  number;
+    valor_actual:     number;
+    pnl_realizado:    number;
+    pnl_no_realizado: number;
+    pnl_pasivo:       number;
+    pnl_total:        number;
   };
   n_tickers: number;
 }
 
-type SortKey = "pnl_total" | "pnl_pct" | "valor_actual" | "cash_pagado" | "ticker";
+type SortKey =
+  | "pnl_total"
+  | "pnl_realizado"
+  | "pnl_no_realizado"
+  | "pnl_pasivo"
+  | "valor_actual_aum"
+  | "costo_remanente"
+  | "ticker";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -44,9 +57,9 @@ function fmtCompact(n: number): string {
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
   if (abs >= 1e12) return sign + "$" + (abs / 1e12).toFixed(2) + "T";
-  if (abs >= 1e9) return sign + "$" + (abs / 1e9).toFixed(2) + "B";
-  if (abs >= 1e6) return sign + "$" + (abs / 1e6).toFixed(2) + "M";
-  if (abs >= 1e3) return sign + "$" + (abs / 1e3).toFixed(1) + "K";
+  if (abs >= 1e9)  return sign + "$" + (abs / 1e9).toFixed(2) + "B";
+  if (abs >= 1e6)  return sign + "$" + (abs / 1e6).toFixed(2) + "M";
+  if (abs >= 1e3)  return sign + "$" + (abs / 1e3).toFixed(1) + "K";
   return sign + "$" + abs.toFixed(0);
 }
 
@@ -54,14 +67,21 @@ function fmtSigned(n: number): string {
   return (n > 0 ? "+" : "") + fmtCompact(n);
 }
 
+function pnlClass(n: number | null | undefined): string {
+  if (n == null) return "text-[#888]";
+  if (n > 0) return "text-[#00cc66]";
+  if (n < 0) return "text-[#ff4d4d]";
+  return "text-[#888]";
+}
+
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
-  const [data, setData] = useState<PnLResp | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("pnl_total");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [data, setData]         = useState<PnLResp | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [err, setErr]           = useState<string | null>(null);
+  const [sortKey, setSortKey]   = useState<SortKey>("pnl_total");
+  const [sortDir, setSortDir]   = useState<"asc" | "desc">("desc");
   const [soloActivos, setSoloActivos] = useState(true);
   const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
 
@@ -93,19 +113,17 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   const filasFiltradas = useMemo(() => {
     if (!data) return [];
     return data.rows.filter((r) =>
-      soloActivos ? r.cantidad_actual !== 0 : true,
+      soloActivos ? r.qty_aum !== 0 || r.qty_calc !== 0 : true,
     );
   }, [data, soloActivos]);
 
   const filasOrdenadas = useMemo(() => {
     const sgn = sortDir === "asc" ? 1 : -1;
     return [...filasFiltradas].sort((a, b) => {
-      if (sortKey === "ticker") {
-        return a.ticker.localeCompare(b.ticker) * sgn;
-      }
-      const av = a[sortKey] ?? Number.NEGATIVE_INFINITY;
-      const bv = b[sortKey] ?? Number.NEGATIVE_INFINITY;
-      return ((av as number) - (bv as number)) * sgn;
+      if (sortKey === "ticker") return a.ticker.localeCompare(b.ticker) * sgn;
+      const av = (a[sortKey] ?? Number.NEGATIVE_INFINITY) as number;
+      const bv = (b[sortKey] ?? Number.NEGATIVE_INFINITY) as number;
+      return (av - bv) * sgn;
     });
   }, [filasFiltradas, sortKey, sortDir]);
 
@@ -114,7 +132,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
     else { setSortKey(k); setSortDir("desc"); }
   };
 
-  const arrow = (k: SortKey) => sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "";
+  const arrow = (k: SortKey) =>
+    sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "";
 
   if (!idCuenta) {
     return <div className="h-full flex items-center justify-center text-[#555] text-[11px]">Elegí una cuenta.</div>;
@@ -131,16 +150,32 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
-      {/* KPIs */}
+      {/* KPIs — descomposición del PNL */}
       <div className="grid grid-cols-5 gap-3">
-        <Kpi label="PNL TOTAL" value={fmtSigned(t.pnl_total)}
+        <Kpi label="PNL TOTAL"
+             value={fmtSigned(t.pnl_total)}
              accent={t.pnl_total >= 0 ? "#00cc66" : "#ff4d4d"}
-             sub={t.pnl_pct != null ? `${t.pnl_pct >= 0 ? "+" : ""}${t.pnl_pct.toFixed(2)}%` : ""} />
-        <Kpi label="VALOR ACTUAL"    value={fmtCompact(t.valor_actual)} />
-        <Kpi label="CASH PAGADO"     value={fmtCompact(t.cash_pagado)} />
-        <Kpi label="COBRADO (VENTAS)" value={fmtCompact(t.cash_cobrado_venta)} />
-        <Kpi label="COBRADO (PASIVO)" value={fmtCompact(t.cash_cobrado_pasivo)}
-             sub="cupones · divs · amorts" />
+             sub="realizado + papel + cobros"
+        />
+        <Kpi label="PNL REALIZADO"
+             value={fmtSigned(t.pnl_realizado)}
+             accent={t.pnl_realizado >= 0 ? "#00cc66" : "#ff4d4d"}
+             sub="ventas cerradas"
+        />
+        <Kpi label="PNL NO REALIZADO"
+             value={fmtSigned(t.pnl_no_realizado)}
+             accent={t.pnl_no_realizado >= 0 ? "#00cc66" : "#ff4d4d"}
+             sub="stock vivo · papel"
+        />
+        <Kpi label="PNL PASIVO"
+             value={fmtSigned(t.pnl_pasivo)}
+             accent={t.pnl_pasivo >= 0 ? "#00cc66" : "#ff4d4d"}
+             sub="cupones · divs · amorts"
+        />
+        <Kpi label="VALOR ACTUAL"
+             value={fmtCompact(t.valor_actual)}
+             sub={t.costo_remanente > 0 ? `costo: ${fmtCompact(t.costo_remanente)}` : ""}
+        />
       </div>
 
       {/* Toolbar */}
@@ -169,14 +204,30 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
             <table className="w-full text-[11px] font-mono">
               <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a] z-10">
                 <tr className="text-[9px] tracking-widest text-[#888]">
-                  <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">TICKER {arrow("ticker")}</th>
+                  <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
+                    TICKER {arrow("ticker")}
+                  </th>
                   <th className="px-3 py-2 text-right">CANT</th>
-                  <th onClick={() => toggleSort("cash_pagado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">PAGADO {arrow("cash_pagado")}</th>
-                  <th className="px-3 py-2 text-right">COBRADO V</th>
-                  <th className="px-3 py-2 text-right">COBRADO P</th>
-                  <th onClick={() => toggleSort("valor_actual")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">VALOR HOY {arrow("valor_actual")}</th>
-                  <th onClick={() => toggleSort("pnl_total")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">PNL {arrow("pnl_total")}</th>
-                  <th onClick={() => toggleSort("pnl_pct")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">PNL % {arrow("pnl_pct")}</th>
+                  <th className="px-3 py-2 text-right">P. PROM</th>
+                  <th className="px-3 py-2 text-right">P. HOY</th>
+                  <th onClick={() => toggleSort("costo_remanente")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    COSTO REM {arrow("costo_remanente")}
+                  </th>
+                  <th onClick={() => toggleSort("valor_actual_aum")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    VALOR HOY {arrow("valor_actual_aum")}
+                  </th>
+                  <th onClick={() => toggleSort("pnl_realizado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    REAL. {arrow("pnl_realizado")}
+                  </th>
+                  <th onClick={() => toggleSort("pnl_no_realizado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    PAPEL {arrow("pnl_no_realizado")}
+                  </th>
+                  <th onClick={() => toggleSort("pnl_pasivo")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    COBROS {arrow("pnl_pasivo")}
+                  </th>
+                  <th onClick={() => toggleSort("pnl_total")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    PNL TOTAL {arrow("pnl_total")}
+                  </th>
                   <th className="px-3 py-2 text-right">FLAGS</th>
                 </tr>
               </thead>
@@ -194,37 +245,79 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                           <span className="text-[#666] mr-1">{tieneBreakdown ? (expanded ? "▼" : "▶") : "·"}</span>
                           {r.ticker}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">{r.cantidad_actual.toLocaleString("es-AR")}</td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">{r.cash_pagado > 0 ? fmtCompact(r.cash_pagado) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">{r.cash_cobrado_venta !== 0 ? fmtCompact(r.cash_cobrado_venta) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">{r.cash_cobrado_pasivo !== 0 ? fmtCompact(r.cash_cobrado_pasivo) : "—"}</td>
-                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">{fmtCompact(r.valor_actual)}</td>
-                        <td className={`px-3 py-1.5 text-right font-semibold ${r.pnl_total > 0 ? "text-[#00cc66]" : r.pnl_total < 0 ? "text-[#ff4d4d]" : "text-[#888]"}`}>
+                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                          {r.qty_aum.toLocaleString("es-AR")}
+                          {r.qty_calc !== r.qty_aum && (
+                            <span className="ml-1 text-[#ff9900] text-[9px]" title={`Boletos: ${r.qty_calc}`}>
+                              ({r.qty_calc.toLocaleString("es-AR")})
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[#888]">
+                          {r.precio_promedio != null ? r.precio_promedio.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[#888]">
+                          {r.precio_actual ? r.precio_actual.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[#888]">
+                          {r.costo_remanente > 0 ? fmtCompact(r.costo_remanente) : "—"}
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                          {fmtCompact(r.valor_actual_aum)}
+                        </td>
+                        <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_realizado)}`}>
+                          {r.pnl_realizado !== 0 ? fmtSigned(r.pnl_realizado) : "—"}
+                        </td>
+                        <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_no_realizado)}`}>
+                          {r.pnl_no_realizado != null ? fmtSigned(r.pnl_no_realizado) : "—"}
+                        </td>
+                        <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_pasivo)}`}>
+                          {r.pnl_pasivo !== 0 ? fmtSigned(r.pnl_pasivo) : "—"}
+                        </td>
+                        <td className={`px-3 py-1.5 text-right font-semibold ${pnlClass(r.pnl_total)}`}>
                           {fmtSigned(r.pnl_total)}
                         </td>
-                        <td className={`px-3 py-1.5 text-right text-[10px] ${r.pnl_pct != null && r.pnl_pct > 0 ? "text-[#00cc66]" : r.pnl_pct != null && r.pnl_pct < 0 ? "text-[#ff4d4d]" : "text-[#888]"}`}>
-                          {r.pnl_pct != null ? `${r.pnl_pct >= 0 ? "+" : ""}${r.pnl_pct.toFixed(1)}%` : "—"}
-                        </td>
                         <td className="px-3 py-1.5 text-right text-[9px]">
-                          {r.completeness === "parcial" && <span className="px-1 py-0 bg-[#ff9900]/15 text-[#ff9900] tracking-widest">PARCIAL</span>}
-                          {r.completeness === "sin_boletos" && <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SIN BOLETOS</span>}
-                          {r.moneda_mixta && <span className="ml-1 px-1 py-0 bg-[#4a9eff]/15 text-[#4a9eff] tracking-widest">USD/ARS</span>}
+                          {r.completeness === "parcial" && (
+                            <span className="px-1 py-0 bg-[#ff9900]/15 text-[#ff9900] tracking-widest">PARCIAL</span>
+                          )}
+                          {r.completeness === "sin_boletos" && (
+                            <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SIN BOLETOS</span>
+                          )}
+                          {r.moneda_mixta && (
+                            <span className="ml-1 px-1 py-0 bg-[#4a9eff]/15 text-[#4a9eff] tracking-widest">USD/ARS</span>
+                          )}
                         </td>
                       </tr>
-                      {expanded && tieneBreakdown && (
+                      {expanded && (
                         <tr className="bg-[#060606] border-b border-[#111]">
-                          <td colSpan={9} className="px-6 py-2 text-[10px] text-[#888]">
-                            <div className="flex flex-wrap gap-x-6 gap-y-1">
-                              <span className="text-[#666] tracking-widest">BREAKDOWN PASIVO:</span>
-                              {Object.entries(r.breakdown_pasivo).map(([op, val]) => (
-                                <span key={op}>
-                                  <span className="text-[#666]">{op}:</span> <span className="text-[#d0d0d0]">{fmtCompact(val)}</span>
-                                </span>
-                              ))}
+                          <td colSpan={11} className="px-6 py-2 text-[10px] text-[#888]">
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                              <div>
+                                <span className="text-[#666] tracking-widest">FLUJO DE BOLETOS:</span>{" "}
+                                {r.qty_compras > 0 && <span>compras: {r.qty_compras.toLocaleString("es-AR")} · </span>}
+                                {r.qty_ventas > 0 && <span>ventas: {r.qty_ventas.toLocaleString("es-AR")} · </span>}
+                                <span>neto: {(r.qty_compras - r.qty_ventas).toLocaleString("es-AR")}</span>
+                                {r.qty_calc !== r.qty_aum && (
+                                  <span className="text-[#ff9900]"> · AuM: {r.qty_aum.toLocaleString("es-AR")} (Δ {(r.qty_aum - r.qty_calc).toLocaleString("es-AR")})</span>
+                                )}
+                                <span className="text-[#444]"> · {r.n_movimientos} movs</span>
+                              </div>
+                              {tieneBreakdown && (
+                                <div>
+                                  <span className="text-[#666] tracking-widest">COBROS PASIVOS:</span>{" "}
+                                  {Object.entries(r.breakdown_pasivo).map(([op, val]) => (
+                                    <span key={op}>
+                                      <span className="text-[#666]">{op}:</span> <span className="text-[#d0d0d0]">{fmtCompact(val)}</span>
+                                      {" · "}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             {r.fechas_sin_mep.length > 0 && (
                               <div className="mt-1 text-[9px] text-[#ff9900]">
-                                ⚠ {r.fechas_sin_mep.length} fechas sin MEP — montos USD sin pesificar
+                                ⚠ {r.fechas_sin_mep.length} fechas sin MEP — montos USD sin pesificar correctamente
                               </div>
                             )}
                           </td>
