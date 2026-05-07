@@ -13,6 +13,7 @@ import {
   Cell,
 } from "recharts";
 import { ValuacionesView } from "@/components/valuaciones-view";
+import { PnLTitulosView } from "@/components/pnl-titulos-view";
 
 interface SeriePoint {
   fecha: string;
@@ -398,6 +399,8 @@ export function AumView() {
   // Selector de cuenta para la sub-tab VALUACIONES (vive bajo /aum como tab).
   const [cuentas, setCuentas] = useState<CuentaDoc[]>([]);
   const [valCuenta, setValCuenta] = useState<string>("");
+  // Sub-tab dentro de VALUACIONES: PORTAFOLIO (la vista vieja) | PNL TÍTULOS.
+  const [valSubtab, setValSubtab] = useState<"portafolio" | "pnl_titulos">("portafolio");
 
   useEffect(() => {
     fetch("/api/portfolio-cuentas", { cache: "no-store" })
@@ -694,13 +697,31 @@ export function AumView() {
     return (
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
+        {/* Selector de cuenta + sub-tabs (PORTAFOLIO / PNL TÍTULOS) en una línea */}
         <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
           <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
           <CuentaCombobox cuentas={cuentas} value={valCuenta} onChange={setValCuenta} />
+          <div className="ml-4 flex items-center gap-1">
+            {(["portafolio", "pnl_titulos"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setValSubtab(s)}
+                className={`px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+                  valSubtab === s
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                }`}
+              >
+                {s === "portafolio" ? "PORTAFOLIO" : "PNL TÍTULOS"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex-1 min-h-0">
           {valCuenta ? (
-            <ValuacionesView idCuenta={valCuenta} />
+            valSubtab === "portafolio"
+              ? <ValuacionesView idCuenta={valCuenta} />
+              : <PnLTitulosView idCuenta={valCuenta} />
           ) : (
             <div className="h-full flex items-center justify-center text-[#555] text-sm">
               Cargando cuentas…
