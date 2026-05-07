@@ -418,13 +418,10 @@ export function AumView() {
   const [fechaSel, setFechaSel] = useState<string>("");
   const [emisorSel, setEmisorSel] = useState<string | null>(null);
 
-  // Serie histórica — depende SOLO de tab / moneda.
-  // No se filtra por `cuentaFilter`: el chart muestra siempre la evolución
-  // total y se navega con sus propios botones de rango (1M/3M/6M/YTD/ALL).
-  // Tampoco se filtra por `desde` — traemos toda la historia para que los
-  // botones de rango trabajen sobre la base completa (sin esto, "ALL" sólo
-  // mostraba los últimos 9 meses y se perdían fechas como Jul/2025).
-  // El KPI "AUM HOY" se calcula desde el snapshot, no desde la serie.
+  // Serie histórica — depende de tab / moneda / cuentaFilter.
+  // El chart se re-fetch cuando cambiás el filtro de cuentas (TODAS,
+  // ACCIONISTAS, etc) para que la evolución refleje sólo ese subset.
+  // Los rangos 1M/3M/6M/YTD/ALL son filtros client-side sobre la base.
   useEffect(() => {
     // ANÁLISIS DE DINERO también necesita la lista de fechas (la serie),
     // aunque no use el chart — lo aprovechamos para alimentar los presets
@@ -436,6 +433,7 @@ export function AumView() {
         setLoadingSerie(true);
         const base = tab === "fci" ? "/api/aum-fci/serie" : "/api/aum-total/serie";
         const q = new URLSearchParams({ moneda });
+        if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -467,7 +465,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, moneda]);
+  }, [tab, moneda, cuentaFilter]);
 
   // Snapshot — depende de fecha + cuentaFilter + moneda. Es lo que cambia
   // cuando el usuario juega con los filtros; el chart de evolución se queda
