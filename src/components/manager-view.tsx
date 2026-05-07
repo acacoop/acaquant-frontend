@@ -1252,7 +1252,11 @@ type AssetGap = {
   actualizado_at?: string | null;
 };
 
-type RowState = "idle" | "saving" | "saved" | "error";
+type RowState =
+  | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "saved" }
+  | { kind: "error"; msg: string };
 
 function TabAssets() {
   const [assets, setAssets] = useState<AssetGap[]>([]);
@@ -1262,13 +1266,24 @@ function TabAssets() {
   const [drafts, setDrafts] = useState<Record<string, { CARTERA: string; EMISOR: string }>>({});
   const [carteraOpts, setCarteraOpts] = useState<string[]>([]);
   const [emisorOpts, setEmisorOpts] = useState<string[]>([]);
+  // Filtros de la query backend
+  const [filtroCartera, setFiltroCartera] = useState<string>("");
+  const [filtroEmisor, setFiltroEmisor] = useState<string>("");
+  const [soloGaps, setSoloGaps] = useState<boolean>(true);
 
-  const fetchGaps = () => {
+  const fetchAssets = () => {
     setLoading(true);
     setError(null);
-    fetch("/api/manager/assets/gaps")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const q = new URLSearchParams();
+    if (filtroCartera) q.set("cartera", filtroCartera);
+    if (filtroEmisor) q.set("emisor", filtroEmisor);
+    q.set("solo_gaps", soloGaps ? "true" : "false");
+    fetch(`/api/manager/assets?${q}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const txt = await r.text().catch(() => "");
+          throw new Error(`HTTP ${r.status} — ${txt.slice(0, 200) || r.statusText}`);
+        }
         return r.json();
       })
       .then((d: { assets: AssetGap[] }) => {
@@ -1282,13 +1297,10 @@ function TabAssets() {
         }
         setDrafts(initial);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "error"))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   };
 
-  // Fetch valores únicos para autocomplete (datalist). Una sola vez al mount —
-  // no cambian cada minuto; si el user agrega uno nuevo lo verá en el próximo
-  // refresh natural de la tab.
   useEffect(() => {
     fetch("/api/manager/assets/values")
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
@@ -1299,7 +1311,8 @@ function TabAssets() {
       .catch(() => { /* silencioso — sin sugerencias el input sigue funcionando */ });
   }, []);
 
-  useEffect(() => { fetchGaps(); }, []);
+  // Re-fetch cuando cambian los filtros.
+  useEffect(() => { fetchAssets(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filtroCartera, filtroEmisor, soloGaps]);
 
   const setDraftField = (unidad: string, field: "CARTERA" | "EMISOR", value: string) => {
     setDrafts((prev) => ({
@@ -1311,27 +1324,40 @@ function TabAssets() {
   const saveRow = async (asset: AssetGap) => {
     const draft = drafts[asset.unidad];
     if (!draft) return;
-    const payload: Record<string, string> = {};
+    const payload: Record<string, string> = { unidad: asset.unidad };
     if (draft.CARTERA !== (asset.CARTERA ?? "")) payload.CARTERA = draft.CARTERA;
     if (draft.EMISOR !== (asset.EMISOR ?? "")) payload.EMISOR = draft.EMISOR;
-    if (Object.keys(payload).length === 0) return;
+    // Si no hay nada que cambiar, no llama al backend.
+    if (Object.keys(payload).length === 1) return;
 
-    setRowState((s) => ({ ...s, [asset.unidad]: "saving" }));
+    setRowState((s) => ({ ...s, [asset.unidad]: { kind: "saving" } }));
     try {
-      const r = await fetch(`/api/manager/assets/${encodeURIComponent(asset.unidad)}`, {
+      // unidad va en el body, no en path — evita problemas de URL-encoding
+      // con corchetes, espacios, slashes, etc.
+      const r = await fetch(`/api/manager/assets`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        // Tratamos de parsear como JSON {detail: "..."} (FastAPI default).
+        let detail = txt;
+        try {
+          const j = JSON.parse(txt);
+          if (j && typeof j.detail === "string") detail = j.detail;
+        } catch { /* texto plano */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
       const updated: AssetGap = await r.json();
       setAssets((prev) => prev.map((a) => (a.unidad === asset.unidad ? updated : a)));
-      setRowState((s) => ({ ...s, [asset.unidad]: "saved" }));
+      setRowState((s) => ({ ...s, [asset.unidad]: { kind: "saved" } }));
       setTimeout(() => {
-        setRowState((s) => ({ ...s, [asset.unidad]: "idle" }));
+        setRowState((s) => ({ ...s, [asset.unidad]: { kind: "idle" } }));
       }, 1500);
-    } catch {
-      setRowState((s) => ({ ...s, [asset.unidad]: "error" }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setRowState((s) => ({ ...s, [asset.unidad]: { kind: "error", msg } }));
     }
   };
 
@@ -1344,11 +1370,42 @@ function TabAssets() {
       <datalist id="emisor-options">
         {emisorOpts.map((e) => <option key={e} value={e} />)}
       </datalist>
-      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">ASSETS — GAPS DE METADATA</span>
-        <span className="text-[10px] text-[#666]">{assets.length} con CARTERA o EMISOR vacío / "NO APLICA"</span>
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">ASSETS</span>
+        <span className="text-[10px] text-[#666]">{assets.length} resultados</span>
+
+        <span className="text-[9px] tracking-widest text-[#666]">CARTERA</span>
+        <select
+          value={filtroCartera}
+          onChange={(e) => setFiltroCartera(e.target.value)}
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+        >
+          <option value="">— todas —</option>
+          {carteraOpts.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[#666]">EMISOR</span>
+        <select
+          value={filtroEmisor}
+          onChange={(e) => setFiltroEmisor(e.target.value)}
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+        >
+          <option value="">— todos —</option>
+          {emisorOpts.map((e) => <option key={e} value={e}>{e}</option>)}
+        </select>
+
+        <label className="flex items-center gap-1.5 text-[10px] tracking-widest text-[#888] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={soloGaps}
+            onChange={(e) => setSoloGaps(e.target.checked)}
+            className="accent-[#ff9900]"
+          />
+          SOLO GAPS
+        </label>
+
         <button
-          onClick={fetchGaps}
+          onClick={fetchAssets}
           disabled={loading}
           className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
         >
@@ -1381,7 +1438,7 @@ function TabAssets() {
             <tbody>
               {assets.map((a) => {
                 const draft = drafts[a.unidad] || { CARTERA: "", EMISOR: "" };
-                const state = rowState[a.unidad] || "idle";
+                const state: RowState = rowState[a.unidad] || { kind: "idle" };
                 const dirty =
                   draft.CARTERA !== (a.CARTERA ?? "") ||
                   draft.EMISOR !== (a.EMISOR ?? "");
@@ -1433,10 +1490,17 @@ function TabAssets() {
                       ) : "—"}
                     </td>
                     <td className="px-3 py-1.5 text-[10px]">
-                      {state === "saving" && <span className="text-[#ff9900]">Guardando…</span>}
-                      {state === "saved" && <span className="text-green-400">✓ guardado</span>}
-                      {state === "error" && <span className="text-red-400">✗ error</span>}
-                      {state === "idle" && dirty && <span className="text-[#666]">sin guardar</span>}
+                      {state.kind === "saving" && <span className="text-[#ff9900]">Guardando…</span>}
+                      {state.kind === "saved"  && <span className="text-green-400">✓ guardado</span>}
+                      {state.kind === "error"  && (
+                        <span
+                          className="text-red-400 cursor-help"
+                          title={state.msg}
+                        >
+                          ✗ {state.msg.length > 40 ? state.msg.slice(0, 40) + "…" : state.msg}
+                        </span>
+                      )}
+                      {state.kind === "idle" && dirty && <span className="text-[#666]">sin guardar</span>}
                     </td>
                   </tr>
                 );
