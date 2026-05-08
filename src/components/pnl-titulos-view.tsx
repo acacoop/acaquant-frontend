@@ -141,7 +141,6 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   const [err, setErr]           = useState<string | null>(null);
   const [sortKey, setSortKey]   = useState<SortKey>("pnl_total");
   const [sortDir, setSortDir]   = useState<"asc" | "desc">("desc");
-  const [soloActivos, setSoloActivos] = useState(true);
   const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
 
   useEffect(() => {
@@ -171,13 +170,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
 
   const filasFiltradas = useMemo(() => {
     if (!data) return [];
-    return data.rows.filter((r) =>
-      // Solo lo que tenés HOY en cartera (qty_aum > 0). Tickers que
-      // operaste pero ya cerraste (qty_aum=0) quedan ocultos cuando
-      // soloActivos está checked. Para verlos, destildá el toggle.
-      soloActivos ? r.qty_aum > 0 : true,
-    );
-  }, [data, soloActivos]);
+    return data.rows;
+  }, [data]);
 
   // Total mostrado en UI = no_realizado + pasivo. Realizado se excluye
   // hasta que tengamos la vista histórica de realizado (futuro). El
@@ -245,17 +239,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-2">
-        <label className="flex items-center gap-2 text-[10px] tracking-widest text-[#888] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={soloActivos}
-            onChange={(e) => setSoloActivos(e.target.checked)}
-            className="accent-[#ff9900]"
-          />
-          SOLO ACTIVOS (cantidad &gt; 0)
-        </label>
         <span className="text-[9px] text-[#555] ml-auto font-mono">
-          {filasOrdenadas.length} / {data.n_tickers} tickers
+          {filasOrdenadas.length} tickers
           {data.fecha_actual ? ` · al ${data.fecha_actual}` : ""}
         </span>
       </div>
