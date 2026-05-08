@@ -222,20 +222,18 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                   <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
                     TICKER {arrow("ticker")}
                   </th>
-                  <th className="px-3 py-2 text-right">CANT</th>
-                  <th className="px-3 py-2 text-right">P. PROM</th>
-                  <th className="px-3 py-2 text-right">P. HOY</th>
+                  <th className="px-3 py-2 text-right">CANTIDAD</th>
                   <th onClick={() => toggleSort("costo_remanente")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    COSTO REM {arrow("costo_remanente")}
+                    COSTO {arrow("costo_remanente")}
                   </th>
                   <th onClick={() => toggleSort("valor_actual_aum")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    VALOR HOY {arrow("valor_actual_aum")}
+                    VALOR ACTUAL {arrow("valor_actual_aum")}
                   </th>
                   <th onClick={() => toggleSort("pnl_realizado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    REAL. {arrow("pnl_realizado")}
+                    REALIZADO {arrow("pnl_realizado")}
                   </th>
                   <th onClick={() => toggleSort("pnl_no_realizado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    PAPEL {arrow("pnl_no_realizado")}
+                    NO REALIZADO {arrow("pnl_no_realizado")}
                   </th>
                   <th onClick={() => toggleSort("pnl_pasivo")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
                     COBROS {arrow("pnl_pasivo")}
@@ -269,12 +267,6 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                           )}
                         </td>
                         <td className="px-3 py-1.5 text-right text-[#888]">
-                          {r.precio_promedio != null ? r.precio_promedio.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
-                        </td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">
-                          {r.precio_actual ? r.precio_actual.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
-                        </td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">
                           {r.costo_remanente > 0 ? fmtCompact(r.costo_remanente) : "—"}
                         </td>
                         <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
@@ -306,7 +298,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                       </tr>
                       {expanded && (
                         <tr className="bg-[#060606] border-b border-[#111]">
-                          <td colSpan={11} className="px-6 py-3 text-[10px] text-[#888]">
+                          <td colSpan={9} className="px-6 py-3 text-[10px] text-[#888]">
                             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                               <div>
                                 <span className="text-[#666] tracking-widest">FLUJO DE BOLETOS:</span>{" "}
