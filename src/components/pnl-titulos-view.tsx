@@ -22,12 +22,15 @@ interface PnLRow {
   unidad: string;
   qty_aum: number;
   qty_calc: number;
+  qty_efectiva?: number;     // qty usado en el cálculo de valor (live)
   qty_compras: number;
   qty_ventas: number;
   precio_actual: number;
   precio_promedio: number | null;
   costo_remanente: number;
-  valor_actual_aum: number;
+  valor_actual_aum: number;       // legado del AuM (valuación del cierre)
+  valor_actual_live?: number;     // qty × precio_live (con normalizer por tipo)
+  valor_actual_source?: "live" | "cierre" | "aum";
   pnl_realizado: number;
   pnl_no_realizado: number | null;
   pnl_pasivo: number;
@@ -270,7 +273,16 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                           {r.costo_remanente > 0 ? fmtCompact(r.costo_remanente) : "—"}
                         </td>
                         <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
-                          {fmtCompact(r.valor_actual_aum)}
+                          {fmtCompact(r.valor_actual_live ?? r.valor_actual_aum)}
+                          {r.valor_actual_source === "live" && (
+                            <span className="ml-1 text-[8px] text-[#00cc66] tracking-widest">LIVE</span>
+                          )}
+                          {r.valor_actual_source === "cierre" && (
+                            <span className="ml-1 text-[8px] text-[#888] tracking-widest">CIERRE</span>
+                          )}
+                          {r.valor_actual_source === "aum" && (
+                            <span className="ml-1 text-[8px] text-[#666] tracking-widest">AUM</span>
+                          )}
                         </td>
                         <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_no_realizado)}`}>
                           {r.pnl_no_realizado != null ? fmtSigned(r.pnl_no_realizado) : "—"}
