@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-interface BoletoDetalle {
+export interface BoletoDetalle {
   fecha: string;
   categoria: string;
   op: string;
@@ -16,7 +16,7 @@ interface BoletoDetalle {
   mep: number | null;
 }
 
-interface PnLRow {
+export interface PnLRow {
   ticker: string;            // match key — único interno (ej CAFCI..., AL30)
   display_name?: string;     // nombre humano para mostrar (Assets.TICKER)
   unidad: string;
@@ -72,7 +72,7 @@ type SortKey =
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-function fmtCompact(n: number): string {
+export function fmtCompact(n: number): string {
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
   if (abs >= 1e12) return sign + "$" + (abs / 1e12).toFixed(2) + "T";
@@ -82,11 +82,11 @@ function fmtCompact(n: number): string {
   return sign + "$" + abs.toFixed(0);
 }
 
-function fmtSigned(n: number): string {
+export function fmtSigned(n: number): string {
   return (n > 0 ? "+" : "") + fmtCompact(n);
 }
 
-function pnlClass(n: number | null | undefined): string {
+export function pnlClass(n: number | null | undefined): string {
   if (n == null) return "text-[#888]";
   if (n > 0) return "text-[#00cc66]";
   if (n < 0) return "text-[#ff4d4d]";
@@ -363,7 +363,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
 }
 
 // ── Panel detalle ────────────────────────────────────────────────────────
-function PosicionDetalle({ row }: { row: PnLRow }) {
+export function PosicionDetalle({ row }: { row: PnLRow }) {
   const boletosPeriodo = _filtrarPeriodoActual(row.boletos);
   const stats = _statsDelPeriodo(boletosPeriodo);
   const tieneBreakdown = Object.keys(stats.breakdownPasivo).length > 0;

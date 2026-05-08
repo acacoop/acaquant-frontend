@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { ValuacionesView } from "@/components/valuaciones-view";
 import { PnLTitulosView } from "@/components/pnl-titulos-view";
+import { PnLTotalesView } from "@/components/pnl-totales-view";
 
 interface SeriePoint {
   fecha: string;
@@ -402,7 +403,8 @@ function _writeUrlParams(params: Record<string, string | null | undefined>) {
 }
 
 const _AUM_TABS: AumTab[] = ["total", "fci", "tasa_fija", "cer", "valuaciones", "analisis_dinero"];
-const _VAL_SUBTABS = ["portafolio", "pnl_titulos"] as const;
+const _VAL_SUBTABS = ["portafolio", "pnl_titulos", "totales"] as const;
+type ValSubtab = (typeof _VAL_SUBTABS)[number];
 
 export function AumView() {
   const [tab, setTab] = useState<AumTab>(() => {
@@ -422,11 +424,11 @@ export function AumView() {
   // Selector de cuenta para la sub-tab VALUACIONES (vive bajo /aum como tab).
   const [cuentas, setCuentas] = useState<CuentaDoc[]>([]);
   const [valCuenta, setValCuenta] = useState<string>(() => _readUrlParam("cuenta") || "");
-  // Sub-tab dentro de VALUACIONES: PORTAFOLIO (la vista vieja) | PNL TÍTULOS.
-  const [valSubtab, setValSubtab] = useState<"portafolio" | "pnl_titulos">(() => {
+  // Sub-tab dentro de VALUACIONES: PORTAFOLIO | PNL TÍTULOS | TOTALES.
+  const [valSubtab, setValSubtab] = useState<ValSubtab>(() => {
     const v = _readUrlParam("sub");
     return (_VAL_SUBTABS as readonly string[]).includes(v || "")
-      ? (v as "portafolio" | "pnl_titulos")
+      ? (v as ValSubtab)
       : "portafolio";
   });
 
@@ -777,7 +779,7 @@ export function AumView() {
             })()}
           </div>
           <div className="flex items-center gap-1">
-            {(["portafolio", "pnl_titulos"] as const).map((s) => (
+            {_VAL_SUBTABS.map((s) => (
               <button
                 key={s}
                 onClick={() => setValSubtab(s)}
@@ -787,7 +789,7 @@ export function AumView() {
                     : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
-                {s === "portafolio" ? "PORTAFOLIO" : "PNL TÍTULOS"}
+                {s === "portafolio" ? "PORTAFOLIO" : s === "pnl_titulos" ? "PNL TÍTULOS" : "TOTALES"}
               </button>
             ))}
           </div>
@@ -812,7 +814,10 @@ export function AumView() {
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
         <div className="flex-1 min-h-0">
-          {valCuenta ? (
+          {valSubtab === "totales" ? (
+            // TOTALES no depende de una cuenta específica — agrega TODAS.
+            <PnLTotalesView />
+          ) : valCuenta ? (
             valSubtab === "portafolio"
               ? <ValuacionesView idCuenta={valCuenta} />
               : <PnLTitulosView idCuenta={valCuenta} />
