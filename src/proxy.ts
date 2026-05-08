@@ -17,8 +17,6 @@ import { NextRequest, NextResponse } from "next/server";
  */
 const PATH_MODULES: [string, string][] = [
   ["/manager", "manager"],
-  ["/mm", "mm"],
-  ["/api/mm", "mm"],
   // Asistente (legacy): accesible solo desde Manager. Sin entrada propia.
   ["/api/chat", "manager"],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
@@ -115,8 +113,6 @@ export const config = {
     "/operar/:path*",
     "/aum/:path*",
     "/api/chat/:path*",
-    "/api/mm/:path*",
-    "/mm/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
     "/api/operativa/:path*",
