@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AsistenteDashboard } from "./asistente-dashboard";
+import { ChatView } from "./chat-view";
 import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { LogsPanel } from "./logs-panel";
@@ -1730,6 +1731,28 @@ function TabInstrumentos() {
   );
 }
 
+// ── Tab: Asistente (legacy, no en uso) ────────────────────────────────────────
+// Migrado desde la vista standalone /asistente. Sub-tabs: CHAT (vista del
+// asistente) + OBSERVABILITY (stats/logs de Manager.AsistenteLogs).
+function TabAsistente() {
+  const [sub, setSub] = useState<"chat" | "obs">("chat");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+        <span className="text-[10px] font-semibold text-[#666] tracking-widest mr-2">
+          ASISTENTE · LEGACY
+        </span>
+        <Pill label="CHAT"          active={sub === "chat"} onClick={() => setSub("chat")} />
+        <Pill label="OBSERVABILITY" active={sub === "obs"}  onClick={() => setSub("obs")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "chat" && <ChatView />}
+        {sub === "obs"  && <AsistenteDashboard />}
+      </div>
+    </div>
+  );
+}
+
 type Tab =
   | "diagnostico"
   | "backfills"
@@ -1783,7 +1806,7 @@ export function ManagerView() {
         {tab === "aunesa"       && <AunesaExplorarPanel />}
         {tab === "recursos"     && <RecursosPanel />}
         {tab === "logs"         && <LogsPanel />}
-        {tab === "asistente"    && <AsistenteDashboard />}
+        {tab === "asistente"    && <TabAsistente />}
         {tab === "usuarios"     && <UsuariosPanel />}
         {tab === "roles"        && <RolesPanel />}
       </div>

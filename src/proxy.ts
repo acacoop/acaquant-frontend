@@ -19,8 +19,8 @@ const PATH_MODULES: [string, string][] = [
   ["/manager", "manager"],
   ["/mm", "mm"],
   ["/api/mm", "mm"],
-  ["/asistente", "asistente"],
-  ["/api/chat", "asistente"],
+  // Asistente (legacy): accesible solo desde Manager. Sin entrada propia.
+  ["/api/chat", "manager"],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
   ["/operar", "operar"],
   ["/api/ordenes", "operar"],
@@ -112,7 +112,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/manager/:path*",
-    "/asistente/:path*",
     "/operaciones/:path*",
     "/operar/:path*",
     "/portfolios/:path*",
