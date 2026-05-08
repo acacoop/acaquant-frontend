@@ -56,7 +56,6 @@ interface PnLResp {
 
 type SortKey =
   | "pnl_total"
-  | "pnl_realizado"
   | "pnl_no_realizado"
   | "pnl_pasivo"
   | "valor_actual_aum"
@@ -132,10 +131,17 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
     );
   }, [data, soloActivos]);
 
+  // Total mostrado en UI = no_realizado + pasivo. Realizado se excluye
+  // hasta que tengamos la vista histórica de realizado (futuro). El
+  // backend sigue devolviendo `pnl_realizado` y `pnl_total` (que lo
+  // incluye) — acá los ignoramos para no presentar números mezclados.
+  const totalView = (r: PnLRow) => (r.pnl_no_realizado ?? 0) + r.pnl_pasivo;
+
   const filasOrdenadas = useMemo(() => {
     const sgn = sortDir === "asc" ? 1 : -1;
     return [...filasFiltradas].sort((a, b) => {
       if (sortKey === "ticker") return a.ticker.localeCompare(b.ticker) * sgn;
+      if (sortKey === "pnl_total") return (totalView(a) - totalView(b)) * sgn;
       const av = (a[sortKey] ?? Number.NEGATIVE_INFINITY) as number;
       const bv = (b[sortKey] ?? Number.NEGATIVE_INFINITY) as number;
       return (av - bv) * sgn;
@@ -162,20 +168,16 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   if (!data) return null;
 
   const t = data.totales;
+  const pnlTotalView = t.pnl_no_realizado + t.pnl_pasivo;
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
       {/* KPIs — descomposición del PNL */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <Kpi label="PNL TOTAL"
-             value={fmtSigned(t.pnl_total)}
-             accent={t.pnl_total >= 0 ? "#00cc66" : "#ff4d4d"}
-             sub="realizado + papel + cobros"
-        />
-        <Kpi label="PNL REALIZADO"
-             value={fmtSigned(t.pnl_realizado)}
-             accent={t.pnl_realizado >= 0 ? "#00cc66" : "#ff4d4d"}
-             sub="ventas cerradas"
+             value={fmtSigned(pnlTotalView)}
+             accent={pnlTotalView >= 0 ? "#00cc66" : "#ff4d4d"}
+             sub="papel + cobros"
         />
         <Kpi label="PNL NO REALIZADO"
              value={fmtSigned(t.pnl_no_realizado)}
@@ -229,9 +231,6 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                   <th onClick={() => toggleSort("valor_actual_aum")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
                     VALOR ACTUAL {arrow("valor_actual_aum")}
                   </th>
-                  <th onClick={() => toggleSort("pnl_realizado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    REALIZADO {arrow("pnl_realizado")}
-                  </th>
                   <th onClick={() => toggleSort("pnl_no_realizado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
                     NO REALIZADO {arrow("pnl_no_realizado")}
                   </th>
@@ -272,17 +271,14 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                         <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
                           {fmtCompact(r.valor_actual_aum)}
                         </td>
-                        <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_realizado)}`}>
-                          {r.pnl_realizado !== 0 ? fmtSigned(r.pnl_realizado) : "—"}
-                        </td>
                         <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_no_realizado)}`}>
                           {r.pnl_no_realizado != null ? fmtSigned(r.pnl_no_realizado) : "—"}
                         </td>
                         <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_pasivo)}`}>
                           {r.pnl_pasivo !== 0 ? fmtSigned(r.pnl_pasivo) : "—"}
                         </td>
-                        <td className={`px-3 py-1.5 text-right font-semibold ${pnlClass(r.pnl_total)}`}>
-                          {fmtSigned(r.pnl_total)}
+                        <td className={`px-3 py-1.5 text-right font-semibold ${pnlClass(totalView(r))}`}>
+                          {fmtSigned(totalView(r))}
                         </td>
                         <td className="px-3 py-1.5 text-right text-[9px]">
                           {r.completeness === "parcial" && (
@@ -298,7 +294,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                       </tr>
                       {expanded && (
                         <tr className="bg-[#060606] border-b border-[#111]">
-                          <td colSpan={9} className="px-6 py-3 text-[10px] text-[#888]">
+                          <td colSpan={8} className="px-6 py-3 text-[10px] text-[#888]">
                             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                               <div>
                                 <span className="text-[#666] tracking-widest">FLUJO DE BOLETOS:</span>{" "}
