@@ -708,6 +708,29 @@ export function AumView() {
           </div>
         </div>
       )}
+      {tab === "valuaciones" && (
+        <div className="ml-auto flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
+            <CuentaCombobox cuentas={cuentas} value={valCuenta} onChange={setValCuenta} />
+          </div>
+          <div className="flex items-center gap-1">
+            {(["portafolio", "pnl_titulos"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setValSubtab(s)}
+                className={`px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+                  valSubtab === s
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                }`}
+              >
+                {s === "portafolio" ? "PORTAFOLIO" : "PNL TÍTULOS"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -726,26 +749,6 @@ export function AumView() {
     return (
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
-        {/* Selector de cuenta + sub-tabs (PORTAFOLIO / PNL TÍTULOS) en una línea */}
-        <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-          <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
-          <CuentaCombobox cuentas={cuentas} value={valCuenta} onChange={setValCuenta} />
-          <div className="ml-4 flex items-center gap-1">
-            {(["portafolio", "pnl_titulos"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setValSubtab(s)}
-                className={`px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-                  valSubtab === s
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
-                }`}
-              >
-                {s === "portafolio" ? "PORTAFOLIO" : "PNL TÍTULOS"}
-              </button>
-            ))}
-          </div>
-        </div>
         <div className="flex-1 min-h-0">
           {valCuenta ? (
             valSubtab === "portafolio"
@@ -827,7 +830,7 @@ export function AumView() {
             leaderboard "POR CARTERA" content-based con max-height (suelen
             ser pocas carteras, no llena la pantalla). */}
         <div className={`min-h-0 grid gap-3 ${
-          tab === "total" ? "grid-rows-[1fr_auto]" : "grid-rows-[auto_auto_1fr]"
+          tab === "total" ? "grid-rows-[1fr_28vh]" : "grid-rows-[auto_auto_1fr]"
         }`}>
           {/* KPIs — solo FCI los muestra. TOTAL los movió al tabBar
               (FECHA · TOTAL) para que el chart tenga toda la altura
@@ -950,11 +953,11 @@ export function AumView() {
           </div>
 
           {/* Leaderboard del snapshot — por emisor (FCI) o por cartera (TOTAL).
-              En TOTAL: max-height baja porque suelen ser pocas carteras —
-              dejamos respirar el chart de evolución. */}
-          <div className={`border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0 ${
-            tab === "total" ? "max-h-[28vh]" : ""
-          }`}>
+              En TOTAL: la grid principal le asigna 28vh fijo para que
+              el chart no rebote al cargar el snapshot (antes arrancaba
+              "auto" y el chart agarraba todo el espacio mientras llegaba
+              la data, después se comprimía cuando aparecía la tabla). */}
+          <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
             <PanelHeader
               title={`${tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"} · ${fmtFecha(fechaSel)}`}
               sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}${loadingSnap && snapshot.length > 0 ? " · actualizando…" : ""}`}
