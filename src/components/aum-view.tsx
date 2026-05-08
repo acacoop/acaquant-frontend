@@ -648,22 +648,51 @@ export function AumView() {
       {(tab === "fci" || tab === "total") && (
         <div className="ml-auto flex items-center gap-3">
           {tab === "total" && (
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
-              {(["ARS", "USD"] as Moneda[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMoneda(m)}
-                  className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-                    moneda === m
-                      ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
-                  }`}
+            <>
+              {/* FECHA + TOTAL inline para que el chart use todo el espacio
+                  vertical y no haya bounce al cargar (los KPIs y el card
+                  SNAPSHOT salen del grid principal). */}
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] tracking-widest text-[#666]">FECHA</span>
+                <select
+                  value={fechaSel}
+                  onChange={(e) => setFechaSel(e.target.value)}
+                  className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
                 >
-                  {m}
-                </button>
-              ))}
-            </div>
+                  {fechasAll.length === 0 && <option value="">—</option>}
+                  {fechasAll.slice().reverse().map((f) => (
+                    <option key={f} value={f}>{fmtFecha(f)}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-[9px] tracking-widest text-[#666]">TOTAL</span>
+                <span className="text-[12px] font-semibold font-mono" style={{ color: BRAND_BLUE }}>
+                  {fmtCompact(snapshotTotal || 0)}
+                </span>
+                {mepMissingSnap && moneda === "USD" && (
+                  <span className="text-[9px] tracking-widest text-[#ff9900]" title="Sin cotización MEP para esta fecha">
+                    ⚠ MEP
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
+                {(["ARS", "USD"] as Moneda[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMoneda(m)}
+                    className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+                      moneda === m
+                        ? "bg-[#ff9900] text-black border-[#ff9900]"
+                        : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
           <div className="flex items-center gap-2">
             <span className="text-[9px] tracking-widest text-[#666]">CUENTAS</span>
@@ -798,19 +827,12 @@ export function AumView() {
             leaderboard "POR CARTERA" content-based con max-height (suelen
             ser pocas carteras, no llena la pantalla). */}
         <div className={`min-h-0 grid gap-3 ${
-          tab === "total" ? "grid-rows-[auto_1fr_auto]" : "grid-rows-[auto_auto_1fr]"
+          tab === "total" ? "grid-rows-[1fr_auto]" : "grid-rows-[auto_auto_1fr]"
         }`}>
-          {/* KPIs */}
-          {tab === "total" ? (
-            <div className="grid grid-cols-1">
-              <Kpi
-                label={`AUM TOTAL (HOY) · ${moneda}`}
-                value={fmtCompact(snapshotTotal)}
-                accent={BRAND_BLUE}
-                sub={fmtFecha(fechaSel)}
-              />
-            </div>
-          ) : (
+          {/* KPIs — solo FCI los muestra. TOTAL los movió al tabBar
+              (FECHA · TOTAL) para que el chart tenga toda la altura
+              y no haya bounce al cargar la serie. */}
+          {tab !== "total" && (
             <div className="grid grid-cols-3 gap-3">
               <Kpi
                 label="TOTAL FCI (HOY)"
@@ -992,37 +1014,14 @@ export function AumView() {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA — snapshot date picker + drill-down.
-            En TOTAL: versión compacta sin PanelHeader ni label redundante. */}
-        <div className="min-h-0 grid grid-rows-[auto_1fr] gap-3">
-          {tab === "total" ? (
-            // Mismo padding (px-3 py-2) y borde que el Kpi del lado izquierdo
-            // — así los topes de las dos columnas quedan alineados al pixel.
-            <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2">
-              <div className="text-[10px] text-[#555555] uppercase tracking-wide">
-                FECHA SNAPSHOT
-              </div>
-              <div className="flex items-center gap-3 mt-0.5">
-                <select
-                  value={fechaSel}
-                  onChange={(e) => setFechaSel(e.target.value)}
-                  className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[14px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
-                >
-                  {fechasAll.slice().reverse().map((f) => (
-                    <option key={f} value={f}>{fmtFecha(f)}</option>
-                  ))}
-                </select>
-                {mepMissingSnap && moneda === "USD" && (
-                  <span className="text-[9px] tracking-widest text-[#ff9900] border border-[#ff9900]/40 px-2 py-0.5">
-                    ⚠ SIN MEP
-                  </span>
-                )}
-              </div>
-              <div className="text-[10px] text-[#666666] mt-0.5">
-                {snapshot.length} posiciones
-              </div>
-            </div>
-          ) : (
+        {/* COLUMNA DERECHA — drill-down. En TOTAL la fecha y el total
+            están en el tabBar de arriba, así que el panel de SNAPSHOT
+            se oculta y el detalle ocupa toda la columna. En FCI se
+            mantiene el card de SNAPSHOT como antes. */}
+        <div className={`min-h-0 grid gap-3 ${
+          tab === "total" ? "grid-rows-[1fr]" : "grid-rows-[auto_1fr]"
+        }`}>
+          {tab !== "total" && (
             <div className="border border-[#1a1a1a] bg-[#080808]">
               <PanelHeader title="SNAPSHOT" sub={fmtFecha(fechaSel)} />
               <div className="p-3 grid grid-cols-2 gap-3">
