@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -32,8 +32,10 @@ interface PnLRow {
   valor_actual_live?: number;     // qty × precio_live (con normalizer por tipo)
   valor_actual_source?: "live" | "cierre" | "aum";
   pnl_realizado: number;
+  pnl_realizado_dia?: number;     // day-trades cerrados intraday
   pnl_no_realizado: number | null;
   pnl_pasivo: number;
+  pnl_pasivo_dia?: number;        // cobros pasivos intraday
   breakdown_pasivo: Record<string, number>;
   pnl_total: number;
   completeness: "completa" | "parcial" | "sin_boletos";
@@ -48,12 +50,14 @@ interface PnLResp {
   fecha_actual: string | null;
   rows: PnLRow[];
   totales: {
-    costo_remanente:  number;
-    valor_actual:     number;
-    pnl_realizado:    number;
-    pnl_no_realizado: number;
-    pnl_pasivo:       number;
-    pnl_total:        number;
+    costo_remanente:    number;
+    valor_actual:       number;
+    pnl_realizado:      number;
+    pnl_realizado_dia?: number;
+    pnl_no_realizado:   number;
+    pnl_pasivo:         number;
+    pnl_pasivo_dia?:    number;
+    pnl_total:          number;
   };
   n_tickers: number;
 }
@@ -141,7 +145,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   const [err, setErr]           = useState<string | null>(null);
   const [sortKey, setSortKey]   = useState<SortKey>("pnl_total");
   const [sortDir, setSortDir]   = useState<"asc" | "desc">("desc");
-  const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
   useEffect(() => {
     if (!idCuenta) return;
@@ -158,7 +162,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
         const json = await res.json();
         if (cancelled) return;
         setData(json);
-        setExpandedTicker(null);
+        setSelectedTicker(null);
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : "error");
       } finally {
@@ -245,57 +249,54 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
         </span>
       </div>
 
-      {/* Tabla */}
-      <div className="border border-[#1a1a1a] bg-[#080808] flex-1 min-h-0 overflow-hidden flex flex-col">
-        {filasOrdenadas.length === 0 ? (
-          <div className="p-6 text-center text-[#555] text-[11px]">Sin tickers para mostrar.</div>
-        ) : (
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a] z-10">
-                <tr className="text-[9px] tracking-widest text-[#888]">
-                  <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
-                    TICKER {arrow("ticker")}
-                  </th>
-                  <th className="px-3 py-2 text-right">CANTIDAD</th>
-                  <th onClick={() => toggleSort("costo_remanente")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    COSTO {arrow("costo_remanente")}
-                  </th>
-                  <th onClick={() => toggleSort("valor_actual_aum")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    VALOR ACTUAL {arrow("valor_actual_aum")}
-                  </th>
-                  <th onClick={() => toggleSort("pnl_no_realizado")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    NO REALIZADO {arrow("pnl_no_realizado")}
-                  </th>
-                  <th onClick={() => toggleSort("pnl_pasivo")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    COBROS {arrow("pnl_pasivo")}
-                  </th>
-                  <th onClick={() => toggleSort("pnl_total")} className="px-3 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
-                    PNL TOTAL {arrow("pnl_total")}
-                  </th>
-                  <th className="px-3 py-2 text-right">FLAGS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filasOrdenadas.map((r) => {
-                  const expanded = expandedTicker === r.ticker;
-                  // Boletos y stats del período activo (descartamos historia
-                  // ya cerrada, mostramos solo lo que compone el stock actual
-                  // + cobros pasivos sobre ese stock).
-                  const boletosPeriodo = _filtrarPeriodoActual(r.boletos);
-                  const stats = _statsDelPeriodo(boletosPeriodo);
-                  const tieneBreakdown = Object.keys(stats.breakdownPasivo).length > 0;
-                  return (
-                    <Fragment key={r.ticker}>
+      {/* Split layout: posiciones (izq) + detalle de la seleccionada (der) */}
+      <div className="flex-1 min-h-0 flex gap-3">
+        {/* ── Panel izquierdo: POSICIONES ─────────────────────────── */}
+        <div className="w-1/2 border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 overflow-hidden">
+          {filasOrdenadas.length === 0 ? (
+            <div className="p-6 text-center text-[#555] text-[11px]">Sin tickers para mostrar.</div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <table className="w-full text-[11px] font-mono">
+                <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a] z-10">
+                  <tr className="text-[9px] tracking-widest text-[#888]">
+                    <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
+                      TICKER {arrow("ticker")}
+                    </th>
+                    <th className="px-2 py-2 text-right">CANT</th>
+                    <th onClick={() => toggleSort("costo_remanente")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                      COSTO {arrow("costo_remanente")}
+                    </th>
+                    <th onClick={() => toggleSort("valor_actual_aum")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                      VALOR {arrow("valor_actual_aum")}
+                    </th>
+                    <th className="px-2 py-2 text-right">GAN %</th>
+                    <th onClick={() => toggleSort("pnl_total")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                      PNL {arrow("pnl_total")}
+                    </th>
+                    <th className="px-2 py-2 text-right">FLAGS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filasOrdenadas.map((r) => {
+                    const isSel  = selectedTicker === r.ticker;
+                    const total  = totalView(r);
+                    const ganPct = r.costo_remanente > 0
+                      ? (total / r.costo_remanente) * 100
+                      : null;
+                    return (
                       <tr
-                        onClick={() => setExpandedTicker(expanded ? null : r.ticker)}
-                        className="border-b border-[#111] hover:bg-[#ff9900]/5 cursor-pointer"
+                        key={r.ticker}
+                        onClick={() => setSelectedTicker(isSel ? null : r.ticker)}
+                        className={
+                          "border-b border-[#111] cursor-pointer " +
+                          (isSel ? "bg-[#ff9900]/10" : "hover:bg-[#ff9900]/5")
+                        }
                       >
-                        <td className="px-3 py-1.5 text-[#d0d0d0]">
-                          <span className="text-[#666] mr-1">{r.boletos.length > 0 ? (expanded ? "▼" : "▶") : "·"}</span>
+                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={r.display_name || r.ticker}>
                           {r.display_name || r.ticker}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                        <td className="px-2 py-1.5 text-right text-[#d0d0d0]">
                           {r.qty_aum.toLocaleString("es-AR")}
                           {r.qty_calc !== r.qty_aum && (
                             <span className="ml-1 text-[#ff9900] text-[9px]" title={`Boletos: ${r.qty_calc}`}>
@@ -303,143 +304,208 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">
+                        <td className="px-2 py-1.5 text-right text-[#888]">
                           {r.costo_remanente > 0 ? fmtCompact(r.costo_remanente) : "—"}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                        <td className="px-2 py-1.5 text-right text-[#d0d0d0]">
                           {fmtCompact(r.valor_actual_live ?? r.valor_actual_aum)}
                           {r.valor_actual_source === "live" && (
-                            <span className="ml-1 text-[8px] text-[#00cc66] tracking-widest">LIVE</span>
+                            <span className="ml-1 text-[7px] text-[#00cc66] tracking-widest">LIVE</span>
                           )}
                           {r.valor_actual_source === "cierre" && (
-                            <span className="ml-1 text-[8px] text-[#888] tracking-widest">CIERRE</span>
+                            <span className="ml-1 text-[7px] text-[#888] tracking-widest">CIE</span>
                           )}
                           {r.valor_actual_source === "aum" && (
-                            <span className="ml-1 text-[8px] text-[#666] tracking-widest">AUM</span>
+                            <span className="ml-1 text-[7px] text-[#666] tracking-widest">AUM</span>
                           )}
                         </td>
-                        <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_no_realizado)}`}>
-                          {r.pnl_no_realizado != null ? fmtSigned(r.pnl_no_realizado) : "—"}
+                        <td className={`px-2 py-1.5 text-right ${pnlClass(ganPct)}`}>
+                          {ganPct != null ? `${ganPct >= 0 ? "+" : ""}${ganPct.toFixed(1)}%` : "—"}
                         </td>
-                        <td className={`px-3 py-1.5 text-right ${pnlClass(r.pnl_pasivo)}`}>
-                          {r.pnl_pasivo !== 0 ? fmtSigned(r.pnl_pasivo) : "—"}
+                        <td className={`px-2 py-1.5 text-right font-semibold ${pnlClass(total)}`}>
+                          {fmtSigned(total)}
                         </td>
-                        <td className={`px-3 py-1.5 text-right font-semibold ${pnlClass(totalView(r))}`}>
-                          {fmtSigned(totalView(r))}
-                        </td>
-                        <td className="px-3 py-1.5 text-right text-[9px]">
+                        <td className="px-2 py-1.5 text-right text-[9px]">
                           {r.completeness === "parcial" && (
-                            <span className="px-1 py-0 bg-[#ff9900]/15 text-[#ff9900] tracking-widest">PARCIAL</span>
+                            <span className="px-1 py-0 bg-[#ff9900]/15 text-[#ff9900] tracking-widest">P</span>
                           )}
                           {r.completeness === "sin_boletos" && (
-                            <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SIN BOLETOS</span>
+                            <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SB</span>
                           )}
                           {r.moneda_mixta && (
-                            <span className="ml-1 px-1 py-0 bg-[#4a9eff]/15 text-[#4a9eff] tracking-widest">USD/ARS</span>
+                            <span className="ml-1 px-1 py-0 bg-[#4a9eff]/15 text-[#4a9eff] tracking-widest">$</span>
                           )}
                         </td>
                       </tr>
-                      {expanded && (
-                        <tr className="bg-[#060606] border-b border-[#111]">
-                          <td colSpan={8} className="px-6 py-3 text-[10px] text-[#888]">
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                              <div>
-                                <span className="text-[#666] tracking-widest">FLUJO (STOCK ACTUAL):</span>{" "}
-                                {stats.compras > 0 && <span>compras: {stats.compras.toLocaleString("es-AR")} · </span>}
-                                {stats.ventas > 0 && <span>ventas: {stats.ventas.toLocaleString("es-AR")} · </span>}
-                                <span>neto: {stats.neto.toLocaleString("es-AR")}</span>
-                                {r.qty_calc !== r.qty_aum && (
-                                  <span className="text-[#ff9900]"> · AuM: {r.qty_aum.toLocaleString("es-AR")} (Δ {(r.qty_aum - r.qty_calc).toLocaleString("es-AR")})</span>
-                                )}
-                                <span className="text-[#444]"> · {boletosPeriodo.length}/{r.boletos.length} movs</span>
-                              </div>
-                              {tieneBreakdown && (
-                                <div>
-                                  <span className="text-[#666] tracking-widest">COBROS PASIVOS (PERÍODO):</span>{" "}
-                                  {Object.entries(stats.breakdownPasivo).map(([op, val]) => (
-                                    <span key={op}>
-                                      <span className="text-[#666]">{op}:</span> <span className="text-[#d0d0d0]">{fmtCompact(val)}</span>
-                                      {" · "}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            {r.fechas_sin_mep.length > 0 && (
-                              <div className="mt-1 text-[9px] text-[#ff9900]">
-                                ⚠ {r.fechas_sin_mep.length} fechas sin MEP — montos USD sin pesificar correctamente
-                              </div>
-                            )}
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
-                            {/* Tabla de boletos del período activo */}
-                            {boletosPeriodo.length > 0 && (
-                              <div className="mt-3 border-t border-[#1a1a1a] pt-2">
-                                <div className="text-[#666] tracking-widest mb-1">
-                                  BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
-                                  {r.boletos.length > boletosPeriodo.length && (
-                                    <span className="text-[#444]"> · {r.boletos.length - boletosPeriodo.length} históricos ocultos</span>
-                                  )}
-                                  ):
-                                </div>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-[10px] font-mono">
-                                    <thead className="text-[9px] text-[#555] tracking-widest">
-                                      <tr>
-                                        <th className="px-2 py-1 text-left">FECHA</th>
-                                        <th className="px-2 py-1 text-left">OP</th>
-                                        <th className="px-2 py-1 text-right">CANT</th>
-                                        <th className="px-2 py-1 text-right">PRECIO</th>
-                                        <th className="px-2 py-1 text-right">IMPORTE</th>
-                                        <th className="px-2 py-1 text-left">MON</th>
-                                        <th className="px-2 py-1 text-right">MEP</th>
-                                        <th className="px-2 py-1 text-right">IMPORTE ARS</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {boletosPeriodo.map((b, i) => {
-                                        const colorImporte =
-                                          b.importe > 0 ? "text-[#00cc66]"
-                                          : b.importe < 0 ? "text-[#ff4d4d]"
-                                          : "text-[#888]";
-                                        return (
-                                          <tr key={i} className="border-t border-[#111] hover:bg-[#0d0d0d]">
-                                            <td className="px-2 py-0.5 text-[#d0d0d0]">{b.fecha}</td>
-                                            <td className="px-2 py-0.5 text-[#888]">{b.op || b.categoria}</td>
-                                            <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
-                                              {b.cantidad ? b.cantidad.toLocaleString("es-AR") : "—"}
-                                            </td>
-                                            <td className="px-2 py-0.5 text-right text-[#888]">
-                                              {b.precio ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
-                                            </td>
-                                            <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
-                                              {b.importe ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
-                                            </td>
-                                            <td className="px-2 py-0.5 text-[#888]">{b.moneda}</td>
-                                            <td className="px-2 py-0.5 text-right text-[#666]">
-                                              {b.mep ? b.mep.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
-                                            </td>
-                                            <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
-                                              {b.importe_ars ? fmtCompact(b.importe_ars) : "—"}
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+        {/* ── Panel derecho: DETALLE de la posición seleccionada ──── */}
+        <div className="w-1/2 border border-[#1a1a1a] bg-[#080808] min-h-0 overflow-y-auto">
+          {selectedTicker ? (
+            <PosicionDetalle
+              row={filasOrdenadas.find((r) => r.ticker === selectedTicker)!}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center text-[#555] text-[11px] tracking-widest">
+              Seleccioná una posición a la izquierda
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Panel detalle ────────────────────────────────────────────────────────
+function PosicionDetalle({ row }: { row: PnLRow }) {
+  const boletosPeriodo = _filtrarPeriodoActual(row.boletos);
+  const stats = _statsDelPeriodo(boletosPeriodo);
+  const tieneBreakdown = Object.keys(stats.breakdownPasivo).length > 0;
+  const ganPct = row.costo_remanente > 0
+    ? ((row.pnl_no_realizado ?? 0) + row.pnl_pasivo + (row.pnl_realizado_dia ?? 0)) / row.costo_remanente * 100
+    : null;
+
+  return (
+    <div className="p-3 text-[10px] text-[#888]">
+      {/* Header del ticker */}
+      <div className="border-b border-[#1a1a1a] pb-2 mb-3">
+        <div className="text-[12px] text-[#d0d0d0] font-mono mb-0.5">{row.display_name || row.ticker}</div>
+        <div className="text-[9px] text-[#555]">
+          {row.ticker !== (row.display_name || row.ticker) && <span>{row.ticker} · </span>}
+          {row.unidad}
+        </div>
+      </div>
+
+      {/* Mini-KPIs por ticker */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <DetKpi label="COSTO"    value={row.costo_remanente > 0 ? fmtCompact(row.costo_remanente) : "—"} />
+        <DetKpi label="VALOR"    value={fmtCompact(row.valor_actual_live ?? row.valor_actual_aum)} />
+        <DetKpi label="PNL"
+                value={fmtSigned((row.pnl_no_realizado ?? 0) + row.pnl_pasivo + (row.pnl_realizado_dia ?? 0))}
+                accent={((row.pnl_no_realizado ?? 0) + row.pnl_pasivo + (row.pnl_realizado_dia ?? 0)) >= 0 ? "#00cc66" : "#ff4d4d"} />
+        <DetKpi label="NO REAL"  value={row.pnl_no_realizado != null ? fmtSigned(row.pnl_no_realizado) : "—"}
+                accent={(row.pnl_no_realizado ?? 0) >= 0 ? "#00cc66" : "#ff4d4d"} />
+        <DetKpi label="COBROS"   value={row.pnl_pasivo !== 0 ? fmtSigned(row.pnl_pasivo) : "—"}
+                accent={row.pnl_pasivo >= 0 ? "#00cc66" : "#ff4d4d"} />
+        <DetKpi label="GAN %"    value={ganPct != null ? `${ganPct >= 0 ? "+" : ""}${ganPct.toFixed(2)}%` : "—"}
+                accent={(ganPct ?? 0) >= 0 ? "#00cc66" : "#ff4d4d"} />
+      </div>
+
+      {/* Realizado intraday — solo si hubo day-trades cerrados */}
+      {row.pnl_realizado_dia != null && row.pnl_realizado_dia !== 0 && (
+        <div className="mb-3 px-2 py-1 border border-[#4a9eff]/30 bg-[#4a9eff]/5 text-[10px]">
+          <span className="text-[#666] tracking-widest mr-2">REALIZADO HOY:</span>
+          <span className={pnlClass(row.pnl_realizado_dia) + " font-semibold"}>
+            {fmtSigned(row.pnl_realizado_dia)}
+          </span>
+          <span className="ml-1 text-[8px] text-[#4a9eff]">day-trade cerrado</span>
+        </div>
+      )}
+
+      {/* Flujo del stock actual */}
+      <div className="mb-2">
+        <span className="text-[#666] tracking-widest">FLUJO (STOCK ACTUAL):</span>{" "}
+        {stats.compras > 0 && <span>compras: {stats.compras.toLocaleString("es-AR")} · </span>}
+        {stats.ventas > 0 && <span>ventas: {stats.ventas.toLocaleString("es-AR")} · </span>}
+        <span>neto: {stats.neto.toLocaleString("es-AR")}</span>
+        {row.qty_calc !== row.qty_aum && (
+          <span className="text-[#ff9900]"> · AuM: {row.qty_aum.toLocaleString("es-AR")} (Δ {(row.qty_aum - row.qty_calc).toLocaleString("es-AR")})</span>
+        )}
+        <span className="text-[#444]"> · {boletosPeriodo.length}/{row.boletos.length} movs</span>
+      </div>
+
+      {/* Cobros pasivos del período */}
+      {tieneBreakdown && (
+        <div className="mb-2">
+          <span className="text-[#666] tracking-widest">COBROS PASIVOS (PERÍODO):</span>{" "}
+          {Object.entries(stats.breakdownPasivo).map(([op, val]) => (
+            <span key={op}>
+              <span className="text-[#666]">{op}:</span> <span className="text-[#d0d0d0]">{fmtCompact(val)}</span>
+              {" · "}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {row.fechas_sin_mep.length > 0 && (
+        <div className="mb-2 text-[9px] text-[#ff9900]">
+          ⚠ {row.fechas_sin_mep.length} fechas sin MEP — montos USD sin pesificar correctamente
+        </div>
+      )}
+
+      {/* Tabla de boletos del período activo */}
+      {boletosPeriodo.length > 0 && (
+        <div className="mt-3 border-t border-[#1a1a1a] pt-2">
+          <div className="text-[#666] tracking-widest mb-1">
+            BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
+            {row.boletos.length > boletosPeriodo.length && (
+              <span className="text-[#444]"> · {row.boletos.length - boletosPeriodo.length} históricos ocultos</span>
+            )}
+            ):
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[10px] font-mono">
+              <thead className="text-[9px] text-[#555] tracking-widest">
+                <tr>
+                  <th className="px-2 py-1 text-left">FECHA</th>
+                  <th className="px-2 py-1 text-left">OP</th>
+                  <th className="px-2 py-1 text-right">CANT</th>
+                  <th className="px-2 py-1 text-right">PRECIO</th>
+                  <th className="px-2 py-1 text-right">IMPORTE</th>
+                  <th className="px-2 py-1 text-left">MON</th>
+                  <th className="px-2 py-1 text-right">MEP</th>
+                  <th className="px-2 py-1 text-right">IMP ARS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {boletosPeriodo.map((b, i) => {
+                  const colorImporte =
+                    b.importe > 0 ? "text-[#00cc66]"
+                    : b.importe < 0 ? "text-[#ff4d4d]"
+                    : "text-[#888]";
+                  return (
+                    <tr key={i} className="border-t border-[#111] hover:bg-[#0d0d0d]">
+                      <td className="px-2 py-0.5 text-[#d0d0d0]">{b.fecha}</td>
+                      <td className="px-2 py-0.5 text-[#888]">{b.op || b.categoria}</td>
+                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                        {b.cantidad ? b.cantidad.toLocaleString("es-AR") : "—"}
+                      </td>
+                      <td className="px-2 py-0.5 text-right text-[#888]">
+                        {b.precio ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
+                      </td>
+                      <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
+                        {b.importe ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                      </td>
+                      <td className="px-2 py-0.5 text-[#888]">{b.moneda}</td>
+                      <td className="px-2 py-0.5 text-right text-[#666]">
+                        {b.mep ? b.mep.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                      </td>
+                      <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
+                        {b.importe_ars ? fmtCompact(b.importe_ars) : "—"}
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="border border-[#1a1a1a] bg-[#0a0a0a] px-2 py-1">
+      <div className="text-[8px] text-[#555] uppercase tracking-wider">{label}</div>
+      <div className="text-[12px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
     </div>
   );
 }
