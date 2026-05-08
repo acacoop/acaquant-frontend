@@ -17,7 +17,8 @@ interface BoletoDetalle {
 }
 
 interface PnLRow {
-  ticker: string;
+  ticker: string;            // match key — único interno (ej CAFCI..., AL30)
+  display_name?: string;     // nombre humano para mostrar (Assets.TICKER)
   unidad: string;
   qty_aum: number;
   qty_calc: number;
@@ -255,7 +256,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                       >
                         <td className="px-3 py-1.5 text-[#d0d0d0]">
                           <span className="text-[#666] mr-1">{r.boletos.length > 0 ? (expanded ? "▼" : "▶") : "·"}</span>
-                          {r.ticker}
+                          {r.display_name || r.ticker}
                         </td>
                         <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
                           {r.qty_aum.toLocaleString("es-AR")}

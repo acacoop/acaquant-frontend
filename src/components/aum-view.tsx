@@ -384,8 +384,31 @@ const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
 
 type Moneda = "ARS" | "USD";
 
+// Persiste tab/sub-tab/cuenta en la URL para que el refresh no te
+// expulse a la vista por default. Usamos un parser tolerante: si el
+// valor de la query no es uno de los esperados, cae al default.
+function _readUrlParam(name: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(name);
+}
+function _writeUrlParams(params: Record<string, string | null | undefined>) {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null || v === undefined || v === "") url.searchParams.delete(k);
+    else url.searchParams.set(k, v);
+  }
+  window.history.replaceState(null, "", url.toString());
+}
+
+const _AUM_TABS: AumTab[] = ["total", "fci", "tasa_fija", "cer", "valuaciones", "analisis_dinero"];
+const _VAL_SUBTABS = ["portafolio", "pnl_titulos"] as const;
+
 export function AumView() {
-  const [tab, setTab] = useState<AumTab>("total");
+  const [tab, setTab] = useState<AumTab>(() => {
+    const v = _readUrlParam("tab") as AumTab | null;
+    return v && _AUM_TABS.includes(v) ? v : "total";
+  });
   const [cuentaFilter, setCuentaFilter] = useState<CuentaFilter>("todas");
   const [moneda, setMoneda] = useState<Moneda>("ARS");
   // Selecciones del drill-down de TOTAL — independientes del emisorSel
@@ -398,9 +421,25 @@ export function AumView() {
 
   // Selector de cuenta para la sub-tab VALUACIONES (vive bajo /aum como tab).
   const [cuentas, setCuentas] = useState<CuentaDoc[]>([]);
-  const [valCuenta, setValCuenta] = useState<string>("");
+  const [valCuenta, setValCuenta] = useState<string>(() => _readUrlParam("cuenta") || "");
   // Sub-tab dentro de VALUACIONES: PORTAFOLIO (la vista vieja) | PNL TÍTULOS.
-  const [valSubtab, setValSubtab] = useState<"portafolio" | "pnl_titulos">("portafolio");
+  const [valSubtab, setValSubtab] = useState<"portafolio" | "pnl_titulos">(() => {
+    const v = _readUrlParam("sub");
+    return (_VAL_SUBTABS as readonly string[]).includes(v || "")
+      ? (v as "portafolio" | "pnl_titulos")
+      : "portafolio";
+  });
+
+  // Sync tab / valSubtab / valCuenta a la URL. replaceState para no
+  // ensuciar el history stack — refresh queda donde estabas, atrás
+  // sigue saliendo de /aum.
+  useEffect(() => {
+    _writeUrlParams({
+      tab: tab === "total" ? null : tab,                 // default = sin param
+      sub: tab === "valuaciones" && valSubtab !== "portafolio" ? valSubtab : null,
+      cuenta: tab === "valuaciones" ? valCuenta : null,
+    });
+  }, [tab, valSubtab, valCuenta]);
 
   useEffect(() => {
     fetch("/api/portfolio-cuentas", { cache: "no-store" })
@@ -408,6 +447,8 @@ export function AumView() {
       .then((d: { cuentas: CuentaDoc[] }) => {
         const list = d.cuentas || [];
         setCuentas(list);
+        // Solo defaultear a la primera si no había selección previa
+        // ni desde URL — sino preservamos lo que el user eligió.
         if (list.length && !valCuenta) setValCuenta(list[0].id_cuenta);
       })
       .catch(() => { /* sin lista, el selector queda vacío */ });
@@ -712,7 +753,28 @@ export function AumView() {
         <div className="ml-auto flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
-            <CuentaCombobox cuentas={cuentas} value={valCuenta} onChange={setValCuenta} />
+            {(() => {
+              const idx = cuentas.findIndex((c) => c.id_cuenta === valCuenta);
+              const prev = idx > 0 ? cuentas[idx - 1].id_cuenta : null;
+              const next = idx >= 0 && idx < cuentas.length - 1 ? cuentas[idx + 1].id_cuenta : null;
+              return (
+                <>
+                  <button
+                    onClick={() => prev && setValCuenta(prev)}
+                    disabled={!prev}
+                    title="Cuenta anterior"
+                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                  >◀</button>
+                  <CuentaCombobox cuentas={cuentas} value={valCuenta} onChange={setValCuenta} />
+                  <button
+                    onClick={() => next && setValCuenta(next)}
+                    disabled={!next}
+                    title="Cuenta siguiente"
+                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                  >▶</button>
+                </>
+              );
+            })()}
           </div>
           <div className="flex items-center gap-1">
             {(["portafolio", "pnl_titulos"] as const).map((s) => (
@@ -1538,7 +1600,16 @@ function CuentaCombobox({
       <input
         type="text"
         value={open ? search : display}
-        onFocus={() => { setOpen(true); setHighlighted(0); }}
+        onFocus={(e) => {
+          // Pre-cargamos el display como search → el user ve la cuenta
+          // actual seleccionada (con todo el texto highlighted, listo
+          // para reemplazar tipeando). Antes el input quedaba en blanco
+          // y se perdía el contexto.
+          setSearch(display);
+          setOpen(true);
+          setHighlighted(0);
+          requestAnimationFrame(() => e.target.select());
+        }}
         onChange={(e) => { setSearch(e.target.value); setOpen(true); setHighlighted(0); }}
         onKeyDown={handleKey}
         placeholder={cuentas.length === 0 ? "— sin cuentas —" : "Buscar cuenta…"}
