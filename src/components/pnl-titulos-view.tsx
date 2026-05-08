@@ -89,6 +89,50 @@ function pnlClass(n: number | null | undefined): string {
   return "text-[#888]";
 }
 
+// Filtra boletos al "período activo del stock actual" — desde la última
+// vez que qty pasó por 0. Los boletos previos se compensaron entre sí
+// (compras + ventas que cerraron lots) y no aportan al cost basis vivo.
+// Las acreencias (cupones / divs / amorts) NO mueven qty, así que no
+// fuerzan reset — quedan dentro del slice si están temporalmente
+// posteriores al último reset (lo que es lo correcto: cobros sobre el
+// stock vivo).
+function _filtrarPeriodoActual(boletos: BoletoDetalle[]): BoletoDetalle[] {
+  let qty = 0;
+  let inicio = 0;
+  for (let i = 0; i < boletos.length; i++) {
+    const b = boletos[i];
+    const cant = Math.abs(b.cantidad || 0);
+    const antes = qty;
+    if (b.categoria === "compra" || b.categoria === "suscripcion_fci") {
+      qty += cant;
+    } else if (b.categoria === "venta" || b.categoria === "rescate_fci") {
+      qty -= cant;
+    }
+    if (antes > 0 && qty <= 0) {
+      inicio = i + 1;
+    }
+  }
+  return boletos.slice(inicio);
+}
+
+function _statsDelPeriodo(boletos: BoletoDetalle[]) {
+  let compras = 0;
+  let ventas = 0;
+  const breakdownPasivo: Record<string, number> = {};
+  for (const b of boletos) {
+    const cant = Math.abs(b.cantidad || 0);
+    if (b.categoria === "compra" || b.categoria === "suscripcion_fci") {
+      compras += cant;
+    } else if (b.categoria === "venta" || b.categoria === "rescate_fci") {
+      ventas += cant;
+    } else if (b.categoria === "acreencia") {
+      const op = b.op || "Otros";
+      breakdownPasivo[op] = (breakdownPasivo[op] || 0) + (b.importe_ars || 0);
+    }
+  }
+  return { compras, ventas, neto: compras - ventas, breakdownPasivo };
+}
+
 // ── Component ─────────────────────────────────────────────────────────────
 
 export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
@@ -250,7 +294,12 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
               <tbody>
                 {filasOrdenadas.map((r) => {
                   const expanded = expandedTicker === r.ticker;
-                  const tieneBreakdown = Object.keys(r.breakdown_pasivo).length > 0;
+                  // Boletos y stats del período activo (descartamos historia
+                  // ya cerrada, mostramos solo lo que compone el stock actual
+                  // + cobros pasivos sobre ese stock).
+                  const boletosPeriodo = _filtrarPeriodoActual(r.boletos);
+                  const stats = _statsDelPeriodo(boletosPeriodo);
+                  const tieneBreakdown = Object.keys(stats.breakdownPasivo).length > 0;
                   return (
                     <Fragment key={r.ticker}>
                       <tr
@@ -310,19 +359,19 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                           <td colSpan={8} className="px-6 py-3 text-[10px] text-[#888]">
                             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                               <div>
-                                <span className="text-[#666] tracking-widest">FLUJO DE BOLETOS:</span>{" "}
-                                {r.qty_compras > 0 && <span>compras: {r.qty_compras.toLocaleString("es-AR")} · </span>}
-                                {r.qty_ventas > 0 && <span>ventas: {r.qty_ventas.toLocaleString("es-AR")} · </span>}
-                                <span>neto: {(r.qty_compras - r.qty_ventas).toLocaleString("es-AR")}</span>
+                                <span className="text-[#666] tracking-widest">FLUJO (STOCK ACTUAL):</span>{" "}
+                                {stats.compras > 0 && <span>compras: {stats.compras.toLocaleString("es-AR")} · </span>}
+                                {stats.ventas > 0 && <span>ventas: {stats.ventas.toLocaleString("es-AR")} · </span>}
+                                <span>neto: {stats.neto.toLocaleString("es-AR")}</span>
                                 {r.qty_calc !== r.qty_aum && (
                                   <span className="text-[#ff9900]"> · AuM: {r.qty_aum.toLocaleString("es-AR")} (Δ {(r.qty_aum - r.qty_calc).toLocaleString("es-AR")})</span>
                                 )}
-                                <span className="text-[#444]"> · {r.n_movimientos} movs</span>
+                                <span className="text-[#444]"> · {boletosPeriodo.length}/{r.boletos.length} movs</span>
                               </div>
                               {tieneBreakdown && (
                                 <div>
-                                  <span className="text-[#666] tracking-widest">COBROS PASIVOS:</span>{" "}
-                                  {Object.entries(r.breakdown_pasivo).map(([op, val]) => (
+                                  <span className="text-[#666] tracking-widest">COBROS PASIVOS (PERÍODO):</span>{" "}
+                                  {Object.entries(stats.breakdownPasivo).map(([op, val]) => (
                                     <span key={op}>
                                       <span className="text-[#666]">{op}:</span> <span className="text-[#d0d0d0]">{fmtCompact(val)}</span>
                                       {" · "}
@@ -337,10 +386,16 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                               </div>
                             )}
 
-                            {/* Tabla de boletos individuales para auditar */}
-                            {r.boletos.length > 0 && (
+                            {/* Tabla de boletos del período activo */}
+                            {boletosPeriodo.length > 0 && (
                               <div className="mt-3 border-t border-[#1a1a1a] pt-2">
-                                <div className="text-[#666] tracking-widest mb-1">BOLETOS ({r.boletos.length}):</div>
+                                <div className="text-[#666] tracking-widest mb-1">
+                                  BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
+                                  {r.boletos.length > boletosPeriodo.length && (
+                                    <span className="text-[#444]"> · {r.boletos.length - boletosPeriodo.length} históricos ocultos</span>
+                                  )}
+                                  ):
+                                </div>
                                 <div className="overflow-x-auto">
                                   <table className="w-full text-[10px] font-mono">
                                     <thead className="text-[9px] text-[#555] tracking-widest">
@@ -356,7 +411,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {r.boletos.map((b, i) => {
+                                      {boletosPeriodo.map((b, i) => {
                                         const colorImporte =
                                           b.importe > 0 ? "text-[#00cc66]"
                                           : b.importe < 0 ? "text-[#ff4d4d]"
