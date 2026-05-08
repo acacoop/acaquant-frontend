@@ -201,6 +201,11 @@ export function ValuacionesView({ idCuenta }: Props) {
   // posiciones (portfolio) o los movimientos del mes (flujo). Default
   // portfolio. Si no hay fecha seleccionada, solo se muestra portfolio.
   const [panelMode, setPanelMode] = useState<"portfolio" | "flujo">("portfolio");
+  // Ventana del chart de evolución mensual:
+  // "6M" default — 6 meses para que outliers viejos no apaguen el rango Y.
+  // "3M" / "1A" / "ALL" presets, ◀ ▶ para mover offset.
+  const [chartRango, setChartRango] = useState<"3M" | "6M" | "1A" | "ALL">("6M");
+  const [chartOffset, setChartOffset] = useState<number>(0);
 
   // Initial load: serie + mensual son one-shot, posiciones se refetcha al
   // cambiar selectedFecha (handler separado).
@@ -298,16 +303,33 @@ export function ValuacionesView({ idCuenta }: Props) {
       }));
   }, [mensualResp]);
 
-  // Y-axis scale: niceScale sobre los valores reales, no fuerza 0.
-  // Si el portfolio fluctúa entre 25M y 35M, el chart muestra ese rango,
-  // no 0-35M (donde la variación se aplana).
+  // Slice de chart: aplicamos rango (3M / 6M / 1A / ALL) con pan offset.
+  // offset=0 = ventana más reciente; offset=1 = anterior; etc.
+  const chartDataVisible = useMemo<ChartPoint[]>(() => {
+    if (chartRango === "ALL" || chartData.length === 0) return chartData;
+    const n = chartRango === "3M" ? 3 : chartRango === "6M" ? 6 : 12;
+    const end = chartData.length - chartOffset * n;
+    const start = Math.max(0, end - n);
+    return chartData.slice(Math.max(0, start), Math.max(0, end));
+  }, [chartData, chartRango, chartOffset]);
+
+  // Pan navigation flags.
+  const chartPuedeAtras = chartRango !== "ALL" && (() => {
+    const n = chartRango === "3M" ? 3 : chartRango === "6M" ? 6 : 12;
+    return chartData.length - (chartOffset + 1) * n > 0;
+  })();
+  const chartPuedeAdelante = chartOffset > 0;
+
+  // Y-axis scale: niceScale sobre los valores VISIBLES, no toda la serie.
+  // Si Jun 25 tiene un valor anómalo de 0 y el resto está en 19B, al
+  // filtrar a 6M el outlier desaparece y el rango se ajusta limpio.
   const yScale = useMemo(() => {
-    if (chartData.length < 2) {
+    if (chartDataVisible.length < 2) {
       return { min: 0, max: 1, ticks: [0, 1] };
     }
-    const vals = chartData.map((d) => d.valuacion);
+    const vals = chartDataVisible.map((d) => d.valuacion);
     return niceScale(Math.min(...vals), Math.max(...vals), 5);
-  }, [chartData]);
+  }, [chartDataVisible]);
 
   if (loading) {
     return (
@@ -352,30 +374,59 @@ export function ValuacionesView({ idCuenta }: Props) {
 
         {/* Chart panel */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-              Evolución mensual · cuenta [{idCuenta}]
+              Evolución mensual · [{idCuenta}]
             </span>
-            {chartData.length > 0 && (
-              <span className="ml-3 text-[9px] text-[#555] font-mono">
-                {fmtMesCorto(chartData[0].mes)} → {fmtMesCorto(chartData[chartData.length - 1].mes)}
+            {chartDataVisible.length > 0 && (
+              <span className="text-[9px] text-[#555] font-mono">
+                {fmtMesCorto(chartDataVisible[0].mes)} → {fmtMesCorto(chartDataVisible[chartDataVisible.length - 1].mes)}
               </span>
             )}
+            {/* Range filter + pan */}
+            <div className="ml-auto inline-flex items-center gap-1">
+              <button
+                onClick={() => setChartOffset((o) => o + 1)}
+                disabled={!chartPuedeAtras}
+                title="Período anterior"
+                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+              >◀</button>
+              <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+                {(["3M", "6M", "1A", "ALL"] as const).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => { setChartRango(k); setChartOffset(0); }}
+                    className={
+                      "px-2 py-0 text-[9px] uppercase tracking-wider " +
+                      (chartRango === k
+                        ? "bg-[#ff9900] text-black"
+                        : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                    }
+                  >{k}</button>
+                ))}
+              </div>
+              <button
+                onClick={() => setChartOffset((o) => Math.max(0, o - 1))}
+                disabled={!chartPuedeAdelante}
+                title="Período siguiente"
+                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+              >▶</button>
+            </div>
             {serieResp?.ultimo && (
-              <span className="ml-auto text-[10px] text-[#888] font-mono">
-                Último: <span className="text-[#4a9eff] font-semibold">{fmtCompact(serieResp.ultimo.valuacion)}</span> ({fmtFechaCorta(serieResp.ultimo.fecha)})
+              <span className="text-[10px] text-[#888] font-mono">
+                Último: <span className="text-[#4a9eff] font-semibold">{fmtCompact(serieResp.ultimo.valuacion)}</span>
               </span>
             )}
           </div>
           <div className="flex-1 min-h-0 p-2">
-            {chartData.length === 0 ? (
+            {chartDataVisible.length === 0 ? (
               <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
-                Sin meses con data.
+                Sin meses con data en este rango.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={chartData}
+                  data={chartDataVisible}
                   margin={{ top: 8, right: 12, bottom: 24, left: 8 }}
                 >
                   <defs>
