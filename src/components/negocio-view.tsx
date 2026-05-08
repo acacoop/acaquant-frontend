@@ -229,7 +229,7 @@ export function NegocioView() {
   const [vistaMode, setVistaMode] = useState<VistaMode>("DIA");
   // Foco día: cuando está ON (default) Y vistaMode=DIA, muteamos las barras
   // del chart que no pertenecen al bucket de la fecha seleccionada.
-  const [focoDia, setFocoDia] = useState<boolean>(true);
+  const [focoDia, setFocoDia] = useState<boolean>(false);
   // Búsqueda de cuenta: si tiene un valor exacto en cuentasList, todas las
   // queries se scopean a esa cuenta (override del cuenta_filter).
   const [cuentaSearch, setCuentaSearch] = useState<string>("");
