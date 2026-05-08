@@ -113,7 +113,10 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   const filasFiltradas = useMemo(() => {
     if (!data) return [];
     return data.rows.filter((r) =>
-      soloActivos ? r.qty_aum !== 0 || r.qty_calc !== 0 : true,
+      // Solo lo que tenés HOY en cartera (qty_aum > 0). Tickers que
+      // operaste pero ya cerraste (qty_aum=0) quedan ocultos cuando
+      // soloActivos está checked. Para verlos, destildá el toggle.
+      soloActivos ? r.qty_aum > 0 : true,
     );
   }, [data, soloActivos]);
 
