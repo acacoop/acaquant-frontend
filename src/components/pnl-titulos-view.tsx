@@ -4,6 +4,18 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
+interface BoletoDetalle {
+  fecha: string;
+  categoria: string;
+  op: string;
+  cantidad: number;
+  precio: number;
+  importe: number;       // crudo en moneda original
+  importe_ars: number;   // pesificado
+  moneda: string;
+  mep: number | null;
+}
+
 interface PnLRow {
   ticker: string;
   unidad: string;
@@ -15,7 +27,6 @@ interface PnLRow {
   precio_promedio: number | null;
   costo_remanente: number;
   valor_actual_aum: number;
-  valor_actual_calc: number;
   pnl_realizado: number;
   pnl_no_realizado: number | null;
   pnl_pasivo: number;
@@ -25,6 +36,7 @@ interface PnLRow {
   moneda_mixta: boolean;
   n_movimientos: number;
   fechas_sin_mep: string[];
+  boletos: BoletoDetalle[];
 }
 
 interface PnLResp {
@@ -245,7 +257,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                         className="border-b border-[#111] hover:bg-[#ff9900]/5 cursor-pointer"
                       >
                         <td className="px-3 py-1.5 text-[#d0d0d0]">
-                          <span className="text-[#666] mr-1">{tieneBreakdown ? (expanded ? "▼" : "▶") : "·"}</span>
+                          <span className="text-[#666] mr-1">{r.boletos.length > 0 ? (expanded ? "▼" : "▶") : "·"}</span>
                           {r.ticker}
                         </td>
                         <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
@@ -294,7 +306,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                       </tr>
                       {expanded && (
                         <tr className="bg-[#060606] border-b border-[#111]">
-                          <td colSpan={11} className="px-6 py-2 text-[10px] text-[#888]">
+                          <td colSpan={11} className="px-6 py-3 text-[10px] text-[#888]">
                             <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                               <div>
                                 <span className="text-[#666] tracking-widest">FLUJO DE BOLETOS:</span>{" "}
@@ -321,6 +333,59 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                             {r.fechas_sin_mep.length > 0 && (
                               <div className="mt-1 text-[9px] text-[#ff9900]">
                                 ⚠ {r.fechas_sin_mep.length} fechas sin MEP — montos USD sin pesificar correctamente
+                              </div>
+                            )}
+
+                            {/* Tabla de boletos individuales para auditar */}
+                            {r.boletos.length > 0 && (
+                              <div className="mt-3 border-t border-[#1a1a1a] pt-2">
+                                <div className="text-[#666] tracking-widest mb-1">BOLETOS ({r.boletos.length}):</div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-[10px] font-mono">
+                                    <thead className="text-[9px] text-[#555] tracking-widest">
+                                      <tr>
+                                        <th className="px-2 py-1 text-left">FECHA</th>
+                                        <th className="px-2 py-1 text-left">OP</th>
+                                        <th className="px-2 py-1 text-right">CANT</th>
+                                        <th className="px-2 py-1 text-right">PRECIO</th>
+                                        <th className="px-2 py-1 text-right">IMPORTE</th>
+                                        <th className="px-2 py-1 text-left">MON</th>
+                                        <th className="px-2 py-1 text-right">MEP</th>
+                                        <th className="px-2 py-1 text-right">IMPORTE ARS</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {r.boletos.map((b, i) => {
+                                        const colorImporte =
+                                          b.importe > 0 ? "text-[#00cc66]"
+                                          : b.importe < 0 ? "text-[#ff4d4d]"
+                                          : "text-[#888]";
+                                        return (
+                                          <tr key={i} className="border-t border-[#111] hover:bg-[#0d0d0d]">
+                                            <td className="px-2 py-0.5 text-[#d0d0d0]">{b.fecha}</td>
+                                            <td className="px-2 py-0.5 text-[#888]">{b.op || b.categoria}</td>
+                                            <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                                              {b.cantidad ? b.cantidad.toLocaleString("es-AR") : "—"}
+                                            </td>
+                                            <td className="px-2 py-0.5 text-right text-[#888]">
+                                              {b.precio ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
+                                            </td>
+                                            <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
+                                              {b.importe ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                                            </td>
+                                            <td className="px-2 py-0.5 text-[#888]">{b.moneda}</td>
+                                            <td className="px-2 py-0.5 text-right text-[#666]">
+                                              {b.mep ? b.mep.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                                            </td>
+                                            <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
+                                              {b.importe_ars ? fmtCompact(b.importe_ars) : "—"}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
                             )}
                           </td>
