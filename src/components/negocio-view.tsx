@@ -36,7 +36,7 @@ interface SeriePoint {
 }
 
 type Moneda = "ARS" | "USD";
-type RangoKey = "1W" | "1M" | "3M" | "ALL";
+type RangoKey = "1W" | "1M" | "3M" | "YTD" | "1A" | "ALL";
 type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
 type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas" | "productores";
 // Vista global: DIA = todo scopeado al día seleccionado en el calendario.
@@ -181,10 +181,27 @@ function aggregateSerie(serie: SeriePoint[], agg: AggKey): SeriePoint[] {
   return [...m.values()].sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
-function filtrarRango(serie: SeriePoint[], rango: RangoKey): SeriePoint[] {
+// Slice de la serie según rango + offset. offset=0 = ventana más reciente;
+// offset=1 = la anterior; offset=2 = aún antes; etc. Para YTD el offset
+// retrocede el año (offset=0 = año en curso, 1 = año anterior...).
+function filtrarRango(
+  serie: SeriePoint[], rango: RangoKey, offset: number = 0,
+): SeriePoint[] {
   if (rango === "ALL" || serie.length === 0) return serie;
-  const n = rango === "1W" ? 5 : rango === "1M" ? 22 : 65;
-  return serie.slice(-n);
+  if (rango === "YTD") {
+    const hoy = new Date();
+    const yyyy = hoy.getFullYear() - offset;
+    return serie.filter((s) => s.fecha.startsWith(`${yyyy}-`));
+  }
+  // Ventanas por count de días hábiles aprox.
+  const n =
+    rango === "1W"  ?   5 :
+    rango === "1M"  ?  22 :
+    rango === "3M"  ?  65 :
+    /* "1A" */         252;
+  const end   = serie.length - offset * n;
+  const start = Math.max(0, end - n);
+  return serie.slice(Math.max(0, start), Math.max(0, end));
 }
 
 // ── Vista principal ───────────────────────────────────────────────────────
@@ -200,7 +217,10 @@ export function NegocioView() {
   const [error, setError] = useState<string | null>(null);
 
   const [moneda, setMoneda] = useState<Moneda>("ARS");
-  const [rango, setRango] = useState<RangoKey>("ALL");
+  const [rango, setRango] = useState<RangoKey>("YTD");
+  // offset: 0 = ventana más reciente, +1 = retroceder un período. Pan
+  // lateral con botones ◀ ▶.
+  const [rangoOffset, setRangoOffset] = useState<number>(0);
   const [agg, setAgg] = useState<AggKey>("DIARIO");
   const [catSel, setCatSel] = useState<NegocioCat | null>(null);
   const [filtroCta, setFiltroCta] = useState<CuentaFilter>("todas");
@@ -372,7 +392,22 @@ export function NegocioView() {
   // Pre-aggregation: serie filtrada por rango (DIARIO). Sirve para
   // obtener desde/hasta exactos del período visible — necesario para la
   // query a /negocio/cuentas que requiere fechas YYYY-MM-DD.
-  const serieRango = useMemo(() => filtrarRango(serie, rango), [serie, rango]);
+  const serieRango = useMemo(
+    () => filtrarRango(serie, rango, rangoOffset),
+    [serie, rango, rangoOffset],
+  );
+
+  // Si la ventana actual queda vacía (retrocediste demasiado), prevenir
+  // permitir ir más atrás. Si offset==0 ya estás en el más reciente, no
+  // permitir ir hacia adelante.
+  const puedeIrAtras    = rango !== "ALL" && serieRango.length > 0 && (
+    rango === "YTD"
+      ? serie.some((s) => s.fecha.startsWith(`${new Date().getFullYear() - rangoOffset - 1}-`))
+      : (serie.length - (rangoOffset + 1) * (
+          rango === "1W" ? 5 : rango === "1M" ? 22 : rango === "3M" ? 65 : 252
+        )) > 0
+  );
+  const puedeIrAdelante = rangoOffset > 0;
 
   // Datos para el chart: aggregation aplicada a la serie filtrada.
   const chartData = useMemo(() => aggregateSerie(serieRango, agg), [serieRango, agg]);
@@ -526,7 +561,7 @@ export function NegocioView() {
   // expandidos ya no son válidos.
   useEffect(() => {
     setExpandedCuenta(null);
-  }, [catSel, vistaMode, moneda, filtroCta, fecha, rango, cuentaExacta]);
+  }, [catSel, vistaMode, moneda, filtroCta, fecha, rango, rangoOffset, cuentaExacta]);
 
   // Clave de cache de boletos: (fecha + cuenta + categoria_o_all).
   const boletosKey = (cuenta: string, fecha_d: string, cat: string | null) =>
@@ -803,22 +838,36 @@ export function NegocioView() {
                     </button>
                   ))}
                 </div>
-                {/* Range filter */}
-                <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
-                  {(["1W", "1M", "3M", "ALL"] as RangoKey[]).map((k) => (
-                    <button
-                      key={k}
-                      onClick={() => setRango(k)}
-                      className={
-                        "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                        (rango === k
-                          ? "bg-[#ff9900] text-black"
-                          : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
-                      }
-                    >
-                      {k}
-                    </button>
-                  ))}
+                {/* Range filter — preset + pan ◀ ▶ */}
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    onClick={() => setRangoOffset((o) => o + 1)}
+                    disabled={!puedeIrAtras}
+                    title="Período anterior"
+                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                  >◀</button>
+                  <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+                    {(["1W", "1M", "3M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => { setRango(k); setRangoOffset(0); }}
+                        className={
+                          "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                          (rango === k
+                            ? "bg-[#ff9900] text-black"
+                            : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                        }
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
+                    disabled={!puedeIrAdelante}
+                    title="Período siguiente"
+                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                  >▶</button>
                 </div>
                 {/* Foco día: ON = highlight selected day, OFF = todas las
                     barras en color (modo report/print). */}
