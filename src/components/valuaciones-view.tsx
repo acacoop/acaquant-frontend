@@ -183,24 +183,39 @@ function niceScale(
   return { min: niceMin, max: niceMax, ticks };
 }
 
-// Techo robusto del Y-axis: si hay un outlier (>5x mediana), clipa el max al
-// percentil 90 + 30% buffer en vez de tomar el max crudo. El punto outlier se
-// sigue dibujando pero sale por arriba del chart — señal visual de data sucia
-// sin aplastar el resto contra el cero. Sin outliers, devuelve el max real.
-function robustMax(vals: number[]): number {
-  if (vals.length === 0) return 1;
-  const positivos = vals.filter((v) => v > 0);
-  if (positivos.length < 3) return Math.max(...vals);
-  const sorted = [...positivos].sort((a, b) => a - b);
-  const mediana = sorted[Math.floor(sorted.length / 2)];
-  const max = Math.max(...vals);
-  // Threshold: outlier si max > 5x mediana. Es lo suficientemente conservador
-  // para que crecimientos legítimos (2-3x mensuales) no disparen el clipping.
-  if (mediana > 0 && max > 5 * mediana) {
-    const p90 = sorted[Math.floor(sorted.length * 0.9)];
-    return p90 * 1.3;
+// Calcula rango del Y-axis con dos objetivos:
+//  1) ZOOM IN: el último/menor valor real NO debe quedar pegado al eje X.
+//     Padding 15% abajo + 15% arriba sobre el rango "core" para que la
+//     línea ocupe el centro del chart, no el borde.
+//  2) Outliers (mes con data sucia, ej. cuenta cerrada que cayó a 0 o
+//     un spike a $2.5T por bug del job) NO contaminan el rango — usamos
+//     percentiles P10/P90 cuando se detectan outliers (>5× o <0.2× mediana).
+//     El punto outlier sigue en la serie pero queda fuera del chart con
+//     allowDataOverflow — señal visual de que esa fecha está rota.
+function computeYRange(vals: number[]): { min: number; max: number; ticks: number[] } {
+  if (vals.length === 0) return { min: 0, max: 1, ticks: [0, 1] };
+  if (vals.length === 1) {
+    const v = vals[0];
+    const pad = (Math.abs(v) || 1) * 0.15;
+    return niceScale(v - pad, v + pad, 5);
   }
-  return max;
+  const sorted = [...vals].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  let coreMin = sorted[0];
+  let coreMax = sorted[sorted.length - 1];
+  if (median > 0) {
+    if (coreMax > 5 * median) {
+      coreMax = sorted[Math.floor(sorted.length * 0.9)] || median * 2;
+    }
+    if (coreMin < 0.2 * median) {
+      coreMin = sorted[Math.floor(sorted.length * 0.1)] || median * 0.5;
+    }
+  }
+  // Padding 15% sobre el rango core. Si todo el rango es trivialmente chico
+  // (variación <1%), usamos 15% del valor absoluto como piso de padding.
+  const range = coreMax - coreMin;
+  const pad = Math.max(range * 0.15, Math.abs(coreMax) * 0.05);
+  return niceScale(coreMin - pad, coreMax + pad, 5);
 }
 
 // ── Componente ────────────────────────────────────────────────────────────
@@ -340,18 +355,14 @@ export function ValuacionesView({ idCuenta }: Props) {
   })();
   const chartPuedeAdelante = chartOffset > 0;
 
-  // Y-axis scale: niceScale sobre los valores VISIBLES, no toda la serie.
-  // Para el techo usamos robustMax — si un mes tiene data sucia (ej. cuenta
-  // 255 con $2.5T en Jul 25 cuando el resto está en $20B), clipa al P90 + 30%
-  // y deja al outlier salir por arriba del chart como señal visual. Sin
-  // outlier devuelve el max real.
-  const yScale = useMemo(() => {
-    if (chartDataVisible.length < 2) {
-      return { min: 0, max: 1, ticks: [0, 1] };
-    }
-    const vals = chartDataVisible.map((d) => d.valuacion);
-    return niceScale(Math.min(...vals), robustMax(vals), 5);
-  }, [chartDataVisible]);
+  // Y-axis: zoom-in con padding (15% arriba/abajo) y robustez a outliers.
+  // Ver computeYRange — el último valor nunca queda pegado al eje X y un
+  // mes con data sucia (Jul 25 a $2.5T) se sale del chart sin aplastar el
+  // resto contra el piso.
+  const yScale = useMemo(
+    () => computeYRange(chartDataVisible.map((d) => d.valuacion)),
+    [chartDataVisible],
+  );
 
   if (loading) {
     return (
