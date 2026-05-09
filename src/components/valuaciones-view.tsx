@@ -183,6 +183,26 @@ function niceScale(
   return { min: niceMin, max: niceMax, ticks };
 }
 
+// Techo robusto del Y-axis: si hay un outlier (>5x mediana), clipa el max al
+// percentil 90 + 30% buffer en vez de tomar el max crudo. El punto outlier se
+// sigue dibujando pero sale por arriba del chart — señal visual de data sucia
+// sin aplastar el resto contra el cero. Sin outliers, devuelve el max real.
+function robustMax(vals: number[]): number {
+  if (vals.length === 0) return 1;
+  const positivos = vals.filter((v) => v > 0);
+  if (positivos.length < 3) return Math.max(...vals);
+  const sorted = [...positivos].sort((a, b) => a - b);
+  const mediana = sorted[Math.floor(sorted.length / 2)];
+  const max = Math.max(...vals);
+  // Threshold: outlier si max > 5x mediana. Es lo suficientemente conservador
+  // para que crecimientos legítimos (2-3x mensuales) no disparen el clipping.
+  if (mediana > 0 && max > 5 * mediana) {
+    const p90 = sorted[Math.floor(sorted.length * 0.9)];
+    return p90 * 1.3;
+  }
+  return max;
+}
+
 // ── Componente ────────────────────────────────────────────────────────────
 
 export function ValuacionesView({ idCuenta }: Props) {
@@ -321,14 +341,16 @@ export function ValuacionesView({ idCuenta }: Props) {
   const chartPuedeAdelante = chartOffset > 0;
 
   // Y-axis scale: niceScale sobre los valores VISIBLES, no toda la serie.
-  // Si Jun 25 tiene un valor anómalo de 0 y el resto está en 19B, al
-  // filtrar a 6M el outlier desaparece y el rango se ajusta limpio.
+  // Para el techo usamos robustMax — si un mes tiene data sucia (ej. cuenta
+  // 255 con $2.5T en Jul 25 cuando el resto está en $20B), clipa al P90 + 30%
+  // y deja al outlier salir por arriba del chart como señal visual. Sin
+  // outlier devuelve el max real.
   const yScale = useMemo(() => {
     if (chartDataVisible.length < 2) {
       return { min: 0, max: 1, ticks: [0, 1] };
     }
     const vals = chartDataVisible.map((d) => d.valuacion);
-    return niceScale(Math.min(...vals), Math.max(...vals), 5);
+    return niceScale(Math.min(...vals), robustMax(vals), 5);
   }, [chartDataVisible]);
 
   if (loading) {
@@ -449,6 +471,7 @@ export function ValuacionesView({ idCuenta }: Props) {
                   <YAxis
                     domain={[yScale.min, yScale.max]}
                     ticks={yScale.ticks}
+                    allowDataOverflow
                     tick={{ fill: "#808080", fontSize: 10 }}
                     axisLine={{ stroke: "#2a2a2a" }}
                     tickLine={false}
