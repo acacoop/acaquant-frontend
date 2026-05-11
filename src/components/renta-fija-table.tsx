@@ -1,18 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import type { RentaFijaDoc } from "@/lib/types";
+import type { FlujoTicker, RentaFijaDoc } from "@/lib/types";
 import { shortTicker, fmtPrice, fmtVol } from "./ui";
 import { LibroPanel } from "./libro-panel";
-
-interface FlujoTicker {
-  ticker: string;
-  curva: string;
-}
 
 interface ForwardDoc {
   curva: string;
   tasas?: Record<string, number>;
+}
+
+// ISO YYYY-MM-DD → "DD/MM/YY" (corto para entrar en la columna).
+function fmtMatur(iso: string | null | undefined): string {
+  if (!iso) return "--";
+  const s = iso.slice(0, 10);
+  if (s.length !== 10 || s[4] !== "-" || s[7] !== "-") return s;
+  return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(2, 4)}`;
 }
 
 export function RentaFijaTable({
@@ -30,8 +33,10 @@ export function RentaFijaTable({
   const curva = vista === "libro" ? "tasa_fija" : vista;
 
   const tickerCurvaMap: Record<string, string> = {};
+  const tickerVtoMap: Record<string, string> = {};
   for (const f of flujos) {
     tickerCurvaMap[f.ticker] = f.curva;
+    if (f.fecha_vencimiento) tickerVtoMap[f.ticker] = f.fecha_vencimiento;
   }
 
   const teaMap: Record<string, number> = {};
@@ -91,16 +96,17 @@ export function RentaFijaTable({
           <table className="w-full">
             <thead>
               <tr>
-                <th className="!px-1 text-center">INSTRUMENTO</th>
+                <th className="!px-1 text-center">Ticker</th>
+                <th className="!px-1 text-center">Matur.</th>
                 <th className="!px-1 text-center">LAST</th>
-                <th className="!px-1 text-center">INTRADAY</th>
+                <th className="!px-1 text-center">Intra</th>
                 <th className="!px-1 text-center">1D</th>
                 <th className="!px-1 text-center">VWAP</th>
                 <th className="!px-1 text-center">TEA</th>
                 {curva === "tasa_fija" && (
                   <th className="!px-1 text-center">TEM</th>
                 )}
-                <th className="!px-1 text-center">DURATION</th>
+                <th className="!px-1 text-center">DUR</th>
                 <th className="!px-1 text-center">MOD DUR</th>
                 <th className="!px-1 text-center">CONVEXITY</th>
                 {curva === "tasa_fija" && (
@@ -132,6 +138,9 @@ export function RentaFijaTable({
                 return (
                   <tr key={r.instrumento}>
                     <td className="!px-1 text-[#ff9900]">{short}</td>
+                    <td className="!px-1 text-center text-[#808080] tabular-nums">
+                      {fmtMatur(tickerVtoMap[short])}
+                    </td>
                     <td className="!px-1 text-right font-semibold">
                       {fmtPrice(last)}
                     </td>
