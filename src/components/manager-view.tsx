@@ -201,7 +201,6 @@ function TabDiagnostico() {
 const JOBS_DISPONIBLES = [
   { tipo: "aum_backfill",    label: "AuM Backfill",         desc: "Reconstruye AuM para una fecha específica",      needsDate: true  },
   { tipo: "aum_resumen_fci", label: "Rollup AuMResumenFCI", desc: "Materializa resumen FCI post-backfill",           needsDate: false },
-  { tipo: "carteras",        label: "Sync Carteras",         desc: "Sincroniza posiciones Aunesa → Valuaciones",     needsDate: false },
   { tipo: "cashflow",        label: "CashFlow --today",      desc: "Movimientos del día desde Aunesa",               needsDate: false },
   { tipo: "flujo",           label: "Flujo Contrapartes",    desc: "Operaciones del día por contraparte",            needsDate: false },
   { tipo: "bcra",            label: "BCRA --today",          desc: "Actualiza CER/DOLAR/BADLAR/TAMAR",               needsDate: false },
