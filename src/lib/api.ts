@@ -96,7 +96,18 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   try {
     const res = await fetch(url, init);
     if (!res.ok) {
-      throw new Error(`API error ${res.status}: ${res.statusText}`);
+      // Intento leer detail del cuerpo de error (FastAPI emite {"detail": "..."})
+      // y lo agrego al mensaje. Sin esto, un 400/404 con info útil se ve como
+      // "API error 400: Bad Request" en el frontend.
+      let detail = "";
+      try {
+        const j = await res.json();
+        if (typeof j?.detail === "string") detail = ` — ${j.detail}`;
+        else if (typeof j?.error === "string") detail = ` — ${j.error}`;
+      } catch {
+        /* body no era JSON, ignoramos */
+      }
+      throw new Error(`API error ${res.status}: ${res.statusText}${detail}`);
     }
     return await res.json();
   } catch (e) {
