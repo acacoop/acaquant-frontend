@@ -34,9 +34,13 @@ export function RentaFijaTable({
 
   const tickerCurvaMap: Record<string, string> = {};
   const tickerVtoMap: Record<string, string> = {};
+  const tickerFijadoSet = new Set<string>();
   for (const f of flujos) {
-    tickerCurvaMap[f.ticker] = f.curva;
+    // curva_efectiva mueve los CER fijados a tasa_fija; si no viene
+    // (backend viejo) caemos a la curva original.
+    tickerCurvaMap[f.ticker] = f.curva_efectiva ?? f.curva;
     if (f.fecha_vencimiento) tickerVtoMap[f.ticker] = f.fecha_vencimiento;
+    if (f.cer_fijado) tickerFijadoSet.add(f.ticker);
   }
 
   const teaMap: Record<string, number> = {};
@@ -137,7 +141,17 @@ export function RentaFijaTable({
 
                 return (
                   <tr key={r.instrumento}>
-                    <td className="!px-1 text-[#ff9900]">{short}</td>
+                    <td className="!px-1 text-[#ff9900]">
+                      {short}
+                      {tickerFijadoSet.has(short) && (
+                        <span
+                          className="ml-1 text-[8px] text-[#00cc66] font-semibold"
+                          title="CER de liquidación ya publicado por BCRA — se comporta como tasa fija"
+                        >
+                          FIJ
+                        </span>
+                      )}
+                    </td>
                     <td className="!px-1 text-center text-[#808080] tabular-nums">
                       {fmtMatur(tickerVtoMap[short])}
                     </td>

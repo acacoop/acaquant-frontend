@@ -99,6 +99,13 @@ export interface FairValueHistorico {
 export interface FlujoTicker {
   ticker: string;
   curva: string;
+  /** Curva efectiva: si `cer_fijado=true` se reasigna a 'tasa_fija' para que
+   *  el frontend lo muestre en esa pestaña aunque el `curva` original sea 'cer'. */
+  curva_efectiva?: string;
+  /** True si es un bono CER cuyo CER de liquidación del vto ya fue publicado
+   *  por el BCRA (se comporta como tasa fija). El backend lo computa via
+   *  `_bonos_cer_fijados()` en cada request. */
+  cer_fijado?: boolean;
   fecha_vencimiento?: string;
 }
 
