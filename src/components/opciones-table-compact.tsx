@@ -6,7 +6,15 @@ import type { OpcionDoc } from "@/lib/estrategias";
 
 type Vista = "CALL" | "PUT";
 
-export function OpcionesTableCompact({ data }: { data: OpcionDoc[] }) {
+export function OpcionesTableCompact({
+  data,
+  selectedInstrumento,
+  onSelect,
+}: {
+  data: OpcionDoc[];
+  selectedInstrumento?: string | null;
+  onSelect?: (d: OpcionDoc | null) => void;
+}) {
   const [vista, setVista] = useState<Vista>("CALL");
 
   const spot = data.find((r) => r.spot)?.spot;
@@ -63,8 +71,26 @@ export function OpcionesTableCompact({ data }: { data: OpcionDoc[] }) {
                       ? spot > r.strike
                       : spot < r.strike
                     : false;
+                const isSelected = r.instrumento === selectedInstrumento;
                 return (
-                  <tr key={r.instrumento}>
+                  <tr
+                    key={r.instrumento}
+                    onClick={
+                      onSelect
+                        ? () => onSelect(isSelected ? null : r)
+                        : undefined
+                    }
+                    className={`${
+                      onSelect ? "cursor-pointer" : ""
+                    } ${
+                      isSelected
+                        ? "bg-[#ff9900]/15"
+                        : onSelect
+                        ? "hover:bg-[#1a1a1a]"
+                        : ""
+                    }`}
+                    title={onSelect ? "Click para ver costo histórico" : undefined}
+                  >
                     <td
                       className={`!px-1 ${
                         itm ? "text-[#ff9900] font-semibold" : "text-[#ff9900]"
