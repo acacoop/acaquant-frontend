@@ -170,7 +170,9 @@ export function DerivadosAgroEstrategias({
       }));
   }, [vtoBlock, tipo]);
 
-  // Default strike: el ATM más cercano cuando cambia commodity/vto/tipo.
+  // Default strike: el ATM más cercano CON last_price (priorizamos los que
+  // se pueden simular automáticamente). Fallback al ATM sin importar last
+  // cuando ningún strike tiene precio.
   useEffect(() => {
     if (!vtoBlock || strikesParaTipo.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -178,14 +180,16 @@ export function DerivadosAgroEstrategias({
       return;
     }
     const F = vtoBlock.futuro_last;
+    const conLast = strikesParaTipo.filter((s) => s.prima != null && s.prima > 0);
+    const pool = conLast.length > 0 ? conLast : strikesParaTipo;
     if (F == null) {
        
-      setStrike(strikesParaTipo[0].strike);
+      setStrike(pool[0].strike);
       return;
     }
-    let best = strikesParaTipo[0].strike;
+    let best = pool[0].strike;
     let bestDist = Math.abs(best - F);
-    for (const s of strikesParaTipo) {
+    for (const s of pool) {
       const d = Math.abs(s.strike - F);
       if (d < bestDist) {
         best = s.strike;
@@ -203,7 +207,20 @@ export function DerivadosAgroEstrategias({
     setPrimaOverride("");
   }, [strike, tipo, vencimiento, commodity]);
 
-  // Llamada al simulador.
+  // Strike actualmente seleccionado: ¿tiene last_price? Lo usamos para
+  // decidir si llamar al simulador automáticamente o pedir prima_override.
+  const strikeSeleccionado = useMemo(
+    () => strikesParaTipo.find((s) => s.strike === strike) ?? null,
+    [strikesParaTipo, strike],
+  );
+  const strikeTieneLast =
+    strikeSeleccionado?.prima != null && strikeSeleccionado.prima > 0;
+  const overrideNum = parseFloat(primaOverride);
+  const overrideValido = isFinite(overrideNum) && overrideNum > 0;
+  const puedeSimular = strike != null && (strikeTieneLast || overrideValido);
+
+  // Llamada al simulador. Si el strike no tiene last y no hay override,
+  // limpiamos el sim y mostramos un mensaje pidiendo la prima.
   useEffect(() => {
     if (!vtoBlock || strike == null) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -212,15 +229,21 @@ export function DerivadosAgroEstrategias({
       setSimError(null);
       return;
     }
+    if (!puedeSimular) {
+       
+      setSim(null);
+       
+      setSimError(null);
+      return;
+    }
     let alive = true;
-    const overrideNum = parseFloat(primaOverride);
     const payload: Record<string, unknown> = {
       commodity,
       vencimiento: vtoBlock.vencimiento,
       tipo,
       strike,
     };
-    if (isFinite(overrideNum) && overrideNum > 0) {
+    if (overrideValido) {
       payload.prima_override = overrideNum;
     }
     (async () => {
@@ -255,7 +278,7 @@ export function DerivadosAgroEstrategias({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commodity, vtoBlock?.vencimiento, tipo, strike, primaOverride]);
+  }, [commodity, vtoBlock?.vencimiento, tipo, strike, primaOverride, puedeSimular]);
 
   const ultimoDisplay = lastAt > 0 ? fmtHoraAR(lastAt) : "—";
   const futuro = vtoBlock?.futuro_last ?? null;
@@ -331,6 +354,8 @@ export function DerivadosAgroEstrategias({
               setPrimaOverride={setPrimaOverride}
               sim={sim}
               error={simError}
+              strikeTieneLast={strikeTieneLast}
+              puedeSimular={puedeSimular}
             />
           </Panel>
 
@@ -566,6 +591,8 @@ function SimuladorForm({
   setPrimaOverride,
   sim,
   error,
+  strikeTieneLast,
+  puedeSimular,
 }: {
   tipo: TipoEstrategia;
   setTipo: (t: TipoEstrategia) => void;
@@ -576,6 +603,8 @@ function SimuladorForm({
   setPrimaOverride: (s: string) => void;
   sim: SimResp | null;
   error: string | null;
+  strikeTieneLast: boolean;
+  puedeSimular: boolean;
 }) {
   return (
     <div className="p-3 flex flex-col gap-3">
@@ -641,11 +670,17 @@ function SimuladorForm({
           placeholder={
             sim?.prima != null && !sim.prima_override
               ? `${fmtPx(sim.prima)} (último)`
-              : "(usa último)"
+              : strikeTieneLast
+              ? "(usa último)"
+              : "ingresá prima manual"
           }
           value={primaOverride}
           onChange={(e) => setPrimaOverride(e.target.value)}
-          className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-32"
+          className={`bg-[#0e0e0e] border ${
+            !strikeTieneLast && !primaOverride
+              ? "border-[#ff9900]/60"
+              : "border-[#2a2a2a]"
+          } text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-32`}
         />
         <span className="text-[9px] text-[#555]">USD</span>
       </div>
@@ -657,6 +692,11 @@ function SimuladorForm({
         </div>
       ) : sim ? (
         <ResultCard sim={sim} />
+      ) : !puedeSimular && strike != null ? (
+        <div className="border border-[#ff9900]/30 bg-[#ff9900]/5 px-3 py-2 text-[10px] text-[#ff9900]">
+          El strike seleccionado no tiene precio de último operado. Ingresá una
+          prima manual arriba (podés usar el bid/offer del panel) para simular.
+        </div>
       ) : (
         <div className="text-[10px] text-[#666] italic">Seleccioná un strike…</div>
       )}
