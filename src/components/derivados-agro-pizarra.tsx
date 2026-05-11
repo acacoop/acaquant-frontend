@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Panel, fmtHoraAR } from "./ui";
 import { usePoll } from "@/lib/use-poll";
 
@@ -36,8 +36,6 @@ export interface AgroResp {
   ts: string;
   bloques: AgroBloque[];
 }
-
-const COMMODITIES: Commodity[] = ["TRIGO", "MAIZ", "SOJA"];
 
 function fmtPx(n: number | null | undefined, dec = 2): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
@@ -90,12 +88,12 @@ export function DerivadosAgroPizarra({
   initial,
   canEdit,
   commodity,
-  setCommodity,
+  setHeaderExtras,
 }: {
   initial: AgroResp;
   canEdit: boolean;
   commodity: Commodity;
-  setCommodity: (c: Commodity) => void;
+  setHeaderExtras: (n: ReactNode) => void;
 }) {
   const { data, lastAt } = usePoll<AgroResp>(
     "/api/derivados-agro",
@@ -113,44 +111,27 @@ export function DerivadosAgroPizarra({
     [data.bloques, commodity],
   );
 
-  const counts = useMemo(() => {
-    const m: Record<Commodity, number> = { TRIGO: 0, MAIZ: 0, SOJA: 0 };
-    for (const b of data.bloques) {
-      m[b.commodity] = b.rows.filter((r) => r.tipo === "futuro").length;
-    }
-    return m;
-  }, [data.bloques]);
+  // Inyecto extras (dólar oficial + últ. act) en la fila del shell.
+  useEffect(() => {
+    setHeaderExtras(
+      <>
+        <span className="text-[10px] text-[#808080] tracking-wide">
+          DÓLAR OF
+        </span>
+        <span className="text-[#ff9900] font-mono text-[11px]">
+          {oficial ? fmtArs(oficial) : "—"}
+        </span>
+        <span className="text-[9px] text-[#555]">({oficialSource})</span>
+        <span className="text-[10px] text-[#555] ml-3">
+          ÚLT {ultimoDisplay}
+        </span>
+      </>,
+    );
+    return () => setHeaderExtras(null);
+  }, [oficial, oficialSource, ultimoDisplay, setHeaderExtras]);
 
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex flex-wrap items-center gap-3 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-[#808080] tracking-wide">
-            DÓLAR OFICIAL
-          </span>
-          <span className="text-[#ff9900] font-mono text-[11px]">
-            {oficial ? fmtArs(oficial) : "—"}
-          </span>
-          <span className="text-[9px] text-[#555]">({oficialSource})</span>
-        </div>
-
-        <div className="flex items-center gap-1 ml-3">
-          {COMMODITIES.map((c) => (
-            <CommodityBtn
-              key={c}
-              active={c === commodity}
-              onClick={() => setCommodity(c)}
-            >
-              {c} ({counts[c]})
-            </CommodityBtn>
-          ))}
-        </div>
-
-        <span className="ml-auto text-[10px] text-[#555]">
-          ÚLT. ACT {ultimoDisplay}
-        </span>
-      </div>
-
       <div className="flex-1 min-h-0 overflow-auto">
         <Panel title={`PASE AGRO — ${commodity}`} fill>
           <table className="w-full text-[11px] font-mono">
@@ -195,29 +176,6 @@ export function DerivadosAgroPizarra({
         </Panel>
       </div>
     </div>
-  );
-}
-
-function CommodityBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-[11px] tracking-wide uppercase px-2.5 py-1 border ${
-        active
-          ? "bg-[#ff9900]/10 text-[#ff9900] border-[#ff9900]"
-          : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0] hover:border-[#3a3a3a]"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

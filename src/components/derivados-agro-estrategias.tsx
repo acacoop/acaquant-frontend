@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -64,7 +64,6 @@ interface SimResp {
   ts: string;
 }
 
-const COMMODITIES: Commodity[] = ["TRIGO", "MAIZ", "SOJA"];
 const POLL_MS = 5_000;
 
 function fmtPx(n: number | null | undefined, dec = 2): string {
@@ -91,10 +90,10 @@ function vtoLabel(b: VencimientoBlock): string {
 
 export function DerivadosAgroEstrategias({
   commodity,
-  setCommodity,
+  setHeaderExtras,
 }: {
   commodity: Commodity;
-  setCommodity: (c: Commodity) => void;
+  setHeaderExtras: (n: ReactNode) => void;
 }) {
   const [panel, setPanel] = useState<PanelResp | null>(null);
   const [vencimiento, setVencimiento] = useState<string | null>(null);
@@ -283,55 +282,41 @@ export function DerivadosAgroEstrategias({
   const ultimoDisplay = lastAt > 0 ? fmtHoraAR(lastAt) : "—";
   const futuro = vtoBlock?.futuro_last ?? null;
 
+  // Inyecto extras (VTO selector + futuro + últ. act) en la fila del shell.
+  useEffect(() => {
+    setHeaderExtras(
+      <>
+        <span className="text-[10px] text-[#808080] tracking-wide">VTO</span>
+        <select
+          value={vencimiento ?? ""}
+          onChange={(e) => setVencimiento(e.target.value || null)}
+          disabled={!panel || panel.vencimientos.length === 0}
+          className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+        >
+          {panel?.vencimientos.map((v) => (
+            <option key={v.vencimiento} value={v.vencimiento}>
+              {vtoLabel(v)} — {fmtFecha(v.vencimiento)}
+            </option>
+          ))}
+        </select>
+        <span className="text-[10px] text-[#808080] tracking-wide ml-2">FUT</span>
+        <span className="text-[#ff9900] font-mono text-[11px]">{fmtPx(futuro)}</span>
+        {vtoBlock?.dias_a_vto != null && (
+          <span className="text-[9px] text-[#555]">({vtoBlock.dias_a_vto}d)</span>
+        )}
+        <span className="text-[10px] text-[#555] ml-3">
+          {loadingPanel ? "CARGANDO…" : `ÚLT ${ultimoDisplay}`}
+        </span>
+      </>,
+    );
+    return () => setHeaderExtras(null);
+  }, [
+    vencimiento, panel, futuro, vtoBlock?.dias_a_vto,
+    loadingPanel, ultimoDisplay, setHeaderExtras,
+  ]);
+
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
-      {/* Header: commodity + vencimiento selectors */}
-      <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex flex-wrap items-center gap-3 shrink-0">
-        <div className="flex items-center gap-1">
-          {COMMODITIES.map((c) => (
-            <CommodityBtn
-              key={c}
-              active={c === commodity}
-              onClick={() => setCommodity(c)}
-            >
-              {c}
-            </CommodityBtn>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-1.5 ml-3">
-          <span className="text-[10px] text-[#808080] tracking-wide">VTO</span>
-          <select
-            value={vencimiento ?? ""}
-            onChange={(e) => setVencimiento(e.target.value || null)}
-            disabled={!panel || panel.vencimientos.length === 0}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
-          >
-            {panel?.vencimientos.map((v) => (
-              <option key={v.vencimiento} value={v.vencimiento}>
-                {vtoLabel(v)} — {fmtFecha(v.vencimiento)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex items-center gap-1.5 ml-3">
-          <span className="text-[10px] text-[#808080] tracking-wide">FUTURO</span>
-          <span className="text-[#ff9900] font-mono text-[11px]">
-            {fmtPx(futuro)}
-          </span>
-          {vtoBlock?.dias_a_vto && (
-            <span className="text-[9px] text-[#555]">
-              ({vtoBlock.dias_a_vto}d)
-            </span>
-          )}
-        </div>
-
-        <span className="ml-auto text-[10px] text-[#555]">
-          {loadingPanel ? "CARGANDO…" : `ÚLT. ACT ${ultimoDisplay}`}
-        </span>
-      </div>
-
       {/* Main content: panel + simulador lado a lado */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-3">
         {/* Panel de opciones */}
@@ -362,7 +347,7 @@ export function DerivadosAgroEstrategias({
           {sim && (
             <>
               <Panel title="ESTRATEGIA VS FUTURO">
-                <div className="w-full h-[260px] py-2">
+                <div className="w-full h-[200px] py-1">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={sim.curva_estrategia}
@@ -427,7 +412,7 @@ export function DerivadosAgroEstrategias({
               </Panel>
 
               <Panel title="DIFERENCIAS (margin calls)">
-                <div className="w-full h-[200px] py-2">
+                <div className="w-full h-[150px] py-1">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={sim.curva_diferencias}
@@ -469,29 +454,6 @@ export function DerivadosAgroEstrategias({
         </div>
       </div>
     </div>
-  );
-}
-
-function CommodityBtn({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-[11px] tracking-wide uppercase px-2.5 py-1 border ${
-        active
-          ? "bg-[#ff9900]/10 text-[#ff9900] border-[#ff9900]"
-          : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0] hover:border-[#3a3a3a]"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -607,95 +569,87 @@ function SimuladorForm({
   puedeSimular: boolean;
 }) {
   return (
-    <div className="p-3 flex flex-col gap-3">
-      {/* Tipo */}
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-[#808080] uppercase tracking-wide w-16">
-          Tipo
-        </span>
-        <div className="flex gap-1">
+    <div className="p-2 flex flex-col gap-2">
+      {/* Una sola fila horizontal: Tipo + Strike + Prima */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-0.5">
           <button
             onClick={() => setTipo("put_sintetico")}
-            className={`text-[10px] tracking-wide uppercase px-2.5 py-1 border ${
+            className={`text-[10px] tracking-wide uppercase px-2 py-1 border ${
               tipo === "put_sintetico"
                 ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
                 : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0]"
             }`}
+            title="Vender futuro + Comprar call"
           >
-            Put sintético
+            Put sint.
           </button>
           <button
             onClick={() => setTipo("long_put")}
-            className={`text-[10px] tracking-wide uppercase px-2.5 py-1 border ${
+            className={`text-[10px] tracking-wide uppercase px-2 py-1 border ${
               tipo === "long_put"
                 ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
                 : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0]"
             }`}
+            title="Comprar put"
           >
-            Compra de put
+            Long put
           </button>
         </div>
-      </div>
 
-      {/* Strike */}
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-[#808080] uppercase tracking-wide w-16">
-          Strike
-        </span>
-        <select
-          value={strike ?? ""}
-          onChange={(e) =>
-            setStrike(e.target.value ? Number(e.target.value) : null)
-          }
-          disabled={strikes.length === 0}
-          className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none min-w-[120px]"
-        >
-          {strikes.map((s) => (
-            <option key={s.strike} value={s.strike}>
-              {s.strike} {s.prima != null ? `(${fmtPx(s.prima)})` : "(—)"}
-            </option>
-          ))}
-        </select>
-      </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] text-[#808080] uppercase">K</span>
+          <select
+            value={strike ?? ""}
+            onChange={(e) =>
+              setStrike(e.target.value ? Number(e.target.value) : null)
+            }
+            disabled={strikes.length === 0}
+            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+          >
+            {strikes.map((s) => (
+              <option key={s.strike} value={s.strike}>
+                {s.strike} {s.prima != null ? `(${fmtPx(s.prima)})` : "(—)"}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      {/* Prima override */}
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] text-[#808080] uppercase tracking-wide w-16">
-          Prima
-        </span>
-        <input
-          type="number"
-          step="0.01"
-          min="0"
-          placeholder={
-            sim?.prima != null && !sim.prima_override
-              ? `${fmtPx(sim.prima)} (último)`
-              : strikeTieneLast
-              ? "(usa último)"
-              : "ingresá prima manual"
-          }
-          value={primaOverride}
-          onChange={(e) => setPrimaOverride(e.target.value)}
-          className={`bg-[#0e0e0e] border ${
-            !strikeTieneLast && !primaOverride
-              ? "border-[#ff9900]/60"
-              : "border-[#2a2a2a]"
-          } text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-32`}
-        />
-        <span className="text-[9px] text-[#555]">USD</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] text-[#808080] uppercase">Prima</span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder={
+              sim?.prima != null && !sim.prima_override
+                ? `${fmtPx(sim.prima)}`
+                : strikeTieneLast
+                ? "(último)"
+                : "manual"
+            }
+            value={primaOverride}
+            onChange={(e) => setPrimaOverride(e.target.value)}
+            className={`bg-[#0e0e0e] border ${
+              !strikeTieneLast && !primaOverride
+                ? "border-[#ff9900]/60"
+                : "border-[#2a2a2a]"
+            } text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-20`}
+          />
+          <span className="text-[9px] text-[#555]">USD</span>
+        </div>
       </div>
 
       {/* Resultado */}
       {error ? (
-        <div className="border border-[#f87171]/30 bg-[#f87171]/5 px-3 py-2 text-[10px] text-[#f87171]">
+        <div className="border border-[#f87171]/30 bg-[#f87171]/5 px-2 py-1.5 text-[10px] text-[#f87171]">
           {error}
         </div>
       ) : sim ? (
         <ResultCard sim={sim} />
       ) : !puedeSimular && strike != null ? (
-        <div className="border border-[#ff9900]/30 bg-[#ff9900]/5 px-3 py-2 text-[10px] text-[#ff9900]">
-          El strike seleccionado no tiene precio de último operado. Ingresá una
-          prima manual arriba (podés usar el bid/offer del panel) para simular.
+        <div className="border border-[#ff9900]/30 bg-[#ff9900]/5 px-2 py-1.5 text-[10px] text-[#ff9900]">
+          Strike sin último operado — ingresá prima manual (bid/offer del panel).
         </div>
       ) : (
         <div className="text-[10px] text-[#666] italic">Seleccioná un strike…</div>
