@@ -317,8 +317,8 @@ export function DerivadosAgroEstrategias({
 
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
-      {/* Main content: panel + simulador lado a lado */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-3">
+      {/* Layout: izquierda panel opciones (full height), derecha simulador compacto arriba + gráficos lado a lado abajo */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-3">
         {/* Panel de opciones */}
         <div className="min-h-0 overflow-auto">
           <Panel title={`PANEL DE OPCIONES — ${commodity}`} fill>
@@ -326,9 +326,10 @@ export function DerivadosAgroEstrategias({
           </Panel>
         </div>
 
-        {/* Simulador */}
-        <div className="min-h-0 overflow-auto flex flex-col gap-3">
-          <Panel title="SIMULADOR DE ESTRATEGIA" fill>
+        {/* Simulador + gráficos */}
+        <div className="min-h-0 flex flex-col gap-3">
+          {/* Tira compacta: form + KPIs inline */}
+          <div className="border border-[#1a1a1a] bg-[#080808] p-2 flex flex-col gap-1.5 shrink-0">
             <SimuladorForm
               tipo={tipo}
               setTipo={setTipo}
@@ -342,12 +343,12 @@ export function DerivadosAgroEstrategias({
               strikeTieneLast={strikeTieneLast}
               puedeSimular={puedeSimular}
             />
-          </Panel>
+          </div>
 
           {sim && (
-            <>
-              <Panel title="ESTRATEGIA VS FUTURO">
-                <div className="w-full h-[200px] py-1">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <Panel title="ESTRATEGIA VS FUTURO" fill>
+                <div className="w-full h-full min-h-[180px] py-1">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={sim.curva_estrategia}
@@ -411,8 +412,8 @@ export function DerivadosAgroEstrategias({
                 </div>
               </Panel>
 
-              <Panel title="DIFERENCIAS (margin calls)">
-                <div className="w-full h-[150px] py-1">
+              <Panel title="DIFERENCIAS (margin calls)" fill>
+                <div className="w-full h-full min-h-[180px] py-1">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={sim.curva_diferencias}
@@ -449,7 +450,7 @@ export function DerivadosAgroEstrategias({
                   </ResponsiveContainer>
                 </div>
               </Panel>
-            </>
+            </div>
           )}
         </div>
       </div>
@@ -660,32 +661,28 @@ function SimuladorForm({
 
 function ResultCard({ sim }: { sim: SimResp }) {
   return (
-    <div className="grid grid-cols-2 gap-2 mt-1">
-      <Kpi
-        label="Piso (mín. asegurado)"
-        value={`USD ${fmtPx(sim.piso)}`}
-        color="#4ade80"
-      />
-      <Kpi
-        label="Prima"
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono">
+      <KpiInline label="PISO" value={`USD ${fmtPx(sim.piso)}`} color="#4ade80" />
+      <KpiInline
+        label="PRIMA"
         value={`USD ${fmtPx(sim.prima)}`}
+        sub={sim.prima_override ? "manual" : "últ"}
         color="#a0a0a0"
-        sub={sim.prima_override ? "manual" : "último"}
       />
-      <Kpi
-        label="Diferencia máxima"
+      <KpiInline
+        label="DIF MAX"
         value={
           sim.diferencia_max > 0
             ? `USD ${fmtPx(sim.diferencia_max)}`
-            : "0 (no genera)"
+            : "0"
         }
         color={sim.diferencia_max > 0 ? "#f87171" : "#4ade80"}
       />
-      <Kpi
-        label="Zona expuesta"
+      <KpiInline
+        label="ZONA"
         value={
           sim.zona_expuesta
-            ? `${fmtPx(sim.zona_expuesta.desde)} → ${fmtPx(sim.zona_expuesta.hasta)}`
+            ? `${fmtPx(sim.zona_expuesta.desde)}→${fmtPx(sim.zona_expuesta.hasta)}`
             : "—"
         }
         color="#a0a0a0"
@@ -694,7 +691,7 @@ function ResultCard({ sim }: { sim: SimResp }) {
   );
 }
 
-function Kpi({
+function KpiInline({
   label,
   value,
   color,
@@ -706,14 +703,14 @@ function Kpi({
   sub?: string;
 }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1.5">
-      <div className="text-[9px] text-[#808080] uppercase tracking-wide">
+    <div className="flex items-baseline gap-1">
+      <span className="text-[9px] text-[#808080] uppercase tracking-wide">
         {label}
-      </div>
-      <div className="font-mono text-[12px] font-semibold" style={{ color }}>
+      </span>
+      <span className="font-semibold" style={{ color }}>
         {value}
-      </div>
-      {sub && <div className="text-[8px] text-[#555]">{sub}</div>}
+      </span>
+      {sub && <span className="text-[8px] text-[#555]">({sub})</span>}
     </div>
   );
 }
