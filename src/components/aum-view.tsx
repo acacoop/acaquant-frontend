@@ -1563,8 +1563,8 @@ function CuentaCombobox({
     );
   }, [cuentas, search]);
 
-  // Click afuera cierra. Usamos un ref por si seguís en el dropdown.
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -1575,6 +1575,14 @@ function CuentaCombobox({
     };
     window.addEventListener("mousedown", handler);
     return () => window.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  // Al abrir, scrolleamos la cuenta seleccionada al centro del dropdown
+  // para que el user la vea sin tener que buscar en una lista larga.
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const sel = listRef.current.querySelector('[data-selected="true"]');
+    if (sel) sel.scrollIntoView({ block: "center" });
   }, [open]);
 
   const select = (id: string) => {
@@ -1604,35 +1612,52 @@ function CuentaCombobox({
     <div ref={wrapRef} className="relative min-w-[320px]">
       <input
         type="text"
+        // Si el dropdown está abierto, mostramos lo que el user tipea
+        // (puede estar vacío); si está cerrado, mostramos la cuenta
+        // seleccionada como label.
         value={open ? search : display}
-        onFocus={(e) => {
-          // Pre-cargamos el display como search → el user ve la cuenta
-          // actual seleccionada (con todo el texto highlighted, listo
-          // para reemplazar tipeando). Antes el input quedaba en blanco
-          // y se perdía el contexto.
-          setSearch(display);
+        onFocus={() => {
+          // Abrimos con la lista COMPLETA visible (search vacío).
+          // Pre-highlight de la cuenta actual para que ArrowUp/Down
+          // arranquen desde ahí, y el efecto de scrollIntoView la
+          // centra automáticamente.
+          setSearch("");
+          setOpen(true);
+          const idx = cuentas.findIndex((c) => c.id_cuenta === value);
+          setHighlighted(idx >= 0 ? idx : 0);
+        }}
+        onChange={(e) => {
+          setSearch(e.target.value);
           setOpen(true);
           setHighlighted(0);
-          requestAnimationFrame(() => e.target.select());
         }}
-        onChange={(e) => { setSearch(e.target.value); setOpen(true); setHighlighted(0); }}
         onKeyDown={handleKey}
-        placeholder={cuentas.length === 0 ? "— sin cuentas —" : "Buscar cuenta…"}
+        placeholder={
+          cuentas.length === 0
+            ? "— sin cuentas —"
+            : open
+              ? "Tipeá para filtrar o scrolleá la lista…"
+              : "Seleccionar cuenta"
+        }
         className="w-full bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
       />
       {open && filtered.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-[280px] overflow-auto bg-[#080808] border border-[#2a2a2a] shadow-lg">
+        <ul
+          ref={listRef}
+          className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-[280px] overflow-auto bg-[#080808] border border-[#2a2a2a] shadow-lg"
+        >
           {filtered.map((c, i) => {
             const isSel = c.id_cuenta === value;
             const isHi = i === highlighted;
             return (
               <li
                 key={c.id_cuenta}
+                data-selected={isSel || undefined}
                 onMouseEnter={() => setHighlighted(i)}
                 onMouseDown={(e) => { e.preventDefault(); select(c.id_cuenta); }}
                 className={`px-2 py-1 text-[10px] font-mono cursor-pointer ${
                   isSel
-                    ? "text-[#ff9900]"
+                    ? "text-[#ff9900] bg-[#ff9900]/10"
                     : isHi
                       ? "bg-[#ff9900]/10 text-[#d0d0d0]"
                       : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
