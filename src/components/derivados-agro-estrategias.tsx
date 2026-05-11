@@ -104,6 +104,9 @@ export function DerivadosAgroEstrategias({
   const [simError, setSimError] = useState<string | null>(null);
   const [loadingPanel, setLoadingPanel] = useState(false);
   const [lastAt, setLastAt] = useState<number>(0);
+  const [chartView, setChartView] = useState<"estrategia" | "diferencias">(
+    "estrategia",
+  );
 
   // Carga + polling del panel de opciones por commodity.
   useEffect(() => {
@@ -321,7 +324,7 @@ export function DerivadosAgroEstrategias({
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-3">
         {/* Panel de opciones */}
         <div className="min-h-0 overflow-auto">
-          <Panel title={`PANEL DE OPCIONES — ${commodity}`} fill>
+          <Panel title={`PANEL DE OPCIONES — ${commodity}`} fill expandable>
             <PanelOpciones block={vtoBlock} futuro={futuro} />
           </Panel>
         </div>
@@ -346,107 +349,131 @@ export function DerivadosAgroEstrategias({
           </div>
 
           {sim && (
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <Panel title="ESTRATEGIA VS FUTURO" fill>
-                <div className="w-full h-full min-h-[180px] py-1">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={sim.curva_estrategia}
-                      margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
+            <div className="flex-1 min-h-0">
+              <Panel
+                title={
+                  chartView === "estrategia"
+                    ? "ESTRATEGIA VS FUTURO"
+                    : "DIFERENCIAS (margin calls)"
+                }
+                fill
+                expandable
+                actions={
+                  <div className="flex gap-0.5">
+                    <ChartToggleBtn
+                      active={chartView === "estrategia"}
+                      onClick={() => setChartView("estrategia")}
                     >
-                      <CartesianGrid stroke="#1a1a1a" />
-                      <XAxis
-                        dataKey="x"
-                        tick={{ fill: "#666", fontSize: 10 }}
-                        stroke="#2a2a2a"
-                      />
-                      <YAxis
-                        tick={{ fill: "#666", fontSize: 10 }}
-                        stroke="#2a2a2a"
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#080808",
-                          border: "1px solid #2a2a2a",
-                          fontSize: 11,
-                        }}
-                        labelFormatter={(v) => `Futuro: ${fmtPx(Number(v))}`}
-                        formatter={(v, name) => [
-                          fmtPx(Number(v)),
-                          name === "estrategia" ? "Estrategia" : "Futuro",
-                        ]}
-                      />
-                      <Legend
-                        wrapperStyle={{ fontSize: 10, color: "#a0a0a0" }}
-                      />
-                      <ReferenceLine
-                        y={sim.piso}
-                        stroke="#4ade80"
-                        strokeDasharray="3 3"
-                        label={{
-                          value: `Piso ${fmtPx(sim.piso)}`,
-                          fill: "#4ade80",
-                          fontSize: 10,
-                          position: "insideTopLeft",
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="estrategia"
-                        stroke="#3b82f6"
-                        strokeWidth={2}
-                        dot={false}
-                        name="estrategia"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="futuro"
-                        stroke="#f87171"
-                        strokeWidth={1.5}
-                        strokeDasharray="4 3"
-                        dot={false}
-                        name="futuro"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </Panel>
-
-              <Panel title="DIFERENCIAS (margin calls)" fill>
-                <div className="w-full h-full min-h-[180px] py-1">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={sim.curva_diferencias}
-                      margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
+                      Estrategia
+                    </ChartToggleBtn>
+                    <ChartToggleBtn
+                      active={chartView === "diferencias"}
+                      onClick={() => setChartView("diferencias")}
                     >
-                      <CartesianGrid stroke="#1a1a1a" />
-                      <XAxis
-                        dataKey="x"
-                        tick={{ fill: "#666", fontSize: 10 }}
-                        stroke="#2a2a2a"
-                      />
-                      <YAxis
-                        tick={{ fill: "#666", fontSize: 10 }}
-                        stroke="#2a2a2a"
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#080808",
-                          border: "1px solid #2a2a2a",
-                          fontSize: 11,
-                        }}
-                        labelFormatter={(v) => `Futuro: ${fmtPx(Number(v))}`}
-                        formatter={(v) => [fmtPx(Number(v)), "Diferencia"]}
-                      />
-                      <ReferenceLine y={0} stroke="#555" />
-                      <Line
-                        type="monotone"
-                        dataKey="diferencia"
-                        stroke="#3b82f6"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
+                      Diferencias
+                    </ChartToggleBtn>
+                  </div>
+                }
+              >
+                <div className="w-full h-full min-h-[220px] py-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    {chartView === "estrategia" ? (
+                      <LineChart
+                        data={sim.curva_estrategia}
+                        margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
+                      >
+                        <CartesianGrid stroke="#1a1a1a" />
+                        <XAxis
+                          dataKey="x"
+                          tick={{ fill: "#666", fontSize: 10 }}
+                          stroke="#2a2a2a"
+                        />
+                        <YAxis
+                          tick={{ fill: "#666", fontSize: 10 }}
+                          stroke="#2a2a2a"
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "#080808",
+                            border: "1px solid #2a2a2a",
+                            fontSize: 11,
+                          }}
+                          labelFormatter={(v) =>
+                            `Futuro: ${fmtPx(Number(v))}`
+                          }
+                          formatter={(v, name) => [
+                            fmtPx(Number(v)),
+                            name === "estrategia" ? "Estrategia" : "Futuro",
+                          ]}
+                        />
+                        <Legend
+                          wrapperStyle={{ fontSize: 10, color: "#a0a0a0" }}
+                        />
+                        <ReferenceLine
+                          y={sim.piso}
+                          stroke="#4ade80"
+                          strokeDasharray="3 3"
+                          label={{
+                            value: `Piso ${fmtPx(sim.piso)}`,
+                            fill: "#4ade80",
+                            fontSize: 10,
+                            position: "insideTopLeft",
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="estrategia"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={false}
+                          name="estrategia"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="futuro"
+                          stroke="#f87171"
+                          strokeWidth={1.5}
+                          strokeDasharray="4 3"
+                          dot={false}
+                          name="futuro"
+                        />
+                      </LineChart>
+                    ) : (
+                      <LineChart
+                        data={sim.curva_diferencias}
+                        margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
+                      >
+                        <CartesianGrid stroke="#1a1a1a" />
+                        <XAxis
+                          dataKey="x"
+                          tick={{ fill: "#666", fontSize: 10 }}
+                          stroke="#2a2a2a"
+                        />
+                        <YAxis
+                          tick={{ fill: "#666", fontSize: 10 }}
+                          stroke="#2a2a2a"
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "#080808",
+                            border: "1px solid #2a2a2a",
+                            fontSize: 11,
+                          }}
+                          labelFormatter={(v) =>
+                            `Futuro: ${fmtPx(Number(v))}`
+                          }
+                          formatter={(v) => [fmtPx(Number(v)), "Diferencia"]}
+                        />
+                        <ReferenceLine y={0} stroke="#555" />
+                        <Line
+                          type="monotone"
+                          dataKey="diferencia"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    )}
                   </ResponsiveContainer>
                 </div>
               </Panel>
@@ -455,6 +482,29 @@ export function DerivadosAgroEstrategias({
         </div>
       </div>
     </div>
+  );
+}
+
+function ChartToggleBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-[9px] tracking-wide uppercase px-1.5 py-0.5 border ${
+        active
+          ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
+          : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
