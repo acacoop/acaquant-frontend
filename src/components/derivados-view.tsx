@@ -58,12 +58,29 @@ export function DerivadosView({
 
   const [strike, setStrike] = useState<number | null>(null);
   const [categoria, setCategoria] = useState("Cono / Cuna");
-  const [selected, setSelected] = useState(0);
-  const [detalleTab, setDetalleTab] = useState<DetalleTab>("payoff");
-  // Contrato individual seleccionado en la tabla OPCIONES GGAL (call/put único).
-  // Solo afecta la vista HISTORICO: si hay opción seleccionada, se muestra su
-  // serie de precios en vez del costo histórico de la estrategia.
+  // Selección mutuamente excluyente: o hay una estrategia seleccionada
+  // (`selected` ≠ null) o un contrato individual (`selectedOpcion` ≠ null),
+  // nunca las dos a la vez. La default al primer render es la estrategia
+  // ATM (selected=0); clickear un contrato la limpia, y clickear una
+  // estrategia limpia el contrato.
+  const [selected, setSelected] = useState<number | null>(0);
   const [selectedOpcion, setSelectedOpcion] = useState<OpcionDoc | null>(null);
+  const [detalleTab, setDetalleTab] = useState<DetalleTab>("payoff");
+
+  function pickStrategy(i: number) {
+    setSelected(i);
+    setSelectedOpcion(null);
+  }
+
+  function pickOpcion(d: OpcionDoc | null) {
+    setSelectedOpcion(d);
+    if (d) {
+      setSelected(null);
+      // El contrato individual sólo tiene sentido en COSTO HIST.;
+      // saltamos automático para que el feedback sea inmediato.
+      if (detalleTab !== "historico") setDetalleTab("historico");
+    }
+  }
 
   const spot = useMemo(
     () => docs.find((d) => (d.spot || 0) > 0)?.spot || 0,
@@ -102,7 +119,9 @@ export function DerivadosView({
 
   // Clamp la selección del usuario al rango actual; si la fila elegida quedó
   // sin liquidez o se cambió de categoría, caemos a la primera válida.
-  const effectiveSelected = useMemo(() => {
+  // `null` = no hay estrategia activa (porque el user clickeó un contrato).
+  const effectiveSelected = useMemo<number | null>(() => {
+    if (selected == null) return null;
     if (
       selected >= 0 &&
       selected < rows.length &&
@@ -111,10 +130,10 @@ export function DerivadosView({
       return selected;
     }
     const firstValid = rows.findIndex((r) => r.costo !== null);
-    return firstValid >= 0 ? firstValid : 0;
+    return firstValid >= 0 ? firstValid : null;
   }, [rows, selected]);
 
-  const selRow = rows[effectiveSelected];
+  const selRow = effectiveSelected != null ? rows[effectiveSelected] : undefined;
   const selLegs = selRow?.legs ?? [];
   const selCosto = selRow?.costo ?? 0;
 
@@ -194,12 +213,7 @@ export function DerivadosView({
             <OpcionesTableCompact
               data={docs}
               selectedInstrumento={selectedOpcion?.instrumento ?? null}
-              onSelect={(d) => {
-                setSelectedOpcion(d);
-                // Si se elige una opción individual y el tab actual no es
-                // histórico, cambiamos para que el feedback sea inmediato.
-                if (d && detalleTab !== "historico") setDetalleTab("historico");
-              }}
+              onSelect={pickOpcion}
             />
           </Panel>
           <Panel title="ESTRATEGIAS" fill expandable>
@@ -211,8 +225,8 @@ export function DerivadosView({
               setStrike={setStrike}
               categoria={categoria}
               setCategoria={setCategoria}
-              selected={effectiveSelected}
-              setSelected={setSelected}
+              selected={effectiveSelected ?? -1}
+              setSelected={pickStrategy}
             />
           </Panel>
         </div>
@@ -255,7 +269,13 @@ export function DerivadosView({
             }
           >
             {detalleTab === "payoff" ? (
-              !selRow || !selLegs.length ? (
+              selectedOpcion ? (
+                <p className="text-[#555555] text-xs py-4 text-center">
+                  Hay un contrato individual seleccionado — PAYOFF solo aplica a estrategias.
+                  <br />
+                  Click en una fila de ESTRATEGIAS para volver al payoff.
+                </p>
+              ) : !selRow || !selLegs.length ? (
                 <p className="text-[#555555] text-xs py-4 text-center">
                   Seleccioná una estrategia con liquidez para ver el payoff.
                 </p>
@@ -263,7 +283,13 @@ export function DerivadosView({
                 <PayoffChart legs={selLegs} spot={spot} costo={selCosto || 0} />
               )
             ) : detalleTab === "escenarios" ? (
-              !selRow || !selLegs.length ? (
+              selectedOpcion ? (
+                <p className="text-[#555555] text-xs py-4 text-center">
+                  Hay un contrato individual seleccionado — ESCENARIOS solo aplica a estrategias.
+                  <br />
+                  Click en una fila de ESTRATEGIAS para volver a escenarios.
+                </p>
+              ) : !selRow || !selLegs.length ? (
                 <p className="text-[#555555] text-xs py-4 text-center">
                   Seleccioná una estrategia con liquidez para ver escenarios.
                 </p>
@@ -304,13 +330,17 @@ function buildDetalleTitle(
   selCosto: number,
   selectedOpcion: OpcionDoc | null,
 ): string {
-  if (tab === "historico" && selectedOpcion) {
-    return `COSTO HIST. — ${shortTicker(selectedOpcion.instrumento)}`;
-  }
-  if (!selRow) return tab === "historico" ? "COSTO HIST." : "DETALLE";
-  const sign = (selCosto || 0) > 0 ? "DEBIT" : "CREDIT";
   const tag =
     tab === "historico" ? "COSTO HIST." : tab === "escenarios" ? "ESCENARIOS" : "PAYOFF";
+  if (selectedOpcion) {
+    if (tab === "historico") {
+      return `COSTO HIST. — ${shortTicker(selectedOpcion.instrumento)}`;
+    }
+    // Payoff / Escenarios no aplican a un contrato individual.
+    return tag;
+  }
+  if (!selRow) return tag;
+  const sign = (selCosto || 0) > 0 ? "DEBIT" : "CREDIT";
   return `${tag} — ${selRow.nombre} (${sign} $${Math.abs(selCosto || 0).toFixed(2)})`;
 }
 
