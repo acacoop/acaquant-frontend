@@ -7,14 +7,15 @@ import { usePathname } from "next/navigation";
 // module coincide con core/roles.py::MODULES en el backend. Link visible
 // si el user tiene ese módulo en /api/me.modules.
 const NAV_LINKS: { href: string; label: string; module: string }[] = [
-  { href: "/",           label: "HOME",        module: "home" },
-  { href: "/renta-fija", label: "RENTA FIJA",  module: "renta-fija" },
-  { href: "/derivados",  label: "DERIVADOS",   module: "derivados" },
-  { href: "/retorno",    label: "ESTRATEGIA",  module: "estrategia" },
-  { href: "/operar",     label: "OPERAR",      module: "operar" },
-  { href: "/operaciones",label: "OPERACIONES", module: "operaciones" },
-  { href: "/aum",        label: "AUM",         module: "portfolios" },
-  { href: "/manager",    label: "MANAGER",     module: "manager" },
+  { href: "/",                label: "HOME",          module: "home" },
+  { href: "/renta-fija",      label: "RENTA FIJA",    module: "renta-fija" },
+  { href: "/derivados",       label: "DERIVADOS",     module: "derivados" },
+  { href: "/renta-variable",  label: "RENTA VARIABLE",module: "renta-variable" },
+  { href: "/retorno",         label: "ESTRATEGIA",    module: "estrategia" },
+  { href: "/operar",          label: "OPERAR",        module: "operar" },
+  { href: "/operaciones",     label: "OPERACIONES",   module: "operaciones" },
+  { href: "/aum",             label: "AUM",           module: "portfolios" },
+  { href: "/manager",         label: "MANAGER",       module: "manager" },
 ];
 
 export function Header({ modules = null }: { modules?: string[] | null }) {
