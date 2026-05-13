@@ -54,6 +54,8 @@ export default async function Home() {
   const allFlujos: FlujoTicker[] = flujos.map((f) => ({
     ticker: f.ticker,
     curva: f.curva,
+    curva_efectiva: f.curva_efectiva,
+    cer_fijado: f.cer_fijado,
     fecha_vencimiento: f.fecha_vencimiento,
   }));
 
