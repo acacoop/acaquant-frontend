@@ -170,12 +170,18 @@ function ReturnsHistogram({ data }: { data: TickerReturns | null }) {
   }
 
   const W = 480;
-  const H = 200;
-  const padding = { top: 10, right: 10, bottom: 30, left: 30 };
+  const H = 220;
+  const padding = { top: 10, right: 10, bottom: 28, left: 30 };
   const innerW = W - padding.left - padding.right;
   const innerH = H - padding.top - padding.bottom;
   const maxCount = Math.max(...bins.bins.map((b) => b.count));
   const barW = innerW / bins.bins.length;
+
+  // Ticks "redondos" del eje X — 6 valores aprox. equiespaciados a múltiplos
+  // de 1%, 2% o 5% según el rango. Mejor que solo min/max en las puntas.
+  const xTicks = niceTicks(bins.min, bins.max, 6);
+  const xScale = (v: number) =>
+    padding.left + ((v - bins.min) / (bins.max - bins.min)) * innerW;
 
   // Posición del último retorno en X (escala lineal sobre el rango).
   const lastRet = data.last_return;
@@ -202,11 +208,11 @@ function ReturnsHistogram({ data }: { data: TickerReturns | null }) {
       : null;
 
   return (
-    <div className="h-full flex flex-col min-h-0 text-[10px]">
-      <div className="flex-1 min-h-0 overflow-y-auto">
+    <div className="h-full flex flex-row min-h-0 text-[10px] gap-3 items-stretch">
+      <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center">
         <svg
           viewBox={`0 0 ${W} ${H}`}
-          className="w-full h-auto"
+          className="w-full max-h-full h-auto"
           preserveAspectRatio="xMidYMid meet"
         >
           {/* Eje X (línea base) */}
@@ -283,45 +289,73 @@ function ReturnsHistogram({ data }: { data: TickerReturns | null }) {
             </>
           )}
 
-          {/* Etiquetas X */}
-          <text
-            x={padding.left}
-            y={H - 8}
-            fill="#888888"
-            fontSize={9}
-            textAnchor="start"
-          >
-            {(bins.min * 100).toFixed(1)}%
-          </text>
-          <text
-            x={W - padding.right}
-            y={H - 8}
-            fill="#888888"
-            fontSize={9}
-            textAnchor="end"
-          >
-            {(bins.max * 100).toFixed(1)}%
-          </text>
+          {/* Eje X — múltiples ticks "redondos" + grid suave */}
+          {xTicks.map((tv) => {
+            const tx = xScale(tv);
+            return (
+              <g key={tv}>
+                <line
+                  x1={tx}
+                  x2={tx}
+                  y1={H - padding.bottom}
+                  y2={H - padding.bottom + 3}
+                  stroke="#555555"
+                  strokeWidth={1}
+                />
+                <text
+                  x={tx}
+                  y={H - padding.bottom + 12}
+                  fill="#888888"
+                  fontSize={9}
+                  textAnchor="middle"
+                >
+                  {(tv * 100).toFixed(tv === 0 ? 0 : Math.abs(tv) < 0.01 ? 2 : 1)}%
+                </text>
+              </g>
+            );
+          })}
         </svg>
+      </div>
 
-        {/* Stats al pie */}
-        <div className="grid grid-cols-3 gap-2 mt-2 text-[10px]">
-          <Stat label="N" value={data.returns.length.toString()} />
-          <Stat label="μ (diario)" value={`${(mean * 100).toFixed(3)}%`} />
-          <Stat label="σ (diario)" value={`${(std * 100).toFixed(2)}%`} />
-          {pctRank !== null && (
-            <Stat
-              label="HOY percentil"
-              value={`${pctRank.toFixed(0)}%`}
-              accent="orange"
-            />
-          )}
-          <Stat label="MIN" value={`${(bins.min * 100).toFixed(2)}%`} accent="red" />
-          <Stat label="MAX" value={`${(bins.max * 100).toFixed(2)}%`} accent="green" />
-        </div>
+      {/* Stats al costado derecho — una fila por stat, sin scroll. */}
+      <div className="w-[100px] shrink-0 flex flex-col gap-1.5 text-[10px] pl-1">
+        <Stat label="N" value={data.returns.length.toString()} />
+        <Stat label="μ (diario)" value={`${(mean * 100).toFixed(3)}%`} />
+        <Stat label="σ (diario)" value={`${(std * 100).toFixed(2)}%`} />
+        {pctRank !== null && (
+          <Stat
+            label="HOY percentil"
+            value={`${pctRank.toFixed(0)}%`}
+            accent="orange"
+          />
+        )}
+        <Stat label="MIN" value={`${(bins.min * 100).toFixed(2)}%`} accent="red" />
+        <Stat label="MAX" value={`${(bins.max * 100).toFixed(2)}%`} accent="green" />
       </div>
     </div>
   );
+}
+
+// "Nice" ticks: valores redondos a múltiplos de 1%, 2% o 5% según rango.
+function niceTicks(min: number, max: number, target: number): number[] {
+  const range = max - min;
+  if (range <= 0) return [];
+  const rough = range / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const norm = rough / mag;
+  let nice: number;
+  if (norm < 1.5)      nice = 1;
+  else if (norm < 3)   nice = 2;
+  else if (norm < 7)   nice = 5;
+  else                 nice = 10;
+  const step = nice * mag;
+  const start = Math.ceil(min / step) * step;
+  const ticks: number[] = [];
+  for (let v = start; v <= max + step / 2; v += step) {
+    // Clamp dentro del rango visible.
+    if (v >= min - step / 2 && v <= max + step / 2) ticks.push(+v.toFixed(10));
+  }
+  return ticks;
 }
 
 function Stat({
