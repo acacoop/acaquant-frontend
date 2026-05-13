@@ -162,7 +162,9 @@ export interface OpcionDoc {
   strike?: number;
   tipo?: Tipo | string;
   vence?: string;
-  closing_price?: number;
+  // pyRofex devuelve CL como {price, date} — el engine lo guarda raw, no
+  // como número plano. Aceptamos ambas formas + null por compat histórica.
+  closing_price?: number | { price: number; date?: number } | null;
   delta?: number;
   gamma?: number;
   iv?: number;

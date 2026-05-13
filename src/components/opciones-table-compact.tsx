@@ -56,6 +56,7 @@ export function OpcionesTableCompact({
                 <th className="!px-1 text-right">STRIKE</th>
                 <th className="!px-1 text-right">LAST</th>
                 <th className="!px-1 text-right">INTRA</th>
+                <th className="!px-1 text-right">1D</th>
                 <th className="!px-1 text-right">SPREAD</th>
                 <th className="!px-1 text-right">IV</th>
                 <th className="!px-1 text-right">DELTA</th>
@@ -81,6 +82,17 @@ export function OpcionesTableCompact({
                 const open = r.open || 0;
                 const intraday =
                   last > 0 && open > 0 ? (last / open - 1) * 100 : null;
+
+                // 1D: (last / closing_price - 1). pyRofex devuelve CL como
+                // {price, date}, no número plano — extraemos defensivos.
+                const closingPx =
+                  typeof r.closing_price === "number"
+                    ? r.closing_price
+                    : r.closing_price?.price ?? 0;
+                const vs1d =
+                  last > 0 && closingPx > 0
+                    ? (last / closingPx - 1) * 100
+                    : null;
 
                 // Spread relativo al mid — normaliza entre strikes baratas
                 // (5 pesos) y caras (2000 pesos) para que se pueda comparar
@@ -131,6 +143,19 @@ export function OpcionesTableCompact({
                     >
                       {intraday !== null
                         ? `${intraday >= 0 ? "+" : ""}${intraday.toFixed(2)}%`
+                        : "--"}
+                    </td>
+                    <td
+                      className={`!px-1 text-right ${
+                        vs1d === null
+                          ? "text-[#555555]"
+                          : vs1d >= 0
+                          ? "text-[#00cc66]"
+                          : "text-[#ff3333]"
+                      }`}
+                    >
+                      {vs1d !== null
+                        ? `${vs1d >= 0 ? "+" : ""}${vs1d.toFixed(2)}%`
                         : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#d0d0d0]">
