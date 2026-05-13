@@ -221,7 +221,7 @@ export function RentaFijaTable({
                     {curva === "tasa_fija" && (
                       <td className="!px-1 text-right text-[#ffcc00] font-semibold tabular-nums">
                         {r.metrics?.tc_breakeven != null
-                          ? fmtPrice(r.metrics.tc_breakeven)
+                          ? Math.round(r.metrics.tc_breakeven).toLocaleString("es-AR")
                           : "--"}
                       </td>
                     )}
