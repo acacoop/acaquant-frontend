@@ -31,9 +31,9 @@ const PATH_MODULES: [string, string][] = [
   ["/aum", "portfolios"],
   ["/api/portfolio", "portfolios"],
   ["/api/titulos", "portfolios"],
-  // /renta-variable (smart money: 13F + Form 4 sobre CEDEARs) — módulo `renta-variable`
+  // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
   ["/renta-variable", "renta-variable"],
-  ["/api/smart-money", "renta-variable"],
+  ["/api/scanner",    "renta-variable"],
 ];
 
 function moduleForPath(path: string): string | null {
