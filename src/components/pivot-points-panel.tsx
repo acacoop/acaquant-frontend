@@ -20,6 +20,7 @@ const METRICAS_GLOSSARY = [
   { label: "Alpha (anual)",      text: "Retorno extra anualizado por encima de lo que explicaría el beta. α > 0 = outperformance idiosincrática del activo." },
   { label: "Correlación",        text: "Pearson entre retornos diarios. 1 = se mueven juntos; 0 = independientes; −1 = opuestos. Junto al beta da la imagen completa." },
   { label: "Vol Realizada",      text: "Volatilidad histórica anualizada: stdev(retornos) × √252. Cuánto se movió realmente. Sirve para sizing." },
+  { label: "Z-Score Hoy",        text: "Cuán raro es el movimiento de HOY vs los días previos en la ventana. z = (r_hoy − μ) / σ. |z|>2 atípico (~5% prob); |z|>3 extremo (~0.3%). Sirve para detectar movimientos out-of-distribution candidatos a mean reversion." },
 ];
 
 /**
@@ -242,7 +243,7 @@ function StatsView({ stats }: { stats: QuantStats | null }) {
           <StatRow label="Correlación"   spy={stats.corr.spy}  qqq={stats.corr.qqq}  fmt="num" />
         </tbody>
       </table>
-      <table className="w-full">
+      <table className="w-full mb-3">
         <thead>
           <tr className="text-[#707070]">
             <th className="!px-1 text-left">VOL REALIZADA (anual)</th>
@@ -264,7 +265,40 @@ function StatsView({ stats }: { stats: QuantStats | null }) {
           </tr>
         </tbody>
       </table>
+      <table className="w-full">
+        <thead>
+          <tr className="text-[#707070]">
+            <th className="!px-1 text-left">Z-SCORE RETORNO HOY</th>
+            <th className="!px-1 text-right">VALOR</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ZRow label="30 días" v={stats.zscore.d30} />
+          <ZRow label="60 días" v={stats.zscore.d60} />
+        </tbody>
+      </table>
     </div>
+  );
+}
+
+function ZRow({ label, v }: { label: string; v: number | null }) {
+  // Coloreado por magnitud: |z|>2 atípico (naranja), |z|>3 extremo (rojo).
+  // Verde si |z|<2 (movimiento normal). Color absoluto, no por signo —
+  // un -3σ es tan extremo como un +3σ.
+  let color = "text-[#d0d0d0]";
+  if (v != null) {
+    const abs = Math.abs(v);
+    if (abs >= 3)      color = "text-[#ff3333]";
+    else if (abs >= 2) color = "text-[#ff9900]";
+    else               color = "text-[#00cc66]";
+  }
+  return (
+    <tr>
+      <td className="!px-1 text-[#808080]">{label}</td>
+      <td className={`!px-1 text-right tabular-nums font-semibold ${color}`}>
+        {v != null ? `${v >= 0 ? "+" : ""}${v.toFixed(2)} σ` : "--"}
+      </td>
+    </tr>
   );
 }
 

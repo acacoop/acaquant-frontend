@@ -72,10 +72,11 @@ export interface QuantStats {
   ticker:         string;
   last:           number | null;
   n_observations: number;
-  beta:  { spy: number | null; qqq: number | null };
-  alpha: { spy: number | null; qqq: number | null };   // anualizada
-  corr:  { spy: number | null; qqq: number | null };
-  vol:   { d30: number | null; d60: number | null };   // anualizada
+  beta:   { spy: number | null; qqq: number | null };
+  alpha:  { spy: number | null; qqq: number | null };   // anualizada
+  corr:   { spy: number | null; qqq: number | null };
+  vol:    { d30: number | null; d60: number | null };   // anualizada
+  zscore: { d30: number | null; d60: number | null };   // z del retorno de hoy
 }
 
 export interface CedearScannerRow {
