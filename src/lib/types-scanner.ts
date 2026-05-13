@@ -53,6 +53,20 @@ export interface PivotData {
   };
 }
 
+/**
+ * Stats rolling sobre Trading.PreciosAcciones (window 60d hábiles).
+ * Devueltos por `GET /api/scanner/quant/{ticker}`.
+ */
+export interface QuantStats {
+  ticker:         string;
+  last:           number | null;
+  n_observations: number;
+  beta:  { spy: number | null; qqq: number | null };
+  alpha: { spy: number | null; qqq: number | null };   // anualizada
+  corr:  { spy: number | null; qqq: number | null };
+  vol:   { d30: number | null; d60: number | null };   // anualizada
+}
+
 export interface CedearScannerRow {
   ticker_corto: string;
   underlying:   string | null;
