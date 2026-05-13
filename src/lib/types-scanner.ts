@@ -16,6 +16,43 @@ export interface CclLive {
   ts:        string | null;
 }
 
+/**
+ * Respuesta de `GET /api/scanner/pivot/{ticker}` — 4 timeframes de
+ * pivot points sobre el subyacente USD.
+ */
+export interface PivotLevels {
+  pp: number;
+  r1: number;
+  r2: number;
+  r3: number;
+  s1: number;
+  s2: number;
+  s3: number;
+}
+
+export interface PivotFrame {
+  label:       string;
+  fecha_desde: string;
+  fecha_hasta: string;
+  n_velas:     number;
+  h:           number;
+  l:           number;
+  c:           number;
+  levels:      PivotLevels;
+}
+
+export interface PivotData {
+  ticker:     string;
+  last:       number | null;
+  last_fecha: string | null;
+  frames: {
+    diario:  PivotFrame | null;
+    semanal: PivotFrame | null;
+    mensual: PivotFrame | null;
+    anual:   PivotFrame | null;
+  };
+}
+
 export interface CedearScannerRow {
   ticker_corto: string;
   underlying:   string | null;

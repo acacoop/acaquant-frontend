@@ -1,19 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 import { Panel } from "./panel";
 import { CedearsScannerTable } from "./cedears-scanner-table";
+import { PivotPointsPanel } from "./pivot-points-panel";
 import type { CedearScannerRow } from "@/lib/types-scanner";
 
 /**
  * Vista Scanner — pestaña dentro de /renta-variable.
  *
- * Layout: grilla 2x2. Por ahora solo se llena el cuadrante TOP-LEFT con
- * la tabla CEDEARs. El resto del layout queda vacío (a llenar después
- * con sector heatmap, breadth, region rollup, etc.).
+ * Layout:
+ *   - Mitad IZQUIERDA (col 1, full height): tabla CEDEARs.
+ *   - Mitad DERECHA dividida en 2 filas:
+ *       - Arriba: Panel PIVOT (primera quant feature).
+ *       - Abajo:  Reservado para próximas quant features.
  *
- * El polling lo maneja usePoll directamente sobre `/api/scanner/cedears`
- * (TTL backend 5s, polling client 10s → max staleness ~15s).
+ * Click en row de la tabla izquierda → setea ticker seleccionado y el
+ * panel PIVOT se recalcula automáticamente.
  */
 const POLL_MS = 10_000;
 
@@ -23,20 +27,30 @@ export function ScannerView({ initial }: { initial: CedearScannerRow[] }) {
     initial,
     POLL_MS,
   );
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* Mitad IZQUIERDA: tabla CEDEARs (altura completa) */}
+        {/* IZQUIERDA: tabla CEDEARs (altura completa) */}
         <div className="min-w-0 min-h-0">
           <Panel title="CEDEARS" count={rows.length} expandable>
-            <CedearsScannerTable data={rows} />
+            <CedearsScannerTable
+              data={rows}
+              selectedTicker={selectedTicker}
+              onSelect={setSelectedTicker}
+            />
           </Panel>
         </div>
 
-        {/* Mitad DERECHA: reservada para futuros paneles
-            (sector heatmap, region rollup, breadth, etc.) */}
-        <div className="min-w-0 min-h-0" />
+        {/* DERECHA: nested grid de 2 filas */}
+        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
+          <Panel title="PIVOT POINTS" expandable>
+            <PivotPointsPanel ticker={selectedTicker} />
+          </Panel>
+          {/* Reservado para próxima quant feature */}
+          <div className="min-w-0 min-h-0" />
+        </div>
       </div>
     </div>
   );

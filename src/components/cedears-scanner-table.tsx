@@ -21,7 +21,15 @@ type SortKey =
 
 type SortDir = "asc" | "desc";
 
-export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
+export function CedearsScannerTable({
+  data,
+  selectedTicker,
+  onSelect,
+}: {
+  data: CedearScannerRow[];
+  selectedTicker?: string | null;
+  onSelect?: (ticker: string) => void;
+}) {
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -119,8 +127,20 @@ export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
                 </td>
               </tr>
             ) : (
-              sorted.map((r) => (
-                <tr key={r.ticker_corto}>
+              sorted.map((r) => {
+                const isSelected = r.ticker_corto === selectedTicker;
+                return (
+                <tr
+                  key={r.ticker_corto}
+                  onClick={onSelect ? () => onSelect(r.ticker_corto) : undefined}
+                  className={`${onSelect ? "cursor-pointer" : ""} ${
+                    isSelected
+                      ? "bg-[#ff9900]/15"
+                      : onSelect
+                      ? "hover:bg-[#1a1a1a]"
+                      : ""
+                  }`}
+                >
                   <td className="!px-1 text-[#ff9900] font-semibold">
                     {r.ticker_corto}
                   </td>
@@ -170,7 +190,8 @@ export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
                       : "--"}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
