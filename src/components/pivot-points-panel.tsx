@@ -109,8 +109,8 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
 
   return (
     <div className="h-full flex flex-col min-h-0 text-[10px]">
-      {/* Main tabs */}
-      <div className="flex items-center gap-1 mb-1 shrink-0">
+      {/* Main + sub tabs en una sola línea */}
+      <div className="flex items-center flex-wrap gap-1 mb-2 shrink-0">
         {MAIN_TABS.map(({ key, label }) => (
           <button
             key={key}
@@ -124,6 +124,26 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
             {label}
           </button>
         ))}
+
+        {/* Sub-tabs ZONAS al mismo nivel que main tabs (solo si zonas activo) */}
+        {mainTab === "zonas" && (
+          <span className="flex items-center gap-1 pl-2 border-l border-[#1a1a1a]">
+            {SUB_TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setSubTab(key)}
+                className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
+                  subTab === key
+                    ? "text-[#ff9900] border-[#ff9900]/40"
+                    : "text-[#555555] border-transparent hover:text-[#ff9900]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        )}
+
         <TableHelp entries={METRICAS_GLOSSARY} />
         <span className="ml-auto text-[#808080]">
           {ticker} · last{" "}
@@ -132,25 +152,6 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
           </span>
         </span>
       </div>
-
-      {/* Sub tabs — solo en ZONAS */}
-      {mainTab === "zonas" && (
-        <div className="flex items-center gap-1 mb-2 shrink-0 pl-2 border-l border-[#1a1a1a]">
-          {SUB_TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setSubTab(key)}
-              className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
-                subTab === key
-                  ? "text-[#ff9900] border-[#ff9900]/40"
-                  : "text-[#555555] border-transparent hover:text-[#ff9900]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Contenido */}
       {loading && mainTab === "zonas" ? (
@@ -190,16 +191,17 @@ function PivotView({
   }
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="text-[#555555] text-[9px] mb-1 tabular-nums">
-        Rango: {fmtFecha(frame.fecha_desde)} → {fmtFecha(frame.fecha_hasta)} ({frame.n_velas} ruedas) ·
-        H={frame.h.toFixed(2)} L={frame.l.toFixed(2)} C={frame.c.toFixed(2)}
-      </div>
-      <table className="w-full">
+      <table className="w-full table-fixed">
+        <colgroup>
+          <col className="w-1/3" />
+          <col className="w-1/3" />
+          <col className="w-1/3" />
+        </colgroup>
         <thead>
           <tr className="text-[#707070]">
-            <th className="!px-1 text-left">NIVEL</th>
-            <th className="!px-1 text-right">PRECIO</th>
-            <th className="!px-1 text-right">vs LAST</th>
+            <th className="!px-1 text-center">NIVEL</th>
+            <th className="!px-1 text-center">PRECIO</th>
+            <th className="!px-1 text-center">vs LAST</th>
           </tr>
         </thead>
         <tbody>
@@ -285,12 +287,12 @@ function Row({
       : "text-[#ff9900]";
   return (
     <tr>
-      <td className={`!px-1 font-semibold ${labelColor}`}>{label}</td>
-      <td className="!px-1 text-right tabular-nums font-semibold">
+      <td className={`!px-1 font-semibold text-center ${labelColor}`}>{label}</td>
+      <td className="!px-1 text-center tabular-nums font-semibold">
         {value.toFixed(2)}
       </td>
       <td
-        className={`!px-1 text-right tabular-nums ${
+        className={`!px-1 text-center tabular-nums ${
           dist === null
             ? "text-[#555555]"
             : dist >= 0
@@ -338,8 +340,3 @@ function StatRow({
   );
 }
 
-function fmtFecha(iso: string): string {
-  const s = iso.slice(0, 10);
-  if (s.length !== 10) return s;
-  return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(2, 4)}`;
-}
