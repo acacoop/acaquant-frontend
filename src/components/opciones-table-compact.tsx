@@ -2,8 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { fmtPrice, fmtVol } from "./ui";
-import { HelpTooltip } from "./help-tooltip";
+import { TableHelp } from "./help-tooltip";
 import type { OpcionDoc } from "@/lib/estrategias";
+
+const OPCIONES_GLOSSARY = [
+  { label: "INTRA",         text: "% intradía desde la apertura del día: (last / open − 1) × 100." },
+  { label: "1D",            text: "Variación vs cierre del día anterior: (last / closing_price − 1) × 100." },
+  { label: "SPREAD PUNTAS", text: "Spread relativo entre puntas: (offer − bid) / mid × 100. Menor = más líquido." },
+  { label: "IV",            text: "Volatilidad implícita anualizada (a 1σ a 1 año). Lo que el mercado descuenta que va a moverse el subyacente." },
+  { label: "DELTA",         text: "Sensibilidad de la prima al precio del subyacente. Δprima ≈ delta × Δspot. 0.5 ≈ ATM; cerca de 1 está deep ITM." },
+  { label: "GAMMA",         text: "Convexidad: cuánto cambia el delta por cada $1 de movimiento del spot. Alto cerca del strike, bajo deep ITM/OTM." },
+  { label: "THETA",         text: "Decay temporal: pérdida estimada de prima por día calendario, en pesos. Siempre negativo para el comprador." },
+  { label: "VEGA",          text: "Sensibilidad a la volatilidad implícita: cambio de prima por +1% de IV, en pesos." },
+  { label: "VOL",           text: "Volumen efectivo del día — total operado en pesos." },
+];
 
 type Vista = "CALL" | "PUT";
 
@@ -40,6 +52,7 @@ export function OpcionesTableCompact({
         <FilterBtn active={vista === "PUT"} onClick={() => setVista("PUT")}>
           PUT
         </FilterBtn>
+        <TableHelp entries={OPCIONES_GLOSSARY} align="left" />
         <span className="ml-auto text-[10px] text-[#555555]">
           {filtered.length} · ordenado por VOL ↓
         </span>
@@ -56,33 +69,15 @@ export function OpcionesTableCompact({
               <tr className="text-[#707070]">
                 <th className="!px-1 text-right">STRIKE</th>
                 <th className="!px-1 text-right">LAST</th>
-                <th className="!px-1 text-right">
-                  INTRA<HelpTooltip text="% intradía desde la apertura del día: (last / open − 1) × 100" />
-                </th>
-                <th className="!px-1 text-right">
-                  1D<HelpTooltip text="% versus el cierre del día anterior: (last / closing_price − 1) × 100" />
-                </th>
-                <th className="!px-1 text-right">
-                  SPREAD PUNTAS<HelpTooltip text="Spread relativo entre puntas: (offer − bid) / mid × 100. Menor = más líquido." />
-                </th>
-                <th className="!px-1 text-right">
-                  IV<HelpTooltip text="Volatilidad implícita anualizada (a 1σ a 1 año). Lo que el mercado descuenta que va a moverse el subyacente." />
-                </th>
-                <th className="!px-1 text-right">
-                  DELTA<HelpTooltip text="Delta — sensibilidad de la prima al precio del subyacente. Δprima ≈ delta × Δspot. 0.5 ≈ ATM; cerca de 1 está deep ITM." />
-                </th>
-                <th className="!px-1 text-right">
-                  GAMMA<HelpTooltip text="Gamma — convexidad: cuánto cambia el delta por cada $1 de movimiento del spot. Alto cerca del strike, bajo deep ITM/OTM." />
-                </th>
-                <th className="!px-1 text-right">
-                  THETA<HelpTooltip text="Theta — decay temporal: pérdida estimada de prima por día calendario, en pesos. Siempre negativo para el comprador." />
-                </th>
-                <th className="!px-1 text-right">
-                  VEGA<HelpTooltip text="Vega — sensibilidad a la volatilidad implícita: cambio de prima por +1% de IV, en pesos." />
-                </th>
-                <th className="!px-1 text-right">
-                  VOL<HelpTooltip text="Volumen efectivo del día — total operado en pesos." />
-                </th>
+                <th className="!px-1 text-right">INTRA</th>
+                <th className="!px-1 text-right">1D</th>
+                <th className="!px-1 text-right">SPREAD PUNTAS</th>
+                <th className="!px-1 text-right">IV</th>
+                <th className="!px-1 text-right">DELTA</th>
+                <th className="!px-1 text-right">GAMMA</th>
+                <th className="!px-1 text-right">THETA</th>
+                <th className="!px-1 text-right">VEGA</th>
+                <th className="!px-1 text-right">VOL</th>
               </tr>
             </thead>
             <tbody>
