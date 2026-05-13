@@ -154,7 +154,9 @@ export function CedearsScannerTable({
                     ) : (
                       <>
                         <td className="!px-1 text-right font-semibold tabular-nums text-[#d0d0d0]">
-                          {r.adr_last !== null ? `$${r.adr_last.toFixed(2)}` : "--"}
+                          {r.adr_last != null
+                            ? `$${r.adr_last.toFixed(2)}`
+                            : "--"}
                         </td>
                         <PctCell v={r.adr_vs_1d_pct} />
                         <PctCell v={r.adr_ret_7d_pct} />
