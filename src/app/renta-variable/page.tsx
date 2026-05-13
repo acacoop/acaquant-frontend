@@ -6,7 +6,7 @@ import type {
   ManagerDoc,
   RecentActivity,
 } from "@/lib/types-smart-money";
-import type { CedearScannerRow } from "@/lib/types-scanner";
+import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,7 @@ const EMPTY_ACTIVITY: RecentActivity = {
 };
 
 export default async function RentaVariablePage() {
-  const [catalog, cohort, recent, managers, scanner] = await Promise.all([
+  const [catalog, cohort, recent, managers, scanner, ccl] = await Promise.all([
     safeFetch<CedearCatalogItem[]>("/api/smart-money/catalog", [], 300),
     safeFetch<CohortOverview>("/api/smart-money/cohort-overview", EMPTY_COHORT, 60),
     safeFetch<RecentActivity>("/api/smart-money/recent-activity?days=14", EMPTY_ACTIVITY, 60),
@@ -48,6 +48,13 @@ export default async function RentaVariablePage() {
     // Scanner: TTL bajo porque el motor escribe cada 1s y queremos
     // reflejar el live. El polling client (10s) hace la lectura efectiva.
     safeFetch<CedearScannerRow[]>("/api/scanner/cedears", [], 5),
+    // CCL live para el KPI del shell — comparte cache backend con
+    // get_cedears_scanner (5s TTL).
+    safeFetch<CclLive>(
+      "/api/scanner/ccl",
+      { value: null, vs_1d_pct: null, ts: null },
+      5,
+    ),
   ]);
 
   return (
@@ -57,6 +64,7 @@ export default async function RentaVariablePage() {
       initialRecent={recent}
       initialManagers={managers}
       initialScanner={scanner}
+      initialCcl={ccl}
     />
   );
 }
