@@ -53,7 +53,7 @@ interface Punto {
 }
 
 type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked";
-type Metrica = "TEA" | "TEM";
+type Metrica = "TEA" | "TEM" | "TNA";
 type Modo = "live" | "hist" | "fair";
 
 // Para soberanos, dividimos los puntos en familias (globales / bonares).
@@ -231,7 +231,12 @@ export function CurvasChart({
           if (!tk || dur == null || dur <= 0 || tea == null) continue;
           const teaPct = tea * 100;
           const temPct = r.tem != null ? r.tem * 100 : (Math.pow(1 + tea, 1 / 12) - 1) * 100;
-          const y = metricaUsada === "TEM" ? temPct : teaPct;
+          // TNA (capitalización mensual nominal) = TEM × 12.
+          const tnaPct = temPct * 12;
+          const y =
+            metricaUsada === "TEM" ? temPct
+            : metricaUsada === "TNA" ? tnaPct
+            : teaPct;
           pushPunto(r.tipo, {
             Ticker: tk,
             Duration: +dur.toFixed(4),
@@ -255,7 +260,11 @@ export function CurvasChart({
           if (dur <= 0) continue;
           const teaPct = tea * 100;
           const temPct = (Math.pow(1 + tea, 1 / 12) - 1) * 100;
-          const y = metricaUsada === "TEM" ? temPct : teaPct;
+          const tnaPct = temPct * 12;
+          const y =
+            metricaUsada === "TEM" ? temPct
+            : metricaUsada === "TNA" ? tnaPct
+            : teaPct;
           pushPunto(null, {
             Ticker: tk,
             Duration: +dur.toFixed(4),
@@ -271,7 +280,11 @@ export function CurvasChart({
         if (tea == null) continue;
         const teaPct = tea * 100;
         const temPct = r.TEM != null ? r.TEM * 100 : (Math.pow(1 + tea, 1 / 12) - 1) * 100;
-        const y = metricaUsada === "TEM" ? temPct : teaPct;
+        const tnaPct = temPct * 12;
+        const y =
+          metricaUsada === "TEM" ? temPct
+          : metricaUsada === "TNA" ? tnaPct
+          : teaPct;
         pushPunto(r.tipo, {
           Ticker: r.ticker,
           Duration: +r.duration.toFixed(4),
@@ -399,6 +412,9 @@ export function CurvasChart({
             </FilterBtn>
             <FilterBtn active={metrica === "TEM"} onClick={() => setMetrica("TEM")}>
               TEM
+            </FilterBtn>
+            <FilterBtn active={metrica === "TNA"} onClick={() => setMetrica("TNA")}>
+              TNA
             </FilterBtn>
           </div>
         )}
