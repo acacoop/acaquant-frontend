@@ -5,6 +5,7 @@ import { usePoll } from "@/lib/use-poll";
 import { Panel } from "./panel";
 import { CedearsScannerTable } from "./cedears-scanner-table";
 import { PivotPointsPanel } from "./pivot-points-panel";
+import { TickerChartPanel } from "./ticker-chart-panel";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 /**
@@ -63,8 +64,9 @@ export function ScannerView({
           <Panel title="MÉTRICAS" expandable>
             <PivotPointsPanel ticker={selectedTicker} />
           </Panel>
-          {/* Reservado para próxima quant feature */}
-          <div className="min-w-0 min-h-0" />
+          <Panel title="CHART & RETORNOS" expandable>
+            <TickerChartPanel ticker={selectedTicker} />
+          </Panel>
         </div>
       </div>
     </div>

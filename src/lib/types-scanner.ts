@@ -57,6 +57,17 @@ export interface PivotData {
  * Stats rolling sobre Trading.PreciosAcciones (window 60d hábiles).
  * Devueltos por `GET /api/scanner/quant/{ticker}`.
  */
+/**
+ * Respuesta de `GET /api/scanner/returns/{ticker}` — serie de retornos
+ * diarios aritméticos del último año para el histograma.
+ */
+export interface TickerReturns {
+  ticker:      string;
+  returns:     number[];          // ~252 puntos diarios
+  last_return: number | null;
+  last_fecha:  string | null;
+}
+
 export interface QuantStats {
   ticker:         string;
   last:           number | null;
