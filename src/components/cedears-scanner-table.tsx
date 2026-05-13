@@ -1,25 +1,56 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CedearScannerRow } from "@/lib/types-scanner";
 import { fmtPrice } from "./ui";
 
 /**
- * Tabla del Scanner Renta Variable v1 — plana, sin agrupación.
+ * Tabla del Scanner Renta Variable v1 — plana, ordenable por columnas.
  *
- * MVP con AMD + NVDA piloto. Cuando el universo escale a 20-30 CEDEARs,
- * refactoreamos a vista agrupada por sector con drill-down.
- *
- * Columnas: TICKER · SECTOR · LAST · INTRA · 1D
+ * Click en cualquier header invierte el orden (asc/desc). Default:
+ * INTRA descendente para tener los top movers arriba.
  */
+
+type SortKey =
+  | "ticker_corto"
+  | "sector"
+  | "last"
+  | "intraday_pct"
+  | "vs_1d_pct";
+
+type SortDir = "asc" | "desc";
+
 export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
-  const sorted = useMemo(
-    () =>
-      [...data].sort((a, b) =>
-        (a.ticker_corto || "").localeCompare(b.ticker_corto || "")
-      ),
-    [data]
-  );
+  const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      // Default desc para numéricos (ver top movers / mayor precio),
+      // asc para texto (orden alfabético natural).
+      setSortDir(key === "ticker_corto" || key === "sector" ? "asc" : "desc");
+    }
+  }
+
+  const sorted = useMemo(() => {
+    const cmp = (a: CedearScannerRow, b: CedearScannerRow) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      // null/undefined al final, sin importar dirección.
+      if (av === null || av === undefined) return 1;
+      if (bv === null || bv === undefined) return -1;
+      if (typeof av === "string" && typeof bv === "string") {
+        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      const an = av as number;
+      const bn = bv as number;
+      return sortDir === "asc" ? an - bn : bn - an;
+    };
+    return [...data].sort(cmp);
+  }, [data, sortKey, sortDir]);
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -27,11 +58,46 @@ export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
         <table className="w-full text-[10px]">
           <thead className="sticky top-0 bg-[#080808] z-10">
             <tr className="text-[#707070]">
-              <th className="!px-1 text-left">TICKER</th>
-              <th className="!px-1 text-left">SECTOR</th>
-              <th className="!px-1 text-right">LAST</th>
-              <th className="!px-1 text-right">INTRA</th>
-              <th className="!px-1 text-right">1D</th>
+              <SortableTh
+                label="TICKER"
+                col="ticker_corto"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onClick={toggleSort}
+                align="left"
+              />
+              <SortableTh
+                label="SECTOR"
+                col="sector"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onClick={toggleSort}
+                align="left"
+              />
+              <SortableTh
+                label="LAST"
+                col="last"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onClick={toggleSort}
+                align="right"
+              />
+              <SortableTh
+                label="INTRA"
+                col="intraday_pct"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onClick={toggleSort}
+                align="right"
+              />
+              <SortableTh
+                label="1D"
+                col="vs_1d_pct"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onClick={toggleSort}
+                align="right"
+              />
             </tr>
           </thead>
           <tbody>
@@ -86,5 +152,36 @@ export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
         </table>
       </div>
     </div>
+  );
+}
+
+function SortableTh({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onClick,
+  align,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onClick: (col: SortKey) => void;
+  align: "left" | "right";
+}) {
+  const active = sortKey === col;
+  const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+  return (
+    <th
+      onClick={() => onClick(col)}
+      className={`!px-1 cursor-pointer select-none hover:text-[#ff9900] transition-colors text-${align} ${
+        active ? "text-[#ff9900]" : ""
+      }`}
+      title="Click para ordenar"
+    >
+      {label}
+      <span className="text-[8px]">{arrow}</span>
+    </th>
   );
 }

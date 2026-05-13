@@ -26,17 +26,16 @@ export function ScannerView({ initial }: { initial: CedearScannerRow[] }) {
 
   return (
     <div className="h-full min-h-0 p-3">
-      <div className="grid grid-cols-2 grid-rows-2 gap-3 h-full min-h-0">
-        {/* Cuadrante TOP-LEFT: tabla CEDEARs */}
+      <div className="grid grid-cols-2 gap-3 h-full min-h-0">
+        {/* Mitad IZQUIERDA: tabla CEDEARs (altura completa) */}
         <div className="min-w-0 min-h-0">
           <Panel title="CEDEARS" count={rows.length} expandable>
             <CedearsScannerTable data={rows} />
           </Panel>
         </div>
 
-        {/* Otros 3 cuadrantes vacíos por ahora */}
-        <div className="min-w-0 min-h-0" />
-        <div className="min-w-0 min-h-0" />
+        {/* Mitad DERECHA: reservada para futuros paneles
+            (sector heatmap, region rollup, breadth, etc.) */}
         <div className="min-w-0 min-h-0" />
       </div>
     </div>
