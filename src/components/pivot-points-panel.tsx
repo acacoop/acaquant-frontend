@@ -10,6 +10,7 @@ import type {
 
 const METRICAS_GLOSSARY = [
   { label: "ZONAS",              text: "Pivot Points (Floor Trader). Niveles de soporte/resistencia calculados sobre OHLC del período PREVIO cerrado. Si el precio supera R1, probable continuación; toca y rebota, posible reversión." },
+  { label: "vs LAST",            text: "Distancia % de la zona al precio actual: (zona / last − 1) × 100. Positivo = la zona está ARRIBA del precio (target alcista / resistencia por romper). Negativo = la zona está ABAJO (soporte para defender / objetivo bajista)." },
   { label: "DIARIO/SEM/MES/AÑO", text: "Período del que se sacan H/L/C base. Diario = día hábil anterior. Semanal = lun-vie pasados. Mensual = mes calendario previo. Anual = año calendario previo." },
   { label: "R1/R2/R3",           text: "Resistencias arriba del PP. Niveles donde un precio en suba tiende a frenar." },
   { label: "PP",                 text: "Pivot Point = (H + L + C) / 3 del período previo. Eje del movimiento esperado." },
@@ -278,7 +279,10 @@ function Row({
   last: number | null;
   color: "resistance" | "pivot" | "support";
 }) {
-  const dist = last !== null && last > 0 ? ((last / value) - 1) * 100 : null;
+  // Distancia DE LA ZONA al precio actual. Positivo = zona por arriba
+  // del last (target alcista / resistencia por romper). Negativo =
+  // zona por abajo (soporte para defender / objetivo bajista).
+  const dist = last !== null && last > 0 ? ((value / last) - 1) * 100 : null;
   const labelColor =
     color === "resistance"
       ? "text-[#ff3333]"
