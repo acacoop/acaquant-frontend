@@ -60,7 +60,7 @@ export function ScannerView({
 
         {/* DERECHA: nested grid de 2 filas */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
-          <Panel title="MÉTRICAS QUANT" expandable>
+          <Panel title="MÉTRICAS" expandable>
             <PivotPointsPanel ticker={selectedTicker} />
           </Panel>
           {/* Reservado para próxima quant feature */}

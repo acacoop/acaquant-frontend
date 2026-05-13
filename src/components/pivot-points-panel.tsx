@@ -8,38 +8,40 @@ import type {
 } from "@/lib/types-scanner";
 
 /**
- * Panel de métricas QUANT del Scanner.
+ * Panel MÉTRICAS del Scanner. 2 niveles de tabs:
  *
- * 5 tabs:
- *   DIARIO / SEMANAL / MENSUAL / ANUAL → Pivot Points sobre OHLC del
- *                                        período previo.
- *   STATS                              → beta/alpha/correlación vs SPY y
- *                                        QQQ + vol realizada 30d/60d
- *                                        (60 ruedas hábiles).
+ *   Main:    ZONAS (pivot points)  |  VOLATILIDAD & BETA
+ *   Sub:     DIARIO / SEMANAL / MENSUAL / ANUAL   (solo si Main = ZONAS)
  *
  * Todo se computa sobre Trading.PreciosAcciones (USD del underlying).
- * Re-fetcha cuando cambia el ticker. STATS solo se pide cuando se
- * selecciona ese tab (lazy).
+ * Re-fetcha cuando cambia el ticker. STATS lazy (solo se pide cuando se
+ * selecciona el main tab VOLATILIDAD & BETA).
  */
 
-type TabKey = "diario" | "semanal" | "mensual" | "anual" | "stats";
+type MainTab = "zonas" | "stats";
+type SubTab  = "diario" | "semanal" | "mensual" | "anual";
 
-const TAB_ORDER: { key: TabKey; label: string }[] = [
+const MAIN_TABS: { key: MainTab; label: string }[] = [
+  { key: "zonas", label: "ZONAS" },
+  { key: "stats", label: "VOLATILIDAD & BETA" },
+];
+
+const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: "diario",  label: "DIARIO"  },
   { key: "semanal", label: "SEMANAL" },
   { key: "mensual", label: "MENSUAL" },
   { key: "anual",   label: "ANUAL"   },
-  { key: "stats",   label: "STATS"   },
 ];
 
 export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
   const [pivot, setPivot] = useState<PivotData | null>(null);
   const [stats, setStats] = useState<QuantStats | null>(null);
-  const [tab, setTab] = useState<TabKey>("diario");
+  const [mainTab, setMainTab] = useState<MainTab>("zonas");
+  const [subTab,  setSubTab]  = useState<SubTab>("diario");
   const [loading, setLoading] = useState(false);
 
-  // Fetch pivots cuando cambia el ticker (siempre — los pivots se ven
-  // por default).
+  // Fetch pivots cuando cambia el ticker — siempre (los pivots se ven
+  // por default y el sub-tab cambia sin re-fetch).
   useEffect(() => {
     if (!ticker) {
       setPivot(null);
@@ -66,10 +68,9 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
     };
   }, [ticker]);
 
-  // Fetch stats cuando se activa el tab STATS (lazy — no traemos si la
-  // mesa solo mira pivots).
+  // Fetch stats lazy — solo cuando se activa el tab VOL & BETA.
   useEffect(() => {
-    if (!ticker || tab !== "stats") return;
+    if (!ticker || mainTab !== "stats") return;
     let alive = true;
     fetch(`/api/scanner/quant/${encodeURIComponent(ticker)}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
@@ -82,7 +83,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
     return () => {
       alive = false;
     };
-  }, [ticker, tab]);
+  }, [ticker, mainTab]);
 
   if (!ticker) {
     return (
@@ -94,14 +95,14 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
 
   return (
     <div className="h-full flex flex-col min-h-0 text-[10px]">
-      {/* Tabs */}
-      <div className="flex items-center gap-1 mb-2 shrink-0">
-        {TAB_ORDER.map(({ key, label }) => (
+      {/* Main tabs */}
+      <div className="flex items-center gap-1 mb-1 shrink-0">
+        {MAIN_TABS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setTab(key)}
+            onClick={() => setMainTab(key)}
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-              tab === key
+              mainTab === key
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
                 : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
@@ -117,13 +118,36 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
         </span>
       </div>
 
+      {/* Sub tabs — solo en ZONAS */}
+      {mainTab === "zonas" && (
+        <div className="flex items-center gap-1 mb-2 shrink-0 pl-2 border-l border-[#1a1a1a]">
+          {SUB_TABS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setSubTab(key)}
+              className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
+                subTab === key
+                  ? "text-[#ff9900] border-[#ff9900]/40"
+                  : "text-[#555555] border-transparent hover:text-[#ff9900]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Contenido */}
-      {loading && tab !== "stats" ? (
+      {loading && mainTab === "zonas" ? (
         <p className="text-[#555555] text-xs py-4 text-center">Cargando…</p>
-      ) : tab === "stats" ? (
+      ) : mainTab === "stats" ? (
         <StatsView stats={stats} />
       ) : (
-        <PivotView frame={pivot?.frames[tab] ?? null} last={pivot?.last ?? null} tabLabel={tab} />
+        <PivotView
+          frame={pivot?.frames[subTab] ?? null}
+          last={pivot?.last ?? null}
+          tabLabel={subTab}
+        />
       )}
     </div>
   );
@@ -195,9 +219,9 @@ function StatsView({ stats }: { stats: QuantStats | null }) {
           </tr>
         </thead>
         <tbody>
-          <StatRow label="Beta"        spy={stats.beta.spy}  qqq={stats.beta.qqq}  fmt="num" />
+          <StatRow label="Beta"          spy={stats.beta.spy}  qqq={stats.beta.qqq}  fmt="num" />
           <StatRow label="Alpha (anual)" spy={stats.alpha.spy} qqq={stats.alpha.qqq} fmt="pct" />
-          <StatRow label="Correlación" spy={stats.corr.spy}  qqq={stats.corr.qqq}  fmt="num" />
+          <StatRow label="Correlación"   spy={stats.corr.spy}  qqq={stats.corr.qqq}  fmt="num" />
         </tbody>
       </table>
       <table className="w-full">
