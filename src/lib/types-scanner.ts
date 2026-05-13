@@ -19,7 +19,8 @@ export interface CedearScannerRow {
   high:         number | null;
   low:          number | null;
   close:        number | null;
-  intraday_pct: number | null;  // (last/open − 1) × 100
-  vs_1d_pct:    number | null;  // (last/close − 1) × 100
-  updated_at:   string | null;
+  intraday_pct:  number | null;  // (last/open − 1) × 100 — variación ARS intradía
+  vs_1d_pct:     number | null;  // (last/close − 1) × 100 — variación ARS vs cierre ayer
+  vs_1d_usd_pct: number | null;  // retorno USD real: vs_1d_pct descontando variación CCL
+  updated_at:    string | null;
 }

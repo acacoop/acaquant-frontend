@@ -16,7 +16,8 @@ type SortKey =
   | "sector"
   | "last"
   | "intraday_pct"
-  | "vs_1d_pct";
+  | "vs_1d_pct"
+  | "vs_1d_usd_pct";
 
 type SortDir = "asc" | "desc";
 
@@ -97,13 +98,23 @@ export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
                 sortDir={sortDir}
                 onClick={toggleSort}
                 align="right"
+                title="Variación en ARS vs cierre del día anterior: (last / closing − 1) × 100"
+              />
+              <SortableTh
+                label="USD"
+                col="vs_1d_usd_pct"
+                sortKey={sortKey}
+                sortDir={sortDir}
+                onClick={toggleSort}
+                align="right"
+                title="Retorno USD real del activo: descuenta la variación del CCL al 1D. ((1 + cedear_1d/100) / (1 + ccl_1d/100) − 1) × 100"
               />
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-[#555555] text-xs py-4 text-center">
+                <td colSpan={6} className="text-[#555555] text-xs py-4 text-center">
                   SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
                 </td>
               </tr>
@@ -145,6 +156,19 @@ export function CedearsScannerTable({ data }: { data: CedearScannerRow[] }) {
                       ? `${r.vs_1d_pct >= 0 ? "+" : ""}${r.vs_1d_pct.toFixed(2)}%`
                       : "--"}
                   </td>
+                  <td
+                    className={`!px-1 text-right tabular-nums ${
+                      r.vs_1d_usd_pct === null
+                        ? "text-[#555555]"
+                        : r.vs_1d_usd_pct >= 0
+                        ? "text-[#00cc66]"
+                        : "text-[#ff3333]"
+                    }`}
+                  >
+                    {r.vs_1d_usd_pct !== null
+                      ? `${r.vs_1d_usd_pct >= 0 ? "+" : ""}${r.vs_1d_usd_pct.toFixed(2)}%`
+                      : "--"}
+                  </td>
                 </tr>
               ))
             )}
@@ -162,6 +186,7 @@ function SortableTh({
   sortDir,
   onClick,
   align,
+  title,
 }: {
   label: string;
   col: SortKey;
@@ -169,6 +194,7 @@ function SortableTh({
   sortDir: SortDir;
   onClick: (col: SortKey) => void;
   align: "left" | "right";
+  title?: string;
 }) {
   const active = sortKey === col;
   const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : "";
@@ -178,7 +204,7 @@ function SortableTh({
       className={`!px-1 cursor-pointer select-none hover:text-[#ff9900] transition-colors text-${align} ${
         active ? "text-[#ff9900]" : ""
       }`}
-      title="Click para ordenar"
+      title={title ?? "Click para ordenar"}
     >
       {label}
       <span className="text-[8px]">{arrow}</span>
