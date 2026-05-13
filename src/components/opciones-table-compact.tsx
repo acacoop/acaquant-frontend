@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { shortTicker, fmtPrice, fmtVol } from "./ui";
+import { fmtPrice, fmtVol } from "./ui";
 import type { OpcionDoc } from "@/lib/estrategias";
 
 type Vista = "CALL" | "PUT";
@@ -53,13 +53,15 @@ export function OpcionesTableCompact({
           <table className="w-full text-[10px]">
             <thead className="sticky top-0 bg-[#080808] z-10">
               <tr className="text-[#707070]">
-                <th className="!px-1 text-left">TICKER</th>
                 <th className="!px-1 text-right">STRIKE</th>
-                <th className="!px-1 text-right">BID</th>
-                <th className="!px-1 text-right">OFFER</th>
                 <th className="!px-1 text-right">LAST</th>
+                <th className="!px-1 text-right">INTRA</th>
+                <th className="!px-1 text-right">SPREAD</th>
                 <th className="!px-1 text-right">IV</th>
-                <th className="!px-1 text-right">Δ</th>
+                <th className="!px-1 text-right">DELTA</th>
+                <th className="!px-1 text-right">GAMMA</th>
+                <th className="!px-1 text-right">THETA</th>
+                <th className="!px-1 text-right">VEGA</th>
                 <th className="!px-1 text-right">VOL</th>
               </tr>
             </thead>
@@ -72,6 +74,23 @@ export function OpcionesTableCompact({
                       : spot < r.strike
                     : false;
                 const isSelected = r.instrumento === selectedInstrumento;
+
+                // Intraday: (last/open − 1) cuando open > 0. Mismo patrón
+                // que la tabla de renta-fija para coherencia visual.
+                const last = r.last || 0;
+                const open = r.open || 0;
+                const intraday =
+                  last > 0 && open > 0 ? (last / open - 1) * 100 : null;
+
+                // Spread relativo al mid — normaliza entre strikes baratas
+                // (5 pesos) y caras (2000 pesos) para que se pueda comparar
+                // liquidez de un vistazo. Si una punta es 0, sin spread.
+                const bid = r.bid || 0;
+                const offer = r.offer || 0;
+                const mid = bid > 0 && offer > 0 ? (bid + offer) / 2 : 0;
+                const spreadPct =
+                  mid > 0 ? ((offer - bid) / mid) * 100 : null;
+
                 return (
                   <tr
                     key={r.instrumento}
@@ -92,29 +111,45 @@ export function OpcionesTableCompact({
                     title={onSelect ? "Click para ver costo histórico" : undefined}
                   >
                     <td
-                      className={`!px-1 ${
+                      className={`!px-1 text-right ${
                         itm ? "text-[#ff9900] font-semibold" : "text-[#ff9900]"
                       }`}
                     >
-                      {shortTicker(r.instrumento)}
-                    </td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">
                       {fmtPrice(r.strike)}
-                    </td>
-                    <td className="!px-1 text-right text-[#00cc66]">
-                      {fmtPrice(r.bid)}
-                    </td>
-                    <td className="!px-1 text-right text-[#ff3333]">
-                      {fmtPrice(r.offer)}
                     </td>
                     <td className="!px-1 text-right font-semibold">
                       {fmtPrice(r.last)}
+                    </td>
+                    <td
+                      className={`!px-1 text-right ${
+                        intraday === null
+                          ? "text-[#555555]"
+                          : intraday >= 0
+                          ? "text-[#00cc66]"
+                          : "text-[#ff3333]"
+                      }`}
+                    >
+                      {intraday !== null
+                        ? `${intraday >= 0 ? "+" : ""}${intraday.toFixed(2)}%`
+                        : "--"}
+                    </td>
+                    <td className="!px-1 text-right text-[#d0d0d0]">
+                      {spreadPct !== null ? `${spreadPct.toFixed(1)}%` : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#d0d0d0]">
                       {r.iv !== undefined ? `${(r.iv * 100).toFixed(1)}%` : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#808080]">
                       {r.delta !== undefined ? r.delta.toFixed(3) : "--"}
+                    </td>
+                    <td className="!px-1 text-right text-[#808080]">
+                      {r.gamma !== undefined ? r.gamma.toFixed(4) : "--"}
+                    </td>
+                    <td className="!px-1 text-right text-[#808080]">
+                      {r.theta !== undefined ? r.theta.toFixed(2) : "--"}
+                    </td>
+                    <td className="!px-1 text-right text-[#808080]">
+                      {r.vega !== undefined ? r.vega.toFixed(2) : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#ffaa00]">
                       {fmtVol(r.ev)}
