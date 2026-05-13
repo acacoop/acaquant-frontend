@@ -106,13 +106,14 @@ export function RentaFijaTable({
                 <th className="!px-1 text-center">Intra</th>
                 <th className="!px-1 text-center">1D</th>
                 <th className="!px-1 text-center">VWAP</th>
+                <th className="!px-1 text-center">TNA</th>
                 <th className="!px-1 text-center">TEA</th>
                 {curva === "tasa_fija" && (
                   <th className="!px-1 text-center">TEM</th>
                 )}
                 <th className="!px-1 text-center">DUR</th>
                 <th className="!px-1 text-center">MOD DUR</th>
-                <th className="!px-1 text-center">CONVEXITY</th>
+                <th className="!px-1 text-center">CONVEX.</th>
                 {curva === "tasa_fija" && (
                   <th className="!px-1 text-center">TC BE</th>
                 )}
@@ -137,6 +138,10 @@ export function RentaFijaTable({
                 const tem =
                   tea !== undefined
                     ? (Math.pow(1 + tea, 1 / 12) - 1) * 100
+                    : null;
+                const tna =
+                  tea !== undefined
+                    ? (Math.pow(1 + tea, 1 / 12) - 1) * 12 * 100
                     : null;
 
                 return (
@@ -186,6 +191,9 @@ export function RentaFijaTable({
                     </td>
                     <td className="!px-1 text-right text-[#808080]">
                       {fmtPrice(r.metrics?.vwap)}
+                    </td>
+                    <td className="!px-1 text-right text-[#d0d0d0]">
+                      {tna !== null ? `${tna.toFixed(1)}%` : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#d0d0d0]">
                       {tea !== undefined ? `${(tea * 100).toFixed(1)}%` : "--"}
