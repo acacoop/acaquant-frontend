@@ -33,7 +33,7 @@ export function RentaVariableShell({
   initialManagers: ManagerDoc[];
   initialScanner: CedearScannerRow[];
 }) {
-  const [tab, setTab] = useState<Tab>("smart-money");
+  const [tab, setTab] = useState<Tab>("scanner");
 
   return (
     <div className="h-full min-h-0 flex flex-col">
