@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CedearScannerRow } from "@/lib/types-scanner";
+import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 import { fmtPrice } from "./ui";
 
 /**
@@ -32,10 +32,12 @@ export function CedearsScannerTable({
   data,
   selectedTicker,
   onSelect,
+  ccl,
 }: {
   data: CedearScannerRow[];
   selectedTicker?: string | null;
   onSelect?: (ticker: string) => void;
+  ccl?: CclLive;
 }) {
   const [view, setView] = useState<View>("cedear");
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
@@ -80,13 +82,39 @@ export function CedearsScannerTable({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 mb-1 shrink-0">
+      <div className="flex items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[#1a1a1a]">
         <ViewBtn active={view === "cedear"} onClick={() => changeView("cedear")} tone="orange">
           CEDEAR
         </ViewBtn>
         <ViewBtn active={view === "adr"} onClick={() => changeView("adr")} tone="cyan">
           ADR
         </ViewBtn>
+        {ccl && (
+          <div
+            className="ml-auto flex items-center gap-2 pr-1 text-[10px] tabular-nums"
+            title="CCL live (DolarSnapshot._id=current) + variación vs cierre día previo"
+          >
+            <span className="text-[#808080] tracking-wide uppercase">CCL</span>
+            <span className="text-[#d0d0d0] font-mono">
+              {ccl.value !== null
+                ? `$${ccl.value.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
+                : "--"}
+            </span>
+            <span
+              className={
+                ccl.vs_1d_pct === null
+                  ? "text-[#555555]"
+                  : ccl.vs_1d_pct >= 0
+                  ? "text-[#00cc66]"
+                  : "text-[#ff3333]"
+              }
+            >
+              {ccl.vs_1d_pct !== null
+                ? `${ccl.vs_1d_pct >= 0 ? "+" : ""}${ccl.vs_1d_pct.toFixed(2)}%`
+                : "--"}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
