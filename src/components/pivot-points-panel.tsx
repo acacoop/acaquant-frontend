@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HelpTooltip } from "./help-tooltip";
 import type {
   PivotData,
   PivotFrame,
@@ -21,16 +22,24 @@ import type {
 type MainTab = "zonas" | "stats";
 type SubTab  = "diario" | "semanal" | "mensual" | "anual";
 
-const MAIN_TABS: { key: MainTab; label: string }[] = [
-  { key: "zonas", label: "ZONAS" },
-  { key: "stats", label: "VOLATILIDAD & BETA" },
+const MAIN_TABS: { key: MainTab; label: string; help: string }[] = [
+  {
+    key:   "zonas",
+    label: "ZONAS",
+    help:  "Niveles de soporte/resistencia tipo Pivot Points (Floor Trader) calculados sobre el OHLC del período PREVIO cerrado. Sirven como referencias intraday: si el precio supera R1 con fuerza, probable continuación; si toca y rebota, posible reversión.",
+  },
+  {
+    key:   "stats",
+    label: "VOLATILIDAD & BETA",
+    help:  "Estadística rolling (60 ruedas hábiles): beta y alpha vs benchmarks (SPY = mercado US, QQQ = Nasdaq tech), correlación y volatilidad realizada anualizada. Sirve para entender el comportamiento del activo dentro del mercado.",
+  },
 ];
 
-const SUB_TABS: { key: SubTab; label: string }[] = [
-  { key: "diario",  label: "DIARIO"  },
-  { key: "semanal", label: "SEMANAL" },
-  { key: "mensual", label: "MENSUAL" },
-  { key: "anual",   label: "ANUAL"   },
+const SUB_TABS: { key: SubTab; label: string; help: string }[] = [
+  { key: "diario",  label: "DIARIO",  help: "OHLC del día hábil anterior." },
+  { key: "semanal", label: "SEMANAL", help: "OHLC de la semana ISO previa cerrada (lunes a viernes pasados)." },
+  { key: "mensual", label: "MENSUAL", help: "OHLC del mes calendario previo." },
+  { key: "anual",   label: "ANUAL",   help: "OHLC del año calendario previo." },
 ];
 
 export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
@@ -97,18 +106,20 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
     <div className="h-full flex flex-col min-h-0 text-[10px]">
       {/* Main tabs */}
       <div className="flex items-center gap-1 mb-1 shrink-0">
-        {MAIN_TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setMainTab(key)}
-            className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-              mainTab === key
-                ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
-            }`}
-          >
-            {label}
-          </button>
+        {MAIN_TABS.map(({ key, label, help }) => (
+          <span key={key} className="inline-flex items-center">
+            <button
+              onClick={() => setMainTab(key)}
+              className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+                mainTab === key
+                  ? "bg-[#ff9900] text-black border-[#ff9900]"
+                  : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+              }`}
+            >
+              {label}
+            </button>
+            <HelpTooltip text={help} position="bottom" />
+          </span>
         ))}
         <span className="ml-auto text-[#808080]">
           {ticker} · last{" "}
@@ -121,18 +132,20 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
       {/* Sub tabs — solo en ZONAS */}
       {mainTab === "zonas" && (
         <div className="flex items-center gap-1 mb-2 shrink-0 pl-2 border-l border-[#1a1a1a]">
-          {SUB_TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setSubTab(key)}
-              className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
-                subTab === key
-                  ? "text-[#ff9900] border-[#ff9900]/40"
-                  : "text-[#555555] border-transparent hover:text-[#ff9900]"
-              }`}
-            >
-              {label}
-            </button>
+          {SUB_TABS.map(({ key, label, help }) => (
+            <span key={key} className="inline-flex items-center">
+              <button
+                onClick={() => setSubTab(key)}
+                className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
+                  subTab === key
+                    ? "text-[#ff9900] border-[#ff9900]/40"
+                    : "text-[#555555] border-transparent hover:text-[#ff9900]"
+                }`}
+              >
+                {label}
+              </button>
+              <HelpTooltip text={help} position="bottom" />
+            </span>
           ))}
         </div>
       )}
@@ -182,9 +195,13 @@ function PivotView({
       <table className="w-full">
         <thead>
           <tr className="text-[#707070]">
-            <th className="!px-1 text-left">NIVEL</th>
+            <th className="!px-1 text-left">
+              NIVEL<HelpTooltip text="Pivot Points (Floor Trader). R1/R2/R3 = resistencias por encima del PP. S1/S2/S3 = soportes por debajo. PP = (H+L+C)/3 del período previo." />
+            </th>
             <th className="!px-1 text-right">PRECIO</th>
-            <th className="!px-1 text-right">vs LAST</th>
+            <th className="!px-1 text-right">
+              vs LAST<HelpTooltip text="Distancia % del precio actual (last) al nivel. Positivo = el precio está arriba del nivel. Negativo = abajo." />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -219,15 +236,35 @@ function StatsView({ stats }: { stats: QuantStats | null }) {
           </tr>
         </thead>
         <tbody>
-          <StatRow label="Beta"          spy={stats.beta.spy}  qqq={stats.beta.qqq}  fmt="num" />
-          <StatRow label="Alpha (anual)" spy={stats.alpha.spy} qqq={stats.alpha.qqq} fmt="pct" />
-          <StatRow label="Correlación"   spy={stats.corr.spy}  qqq={stats.corr.qqq}  fmt="num" />
+          <StatRow
+            label="Beta"
+            help="Sensibilidad del activo al benchmark. β=1 se mueve igual; β>1 más volátil que el bench; β<1 más defensivo. Calculado como cov(activo, bench) / var(bench)."
+            spy={stats.beta.spy}
+            qqq={stats.beta.qqq}
+            fmt="num"
+          />
+          <StatRow
+            label="Alpha (anual)"
+            help="Retorno extra anualizado por encima de lo que explicaría el beta. α > 0 = outperformance idiosincrática. α = (media retorno activo − β × media retorno bench) × 252."
+            spy={stats.alpha.spy}
+            qqq={stats.alpha.qqq}
+            fmt="pct"
+          />
+          <StatRow
+            label="Correlación"
+            help="Pearson entre los retornos diarios. 1 = se mueven juntos, 0 = independientes, −1 = opuestos. Junto al beta da la imagen completa de la relación."
+            spy={stats.corr.spy}
+            qqq={stats.corr.qqq}
+            fmt="num"
+          />
         </tbody>
       </table>
       <table className="w-full">
         <thead>
           <tr className="text-[#707070]">
-            <th className="!px-1 text-left">VOL REALIZADA (anual)</th>
+            <th className="!px-1 text-left">
+              VOL REALIZADA (anual)<HelpTooltip text="Volatilidad histórica anualizada: stdev(retornos) × √252. Mide cuánto se movió realmente el activo. Sirve para sizing de posiciones." />
+            </th>
             <th className="!px-1 text-right">VALOR</th>
           </tr>
         </thead>
@@ -291,11 +328,13 @@ function Row({
 
 function StatRow({
   label,
+  help,
   spy,
   qqq,
   fmt,
 }: {
   label: string;
+  help?: string;
   spy: number | null;
   qqq: number | null;
   fmt: "num" | "pct";
@@ -312,7 +351,10 @@ function StatRow({
   };
   return (
     <tr>
-      <td className="!px-1 text-[#808080]">{label}</td>
+      <td className="!px-1 text-[#808080]">
+        {label}
+        {help && <HelpTooltip text={help} />}
+      </td>
       <td className={`!px-1 text-right tabular-nums font-semibold ${colorFor(spy)}`}>
         {format(spy)}
       </td>

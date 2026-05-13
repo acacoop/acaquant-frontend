@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { fmtPrice, fmtVol } from "./ui";
+import { HelpTooltip } from "./help-tooltip";
 import type { OpcionDoc } from "@/lib/estrategias";
 
 type Vista = "CALL" | "PUT";
@@ -55,59 +56,32 @@ export function OpcionesTableCompact({
               <tr className="text-[#707070]">
                 <th className="!px-1 text-right">STRIKE</th>
                 <th className="!px-1 text-right">LAST</th>
-                <th
-                  className="!px-1 text-right"
-                  title="% intradía desde la apertura del día: (last / open − 1) × 100"
-                >
-                  INTRA<Help />
+                <th className="!px-1 text-right">
+                  INTRA<HelpTooltip text="% intradía desde la apertura del día: (last / open − 1) × 100" />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="% versus el cierre del día anterior: (last / closing_price − 1) × 100"
-                >
-                  1D<Help />
+                <th className="!px-1 text-right">
+                  1D<HelpTooltip text="% versus el cierre del día anterior: (last / closing_price − 1) × 100" />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="Spread relativo entre puntas: (offer − bid) / mid × 100. Menor = más líquido."
-                >
-                  SPREAD PUNTAS<Help />
+                <th className="!px-1 text-right">
+                  SPREAD PUNTAS<HelpTooltip text="Spread relativo entre puntas: (offer − bid) / mid × 100. Menor = más líquido." />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="Volatilidad implícita anualizada (a 1σ a 1 año). Lo que el mercado descuenta que va a moverse el subyacente."
-                >
-                  IV<Help />
+                <th className="!px-1 text-right">
+                  IV<HelpTooltip text="Volatilidad implícita anualizada (a 1σ a 1 año). Lo que el mercado descuenta que va a moverse el subyacente." />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="Delta — sensibilidad de la prima al precio del subyacente. Δprima ≈ delta × Δspot. 0.5 ≈ ATM; cerca de 1 está deep ITM."
-                >
-                  DELTA<Help />
+                <th className="!px-1 text-right">
+                  DELTA<HelpTooltip text="Delta — sensibilidad de la prima al precio del subyacente. Δprima ≈ delta × Δspot. 0.5 ≈ ATM; cerca de 1 está deep ITM." />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="Gamma — convexidad: cuánto cambia el delta por cada $1 de movimiento del spot. Alto cerca del strike, bajo deep ITM/OTM."
-                >
-                  GAMMA<Help />
+                <th className="!px-1 text-right">
+                  GAMMA<HelpTooltip text="Gamma — convexidad: cuánto cambia el delta por cada $1 de movimiento del spot. Alto cerca del strike, bajo deep ITM/OTM." />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="Theta — decay temporal: pérdida estimada de prima por día calendario, en pesos. Siempre negativo para el comprador."
-                >
-                  THETA<Help />
+                <th className="!px-1 text-right">
+                  THETA<HelpTooltip text="Theta — decay temporal: pérdida estimada de prima por día calendario, en pesos. Siempre negativo para el comprador." />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="Vega — sensibilidad a la volatilidad implícita: cambio de prima por +1% de IV, en pesos."
-                >
-                  VEGA<Help />
+                <th className="!px-1 text-right">
+                  VEGA<HelpTooltip text="Vega — sensibilidad a la volatilidad implícita: cambio de prima por +1% de IV, en pesos." />
                 </th>
-                <th
-                  className="!px-1 text-right"
-                  title="Volumen efectivo del día — total operado en pesos."
-                >
-                  VOL<Help />
+                <th className="!px-1 text-right">
+                  VOL<HelpTooltip text="Volumen efectivo del día — total operado en pesos." />
                 </th>
               </tr>
             </thead>
@@ -232,14 +206,6 @@ export function OpcionesTableCompact({
         </div>
       )}
     </div>
-  );
-}
-
-// `?` chico al lado del header. Hereda el `title=` del th padre — el
-// browser muestra el tooltip al hover en cualquier punto de la cell.
-function Help() {
-  return (
-    <sup className="ml-0.5 text-[#555555] cursor-help select-none">?</sup>
   );
 }
 
