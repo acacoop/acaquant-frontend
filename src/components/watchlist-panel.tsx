@@ -90,7 +90,6 @@ const FILTROS_ORDER = [
   "ARGY",
   "FUTUROS ROFEX",
   "Índices",
-  "Acciones",
   "Futuros",
   "US Treasury",
 ];

@@ -70,5 +70,12 @@ export interface CedearScannerRow {
   intraday_pct:  number | null;  // (last/open − 1) × 100 — variación ARS intradía
   vs_1d_pct:     number | null;  // (last/close − 1) × 100 — variación ARS vs cierre ayer
   vs_1d_usd_pct: number | null;  // retorno USD real: vs_1d_pct descontando variación CCL
+  // ADR (USD del underlying, EOD desde Trading.PreciosAcciones)
+  adr_last:        number | null;
+  adr_fecha:       string | null;
+  adr_vs_1d_pct:   number | null;
+  adr_ret_7d_pct:  number | null;
+  adr_ret_mtd_pct: number | null;
+  adr_ret_ytd_pct: number | null;
   updated_at:    string | null;
 }

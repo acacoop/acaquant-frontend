@@ -5,20 +5,27 @@ import type { CedearScannerRow } from "@/lib/types-scanner";
 import { fmtPrice } from "./ui";
 
 /**
- * Tabla del Scanner Renta Variable v1 — plana, ordenable por columnas.
+ * Tabla del Scanner — switch CEDEAR / ADR.
+ *
+ * CEDEAR: precio BYMA en ARS, métricas live del motor_cedears.
+ * ADR:    precio NYSE en USD del underlying, EOD desde Trading.PreciosAcciones.
  *
  * Click en cualquier header invierte el orden (asc/desc). Default:
- * INTRA descendente para tener los top movers arriba.
+ * INTRA descendente (CEDEAR) / vs_1d (ADR) — top movers arriba.
  */
 
-type SortKey =
-  | "ticker_corto"
-  | "sector"
-  | "last"
-  | "intraday_pct"
-  | "vs_1d_pct"
-  | "vs_1d_usd_pct";
+type View = "cedear" | "adr";
 
+type CedearSortKey =
+  | "ticker_corto" | "sector"
+  | "last" | "intraday_pct" | "vs_1d_pct" | "vs_1d_usd_pct";
+
+type AdrSortKey =
+  | "ticker_corto" | "sector"
+  | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct"
+  | "adr_ret_mtd_pct" | "adr_ret_ytd_pct";
+
+type SortKey = CedearSortKey | AdrSortKey;
 type SortDir = "asc" | "desc";
 
 export function CedearsScannerTable({
@@ -30,6 +37,7 @@ export function CedearsScannerTable({
   selectedTicker?: string | null;
   onSelect?: (ticker: string) => void;
 }) {
+  const [view, setView] = useState<View>("cedear");
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -38,17 +46,26 @@ export function CedearsScannerTable({
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      // Default desc para numéricos (ver top movers / mayor precio),
-      // asc para texto (orden alfabético natural).
       setSortDir(key === "ticker_corto" || key === "sector" ? "asc" : "desc");
+    }
+  }
+
+  function changeView(v: View) {
+    setView(v);
+    // Reset sort default según vista
+    if (v === "cedear") {
+      setSortKey("intraday_pct");
+      setSortDir("desc");
+    } else {
+      setSortKey("adr_vs_1d_pct");
+      setSortDir("desc");
     }
   }
 
   const sorted = useMemo(() => {
     const cmp = (a: CedearScannerRow, b: CedearScannerRow) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      // null/undefined al final, sin importar dirección.
+      const av = (a as unknown as Record<string, unknown>)[sortKey];
+      const bv = (b as unknown as Record<string, unknown>)[sortKey];
       if (av === null || av === undefined) return 1;
       if (bv === null || bv === undefined) return -1;
       if (typeof av === "string" && typeof bv === "string") {
@@ -63,66 +80,43 @@ export function CedearsScannerTable({
 
   return (
     <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 mb-1 shrink-0">
+        <ViewBtn active={view === "cedear"} onClick={() => changeView("cedear")} tone="orange">
+          CEDEAR
+        </ViewBtn>
+        <ViewBtn active={view === "adr"} onClick={() => changeView("adr")} tone="cyan">
+          ADR
+        </ViewBtn>
+      </div>
+
       <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-[10px]">
           <thead className="sticky top-0 bg-[#080808] z-10">
-            <tr className="text-[#707070]">
-              <SortableTh
-                label="TICKER"
-                col="ticker_corto"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onClick={toggleSort}
-                align="left"
-              />
-              <SortableTh
-                label="SECTOR"
-                col="sector"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onClick={toggleSort}
-                align="left"
-              />
-              <SortableTh
-                label="LAST"
-                col="last"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onClick={toggleSort}
-                align="right"
-              />
-              <SortableTh
-                label="INTRA"
-                col="intraday_pct"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onClick={toggleSort}
-                align="right"
-              />
-              <SortableTh
-                label="1D"
-                col="vs_1d_pct"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onClick={toggleSort}
-                align="right"
-                title="Variación en ARS vs cierre del día anterior: (last / closing − 1) × 100"
-              />
-              <SortableTh
-                label="USD"
-                col="vs_1d_usd_pct"
-                sortKey={sortKey}
-                sortDir={sortDir}
-                onClick={toggleSort}
-                align="right"
-                title="Retorno USD real del activo: descuenta la variación del CCL al 1D. ((1 + cedear_1d/100) / (1 + ccl_1d/100) − 1) × 100"
-              />
-            </tr>
+            {view === "cedear" ? (
+              <tr className="text-[#707070]">
+                <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+                <SortableTh label="SECTOR" col="sector"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+                <SortableTh label="LAST"   col="last"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
+                <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
+                <SortableTh label="1D"     col="vs_1d_pct"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Variación ARS vs cierre día anterior" />
+                <SortableTh label="USD"    col="vs_1d_usd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Retorno USD real descontando variación CCL" />
+              </tr>
+            ) : (
+              <tr className="text-[#5a8aa3]">
+                <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
+                <SortableTh label="SECTOR"  col="sector"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
+                <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ, Trading.PreciosAcciones)" />
+                <SortableTh label="1D"      col="adr_vs_1d_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / prev close − 1) × 100" />
+                <SortableTh label="7D"      col="adr_ret_7d_pct"  sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close ~7d atrás − 1) × 100" />
+                <SortableTh label="MTD"     col="adr_ret_mtd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del mes − 1) × 100" />
+                <SortableTh label="YTD"     col="adr_ret_ytd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del año − 1) × 100" />
+              </tr>
+            )}
           </thead>
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-[#555555] text-xs py-4 text-center">
+                <td colSpan={7} className="text-[#555555] text-xs py-4 text-center">
                   SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
                 </td>
               </tr>
@@ -130,66 +124,45 @@ export function CedearsScannerTable({
               sorted.map((r) => {
                 const isSelected = r.ticker_corto === selectedTicker;
                 return (
-                <tr
-                  key={r.ticker_corto}
-                  onClick={onSelect ? () => onSelect(r.ticker_corto) : undefined}
-                  className={`${onSelect ? "cursor-pointer" : ""} ${
-                    isSelected
-                      ? "bg-[#ff9900]/15"
-                      : onSelect
-                      ? "hover:bg-[#1a1a1a]"
-                      : ""
-                  }`}
-                >
-                  <td className="!px-1 text-[#ff9900] font-semibold">
-                    {r.ticker_corto}
-                  </td>
-                  <td className="!px-1 text-[#808080]">
-                    {r.sector || "--"}
-                  </td>
-                  <td className="!px-1 text-right font-semibold tabular-nums">
-                    {fmtPrice(r.last ?? undefined)}
-                  </td>
-                  <td
-                    className={`!px-1 text-right tabular-nums ${
-                      r.intraday_pct === null
-                        ? "text-[#555555]"
-                        : r.intraday_pct >= 0
-                        ? "text-[#00cc66]"
-                        : "text-[#ff3333]"
+                  <tr
+                    key={r.ticker_corto}
+                    onClick={onSelect ? () => onSelect(r.ticker_corto) : undefined}
+                    className={`${onSelect ? "cursor-pointer" : ""} ${
+                      isSelected
+                        ? "bg-[#ff9900]/15"
+                        : onSelect
+                        ? "hover:bg-[#1a1a1a]"
+                        : ""
                     }`}
                   >
-                    {r.intraday_pct !== null
-                      ? `${r.intraday_pct >= 0 ? "+" : ""}${r.intraday_pct.toFixed(2)}%`
-                      : "--"}
-                  </td>
-                  <td
-                    className={`!px-1 text-right tabular-nums ${
-                      r.vs_1d_pct === null
-                        ? "text-[#555555]"
-                        : r.vs_1d_pct >= 0
-                        ? "text-[#00cc66]"
-                        : "text-[#ff3333]"
-                    }`}
-                  >
-                    {r.vs_1d_pct !== null
-                      ? `${r.vs_1d_pct >= 0 ? "+" : ""}${r.vs_1d_pct.toFixed(2)}%`
-                      : "--"}
-                  </td>
-                  <td
-                    className={`!px-1 text-right tabular-nums ${
-                      r.vs_1d_usd_pct === null
-                        ? "text-[#555555]"
-                        : r.vs_1d_usd_pct >= 0
-                        ? "text-[#00cc66]"
-                        : "text-[#ff3333]"
-                    }`}
-                  >
-                    {r.vs_1d_usd_pct !== null
-                      ? `${r.vs_1d_usd_pct >= 0 ? "+" : ""}${r.vs_1d_usd_pct.toFixed(2)}%`
-                      : "--"}
-                  </td>
-                </tr>
+                    <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[#ff9900]"}`}>
+                      {r.ticker_corto}
+                    </td>
+                    <td className="!px-1 text-[#808080]">
+                      {r.sector || "--"}
+                    </td>
+
+                    {view === "cedear" ? (
+                      <>
+                        <td className="!px-1 text-right font-semibold tabular-nums">
+                          {fmtPrice(r.last ?? undefined)}
+                        </td>
+                        <PctCell v={r.intraday_pct} />
+                        <PctCell v={r.vs_1d_pct} />
+                        <PctCell v={r.vs_1d_usd_pct} />
+                      </>
+                    ) : (
+                      <>
+                        <td className="!px-1 text-right font-semibold tabular-nums text-[#d0d0d0]">
+                          {r.adr_last !== null ? `$${r.adr_last.toFixed(2)}` : "--"}
+                        </td>
+                        <PctCell v={r.adr_vs_1d_pct} />
+                        <PctCell v={r.adr_ret_7d_pct} />
+                        <PctCell v={r.adr_ret_mtd_pct} />
+                        <PctCell v={r.adr_ret_ytd_pct} />
+                      </>
+                    )}
+                  </tr>
                 );
               })
             )}
@@ -197,6 +170,56 @@ export function CedearsScannerTable({
         </table>
       </div>
     </div>
+  );
+}
+
+function PctCell({ v }: { v: number | null | undefined }) {
+  return (
+    <td
+      className={`!px-1 text-right tabular-nums ${
+        v === null || v === undefined
+          ? "text-[#555555]"
+          : v >= 0
+          ? "text-[#00cc66]"
+          : "text-[#ff3333]"
+      }`}
+    >
+      {v !== null && v !== undefined
+        ? `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`
+        : "--"}
+    </td>
+  );
+}
+
+function ViewBtn({
+  active,
+  onClick,
+  tone,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  tone: "orange" | "cyan";
+  children: React.ReactNode;
+}) {
+  // Tono distinto para que el switch visual sea claro pero minimalista.
+  const activeColor =
+    tone === "orange"
+      ? "bg-[#ff9900] text-black border-[#ff9900]"
+      : "bg-[#5fb3d4] text-black border-[#5fb3d4]";
+  const inactiveColor =
+    tone === "orange"
+      ? "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+      : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#5fb3d4] hover:border-[#5fb3d4]";
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+        active ? activeColor : inactiveColor
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -208,6 +231,7 @@ function SortableTh({
   onClick,
   align,
   title,
+  tone,
 }: {
   label: string;
   col: SortKey;
@@ -216,14 +240,18 @@ function SortableTh({
   onClick: (col: SortKey) => void;
   align: "left" | "right";
   title?: string;
+  tone?: "orange" | "cyan";
 }) {
   const active = sortKey === col;
   const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+  const activeColor = tone === "cyan" ? "text-[#5fb3d4]" : "text-[#ff9900]";
+  const hoverColor =
+    tone === "cyan" ? "hover:text-[#5fb3d4]" : "hover:text-[#ff9900]";
   return (
     <th
       onClick={() => onClick(col)}
-      className={`!px-1 cursor-pointer select-none hover:text-[#ff9900] transition-colors text-${align} ${
-        active ? "text-[#ff9900]" : ""
+      className={`!px-1 cursor-pointer select-none ${hoverColor} transition-colors text-${align} ${
+        active ? activeColor : ""
       }`}
       title={title ?? "Click para ordenar"}
     >
