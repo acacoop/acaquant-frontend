@@ -124,7 +124,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
             {label}
           </button>
         ))}
-        <TableHelp entries={METRICAS_GLOSSARY} align="left" />
+        <TableHelp entries={METRICAS_GLOSSARY} />
         <span className="ml-auto text-[#808080]">
           {ticker} · last{" "}
           <span className="text-[#d0d0d0] font-mono">

@@ -52,7 +52,7 @@ export function OpcionesTableCompact({
         <FilterBtn active={vista === "PUT"} onClick={() => setVista("PUT")}>
           PUT
         </FilterBtn>
-        <TableHelp entries={OPCIONES_GLOSSARY} align="left" />
+        <TableHelp entries={OPCIONES_GLOSSARY} />
         <span className="ml-auto text-[10px] text-[#555555]">
           {filtered.length} · ordenado por VOL ↓
         </span>
