@@ -80,6 +80,7 @@ export interface QuantStats {
 
 export interface CedearScannerRow {
   ticker_corto: string;
+  nombre:       string | null;
   underlying:   string | null;
   ratio_cedear: number | null;
   sector:       string | null;

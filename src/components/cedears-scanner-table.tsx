@@ -17,11 +17,11 @@ import { fmtPrice } from "./ui";
 type View = "cedear" | "adr";
 
 type CedearSortKey =
-  | "ticker_corto" | "sector"
+  | "ticker_corto" | "nombre" | "sector"
   | "last" | "intraday_pct" | "vs_1d_pct" | "vs_1d_usd_pct";
 
 type AdrSortKey =
-  | "ticker_corto" | "sector"
+  | "ticker_corto" | "nombre" | "sector"
   | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct"
   | "adr_ret_mtd_pct" | "adr_ret_ytd_pct";
 
@@ -123,6 +123,7 @@ export function CedearsScannerTable({
             {view === "cedear" ? (
               <tr className="text-[#707070]">
                 <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+                <SortableTh label="NOMBRE" col="nombre"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                 <SortableTh label="SECTOR" col="sector"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                 <SortableTh label="LAST"   col="last"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                 <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
@@ -132,6 +133,7 @@ export function CedearsScannerTable({
             ) : (
               <tr className="text-[#5a8aa3]">
                 <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
+                <SortableTh label="NOMBRE"  col="nombre"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
                 <SortableTh label="SECTOR"  col="sector"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
                 <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ, Trading.PreciosAcciones)" />
                 <SortableTh label="1D"      col="adr_vs_1d_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / prev close − 1) × 100" />
@@ -144,7 +146,7 @@ export function CedearsScannerTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-[#555555] text-xs py-4 text-center">
+                <td colSpan={8} className="text-[#555555] text-xs py-4 text-center">
                   SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
                 </td>
               </tr>
@@ -165,6 +167,9 @@ export function CedearsScannerTable({
                   >
                     <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[#ff9900]"}`}>
                       {r.ticker_corto}
+                    </td>
+                    <td className="!px-1 text-[#d0d0d0] truncate max-w-[180px]" title={r.nombre ?? ""}>
+                      {r.nombre || "--"}
                     </td>
                     <td className="!px-1 text-[#808080]">
                       {r.sector || "--"}
