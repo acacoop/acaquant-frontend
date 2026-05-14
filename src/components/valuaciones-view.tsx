@@ -10,6 +10,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { DownloadButton } from "@/components/download-button";
+import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -526,6 +528,29 @@ export function ValuacionesView({ idCuenta }: Props) {
             <span className="ml-auto text-[10px] text-[#888] font-mono">
               {meses.length} mes{meses.length !== 1 ? "es" : ""}
             </span>
+            <DownloadButton
+              className="ml-2"
+              title="Descargar Excel (evolución mensual de la cuenta)"
+              onClick={async () => {
+                const cta = mensualResp?.id_cuenta ?? "cuenta";
+                await exportToXlsx({
+                  sheets: [
+                    {
+                      name: "Mensual",
+                      rows: meses,
+                      columns: [
+                        { header: "MES",        key: "mes",              format: "text",     width: 12 },
+                        { header: "ÚLT. DÍA",   key: "ultimo_dia",       format: "text",     width: 14 },
+                        { header: "CIERRE",     key: "valuacion_cierre", format: "currency", width: 18 },
+                        { header: "FLUJO NETO", key: "flujo_neto",       format: "currency", width: 18 },
+                        { header: "Δ VALOR",    key: "delta_real",       format: "currency", width: 18 },
+                      ],
+                    },
+                  ],
+                  filename: `valuaciones-mensual-${cta}-${timestampSuffix()}.xlsx`,
+                });
+              }}
+            />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             {meses.length === 0 ? (
