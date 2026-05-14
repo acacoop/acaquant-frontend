@@ -585,16 +585,26 @@ export function AumView() {
   );
 
   const porEmisor = useMemo(() => {
+    // POR CARTERA también se filtra cruzado con cuentaSel / unidadSel
+    // (mismo pattern que porCuenta y porUnidad). Si el user selecciona
+    // una cuenta, porEmisor muestra cómo está distribuida esa cuenta
+    // entre carteras (split por emisor). Si selecciona un asset, las
+    // carteras donde ese asset existe. NO se filtra por emisorSel —
+    // emisorSel es contexto de drill-down, no se aplica a su propio eje.
+    let base = snapshot;
+    if (cuentaSel) base = base.filter((r) => r.cuenta === cuentaSel);
+    if (unidadSel) base = base.filter((r) => r.ticker === unidadSel || r.unidad === unidadSel);
     const agg: Record<string, number> = {};
-    for (const r of snapshot) agg[r.emisor] = (agg[r.emisor] || 0) + r.valuacion;
+    for (const r of base) agg[r.emisor] = (agg[r.emisor] || 0) + r.valuacion;
+    const totalCtx = Object.values(agg).reduce((s, v) => s + v, 0);
     return Object.entries(agg)
       .map(([emisor, val]) => ({
         emisor,
         valuacion: val,
-        share: snapshotTotal ? (val / snapshotTotal) * 100 : 0,
+        share: totalCtx ? (val / totalCtx) * 100 : 0,
       }))
       .sort((a, b) => b.valuacion - a.valuacion);
-  }, [snapshot, snapshotTotal]);
+  }, [snapshot, cuentaSel, unidadSel]);
 
   // ── Drill-down para TOTAL ──────────────────────────────────────────────
   // Snapshot filtrado por la cartera seleccionada en el leaderboard izquierdo
