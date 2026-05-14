@@ -6,6 +6,7 @@ import { ChatView } from "./chat-view";
 import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { LogsPanel } from "./logs-panel";
+import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { RecursosPanel } from "./recursos-panel";
 import { RolesPanel } from "./roles-panel";
 import { UsuariosPanel } from "./usuarios-panel";
@@ -1764,7 +1765,8 @@ type Tab =
   | "recursos"
   | "logs"
   | "usuarios"
-  | "roles";
+  | "roles"
+  | "debug_xirr";
 
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
@@ -1782,6 +1784,7 @@ export function ManagerView() {
     { id: "asistente",    label: "ASISTENTE"    },
     { id: "usuarios",     label: "USUARIOS"     },
     { id: "roles",        label: "ROLES Y PERMISOS" },
+    { id: "debug_xirr",   label: "DEBUG XIRR"   },
   ];
 
   return (
@@ -1808,6 +1811,7 @@ export function ManagerView() {
         {tab === "asistente"    && <TabAsistente />}
         {tab === "usuarios"     && <UsuariosPanel />}
         {tab === "roles"        && <RolesPanel />}
+        {tab === "debug_xirr"   && <ManagerDebugXirrPanel />}
       </div>
     </div>
   );
