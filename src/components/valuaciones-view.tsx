@@ -110,7 +110,7 @@ interface MovimientosResp {
   total_neto: number;
 }
 
-interface Props { idCuenta: string }
+interface Props { idCuenta: string; nombreCuenta?: string }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -222,7 +222,7 @@ function computeYRange(vals: number[]): { min: number; max: number; ticks: numbe
 
 // ── Componente ────────────────────────────────────────────────────────────
 
-export function ValuacionesView({ idCuenta }: Props) {
+export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   const [serieResp, setSerieResp] = useState<SerieResp | null>(null);
   const [mensualResp, setMensualResp] = useState<MensualResp | null>(null);
   const [posResp, setPosResp] = useState<PosicionesResp | null>(null);
@@ -382,6 +382,33 @@ export function ValuacionesView({ idCuenta }: Props) {
   }
 
   const meses = mensualResp?.meses ?? [];
+  // TEA por mes — Tasa Efectiva Anual derivada del retorno del mes.
+  // r_mes = delta_real / (cierre_anterior + flujo_neto). TEA = (1+r)^12 − 1.
+  // delta_real ya viene calculado por el backend como (cierre_t −
+  // cierre_t−1 − flujo_neto), que es la performance pura sin flujos.
+  // El denominador (cierre_t−1 + flujo_neto) representa el capital
+  // efectivamente "invertido" durante el mes (start-of-period flow).
+  const teaByMes = (() => {
+    const map = new Map<string, number | null>();
+    const byKey = new Map(meses.map((m) => [m.mes, m]));
+    for (const m of meses) {
+      const [y, mo] = m.mes.split("-").map(Number);
+      if (!y || !mo) { map.set(m.mes, null); continue; }
+      const prevYear = mo === 1 ? y - 1 : y;
+      const prevMonth = mo === 1 ? 12 : mo - 1;
+      const prevKey = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
+      const prev = byKey.get(prevKey);
+      if (!prev || m.delta_real == null) { map.set(m.mes, null); continue; }
+      const denom = prev.valuacion_cierre + m.flujo_neto;
+      if (denom <= 0) { map.set(m.mes, null); continue; }
+      const r = m.delta_real / denom;
+      // Filtro defensivo: si r < -100% (capital perdido) la potenciación
+      // se vuelve inestable. Saltear.
+      if (r <= -1) { map.set(m.mes, null); continue; }
+      map.set(m.mes, Math.pow(1 + r, 12) - 1);
+    }
+    return map;
+  })();
   const posiciones = posResp?.posiciones ?? [];
   const totalPos = posResp?.total ?? 0;
   const ultimoSnap = posResp?.fecha;
@@ -532,18 +559,33 @@ export function ValuacionesView({ idCuenta }: Props) {
               className="ml-2"
               title="Descargar Excel (evolución mensual de la cuenta)"
               onClick={async () => {
-                const cta = mensualResp?.id_cuenta ?? "cuenta";
+                const cta = mensualResp?.id_cuenta ?? idCuenta ?? "cuenta";
+                // Sheet rows con TEA inyectada (no viene del backend).
+                // El format "percent" del helper espera escala 0-100;
+                // TEA viene en decimal (0.2682) → ×100.
+                const rowsConTea = meses.map((m) => {
+                  const tea = teaByMes.get(m.mes);
+                  return {
+                    ...m,
+                    tea: tea != null ? tea * 100 : null,
+                  };
+                });
+                const titulo = nombreCuenta
+                  ? `Cuenta: [${cta}] ${nombreCuenta}`
+                  : `Cuenta: [${cta}]`;
                 await exportToXlsx({
                   sheets: [
                     {
                       name: "Mensual",
-                      rows: meses,
+                      title: titulo,
+                      rows: rowsConTea,
                       columns: [
                         { header: "MES",        key: "mes",              format: "text",     width: 12 },
                         { header: "ÚLT. DÍA",   key: "ultimo_dia",       format: "text",     width: 14 },
                         { header: "CIERRE",     key: "valuacion_cierre", format: "currency", width: 18 },
                         { header: "FLUJO NETO", key: "flujo_neto",       format: "currency", width: 18 },
                         { header: "Δ VALOR",    key: "delta_real",       format: "currency", width: 18 },
+                        { header: "TEA",        key: "tea",              format: "percent",  width: 12 },
                       ],
                     },
                   ],
@@ -571,6 +613,10 @@ export function ValuacionesView({ idCuenta }: Props) {
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
                       title="Δ valuación REAL = (cierre_t − cierre_t−1) − flujo_neto. Aísla performance de inversiones."
                     >Δ valor</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title="TEA — Tasa Efectiva Anual derivada del retorno del mes. (1 + r_mes)^12 − 1, donde r_mes = Δ valor / (cierre_anterior + flujo_neto)."
+                    >TEA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -613,6 +659,19 @@ export function ValuacionesView({ idCuenta }: Props) {
                         >
                           {m.delta_real != null ? fmtSigned(m.delta_real) : "—"}
                         </td>
+                        {(() => {
+                          const tea = teaByMes.get(m.mes);
+                          return (
+                            <td
+                              className="px-2 py-1 text-right"
+                              style={{ color: tea != null ? colorDelta(tea) : "#666" }}
+                            >
+                              {tea != null
+                                ? `${tea >= 0 ? "+" : ""}${(tea * 100).toFixed(1)}%`
+                                : "—"}
+                            </td>
+                          );
+                        })()}
                       </tr>
                     );
                   })}

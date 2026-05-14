@@ -57,6 +57,13 @@ export interface SheetDef {
   rows: readonly unknown[];
   /** Definición de columnas (orden + format). */
   columns: ColumnDef[];
+  /**
+   * Opcional: línea de metadata que aparece como primera fila del
+   * sheet, encima de los headers. Ej: "Cuenta: 805 - MOLLO NICOLAS".
+   * Cuando se setea, los headers van en la fila 3 (con fila 2 vacía
+   * como separador visual).
+   */
+  title?: string;
 }
 
 export interface ExportOptions {
@@ -99,7 +106,18 @@ export async function exportToXlsx({ sheets, filename }: ExportOptions): Promise
       const r = row as Record<string, unknown>;
       return sheet.columns.map((col) => castValue(r[col.key], col.format));
     });
-    const aoa: (string | number | null)[][] = [headers, ...dataRows];
+
+    // Si hay title, lo metemos como fila 1 + fila vacía + headers.
+    // Offset que aplicamos al index de las filas de datos (para el
+    // number format por celda).
+    const aoa: (string | number | null)[][] = [];
+    const headerRowIdx = sheet.title ? 2 : 0;  // 0-indexed
+    if (sheet.title) {
+      aoa.push([sheet.title]);
+      aoa.push([]);
+    }
+    aoa.push(headers);
+    aoa.push(...dataRows);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
@@ -108,7 +126,9 @@ export async function exportToXlsx({ sheets, filename }: ExportOptions): Promise
     sheet.columns.forEach((col, colIdx) => {
       const fmt = NUMBER_FORMAT_BY_TYPE[col.format];
       if (!fmt || col.format === "text") return;
-      for (let rowIdx = 1; rowIdx <= sheet.rows.length; rowIdx++) {
+      // Data rows arrancan en headerRowIdx + 1.
+      for (let i = 0; i < sheet.rows.length; i++) {
+        const rowIdx = headerRowIdx + 1 + i;
         const ref = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
         const cell = (ws as Record<string, unknown>)[ref] as { v?: unknown; z?: string } | undefined;
         if (cell && cell.v !== null && cell.v !== undefined) {

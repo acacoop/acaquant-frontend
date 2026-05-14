@@ -831,7 +831,10 @@ export function AumView() {
             <PnLTotalesView />
           ) : valCuenta ? (
             valSubtab === "portafolio"
-              ? <ValuacionesView idCuenta={valCuenta} />
+              ? <ValuacionesView
+                  idCuenta={valCuenta}
+                  nombreCuenta={cuentas.find((c) => c.id_cuenta === valCuenta)?.cuenta}
+                />
               : <PnLTitulosView idCuenta={valCuenta} />
           ) : (
             <div className="h-full flex items-center justify-center text-[#555] text-sm">
