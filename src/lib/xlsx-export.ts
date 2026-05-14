@@ -48,8 +48,13 @@ export interface ColumnDef {
 export interface SheetDef {
   /** Nombre de la hoja en el Excel (max 31 chars por restricción XLSX). */
   name: string;
-  /** Array de objetos a serializar. Cada object es una fila. */
-  rows: Record<string, unknown>[];
+  /**
+   * Array de objetos a serializar. Cada object es una fila. Tipo
+   * declarado como `readonly unknown[]` para que el helper acepte tanto
+   * interfaces estrictas (sin index signature, ej. MensualRow) como
+   * Record<string, unknown>. Acceso por key se hace adentro con cast.
+   */
+  rows: readonly unknown[];
   /** Definición de columnas (orden + format). */
   columns: ColumnDef[];
 }
@@ -87,10 +92,13 @@ export async function exportToXlsx({ sheets, filename }: ExportOptions): Promise
   for (const sheet of sheets) {
     // Header row.
     const headers = sheet.columns.map((c) => c.header);
-    // Data rows en formato Array of Arrays.
-    const dataRows: (string | number | null)[][] = sheet.rows.map((row) =>
-      sheet.columns.map((col) => castValue(row[col.key], col.format)),
-    );
+    // Data rows en formato Array of Arrays. Cast row → Record para
+    // poder acceder por string key (TS no nos lo da gratis cuando el
+    // input es una interface estricta).
+    const dataRows: (string | number | null)[][] = sheet.rows.map((row) => {
+      const r = row as Record<string, unknown>;
+      return sheet.columns.map((col) => castValue(r[col.key], col.format));
+    });
     const aoa: (string | number | null)[][] = [headers, ...dataRows];
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
