@@ -37,6 +37,8 @@ interface MensualRow {
   flujo_neto: number;
   delta_bruto: number | null;
   delta_real: number | null;
+  tea_mensual: number | null;   // (1 + r_mes)^12 − 1, decimal (ej 0.2682)
+  twr_base100: number;          // serie acumulada base 100 (TWR puro)
   n_posiciones: number;
 }
 
@@ -326,7 +328,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   // ultimo fecha_snapshot disponible (ya está en valuacion_cierre del último
   // doc del mes — backend hace $last). El user quiere ver el valor "live" del
   // mes actual, lo cual ya está cubierto.
-  type ChartPoint = { mes: string; valuacion: number; ultimo: string };
+  type ChartPoint = { mes: string; valuacion: number; rendimiento: number; ultimo: string };
   const chartData = useMemo<ChartPoint[]>(() => {
     if (!mensualResp) return [];
     // El backend devuelve descendente; reversa para chart cronológico.
@@ -334,9 +336,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       .slice()
       .reverse()
       .map((r) => ({
-        mes:       r.mes,
-        valuacion: r.valuacion_cierre,
-        ultimo:    r.ultimo_dia,
+        mes:          r.mes,
+        valuacion:    r.valuacion_cierre,
+        rendimiento:  r.twr_base100,
+        ultimo:       r.ultimo_dia,
       }));
   }, [mensualResp]);
 
@@ -382,33 +385,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   }
 
   const meses = mensualResp?.meses ?? [];
-  // TEA por mes — Tasa Efectiva Anual derivada del retorno del mes.
-  // r_mes = delta_real / (cierre_anterior + flujo_neto). TEA = (1+r)^12 − 1.
-  // delta_real ya viene calculado por el backend como (cierre_t −
-  // cierre_t−1 − flujo_neto), que es la performance pura sin flujos.
-  // El denominador (cierre_t−1 + flujo_neto) representa el capital
-  // efectivamente "invertido" durante el mes (start-of-period flow).
-  const teaByMes = (() => {
-    const map = new Map<string, number | null>();
-    const byKey = new Map(meses.map((m) => [m.mes, m]));
-    for (const m of meses) {
-      const [y, mo] = m.mes.split("-").map(Number);
-      if (!y || !mo) { map.set(m.mes, null); continue; }
-      const prevYear = mo === 1 ? y - 1 : y;
-      const prevMonth = mo === 1 ? 12 : mo - 1;
-      const prevKey = `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
-      const prev = byKey.get(prevKey);
-      if (!prev || m.delta_real == null) { map.set(m.mes, null); continue; }
-      const denom = prev.valuacion_cierre + m.flujo_neto;
-      if (denom <= 0) { map.set(m.mes, null); continue; }
-      const r = m.delta_real / denom;
-      // Filtro defensivo: si r < -100% (capital perdido) la potenciación
-      // se vuelve inestable. Saltear.
-      if (r <= -1) { map.set(m.mes, null); continue; }
-      map.set(m.mes, Math.pow(1 + r, 12) - 1);
-    }
-    return map;
-  })();
+  // tea_mensual y twr_base100 vienen del backend (api/services/valuaciones.py).
+  // Cero lógica de cálculo en cliente — solo renderizamos.
   const posiciones = posResp?.posiciones ?? [];
   const totalPos = posResp?.total ?? 0;
   const ultimoSnap = posResp?.fecha;
@@ -508,15 +486,30 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     textAnchor="end"
                     height={38}
                   />
+                  {/* Eje izquierdo: VALUACIÓN ($) */}
                   <YAxis
+                    yAxisId="izq"
                     domain={[yScale.min, yScale.max]}
                     ticks={yScale.ticks}
                     allowDataOverflow
-                    tick={{ fill: "#808080", fontSize: 10 }}
+                    tick={{ fill: "#4a9eff", fontSize: 10 }}
                     axisLine={{ stroke: "#2a2a2a" }}
                     tickLine={false}
                     tickFormatter={(v: number) => fmtCompact(v)}
                     width={64}
+                  />
+                  {/* Eje derecho: RENDIMIENTO TWR base 100. Si el portafolio
+                      arrancó en 100 y subió 5%, la línea va a 105. Aísla
+                      performance pura — aportes y retiros no afectan. */}
+                  <YAxis
+                    yAxisId="der"
+                    orientation="right"
+                    tick={{ fill: "#ff9900", fontSize: 10 }}
+                    axisLine={{ stroke: "#2a2a2a" }}
+                    tickLine={false}
+                    tickFormatter={(v: number) => v.toFixed(1)}
+                    width={48}
+                    domain={["dataMin", "dataMax"]}
                   />
                   <Tooltip
                     cursor={{ stroke: "#ffffff20" }}
@@ -529,15 +522,36 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     labelStyle={{ color: "#808080" }}
                     itemStyle={{ color: "#d0d0d0" }}
                     labelFormatter={(v) => fmtMesAnio(String(v))}
-                    formatter={(v) => [fmtCompact(Number(v)), "Cierre"]}
+                    formatter={(value, name) => {
+                      if (name === "rendimiento") {
+                        const n = Number(value);
+                        const pct = n - 100;
+                        return [`${n.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`, "Rendimiento"];
+                      }
+                      return [fmtCompact(Number(value)), "Cierre"];
+                    }}
                   />
                   <Line
+                    yAxisId="izq"
                     type="monotone"
                     dataKey="valuacion"
+                    name="valuacion"
                     stroke="#4a9eff"
                     strokeWidth={2}
                     dot={{ r: 3, fill: "#4a9eff" }}
                     activeDot={{ r: 5 }}
+                    isAnimationActive={false}
+                  />
+                  <Line
+                    yAxisId="der"
+                    type="monotone"
+                    dataKey="rendimiento"
+                    name="rendimiento"
+                    stroke="#ff9900"
+                    strokeWidth={2}
+                    strokeDasharray="4 3"
+                    dot={{ r: 2, fill: "#ff9900" }}
+                    activeDot={{ r: 4 }}
                     isAnimationActive={false}
                   />
                 </LineChart>
@@ -560,16 +574,12 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               title="Descargar Excel (evolución mensual de la cuenta)"
               onClick={async () => {
                 const cta = mensualResp?.id_cuenta ?? idCuenta ?? "cuenta";
-                // Sheet rows con TEA inyectada (no viene del backend).
-                // El format "percent" del helper espera escala 0-100;
-                // TEA viene en decimal (0.2682) → ×100.
-                const rowsConTea = meses.map((m) => {
-                  const tea = teaByMes.get(m.mes);
-                  return {
-                    ...m,
-                    tea: tea != null ? tea * 100 : null,
-                  };
-                });
+                // tea_mensual viene del backend en decimal (0.2682).
+                // El format "percent" del helper espera escala 0-100 → ×100.
+                const rowsConTea = meses.map((m) => ({
+                  ...m,
+                  tea: m.tea_mensual != null ? m.tea_mensual * 100 : null,
+                }));
                 const titulo = nombreCuenta
                   ? `Cuenta: [${cta}] ${nombreCuenta}`
                   : `Cuenta: [${cta}]`;
@@ -659,19 +669,14 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         >
                           {m.delta_real != null ? fmtSigned(m.delta_real) : "—"}
                         </td>
-                        {(() => {
-                          const tea = teaByMes.get(m.mes);
-                          return (
-                            <td
-                              className="px-2 py-1 text-right"
-                              style={{ color: tea != null ? colorDelta(tea) : "#666" }}
-                            >
-                              {tea != null
-                                ? `${tea >= 0 ? "+" : ""}${(tea * 100).toFixed(1)}%`
-                                : "—"}
-                            </td>
-                          );
-                        })()}
+                        <td
+                          className="px-2 py-1 text-right"
+                          style={{ color: m.tea_mensual != null ? colorDelta(m.tea_mensual) : "#666" }}
+                        >
+                          {m.tea_mensual != null
+                            ? `${m.tea_mensual >= 0 ? "+" : ""}${(m.tea_mensual * 100).toFixed(1)}%`
+                            : "—"}
+                        </td>
                       </tr>
                     );
                   })}
