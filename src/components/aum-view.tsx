@@ -15,6 +15,8 @@ import {
 import { ValuacionesView } from "@/components/valuaciones-view";
 import { PnLTitulosView } from "@/components/pnl-titulos-view";
 import { PnLTotalesView } from "@/components/pnl-totales-view";
+import { DownloadButton } from "@/components/download-button";
+import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 interface SeriePoint {
   fecha: string;
@@ -1134,6 +1136,36 @@ export function AumView() {
                   if (unidadSel) parts.push(`asset: ${unidadSel}`);
                   return parts.length ? parts.join(" · ") : "todos los assets y cuentas";
                 })()}
+                actions={
+                  <DownloadButton
+                    title="Descargar Excel (Por Cuenta + Por Asset, refleja filtros activos)"
+                    onClick={async () => {
+                      await exportToXlsx({
+                        sheets: [
+                          {
+                            name: "Por Cuenta",
+                            rows: porCuenta,
+                            columns: [
+                              { header: "CUENTA",    key: "cuenta",    format: "text",     width: 36 },
+                              { header: "VALUACIÓN", key: "valuacion", format: "currency", width: 18 },
+                              { header: "SHARE %",   key: "share",     format: "percent",  width: 12 },
+                            ],
+                          },
+                          {
+                            name: "Por Asset",
+                            rows: porUnidad,
+                            columns: [
+                              { header: "ASSET",     key: "ticker",    format: "text",     width: 36 },
+                              { header: "VALUACIÓN", key: "valuacion", format: "currency", width: 18 },
+                              { header: "SHARE %",   key: "share",     format: "percent",  width: 12 },
+                            ],
+                          },
+                        ],
+                        filename: `aum-detalle-${fechaSel || "snapshot"}-${timestampSuffix()}.xlsx`,
+                      });
+                    }}
+                  />
+                }
               />
               <div className="flex-1 min-h-0 overflow-y-auto p-2 grid grid-rows-2 gap-2">
                 {/* POR CUENTA */}
@@ -1754,7 +1786,15 @@ function Kpi({
   );
 }
 
-function PanelHeader({ title, sub }: { title: string; sub?: string }) {
+function PanelHeader({
+  title,
+  sub,
+  actions,
+}: {
+  title: string;
+  sub?: string;
+  actions?: React.ReactNode;
+}) {
   return (
     <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
       <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
@@ -1763,6 +1803,11 @@ function PanelHeader({ title, sub }: { title: string; sub?: string }) {
       {sub && (
         <span className="ml-auto text-[10px] text-[#888888] truncate max-w-[60%]">
           {sub}
+        </span>
+      )}
+      {actions && (
+        <span className={`flex items-center gap-1 ${sub ? "ml-2" : "ml-auto"}`}>
+          {actions}
         </span>
       )}
     </div>
