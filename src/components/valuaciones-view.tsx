@@ -37,8 +37,20 @@ interface MensualRow {
   flujo_neto: number;
   delta_bruto: number | null;
   delta_real: number | null;
-  tea_mensual: number | null;   // (1 + r_mes)^12 − 1, decimal (ej 0.2682)
-  twr_base100: number;          // serie acumulada base 100 (TWR puro)
+  tea_mensual: number | null;   // TEA anualizada via XIRR, decimal
+  tem_periodo: number | null;   // TEM des-anualizada al período del mes
+  twr_base100: number;          // base 100 acumulada (Π(1+TEM))
+  // USD parallels — backend convierte con MEP por fecha (XIRR nativo USD)
+  mep_cierre: number | null;
+  valuacion_cierre_usd: number;
+  depositos_usd: number;
+  extracciones_usd: number;
+  flujo_neto_usd: number;
+  delta_bruto_usd: number | null;
+  delta_real_usd: number | null;
+  tea_mensual_usd: number | null;
+  tem_periodo_usd: number | null;
+  twr_base100_usd: number;
   n_posiciones: number;
 }
 
@@ -245,6 +257,11 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   // "3M" / "1A" / "ALL" presets, ◀ ▶ para mover offset.
   const [chartRango, setChartRango] = useState<"3M" | "6M" | "1A" | "ALL">("6M");
   const [chartOffset, setChartOffset] = useState<number>(0);
+  // Moneda de visualización: ARS (default) o USD. Backend devuelve campos
+  // paralelos `*_usd` con MEP por fecha aplicado al cashflow XIRR — toggle
+  // solo cambia qué columna se muestra.
+  const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  const esUSD = moneda === "USD";
 
   // Initial load: serie + mensual son one-shot, posiciones se refetcha al
   // cambiar selectedFecha (handler separado).
@@ -337,11 +354,11 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       .reverse()
       .map((r) => ({
         mes:          r.mes,
-        valuacion:    r.valuacion_cierre,
-        rendimiento:  r.twr_base100,
+        valuacion:    esUSD ? r.valuacion_cierre_usd : r.valuacion_cierre,
+        rendimiento:  esUSD ? r.twr_base100_usd : r.twr_base100,
         ultimo:       r.ultimo_dia,
       }));
-  }, [mensualResp]);
+  }, [mensualResp, esUSD]);
 
   // Slice de chart: aplicamos rango (3M / 6M / 1A / ALL) con pan offset.
   // offset=0 = ventana más reciente; offset=1 = anterior; etc.
@@ -452,9 +469,12 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
               >▶</button>
             </div>
-            {serieResp?.ultimo && (
+            {chartData.length > 0 && (
               <span className="text-[10px] text-[#888] font-mono">
-                Último: <span className="text-[#4a9eff] font-semibold">{fmtCompact(serieResp.ultimo.valuacion)}</span>
+                Último: <span className="text-[#4a9eff] font-semibold">
+                  {fmtCompact(chartData[chartData.length - 1].valuacion)}
+                </span>
+                <span className="text-[#555] ml-1">{esUSD ? "USD" : "ARS"}</span>
               </span>
             )}
           </div>
@@ -562,10 +582,30 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
         {/* Tabla mensual compacta */}
         <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               Mensual
             </span>
+            {/* ARS/USD toggle — afecta chart + tabla mensual + label de valor */}
+            <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+              {(["ARS", "USD"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMoneda(m)}
+                  className={
+                    "px-2 py-0 text-[9px] uppercase tracking-wider " +
+                    (moneda === m
+                      ? "bg-[#ff9900] text-black"
+                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                  }
+                  title={
+                    m === "USD"
+                      ? "Dolarizar valores y XIRR usando MEP por fecha (cashflow USD nativo)"
+                      : "Pesos argentinos (original)"
+                  }
+                >{m}</button>
+              ))}
+            </div>
             <span className="ml-auto text-[10px] text-[#888] font-mono">
               {meses.length} mes{meses.length !== 1 ? "es" : ""}
             </span>
@@ -574,32 +614,46 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               title="Descargar Excel (evolución mensual de la cuenta)"
               onClick={async () => {
                 const cta = mensualResp?.id_cuenta ?? idCuenta ?? "cuenta";
-                // tea_mensual viene del backend en decimal (0.2682).
-                // El format "percent" del helper espera escala 0-100 → ×100.
-                const rowsConTea = meses.map((m) => ({
-                  ...m,
-                  tea: m.tea_mensual != null ? m.tea_mensual * 100 : null,
+                // tea/tem en backend = decimal (0.2682). xlsx "percent" espera × 100.
+                const rowsExport = meses.map((m) => ({
+                  mes:        m.mes,
+                  ultimo_dia: m.ultimo_dia,
+                  cierre:     esUSD ? m.valuacion_cierre_usd : m.valuacion_cierre,
+                  flujo_neto: esUSD ? m.flujo_neto_usd : m.flujo_neto,
+                  delta_real: esUSD ? m.delta_real_usd : m.delta_real,
+                  base100:    esUSD ? m.twr_base100_usd : m.twr_base100,
+                  tem:        ((esUSD ? m.tem_periodo_usd : m.tem_periodo) ?? null),
+                  tem_pct:    (() => {
+                    const v = esUSD ? m.tem_periodo_usd : m.tem_periodo;
+                    return v != null ? v * 100 : null;
+                  })(),
+                  tea_pct:    (() => {
+                    const v = esUSD ? m.tea_mensual_usd : m.tea_mensual;
+                    return v != null ? v * 100 : null;
+                  })(),
                 }));
                 const titulo = nombreCuenta
-                  ? `Cuenta: [${cta}] ${nombreCuenta}`
-                  : `Cuenta: [${cta}]`;
+                  ? `Cuenta: [${cta}] ${nombreCuenta} — ${moneda}`
+                  : `Cuenta: [${cta}] — ${moneda}`;
                 await exportToXlsx({
                   sheets: [
                     {
-                      name: "Mensual",
+                      name: `Mensual ${moneda}`,
                       title: titulo,
-                      rows: rowsConTea,
+                      rows: rowsExport,
                       columns: [
-                        { header: "MES",        key: "mes",              format: "text",     width: 12 },
-                        { header: "ÚLT. DÍA",   key: "ultimo_dia",       format: "text",     width: 14 },
-                        { header: "CIERRE",     key: "valuacion_cierre", format: "currency", width: 18 },
-                        { header: "FLUJO NETO", key: "flujo_neto",       format: "currency", width: 18 },
-                        { header: "Δ VALOR",    key: "delta_real",       format: "currency", width: 18 },
-                        { header: "TEA",        key: "tea",              format: "percent",  width: 12 },
+                        { header: "MES",        key: "mes",        format: "text",     width: 12 },
+                        { header: "ÚLT. DÍA",   key: "ultimo_dia", format: "text",     width: 14 },
+                        { header: `CIERRE ${moneda}`, key: "cierre", format: "currency", width: 18 },
+                        { header: `FLUJO NETO ${moneda}`, key: "flujo_neto", format: "currency", width: 18 },
+                        { header: `Δ VALOR ${moneda}`, key: "delta_real", format: "currency", width: 18 },
+                        { header: "BASE 100",   key: "base100",    format: "currency", width: 14 },
+                        { header: "TEM",        key: "tem_pct",    format: "percent",  width: 12 },
+                        { header: "TEA",        key: "tea_pct",    format: "percent",  width: 12 },
                       ],
                     },
                   ],
-                  filename: `valuaciones-mensual-${cta}-${timestampSuffix()}.xlsx`,
+                  filename: `valuaciones-mensual-${cta}-${moneda}-${timestampSuffix()}.xlsx`,
                 });
               }}
             />
@@ -614,24 +668,41 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
                     <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Mes</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Cierre</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title={esUSD ? "Cierre en USD (V_cierre_ARS / MEP_cierre)" : "Cierre en ARS"}
+                    >Cierre</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
                       title="Depósitos − extracciones del mes"
                     >Flujo neto</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="Δ valuación REAL = (cierre_t − cierre_t−1) − flujo_neto. Aísla performance de inversiones."
+                      title="Δ valor REAL = (cierre_t − cierre_t−1) − flujo_neto. Aísla performance de inversiones."
                     >Δ valor</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="TEA — Tasa Efectiva Anual derivada del retorno del mes. (1 + r_mes)^12 − 1, donde r_mes = Δ valor / (cierre_anterior + flujo_neto)."
+                      title="Base 100 acumulada — TWR puro. Arranca en 100 y compone por (1 + TEM) cada mes. Sin depender de aportes/retiros."
+                    >Base 100</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title="TEM — Tasa Efectiva del período. TEA des-anualizada a los días reales del mes: (1 + TEA)^(días/365) − 1."
+                    >TEM</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title="TEA — Tasa Efectiva Anual via XIRR (TIR.NO.PER). Cashflow: +V_inicio, flujos individuales, −V_cierre. Si USD: cashflow convertido con MEP por fecha."
                     >TEA</th>
                   </tr>
                 </thead>
                 <tbody>
                   {meses.map((m) => {
                     const active = selectedFecha === m.ultimo_dia;
+                    const cierre     = esUSD ? m.valuacion_cierre_usd : m.valuacion_cierre;
+                    const flujo_neto = esUSD ? m.flujo_neto_usd        : m.flujo_neto;
+                    const delta_real = esUSD ? m.delta_real_usd        : m.delta_real;
+                    const base100    = esUSD ? m.twr_base100_usd       : m.twr_base100;
+                    const tem        = esUSD ? m.tem_periodo_usd       : m.tem_periodo;
+                    const tea        = esUSD ? m.tea_mensual_usd       : m.tea_mensual;
                     return (
                       <tr
                         key={m.mes}
@@ -645,7 +716,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         title={
                           active
                             ? "Click de nuevo para volver al snapshot más reciente"
-                            : `Ver posición al cierre de ${fmtMesAnio(m.mes)} (${m.ultimo_dia})`
+                            : `Ver posición al cierre de ${fmtMesAnio(m.mes)} (${m.ultimo_dia})` +
+                              (esUSD && m.mep_cierre ? ` · MEP ${m.mep_cierre.toLocaleString("es-AR")}` : "")
                         }
                       >
                         <td className={
@@ -655,26 +727,37 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                           {active && "▶ "}{fmtMesCorto(m.mes)}
                         </td>
                         <td className="px-2 py-1 text-right text-[#d0d0d0] font-semibold">
-                          {fmtCompact(m.valuacion_cierre)}
+                          {fmtCompact(cierre)}
                         </td>
                         <td
                           className="px-2 py-1 text-right"
-                          style={{ color: m.flujo_neto !== 0 ? colorDelta(m.flujo_neto) : "#666" }}
+                          style={{ color: flujo_neto !== 0 ? colorDelta(flujo_neto) : "#666" }}
                         >
-                          {m.flujo_neto !== 0 ? fmtSigned(m.flujo_neto) : "—"}
+                          {flujo_neto !== 0 ? fmtSigned(flujo_neto) : "—"}
                         </td>
                         <td
                           className="px-2 py-1 text-right font-semibold"
-                          style={{ color: colorDelta(m.delta_real) }}
+                          style={{ color: colorDelta(delta_real) }}
                         >
-                          {m.delta_real != null ? fmtSigned(m.delta_real) : "—"}
+                          {delta_real != null ? fmtSigned(delta_real) : "—"}
+                        </td>
+                        <td className="px-2 py-1 text-right text-[#d0d0d0]">
+                          {base100.toFixed(2)}
                         </td>
                         <td
                           className="px-2 py-1 text-right"
-                          style={{ color: m.tea_mensual != null ? colorDelta(m.tea_mensual) : "#666" }}
+                          style={{ color: tem != null ? colorDelta(tem) : "#666" }}
                         >
-                          {m.tea_mensual != null
-                            ? `${m.tea_mensual >= 0 ? "+" : ""}${(m.tea_mensual * 100).toFixed(1)}%`
+                          {tem != null
+                            ? `${tem >= 0 ? "+" : ""}${(tem * 100).toFixed(2)}%`
+                            : "—"}
+                        </td>
+                        <td
+                          className="px-2 py-1 text-right font-semibold"
+                          style={{ color: tea != null ? colorDelta(tea) : "#666" }}
+                        >
+                          {tea != null
+                            ? `${tea >= 0 ? "+" : ""}${(tea * 100).toFixed(1)}%`
                             : "—"}
                         </td>
                       </tr>
