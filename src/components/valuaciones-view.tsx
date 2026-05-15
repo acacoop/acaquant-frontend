@@ -493,7 +493,28 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               </span>
             )}
           </div>
-          <div className="flex-1 min-h-0 p-2">
+          <div className="flex-1 min-h-0 p-2 relative">
+            {/* Mini-leyenda — color de cada línea. */}
+            {chartDataVisible.length > 0 && (
+              <div className="absolute top-2 left-3 z-10 flex flex-col gap-0.5 text-[9px] font-mono pointer-events-none">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-[2px] bg-[#4a9eff]" />
+                  <span className="text-[#4a9eff]">Valor</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block w-3 h-[2px]"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(to right, #ff9900 50%, transparent 50%)",
+                      backgroundSize: "4px 2px",
+                      backgroundRepeat: "repeat-x",
+                    }}
+                  />
+                  <span className="text-[#ff9900]">PnL</span>
+                </div>
+              </div>
+            )}
             {chartDataVisible.length === 0 ? (
               <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
                 Sin meses con data en este rango.
