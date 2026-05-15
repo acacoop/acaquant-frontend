@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AsistenteDashboard } from "./asistente-dashboard";
 import { ChatView } from "./chat-view";
 import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
+import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
@@ -1775,6 +1776,25 @@ type Tab =
   | "roles"
   | "debug_xirr";
 
+// AUNESA es un grupo con dos sub-vistas: FLUJO (explorador de movimientos
+// de Aunesa) y AUM (consulta de Valuaciones.AuM por cuenta/fecha).
+function AunesaGroup() {
+  const [sub, setSub] = useState<"flujo" | "aum">("flujo");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+        <span className="text-[9px] font-semibold text-[#666] tracking-widest mr-2">AUNESA</span>
+        <Pill label="FLUJO" active={sub === "flujo"} onClick={() => setSub("flujo")} />
+        <Pill label="AUM" active={sub === "aum"} onClick={() => setSub("aum")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "flujo" && <AunesaExplorarPanel />}
+        {sub === "aum"   && <AunesaAumPanel />}
+      </div>
+    </div>
+  );
+}
+
 export function ManagerView() {
   const [tab, setTab] = useState<Tab>("diagnostico");
 
@@ -1812,7 +1832,7 @@ export function ManagerView() {
         {tab === "validaciones" && <TabValidaciones />}
         {tab === "instrumentos" && <TabInstrumentos />}
         {tab === "assets"       && <TabAssets />}
-        {tab === "aunesa"       && <AunesaExplorarPanel />}
+        {tab === "aunesa"       && <AunesaGroup />}
         {tab === "recursos"     && <RecursosPanel />}
         {tab === "logs"         && <LogsPanel />}
         {tab === "asistente"    && <TabAsistente />}
