@@ -856,8 +856,96 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             <span className="text-[9px] text-[#888]">cargando…</span>
           )}
 
+          {/* Download button — exporta posición + flujos (si hay fecha) en hojas */}
+          <DownloadButton
+            className="ml-auto"
+            title={
+              selectedFecha
+                ? "Descargar Excel (posiciones + flujos del mes en hojas separadas)"
+                : "Descargar Excel (posición actual)"
+            }
+            onClick={async () => {
+              const cta = idCuenta;
+              const fechaSnap = ultimoSnap ?? selectedFecha ?? "actual";
+              const sheets: Parameters<typeof exportToXlsx>[0]["sheets"] = [];
+
+              // ── Hoja 1: Posiciones ─────────────────────────────────────
+              if (posiciones.length > 0) {
+                sheets.push({
+                  name: selectedFecha ? `Posición ${fechaSnap}` : "Posición actual",
+                  title: nombreCuenta
+                    ? `Cuenta: [${cta}] ${nombreCuenta} · ${fechaSnap}`
+                    : `Cuenta: [${cta}] · ${fechaSnap}`,
+                  rows: posiciones.map((p) => ({
+                    ticker:        p.ticker,
+                    emisor:        p.emisor ?? "",
+                    clase_activo:  p.clase_activo ?? "",
+                    cartera:       p.cartera ?? "",
+                    calificacion:  p.calificacion ?? "",
+                    vencimiento:   p.vencimiento ?? "",
+                    cantidad:      p.cantidad,
+                    precio:        p.precio,
+                    valuacion:     p.valuacion,
+                    share:         p.share != null ? p.share : null,  // % directo (no /100)
+                  })),
+                  columns: [
+                    { header: "TICKER",       key: "ticker",       format: "text",     width: 14 },
+                    { header: "EMISOR",       key: "emisor",       format: "text",     width: 22 },
+                    { header: "CLASE",        key: "clase_activo", format: "text",     width: 14 },
+                    { header: "CARTERA",      key: "cartera",      format: "text",     width: 14 },
+                    { header: "CALIF.",       key: "calificacion", format: "text",     width: 10 },
+                    { header: "VTO.",         key: "vencimiento",  format: "text",     width: 12 },
+                    { header: "CANTIDAD",     key: "cantidad",     format: "number",   width: 16 },
+                    { header: "PRECIO",       key: "precio",       format: "number",   width: 14 },
+                    { header: "VALUACIÓN",    key: "valuacion",    format: "currency", width: 18 },
+                    { header: "%",            key: "share",        format: "percent",  width: 10 },
+                  ],
+                });
+              }
+
+              // ── Hoja 2: Flujos del mes (solo si hay fecha seleccionada) ──
+              if (selectedFecha && movResp && movResp.movimientos.length > 0) {
+                sheets.push({
+                  name: `Flujos ${movResp.mes}`,
+                  title: `Movimientos de ${fmtMesAnio(movResp.mes)} · [${cta}]`,
+                  rows: movResp.movimientos.map((m) => ({
+                    fecha:        m.fecha,
+                    categoria:    m.categoria,
+                    importe:      m.importe,
+                    moneda:       m.moneda ?? "",
+                    mep_rate:     m.mep_rate,
+                    importe_ars:  m.importe_ars,
+                    op:           m.op ?? "",
+                    ticker:       m.ticker ?? "",
+                    comprobante:  m.comprobante ?? "",
+                    informacion:  m.informacion ?? "",
+                  })),
+                  columns: [
+                    { header: "FECHA",      key: "fecha",       format: "text",     width: 12 },
+                    { header: "TIPO",       key: "categoria",   format: "text",     width: 14 },
+                    { header: "IMPORTE",    key: "importe",     format: "currency", width: 16 },
+                    { header: "MONEDA",     key: "moneda",      format: "text",     width: 8  },
+                    { header: "MEP",        key: "mep_rate",    format: "number",   width: 10 },
+                    { header: "IMPORTE ARS",key: "importe_ars", format: "currency", width: 18 },
+                    { header: "OP",         key: "op",          format: "text",     width: 10 },
+                    { header: "TICKER",     key: "ticker",      format: "text",     width: 14 },
+                    { header: "COMPROBANTE",key: "comprobante", format: "text",     width: 16 },
+                    { header: "DETALLE",    key: "informacion", format: "text",     width: 40 },
+                  ],
+                });
+              }
+
+              if (sheets.length === 0) return;
+              const sufijoFecha = selectedFecha ?? "actual";
+              await exportToXlsx({
+                sheets,
+                filename: `valuaciones-portfolio-${cta}-${sufijoFecha}-${timestampSuffix()}.xlsx`,
+              });
+            }}
+          />
+
           {/* Header right: counts/totales según panel activo */}
-          <span className="ml-auto text-[10px] text-[#888] font-mono">
+          <span className="text-[10px] text-[#888] font-mono">
             {panelMode === "portfolio" ? (
               <>
                 {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
