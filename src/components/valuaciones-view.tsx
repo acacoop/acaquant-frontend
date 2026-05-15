@@ -615,23 +615,26 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               onClick={async () => {
                 const cta = mensualResp?.id_cuenta ?? idCuenta ?? "cuenta";
                 // tea/tem en backend = decimal (0.2682). xlsx "percent" espera × 100.
-                const rowsExport = meses.map((m) => ({
-                  mes:        m.mes,
-                  ultimo_dia: m.ultimo_dia,
-                  cierre:     esUSD ? m.valuacion_cierre_usd : m.valuacion_cierre,
-                  flujo_neto: esUSD ? m.flujo_neto_usd : m.flujo_neto,
-                  delta_real: esUSD ? m.delta_real_usd : m.delta_real,
-                  base100:    esUSD ? m.twr_base100_usd : m.twr_base100,
-                  tem:        ((esUSD ? m.tem_periodo_usd : m.tem_periodo) ?? null),
-                  tem_pct:    (() => {
-                    const v = esUSD ? m.tem_periodo_usd : m.tem_periodo;
-                    return v != null ? v * 100 : null;
-                  })(),
-                  tea_pct:    (() => {
-                    const v = esUSD ? m.tea_mensual_usd : m.tea_mensual;
-                    return v != null ? v * 100 : null;
-                  })(),
-                }));
+                const rowsExport = meses.map((m) => {
+                  const b100 = esUSD ? m.twr_base100_usd : m.twr_base100;
+                  return {
+                    mes:        m.mes,
+                    ultimo_dia: m.ultimo_dia,
+                    cierre:     esUSD ? m.valuacion_cierre_usd : m.valuacion_cierre,
+                    flujo_neto: esUSD ? m.flujo_neto_usd : m.flujo_neto,
+                    delta_real: esUSD ? m.delta_real_usd : m.delta_real,
+                    base100:    b100,
+                    var_acum:   b100 - 100,                  // % directo (no /100)
+                    tem_pct:    (() => {
+                      const v = esUSD ? m.tem_periodo_usd : m.tem_periodo;
+                      return v != null ? v * 100 : null;
+                    })(),
+                    tea_pct:    (() => {
+                      const v = esUSD ? m.tea_mensual_usd : m.tea_mensual;
+                      return v != null ? v * 100 : null;
+                    })(),
+                  };
+                });
                 const titulo = nombreCuenta
                   ? `Cuenta: [${cta}] ${nombreCuenta} — ${moneda}`
                   : `Cuenta: [${cta}] — ${moneda}`;
@@ -648,6 +651,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         { header: `FLUJO NETO ${moneda}`, key: "flujo_neto", format: "currency", width: 18 },
                         { header: `Δ VALOR ${moneda}`, key: "delta_real", format: "currency", width: 18 },
                         { header: "BASE 100",   key: "base100",    format: "currency", width: 14 },
+                        { header: "VAR ACUM",   key: "var_acum",   format: "percent",  width: 14 },
                         { header: "TEM",        key: "tem_pct",    format: "percent",  width: 12 },
                         { header: "TEA",        key: "tea_pct",    format: "percent",  width: 12 },
                       ],
@@ -684,6 +688,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
                       title="Base 100 acumulada — TWR puro. Arranca en 100 y compone por (1 + TEM) cada mes. Sin depender de aportes/retiros."
                     >Base 100</th>
+                    <th
+                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      title="Variación acumulada desde el inicio del período (Base 100 − 100). Equivalente al rendimiento total de la cuenta aislando aportes/retiros."
+                    >Var. acum.</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
                       title="TEM — Tasa Efectiva del período. TEA des-anualizada a los días reales del mes: (1 + TEA)^(días/365) − 1."
@@ -743,6 +751,12 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         </td>
                         <td className="px-2 py-1 text-right text-[#d0d0d0]">
                           {base100.toFixed(2)}
+                        </td>
+                        <td
+                          className="px-2 py-1 text-right font-semibold"
+                          style={{ color: colorDelta(base100 - 100) }}
+                        >
+                          {`${base100 - 100 >= 0 ? "+" : ""}${(base100 - 100).toFixed(2)}%`}
                         </td>
                         <td
                           className="px-2 py-1 text-right"
