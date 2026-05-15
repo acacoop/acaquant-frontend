@@ -18,7 +18,7 @@ interface PosicionAunesa {
 
 interface PosicionResp {
   id_cuenta: string;
-  desde: string;
+  desde: string;          // DD/MM/YYYY — la fecha que se mandó a Aunesa
   n_total: number;
   n_acumulado: number;
   posiciones: PosicionAunesa[];
@@ -39,6 +39,8 @@ function fmtNum(v: number | null, dec = 2): string {
 
 export function AunesaPosicionPanel() {
   const [idCuenta, setIdCuenta] = useState<string>("");
+  // Fecha de liquidación YYYY-MM-DD. Vacío = el backend usa T+2 hábil.
+  const [fecha, setFecha] = useState<string>("");
   const [data, setData] = useState<PosicionResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,9 @@ export function AunesaPosicionPanel() {
     setLoading(true);
     setError(null);
     setData(null);
-    fetch(`/api/manager/aunesa/posicion?id_cuenta=${encodeURIComponent(cta)}`, {
+    const q = new URLSearchParams({ id_cuenta: cta });
+    if (fecha) q.set("desde", fecha);
+    fetch(`/api/manager/aunesa/posicion?${q}`, {
       cache: "no-store",
     })
       .then(async (r) => {
@@ -76,6 +80,24 @@ export function AunesaPosicionPanel() {
           placeholder="ej: 805"
           className="bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
         />
+        <span className="text-[9px] tracking-widest text-[#666]">FECHA</span>
+        <input
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
+          title="Fecha de liquidación. Vacío = T+2 hábil (default del job)."
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+        />
+        {fecha && (
+          <button
+            onClick={() => setFecha("")}
+            className="text-[10px] text-[#666] hover:text-[#ff9900]"
+            title="Volver a T+2 default"
+          >
+            × T+2
+          </button>
+        )}
         <button
           onClick={consultar}
           disabled={loading}
