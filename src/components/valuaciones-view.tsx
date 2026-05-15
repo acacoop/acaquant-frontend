@@ -403,7 +403,22 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
   const meses = mensualResp?.meses ?? [];
   // tea_mensual y twr_base100 vienen del backend (api/services/valuaciones.py).
-  // Cero lógica de cálculo en cliente — solo renderizamos.
+  // PnL acumulado se calcula en cliente — suma simple de delta_real desde el
+  // primer mes (cronológico) hasta cada mes. Se hace en ambas monedas y se
+  // guarda en un map para lookup O(1) al renderizar la tabla descendente.
+  const pnlAcumByMes: Record<string, { ars: number; usd: number }> = (() => {
+    const out: Record<string, { ars: number; usd: number }> = {};
+    let accArs = 0;
+    let accUsd = 0;
+    // meses viene descendente → iteramos de viejo a nuevo.
+    for (let i = meses.length - 1; i >= 0; i--) {
+      const m = meses[i];
+      if (m.delta_real != null) accArs += m.delta_real;
+      if (m.delta_real_usd != null) accUsd += m.delta_real_usd;
+      out[m.mes] = { ars: accArs, usd: accUsd };
+    }
+    return out;
+  })();
   const posiciones = posResp?.posiciones ?? [];
   const totalPos = posResp?.total ?? 0;
   const ultimoSnap = posResp?.fecha;
@@ -617,6 +632,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 // tea/tem en backend = decimal (0.2682). xlsx "percent" espera × 100.
                 const rowsExport = meses.map((m) => {
                   const b100 = esUSD ? m.twr_base100_usd : m.twr_base100;
+                  const acum = pnlAcumByMes[m.mes];
                   return {
                     mes:        m.mes,
                     ultimo_dia: m.ultimo_dia,
@@ -624,7 +640,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     flujo_neto: esUSD ? m.flujo_neto_usd : m.flujo_neto,
                     delta_real: esUSD ? m.delta_real_usd : m.delta_real,
                     base100:    b100,
-                    var_acum:   b100 - 100,                  // % directo (no /100)
+                    pnl_acum:   esUSD ? (acum?.usd ?? null) : (acum?.ars ?? null),
                     tem_pct:    (() => {
                       const v = esUSD ? m.tem_periodo_usd : m.tem_periodo;
                       return v != null ? v * 100 : null;
@@ -651,7 +667,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         { header: `FLUJO NETO ${moneda}`, key: "flujo_neto", format: "currency", width: 18 },
                         { header: `Δ VALOR ${moneda}`, key: "delta_real", format: "currency", width: 18 },
                         { header: "BASE 100",   key: "base100",    format: "currency", width: 14 },
-                        { header: "VAR ACUM",   key: "var_acum",   format: "percent",  width: 14 },
+                        { header: `PNL ACUM ${moneda}`, key: "pnl_acum", format: "currency", width: 18 },
                         { header: "TEM",        key: "tem_pct",    format: "percent",  width: 12 },
                         { header: "TEA",        key: "tea_pct",    format: "percent",  width: 12 },
                       ],
@@ -690,8 +706,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     >Base 100</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="Variación acumulada desde el inicio del período (Base 100 − 100). Equivalente al rendimiento total de la cuenta aislando aportes/retiros."
-                    >Var. acum.</th>
+                      title="PnL acumulado — suma de Δ valor desde el primer mes. Sumatoria simple, no compone. Útil para ver ganancia/pérdida total en $."
+                    >PnL acum.</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
                       title="TEM — Tasa Efectiva del período. TEA des-anualizada a los días reales del mes: (1 + TEA)^(días/365) − 1."
@@ -754,9 +770,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         </td>
                         <td
                           className="px-2 py-1 text-right font-semibold"
-                          style={{ color: colorDelta(base100 - 100) }}
+                          style={{ color: colorDelta(esUSD ? pnlAcumByMes[m.mes]?.usd : pnlAcumByMes[m.mes]?.ars) }}
                         >
-                          {`${base100 - 100 >= 0 ? "+" : ""}${(base100 - 100).toFixed(2)}%`}
+                          {fmtSigned(esUSD ? pnlAcumByMes[m.mes]?.usd : pnlAcumByMes[m.mes]?.ars)}
                         </td>
                         <td
                           className="px-2 py-1 text-right"
