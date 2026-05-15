@@ -1235,10 +1235,10 @@ interface CfiInstrument {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// TabAssets — auditoría de Valuaciones.Assets: lista assets con gaps
-// (CARTERA o EMISOR vacíos / "NO APLICA") y permite editarlos in-place.
-// PATCH a /api/manager/assets/{unidad} hace el update sobre UPPERCASE
-// (fuente de verdad). El cron de aum sincroniza después a TitulosAPI.AssetsAPI.
+// TabAssets — edición de Valuaciones.Assets (fuente de verdad UPPERCASE).
+// Lista TODO el catálogo de assets y permite editar los 7 campos
+// in-place. Filtro `CAMPO VACÍO` para ver solo los que tienen un campo
+// puntual sin completar. PATCH a /api/manager/assets escribe UPPERCASE.
 // ─────────────────────────────────────────────────────────────────────────
 type AssetGap = {
   unidad: string;
@@ -1259,18 +1259,39 @@ type RowState =
   | { kind: "saved" }
   | { kind: "error"; msg: string };
 
+// Campos UPPERCASE editables — define el orden de columnas de la tabla.
+const ASSET_CAMPOS = [
+  "CARTERA", "EMISOR", "CLASE_ACTIVO", "CALIFICACION",
+  "TICKER", "VENCIMIENTO", "INSTRUMENTO",
+] as const;
+type AssetCampo = (typeof ASSET_CAMPOS)[number];
+type AssetDraft = Record<AssetCampo, string>;
+
+function emptyDraft(): AssetDraft {
+  return {
+    CARTERA: "", EMISOR: "", CLASE_ACTIVO: "", CALIFICACION: "",
+    TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "",
+  };
+}
+function draftFromAsset(a: AssetGap): AssetDraft {
+  const d = emptyDraft();
+  for (const c of ASSET_CAMPOS) d[c] = (a[c] ?? "") as string;
+  return d;
+}
+
 function TabAssets() {
   const [assets, setAssets] = useState<AssetGap[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
-  const [drafts, setDrafts] = useState<Record<string, { CARTERA: string; EMISOR: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, AssetDraft>>({});
   const [carteraOpts, setCarteraOpts] = useState<string[]>([]);
   const [emisorOpts, setEmisorOpts] = useState<string[]>([]);
-  // Filtros de la query backend
+  // Filtros de la query backend.
   const [filtroCartera, setFiltroCartera] = useState<string>("");
   const [filtroEmisor, setFiltroEmisor] = useState<string>("");
-  const [soloGaps, setSoloGaps] = useState<boolean>(true);
+  // "mostrar solo los que tienen este campo vacío". "" = sin filtro (todo).
+  const [campoVacio, setCampoVacio] = useState<AssetCampo | "">("");
 
   const fetchAssets = () => {
     setLoading(true);
@@ -1278,7 +1299,7 @@ function TabAssets() {
     const q = new URLSearchParams();
     if (filtroCartera) q.set("cartera", filtroCartera);
     if (filtroEmisor) q.set("emisor", filtroEmisor);
-    q.set("solo_gaps", soloGaps ? "true" : "false");
+    if (campoVacio) q.set("campo_vacio", campoVacio);
     fetch(`/api/manager/assets?${q}`)
       .then(async (r) => {
         if (!r.ok) {
@@ -1289,13 +1310,8 @@ function TabAssets() {
       })
       .then((d: { assets: AssetGap[] }) => {
         setAssets(d.assets || []);
-        const initial: Record<string, { CARTERA: string; EMISOR: string }> = {};
-        for (const a of d.assets || []) {
-          initial[a.unidad] = {
-            CARTERA: a.CARTERA ?? "",
-            EMISOR: a.EMISOR ?? "",
-          };
-        }
+        const initial: Record<string, AssetDraft> = {};
+        for (const a of d.assets || []) initial[a.unidad] = draftFromAsset(a);
         setDrafts(initial);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
@@ -1313,12 +1329,12 @@ function TabAssets() {
   }, []);
 
   // Re-fetch cuando cambian los filtros.
-  useEffect(() => { fetchAssets(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filtroCartera, filtroEmisor, soloGaps]);
+  useEffect(() => { fetchAssets(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filtroCartera, filtroEmisor, campoVacio]);
 
-  const setDraftField = (unidad: string, field: "CARTERA" | "EMISOR", value: string) => {
+  const setDraftField = (unidad: string, field: AssetCampo, value: string) => {
     setDrafts((prev) => ({
       ...prev,
-      [unidad]: { ...(prev[unidad] || { CARTERA: "", EMISOR: "" }), [field]: value },
+      [unidad]: { ...(prev[unidad] || emptyDraft()), [field]: value },
     }));
   };
 
@@ -1326,8 +1342,9 @@ function TabAssets() {
     const draft = drafts[asset.unidad];
     if (!draft) return;
     const payload: Record<string, string> = { unidad: asset.unidad };
-    if (draft.CARTERA !== (asset.CARTERA ?? "")) payload.CARTERA = draft.CARTERA;
-    if (draft.EMISOR !== (asset.EMISOR ?? "")) payload.EMISOR = draft.EMISOR;
+    for (const c of ASSET_CAMPOS) {
+      if (draft[c] !== ((asset[c] ?? "") as string)) payload[c] = draft[c];
+    }
     // Si no hay nada que cambiar, no llama al backend.
     if (Object.keys(payload).length === 1) return;
 
@@ -1352,6 +1369,7 @@ function TabAssets() {
       }
       const updated: AssetGap = await r.json();
       setAssets((prev) => prev.map((a) => (a.unidad === asset.unidad ? updated : a)));
+      setDrafts((prev) => ({ ...prev, [asset.unidad]: draftFromAsset(updated) }));
       setRowState((s) => ({ ...s, [asset.unidad]: { kind: "saved" } }));
       setTimeout(() => {
         setRowState((s) => ({ ...s, [asset.unidad]: { kind: "idle" } }));
@@ -1362,9 +1380,15 @@ function TabAssets() {
     }
   };
 
+  // Solo CARTERA y EMISOR tienen autocomplete (datalist).
+  const listId: Partial<Record<AssetCampo, string>> = {
+    CARTERA: "cartera-options",
+    EMISOR: "emisor-options",
+  };
+
   return (
     <div className="h-full flex flex-col min-h-0">
-      {/* Datalists para autocomplete — un sólo doc, todos los inputs lo comparten via list="..." */}
+      {/* Datalists para autocomplete — compartidos por los inputs via list="..." */}
       <datalist id="cartera-options">
         {carteraOpts.map((c) => <option key={c} value={c} />)}
       </datalist>
@@ -1395,15 +1419,16 @@ function TabAssets() {
           {emisorOpts.map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
 
-        <label className="flex items-center gap-1.5 text-[10px] tracking-widest text-[#888] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={soloGaps}
-            onChange={(e) => setSoloGaps(e.target.checked)}
-            className="accent-[#ff9900]"
-          />
-          SOLO GAPS
-        </label>
+        <span className="text-[9px] tracking-widest text-[#666]">CAMPO VACÍO</span>
+        <select
+          value={campoVacio}
+          onChange={(e) => setCampoVacio(e.target.value as AssetCampo | "")}
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          title="Mostrar solo los assets con este campo sin completar"
+        >
+          <option value="">— sin filtro —</option>
+          {ASSET_CAMPOS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
 
         <button
           onClick={fetchAssets}
@@ -1420,66 +1445,48 @@ function TabAssets() {
           <div className="p-3 text-[11px] text-[#555]">Cargando…</div>
         )}
         {!error && !loading && assets.length === 0 && (
-          <div className="p-3 text-[11px] text-[#555]">Sin gaps. Todos los assets tienen CARTERA y EMISOR.</div>
+          <div className="p-3 text-[11px] text-[#555]">Sin resultados para el filtro actual.</div>
         )}
         {assets.length > 0 && (
           <table className="w-full text-[11px] font-mono">
             <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
               <tr className="text-left text-[#888] tracking-widest text-[9px]">
                 <th className="px-3 py-2">UNIDAD</th>
-                <th className="px-3 py-2">CARTERA</th>
-                <th className="px-3 py-2">EMISOR</th>
-                <th className="px-3 py-2">CLASE_ACTIVO</th>
-                <th className="px-3 py-2">TICKER</th>
-                <th className="px-3 py-2">INSTRUMENTO</th>
+                {ASSET_CAMPOS.map((c) => <th key={c} className="px-2 py-2">{c}</th>)}
                 <th className="px-3 py-2">EDITADO</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {assets.map((a) => {
-                const draft = drafts[a.unidad] || { CARTERA: "", EMISOR: "" };
+                const draft = drafts[a.unidad] || emptyDraft();
                 const state: RowState = rowState[a.unidad] || { kind: "idle" };
-                const dirty =
-                  draft.CARTERA !== (a.CARTERA ?? "") ||
-                  draft.EMISOR !== (a.EMISOR ?? "");
+                const dirty = ASSET_CAMPOS.some((c) => draft[c] !== ((a[c] ?? "") as string));
                 return (
                   <tr key={a.unidad} className="border-b border-[#141414] hover:bg-[#0c0c0c]">
-                    <td className="px-3 py-1.5 text-[#d0d0d0]">{a.unidad}</td>
-                    <td className="px-3 py-1.5">
-                      <input
-                        type="text"
-                        list="cartera-options"
-                        value={draft.CARTERA}
-                        onChange={(e) => setDraftField(a.unidad, "CARTERA", e.target.value)}
-                        onBlur={() => saveRow(a)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                        }}
-                        placeholder={a.CARTERA || "—"}
-                        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full"
-                      />
+                    <td
+                      className="px-3 py-1.5 text-[#d0d0d0] whitespace-nowrap max-w-[280px] truncate"
+                      title={a.unidad}
+                    >
+                      {a.unidad}
                     </td>
-                    <td className="px-3 py-1.5">
-                      <input
-                        type="text"
-                        list="emisor-options"
-                        value={draft.EMISOR}
-                        onChange={(e) => setDraftField(a.unidad, "EMISOR", e.target.value)}
-                        onBlur={() => saveRow(a)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                        }}
-                        placeholder={a.EMISOR || "—"}
-                        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 text-[#888]">{a.CLASE_ACTIVO || "—"}</td>
-                    <td className="px-3 py-1.5 text-[#888]">{a.TICKER || "—"}</td>
-                    <td className="px-3 py-1.5 text-[#888] truncate max-w-[260px]" title={a.INSTRUMENTO ?? ""}>
-                      {a.INSTRUMENTO || "—"}
-                    </td>
-                    <td className="px-3 py-1.5 text-[#666] text-[10px]">
+                    {ASSET_CAMPOS.map((c) => (
+                      <td key={c} className="px-2 py-1.5">
+                        <input
+                          type="text"
+                          list={listId[c]}
+                          value={draft[c]}
+                          onChange={(e) => setDraftField(a.unidad, c, e.target.value)}
+                          onBlur={() => saveRow(a)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          }}
+                          placeholder="—"
+                          className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full min-w-[90px]"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-3 py-1.5 text-[#666] text-[10px] whitespace-nowrap">
                       {a.actualizado_at ? (
                         <>
                           {new Date(a.actualizado_at).toLocaleString("es-AR", {
@@ -1490,7 +1497,7 @@ function TabAssets() {
                         </>
                       ) : "—"}
                     </td>
-                    <td className="px-3 py-1.5 text-[10px]">
+                    <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
                       {state.kind === "saving" && <span className="text-[#ff9900]">Guardando…</span>}
                       {state.kind === "saved"  && <span className="text-green-400">✓ guardado</span>}
                       {state.kind === "error"  && (
