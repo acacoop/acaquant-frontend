@@ -65,7 +65,9 @@ interface DebugResponse {
     ultimo_mes: string | null;
     n_meses: number;
     twr_final: number | null;
+    twr_final_usd: number | null;
     ganancia_pct: number | null;
+    ganancia_pct_usd: number | null;
   };
 }
 
