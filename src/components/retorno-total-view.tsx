@@ -5,7 +5,6 @@ import { useViewportKey } from "@/lib/use-viewport-key";
 import { DualRange } from "./dual-range";
 import { SensibilidadTable } from "./sensibilidad-table";
 import { CanjeTab } from "./canje-tab";
-import { CarryTradeTab } from "./carry-trade-tab";
 import { DescomposicionTab } from "./descomposicion-tab";
 import {
   CartesianGrid,
@@ -25,7 +24,12 @@ interface HistRow {
   price: number | null;
 }
 
-type Curva = "tasa_fija" | "cer" | "soberanos";
+interface RetornoData {
+  curva: string;
+  rows: HistRow[];
+  mep: Record<string, number>;
+  oficial: Record<string, number>;
+}
 
 interface TablaRow {
   ticker: string;
@@ -33,16 +37,13 @@ interface TablaRow {
   fechaBase: string;
   final: number;
   fechaFinal: string;
-  retorno: number;
+  retArs: number;
+  retUsd: number | null;
 }
 
-const POLL_MS = 300_000; // 5 min — refresh para tomar precios del día
+type Curva = "tasa_fija" | "cer" | "soberanos";
 
-const MONEDA_POR_CURVA: Record<Curva, string> = {
-  tasa_fija: "ARS",
-  cer:       "ARS",
-  soberanos: "USD",
-};
+const POLL_MS = 300_000; // 5 min — refresh para tomar precios del día
 
 const PALETA = [
   "#ff9900",
@@ -64,7 +65,7 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "carry_trade" | "descomposicion";
+type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "descomposicion";
 
 export function RetornoTotalView() {
   const [tab, setTab] = useState<EstrategiaTab>("retorno_total");
@@ -91,11 +92,6 @@ export function RetornoTotalView() {
           onClick={() => setTab("canje")}
         />
         <TabPill
-          label="CARRY TRADE"
-          active={tab === "carry_trade"}
-          onClick={() => setTab("carry_trade")}
-        />
-        <TabPill
           label="DESCOMPOSICIÓN"
           active={tab === "descomposicion"}
           onClick={() => setTab("descomposicion")}
@@ -105,7 +101,6 @@ export function RetornoTotalView() {
         {tab === "retorno_total" && <HistoricoTab />}
         {tab === "sensibilidad" && <SensibilidadTable />}
         {tab === "canje" && <CanjeTab />}
-        {tab === "carry_trade" && <CarryTradeTab />}
         {tab === "descomposicion" && <DescomposicionTab />}
       </div>
     </div>
@@ -131,10 +126,17 @@ function TabPill({
 
 function HistoricoTab() {
   const [curva, setCurva] = useState<Curva>("tasa_fija");
-  const [byCurva, setByCurva] = useState<Record<string, HistRow[]>>({});
+  const [byCurva, setByCurva] = useState<Record<string, RetornoData>>({});
   const vpKey = useViewportKey();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Moneda del CHART: ARS (default) o USD. Solo aplica a curvas en pesos —
+  // soberanos siempre USD. La tabla muestra SIEMPRE ambos retornos.
+  const [monedaChart, setMonedaChart] = useState<"ARS" | "USD">("ARS");
+  // Dólar usado para dolarizar (MEP u Oficial A3500).
+  const [dolarTipo, setDolarTipo] = useState<"mep" | "oficial">("mep");
+
+  const esPesos = curva === "tasa_fija" || curva === "cer";
 
   useEffect(() => {
     let cancelled = false;
@@ -143,11 +145,11 @@ function HistoricoTab() {
         setLoading(true);
         setError(null);
         const res = await fetch(
-          `/api/historico-curva?curva=${encodeURIComponent(curva)}`,
+          `/api/analitica/retorno-total?curva=${encodeURIComponent(curva)}`,
           { cache: "no-store" },
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j: HistRow[] = await res.json();
+        const j: RetornoData = await res.json();
         if (cancelled) return;
         setByCurva((prev) => ({ ...prev, [curva]: j }));
       } catch (e) {
@@ -156,8 +158,6 @@ function HistoricoTab() {
         if (!cancelled) setLoading(false);
       }
     };
-    // Fetch al montar/cambiar curva (sin guardia de cache, así re-pega
-    // periódicamente y trae precios del día).
     run();
     const id = setInterval(run, POLL_MS);
     return () => {
@@ -166,16 +166,16 @@ function HistoricoTab() {
     };
   }, [curva]);
 
-  const rows = useMemo<HistRow[]>(() => byCurva[curva] || [], [byCurva, curva]);
+  const curr = byCurva[curva];
+  const rows = useMemo<HistRow[]>(() => curr?.rows || [], [curr]);
 
   const fechas = useMemo(
     () => Array.from(new Set(rows.map((r) => r.fecha))).sort(),
-    [rows]
+    [rows],
   );
-
   const tickers = useMemo(
     () => Array.from(new Set(rows.map((r) => r.ticker))).sort(),
-    [rows]
+    [rows],
   );
 
   const [rangoIdx, setRangoIdx] = useState<[number, number] | null>(null);
@@ -193,6 +193,13 @@ function HistoricoTab() {
   const fechaDesde = fechas[effectiveRango[0]];
   const fechaHasta = fechas[effectiveRango[1]];
 
+  // Serie del dólar activa (mep u oficial), ordenada asc para carry-forward.
+  const dolarSorted = useMemo<Array<[string, number]>>(() => {
+    if (!esPesos || !curr) return [];
+    const obj = dolarTipo === "mep" ? curr.mep : curr.oficial;
+    return Object.entries(obj || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [curr, dolarTipo, esPesos]);
+
   const { chartData, tabla } = useMemo(() => {
     const vacio = {
       chartData: [] as Array<Record<string, string | number>>,
@@ -200,9 +207,8 @@ function HistoricoTab() {
     };
     if (!rows.length || !fechaDesde || !fechaHasta) return vacio;
 
-    // Serie por ticker: [(fecha, price)] ordenada asc, solo price != null.
-    // Incluye fechas ANTERIORES al rango — necesarias para el carry-forward
-    // de la base (precio "as-of" fechaDesde).
+    // Serie por ticker: [(fecha, price)] ordenada asc, sin nulls. Incluye
+    // fechas anteriores al rango — necesarias para el carry-forward.
     const serieByTicker: Record<string, Array<{ fecha: string; price: number }>> = {};
     for (const r of rows) {
       if (r.price == null) continue;
@@ -212,11 +218,20 @@ function HistoricoTab() {
       serieByTicker[tk].sort((a, b) => a.fecha.localeCompare(b.fecha));
     }
 
-    // Base de cada ticker = precio "as-of" fechaDesde: el último precio con
-    // fecha <= fechaDesde (carry-forward). Si el ticker no tiene ningún
-    // precio antes de fechaDesde (recién empieza a cotizar dentro del
-    // rango), la base es su PRIMERA fecha disponible dentro del rango — la
-    // curva arranca desde ahí.
+    // Dólar "as-of": último valor con fecha <= target (carry-forward, el
+    // MEP no se mueve fines de semana / feriados).
+    const dolarAsOf = (fecha: string): number | null => {
+      let v: number | null = null;
+      for (const [f, val] of dolarSorted) {
+        if (f <= fecha) v = val;
+        else break;
+      }
+      return v;
+    };
+
+    // Base ARS de cada ticker = precio as-of fechaDesde. Si el ticker
+    // recién empieza a cotizar dentro del rango, base = su primera fecha
+    // disponible.
     const baseInfo: Record<string, { base: number; fechaBase: string }> = {};
     for (const tk in serieByTicker) {
       const serie = serieByTicker[tk];
@@ -232,8 +247,8 @@ function HistoricoTab() {
       if (base) baseInfo[tk] = { base: base.price, fechaBase: base.fecha };
     }
 
-    // Precios reales dentro del rango (sin forward-fill — el chart muestra
-    // solo los puntos que efectivamente operaron; connectNulls los une).
+    // Precios reales dentro del rango (el chart muestra solo los puntos
+    // que operaron; connectNulls los une).
     const precioPorFecha: Record<string, Record<string, number>> = {};
     for (const r of rows) {
       if (r.price == null) continue;
@@ -243,25 +258,33 @@ function HistoricoTab() {
     const fechasRango = fechas.filter((f) => f >= fechaDesde && f <= fechaHasta);
     if (!fechasRango.length) return vacio;
 
-    // chartData: cada punto = (precio / base_del_ticker − 1) × 100. Todos
-    // los tickers se normalizan contra su base alineada a fechaDesde → las
-    // curvas comparan el MISMO período. La línea de un ticker no arranca
-    // antes de su fechaBase.
+    // ¿El chart muestra USD? Solo curvas en pesos con toggle en USD.
+    const chartUSD = esPesos && monedaChart === "USD";
+
     const chartData = fechasRango.map((f) => {
       const row: Record<string, string | number> = { fecha: f };
       const precios = precioPorFecha[f] || {};
+      const dolF = chartUSD ? dolarAsOf(f) : null;
       for (const [tk, p] of Object.entries(precios)) {
         const bi = baseInfo[tk];
-        if (bi && bi.base > 0 && f >= bi.fechaBase) {
+        if (!bi || bi.base <= 0 || f < bi.fechaBase) continue;
+        if (chartUSD) {
+          const dolBase = dolarAsOf(bi.fechaBase);
+          if (!dolF || !dolBase || dolF <= 0 || dolBase <= 0) continue;
+          const pUsd = p / dolF;
+          const baseUsd = bi.base / dolBase;
+          if (baseUsd <= 0) continue;
+          row[tk] = +((pUsd / baseUsd - 1) * 100).toFixed(3);
+        } else {
           row[tk] = +((p / bi.base - 1) * 100).toFixed(3);
         }
       }
       return row;
     });
 
-    // tabla: final = último precio con fecha <= fechaHasta (carry-forward).
-    // Siempre >= fechaBase, así que el retorno cubre [fechaBase, fechaFinal]
-    // dentro del rango elegido.
+    // Tabla: retorno ARS + retorno USD por ticker. final = último precio
+    // con fecha <= fechaHasta (carry-forward). Para soberanos retUsd
+    // queda null — el price ya está en USD, retArs ES el retorno en USD.
     const tabla = tickers
       .map((tk): TablaRow | null => {
         const bi = baseInfo[tk];
@@ -273,20 +296,39 @@ function HistoricoTab() {
           else break;
         }
         if (!fin) return null;
+        const retArs = +((fin.price / bi.base - 1) * 100).toFixed(2);
+        let retUsd: number | null = null;
+        if (esPesos) {
+          const dolBase = dolarAsOf(bi.fechaBase);
+          const dolFin = dolarAsOf(fin.fecha);
+          if (dolBase && dolFin && dolBase > 0 && dolFin > 0) {
+            const baseUsd = bi.base / dolBase;
+            const finUsd = fin.price / dolFin;
+            if (baseUsd > 0) retUsd = +((finUsd / baseUsd - 1) * 100).toFixed(2);
+          }
+        }
         return {
           ticker: tk,
           base: bi.base,
           fechaBase: bi.fechaBase,
           final: fin.price,
           fechaFinal: fin.fecha,
-          retorno: +((fin.price / bi.base - 1) * 100).toFixed(2),
+          retArs,
+          retUsd,
         };
       })
       .filter((x): x is TablaRow => x !== null)
-      .sort((a, b) => b.retorno - a.retorno);
+      .sort((a, b) => {
+        // Ordena por la moneda que se está mostrando en el chart.
+        const ka = esPesos && monedaChart === "USD" ? (a.retUsd ?? -9999) : a.retArs;
+        const kb = esPesos && monedaChart === "USD" ? (b.retUsd ?? -9999) : b.retArs;
+        return kb - ka;
+      });
 
     return { chartData, tabla };
-  }, [rows, fechaDesde, fechaHasta, tickers, fechas]);
+  }, [rows, fechaDesde, fechaHasta, tickers, fechas, dolarSorted, esPesos, monedaChart]);
+
+  const monedaLabel = !esPesos ? "USD" : monedaChart;
 
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
@@ -302,8 +344,33 @@ function HistoricoTab() {
             GLOBALES
           </FilterBtn>
         </div>
-        <span className="text-[10px] text-[#555] font-mono px-2">
-          Retorno en {MONEDA_POR_CURVA[curva]}
+
+        {/* Toggle ARS/USD del chart + selector de dólar — solo curvas en pesos */}
+        {esPesos && (
+          <>
+            <div className="flex items-center gap-1 border-l border-[#2a2a2a] pl-3">
+              <span className="text-[9px] uppercase tracking-wide text-[#555] mr-1">Chart</span>
+              <FilterBtn active={monedaChart === "ARS"} onClick={() => setMonedaChart("ARS")}>
+                ARS
+              </FilterBtn>
+              <FilterBtn active={monedaChart === "USD"} onClick={() => setMonedaChart("USD")}>
+                USD
+              </FilterBtn>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] uppercase tracking-wide text-[#555] mr-1">Dólar</span>
+              <FilterBtn active={dolarTipo === "mep"} onClick={() => setDolarTipo("mep")}>
+                MEP
+              </FilterBtn>
+              <FilterBtn active={dolarTipo === "oficial"} onClick={() => setDolarTipo("oficial")}>
+                OFICIAL
+              </FilterBtn>
+            </div>
+          </>
+        )}
+
+        <span className="text-[10px] text-[#555] font-mono px-1">
+          Chart en {monedaLabel}
         </span>
 
         {loading ? (
@@ -332,7 +399,7 @@ function HistoricoTab() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-3">
         <div className="border border-[#1a1a1a] bg-[#080808] p-2 min-h-0">
           {chartData.length < 2 ? (
             <p className="text-[#555] text-xs py-4 text-center">Sin datos suficientes.</p>
@@ -398,7 +465,16 @@ function HistoricoTab() {
                 <th className="!px-1 text-left">TICKER</th>
                 <th className="!px-1 text-right">BASE</th>
                 <th className="!px-1 text-right">FINAL</th>
-                <th className="!px-1 text-right">RETORNO</th>
+                {esPesos ? (
+                  <>
+                    <th className="!px-1 text-right">RET ARS</th>
+                    <th className="!px-1 text-right" title={`Retorno dolarizado al ${dolarTipo.toUpperCase()}`}>
+                      RET USD
+                    </th>
+                  </>
+                ) : (
+                  <th className="!px-1 text-right">RETORNO</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -419,21 +495,45 @@ function HistoricoTab() {
                     <td className="!px-1 text-[#ff9900] whitespace-nowrap">
                       {r.ticker}
                       {baseDesalineada && (
-                        <span className="text-[#666] ml-1">
-                          ›{fmtFechaCorta(r.fechaBase)}
-                        </span>
+                        <span className="text-[#666] ml-1">›{fmtFechaCorta(r.fechaBase)}</span>
                       )}
                     </td>
                     <td className="!px-1 text-right text-[#808080]">{r.base.toFixed(2)}</td>
                     <td className="!px-1 text-right text-[#d0d0d0]">{r.final.toFixed(2)}</td>
-                    <td
-                      className={`!px-1 text-right font-semibold ${
-                        r.retorno >= 0 ? "text-[#00cc66]" : "text-[#ff3333]"
-                      }`}
-                    >
-                      {r.retorno >= 0 ? "+" : ""}
-                      {r.retorno.toFixed(2)}%
-                    </td>
+                    {esPesos ? (
+                      <>
+                        <td
+                          className={`!px-1 text-right font-semibold ${
+                            r.retArs >= 0 ? "text-[#00cc66]" : "text-[#ff3333]"
+                          }`}
+                        >
+                          {r.retArs >= 0 ? "+" : ""}
+                          {r.retArs.toFixed(2)}%
+                        </td>
+                        <td
+                          className={`!px-1 text-right font-semibold ${
+                            r.retUsd == null
+                              ? "text-[#555]"
+                              : r.retUsd >= 0
+                                ? "text-[#00cc66]"
+                                : "text-[#ff3333]"
+                          }`}
+                        >
+                          {r.retUsd == null
+                            ? "—"
+                            : `${r.retUsd >= 0 ? "+" : ""}${r.retUsd.toFixed(2)}%`}
+                        </td>
+                      </>
+                    ) : (
+                      <td
+                        className={`!px-1 text-right font-semibold ${
+                          r.retArs >= 0 ? "text-[#00cc66]" : "text-[#ff3333]"
+                        }`}
+                      >
+                        {r.retArs >= 0 ? "+" : ""}
+                        {r.retArs.toFixed(2)}%
+                      </td>
+                    )}
                   </tr>
                 );
               })}
