@@ -25,8 +25,8 @@ interface CashflowEntry {
 
 interface MesDebug {
   mes: string;                            // YYYY-MM
-  fecha_inicio: string | null;            // último día del mes anterior
-  fecha_cierre: string | null;            // último día del mes actual
+  fecha_inicio: string | null;
+  fecha_cierre: string | null;
   dias_periodo: number | null;
   valor_inicio: number | null;
   valor_cierre: number;
@@ -37,9 +37,22 @@ interface MesDebug {
   delta_real: number | null;
   flujos_individuales: FlujoIndividual[];
   cashflow_xirr: CashflowEntry[];
-  tea_mensual: number | null;             // 0.26 = 26%
-  tem_periodo: number | null;             // TEA des-anualizada al período
+  tea_mensual: number | null;
+  tem_periodo: number | null;
   twr_base100_acum: number;
+  // USD parallels
+  mep_cierre: number | null;
+  valor_inicio_usd: number | null;
+  valor_cierre_usd: number;
+  depositos_usd: number;
+  extracciones_usd: number;
+  flujo_neto_usd: number;
+  delta_bruto_usd: number | null;
+  delta_real_usd: number | null;
+  cashflow_xirr_usd: CashflowEntry[];
+  tea_mensual_usd: number | null;
+  tem_periodo_usd: number | null;
+  twr_base100_acum_usd: number;
   n_posiciones: number;
 }
 
@@ -88,6 +101,7 @@ export function ManagerDebugXirrPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
 
   const cargar = () => {
     const cta = idCuenta.trim();
@@ -136,6 +150,29 @@ export function ManagerDebugXirrPanel() {
         >
           {loading ? "CARGANDO…" : "CARGAR"}
         </button>
+        {/* ARS/USD toggle */}
+        <div className="flex items-center gap-1 ml-3 border-l border-[#333] pl-3">
+          <button
+            onClick={() => setMoneda("ARS")}
+            className={`text-[10px] tracking-widest px-2 py-1 border ${
+              moneda === "ARS"
+                ? "border-[#4ade80] text-[#4ade80] bg-[#4ade80]/10"
+                : "border-[#666] text-[#888] hover:border-[#888]"
+            }`}
+          >
+            ARS
+          </button>
+          <button
+            onClick={() => setMoneda("USD")}
+            className={`text-[10px] tracking-widest px-2 py-1 border ${
+              moneda === "USD"
+                ? "border-[#4ade80] text-[#4ade80] bg-[#4ade80]/10"
+                : "border-[#666] text-[#888] hover:border-[#888]"
+            }`}
+          >
+            USD
+          </button>
+        </div>
         {data?.resumen && (
           <div className="flex items-center gap-4 ml-auto text-[10px] font-mono">
             <span className="text-[#888]">
@@ -146,12 +183,16 @@ export function ManagerDebugXirrPanel() {
             </span>
             <span>
               <span className="text-[#888]">TWR FINAL: </span>
-              <span className="text-[#d0d0d0]">{fmtNum(data.resumen.twr_final, 2)}</span>
+              <span className="text-[#d0d0d0]">
+                {moneda === "ARS" ? fmtNum(data.resumen.twr_final, 2) : fmtNum(data.resumen.twr_final_usd, 2)}
+              </span>
             </span>
             <span>
               <span className="text-[#888]">GANANCIA: </span>
-              <span className={pctColor((data.resumen.ganancia_pct ?? 0) / 100)}>
-                {data.resumen.ganancia_pct !== null ? data.resumen.ganancia_pct.toFixed(2) + "%" : "—"}
+              <span className={pctColor((moneda === "ARS" ? data.resumen.ganancia_pct : data.resumen.ganancia_pct_usd) ?? 0)}>
+                {moneda === "ARS"
+                  ? (data.resumen.ganancia_pct !== null ? data.resumen.ganancia_pct.toFixed(2) + "%" : "—")
+                  : (data.resumen.ganancia_pct_usd !== null ? data.resumen.ganancia_pct_usd.toFixed(2) + "%" : "—")}
               </span>
             </span>
           </div>
@@ -192,16 +233,30 @@ export function ManagerDebugXirrPanel() {
                 <th className="text-right px-2 py-1">FLUJO NETO</th>
                 <th className="text-right px-2 py-1">Δ BRUTO</th>
                 <th className="text-right px-2 py-1">Δ REAL</th>
-                <th className="text-right px-2 py-1">TEA</th>
-                <th className="text-right px-2 py-1">TEM PER.</th>
                 <th className="text-right px-2 py-1">BASE 100</th>
+                <th className="text-right px-2 py-1">TEM</th>
+                <th className="text-right px-2 py-1">TEA</th>
+                {moneda === "USD" && <th className="text-right px-2 py-1 text-[#ff9900]">MEP</th>}
               </tr>
             </thead>
             <tbody>
               {data.meses.map((m) => {
                 const isOpen = expanded.has(m.mes);
                 const flujos = m.flujos_individuales ?? [];
-                const cf = m.cashflow_xirr ?? [];
+                const cf = moneda === "ARS" ? (m.cashflow_xirr ?? []) : (m.cashflow_xirr_usd ?? []);
+
+                // Select values based on moneda toggle
+                const v_inicio = moneda === "ARS" ? m.valor_inicio : m.valor_inicio_usd;
+                const v_cierre = moneda === "ARS" ? m.valor_cierre : m.valor_cierre_usd;
+                const depositos = moneda === "ARS" ? m.depositos : m.depositos_usd;
+                const extracciones = moneda === "ARS" ? m.extracciones : m.extracciones_usd;
+                const flujo_neto = moneda === "ARS" ? m.flujo_neto : m.flujo_neto_usd;
+                const delta_bruto = moneda === "ARS" ? m.delta_bruto : m.delta_bruto_usd;
+                const delta_real = moneda === "ARS" ? m.delta_real : m.delta_real_usd;
+                const twr_base100 = moneda === "ARS" ? m.twr_base100_acum : m.twr_base100_acum_usd;
+                const tem_periodo = moneda === "ARS" ? m.tem_periodo : m.tem_periodo_usd;
+                const tea_mensual = moneda === "ARS" ? m.tea_mensual : m.tea_mensual_usd;
+
                 return (
                   <Fragment key={m.mes}>
                     <tr
@@ -214,21 +269,22 @@ export function ManagerDebugXirrPanel() {
                         {m.fecha_inicio ?? "—"} → {m.fecha_cierre ?? "—"}
                       </td>
                       <td className="px-2 py-1 text-right text-[#888]">{m.dias_periodo ?? "—"}</td>
-                      <td className="px-2 py-1 text-right">{fmtMoney(m.valor_inicio)}</td>
-                      <td className="px-2 py-1 text-right">{fmtMoney(m.valor_cierre)}</td>
-                      <td className="px-2 py-1 text-right text-[#4ade80]">{fmtMoney(m.depositos)}</td>
-                      <td className="px-2 py-1 text-right text-[#f87171]">{fmtMoney(m.extracciones)}</td>
-                      <td className={`px-2 py-1 text-right ${pctColor(m.flujo_neto)}`}>{fmtMoney(m.flujo_neto)}</td>
-                      <td className={`px-2 py-1 text-right ${pctColor(m.delta_bruto)}`}>{fmtMoney(m.delta_bruto)}</td>
-                      <td className={`px-2 py-1 text-right ${pctColor(m.delta_real)}`}>{fmtMoney(m.delta_real)}</td>
-                      <td className={`px-2 py-1 text-right font-semibold ${pctColor(m.tea_mensual)}`}>{fmtPct(m.tea_mensual, 2)}</td>
-                      <td className={`px-2 py-1 text-right ${pctColor(m.tem_periodo)}`}>{fmtPct(m.tem_periodo, 4)}</td>
-                      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(m.twr_base100_acum, 2)}</td>
+                      <td className="px-2 py-1 text-right">{fmtMoney(v_inicio)}</td>
+                      <td className="px-2 py-1 text-right">{fmtMoney(v_cierre)}</td>
+                      <td className="px-2 py-1 text-right text-[#4ade80]">{fmtMoney(depositos)}</td>
+                      <td className="px-2 py-1 text-right text-[#f87171]">{fmtMoney(extracciones)}</td>
+                      <td className={`px-2 py-1 text-right ${pctColor(flujo_neto)}`}>{fmtMoney(flujo_neto)}</td>
+                      <td className={`px-2 py-1 text-right ${pctColor(delta_bruto)}`}>{fmtMoney(delta_bruto)}</td>
+                      <td className={`px-2 py-1 text-right ${pctColor(delta_real)}`}>{fmtMoney(delta_real)}</td>
+                      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(twr_base100, 2)}</td>
+                      <td className={`px-2 py-1 text-right ${pctColor(tem_periodo)}`}>{fmtPct(tem_periodo, 4)}</td>
+                      <td className={`px-2 py-1 text-right font-semibold ${pctColor(tea_mensual)}`}>{fmtPct(tea_mensual, 2)}</td>
+                      {moneda === "USD" && <td className="px-2 py-1 text-right text-[#ff9900]">{fmtNum(m.mep_cierre, 2)}</td>}
                     </tr>
 
                     {isOpen && (
                       <tr key={`${m.mes}-detail`} className="bg-[#050505] border-b border-[#1a1a1a]">
-                        <td colSpan={14} className="px-4 py-3">
+                        <td colSpan={moneda === "USD" ? 15 : 14} className="px-4 py-3">
                           <div className="grid grid-cols-2 gap-6">
                             {/* Cashflow XIRR */}
                             <div>
