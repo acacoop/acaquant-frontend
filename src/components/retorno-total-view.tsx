@@ -27,6 +27,15 @@ interface HistRow {
 
 type Curva = "tasa_fija" | "cer" | "soberanos";
 
+interface TablaRow {
+  ticker: string;
+  base: number;
+  fechaBase: string;
+  final: number;
+  fechaFinal: string;
+  retorno: number;
+}
+
 const POLL_MS = 300_000; // 5 min — refresh para tomar precios del día
 
 const MONEDA_POR_CURVA: Record<Curva, string> = {
@@ -185,55 +194,99 @@ function HistoricoTab() {
   const fechaHasta = fechas[effectiveRango[1]];
 
   const { chartData, tabla } = useMemo(() => {
-    if (!rows.length || !fechaDesde || !fechaHasta) {
-      return { chartData: [] as Array<Record<string, string | number>>, tabla: [] as Array<{ ticker: string; retorno: number; base: number; final: number }> };
+    const vacio = {
+      chartData: [] as Array<Record<string, string | number>>,
+      tabla: [] as TablaRow[],
+    };
+    if (!rows.length || !fechaDesde || !fechaHasta) return vacio;
+
+    // Serie por ticker: [(fecha, price)] ordenada asc, solo price != null.
+    // Incluye fechas ANTERIORES al rango — necesarias para el carry-forward
+    // de la base (precio "as-of" fechaDesde).
+    const serieByTicker: Record<string, Array<{ fecha: string; price: number }>> = {};
+    for (const r of rows) {
+      if (r.price == null) continue;
+      (serieByTicker[r.ticker] ??= []).push({ fecha: r.fecha, price: r.price });
     }
+    for (const tk in serieByTicker) {
+      serieByTicker[tk].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    }
+
+    // Base de cada ticker = precio "as-of" fechaDesde: el último precio con
+    // fecha <= fechaDesde (carry-forward). Si el ticker no tiene ningún
+    // precio antes de fechaDesde (recién empieza a cotizar dentro del
+    // rango), la base es su PRIMERA fecha disponible dentro del rango — la
+    // curva arranca desde ahí.
+    const baseInfo: Record<string, { base: number; fechaBase: string }> = {};
+    for (const tk in serieByTicker) {
+      const serie = serieByTicker[tk];
+      let base: { fecha: string; price: number } | null = null;
+      for (const pt of serie) {
+        if (pt.fecha <= fechaDesde) base = pt;
+        else break;
+      }
+      if (!base) {
+        const dentro = serie.find((pt) => pt.fecha >= fechaDesde && pt.fecha <= fechaHasta);
+        if (dentro) base = dentro;
+      }
+      if (base) baseInfo[tk] = { base: base.price, fechaBase: base.fecha };
+    }
+
+    // Precios reales dentro del rango (sin forward-fill — el chart muestra
+    // solo los puntos que efectivamente operaron; connectNulls los une).
     const precioPorFecha: Record<string, Record<string, number>> = {};
     for (const r of rows) {
       if (r.price == null) continue;
       if (r.fecha < fechaDesde || r.fecha > fechaHasta) continue;
-      if (!precioPorFecha[r.fecha]) precioPorFecha[r.fecha] = {};
-      precioPorFecha[r.fecha][r.ticker] = r.price;
+      (precioPorFecha[r.fecha] ??= {})[r.ticker] = r.price;
     }
-    const fechasRango = Object.keys(precioPorFecha).sort();
-    if (!fechasRango.length) return { chartData: [], tabla: [] };
+    const fechasRango = fechas.filter((f) => f >= fechaDesde && f <= fechaHasta);
+    if (!fechasRango.length) return vacio;
 
-    const basePrecios: Record<string, number> = {};
-    for (const f of fechasRango) {
-      for (const [tk, p] of Object.entries(precioPorFecha[f])) {
-        if (!(tk in basePrecios)) basePrecios[tk] = p;
-      }
-    }
-
+    // chartData: cada punto = (precio / base_del_ticker − 1) × 100. Todos
+    // los tickers se normalizan contra su base alineada a fechaDesde → las
+    // curvas comparan el MISMO período. La línea de un ticker no arranca
+    // antes de su fechaBase.
     const chartData = fechasRango.map((f) => {
       const row: Record<string, string | number> = { fecha: f };
-      for (const [tk, p] of Object.entries(precioPorFecha[f])) {
-        const base = basePrecios[tk];
-        if (base && base > 0) {
-          row[tk] = +((p / base - 1) * 100).toFixed(3);
+      const precios = precioPorFecha[f] || {};
+      for (const [tk, p] of Object.entries(precios)) {
+        const bi = baseInfo[tk];
+        if (bi && bi.base > 0 && f >= bi.fechaBase) {
+          row[tk] = +((p / bi.base - 1) * 100).toFixed(3);
         }
       }
       return row;
     });
 
-    const ultimos = precioPorFecha[fechasRango[fechasRango.length - 1]] || {};
+    // tabla: final = último precio con fecha <= fechaHasta (carry-forward).
+    // Siempre >= fechaBase, así que el retorno cubre [fechaBase, fechaFinal]
+    // dentro del rango elegido.
     const tabla = tickers
-      .map((tk) => {
-        const base = basePrecios[tk];
-        const final = ultimos[tk];
-        if (base == null || final == null) return null;
+      .map((tk): TablaRow | null => {
+        const bi = baseInfo[tk];
+        const serie = serieByTicker[tk];
+        if (!bi || !serie) return null;
+        let fin: { fecha: string; price: number } | null = null;
+        for (const pt of serie) {
+          if (pt.fecha <= fechaHasta) fin = pt;
+          else break;
+        }
+        if (!fin) return null;
         return {
           ticker: tk,
-          base,
-          final,
-          retorno: +((final / base - 1) * 100).toFixed(2),
+          base: bi.base,
+          fechaBase: bi.fechaBase,
+          final: fin.price,
+          fechaFinal: fin.fecha,
+          retorno: +((fin.price / bi.base - 1) * 100).toFixed(2),
         };
       })
-      .filter((x): x is { ticker: string; retorno: number; base: number; final: number } => x !== null)
+      .filter((x): x is TablaRow => x !== null)
       .sort((a, b) => b.retorno - a.retorno);
 
     return { chartData, tabla };
-  }, [rows, fechaDesde, fechaHasta, tickers]);
+  }, [rows, fechaDesde, fechaHasta, tickers, fechas]);
 
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
@@ -349,21 +402,41 @@ function HistoricoTab() {
               </tr>
             </thead>
             <tbody>
-              {tabla.map((r, i) => (
-                <tr key={r.ticker} className={i % 2 === 0 ? "bg-[#0a0a0a]" : ""}>
-                  <td className="!px-1 text-[#ff9900]">{r.ticker}</td>
-                  <td className="!px-1 text-right text-[#808080]">{r.base.toFixed(2)}</td>
-                  <td className="!px-1 text-right text-[#d0d0d0]">{r.final.toFixed(2)}</td>
-                  <td
-                    className={`!px-1 text-right font-semibold ${
-                      r.retorno >= 0 ? "text-[#00cc66]" : "text-[#ff3333]"
-                    }`}
+              {tabla.map((r, i) => {
+                const baseDesalineada = r.fechaBase !== fechaDesde;
+                const finalDesalineado = r.fechaFinal !== fechaHasta;
+                return (
+                  <tr
+                    key={r.ticker}
+                    className={i % 2 === 0 ? "bg-[#0a0a0a]" : ""}
+                    title={
+                      `Base: ${r.fechaBase}  ·  Final: ${r.fechaFinal}` +
+                      (baseDesalineada || finalDesalineado
+                        ? "  (sin precio exacto en la fecha elegida — se usó el más cercano)"
+                        : "")
+                    }
                   >
-                    {r.retorno >= 0 ? "+" : ""}
-                    {r.retorno.toFixed(2)}%
-                  </td>
-                </tr>
-              ))}
+                    <td className="!px-1 text-[#ff9900] whitespace-nowrap">
+                      {r.ticker}
+                      {baseDesalineada && (
+                        <span className="text-[#666] ml-1">
+                          ›{fmtFechaCorta(r.fechaBase)}
+                        </span>
+                      )}
+                    </td>
+                    <td className="!px-1 text-right text-[#808080]">{r.base.toFixed(2)}</td>
+                    <td className="!px-1 text-right text-[#d0d0d0]">{r.final.toFixed(2)}</td>
+                    <td
+                      className={`!px-1 text-right font-semibold ${
+                        r.retorno >= 0 ? "text-[#00cc66]" : "text-[#ff3333]"
+                      }`}
+                    >
+                      {r.retorno >= 0 ? "+" : ""}
+                      {r.retorno.toFixed(2)}%
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
