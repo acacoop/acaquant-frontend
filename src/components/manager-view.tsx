@@ -5,6 +5,7 @@ import { AsistenteDashboard } from "./asistente-dashboard";
 import { ChatView } from "./chat-view";
 import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { AunesaAumPanel } from "./aunesa-aum-panel";
+import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
@@ -1776,20 +1777,25 @@ type Tab =
   | "roles"
   | "debug_xirr";
 
-// AUNESA es un grupo con dos sub-vistas: FLUJO (explorador de movimientos
-// de Aunesa) y AUM (consulta de Valuaciones.AuM por cuenta/fecha).
+// AUNESA es un grupo con tres sub-vistas:
+//  - FLUJO:    explorador de movimientos de Aunesa.
+//  - AUM:      consulta de Valuaciones.AuM (la base) por cuenta/fecha.
+//  - POSICIÓN: pega EN VIVO a Aunesa (posicionValuada) — para comparar
+//              lo que Aunesa manda contra lo persistido en AUM.
 function AunesaGroup() {
-  const [sub, setSub] = useState<"flujo" | "aum">("flujo");
+  const [sub, setSub] = useState<"flujo" | "aum" | "posicion">("flujo");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
         <span className="text-[9px] font-semibold text-[#666] tracking-widest mr-2">AUNESA</span>
         <Pill label="FLUJO" active={sub === "flujo"} onClick={() => setSub("flujo")} />
         <Pill label="AUM" active={sub === "aum"} onClick={() => setSub("aum")} />
+        <Pill label="POSICIÓN" active={sub === "posicion"} onClick={() => setSub("posicion")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "flujo" && <AunesaExplorarPanel />}
-        {sub === "aum"   && <AunesaAumPanel />}
+        {sub === "flujo"    && <AunesaExplorarPanel />}
+        {sub === "aum"      && <AunesaAumPanel />}
+        {sub === "posicion" && <AunesaPosicionPanel />}
       </div>
     </div>
   );
