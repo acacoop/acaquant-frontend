@@ -550,9 +550,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             )}
           </div>
           <div className="flex-1 min-h-0 p-2 relative">
-            {/* Mini-leyenda — color de cada línea. */}
+            {/* Mini-leyenda — color de cada línea. Offset left ≥ ancho del
+                eje Y izquierdo (64px) para no taparle los ticks. */}
             {chartDataVisible.length > 0 && (
-              <div className="absolute top-2 left-3 z-10 flex flex-col gap-0.5 text-[9px] font-mono pointer-events-none">
+              <div className="absolute top-2 left-[76px] z-10 flex flex-col gap-0.5 text-[9px] font-mono pointer-events-none">
                 <div className="flex items-center gap-1.5">
                   <span className="inline-block w-3 h-[2px] bg-[#4a9eff]" />
                   <span className="text-[#4a9eff]">Valor</span>
