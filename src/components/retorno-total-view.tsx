@@ -29,6 +29,10 @@ interface RetornoData {
   rows: HistRow[];
   mep: Record<string, number>;
   oficial: Record<string, number>;
+  // Calendario de cobros (cupones + amortizaciones) por ticker. `monto` es
+  // cash real por 100 de VN, misma escala que el precio: pesos para
+  // tasa_fija/cer (CER-ajustado), USD para soberanos.
+  flujos: Record<string, Array<{ fecha: string; monto: number }>>;
 }
 
 interface TablaRow {
@@ -168,6 +172,7 @@ function HistoricoTab() {
 
   const curr = byCurva[curva];
   const rows = useMemo<HistRow[]>(() => curr?.rows || [], [curr]);
+  const flujos = useMemo<RetornoData["flujos"]>(() => curr?.flujos || {}, [curr]);
 
   const fechas = useMemo(
     () => Array.from(new Set(rows.map((r) => r.fecha))).sort(),
@@ -229,6 +234,29 @@ function HistoricoTab() {
       return v;
     };
 
+    // Σ de cupones + amortizaciones cobrados en (desdeF, hastaF] para un
+    // ticker. Sumar esto al precio convierte la "variación de precio" en
+    // RETORNO TOTAL — un bono que amortiza deja de mostrar pérdida fake
+    // porque el capital devuelto cuenta como cobrado.
+    const sumaFlujos = (tk: string, desdeF: string, hastaF: string): number => {
+      let s = 0;
+      for (const fl of flujos[tk] || []) {
+        if (fl.fecha > desdeF && fl.fecha <= hastaF) s += fl.monto;
+      }
+      return s;
+    };
+    // Igual, dolarizando cada cobro al dólar de SU fecha de pago.
+    const sumaFlujosUsd = (tk: string, desdeF: string, hastaF: string): number => {
+      let s = 0;
+      for (const fl of flujos[tk] || []) {
+        if (fl.fecha > desdeF && fl.fecha <= hastaF) {
+          const d = dolarAsOf(fl.fecha);
+          if (d && d > 0) s += fl.monto / d;
+        }
+      }
+      return s;
+    };
+
     // Base ARS de cada ticker = precio as-of fechaDesde. Si el ticker
     // recién empieza a cotizar dentro del rango, base = su primera fecha
     // disponible.
@@ -271,12 +299,13 @@ function HistoricoTab() {
         if (chartUSD) {
           const dolBase = dolarAsOf(bi.fechaBase);
           if (!dolF || !dolBase || dolF <= 0 || dolBase <= 0) continue;
-          const pUsd = p / dolF;
+          const pUsd = p / dolF + sumaFlujosUsd(tk, bi.fechaBase, f);
           const baseUsd = bi.base / dolBase;
           if (baseUsd <= 0) continue;
           row[tk] = +((pUsd / baseUsd - 1) * 100).toFixed(3);
         } else {
-          row[tk] = +((p / bi.base - 1) * 100).toFixed(3);
+          const tot = p + sumaFlujos(tk, bi.fechaBase, f);
+          row[tk] = +((tot / bi.base - 1) * 100).toFixed(3);
         }
       }
       return row;
@@ -296,14 +325,17 @@ function HistoricoTab() {
           else break;
         }
         if (!fin) return null;
-        const retArs = +((fin.price / bi.base - 1) * 100).toFixed(2);
+        // Retorno TOTAL: precio + cupones/amortizaciones cobrados en el período.
+        const flujoArs = sumaFlujos(tk, bi.fechaBase, fin.fecha);
+        const retArs = +(((fin.price + flujoArs) / bi.base - 1) * 100).toFixed(2);
         let retUsd: number | null = null;
         if (esPesos) {
           const dolBase = dolarAsOf(bi.fechaBase);
           const dolFin = dolarAsOf(fin.fecha);
           if (dolBase && dolFin && dolBase > 0 && dolFin > 0) {
             const baseUsd = bi.base / dolBase;
-            const finUsd = fin.price / dolFin;
+            const finUsd =
+              fin.price / dolFin + sumaFlujosUsd(tk, bi.fechaBase, fin.fecha);
             if (baseUsd > 0) retUsd = +((finUsd / baseUsd - 1) * 100).toFixed(2);
           }
         }
@@ -326,7 +358,7 @@ function HistoricoTab() {
       });
 
     return { chartData, tabla };
-  }, [rows, fechaDesde, fechaHasta, tickers, fechas, dolarSorted, esPesos, monedaChart]);
+  }, [rows, flujos, fechaDesde, fechaHasta, tickers, fechas, dolarSorted, esPesos, monedaChart]);
 
   const monedaLabel = !esPesos ? "USD" : monedaChart;
 
