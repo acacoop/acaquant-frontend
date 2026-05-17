@@ -48,6 +48,13 @@ const pnlCls = (v: number) => (v >= 0 ? "text-[#00cc66]" : "text-[#ff4d4d]");
 // fuerte pero saldo real igual se muestra.
 const SALDO_MUERTO = 100_000;
 
+// El backend manda BASE 100 (TWR como índice: 100 = arrancó parejo).
+// En TOTALES > POR CUENTA se muestra como rendimiento %: 140.56 → "+40,56%".
+const fmtRend = (base100: number) => {
+  const r = base100 - 100;
+  return `${r >= 0 ? "+" : ""}${r.toFixed(2)}%`;
+};
+
 /**
  * PorCuentaView — TOTALES consolidado: una fila por cuenta con valor,
  * PnL acumulado y base 100, en ARS y USD. Mismo cálculo que la tabla
@@ -190,8 +197,8 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
                   <Th onClick={() => toggleSort("valor_usd")}>VALOR USD{arrow("valor_usd")}</Th>
                   <Th onClick={() => toggleSort("pnl_acum_ars")}>PNL ACUM ARS{arrow("pnl_acum_ars")}</Th>
                   <Th onClick={() => toggleSort("pnl_acum_usd")}>PNL ACUM USD{arrow("pnl_acum_usd")}</Th>
-                  <Th onClick={() => toggleSort("base100_ars")}>BASE 100 ARS{arrow("base100_ars")}</Th>
-                  <Th onClick={() => toggleSort("base100_usd")}>BASE 100 USD{arrow("base100_usd")}</Th>
+                  <Th onClick={() => toggleSort("base100_ars")}>RENDIM. ARS{arrow("base100_ars")}</Th>
+                  <Th onClick={() => toggleSort("base100_usd")}>RENDIM. USD{arrow("base100_usd")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -208,10 +215,10 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
                       <td className={`px-2 py-1.5 text-right ${pnlCls(r.pnl_acum_ars)}`}>{fmtSigned(r.pnl_acum_ars)}</td>
                       <td className={`px-2 py-1.5 text-right ${pnlCls(r.pnl_acum_usd)}`}>{fmtSigned(r.pnl_acum_usd)}</td>
                       <td className={`px-2 py-1.5 text-right font-semibold ${base100Class(r.base100_ars)}`}>
-                        {r.base100_ars != null ? r.base100_ars.toFixed(2) : "—"}
+                        {r.base100_ars != null ? fmtRend(r.base100_ars) : "—"}
                       </td>
                       <td className={`px-2 py-1.5 text-right font-semibold ${base100Class(r.base100_usd)}`}>
-                        {r.base100_usd != null ? r.base100_usd.toFixed(2) : "—"}
+                        {r.base100_usd != null ? fmtRend(r.base100_usd) : "—"}
                       </td>
                     </tr>
                   );
