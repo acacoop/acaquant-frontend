@@ -85,7 +85,7 @@ export function TableHelp({
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-[#0e0e0e] border border-[#2a2a2a] max-w-[520px] w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+            className="bg-[#0e0e0e] border border-[#2a2a2a] max-w-[720px] w-full max-h-[80vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header sticky con título + cerrar */}
@@ -103,17 +103,17 @@ export function TableHelp({
               </button>
             </div>
             {/* Tabla del glosario */}
-            <table className="w-full text-[11px] text-[#d0d0d0] leading-relaxed">
+            <table className="w-full table-fixed text-[11px] text-[#d0d0d0] leading-relaxed">
               <tbody>
                 {entries.map((e) => (
                   <tr
                     key={e.label}
                     className="align-top border-b border-[#1a1a1a] last:border-b-0"
                   >
-                    <td className="text-[#ff9900] font-semibold pr-3 py-2 pl-4 whitespace-nowrap align-top">
+                    <td className="text-[#ff9900] font-semibold pr-3 py-2 pl-4 w-[150px] align-top break-words">
                       {e.label}
                     </td>
-                    <td className="py-2 pr-4">{e.text}</td>
+                    <td className="py-2 pr-4 break-words">{e.text}</td>
                   </tr>
                 ))}
               </tbody>
