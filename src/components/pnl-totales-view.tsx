@@ -158,7 +158,7 @@ export function PnLTotalesView() {
   if (loading && !data) {
     return (
       <div className="h-full flex items-center justify-center text-[#555] text-[11px]">
-        Cargando todas las cuentas… (puede tardar 30-60s la primera vez)
+        Cargando…
       </div>
     );
   }

@@ -181,7 +181,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
           <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>
         ) : loading && !data ? (
           <div className="h-full flex items-center justify-center text-[#555] text-[11px]">
-            Calculando todas las cuentas… (puede tardar la primera vez)
+            Cargando…
           </div>
         ) : !data || filas.length === 0 ? (
           <div className="p-6 text-center text-[#555] text-[11px]">
