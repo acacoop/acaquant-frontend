@@ -8,6 +8,7 @@ import {
   pnlClass,
   type PnLRow,
 } from "@/components/pnl-titulos-view";
+import { PorCuentaView } from "@/components/por-cuenta-view";
 
 // Cada fila viene del endpoint /api/aum-pnl-todas con (cuenta, id_cuenta)
 // agregadas. El resto del shape coincide con PnLRow.
@@ -56,6 +57,9 @@ export function PnLTotalesView() {
   const [sortKey, setSortKey]     = useState<SortKey>("pnl_total");
   const [sortDir, setSortDir]     = useState<"asc" | "desc">("desc");
   const [selected, setSelected]   = useState<{cuenta: string; ticker: string} | null>(null);
+  // Modo de TOTALES: por título (la tabla por (cuenta,ticker)) o por cuenta
+  // entera (vista consolidada base 100). Ver PorCuentaView.
+  const [modo, setModo] = useState<"titulo" | "cuenta">("titulo");
 
   useEffect(() => {
     let cancelled = false;
@@ -144,6 +148,10 @@ export function PnLTotalesView() {
     ) ?? null;
   }, [selected, filasOrdenadas]);
 
+  if (modo === "cuenta") {
+    return <PorCuentaView onVolver={() => setModo("titulo")} />;
+  }
+
   if (err) {
     return <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>;
   }
@@ -158,6 +166,18 @@ export function PnLTotalesView() {
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
+      {/* Toggle POR TÍTULO / POR CUENTA */}
+      <div className="flex gap-1">
+        <button className="px-3 py-1 text-[10px] tracking-widest border border-[#ff9900] bg-[#ff9900]/10 text-[#ff9900]">
+          POR TÍTULO
+        </button>
+        <button
+          onClick={() => setModo("cuenta")}
+          className="px-3 py-1 text-[10px] tracking-widest border border-[#2a2a2a] text-[#888] hover:text-[#ff9900]"
+        >
+          POR CUENTA
+        </button>
+      </div>
       {/* KPIs agregados de lo visible */}
       <div className="grid grid-cols-5 gap-3">
         <Kpi label="PNL TOTAL"
