@@ -42,6 +42,12 @@ const base100Class = (v: number | null) =>
   v == null ? "text-[#666]" : v >= 100 ? "text-[#00cc66]" : "text-[#ff4d4d]";
 const pnlCls = (v: number) => (v >= 0 ? "text-[#00cc66]" : "text-[#ff4d4d]");
 
+// Cuentas con |valor ARS| por debajo de esto se consideran "saldo muerto"
+// (carteras casi vacías, ej. $2.000 / $30.000) y se ocultan por defecto.
+// El filtro es sobre el VALOR, no sobre el PnL — una cuenta con pérdida
+// fuerte pero saldo real igual se muestra.
+const SALDO_MUERTO = 100_000;
+
 /**
  * PorCuentaView — TOTALES consolidado: una fila por cuenta con valor,
  * PnL acumulado y base 100, en ARS y USD. Mismo cálculo que la tabla
@@ -56,6 +62,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
   const [searchCta, setSearchCta] = useState("");
   const [sortKey, setSortKey]     = useState<SortKey>("base100_ars");
   const [sortDir, setSortDir]     = useState<"asc" | "desc">("desc");
+  const [ocultarMuerto, setOcultarMuerto] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,12 +90,17 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
   const filas = useMemo(() => {
     if (!data) return [];
     const q = searchCta.trim().toLowerCase();
-    const f = data.rows.filter(
-      (r) =>
-        !q ||
-        r.cuenta.toLowerCase().includes(q) ||
-        r.id_cuenta.toLowerCase().includes(q),
-    );
+    const f = data.rows.filter((r) => {
+      if (ocultarMuerto && Math.abs(r.valor_ars) < SALDO_MUERTO) return false;
+      if (
+        q &&
+        !r.cuenta.toLowerCase().includes(q) &&
+        !r.id_cuenta.toLowerCase().includes(q)
+      ) {
+        return false;
+      }
+      return true;
+    });
     const sgn = sortDir === "asc" ? 1 : -1;
     return [...f].sort((a, b) => {
       if (sortKey === "cuenta") return a.cuenta.localeCompare(b.cuenta) * sgn;
@@ -96,7 +108,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
       const bv = (b[sortKey] as number | null) ?? Number.NEGATIVE_INFINITY;
       return (av - bv) * sgn;
     });
-  }, [data, searchCta, sortKey, sortDir]);
+  }, [data, searchCta, sortKey, sortDir, ocultarMuerto]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -140,6 +152,15 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
           placeholder="Filtrar cuenta…"
           className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-48"
         />
+        <label className="flex items-center gap-1 text-[10px] text-[#888] font-mono cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={ocultarMuerto}
+            onChange={(e) => setOcultarMuerto(e.target.checked)}
+            className="accent-[#ff9900]"
+          />
+          Ocultar saldo muerto (&lt;$100k)
+        </label>
         {data && (
           <span className="text-[10px] text-[#666] font-mono">
             {filas.length} cuentas
