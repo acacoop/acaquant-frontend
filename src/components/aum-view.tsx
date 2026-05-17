@@ -951,11 +951,17 @@ export function AumView() {
               }
             />
             <div className={`p-2 ${tab === "total" ? "flex-1 min-h-0 flex flex-col" : ""}`}>
-              <div className={tab === "total" ? "flex-1 min-h-0" : "h-[220px]"}>
+              <div className={`cursor-pointer ${tab === "total" ? "flex-1 min-h-0" : "h-[220px]"}`}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={chartData}
                     margin={{ top: 4, right: 10, bottom: 22, left: 0 }}
+                    onClick={(e) => {
+                      // Click en un punto del chart = seleccionar ese
+                      // snapshot. Evita abrir el selector de fecha.
+                      const f = (e as { activeLabel?: string } | null)?.activeLabel;
+                      if (f) setFechaSel(f);
+                    }}
                   >
                     <defs>
                       <linearGradient id="grad-fci" x1="0" y1="0" x2="0" y2="1">
