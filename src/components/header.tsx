@@ -30,11 +30,10 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
     <header className="flex items-center h-10 px-3 bg-[#094293] border-b border-[#062d66]">
       <Link href="/" className="flex items-center gap-2 mr-6">
         <Image
-          src="/logo-header.png"
+          src="/logo-login.png"
           alt="ACA Valores"
           width={140}
           height={28}
-          className="brightness-0 invert"
           priority
         />
       </Link>
