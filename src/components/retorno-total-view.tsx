@@ -62,6 +62,12 @@ const PALETA = [
   "#ff6600",
 ];
 
+function addDays(iso: string, n: number): string {
+  const d = new Date(iso.slice(0, 10) + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 function fmtFechaCorta(s: string): string {
   const iso = s.length >= 10 ? s.slice(0, 10) : s;
   const d = new Date(iso);
@@ -223,6 +229,37 @@ function HistoricoTab() {
       serieByTicker[tk].sort((a, b) => a.fecha.localeCompare(b.fecha));
     }
 
+    // Cada flujo de Trading.Curvas trae el `fecha` de PAGO, pero el bono
+    // cotiza "ex" unos días antes → el precio cae antes de esa fecha. Si
+    // contáramos el flujo por la fecha de pago, el chart muestra un pozo
+    // fake (precio ya bajó, flujo aún no sumado) y después salta. Alineamos
+    // cada flujo a la fecha del mayor desplome de precio en una ventana
+    // alrededor del pago — sólo si ese desplome es comparable al monto del
+    // flujo (así un cupón chico no se "pega" a un movimiento de mercado).
+    const flujosAlin: Record<string, Array<{ fecha: string; monto: number }>> = {};
+    for (const tk in flujos) {
+      const serie = serieByTicker[tk] || [];
+      flujosAlin[tk] = (flujos[tk] || []).map((fl) => {
+        const lo = addDays(fl.fecha, -25);
+        const hi = addDays(fl.fecha, 7);
+        let mejorFecha = fl.fecha;
+        let mejorCaida = 0;
+        for (let i = 1; i < serie.length; i++) {
+          const d = serie[i].fecha;
+          if (d < lo || d > hi) continue;
+          const caida = serie[i - 1].price - serie[i].price;
+          if (caida > mejorCaida) {
+            mejorCaida = caida;
+            mejorFecha = d;
+          }
+        }
+        return {
+          fecha: mejorCaida >= fl.monto * 0.5 ? mejorFecha : fl.fecha,
+          monto: fl.monto,
+        };
+      });
+    }
+
     // Dólar "as-of": último valor con fecha <= target (carry-forward, el
     // MEP no se mueve fines de semana / feriados).
     const dolarAsOf = (fecha: string): number | null => {
@@ -240,7 +277,7 @@ function HistoricoTab() {
     // porque el capital devuelto cuenta como cobrado.
     const sumaFlujos = (tk: string, desdeF: string, hastaF: string): number => {
       let s = 0;
-      for (const fl of flujos[tk] || []) {
+      for (const fl of flujosAlin[tk] || []) {
         if (fl.fecha > desdeF && fl.fecha <= hastaF) s += fl.monto;
       }
       return s;
@@ -248,7 +285,7 @@ function HistoricoTab() {
     // Igual, dolarizando cada cobro al dólar de SU fecha de pago.
     const sumaFlujosUsd = (tk: string, desdeF: string, hastaF: string): number => {
       let s = 0;
-      for (const fl of flujos[tk] || []) {
+      for (const fl of flujosAlin[tk] || []) {
         if (fl.fecha > desdeF && fl.fecha <= hastaF) {
           const d = dolarAsOf(fl.fecha);
           if (d && d > 0) s += fl.monto / d;
