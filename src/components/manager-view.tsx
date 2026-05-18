@@ -492,6 +492,32 @@ function StatusBadge({ ok, label }: { ok: boolean; label?: string }) {
   );
 }
 
+function d10(s?: string | null): string {
+  return s ? String(s).slice(0, 10) : "—";
+}
+
+interface PivotVela { fecha: string; high: number | null; low: number | null; close: number | null; }
+interface PivotFrame {
+  label: string;
+  rango_desde: string;
+  rango_hasta: string;
+  n_velas: number;
+  velas: PivotVela[];
+  ok: boolean;
+  motivo?: string;
+  h?: { valor: number; fecha: string };
+  l?: { valor: number; fecha: string };
+  c?: { valor: number; fecha: string };
+  formula?: { paso: string; valor: string }[];
+  levels?: { pp: number; r1: number; r2: number; r3: number; s1: number; s2: number; s3: number };
+}
+interface PivotDebugResp {
+  ticker: string;
+  last: number | null;
+  last_fecha: string | null;
+  frames: { diario: PivotFrame; semanal: PivotFrame; mensual: PivotFrame; anual: PivotFrame };
+}
+
 function TabValidaciones() {
   // Curvas pendientes
   const [cpLoading, setCpLoading] = useState(false);
@@ -579,6 +605,11 @@ function TabValidaciones() {
     nota: string;
   } | null>(null);
 
+  // Debug Pivot Points
+  const [pvTicker, setPvTicker] = useState("");
+  const [pvLoading, setPvLoading] = useState(false);
+  const [pvData, setPvData] = useState<PivotDebugResp | null>(null);
+
   useEffect(() => {
     fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
       setTickers(d);
@@ -606,6 +637,12 @@ function TabValidaciones() {
     setTnaLoading(true);
     fetch("/api/manager/checks/debug-tna-futuros")
       .then(r => r.json()).then(setTnaData).finally(() => setTnaLoading(false));
+  };
+  const runPv = () => {
+    if (!pvTicker.trim()) return;
+    setPvLoading(true);
+    fetch(`/api/manager/checks/debug-pivot?ticker=${encodeURIComponent(pvTicker.trim())}`)
+      .then(r => r.json()).then(setPvData).finally(() => setPvLoading(false));
   };
   const runCurva = () => {
     if (!curvaTickerInput.trim()) return;
@@ -1216,6 +1253,114 @@ function TabValidaciones() {
               <span className="text-[#d0d0d0]">PERSISTIDA</span> = lo que el motor escribe a Mongo (hoy = TEA COMP)
             </div>
           </>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Debug Pivot Points — velas y fechas usadas por timeframe">
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            type="text"
+            value={pvTicker}
+            onChange={(e) => setPvTicker(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") runPv(); }}
+            placeholder="ticker (ej: NVDA, AAPL, KO)"
+            className="flex-1 max-w-[280px] bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          />
+          <button
+            onClick={runPv}
+            disabled={pvLoading || !pvTicker.trim()}
+            className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+          >
+            {pvLoading ? "Calculando…" : "▶ Ejecutar"}
+          </button>
+        </div>
+
+        {pvData && (
+          <div className="space-y-3">
+            <div className="text-[10px] text-[#808080] font-mono">
+              {pvData.ticker} · último close{" "}
+              <span className="text-[#d0d0d0]">{pvData.last != null ? pvData.last.toFixed(4) : "—"}</span>
+              {pvData.last_fecha && <span className="text-[#555]"> ({d10(pvData.last_fecha)})</span>}
+            </div>
+
+            {(["diario", "semanal", "mensual", "anual"] as const).map((k) => {
+              const fr = pvData.frames[k];
+              return (
+                <div key={k} className="border border-[#1a1a1a] p-2">
+                  <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">
+                    {fr.label.toUpperCase()} — VENTANA {d10(fr.rango_desde)} → {d10(fr.rango_hasta)} · {fr.n_velas} VELAS
+                  </div>
+                  {!fr.ok ? (
+                    <div className="text-[10px] text-[#ff7f7f] italic">{fr.motivo}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="max-h-[260px] overflow-y-auto border border-[#141414]">
+                        <table className="w-full text-[10px] font-mono">
+                          <thead className="text-[#555] text-[9px] sticky top-0 bg-[#080808]">
+                            <tr>
+                              <th className="text-left px-1">FECHA</th>
+                              <th className="text-right px-1">HIGH</th>
+                              <th className="text-right px-1">LOW</th>
+                              <th className="text-right px-1">CLOSE</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {fr.velas.map((v, i) => {
+                              const esH = !!fr.h && v.fecha === fr.h.fecha;
+                              const esL = !!fr.l && v.fecha === fr.l.fecha;
+                              const esC = !!fr.c && v.fecha === fr.c.fecha;
+                              return (
+                                <tr key={i} className="border-b border-[#141414]">
+                                  <td className="text-[#888] px-1">{d10(v.fecha)}</td>
+                                  <td className={`text-right px-1 ${esH ? "text-[#3fbf6f] font-bold" : "text-[#d0d0d0]"}`}>
+                                    {v.high != null ? v.high.toFixed(4) : "—"}{esH ? " ◄H" : ""}
+                                  </td>
+                                  <td className={`text-right px-1 ${esL ? "text-[#ff7f7f] font-bold" : "text-[#d0d0d0]"}`}>
+                                    {v.low != null ? v.low.toFixed(4) : "—"}{esL ? " ◄L" : ""}
+                                  </td>
+                                  <td className={`text-right px-1 ${esC ? "text-[#ff9900] font-bold" : "text-[#d0d0d0]"}`}>
+                                    {v.close != null ? v.close.toFixed(4) : "—"}{esC ? " ◄C" : ""}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="text-[10px] font-mono text-[#888]">
+                        H = <span className="text-[#3fbf6f]">{fr.h ? fr.h.valor.toFixed(4) : "—"}</span> ({d10(fr.h?.fecha)}) ·{" "}
+                        L = <span className="text-[#ff7f7f]">{fr.l ? fr.l.valor.toFixed(4) : "—"}</span> ({d10(fr.l?.fecha)}) ·{" "}
+                        C = <span className="text-[#ff9900]">{fr.c ? fr.c.valor.toFixed(4) : "—"}</span> ({d10(fr.c?.fecha)})
+                      </div>
+
+                      <table className="w-full text-[10px] font-mono">
+                        <tbody>
+                          {(fr.formula ?? []).map((f, i) => (
+                            <tr key={i} className="border-b border-[#141414]">
+                              <td className="text-[#888] pr-3 whitespace-nowrap align-top">{f.paso}</td>
+                              <td className="text-[#d0d0d0]">{f.valor}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      {fr.levels && (
+                        <div className="grid grid-cols-7 gap-1 text-[10px] font-mono text-center">
+                          {([["S3", fr.levels.s3], ["S2", fr.levels.s2], ["S1", fr.levels.s1], ["PP", fr.levels.pp], ["R1", fr.levels.r1], ["R2", fr.levels.r2], ["R3", fr.levels.r3]] as [string, number][]).map(([lbl, val]) => (
+                            <div key={lbl} className="border border-[#1a1a1a] py-1">
+                              <div className="text-[8px] text-[#555]">{lbl}</div>
+                              <div className={lbl === "PP" ? "text-[#ff9900] font-bold" : "text-[#d0d0d0]"}>{val.toFixed(2)}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </CheckPanel>
 
