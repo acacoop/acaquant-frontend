@@ -3,19 +3,22 @@
 import { useState } from "react";
 import { ScannerView } from "./scanner-view";
 import { EstrategiaView } from "./estrategia-view";
+import { MonitorView } from "./monitor-view";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 /**
- * Shell de /renta-variable. Dos tabs:
+ * Shell de /renta-variable. Tres tabs:
  *   - SCANNER:    vista de CEDEARs (master + snapshot live).
- *   - ESTRATEGIA: Mesa de Estrategia — análisis de trade individual +
- *     hedging. Ver docs/wip_mesa_estrategia_rv.md (repo TradingAV).
+ *   - ESTRATEGIA: Mesa de Estrategia — análisis de trade individual + hedging.
+ *   - MONITOR:    Mesa de Estrategia — análisis de book / exposición.
+ * Ver docs/wip_mesa_estrategia_rv.md (repo TradingAV).
  */
-type Tab = "scanner" | "estrategia";
+type Tab = "scanner" | "estrategia" | "monitor";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "scanner", label: "SCANNER" },
   { key: "estrategia", label: "ESTRATEGIA" },
+  { key: "monitor", label: "MONITOR" },
 ];
 
 export function RentaVariableShell({
@@ -49,6 +52,7 @@ export function RentaVariableShell({
           <ScannerView initial={initialScanner} initialCcl={initialCcl} />
         )}
         {tab === "estrategia" && <EstrategiaView />}
+        {tab === "monitor" && <MonitorView />}
       </div>
     </div>
   );
