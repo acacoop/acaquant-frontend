@@ -7,6 +7,7 @@ import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
+import { GruposPanel } from "./grupos-panel";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { RecursosPanel } from "./recursos-panel";
@@ -1775,6 +1776,7 @@ type Tab =
   | "logs"
   | "usuarios"
   | "roles"
+  | "grupos"
   | "debug_xirr";
 
 // AUNESA es un grupo con tres sub-vistas:
@@ -1817,6 +1819,7 @@ export function ManagerView() {
     { id: "asistente",    label: "ASISTENTE"    },
     { id: "usuarios",     label: "USUARIOS"     },
     { id: "roles",        label: "ROLES Y PERMISOS" },
+    { id: "grupos",       label: "GRUPOS"       },
     { id: "debug_xirr",   label: "DEBUG XIRR"   },
   ];
 
@@ -1844,6 +1847,7 @@ export function ManagerView() {
         {tab === "asistente"    && <TabAsistente />}
         {tab === "usuarios"     && <UsuariosPanel />}
         {tab === "roles"        && <RolesPanel />}
+        {tab === "grupos"       && <GruposPanel />}
         {tab === "debug_xirr"   && <ManagerDebugXirrPanel />}
       </div>
     </div>
