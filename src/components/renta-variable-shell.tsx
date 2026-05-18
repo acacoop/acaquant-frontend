@@ -1,15 +1,23 @@
 "use client";
 
+import { useState } from "react";
 import { ScannerView } from "./scanner-view";
+import { EstrategiaView } from "./estrategia-view";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 /**
- * Shell de /renta-variable. Hoy hospeda únicamente la vista Scanner.
- * Smart Money fue removido del producto (2026-05-13).
- *
- * El KPI CCL vive ahora dentro de la propia tabla del Scanner (al lado
- * del switch CEDEAR/ADR), no en este shell.
+ * Shell de /renta-variable. Dos tabs:
+ *   - SCANNER:    vista de CEDEARs (master + snapshot live).
+ *   - ESTRATEGIA: Mesa de Estrategia — análisis de trade individual +
+ *     hedging. Ver docs/wip_mesa_estrategia_rv.md (repo TradingAV).
  */
+type Tab = "scanner" | "estrategia";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "scanner", label: "SCANNER" },
+  { key: "estrategia", label: "ESTRATEGIA" },
+];
+
 export function RentaVariableShell({
   initialScanner,
   initialCcl,
@@ -17,9 +25,31 @@ export function RentaVariableShell({
   initialScanner: CedearScannerRow[];
   initialCcl: CclLive;
 }) {
+  const [tab, setTab] = useState<Tab>("scanner");
+
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <ScannerView initial={initialScanner} initialCcl={initialCcl} />
+      <div className="flex items-center gap-1 px-3 pt-2 shrink-0">
+        {TABS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`px-3 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
+              tab === key
+                ? "bg-[#ff9900] text-black border-[#ff9900]"
+                : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0">
+        {tab === "scanner" && (
+          <ScannerView initial={initialScanner} initialCcl={initialCcl} />
+        )}
+        {tab === "estrategia" && <EstrategiaView />}
+      </div>
     </div>
   );
 }
