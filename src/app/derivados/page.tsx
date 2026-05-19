@@ -39,24 +39,22 @@ async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<
 }
 
 export default async function DerivadosPage() {
-  // Resolvemos /me primero para decidir si fetchear agro: el endpoint está
-  // gated a admin en backend, no tiene sentido llamarlo si no es admin (y
-  // ahorramos el 403).
+  // Agro y Sintéticos están abiertos a los 3 roles. Igual resolvemos /me
+  // para `isAdmin` (algunas sub-vistas de Opciones lo usan).
   const me = await getMe();
   const isAdmin = me?.is_admin ?? false;
 
   // Las opciones (chain) NO se fetchean en SSR — la pantalla la usa muy poca
   // gente y cargar la chain en cada navegación a /derivados gasta cómputo
   // Vercel sin necesidad. El cliente (DerivadosView con usePoll
-  // fetchOnMount=true) hace el primer fetch al montar la sub-tab. Si el
-  // user solo va a ver agro, opciones nunca se compula.
+  // fetchOnMount=true) hace el primer fetch al montar la sub-tab.
   const [meta, agro] = await Promise.all([
     safeFetch<Meta>(
       "/api/cotizaciones/opciones/meta",
       { tasa: 0.242, vr_local: 0, vr_adr: 0 },
       30
     ),
-    isAdmin ? safeFetch<AgroResp | null>("/api/derivados/agro", null, 0) : Promise.resolve(null),
+    safeFetch<AgroResp | null>("/api/derivados/agro", null, 0),
   ]);
   const opciones: OpcionDoc[] = [];
 
@@ -66,8 +64,8 @@ export default async function DerivadosPage() {
       opcionesMeta={meta}
       isAdmin={isAdmin}
       agroInitial={agro}
-      canEditAgro={isAdmin}
-      showAgroTab={isAdmin}
+      canEditAgro
+      showAgroTab
     />
   );
 }
