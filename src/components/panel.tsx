@@ -70,7 +70,9 @@ export function Panel({
   );
 
   const content = (
-    <div className={`flex-1 min-h-0 p-2 ${fill || expanded ? "" : "overflow-y-auto"}`}>
+    // Scroll cuando el panel NO es fill (tablas, listas). El modo expandido
+    // también scrollea — antes clippeaba contenido alto en pantalla completa.
+    <div className={`flex-1 min-h-0 p-2 ${fill ? "" : "overflow-y-auto"}`}>
       {children}
     </div>
   );

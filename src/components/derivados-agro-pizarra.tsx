@@ -93,12 +93,13 @@ function isoFromAny(s: string | null | undefined): string {
   return "";
 }
 
-/** Edad humana: "12s", "4m", "2h". */
-function fmtAge(s: number | null | undefined): string {
-  if (s === null || s === undefined || !isFinite(s)) return "—";
-  if (s < 60) return `${Math.round(s)}s`;
-  if (s < 3600) return `${Math.round(s / 60)}m`;
-  return `${Math.round(s / 3600)}h`;
+/** El motor agro corre L-V 13:00–20:05 UTC. Fuera de esa ventana, datos
+ *  viejos = mercado cerrado (normal); dentro = algo se rompió. */
+function mercadoAbiertoUTC(d: Date = new Date()): boolean {
+  const day = d.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return mins >= 13 * 60 && mins <= 20 * 60 + 5;
 }
 
 function pasecolor(n: number | null | undefined): string {
@@ -112,8 +113,7 @@ function tnavColor(n: number | null | undefined): string {
 
 // ─── Flash al cambiar de valor ───────────────────────────────────────────────
 // Cuando un precio cambia entre dos polls, la celda pulsa verde (subió) o
-// rojo (bajó) y se desvanece. El identity del valor es estable porque las
-// filas futuro se keyean por ticker.
+// rojo (bajó) y se desvanece.
 
 function useFlashBg(value: number | null | undefined): string {
   const prev = useRef<number | null | undefined>(value);
@@ -161,42 +161,20 @@ function FlashCell({
 
 // ─── Indicador de frescura ───────────────────────────────────────────────────
 
-function FreshnessPill({
-  fresh,
-  ageS,
-}: {
-  fresh: boolean;
-  ageS: number | null;
-}) {
-  if (fresh) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] tracking-wide">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80] animate-pulse" />
-        <span className="text-[#4ade80]">LIVE</span>
-      </span>
-    );
-  }
+type EstadoFeed = "live" | "cerrado" | "stale";
+
+function FreshnessPill({ estado }: { estado: EstadoFeed }) {
+  const cfg =
+    estado === "live"
+      ? { dot: "bg-[#4ade80] animate-pulse", txt: "text-[#4ade80]", label: "LIVE" }
+      : estado === "cerrado"
+        ? { dot: "bg-[#666]", txt: "text-[#888]", label: "MERCADO CERRADO" }
+        : { dot: "bg-[#f87171]", txt: "text-[#f87171]", label: "DESACTUALIZADO" };
   return (
     <span className="inline-flex items-center gap-1 text-[10px] tracking-wide">
-      <span className="w-1.5 h-1.5 rounded-full bg-[#f87171]" />
-      <span className="text-[#f87171]">
-        DESACTUALIZADO {ageS !== null ? `· hace ${fmtAge(ageS)}` : ""}
-      </span>
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+      <span className={cfg.txt}>{cfg.label}</span>
     </span>
-  );
-}
-
-function StaleBanner({ ageS }: { ageS: number | null }) {
-  return (
-    <div className="mb-2 px-2.5 py-1.5 border border-[#f87171]/40 bg-[#f87171]/10 text-[10px] text-[#f8a0a0] flex items-center gap-2">
-      <span className="text-[#f87171]">⚠</span>
-      <span>
-        Los precios de los futuros NO son live — el motor agro está detenido
-        {ageS !== null ? ` (último snapshot hace ${fmtAge(ageS)})` : ""}. La
-        pizarra es editable igual; el pase / TNAV se recalculan al volver el
-        feed.
-      </span>
-    </div>
   );
 }
 
@@ -223,13 +201,18 @@ export function DerivadosAgroPizarra({
   const oficialStale = data.oficial?.stale === true;
   // undefined (backend viejo sin freshness) → asumimos fresh para no asustar.
   const fresh = data.data_fresh !== false;
-  const snapAge = data.snapshot_age_s ?? null;
+  const estado: EstadoFeed = fresh
+    ? "live"
+    : mercadoAbiertoUTC()
+      ? "stale"
+      : "cerrado";
+  const dim = !fresh ? "opacity-50" : "";
 
   // Inyecto extras (frescura + dólar oficial + últ. act) en la fila del shell.
   useEffect(() => {
     setHeaderExtras(
       <>
-        <FreshnessPill fresh={fresh} ageS={snapAge} />
+        <FreshnessPill estado={estado} />
         <span className="text-[10px] text-[#808080] tracking-wide ml-2">
           DÓLAR OF
         </span>
@@ -248,8 +231,7 @@ export function DerivadosAgroPizarra({
     );
     return () => setHeaderExtras(null);
   }, [
-    fresh,
-    snapAge,
+    estado,
     oficial,
     oficialSource,
     oficialStale,
@@ -258,32 +240,29 @@ export function DerivadosAgroPizarra({
   ]);
 
   return (
-    <div className="h-full min-h-0 p-3 flex flex-col gap-2">
-      {/* Banner fijo arriba — el resto scrollea (3 commodities no entran en
-          una pantalla). */}
-      {!fresh && <StaleBanner ageS={snapAge} />}
+    <div className="h-full min-h-0 p-3 flex flex-col">
       <div className="flex-1 min-h-0">
-        <Panel title="PASE AGRO — TRIGO · MAÍZ · SOJA">
-          <table className="w-full text-[11px] font-mono">
+        <Panel title="PASE AGRO — TRIGO · MAÍZ · SOJA" expandable>
+          <table className="w-full text-[11px] font-mono tabular-nums">
             <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
               <tr>
-                <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">
-                  Vencimiento
+                <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                  Vto
                 </th>
-                <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">
+                <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
                   Posición
                 </th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
                   US$
                 </th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
                   Pase
                 </th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
-                  Valor en $
+                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  Valor $
                 </th>
-                <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
-                  TNAV US$
+                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  TNAV
                 </th>
               </tr>
             </thead>
@@ -301,7 +280,7 @@ export function DerivadosAgroPizarra({
                     bloque={b}
                     oficial={oficial}
                     canEdit={canEdit}
-                    stale={!fresh}
+                    dim={dim}
                     first={bi === 0}
                   />
                 ))
@@ -318,20 +297,20 @@ function BloqueRows({
   bloque,
   oficial,
   canEdit,
-  stale,
+  dim,
   first,
 }: {
   bloque: AgroBloque;
   oficial: number | null;
   canEdit: boolean;
-  stale: boolean;
+  dim: string;
   first: boolean;
 }) {
   return (
     <>
       {!first && (
         <tr>
-          <td colSpan={6} className="h-3" />
+          <td colSpan={6} className="h-1.5" />
         </tr>
       )}
       {bloque.rows.map((r, i) => {
@@ -352,48 +331,47 @@ function BloqueRows({
               key={`${bloque.commodity}-dispo`}
               className="border-b border-[#101010]"
             >
-              <td className="px-2 py-1 text-[#666]">
+              <td className="px-1.5 py-0.5 text-[#666]">
                 {r.vencimiento ? fmtFechaVtoFuturo(r.vencimiento) : "—"}
               </td>
-              <td className="px-2 py-1 text-[#888]">{r.posicion}</td>
-              <td className="px-2 py-1 text-right text-[#555]">#N/A</td>
-              <td className="px-2 py-1 text-right text-[#555]">#N/A</td>
-              <td className="px-2 py-1 text-right text-[#555]">#N/A</td>
-              <td className="px-2 py-1 text-right text-[#555]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-[#888]">{r.posicion}</td>
+              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
             </tr>
           );
         }
-        const futuroDim = stale ? "opacity-50" : "";
         return (
           <tr
             key={`${bloque.commodity}-${r.ticker ?? i}`}
             className="border-b border-[#101010] hover:bg-[#0d0d0d]"
           >
-            <td className={`px-2 py-1 text-[#a0a0a0] ${futuroDim}`}>
+            <td className={`px-1.5 py-0.5 text-[#a0a0a0] ${dim}`}>
               {fmtFechaVtoFuturo(r.vencimiento)}
             </td>
-            <td className={`px-2 py-1 text-[#d0d0d0] ${futuroDim}`}>
+            <td className={`px-1.5 py-0.5 text-[#d0d0d0] ${dim}`}>
               {r.posicion}
             </td>
             <FlashCell
               value={r.us}
               text={fmtPx(r.us)}
-              className={`px-2 py-1 text-right text-[#d0d0d0] ${futuroDim}`}
+              className={`px-1.5 py-0.5 text-right text-[#d0d0d0] ${dim}`}
             />
             <FlashCell
               value={r.pase}
               text={fmtPx(r.pase)}
-              className={`px-2 py-1 text-right ${pasecolor(r.pase)} ${futuroDim}`}
+              className={`px-1.5 py-0.5 text-right ${pasecolor(r.pase)} ${dim}`}
             />
             <FlashCell
               value={r.ars}
               text={fmtArs(r.ars)}
-              className={`px-2 py-1 text-right text-[#a0a0a0] ${futuroDim}`}
+              className={`px-1.5 py-0.5 text-right text-[#a0a0a0] ${dim}`}
             />
             <FlashCell
               value={r.tnav_us}
               text={fmtPct(r.tnav_us)}
-              className={`px-2 py-1 text-right ${tnavColor(r.tnav_us)} ${futuroDim}`}
+              className={`px-1.5 py-0.5 text-right ${tnavColor(r.tnav_us)} ${dim}`}
             />
           </tr>
         );
@@ -478,46 +456,24 @@ function PizarraRow({
     if (isFinite(n) && n > 0) scheduleSave({ us_pizarra: n });
   }
 
-  // Marca de auditoría: quién y cuándo tocó la pizarra por última vez.
-  const editHint =
-    row.updated_by || row.updated_at
-      ? `${row.updated_by ?? "—"}${
-          row.updated_at
-            ? " · " + fmtHoraAR(new Date(row.updated_at).getTime())
-            : ""
-        }`
-      : null;
-
   return (
     <tr className="border-y border-[#3a2c0a] bg-[#1a1308]">
-      <td className="px-2 py-1.5 text-[#e0c890]">
+      <td className="px-1.5 py-1 text-[#e0c890]">
         {canEdit ? (
           <input
             type="date"
             value={vto}
             onChange={(e) => onVtoChange(e.target.value)}
-            className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0 font-mono focus:border-[#ff9900] outline-none"
           />
         ) : (
           fmtFechaVtoFuturo(row.vencimiento)
         )}
       </td>
-      <td className="px-2 py-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-[#ff9900] font-semibold tracking-wide">
-            {row.posicion}
-          </span>
-          {editHint && (
-            <span
-              className="text-[9px] text-[#6a5a30]"
-              title="Última edición de la pizarra"
-            >
-              ✎ {editHint}
-            </span>
-          )}
-        </div>
+      <td className="px-1.5 py-1 text-[#ff9900] font-semibold tracking-wide">
+        {row.posicion}
       </td>
-      <td className="px-2 py-1.5 text-right text-[#e0c890] font-semibold">
+      <td className="px-1.5 py-1 text-right text-[#e0c890] font-semibold">
         {canEdit ? (
           <div className="inline-flex items-center gap-1 justify-end">
             <input
@@ -526,7 +482,7 @@ function PizarraRow({
               min="0"
               value={us}
               onChange={(e) => onUsChange(e.target.value)}
-              className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-20 text-right"
+              className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0 font-mono focus:border-[#ff9900] outline-none w-20 text-right"
             />
             {saving && <span className="text-[9px] text-[#888]">…</span>}
             {savedOk === true && (
@@ -540,9 +496,9 @@ function PizarraRow({
           fmtPx(row.us)
         )}
       </td>
-      <td className="px-2 py-1.5 text-right text-[#666]">—</td>
+      <td className="px-1.5 py-1 text-right text-[#666]">—</td>
       <td
-        className="px-2 py-1.5 text-right text-[#e0c890] font-semibold"
+        className="px-1.5 py-1 text-right text-[#e0c890] font-semibold"
         style={{
           backgroundColor: arsBg,
           transition: "background-color 0.8s ease-out",
@@ -550,7 +506,7 @@ function PizarraRow({
       >
         {fmtArs(arsCalc ?? row.ars)}
       </td>
-      <td className="px-2 py-1.5 text-right text-[#666]">—</td>
+      <td className="px-1.5 py-1 text-right text-[#666]">—</td>
     </tr>
   );
 }
