@@ -44,17 +44,21 @@ export function DerivadosAgroView({
           </SubTabBtn>
         </div>
 
-        <div className="flex items-center gap-0.5 ml-2">
-          {COMMODITIES.map((c) => (
-            <CommodityBtn
-              key={c}
-              active={c === commodity}
-              onClick={() => setCommodity(c)}
-            >
-              {c}
-            </CommodityBtn>
-          ))}
-        </div>
+        {/* La Pizarra muestra los 3 commodities juntos — el selector de
+            commodity solo aplica a Estrategias. */}
+        {subTab === "estrategias" && (
+          <div className="flex items-center gap-0.5 ml-2">
+            {COMMODITIES.map((c) => (
+              <CommodityBtn
+                key={c}
+                active={c === commodity}
+                onClick={() => setCommodity(c)}
+              >
+                {c}
+              </CommodityBtn>
+            ))}
+          </div>
+        )}
 
         <div className="flex items-center gap-2 ml-auto">{headerExtras}</div>
       </div>
@@ -64,7 +68,6 @@ export function DerivadosAgroView({
           <DerivadosAgroPizarra
             initial={initial}
             canEdit={canEdit}
-            commodity={commodity}
             setHeaderExtras={setHeaderExtras}
           />
         ) : (
