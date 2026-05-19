@@ -258,10 +258,12 @@ export function DerivadosAgroPizarra({
   ]);
 
   return (
-    <div className="h-full min-h-0 p-3 flex flex-col gap-3">
-      <div className="flex-1 min-h-0 overflow-auto">
-        <Panel title="PASE AGRO — TRIGO · MAÍZ · SOJA" fill>
-          {!fresh && <StaleBanner ageS={snapAge} />}
+    <div className="h-full min-h-0 p-3 flex flex-col gap-2">
+      {/* Banner fijo arriba — el resto scrollea (3 commodities no entran en
+          una pantalla). */}
+      {!fresh && <StaleBanner ageS={snapAge} />}
+      <div className="flex-1 min-h-0">
+        <Panel title="PASE AGRO — TRIGO · MAÍZ · SOJA">
           <table className="w-full text-[11px] font-mono">
             <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
               <tr>
