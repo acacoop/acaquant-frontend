@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DerivadosView } from "./derivados-view";
 import { DerivadosAgroView } from "./derivados-agro-view";
+import { DerivadosSinteticosView } from "./derivados-sinteticos-view";
 import type { OpcionDoc } from "@/lib/estrategias";
 
 interface OpcionesMeta {
@@ -30,7 +31,7 @@ interface AgroResp {
   }[];
 }
 
-type Tab = "opciones" | "agro";
+type Tab = "opciones" | "agro" | "sinteticos";
 
 export function DerivadosShell({
   opcionesDocs,
@@ -64,17 +65,22 @@ export function DerivadosShell({
             Agro
           </TabBtn>
         ) : null}
+        <TabBtn active={activeTab === "sinteticos"} onClick={() => setTab("sinteticos")}>
+          Sintéticos
+        </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0">
-        {activeTab === "opciones" || !agroInitial ? (
+        {activeTab === "sinteticos" ? (
+          <DerivadosSinteticosView />
+        ) : activeTab === "agro" && agroInitial ? (
+          <DerivadosAgroView initial={agroInitial} canEdit={canEditAgro} />
+        ) : (
           <DerivadosView
             docs={opcionesDocs}
             metaInicial={opcionesMeta}
             isAdmin={isAdmin}
           />
-        ) : (
-          <DerivadosAgroView initial={agroInitial} canEdit={canEditAgro} />
         )}
       </div>
     </div>
