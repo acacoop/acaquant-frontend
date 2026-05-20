@@ -1,7 +1,9 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Panel, fmtHoraAR } from "./ui";
+import { DownloadButton } from "./download-button";
+import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 import { usePoll } from "@/lib/use-poll";
 
 const POLL_MS = 10_000;
@@ -47,6 +49,9 @@ interface TitulosResp {
   totales: Totales;
   plazos_desconocidos: string[];
 }
+
+type Unidad = "nominales" | "dinero";
+type Filtro = "ambos" | "enviar" | "recibir";
 
 const EMPTY: TitulosResp = {
   fecha: "",
@@ -104,21 +109,111 @@ export function TitulosMercadoView() {
     { fetchOnMount: true },
   );
 
+  const [unidad, setUnidad] = useState<Unidad>("nominales");
+  const [filtro, setFiltro] = useState<Filtro>("ambos");
+
   const ultimoDisplay = lastAt > 0 ? fmtHoraAR(lastAt) : "—";
+
+  // Filtra los tickers según el filtro (enviar/recibir/ambos). El sort
+  // ya viene del backend: 'enviar_qty desc' → lo más crítico arriba.
+  const tickersFiltrados = useMemo(() => {
+    if (filtro === "enviar")  return data.tickers.filter((t) => t.enviar_qty  > 0);
+    if (filtro === "recibir") return data.tickers.filter((t) => t.recibir_qty > 0);
+    return data.tickers;
+  }, [data.tickers, filtro]);
+
+  // Totales ajustados al filtro: si miro solo enviar, los totales reflejan
+  // solo eso (consistencia visual con la tabla).
+  const totalesView = useMemo(() => {
+    if (filtro === "ambos") return data.totales;
+    const acc = { n_ops: 0, enviar_qty: 0, enviar_importe: 0, recibir_qty: 0, recibir_importe: 0 };
+    for (const t of tickersFiltrados) {
+      acc.enviar_qty      += t.enviar_qty;
+      acc.enviar_importe  += t.enviar_importe;
+      acc.recibir_qty     += t.recibir_qty;
+      acc.recibir_importe += t.recibir_importe;
+      acc.n_ops           += t.n_ops;
+    }
+    return acc;
+  }, [tickersFiltrados, data.totales, filtro]);
+
+  async function handleDownload() {
+    // Hoja 1 — resumen por título (ticker + neto en nominales).
+    const resumen = data.tickers.map((t) => ({
+      ticker: t.ticker,
+      neto:   t.neto_qty,
+    }));
+
+    // Hoja 2 — detalle por cuenta. Para cada (ticker, cuenta), agregamos
+    // venta − compra para que dé el neto firmado (positivo = enviar,
+    // negativo = recibir).
+    const byTC = new Map<string, { ticker: string; cuenta: string; neto: number }>();
+    for (const t of data.tickers) {
+      for (const c of t.cuentas) {
+        const key = `${t.ticker}::${c.cuenta}`;
+        const sign = (c.op || "").toLowerCase().startsWith("v") ? 1 : -1;
+        const row = byTC.get(key) ?? { ticker: t.ticker, cuenta: c.cuenta, neto: 0 };
+        row.neto += sign * c.cantidad;
+        byTC.set(key, row);
+      }
+    }
+    const detalle = Array.from(byTC.values()).sort(
+      (a, b) => a.ticker.localeCompare(b.ticker) || b.neto - a.neto,
+    );
+
+    await exportToXlsx({
+      sheets: [
+        {
+          name: "Resumen",
+          rows: resumen,
+          columns: [
+            { header: "Ticker", key: "ticker", format: "text",    width: 14 },
+            { header: "Neto",   key: "neto",   format: "integer", width: 14 },
+          ],
+          title: `Títulos/Mercado · liquida ${fmtFecha(data.fecha)}`,
+        },
+        {
+          name: "Detalle por cuenta",
+          rows: detalle,
+          columns: [
+            { header: "Ticker", key: "ticker", format: "text",    width: 14 },
+            { header: "Cuenta", key: "cuenta", format: "text",    width: 40 },
+            { header: "Neto",   key: "neto",   format: "integer", width: 14 },
+          ],
+          title: `Títulos/Mercado · liquida ${fmtFecha(data.fecha)} · neto por cuenta (positivo = enviar)`,
+        },
+      ],
+      filename: `titulos-mercado-${data.fecha || timestampSuffix()}.xlsx`,
+    });
+  }
 
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-2">
       <Header
         fecha={data.fecha}
         diaAnterior={data.dia_anterior}
-        totales={data.totales}
+        totales={totalesView}
         mercadoCerrado={data.mercado_cerrado}
         ultimoDisplay={ultimoDisplay}
         plazosDesconocidos={data.plazos_desconocidos}
+        unidad={unidad}
       />
 
       <div className="flex-1 min-h-0">
-        <Panel title="TÍTULOS / MERCADO" expandable>
+        <Panel
+          title="TÍTULOS / MERCADO"
+          expandable
+          actions={
+            <div className="flex items-center gap-2">
+              <FiltroBtns filtro={filtro} setFiltro={setFiltro} />
+              <UnidadToggle unidad={unidad} setUnidad={setUnidad} />
+              <DownloadButton
+                onClick={handleDownload}
+                title="Descargar Excel (2 hojas: resumen + detalle)"
+              />
+            </div>
+          }
+        >
           {data.mercado_cerrado ? (
             <div className="py-8 text-center">
               <div className="text-[#888] text-sm font-semibold tracking-wide">
@@ -128,12 +223,14 @@ export function TitulosMercadoView() {
                 Fin de semana o feriado argentino — no hay liquidación hoy.
               </div>
             </div>
-          ) : data.tickers.length === 0 ? (
+          ) : tickersFiltrados.length === 0 ? (
             <p className="text-[#555] text-xs py-6 text-center">
-              Sin operaciones que liquiden hoy
+              {data.tickers.length === 0
+                ? "Sin operaciones que liquiden hoy"
+                : "Sin tickers que matcheen el filtro"}
             </p>
           ) : (
-            <TablaTickers tickers={data.tickers} />
+            <TablaTickers tickers={tickersFiltrados} unidad={unidad} />
           )}
         </Panel>
       </div>
@@ -148,6 +245,7 @@ function Header({
   mercadoCerrado,
   ultimoDisplay,
   plazosDesconocidos,
+  unidad,
 }: {
   fecha: string;
   diaAnterior: string | null;
@@ -155,7 +253,12 @@ function Header({
   mercadoCerrado: boolean;
   ultimoDisplay: string;
   plazosDesconocidos: string[];
+  unidad: Unidad;
 }) {
+  const enviarVal  = unidad === "nominales" ? totales.enviar_qty  : totales.enviar_importe;
+  const recibirVal = unidad === "nominales" ? totales.recibir_qty : totales.recibir_importe;
+  const fmt = unidad === "nominales" ? fmtQty : (n: number) => fmtArs(n);
+
   return (
     <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex items-center gap-3 flex-wrap shrink-0">
       <div className="flex items-center gap-2">
@@ -175,27 +278,14 @@ function Header({
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-[#666] tracking-widest">ENVIAR</span>
             <span className="text-[#f87171] font-mono text-[12px] font-semibold">
-              {fmtQty(totales.enviar_qty)}
-            </span>
-            <span className="text-[9px] text-[#666]">
-              {fmtArs(totales.enviar_importe)}
+              {fmt(enviarVal)}
             </span>
           </div>
           <div className="h-4 w-px bg-[#1a1a1a]" />
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-[#666] tracking-widest">RECIBIR</span>
             <span className="text-[#4ade80] font-mono text-[12px] font-semibold">
-              {fmtQty(totales.recibir_qty)}
-            </span>
-            <span className="text-[9px] text-[#666]">
-              {fmtArs(totales.recibir_importe)}
-            </span>
-          </div>
-          <div className="h-4 w-px bg-[#1a1a1a]" />
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] text-[#666] tracking-widest">OPS</span>
-            <span className="text-[#d0d0d0] font-mono text-[11px]">
-              {totales.n_ops}
+              {fmt(recibirVal)}
             </span>
           </div>
         </>
@@ -215,7 +305,65 @@ function Header({
   );
 }
 
-function TablaTickers({ tickers }: { tickers: TickerRow[] }) {
+function FiltroBtns({
+  filtro,
+  setFiltro,
+}: {
+  filtro: Filtro;
+  setFiltro: (f: Filtro) => void;
+}) {
+  return (
+    <div className="flex gap-0.5">
+      {(["ambos", "enviar", "recibir"] as Filtro[]).map((f) => (
+        <button
+          key={f}
+          onClick={() => setFiltro(f)}
+          className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+            filtro === f
+              ? "bg-[#ff9900] text-black border-[#ff9900]"
+              : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          }`}
+        >
+          {f.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function UnidadToggle({
+  unidad,
+  setUnidad,
+}: {
+  unidad: Unidad;
+  setUnidad: (u: Unidad) => void;
+}) {
+  return (
+    <div className="flex gap-0.5">
+      {(["nominales", "dinero"] as Unidad[]).map((u) => (
+        <button
+          key={u}
+          onClick={() => setUnidad(u)}
+          className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+            unidad === u
+              ? "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]"
+              : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#3b82f6] hover:border-[#3b82f6]"
+          }`}
+        >
+          {u === "nominales" ? "NOM" : "$"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TablaTickers({
+  tickers,
+  unidad,
+}: {
+  tickers: TickerRow[];
+  unidad: Unidad;
+}) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   function toggle(ticker: string) {
@@ -226,6 +374,8 @@ function TablaTickers({ tickers }: { tickers: TickerRow[] }) {
       return next;
     });
   }
+
+  const fmt = unidad === "nominales" ? fmtQty : (n: number) => fmtArs(n);
 
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
@@ -239,29 +389,29 @@ function TablaTickers({ tickers }: { tickers: TickerRow[] }) {
             Enviar
           </th>
           <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
-            $ Enviar
-          </th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
             Recibir
           </th>
           <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
-            $ Recibir
-          </th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
             Neto
-          </th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
-            # ops
           </th>
         </tr>
       </thead>
       <tbody>
         {tickers.map((t) => {
           const isOpen = expanded.has(t.ticker);
+          const enviarVal  = unidad === "nominales" ? t.enviar_qty  : t.enviar_importe;
+          const recibirVal = unidad === "nominales" ? t.recibir_qty : t.recibir_importe;
+          // Neto $: aprox (enviar_importe − recibir_importe). Pequeño abuso
+          // porque los precios pueden ser distintos por op, pero como neto
+          // direccional alcanza.
+          const netoVal =
+            unidad === "nominales"
+              ? t.neto_qty
+              : t.enviar_importe - t.recibir_importe;
           const netoColor =
-            t.neto_qty > 0
+            netoVal > 0
               ? "text-[#f87171]"
-              : t.neto_qty < 0
+              : netoVal < 0
                 ? "text-[#4ade80]"
                 : "text-[#666]";
           return (
@@ -277,34 +427,21 @@ function TablaTickers({ tickers }: { tickers: TickerRow[] }) {
                   {t.ticker}
                 </td>
                 <td className="px-2 py-1 text-right text-[#f87171] font-semibold">
-                  {fmtQty(t.enviar_qty)}
-                </td>
-                <td className="px-2 py-1 text-right text-[#a0a0a0]">
-                  {fmtArs(t.enviar_importe)}
+                  {fmt(enviarVal)}
                 </td>
                 <td className="px-2 py-1 text-right text-[#4ade80] font-semibold">
-                  {fmtQty(t.recibir_qty)}
-                </td>
-                <td className="px-2 py-1 text-right text-[#a0a0a0]">
-                  {fmtArs(t.recibir_importe)}
+                  {fmt(recibirVal)}
                 </td>
                 <td className={`px-2 py-1 text-right ${netoColor} font-semibold`}>
-                  {fmtQty(Math.abs(t.neto_qty))}
-                  {t.neto_qty > 0
-                    ? " ↑"
-                    : t.neto_qty < 0
-                      ? " ↓"
-                      : ""}
-                </td>
-                <td className="px-2 py-1 text-right text-[#808080]">
-                  {t.n_ops}
+                  {fmt(Math.abs(netoVal))}
+                  {netoVal > 0 ? " ↑" : netoVal < 0 ? " ↓" : ""}
                 </td>
               </tr>
               {isOpen && (
                 <tr className="bg-[#0a0a0a]">
                   <td />
-                  <td colSpan={7} className="px-2 py-2">
-                    <CuentasDetail cuentas={t.cuentas} />
+                  <td colSpan={4} className="px-2 py-2">
+                    <CuentasDetail cuentas={t.cuentas} unidad={unidad} />
                   </td>
                 </tr>
               )}
@@ -316,7 +453,13 @@ function TablaTickers({ tickers }: { tickers: TickerRow[] }) {
   );
 }
 
-function CuentasDetail({ cuentas }: { cuentas: CuentaRow[] }) {
+function CuentasDetail({
+  cuentas,
+  unidad,
+}: {
+  cuentas: CuentaRow[];
+  unidad: Unidad;
+}) {
   return (
     <table className="w-full text-[10px] font-mono tabular-nums">
       <thead className="text-[9px] text-[#666] uppercase tracking-wide">
@@ -325,15 +468,18 @@ function CuentasDetail({ cuentas }: { cuentas: CuentaRow[] }) {
           <th className="text-left px-1.5 py-0.5">Op</th>
           <th className="text-left px-1.5 py-0.5">Plazo</th>
           <th className="text-center px-1.5 py-0.5">Fecha</th>
-          <th className="text-right px-1.5 py-0.5">Cant.</th>
+          <th className="text-right px-1.5 py-0.5">
+            {unidad === "nominales" ? "Cant." : "Importe"}
+          </th>
           <th className="text-right px-1.5 py-0.5">Precio</th>
-          <th className="text-right px-1.5 py-0.5">Importe</th>
           <th className="text-left px-1.5 py-0.5">Comprobante</th>
         </tr>
       </thead>
       <tbody>
         {cuentas.map((c, i) => {
           const isVenta = (c.op || "").toLowerCase().startsWith("v");
+          const valor = unidad === "nominales" ? c.cantidad : c.importe;
+          const fmtVal = unidad === "nominales" ? fmtQty : (n: number) => fmtArs(n);
           return (
             <tr
               key={`${c.comprobante ?? i}-${c.op}`}
@@ -352,13 +498,10 @@ function CuentasDetail({ cuentas }: { cuentas: CuentaRow[] }) {
                 {fmtFecha(c.fecha)}
               </td>
               <td className="px-1.5 py-0.5 text-right text-[#d0d0d0]">
-                {fmtQty(c.cantidad)}
+                {fmtVal(valor)}
               </td>
               <td className="px-1.5 py-0.5 text-right text-[#a0a0a0]">
                 {fmtPrice(c.precio)}
-              </td>
-              <td className="px-1.5 py-0.5 text-right text-[#a0a0a0]">
-                {fmtArs(c.importe)}
               </td>
               <td className="px-1.5 py-0.5 text-[#666] text-[9px]">
                 {c.comprobante ?? "—"}
