@@ -51,6 +51,7 @@ interface OrderDia {
   account?: string;
   created_at?: string;
   reject_reason?: string | null;
+  external?: boolean;  // true si vino solo del broker (otra plataforma)
 }
 
 interface CardCfg {
@@ -208,22 +209,56 @@ interface SaldoResp {
   last_calc?: string | null;
 }
 
-interface DetailedPosition {
-  symbol?: string;
-  size?: number;
-  price?: number;
-  totalDailyDifference?: number;
-  totalDifference?: number;
+// Shape real de pyRofex.get_detailed_position:
+// {
+//   status: "OK",
+//   detailedPosition: {
+//     account, totalMarketValue, lastCalculation,
+//     report: {
+//       BOND: { AO28: { detailedPositions: [...], instrumentMarketValue, ... } },
+//       NEGOTIABLE_OBLIGATION: { ... },
+//       CEDEAR: { ... },
+//       ...
+//     }
+//   }
+// }
+
+interface PyRofexPositionEntry {
+  symbolReference?: string;
+  tradingSymbol?: string;
+  contractType?: string;
+  marketPrice?: number;
   marketValue?: number;
-  type?: string;
-  // pyRofex puede devolver varios campos extra; tipamos los que mostramos.
+  totalCurrentSize?: number;
+  buyCurrentSize?: number;
+  sellCurrentSize?: number;
+  currency?: string;
+  settlType?: number;
+}
+
+interface PyRofexInstrumentBucket {
+  detailedPositions?: PyRofexPositionEntry[];
+  instrumentMarketValue?: number;
+  instrumentCurrentSize?: number;
 }
 
 interface DetailedResp {
   status?: string;
-  positions?: DetailedPosition[];
-  // El payload real de pyRofex es bastante anidado — leemos solo lo que
-  // necesitamos.
+  detailedPosition?: {
+    account?: string;
+    totalMarketValue?: number;
+    lastCalculation?: number;
+    report?: Record<string, Record<string, PyRofexInstrumentBucket>>;
+  };
+}
+
+interface TenenciaFlat {
+  ticker: string;
+  tipo: string;
+  size: number;
+  price: number | null;
+  marketValue: number | null;
+  currency: string;
 }
 
 function usePortfolio(account: string, pollMs = 8000) {
@@ -270,21 +305,39 @@ function PortfolioPanel({
   detailed: DetailedResp | null;
   refresh: () => void;
 }) {
-  // Extraer posiciones del payload de pyRofex. El shape real es
-  // accountPosition.positions[] con campos del broker; aceptamos algunas
-  // variantes defensivamente.
-  const positions: DetailedPosition[] = (() => {
-    if (!detailed) return [];
-    if (Array.isArray(detailed.positions)) return detailed.positions;
-    // pyRofex anida en detailedPosition.positions o accountData.positions.
-    type Generic = Record<string, unknown>;
-    const obj = detailed as unknown as Generic;
-    const cand =
-      (obj["detailedPosition"] as Generic)?.["positions"] ??
-      (obj["accountData"] as Generic)?.["positions"] ??
-      null;
-    return Array.isArray(cand) ? (cand as DetailedPosition[]) : [];
+  // Shape real: detailedPosition.report.{TIPO}.{symbol}.detailedPositions[]
+  // Flattenamos en tenencias filtrando las que ya están cerradas
+  // (totalCurrentSize == 0 — fue intraday round-trip, no tenencia).
+  const tenencias: TenenciaFlat[] = (() => {
+    const report = detailed?.detailedPosition?.report;
+    if (!report) return [];
+    const out: TenenciaFlat[] = [];
+    for (const [tipo, simbolos] of Object.entries(report)) {
+      for (const bucket of Object.values(simbolos)) {
+        const detalles = bucket?.detailedPositions ?? [];
+        for (const d of detalles) {
+          const size = d.totalCurrentSize ?? 0;
+          if (size <= 0) continue;
+          const tradingSym = d.tradingSymbol ?? d.symbolReference ?? "?";
+          const corto =
+            d.symbolReference ?? tradingSym.split(" - ")[2] ?? tradingSym;
+          out.push({
+            ticker:      corto,
+            tipo:        tipo,
+            size:        size,
+            price:       d.marketPrice ?? null,
+            marketValue: d.marketValue ?? null,
+            currency:    d.currency ?? "ARS",
+          });
+        }
+      }
+    }
+    // Ordenar por marketValue desc (las más gordas arriba).
+    out.sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0));
+    return out;
   })();
+
+  const totalMarketValue = detailed?.detailedPosition?.totalMarketValue ?? null;
 
   const ars = saldo?.monedas?.["ARS"] ?? {
     available: saldo?.saldo_ars ?? null,
@@ -326,7 +379,7 @@ function PortfolioPanel({
 
           {/* Tenencias */}
           <div className="flex-1 min-h-0 overflow-y-auto">
-            {positions.length === 0 ? (
+            {tenencias.length === 0 ? (
               <div className="px-2 py-3 text-[10px] text-[#555] text-center">
                 {detailed === null ? "Cargando…" : "Sin tenencias"}
               </div>
@@ -342,33 +395,39 @@ function PortfolioPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {positions.map((p, i) => {
-                    const ticker = p.symbol ?? "?";
-                    const corto = ticker.split(" - ")[2] ?? ticker;
-                    return (
-                      <tr
-                        key={`${ticker}-${i}`}
-                        className="border-t border-[#101010] hover:bg-[#0d0d0d]"
-                      >
-                        <td className="px-2 py-0.5 text-[#d0d0d0]">{corto}</td>
-                        <td className="px-2 py-0.5 text-[#888]">
-                          {p.type ?? "—"}
-                        </td>
-                        <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
-                          {p.size != null ? p.size.toLocaleString("es-AR") : "—"}
-                        </td>
-                        <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
-                          {p.price != null ? p.price.toFixed(2) : "—"}
-                        </td>
-                        <td className="px-2 py-0.5 text-right text-[#ff9900]">
-                          {p.marketValue != null
-                            ? `$${p.marketValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
-                            : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {tenencias.map((t, i) => (
+                    <tr
+                      key={`${t.ticker}-${i}`}
+                      className="border-t border-[#101010] hover:bg-[#0d0d0d]"
+                    >
+                      <td className="px-2 py-0.5 text-[#d0d0d0]">{t.ticker}</td>
+                      <td className="px-2 py-0.5 text-[#888]">{t.tipo}</td>
+                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                        {t.size.toLocaleString("es-AR")}
+                      </td>
+                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                        {t.price != null ? t.price.toFixed(2) : "—"}
+                      </td>
+                      <td className="px-2 py-0.5 text-right text-[#ff9900]">
+                        {t.marketValue != null
+                          ? `$${t.marketValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
+                {totalMarketValue != null && (
+                  <tfoot>
+                    <tr className="border-t border-[#2a2a2a] bg-[#0a0a0a]">
+                      <td colSpan={4} className="px-2 py-1 text-right text-[10px] text-[#888]">
+                        TOTAL
+                      </td>
+                      <td className="px-2 py-1 text-right text-[#ff9900] font-bold">
+                        ${totalMarketValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             )}
           </div>
@@ -866,7 +925,17 @@ function OrderManagement({
                   <td className="px-2 py-0.5 text-[#888]">
                     {o.created_at ? fmtTime(o.created_at) : "—"}
                   </td>
-                  <td className="px-2 py-0.5 text-[#d0d0d0]">{corto}</td>
+                  <td className="px-2 py-0.5 text-[#d0d0d0]">
+                    {corto}
+                    {o.external && (
+                      <span
+                        className="ml-1 px-1 text-[8px] text-[#888] border border-[#2a2a2a] rounded"
+                        title="Operada desde otra plataforma (web del broker, etc)"
+                      >
+                        EXT
+                      </span>
+                    )}
+                  </td>
                   <td
                     className={`px-2 py-0.5 font-semibold ${
                       o.side === "BUY" ? "text-[#7fff7f]" : "text-[#ff7f7f]"
