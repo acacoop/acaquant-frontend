@@ -119,12 +119,12 @@ export function DerivadosSinteticosView() {
       </div>
 
       <div className="flex-1 min-h-0 flex">
-        {/* IZQUIERDA 55% — long-lecap arriba, short-dlk abajo. */}
+        {/* IZQUIERDA 55% — long-lecap arriba (70%), short-dlk abajo (30%). */}
         <div className="w-[55%] min-w-0 flex flex-col border-r border-[#1a1a1a]">
-          <div className="h-1/2 min-h-0 border-b border-[#1a1a1a]">
+          <div className="h-[70%] min-h-0 border-b border-[#1a1a1a]">
             <LongLecapPanel rows={data.long_rofex_long_lecap} />
           </div>
-          <div className="h-1/2 min-h-0">
+          <div className="h-[30%] min-h-0">
             <ShortDlkPanel rows={data.short_rofex_long_dlk} />
           </div>
         </div>
