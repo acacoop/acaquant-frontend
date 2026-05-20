@@ -125,7 +125,7 @@ export function AgroOpcionesChain({
                 className="px-2 py-0.5 text-[10px] font-semibold tracking-wide border border-[#3b82f6]/60 text-[#3b82f6] hover:bg-[#3b82f6]/10 transition-colors"
                 title="Abrir simulador de estrategias de cobertura"
               >
-                ⊕ Simulador
+                ⊕ Simulador Estrategias Cobertura
               </button>
             </div>
           }
