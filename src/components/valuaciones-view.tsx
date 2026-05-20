@@ -717,16 +717,13 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     cierre:     esUSD ? m.valuacion_cierre_usd : m.valuacion_cierre,
                     flujo_neto: esUSD ? m.flujo_neto_usd : m.flujo_neto,
                     delta_real: esUSD ? m.delta_real_usd : m.delta_real,
-                    base100:    b100,
                     pnl_acum:   esUSD ? (acum?.usd ?? null) : (acum?.ars ?? null),
                     tem_pct:    (() => {
                       const v = esUSD ? m.tem_periodo_usd : m.tem_periodo;
                       return v != null ? v * 100 : null;
                     })(),
-                    tea_pct:    (() => {
-                      const v = esUSD ? m.tea_mensual_usd : m.tea_mensual;
-                      return v != null ? v * 100 : null;
-                    })(),
+                    // TEA CARTERA = rendimiento acumulado del TWR (base100 - 100).
+                    tea_cartera_pct: b100 - 100,
                   };
                 });
                 const titulo = nombreCuenta
@@ -744,10 +741,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         { header: `CIERRE ${moneda}`, key: "cierre", format: "currency", width: 18 },
                         { header: `FLUJO NETO ${moneda}`, key: "flujo_neto", format: "currency", width: 18 },
                         { header: `Δ VALOR ${moneda}`, key: "delta_real", format: "currency", width: 18 },
-                        { header: "BASE 100",   key: "base100",    format: "currency", width: 14 },
                         { header: `PNL ACUM ${moneda}`, key: "pnl_acum", format: "currency", width: 18 },
-                        { header: "TEM",        key: "tem_pct",    format: "percent",  width: 12 },
-                        { header: "TEA",        key: "tea_pct",    format: "percent",  width: 12 },
+                        { header: "TEM MES",    key: "tem_pct",    format: "percent",  width: 12 },
+                        { header: "TEA CARTERA",key: "tea_cartera_pct", format: "percent", width: 14 },
                       ],
                     },
                   ],
@@ -780,20 +776,16 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     >Δ valor</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="Base 100 acumulada — TWR puro. Arranca en 100 y compone por (1 + TEM) cada mes. Sin depender de aportes/retiros."
-                    >Base 100</th>
-                    <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
                       title="PnL acumulado — suma de Δ valor desde el primer mes. Sumatoria simple, no compone. Útil para ver ganancia/pérdida total en $."
                     >PnL acum.</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="TEM — Tasa Efectiva del período. TEA des-anualizada a los días reales del mes: (1 + TEA)^(días/365) − 1."
-                    >TEM</th>
+                      title="TEM del MES — Tasa Efectiva del período. TEA des-anualizada a los días reales del mes: (1 + TEA)^(días/365) − 1."
+                    >TEM MES</th>
                     <th
                       className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="TEA — Tasa Efectiva Anual via XIRR (TIR.NO.PER). Cashflow: +V_inicio, flujos individuales, −V_cierre. Si USD: cashflow convertido con MEP por fecha."
-                    >TEA</th>
+                      title="TEA Cartera — rendimiento acumulado del TWR puro desde el primer mes. (base100/100 − 1). Sin depender de aportes/retiros."
+                    >TEA CARTERA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -843,9 +835,6 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         >
                           {delta_real != null ? fmtSigned(delta_real) : "—"}
                         </td>
-                        <td className="px-2 py-1 text-right text-[#d0d0d0]">
-                          {base100.toFixed(2)}
-                        </td>
                         <td
                           className="px-2 py-1 text-right font-semibold"
                           style={{ color: colorDelta(esUSD ? pnlAcumByMes[m.mes]?.usd : pnlAcumByMes[m.mes]?.ars) }}
@@ -862,11 +851,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         </td>
                         <td
                           className="px-2 py-1 text-right font-semibold"
-                          style={{ color: tea != null ? colorDelta(tea) : "#666" }}
+                          style={{ color: colorDelta(base100 - 100) }}
                         >
-                          {tea != null
-                            ? `${tea >= 0 ? "+" : ""}${(tea * 100).toFixed(1)}%`
-                            : "—"}
+                          {`${base100 - 100 >= 0 ? "+" : ""}${(base100 - 100).toFixed(2)}%`}
                         </td>
                       </tr>
                     );
