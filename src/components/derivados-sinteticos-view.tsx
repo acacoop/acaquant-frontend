@@ -1,5 +1,15 @@
 "use client";
 
+import { useMemo } from "react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Panel, fmtHoraAR } from "./ui";
 import { usePoll } from "@/lib/use-poll";
 
@@ -118,19 +128,123 @@ export function DerivadosSinteticosView() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex">
-        {/* IZQUIERDA 55% — long-lecap arriba (70%), short-dlk abajo (30%). */}
-        <div className="w-[55%] min-w-0 flex flex-col border-r border-[#1a1a1a]">
-          <div className="h-[70%] min-h-0 border-b border-[#1a1a1a]">
+      <div className="flex-1 min-h-0 flex flex-col">
+        {/* Long-LECAP arriba (70%): tabla 60% + chart 40%. */}
+        <div className="h-[70%] min-h-0 border-b border-[#1a1a1a] flex">
+          <div className="w-[60%] min-w-0 border-r border-[#1a1a1a]">
             <LongLecapPanel rows={data.long_rofex_long_lecap} />
           </div>
-          <div className="h-[30%] min-h-0">
-            <ShortDlkPanel rows={data.short_rofex_long_dlk} />
+          <div className="w-[40%] min-w-0">
+            <CurvaTnaChart
+              titulo="Curva TNA · Long Rofex − Long Lecap"
+              rows={data.long_rofex_long_lecap}
+            />
           </div>
         </div>
+        {/* Short-DLK abajo (30%): tabla 60% + chart 40%. */}
+        <div className="h-[30%] min-h-0 flex">
+          <div className="w-[60%] min-w-0 border-r border-[#1a1a1a]">
+            <ShortDlkPanel rows={data.short_rofex_long_dlk} />
+          </div>
+          <div className="w-[40%] min-w-0">
+            <CurvaTnaChart
+              titulo="Curva TNA · Short Rofex − Long DLK"
+              rows={data.short_rofex_long_dlk}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* DERECHA 45% — vacío por ahora (reservado para próximas vistas). */}
-        <div className="w-[45%] min-w-0" />
+// ─── Chart compartido: TNA vs plazo ──────────────────────────────────────────
+
+interface ChartRow {
+  ticker: string | null;
+  plazo_normal: number;
+  descalce: number | null;
+  tna: number | null;
+}
+
+function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
+  // Solo plotea filas válidas: descalce==0 y TNA finita. Las inválidas
+  // ensucian la curva.
+  const data = useMemo(() => {
+    return rows
+      .filter(
+        (r) =>
+          (r.descalce ?? 0) === 0 &&
+          r.tna != null &&
+          isFinite(r.tna),
+      )
+      .map((r) => ({
+        ticker: r.ticker ?? "?",
+        plazo: r.plazo_normal,
+        tnaPct: (r.tna as number) * 100,
+      }))
+      .sort((a, b) => a.plazo - b.plazo);
+  }, [rows]);
+
+  return (
+    <div className="h-full min-h-0 p-3 flex flex-col">
+      <div className="flex-1 min-h-0">
+        <Panel title={titulo.toUpperCase()}>
+          {data.length === 0 ? (
+            <p className="text-[#555] text-xs py-6 text-center">
+              Sin datos válidos para graficar
+            </p>
+          ) : (
+            <div className="w-full h-full min-h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={data}
+                  margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1a1a1a" />
+                  <XAxis
+                    dataKey="plazo"
+                    stroke="#666"
+                    tick={{ fontSize: 9, fill: "#888" }}
+                    label={{
+                      value: "Días",
+                      position: "insideBottom",
+                      offset: -2,
+                      style: { fill: "#555", fontSize: 9 },
+                    }}
+                  />
+                  <YAxis
+                    stroke="#666"
+                    tick={{ fontSize: 9, fill: "#888" }}
+                    tickFormatter={(v: number) => `${v.toFixed(0)}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#0a0a0a",
+                      border: "1px solid #2a2a2a",
+                      fontSize: 11,
+                    }}
+                    labelStyle={{ color: "#888" }}
+                    formatter={(value, _name, item) => {
+                      const v = typeof value === "number" ? value : Number(value);
+                      const payload = (item?.payload ?? {}) as { ticker?: string };
+                      return [`${v.toFixed(2)}%`, payload.ticker ?? ""];
+                    }}
+                    labelFormatter={(label) => `Plazo: ${label}d`}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="tnaPct"
+                    stroke="#ff9900"
+                    strokeWidth={1.5}
+                    dot={{ r: 3, fill: "#ff9900" }}
+                    activeDot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Panel>
       </div>
     </div>
   );
@@ -139,13 +253,22 @@ export function DerivadosSinteticosView() {
 // ─── Tabla 1: LONG ROFEX + LONG LECAP ───────────────────────────────────────
 
 function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
+  // Solo mostramos pares "limpios": descalce ≠ 0 → exposición ARS de unos
+  // días entre el cobro del bono y el ajuste del futuro, no es estrictamente
+  // un sintético cerrado y ensucia la comparación de TNAs.
+  const visibles = useMemo(
+    () => rows.filter((r) => (r.descalce ?? 0) === 0),
+    [rows],
+  );
   return (
     <div className="h-full min-h-0 p-3 flex flex-col">
       <div className="flex-1 min-h-0">
         <Panel title="SINTÉTICO · LONG ROFEX − LONG LECAP" expandable>
-          {rows.length === 0 ? (
+          {visibles.length === 0 ? (
             <p className="text-[#555555] text-xs py-4 text-center">
-              SIN MATCHES — esperando precios del motor
+              {rows.length === 0
+                ? "SIN MATCHES — esperando precios del motor"
+                : "Sin pares con descalce = 0"}
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono tabular-nums">
@@ -190,7 +313,7 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {visibles.map((r) => (
                   <tr
                     key={r.ticker ?? ""}
                     className="border-b border-[#101010] hover:bg-[#0d0d0d]"
@@ -247,13 +370,19 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
 // ─── Tabla 2: SHORT ROFEX + LONG DLK ────────────────────────────────────────
 
 function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
+  const visibles = useMemo(
+    () => rows.filter((r) => (r.descalce ?? 0) === 0),
+    [rows],
+  );
   return (
     <div className="h-full min-h-0 p-3 flex flex-col">
       <div className="flex-1 min-h-0">
         <Panel title="SINTÉTICO · SHORT ROFEX − LONG DLK" expandable>
-          {rows.length === 0 ? (
+          {visibles.length === 0 ? (
             <p className="text-[#555555] text-xs py-4 text-center">
-              SIN MATCHES — esperando precios del motor
+              {rows.length === 0
+                ? "SIN MATCHES — esperando precios del motor"
+                : "Sin pares con descalce = 0"}
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono tabular-nums">
@@ -295,7 +424,7 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {visibles.map((r) => (
                   <tr
                     key={r.ticker ?? ""}
                     className="border-b border-[#101010] hover:bg-[#0d0d0d]"
