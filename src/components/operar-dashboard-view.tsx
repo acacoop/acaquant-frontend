@@ -104,6 +104,8 @@ function uid(): string {
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
+type BookStatus = "ready" | "subscribing" | "error";
+
 function useOrderBook(
   tickerCorto: string,
   fullTicker: string | undefined,
@@ -111,6 +113,7 @@ function useOrderBook(
   pollMs = 1000,
 ) {
   const [book, setBook] = useState<OrderBookResp | null>(null);
+  const [status, setStatus] = useState<BookStatus>("ready");
   const [error, setError] = useState<string | null>(null);
   // Si tenemos fullTicker (el user picó del autocomplete) lo usamos
   // directo: el backend hace match exacto contra MarketSnapshot. Si no,
@@ -126,12 +129,19 @@ function useOrderBook(
           { cache: "no-store" },
         );
         if (!alive) return;
-        if (r.ok) {
+        if (r.status === 200) {
           setBook(await r.json());
+          setStatus("ready");
+          setError(null);
+        } else if (r.status === 202) {
+          // Subscribing — el motor lo va a levantar en ~5s. Mantenemos el
+          // book viejo (si había) y mostramos spinner.
+          setStatus("subscribing");
           setError(null);
         } else {
           setBook(null);
           const j = await r.json().catch(() => ({}));
+          setStatus("error");
           setError(j.detail ?? `HTTP ${r.status}`);
         }
       } catch {
@@ -145,7 +155,7 @@ function useOrderBook(
       clearInterval(id);
     };
   }, [tickerParam, plazo, pollMs]);
-  return { book, error };
+  return { book, status, error };
 }
 
 function useOrdenesDia(pollMs = 4000) {
@@ -266,7 +276,11 @@ function OperarCard({
   onExecuted: () => void;
 }) {
   const plazo = cfg.plazo ?? "24hs";
-  const { book, error } = useOrderBook(cfg.tickerCorto, cfg.fullTicker, plazo);
+  const { book, status, error } = useOrderBook(
+    cfg.tickerCorto,
+    cfg.fullTicker,
+    plazo,
+  );
   const bids = book?.book?.bids ?? [];
   const offers = book?.book?.offers ?? [];
   const last = book?.metrics?.last_price ?? null;
@@ -384,7 +398,13 @@ function OperarCard({
           ×
         </button>
       </div>
-      {error && (
+      {status === "subscribing" && (
+        <div className="px-2 py-1 text-[9px] text-[#ffe066] border-b border-[#1a1a1a] bg-[#1a1608] flex items-center gap-2">
+          <span className="inline-block w-2 h-2 rounded-full bg-[#ffe066] animate-pulse" />
+          suscribiendo… el motor lo levanta en ~5s
+        </div>
+      )}
+      {status === "error" && error && (
         <div className="px-2 py-1 text-[9px] text-[#f87171] border-b border-[#1a1a1a] bg-[#1a0d0d]">
           {error}
         </div>
