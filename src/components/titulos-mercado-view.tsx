@@ -394,6 +394,9 @@ function TablaTickers({
           <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
             Neto
           </th>
+          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+            Movimientos
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -436,11 +439,14 @@ function TablaTickers({
                   {fmt(Math.abs(netoVal))}
                   {netoVal > 0 ? " ↑" : netoVal < 0 ? " ↓" : ""}
                 </td>
+                <td className="px-2 py-1 text-right text-[#808080]">
+                  {t.n_ops}
+                </td>
               </tr>
               {isOpen && (
                 <tr className="bg-[#0a0a0a]">
                   <td />
-                  <td colSpan={4} className="px-2 py-2">
+                  <td colSpan={5} className="px-2 py-2">
                     <CuentasDetail cuentas={t.cuentas} unidad={unidad} />
                   </td>
                 </tr>
