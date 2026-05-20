@@ -365,6 +365,10 @@ function TablaTickers({
   unidad: Unidad;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Sort por la columna Neto. null = orden default del backend
+  // (enviar_qty desc — lo más crítico arriba). Click cicla null → desc
+  // → asc → null.
+  const [netoSort, setNetoSort] = useState<null | "asc" | "desc">(null);
 
   function toggle(ticker: string) {
     setExpanded((prev) => {
@@ -375,7 +379,23 @@ function TablaTickers({
     });
   }
 
+  function cycleNetoSort() {
+    setNetoSort((s) => (s === null ? "desc" : s === "desc" ? "asc" : null));
+  }
+
   const fmt = unidad === "nominales" ? fmtQty : (n: number) => fmtArs(n);
+  const netoSigned = (t: TickerRow) =>
+    unidad === "nominales"
+      ? t.neto_qty
+      : t.enviar_importe - t.recibir_importe;
+
+  // Si el user clickeó Neto, reordeno; si no, respeto el orden del backend.
+  const tickersOrdenados = useMemo(() => {
+    if (!netoSort) return tickers;
+    const sign = netoSort === "desc" ? -1 : 1;
+    return [...tickers].sort((a, b) => sign * (netoSigned(a) - netoSigned(b)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickers, netoSort, unidad]);
 
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
@@ -391,8 +411,23 @@ function TablaTickers({
           <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
             Recibir
           </th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
-            Neto
+          <th
+            onClick={cycleNetoSort}
+            title={`Click para ordenar por Neto · ${
+              netoSort === null
+                ? "default (Enviar desc)"
+                : netoSort === "desc"
+                  ? "más a enviar arriba"
+                  : "más a recibir arriba"
+            }`}
+            className={`text-right px-2 py-1.5 border-b border-[#1a1a1a] cursor-pointer select-none ${
+              netoSort ? "text-[#ff9900]" : "hover:text-[#d0d0d0]"
+            }`}
+          >
+            Neto{" "}
+            <span className="inline-block w-2 text-[9px]">
+              {netoSort === "desc" ? "▼" : netoSort === "asc" ? "▲" : "↕"}
+            </span>
           </th>
           <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
             Movimientos
@@ -400,7 +435,7 @@ function TablaTickers({
         </tr>
       </thead>
       <tbody>
-        {tickers.map((t) => {
+        {tickersOrdenados.map((t) => {
           const isOpen = expanded.has(t.ticker);
           const enviarVal  = unidad === "nominales" ? t.enviar_qty  : t.enviar_importe;
           const recibirVal = unidad === "nominales" ? t.recibir_qty : t.recibir_importe;
