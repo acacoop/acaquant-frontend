@@ -12,9 +12,6 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { ValuacionesView } from "@/components/valuaciones-view";
-import { PnLTitulosView } from "@/components/pnl-titulos-view";
-import { PnLTotalesView } from "@/components/pnl-totales-view";
 import { DownloadButton } from "@/components/download-button";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
@@ -372,9 +369,12 @@ function TabCer() {
   );
 }
 
-type AumTab = "total" | "fci" | "tasa_fija" | "cer" | "valuaciones" | "analisis_dinero";
+type AumTab = "total" | "fci" | "tasa_fija" | "cer" | "analisis_dinero";
 
-type CuentaDoc = { id_cuenta: string; cuenta: string };
+// Exportado para que ValuacionesShell (módulo top-level) lo reuse — VALUACIONES
+// salió de /aum y ahora vive en /valuaciones, pero comparte el modelo de cuenta
+// y el combobox.
+export type CuentaDoc = { id_cuenta: string; cuenta: string };
 
 type CuentaFilter = "todas" | "accionistas" | "sin_accionistas" | "cooperativas" | "productores";
 const CUENTA_FILTER_OPTS: { value: CuentaFilter; label: string }[] = [
@@ -404,9 +404,7 @@ function _writeUrlParams(params: Record<string, string | null | undefined>) {
   window.history.replaceState(null, "", url.toString());
 }
 
-const _AUM_TABS: AumTab[] = ["total", "fci", "tasa_fija", "cer", "valuaciones", "analisis_dinero"];
-const _VAL_SUBTABS = ["portafolio", "pnl_titulos", "totales"] as const;
-type ValSubtab = (typeof _VAL_SUBTABS)[number];
+const _AUM_TABS: AumTab[] = ["total", "fci", "tasa_fija", "cer", "analisis_dinero"];
 
 export function AumView() {
   const [tab, setTab] = useState<AumTab>(() => {
@@ -423,40 +421,17 @@ export function AumView() {
   const [fechasSinMep, setFechasSinMep] = useState<string[]>([]);
   const [mepMissingSnap, setMepMissingSnap] = useState<boolean>(false);
 
-  // Selector de cuenta para la sub-tab VALUACIONES (vive bajo /aum como tab).
-  const [cuentas, setCuentas] = useState<CuentaDoc[]>([]);
-  const [valCuenta, setValCuenta] = useState<string>(() => _readUrlParam("cuenta") || "");
-  // Sub-tab dentro de VALUACIONES: PORTAFOLIO | PNL TÍTULOS | TOTALES.
-  const [valSubtab, setValSubtab] = useState<ValSubtab>(() => {
-    const v = _readUrlParam("sub");
-    return (_VAL_SUBTABS as readonly string[]).includes(v || "")
-      ? (v as ValSubtab)
-      : "portafolio";
-  });
+  // VALUACIONES salió de /aum como tab — ahora vive en /valuaciones (módulo
+  // top-level). El state (cuenta, sub-tab) y el fetch de /api/portfolio-cuentas
+  // se mudaron a `valuaciones-shell.tsx`.
 
-  // Sync tab / valSubtab / valCuenta a la URL. replaceState para no
-  // ensuciar el history stack — refresh queda donde estabas, atrás
-  // sigue saliendo de /aum.
+  // Sync de la tab a la URL. replaceState para no ensuciar el history.
   useEffect(() => {
     _writeUrlParams({
-      tab: tab === "total" ? null : tab,                 // default = sin param
-      sub: tab === "valuaciones" && valSubtab !== "portafolio" ? valSubtab : null,
-      cuenta: tab === "valuaciones" ? valCuenta : null,
+      tab: tab === "total" ? null : tab,  // default = sin param
     });
-  }, [tab, valSubtab, valCuenta]);
+  }, [tab]);
 
-  useEffect(() => {
-    fetch("/api/portfolio-cuentas", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d: { cuentas: CuentaDoc[] }) => {
-        const list = d.cuentas || [];
-        setCuentas(list);
-        // Solo defaultear a la primera si no había selección previa
-        // ni desde URL — sino preservamos lo que el user eligió.
-        if (list.length && !valCuenta) setValCuenta(list[0].id_cuenta);
-      })
-      .catch(() => { /* sin lista, el selector queda vacío */ });
-  }, [valCuenta]);
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
   const [serie, setSerie] = useState<SeriePoint[]>([]);
@@ -687,7 +662,7 @@ export function AumView() {
 
   const tabBar = (
     <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-      {(["total", "fci", "tasa_fija", "cer", "valuaciones", "analisis_dinero"] as AumTab[]).map((t) => (
+      {(["total", "fci", "tasa_fija", "cer", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
             tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
@@ -696,7 +671,6 @@ export function AumView() {
            : t === "total" ? "TOTAL"
            : t === "tasa_fija" ? "TASA FIJA"
            : t === "cer" ? "CER"
-           : t === "valuaciones" ? "VALUACIONES"
            : "ANÁLISIS DE DINERO"}
         </button>
       ))}
@@ -763,50 +737,6 @@ export function AumView() {
           </div>
         </div>
       )}
-      {tab === "valuaciones" && (
-        <div className="ml-auto flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
-            {(() => {
-              const idx = cuentas.findIndex((c) => c.id_cuenta === valCuenta);
-              const prev = idx > 0 ? cuentas[idx - 1].id_cuenta : null;
-              const next = idx >= 0 && idx < cuentas.length - 1 ? cuentas[idx + 1].id_cuenta : null;
-              return (
-                <>
-                  <button
-                    onClick={() => prev && setValCuenta(prev)}
-                    disabled={!prev}
-                    title="Cuenta anterior"
-                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
-                  >◀</button>
-                  <CuentaCombobox cuentas={cuentas} value={valCuenta} onChange={setValCuenta} />
-                  <button
-                    onClick={() => next && setValCuenta(next)}
-                    disabled={!next}
-                    title="Cuenta siguiente"
-                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
-                  >▶</button>
-                </>
-              );
-            })()}
-          </div>
-          <div className="flex items-center gap-1">
-            {_VAL_SUBTABS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setValSubtab(s)}
-                className={`px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-                  valSubtab === s
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
-                }`}
-              >
-                {s === "portafolio" ? "PORTAFOLIO" : s === "pnl_titulos" ? "PNL TÍTULOS" : "TOTALES"}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 
@@ -816,31 +746,6 @@ export function AumView() {
         {tabBar}
         <div className="flex-1 min-h-0">
           <AnalisisDinero fechasAll={fechasAll} />
-        </div>
-      </div>
-    );
-  }
-
-  if (tab === "valuaciones") {
-    return (
-      <div className="h-full flex flex-col min-h-0">
-        {tabBar}
-        <div className="flex-1 min-h-0">
-          {valSubtab === "totales" ? (
-            // TOTALES no depende de una cuenta específica — agrega TODAS.
-            <PnLTotalesView />
-          ) : valCuenta ? (
-            valSubtab === "portafolio"
-              ? <ValuacionesView
-                  idCuenta={valCuenta}
-                  nombreCuenta={cuentas.find((c) => c.id_cuenta === valCuenta)?.cuenta}
-                />
-              : <PnLTitulosView idCuenta={valCuenta} />
-          ) : (
-            <div className="h-full flex items-center justify-center text-[#555] text-sm">
-              Cargando cuentas…
-            </div>
-          )}
         </div>
       </div>
     );
@@ -1586,7 +1491,7 @@ function AnalisisDinero({ fechasAll }: { fechasAll: string[] }) {
 // Combobox tipeable — input con dropdown filtrable. UX: al hacer focus abre la
 // lista; al tipear filtra por id_cuenta o denominación; click en opción
 // selecciona; ESC o click afuera cierra.
-function CuentaCombobox({
+export function CuentaCombobox({
   cuentas,
   value,
   onChange,
