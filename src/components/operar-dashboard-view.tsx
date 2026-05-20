@@ -56,7 +56,8 @@ interface OrderDia {
 interface CardCfg {
   id: string;          // uuid local
   tickerCorto: string; // lo que ve el user
-  // fullTicker se descubre desde la respuesta del book.
+  fullTicker?: string; // si el user picó del autocomplete, lo guardamos
+  plazo?: "CI" | "24hs" | "48hs"; // default 24hs
 }
 
 type Side = "BUY" | "SELL";
@@ -103,20 +104,36 @@ function uid(): string {
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
 
-function useOrderBook(tickerCorto: string, pollMs = 1000) {
+function useOrderBook(
+  tickerCorto: string,
+  fullTicker: string | undefined,
+  plazo: "CI" | "24hs" | "48hs",
+  pollMs = 1000,
+) {
   const [book, setBook] = useState<OrderBookResp | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Si tenemos fullTicker (el user picó del autocomplete) lo usamos
+  // directo: el backend hace match exacto contra MarketSnapshot. Si no,
+  // mandamos corto + plazo y el backend lo resuelve.
+  const tickerParam = fullTicker || tickerCorto;
   useEffect(() => {
-    if (!tickerCorto) return;
+    if (!tickerParam) return;
     let alive = true;
     async function fetchBook() {
       try {
         const r = await fetch(
-          `/api/operar/order-book?ticker=${encodeURIComponent(tickerCorto)}`,
+          `/api/operar/order-book?ticker=${encodeURIComponent(tickerParam)}&plazo=${plazo}`,
           { cache: "no-store" },
         );
         if (!alive) return;
-        if (r.ok) setBook(await r.json());
-        else setBook(null);
+        if (r.ok) {
+          setBook(await r.json());
+          setError(null);
+        } else {
+          setBook(null);
+          const j = await r.json().catch(() => ({}));
+          setError(j.detail ?? `HTTP ${r.status}`);
+        }
       } catch {
         // retry next tick
       }
@@ -127,8 +144,8 @@ function useOrderBook(tickerCorto: string, pollMs = 1000) {
       alive = false;
       clearInterval(id);
     };
-  }, [tickerCorto, pollMs]);
-  return book;
+  }, [tickerParam, plazo, pollMs]);
+  return { book, error };
 }
 
 function useOrdenesDia(pollMs = 4000) {
@@ -163,7 +180,7 @@ function TickerSearch({
   onPick,
 }: {
   value: string;
-  onPick: (corto: string) => void;
+  onPick: (corto: string, full: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState(value);
@@ -210,7 +227,7 @@ function TickerSearch({
         className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[#ff9900] outline-none"
       />
       {open && hits.length > 0 && (
-        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[#2a2a2a] z-20 max-h-[200px] overflow-y-auto min-w-[200px] text-[10px]">
+        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[#2a2a2a] z-20 max-h-[200px] overflow-y-auto min-w-[260px] text-[10px]">
           {hits.map((h) => {
             const corto =
               h.ticker_corto ||
@@ -219,7 +236,7 @@ function TickerSearch({
             return (
               <div
                 key={h.ticker}
-                onMouseDown={() => onPick(corto)}
+                onMouseDown={() => onPick(corto, h.ticker)}
                 className="px-2 py-0.5 hover:bg-[#1a1a1a] cursor-pointer font-mono"
               >
                 <span className="text-[#d0d0d0]">{corto}</span>
@@ -236,22 +253,25 @@ function TickerSearch({
 function OperarCard({
   cfg,
   onChangeTicker,
+  onChangePlazo,
   onRemove,
   account,
   onExecuted,
 }: {
   cfg: CardCfg;
-  onChangeTicker: (corto: string) => void;
+  onChangeTicker: (corto: string, full?: string) => void;
+  onChangePlazo: (plazo: "CI" | "24hs" | "48hs") => void;
   onRemove: () => void;
   account: string;
   onExecuted: () => void;
 }) {
-  const book = useOrderBook(cfg.tickerCorto);
+  const plazo = cfg.plazo ?? "24hs";
+  const { book, error } = useOrderBook(cfg.tickerCorto, cfg.fullTicker, plazo);
   const bids = book?.book?.bids ?? [];
   const offers = book?.book?.offers ?? [];
   const last = book?.metrics?.last_price ?? null;
   const close = book?.metrics?.closing_price ?? null;
-  const fullTicker = book?.ticker ?? "";
+  const fullTicker = book?.ticker ?? cfg.fullTicker ?? "";
 
   const [form, setForm] = useState<FormState>({
     side: "BUY",
@@ -329,11 +349,23 @@ function OperarCard({
     form.side === "BUY" ? "bg-[#0d1d0d]" : "bg-[#1d0d0d]";
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-w-[280px]">
+    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-w-[300px]">
       {/* Header */}
-      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a]">
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-[#1a1a1a]">
         <TickerSearch value={cfg.tickerCorto} onPick={onChangeTicker} />
-        <div className="flex items-baseline gap-2 ml-2 flex-1 justify-end">
+        <select
+          value={plazo}
+          onChange={(e) =>
+            onChangePlazo(e.target.value as "CI" | "24hs" | "48hs")
+          }
+          className="bg-black border border-[#2a2a2a] px-1 py-0.5 text-[10px] focus:border-[#ff9900] outline-none"
+          title="Plazo de liquidación (ignorado si elegiste el ticker full del autocomplete)"
+        >
+          <option value="CI">CI</option>
+          <option value="24hs">24hs</option>
+          <option value="48hs">48hs</option>
+        </select>
+        <div className="flex items-baseline gap-2 ml-1 flex-1 justify-end">
           <span className="text-[9px] text-[#666]">last</span>
           <span className="text-[#ff9900] font-bold tabular-nums text-[13px]">
             {last !== null ? last.toFixed(2) : "—"}
@@ -346,12 +378,17 @@ function OperarCard({
         </div>
         <button
           onClick={onRemove}
-          className="ml-2 text-[#555] hover:text-[#f87171] text-[14px] leading-none"
+          className="ml-1 text-[#555] hover:text-[#f87171] text-[14px] leading-none"
           title="Cerrar panel"
         >
           ×
         </button>
       </div>
+      {error && (
+        <div className="px-2 py-1 text-[9px] text-[#f87171] border-b border-[#1a1a1a] bg-[#1a0d0d]">
+          {error}
+        </div>
+      )}
 
       {/* Book */}
       <table className="w-full text-[11px] font-mono tabular-nums">
@@ -692,9 +729,24 @@ export function OperarDashboardView() {
     setCards((cs) => cs.filter((c) => c.id !== id));
   }
 
-  function changeTicker(id: string, corto: string) {
+  function changeTicker(id: string, corto: string, full?: string) {
     setCards((cs) =>
-      cs.map((c) => (c.id === id ? { ...c, tickerCorto: corto } : c)),
+      cs.map((c) =>
+        c.id === id ? { ...c, tickerCorto: corto, fullTicker: full } : c,
+      ),
+    );
+  }
+
+  function changePlazo(id: string, plazo: "CI" | "24hs" | "48hs") {
+    setCards((cs) =>
+      cs.map((c) =>
+        c.id === id
+          ? // Si el user cambia el plazo manualmente, descartamos el fullTicker
+            // anterior (que ya tenía un plazo fijo) para que el backend resuelva
+            // con el plazo nuevo.
+            { ...c, plazo, fullTicker: undefined }
+          : c,
+      ),
     );
   }
 
@@ -747,7 +799,8 @@ export function OperarDashboardView() {
               key={c.id}
               cfg={c}
               account={account}
-              onChangeTicker={(corto) => changeTicker(c.id, corto)}
+              onChangeTicker={(corto, full) => changeTicker(c.id, corto, full)}
+              onChangePlazo={(plazo) => changePlazo(c.id, plazo)}
               onRemove={() => removeCard(c.id)}
               onExecuted={refresh}
             />
