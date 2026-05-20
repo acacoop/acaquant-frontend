@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Header } from "@/components/header";
 import { PauseBanner } from "@/components/pause-banner";
-import { TopTicker } from "@/components/top-ticker";
 import { getMe } from "@/lib/me";
 import "./globals.css";
 
@@ -42,7 +41,6 @@ export default async function RootLayout({
       <body className="h-full flex flex-col">
         <Header modules={modules} />
         <PauseBanner />
-        <TopTicker />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         <footer className="flex items-center h-5 px-3 bg-[#080808] border-t border-[#1a1a1a] text-[10px] text-[#555555]">
           <span>ACA VALORES &middot; MERCADO DE CAPITALES</span>
