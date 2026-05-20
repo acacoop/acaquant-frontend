@@ -52,6 +52,7 @@ interface OrderDia {
   created_at?: string;
   reject_reason?: string | null;
   external?: boolean;  // true si vino solo del broker (otra plataforma)
+  proprietary?: string;  // requerido para cancelar — viene del backend
 }
 
 interface CardCfg {
@@ -853,7 +854,7 @@ function OrderManagement({
 }: {
   orders: OrderDia[];
   refresh: () => void;
-  onCancel: (cl_ord_id: string) => Promise<void>;
+  onCancel: (cl_ord_id: string, proprietary?: string) => Promise<void>;
 }) {
   const activas = useMemo(
     () =>
@@ -926,10 +927,10 @@ function OrderManagement({
                     {o.created_at ? fmtTime(o.created_at) : "—"}
                   </td>
                   <td className="px-2 py-0.5 text-[#d0d0d0]">
-                    {corto}
+                    <span>{corto}</span>
                     {o.external && (
                       <span
-                        className="ml-1 px-1 text-[8px] text-[#888] border border-[#2a2a2a] rounded"
+                        className="ml-1.5 px-1 text-[8px] text-[#888] border border-[#2a2a2a] rounded align-middle"
                         title="Operada desde otra plataforma (web del broker, etc)"
                       >
                         EXT
@@ -972,7 +973,7 @@ function OrderManagement({
                   <td className="px-2 py-0.5">
                     {isActive && o.cl_ord_id && (
                       <button
-                        onClick={() => onCancel(o.cl_ord_id!)}
+                        onClick={() => onCancel(o.cl_ord_id!, o.proprietary)}
                         className="text-[9px] text-[#f87171] hover:underline"
                       >
                         cancelar
@@ -1076,13 +1077,21 @@ export function OperarDashboardView() {
     );
   }
 
-  async function cancelOrder(cl_ord_id: string) {
+  async function cancelOrder(cl_ord_id: string, proprietary?: string) {
     try {
-      await fetch(`/api/ordenes/${encodeURIComponent(cl_ord_id)}`, {
-        method: "DELETE",
-      });
-    } catch {
-      // ignore
+      const qs = proprietary
+        ? `?proprietary=${encodeURIComponent(proprietary)}`
+        : "";
+      const r = await fetch(
+        `/api/ordenes/${encodeURIComponent(cl_ord_id)}${qs}`,
+        { method: "DELETE" },
+      );
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) {
+        alert(`Cancelar falló: ${j.error || j.detail || `HTTP ${r.status}`}`);
+      }
+    } catch (e) {
+      alert(`Cancelar falló: ${e instanceof Error ? e.message : "error"}`);
     } finally {
       void refresh();
     }
