@@ -12,24 +12,6 @@ interface Meta {
   updated_at?: string;
 }
 
-interface AgroResp {
-  oficial: { value: number | null; ts: string | null; source: string };
-  ts: string;
-  bloques: {
-    commodity: "TRIGO" | "MAIZ" | "SOJA";
-    rows: {
-      tipo: "pizarra" | "dispo" | "futuro";
-      ticker?: string;
-      vencimiento: string | null;
-      posicion: string;
-      us: number | null;
-      pase: number | null;
-      ars: number | null;
-      tnav_us: number | null;
-    }[];
-  }[];
-}
-
 async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<T> {
   try {
     return await apiFetch<T>(path, { revalidate });
@@ -39,23 +21,17 @@ async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<
 }
 
 export default async function DerivadosPage() {
-  // Agro y Sintéticos están abiertos a los 3 roles. Igual resolvemos /me
-  // para `isAdmin` (algunas sub-vistas de Opciones lo usan).
+  // Derivados ahora es SOLO Opciones — Agro y Sintéticos se promovieron a
+  // módulos top-level (/agro y /sinteticos). Esta page se queda con la meta
+  // de Opciones; la chain se polleea client-side al montar.
   const me = await getMe();
   const isAdmin = me?.is_admin ?? false;
 
-  // Las opciones (chain) NO se fetchean en SSR — la pantalla la usa muy poca
-  // gente y cargar la chain en cada navegación a /derivados gasta cómputo
-  // Vercel sin necesidad. El cliente (DerivadosView con usePoll
-  // fetchOnMount=true) hace el primer fetch al montar la sub-tab.
-  const [meta, agro] = await Promise.all([
-    safeFetch<Meta>(
-      "/api/cotizaciones/opciones/meta",
-      { tasa: 0.242, vr_local: 0, vr_adr: 0 },
-      30
-    ),
-    safeFetch<AgroResp | null>("/api/derivados/agro", null, 0),
-  ]);
+  const meta = await safeFetch<Meta>(
+    "/api/cotizaciones/opciones/meta",
+    { tasa: 0.242, vr_local: 0, vr_adr: 0 },
+    30,
+  );
   const opciones: OpcionDoc[] = [];
 
   return (
@@ -63,9 +39,6 @@ export default async function DerivadosPage() {
       opcionesDocs={opciones}
       opcionesMeta={meta}
       isAdmin={isAdmin}
-      agroInitial={agro}
-      canEditAgro
-      showAgroTab
     />
   );
 }

@@ -10,6 +10,8 @@ const NAV_LINKS: { href: string; label: string; module: string }[] = [
   { href: "/",                label: "HOME",          module: "home" },
   { href: "/renta-fija",      label: "RENTA FIJA",    module: "renta-fija" },
   { href: "/derivados",       label: "DERIVADOS",     module: "derivados" },
+  { href: "/agro",            label: "AGRO",          module: "agro" },
+  { href: "/sinteticos",      label: "SINTÉTICOS",    module: "sinteticos" },
   { href: "/renta-variable",  label: "RENTA VARIABLE",module: "renta-variable" },
   { href: "/retorno",         label: "ESTRATEGIA",    module: "estrategia" },
   { href: "/operar",          label: "OPERAR",        module: "operar" },
