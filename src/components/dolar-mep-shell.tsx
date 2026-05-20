@@ -48,9 +48,10 @@ export function DolarMepShell() {
     }
   }
 
-  // Cargar listado de cuentas (1 vez al montar). Default elegida con
-  // prioridad: localStorage → primera activa del listado → primera del
-  // listado → fallback ("").
+  // Cargar listado de cuentas (1 vez al montar). Solo restauramos lo que
+  // el user había elegido (localStorage). Si no hay LS, queda vacío — el
+  // user debe elegir manualmente antes de operar (evita disparos a la
+  // cuenta equivocada por default heredado).
   useEffect(() => {
     let alive = true;
     async function fetchCuentas() {
@@ -63,10 +64,7 @@ export function DolarMepShell() {
           ? window.localStorage.getItem(ACCOUNT_LS_KEY)
           : null;
         const persistedExists = list.some((c) => c.account_id === persisted);
-        const firstActiva = list.find((c) => c.activa)?.account_id;
-        const first = list[0]?.account_id;
-        const next = persistedExists ? persisted! : (firstActiva ?? first ?? "");
-        if (next) setAccount(next);
+        if (persistedExists) setAccount(persisted!);
       } catch {
         // ignore
       }
@@ -120,30 +118,30 @@ export function DolarMepShell() {
 
   return (
     <div className="h-full flex flex-col min-h-0 bg-black">
-      {/* Cotización en grande — visible en ambas sub-tabs */}
-      <div className="flex gap-4 items-end p-3 bg-[#080808] border-b border-[#1a1a1a] shrink-0">
-        <div className="flex flex-col">
+      {/* Sub-tabs + cotización en una sola fila compacta */}
+      <div className="flex items-center gap-4 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+        <div className="flex items-center gap-1">
+          <SubTabBtn active={tab === "compra"} onClick={() => setTab("compra")}>
+            COMPRA
+          </SubTabBtn>
+          <SubTabBtn active={tab === "trading"} onClick={() => setTab("trading")}>
+            TRADING
+          </SubTabBtn>
+        </div>
+        <div className="flex items-baseline gap-2">
           <span className="text-[9px] tracking-wider text-[#888]">MEP {rueda}</span>
-          <span className="text-[28px] font-bold tracking-wide text-[#ff9900] tabular-nums">
+          <span className="text-[20px] font-bold tracking-wide text-[#ff9900] tabular-nums leading-none">
             {mep !== null ? `$${mep.toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className="flex flex-col text-[10px] text-[#888] gap-0.5">
+        <div className="flex items-baseline gap-3 text-[10px] text-[#888]">
           <span>AL30: {precioAl30 !== null ? `$${precioAl30.toFixed(2)}` : "—"}</span>
           <span>AL30D: {precioAl30d !== null ? `US$${precioAl30d.toFixed(2)}` : "—"}</span>
-          <span>{cot?.al30?.ts ? `last ${fmtTime(cot.al30.ts)}` : ""}</span>
+          {cot?.al30?.ts && (
+            <span className="text-[#666]">last {fmtTime(cot.al30.ts)}</span>
+          )}
         </div>
         <div className="ml-auto text-[10px] text-[#666]">refresca cada 2s</div>
-      </div>
-
-      {/* Sub-tabs */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
-        <SubTabBtn active={tab === "compra"} onClick={() => setTab("compra")}>
-          COMPRA
-        </SubTabBtn>
-        <SubTabBtn active={tab === "trading"} onClick={() => setTab("trading")}>
-          TRADING
-        </SubTabBtn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">

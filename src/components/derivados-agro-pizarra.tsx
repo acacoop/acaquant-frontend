@@ -10,7 +10,6 @@ import { Panel, fmtHoraAR } from "./ui";
 import { usePoll } from "@/lib/use-poll";
 
 const POLL_MS = 5_000;
-const SAVE_DEBOUNCE_MS = 800;
 
 type Commodity = "TRIGO" | "MAIZ" | "SOJA";
 
@@ -83,13 +82,6 @@ function fmtFechaVtoFuturo(yyyymmdd: string | null): string {
   const mm = s.slice(4, 6);
   const yyyy = s.slice(0, 4);
   return `${dd}/${mm}/${yyyy}`;
-}
-
-function isoFromAny(s: string | null | undefined): string {
-  if (!s) return "";
-  if (s.includes("-")) return s.slice(0, 10);
-  if (s.length === 8) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
-  return "";
 }
 
 /** El motor agro corre L-V 13:00–20:05 UTC. Fuera de esa ventana, datos
@@ -554,82 +546,20 @@ function BloqueRows({
 }
 
 function PizarraRow({
-  commodity,
   row,
-  canEdit,
 }: {
   commodity: Commodity;
   row: AgroRow;
   canEdit: boolean;
 }) {
-  const [vto, setVto] = useState<string>(isoFromAny(row.vencimiento));
-  const [saving, setSaving] = useState(false);
-  const [savedOk, setSavedOk] = useState<null | boolean>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const remoteVtoRef = useRef(isoFromAny(row.vencimiento));
-
-  // El US$ ya NO se edita acá — sale de Datos (Cámara Cereales). Solo
-  // el vencimiento se edita inline. Si otro user lo cambia, lo adoptamos.
-  useEffect(() => {
-    const newVto = isoFromAny(row.vencimiento);
-    if (newVto !== remoteVtoRef.current) {
-      remoteVtoRef.current = newVto;
-      if (vto !== remoteVtoRef.current) setVto(newVto);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.vencimiento]);
-
-  // Flash si cambia el ARS (vía Cámara → mid_oficial → backend).
+  // El vencimiento es HOY automático (lo devuelve el backend, no se edita).
+  // El US$ vive en Datos (Cámara Cereales).
   const arsBg = useFlashBg(row.ars);
-
-  function scheduleSaveVto(v: string) {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setSaving(true);
-      setSavedOk(null);
-      try {
-        const res = await fetch(`/api/derivados-agro/pizarra/${commodity}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vencimiento_pizarra: v }),
-        });
-        setSavedOk(res.ok);
-      } catch {
-        setSavedOk(false);
-      } finally {
-        setSaving(false);
-        setTimeout(() => setSavedOk(null), 1500);
-      }
-    }, SAVE_DEBOUNCE_MS);
-  }
-
-  function onVtoChange(v: string) {
-    setVto(v);
-    if (v) scheduleSaveVto(v);
-  }
 
   return (
     <tr className="border-y border-[#3a2c0a] bg-[#1a1308]">
       <td className="px-1.5 py-1 text-[#e0c890]">
-        {canEdit ? (
-          <div className="inline-flex items-center gap-1">
-            <input
-              type="date"
-              value={vto}
-              onChange={(e) => onVtoChange(e.target.value)}
-              className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0 font-mono focus:border-[#ff9900] outline-none"
-            />
-            {saving && <span className="text-[9px] text-[#888]">…</span>}
-            {savedOk === true && (
-              <span className="text-[9px] text-[#4ade80]">✓</span>
-            )}
-            {savedOk === false && (
-              <span className="text-[9px] text-[#f87171]">✗</span>
-            )}
-          </div>
-        ) : (
-          fmtFechaVtoFuturo(row.vencimiento)
-        )}
+        {fmtFechaVtoFuturo(row.vencimiento)}
       </td>
       <td className="px-1.5 py-1 text-[#ff9900] font-semibold tracking-wide">
         {row.posicion}
