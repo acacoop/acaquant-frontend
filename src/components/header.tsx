@@ -18,6 +18,7 @@ const NAV_LINKS: { href: string; label: string; module: string }[] = [
   { href: "/operaciones",     label: "OPERACIONES",   module: "operaciones" },
   { href: "/aum",             label: "AUM",           module: "portfolios" },
   { href: "/valuaciones",     label: "VALUACIONES",   module: "portfolios" },
+  { href: "/back-office",     label: "BACK OFFICE",   module: "back-office" },
   { href: "/manager",         label: "MANAGER",       module: "manager" },
 ];
 
