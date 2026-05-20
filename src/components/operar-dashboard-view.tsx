@@ -158,13 +158,20 @@ function useOrderBook(
   return { book, status, error };
 }
 
-function useOrdenesDia(pollMs = 4000) {
+function useOrdenesDia(account: string, pollMs = 4000) {
   const [orders, setOrders] = useState<OrderDia[]>([]);
   const [lastFetch, setLastFetch] = useState<number>(0);
 
   const fetchNow = useCallback(async () => {
+    if (!account) {
+      setOrders([]);
+      return;
+    }
     try {
-      const r = await fetch("/api/ordenes/dia", { cache: "no-store" });
+      const r = await fetch(
+        `/api/ordenes/dia?account=${encodeURIComponent(account)}`,
+        { cache: "no-store" },
+      );
       if (r.ok) {
         setOrders(await r.json());
         setLastFetch(Date.now());
@@ -172,7 +179,7 @@ function useOrdenesDia(pollMs = 4000) {
     } catch {
       // ignore
     }
-  }, []);
+  }, [account]);
 
   useEffect(() => {
     void fetchNow();
@@ -181,6 +188,235 @@ function useOrdenesDia(pollMs = 4000) {
   }, [fetchNow, pollMs]);
 
   return { orders, lastFetch, refresh: fetchNow };
+}
+
+// ─── Portfolio: saldos + tenencias por cuenta ────────────────────────────────
+
+interface MonedaSaldo {
+  available: number | null;
+  consumed: number | null;
+}
+
+interface SaldoResp {
+  account: string;
+  rueda: "CI" | "24hs";
+  saldo_ars: number | null;
+  saldo_usd_d: number | null;
+  movimiento_ars: number | null;
+  movimiento_usd_d: number | null;
+  monedas?: Record<string, MonedaSaldo>;
+  last_calc?: string | null;
+}
+
+interface DetailedPosition {
+  symbol?: string;
+  size?: number;
+  price?: number;
+  totalDailyDifference?: number;
+  totalDifference?: number;
+  marketValue?: number;
+  type?: string;
+  // pyRofex puede devolver varios campos extra; tipamos los que mostramos.
+}
+
+interface DetailedResp {
+  status?: string;
+  positions?: DetailedPosition[];
+  // El payload real de pyRofex es bastante anidado — leemos solo lo que
+  // necesitamos.
+}
+
+function usePortfolio(account: string, pollMs = 8000) {
+  const [saldo, setSaldo] = useState<SaldoResp | null>(null);
+  const [detailed, setDetailed] = useState<DetailedResp | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!account) {
+      setSaldo(null);
+      setDetailed(null);
+      return;
+    }
+    try {
+      const [rs, rd] = await Promise.all([
+        fetch(`/api/risk/account/saldo?rueda=CI&account=${encodeURIComponent(account)}`, { cache: "no-store" }),
+        fetch(`/api/risk/account/detailed?account=${encodeURIComponent(account)}`, { cache: "no-store" }),
+      ]);
+      if (rs.ok) setSaldo(await rs.json());
+      else setSaldo(null);
+      if (rd.ok) setDetailed(await rd.json());
+      else setDetailed(null);
+    } catch {
+      // ignore
+    }
+  }, [account]);
+
+  useEffect(() => {
+    void refresh();
+    const id = setInterval(refresh, pollMs);
+    return () => clearInterval(id);
+  }, [refresh, pollMs]);
+
+  return { saldo, detailed, refresh };
+}
+
+function PortfolioPanel({
+  account,
+  saldo,
+  detailed,
+  refresh,
+}: {
+  account: string;
+  saldo: SaldoResp | null;
+  detailed: DetailedResp | null;
+  refresh: () => void;
+}) {
+  // Extraer posiciones del payload de pyRofex. El shape real es
+  // accountPosition.positions[] con campos del broker; aceptamos algunas
+  // variantes defensivamente.
+  const positions: DetailedPosition[] = (() => {
+    if (!detailed) return [];
+    if (Array.isArray(detailed.positions)) return detailed.positions;
+    // pyRofex anida en detailedPosition.positions o accountData.positions.
+    type Generic = Record<string, unknown>;
+    const obj = detailed as unknown as Generic;
+    const cand =
+      (obj["detailedPosition"] as Generic)?.["positions"] ??
+      (obj["accountData"] as Generic)?.["positions"] ??
+      null;
+    return Array.isArray(cand) ? (cand as DetailedPosition[]) : [];
+  })();
+
+  const ars = saldo?.monedas?.["ARS"] ?? {
+    available: saldo?.saldo_ars ?? null,
+    consumed: saldo?.movimiento_ars ?? null,
+  };
+  const usd = saldo?.monedas?.["USD D"] ?? {
+    available: saldo?.saldo_usd_d ?? null,
+    consumed: saldo?.movimiento_usd_d ?? null,
+  };
+
+  return (
+    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0">
+      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a]">
+        <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
+          PORTFOLIO {account ? `· ${account}` : ""}
+        </span>
+        <button
+          onClick={refresh}
+          className="text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
+          title="Refrescar"
+        >
+          ↻
+        </button>
+      </div>
+
+      {!account ? (
+        <div className="px-2 py-3 text-[10px] text-[#555] text-center">
+          Elegí una cuenta arriba.
+        </div>
+      ) : (
+        <>
+          {/* Saldos */}
+          <div className="grid grid-cols-4 gap-2 px-2 py-2 border-b border-[#1a1a1a] text-[10px]">
+            <SaldoCell label="ARS DISP" value={ars.available} fmt={fmtArs} />
+            <SaldoCell label="ARS MOV" value={ars.consumed} fmt={fmtArs} dim />
+            <SaldoCell label="USD D DISP" value={usd.available} fmt={fmtUsd} />
+            <SaldoCell label="USD D MOV" value={usd.consumed} fmt={fmtUsd} dim />
+          </div>
+
+          {/* Tenencias */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {positions.length === 0 ? (
+              <div className="px-2 py-3 text-[10px] text-[#555] text-center">
+                {detailed === null ? "Cargando…" : "Sin tenencias"}
+              </div>
+            ) : (
+              <table className="w-full text-[10px] font-mono tabular-nums">
+                <thead className="text-[9px] text-[#666] tracking-wider bg-[#0a0a0a] sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1">TICKER</th>
+                    <th className="text-left px-2 py-1">TIPO</th>
+                    <th className="text-right px-2 py-1">CANT</th>
+                    <th className="text-right px-2 py-1">PRECIO</th>
+                    <th className="text-right px-2 py-1">VALOR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {positions.map((p, i) => {
+                    const ticker = p.symbol ?? "?";
+                    const corto = ticker.split(" - ")[2] ?? ticker;
+                    return (
+                      <tr
+                        key={`${ticker}-${i}`}
+                        className="border-t border-[#101010] hover:bg-[#0d0d0d]"
+                      >
+                        <td className="px-2 py-0.5 text-[#d0d0d0]">{corto}</td>
+                        <td className="px-2 py-0.5 text-[#888]">
+                          {p.type ?? "—"}
+                        </td>
+                        <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                          {p.size != null ? p.size.toLocaleString("es-AR") : "—"}
+                        </td>
+                        <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                          {p.price != null ? p.price.toFixed(2) : "—"}
+                        </td>
+                        <td className="px-2 py-0.5 text-right text-[#ff9900]">
+                          {p.marketValue != null
+                            ? `$${p.marketValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
+                            : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function fmtArs(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  const sign = n < 0 ? "-" : "";
+  return `${sign}$${Math.abs(n).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+}
+
+function fmtUsd(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "—";
+  const sign = n < 0 ? "-" : "";
+  return `${sign}US$${Math.abs(n).toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
+}
+
+function SaldoCell({
+  label,
+  value,
+  fmt,
+  dim,
+}: {
+  label: string;
+  value: number | null | undefined;
+  fmt: (n: number | null | undefined) => string;
+  dim?: boolean;
+}) {
+  const color =
+    value == null
+      ? "text-[#888]"
+      : value < 0
+        ? "text-[#ff7f7f]"
+        : dim
+          ? "text-[#aaa]"
+          : "text-[#7fff7f]";
+  return (
+    <div className="flex flex-col gap-0.5 leading-tight">
+      <span className="text-[8px] tracking-wider text-[#666]">{label}</span>
+      <span className={`text-[11px] font-semibold tabular-nums ${color}`}>
+        {fmt(value)}
+      </span>
+    </div>
+  );
 }
 
 // ─── Componentes ─────────────────────────────────────────────────────────────
@@ -700,7 +936,8 @@ export function OperarDashboardView() {
   const [cards, setCards] = useState<CardCfg[]>(loadCards);
   const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
   const [account, setAccount] = useState<string>(ACCOUNT_DEFAULT_FALLBACK);
-  const { orders, refresh } = useOrdenesDia();
+  const { orders, refresh } = useOrdenesDia(account);
+  const { saldo, detailed, refresh: refreshPortfolio } = usePortfolio(account);
 
   // Persistir cards en LS.
   useEffect(() => {
@@ -828,13 +1065,23 @@ export function OperarDashboardView() {
         )}
       </div>
 
-      {/* Order management */}
-      <div className="flex-1 min-h-0">
-        <OrderManagement
-          orders={orders}
-          refresh={refresh}
-          onCancel={cancelOrder}
-        />
+      {/* Bottom split: órdenes (izquierda) + portfolio (derecha) */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div className="min-h-0 overflow-hidden">
+          <OrderManagement
+            orders={orders}
+            refresh={refresh}
+            onCancel={cancelOrder}
+          />
+        </div>
+        <div className="min-h-0 overflow-hidden">
+          <PortfolioPanel
+            account={account}
+            saldo={saldo}
+            detailed={detailed}
+            refresh={refreshPortfolio}
+          />
+        </div>
       </div>
     </div>
   );
