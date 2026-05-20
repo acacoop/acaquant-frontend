@@ -90,6 +90,7 @@ export const ACCOUNT_DEFAULT_FALLBACK = "";
 
 export interface CuentaDescubierta {
   account_id: string;
+  nombre?: string | null;
   ars_disponible: number | null;
   usd_d_disponible: number | null;
   n_posiciones: number;

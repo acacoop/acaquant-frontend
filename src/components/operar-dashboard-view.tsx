@@ -297,11 +297,13 @@ function usePortfolio(account: string, pollMs = 8000) {
 
 function PortfolioPanel({
   account,
+  accountNombre,
   saldo,
   detailed,
   refresh,
 }: {
   account: string;
+  accountNombre?: string | null;
   saldo: SaldoResp | null;
   detailed: DetailedResp | null;
   refresh: () => void;
@@ -352,8 +354,18 @@ function PortfolioPanel({
   return (
     <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0">
       <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a]">
-        <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
-          PORTFOLIO {account ? `· ${account}` : ""}
+        <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold truncate">
+          PORTFOLIO{" "}
+          {account && (
+            <>
+              · <span className="text-[#ff9900]">{account}</span>
+              {accountNombre && (
+                <span className="text-[#aaa] font-normal ml-1">
+                  — {accountNombre}
+                </span>
+              )}
+            </>
+          )}
         </span>
         <button
           onClick={refresh}
@@ -480,6 +492,95 @@ function SaldoCell({
 }
 
 // ─── Componentes ─────────────────────────────────────────────────────────────
+
+function AccountSearch({
+  value,
+  cuentas,
+  onPick,
+}: {
+  value: string;
+  cuentas: CuentaDescubierta[];
+  onPick: (id: string) => void;
+}) {
+  // Si value está y matchea una cuenta, mostramos `123 — Nombre` en el
+  // input cuando NO está enfocado, así el user sabe cuál tiene activa.
+  // Mientras escribe, mostramos solo lo que tipea.
+  const [q, setQ] = useState(value);
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    setQ(value);
+  }, [value]);
+
+  const display = useMemo(() => {
+    if (focused) return q;
+    const match = cuentas.find((c) => c.account_id === value);
+    if (match && match.nombre) return `${match.account_id} — ${match.nombre}`;
+    return value;
+  }, [focused, q, value, cuentas]);
+
+  const hits = useMemo(() => {
+    const ql = (q || "").trim().toLowerCase();
+    if (!ql) return cuentas.slice(0, 30);
+    return cuentas
+      .filter(
+        (c) =>
+          c.account_id.toLowerCase().includes(ql) ||
+          (c.nombre && c.nombre.toLowerCase().includes(ql)),
+      )
+      .slice(0, 30);
+  }, [q, cuentas]);
+
+  return (
+    <div className="relative">
+      <input
+        value={focused ? q : display}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => {
+          setFocused(true);
+          setQ("");
+          setOpen(true);
+        }}
+        onBlur={() => {
+          setFocused(false);
+          setTimeout(() => setOpen(false), 200);
+        }}
+        placeholder="ID o nombre"
+        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] w-[260px] focus:border-[#ff9900] outline-none"
+      />
+      {open && hits.length > 0 && (
+        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[#2a2a2a] z-20 max-h-[280px] overflow-y-auto w-[320px] text-[11px]">
+          {hits.map((c) => (
+            <div
+              key={c.account_id}
+              onMouseDown={() => {
+                onPick(c.account_id);
+                setOpen(false);
+              }}
+              className={`px-2 py-1 hover:bg-[#1a1a1a] cursor-pointer flex items-center gap-2 ${
+                c.account_id === value ? "bg-[#1a1308]" : ""
+              }`}
+            >
+              <span className="text-[#ff9900] font-mono tabular-nums min-w-[60px]">
+                {c.account_id}
+              </span>
+              <span className="text-[#d0d0d0] flex-1 truncate">
+                {c.nombre || "—"}
+              </span>
+              {!c.activa && (
+                <span className="text-[8px] text-[#555] uppercase">inactiva</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TickerSearch({
   value,
@@ -1102,18 +1203,11 @@ export function OperarDashboardView() {
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[#080808] shrink-0">
         <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
-        <select
+        <AccountSearch
           value={account}
-          onChange={(e) => setAccount(e.target.value)}
-          className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] focus:border-[#ff9900] outline-none"
-        >
-          <option value="">— elegir —</option>
-          {cuentas.map((c) => (
-            <option key={c.account_id} value={c.account_id}>
-              {c.account_id}
-            </option>
-          ))}
-        </select>
+          cuentas={cuentas}
+          onPick={(id) => setAccount(id)}
+        />
         <button
           onClick={addCard}
           className="ml-auto px-2 py-0.5 text-[10px] font-semibold tracking-wide border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black"
@@ -1155,6 +1249,9 @@ export function OperarDashboardView() {
         <div className="min-h-0 overflow-hidden">
           <PortfolioPanel
             account={account}
+            accountNombre={
+              cuentas.find((c) => c.account_id === account)?.nombre ?? null
+            }
             saldo={saldo}
             detailed={detailed}
             refresh={refreshPortfolio}
