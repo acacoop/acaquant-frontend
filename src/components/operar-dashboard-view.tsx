@@ -1167,14 +1167,21 @@ export function OperarDashboardView() {
 
   function changePlazo(id: string, plazo: "CI" | "24hs" | "48hs") {
     setCards((cs) =>
-      cs.map((c) =>
-        c.id === id
-          ? // Si el user cambia el plazo manualmente, descartamos el fullTicker
-            // anterior (que ya tenía un plazo fijo) para que el backend resuelva
-            // con el plazo nuevo.
-            { ...c, plazo, fullTicker: undefined }
-          : c,
-      ),
+      cs.map((c) => {
+        if (c.id !== id) return c;
+        // Si tenemos fullTicker guardado, reescribimos el último segmento.
+        // Formato ROFEX: "MERV - XMEV - SHORT - PLAZO". Así no hay que volver
+        // a pasar por el autocomplete cuando solo cambia el plazo.
+        let newFull = c.fullTicker;
+        if (newFull) {
+          const parts = newFull.split(" - ");
+          if (parts.length === 4) {
+            parts[3] = plazo;
+            newFull = parts.join(" - ");
+          }
+        }
+        return { ...c, plazo, fullTicker: newFull };
+      }),
     );
   }
 
