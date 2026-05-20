@@ -3,9 +3,8 @@
 import { useState } from "react";
 import { DolarMepShell } from "./dolar-mep-shell";
 import { OperarDashboardView } from "./operar-dashboard-view";
-import { OperarPruebaView } from "./operar-prueba-view";
 
-type Tab = "dashboard" | "dolar-mep" | "prueba";
+type Tab = "dashboard" | "dolar-mep";
 
 export function OperarShell() {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -19,19 +18,10 @@ export function OperarShell() {
         <TabBtn active={tab === "dolar-mep"} onClick={() => setTab("dolar-mep")}>
           DOLAR MEP
         </TabBtn>
-        <TabBtn active={tab === "prueba"} onClick={() => setTab("prueba")}>
-          PRUEBA
-        </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "dashboard" ? (
-          <OperarDashboardView />
-        ) : tab === "dolar-mep" ? (
-          <DolarMepShell />
-        ) : (
-          <OperarPruebaView />
-        )}
+        {tab === "dashboard" ? <OperarDashboardView /> : <DolarMepShell />}
       </div>
     </div>
   );
