@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DolarMepCompraView } from "./dolar-mep-compra-view";
 import { DolarMepTradingView } from "./dolar-mep-trading-view";
+import { DolarMepVentaView } from "./dolar-mep-venta-view";
 import {
   ACCOUNT_DEFAULT_FALLBACK,
   Cotizacion,
@@ -12,7 +13,7 @@ import {
   fmtTime,
 } from "./dolar-mep-shared";
 
-type SubTab = "compra" | "trading";
+type SubTab = "compra" | "venta" | "trading";
 
 const ACCOUNT_LS_KEY = "trd-fx-mep-account";
 
@@ -22,6 +23,7 @@ export function DolarMepShell() {
   const [tab, setTab] = useState<SubTab>("compra");
   const [rueda, setRueda] = useState<Rueda>("CI");
   const [monto, setMonto] = useState("100000");
+  const [montoUsd, setMontoUsd] = useState("70");
   const [comision, setComision] = useState("0.62");
   const [account, setAccount] = useState(ACCOUNT_DEFAULT_FALLBACK);
 
@@ -124,6 +126,9 @@ export function DolarMepShell() {
           <SubTabBtn active={tab === "compra"} onClick={() => setTab("compra")}>
             COMPRA
           </SubTabBtn>
+          <SubTabBtn active={tab === "venta"} onClick={() => setTab("venta")}>
+            VENTA
+          </SubTabBtn>
           <SubTabBtn active={tab === "trading"} onClick={() => setTab("trading")}>
             TRADING
           </SubTabBtn>
@@ -151,6 +156,21 @@ export function DolarMepShell() {
             setRueda={setRueda}
             monto={monto}
             setMonto={setMonto}
+            comision={comision}
+            setComision={setComision}
+            account={account}
+            setAccount={setAccount}
+            cuentas={cuentas}
+            cot={cot}
+            saldo={saldo}
+            onRefreshSaldo={fetchSaldoNow}
+          />
+        ) : tab === "venta" ? (
+          <DolarMepVentaView
+            rueda={rueda}
+            setRueda={setRueda}
+            montoUsd={montoUsd}
+            setMontoUsd={setMontoUsd}
             comision={comision}
             setComision={setComision}
             account={account}
