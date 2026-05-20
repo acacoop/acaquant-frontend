@@ -52,6 +52,20 @@ interface TitulosResp {
 
 type Unidad = "nominales" | "dinero";
 type Filtro = "ambos" | "enviar" | "recibir";
+type Vista = "ticker" | "comitente";
+
+interface TickerCuentaRow {
+  ticker: string;
+  cuenta: string;
+  id_cuenta: string | null;
+  enviar_qty: number;
+  enviar_importe: number;
+  recibir_qty: number;
+  recibir_importe: number;
+  neto_qty: number;
+  neto_importe: number;
+  n_ops: number;
+}
 
 const EMPTY: TitulosResp = {
   fecha: "",
@@ -111,6 +125,7 @@ export function TitulosMercadoView() {
 
   const [unidad, setUnidad] = useState<Unidad>("nominales");
   const [filtro, setFiltro] = useState<Filtro>("ambos");
+  const [vista, setVista] = useState<Vista>("ticker");
 
   const ultimoDisplay = lastAt > 0 ? fmtHoraAR(lastAt) : "—";
 
@@ -121,6 +136,61 @@ export function TitulosMercadoView() {
     if (filtro === "recibir") return data.tickers.filter((t) => t.recibir_qty > 0);
     return data.tickers;
   }, [data.tickers, filtro]);
+
+  // Vista "por comitente": aplana ticker × cuenta. Cada fila es (ticker,
+  // cuenta) con enviar / recibir / neto agregados de todas las ops de
+  // esa cuenta sobre ese ticker. Ordenado por ticker, luego por |neto| desc.
+  const filasComitente = useMemo<TickerCuentaRow[]>(() => {
+    if (vista !== "comitente") return [];
+    const out: TickerCuentaRow[] = [];
+    for (const t of tickersFiltrados) {
+      const byCuenta = new Map<string, TickerCuentaRow>();
+      for (const c of t.cuentas) {
+        // Aplicamos también el filtro enviar/recibir a nivel cuenta.
+        const isVenta = (c.op || "").toLowerCase().startsWith("v");
+        if (filtro === "enviar"  && !isVenta) continue;
+        if (filtro === "recibir" && isVenta)  continue;
+
+        const key = c.cuenta;
+        let row = byCuenta.get(key);
+        if (!row) {
+          row = {
+            ticker:         t.ticker,
+            cuenta:         c.cuenta,
+            id_cuenta:      c.id_cuenta,
+            enviar_qty:     0,
+            enviar_importe: 0,
+            recibir_qty:    0,
+            recibir_importe:0,
+            neto_qty:       0,
+            neto_importe:   0,
+            n_ops:          0,
+          };
+          byCuenta.set(key, row);
+        }
+        if (isVenta) {
+          row.enviar_qty     += c.cantidad;
+          row.enviar_importe += c.importe;
+        } else {
+          row.recibir_qty     += c.cantidad;
+          row.recibir_importe += c.importe;
+        }
+        row.n_ops += 1;
+      }
+      for (const row of byCuenta.values()) {
+        row.neto_qty     = row.enviar_qty     - row.recibir_qty;
+        row.neto_importe = row.enviar_importe - row.recibir_importe;
+        out.push(row);
+      }
+    }
+    // Sort: ticker ascendente, dentro de cada ticker por |neto_qty| desc.
+    out.sort(
+      (a, b) =>
+        a.ticker.localeCompare(b.ticker) ||
+        Math.abs(b.neto_qty) - Math.abs(a.neto_qty),
+    );
+    return out;
+  }, [tickersFiltrados, vista, filtro]);
 
   // Totales ajustados al filtro: si miro solo enviar, los totales reflejan
   // solo eso (consistencia visual con la tabla).
@@ -205,6 +275,7 @@ export function TitulosMercadoView() {
           expandable
           actions={
             <div className="flex items-center gap-2">
+              <VistaToggle vista={vista} setVista={setVista} />
               <FiltroBtns filtro={filtro} setFiltro={setFiltro} />
               <UnidadToggle unidad={unidad} setUnidad={setUnidad} />
               <DownloadButton
@@ -229,6 +300,8 @@ export function TitulosMercadoView() {
                 ? "Sin operaciones que liquiden hoy"
                 : "Sin tickers que matcheen el filtro"}
             </p>
+          ) : vista === "comitente" ? (
+            <TablaTickerComitente filas={filasComitente} unidad={unidad} />
           ) : (
             <TablaTickers tickers={tickersFiltrados} unidad={unidad} />
           )}
@@ -325,6 +398,35 @@ function FiltroBtns({
           }`}
         >
           {f.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function VistaToggle({
+  vista,
+  setVista,
+}: {
+  vista: Vista;
+  setVista: (v: Vista) => void;
+}) {
+  return (
+    <div className="flex gap-0.5">
+      {([
+        ["ticker",    "TICKER"],
+        ["comitente", "COMITENTE"],
+      ] as [Vista, string][]).map(([v, label]) => (
+        <button
+          key={v}
+          onClick={() => setVista(v)}
+          className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+            vista === v
+              ? "bg-[#e0c890] text-black border-[#e0c890]"
+              : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#e0c890] hover:border-[#e0c890]"
+          }`}
+        >
+          {label}
         </button>
       ))}
     </div>
@@ -547,6 +649,101 @@ function CuentasDetail({
               <td className="px-1.5 py-0.5 text-[#666] text-[9px]">
                 {c.comprobante ?? "—"}
               </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+// ─── Vista alternativa: Ticker × Comitente (plana, agregada por par) ─────────
+
+function TablaTickerComitente({
+  filas,
+  unidad,
+}: {
+  filas: TickerCuentaRow[];
+  unidad: Unidad;
+}) {
+  const fmt = unidad === "nominales" ? fmtQty : (n: number) => fmtArs(n);
+
+  // Marca de "primera fila del ticker" para mostrar el ticker solo en la
+  // primera ocurrencia (más legible cuando hay muchas cuentas por ticker).
+  const firstOf = useMemo(() => {
+    const seen = new Set<string>();
+    return filas.map((f) => {
+      if (seen.has(f.ticker)) return false;
+      seen.add(f.ticker);
+      return true;
+    });
+  }, [filas]);
+
+  if (filas.length === 0) {
+    return (
+      <p className="text-[#555] text-xs py-6 text-center">
+        Sin pares ticker/comitente con el filtro actual
+      </p>
+    );
+  }
+
+  return (
+    <table className="w-full text-[11px] font-mono tabular-nums">
+      <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+        <tr>
+          <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">Ticker</th>
+          <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">Comitente</th>
+          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Enviar</th>
+          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Recibir</th>
+          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Neto</th>
+          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Mov.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {filas.map((f, i) => {
+          const enviarVal  = unidad === "nominales" ? f.enviar_qty  : f.enviar_importe;
+          const recibirVal = unidad === "nominales" ? f.recibir_qty : f.recibir_importe;
+          const netoVal    = unidad === "nominales" ? f.neto_qty    : f.neto_importe;
+          const netoColor =
+            netoVal > 0
+              ? "text-[#f87171]"
+              : netoVal < 0
+                ? "text-[#4ade80]"
+                : "text-[#666]";
+          const isFirst = firstOf[i];
+          return (
+            <tr
+              key={`${f.ticker}-${f.cuenta}-${i}`}
+              className={`border-b border-[#101010] hover:bg-[#0d0d0d] ${
+                isFirst ? "border-t border-[#1a1a1a]" : ""
+              }`}
+            >
+              <td
+                className={`px-2 py-1 font-semibold ${
+                  isFirst ? "text-[#ff9900]" : "text-[#ff9900]/40"
+                }`}
+              >
+                {f.ticker}
+              </td>
+              <td className="px-2 py-1 text-[#d0d0d0]">
+                {f.cuenta}
+                {f.id_cuenta && (
+                  <span className="ml-1 text-[9px] text-[#555]">
+                    [{f.id_cuenta}]
+                  </span>
+                )}
+              </td>
+              <td className="px-2 py-1 text-right text-[#f87171] font-semibold">
+                {fmt(enviarVal)}
+              </td>
+              <td className="px-2 py-1 text-right text-[#4ade80] font-semibold">
+                {fmt(recibirVal)}
+              </td>
+              <td className={`px-2 py-1 text-right ${netoColor} font-semibold`}>
+                {fmt(Math.abs(netoVal))}
+                {netoVal > 0 ? " ↑" : netoVal < 0 ? " ↓" : ""}
+              </td>
+              <td className="px-2 py-1 text-right text-[#808080]">{f.n_ops}</td>
             </tr>
           );
         })}
