@@ -691,6 +691,9 @@ function OperarCard({
     size: "",
     tif: "DAY",
   });
+  // Precio de salida opcional. Si tiene valor, EJECUTAR manda un bracket
+  // (entrada LIMIT + salida automática al fill). Si está vacío, send_order normal.
+  const [priceExit, setPriceExit] = useState<string>("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -721,26 +724,70 @@ function OperarCard({
       setResult({ ok: false, msg: "Falta precio" });
       return;
     }
+
+    // Modo bracket: si hay priceExit, el flow cambia: entrada LIMIT +
+    // salida automática al fill. NO soporta MARKET porque el bracket
+    // necesita un price_entry concreto para persistir.
+    const usaBracket = priceExit.trim() !== "";
+    if (usaBracket) {
+      if (form.order_type !== "LIMIT") {
+        setResult({
+          ok: false,
+          msg: "Bracket requiere entrada LIMIT (no MARKET)",
+        });
+        return;
+      }
+      if (parseFloat(priceExit) <= 0) {
+        setResult({ ok: false, msg: "Precio de salida inválido" });
+        return;
+      }
+    }
+
     setSending(true);
     setResult(null);
     try {
-      const body: Record<string, unknown> = {
-        ticker: fullTicker,
-        side: form.side,
-        size: parseInt(form.size, 10),
-        order_type: form.order_type,
-        tif: form.tif,
-        account,
-      };
-      if (form.order_type === "LIMIT") body.price = parseFloat(form.price);
-      const r = await fetch("/api/ordenes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      let r: Response;
+      if (usaBracket) {
+        r = await fetch("/api/operar/bracket", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ticker: fullTicker,
+            side: form.side,
+            size: parseInt(form.size, 10),
+            price_entry: parseFloat(form.price),
+            price_exit: parseFloat(priceExit),
+            tif: form.tif,
+            account,
+          }),
+        });
+      } else {
+        const body: Record<string, unknown> = {
+          ticker: fullTicker,
+          side: form.side,
+          size: parseInt(form.size, 10),
+          order_type: form.order_type,
+          tif: form.tif,
+          account,
+        };
+        if (form.order_type === "LIMIT") body.price = parseFloat(form.price);
+        r = await fetch("/api/ordenes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
       const j = await r.json().catch(() => ({}));
       if (r.ok) {
-        setResult({ ok: true, msg: `OK ${j.cl_ord_id ?? ""}` });
+        if (usaBracket) {
+          setResult({
+            ok: true,
+            msg: `Bracket OK · entrada ${j.entry_cl_ord_id ?? ""} · salida @ ${priceExit}`,
+          });
+          setPriceExit("");
+        } else {
+          setResult({ ok: true, msg: `OK ${j.cl_ord_id ?? ""}` });
+        }
         onExecuted();
       } else {
         setResult({ ok: false, msg: j.detail ?? `HTTP ${r.status}` });
@@ -922,12 +969,32 @@ function OperarCard({
           />
         </div>
 
+        {/* Precio salida opcional → activa modo bracket */}
+        <div className="mb-1 text-[10px]">
+          <input
+            value={priceExit}
+            placeholder="precio salida (bracket — opcional)"
+            disabled={form.order_type === "MARKET"}
+            onChange={(e) => setPriceExit(e.target.value)}
+            className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40 ${
+              priceExit.trim() !== ""
+                ? "border-[#ff9900] text-[#ff9900]"
+                : "border-[#2a2a2a]"
+            }`}
+            title="Cuando la entrada se llene, manda automáticamente la salida LIMIT a este precio (side opuesto, mismo size)"
+          />
+        </div>
+
         <button
           onClick={ejecutar}
           disabled={sending || !account || !fullTicker}
           className="w-full px-2 py-1 bg-[#ff9900] text-black font-bold text-[11px] tracking-wide border border-[#ff9900] hover:bg-[#ffaa20] disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          {sending ? "…" : `EJECUTAR ${form.side}`}
+          {sending
+            ? "…"
+            : priceExit.trim() !== ""
+              ? `EJECUTAR BRACKET ${form.side}`
+              : `EJECUTAR ${form.side}`}
         </button>
 
         {result && (
