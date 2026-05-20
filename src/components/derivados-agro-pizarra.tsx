@@ -2,7 +2,6 @@
 
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -180,6 +179,8 @@ function FreshnessPill({ estado }: { estado: EstadoFeed }) {
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
+type VistaPase = "agro" | "cobertura";
+
 export function DerivadosAgroPizarra({
   initial,
   canEdit,
@@ -189,6 +190,7 @@ export function DerivadosAgroPizarra({
   canEdit: boolean;
   setHeaderExtras: (n: ReactNode) => void;
 }) {
+  const [vista, setVista] = useState<VistaPase>("agro");
   const { data, lastAt } = usePoll<AgroResp>(
     "/api/derivados-agro",
     initial,
@@ -242,66 +244,238 @@ export function DerivadosAgroPizarra({
   return (
     <div className="h-full min-h-0 p-3 flex flex-col">
       <div className="flex-1 min-h-0">
-        <Panel title="PASE AGRO — TRIGO · MAÍZ · SOJA" expandable>
-          <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
-              <tr>
-                <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
-                  Vto
-                </th>
-                <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
-                  Posición
-                </th>
-                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
-                  US$
-                </th>
-                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
-                  Pase
-                </th>
-                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
-                  Valor $
-                </th>
-                <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
-                  TNAV
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.bloques.length === 0 ? (
+        <Panel
+          title="PASES — TRIGO · MAÍZ · SOJA"
+          expandable
+          actions={
+            <div className="flex gap-0.5">
+              <VistaBtn
+                active={vista === "agro"}
+                onClick={() => setVista("agro")}
+              >
+                Pase Agro
+              </VistaBtn>
+              <VistaBtn
+                active={vista === "cobertura"}
+                onClick={() => setVista("cobertura")}
+              >
+                Pase con Cobertura
+              </VistaBtn>
+            </div>
+          }
+        >
+          {vista === "agro" ? (
+            <table className="w-full text-[11px] font-mono tabular-nums">
+              <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <td colSpan={6} className="px-2 py-3 text-center text-[#666]">
-                    Sin data
-                  </td>
+                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                    Vto
+                  </th>
+                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                    Posición
+                  </th>
+                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                    US$
+                  </th>
+                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                    Pase Lleno
+                  </th>
+                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                    Valor $
+                  </th>
+                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                    TNAV
+                  </th>
                 </tr>
-              ) : (
-                data.bloques.map((b, bi) => (
-                  <BloqueRows
-                    key={b.commodity}
-                    bloque={b}
-                    oficial={oficial}
-                    canEdit={canEdit}
-                    dim={dim}
-                    first={bi === 0}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.bloques.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-3 text-center text-[#666]">
+                      Sin data
+                    </td>
+                  </tr>
+                ) : (
+                  data.bloques.map((b, bi) => (
+                    <BloqueRows
+                      key={b.commodity}
+                      bloque={b}
+                      canEdit={canEdit}
+                      dim={dim}
+                      first={bi === 0}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <PaseConCoberturaTable bloques={data.bloques} dim={dim} />
+          )}
         </Panel>
       </div>
     </div>
   );
 }
 
+function VistaBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+        active
+          ? "bg-[#ff9900] text-black border-[#ff9900]"
+          : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Tabla "Pase con Cobertura" ─────────────────────────────────────────────
+// Replica la planilla: una fila por (commodity, vencimiento) — solo futuros.
+// Posición = "TRIGO JULIO 26". Pase Lleno = el `pase` actual (pizarra USD −
+// futuro USD). Pagaré / ON / Sintético quedan en "—" hasta que se definan
+// las fórmulas (a confirmar con la mesa).
+
+const MESES_ES: Record<string, string> = {
+  "01": "ENERO",
+  "02": "FEBRERO",
+  "03": "MARZO",
+  "04": "ABRIL",
+  "05": "MAYO",
+  "06": "JUNIO",
+  "07": "JULIO",
+  "08": "AGOSTO",
+  "09": "SEPTIEMBRE",
+  "10": "OCTUBRE",
+  "11": "NOVIEMBRE",
+  "12": "DICIEMBRE",
+};
+
+function posicionFromVto(commodity: Commodity, vto: string | null): string {
+  if (!vto || vto.length !== 8) return commodity;
+  const mes = MESES_ES[vto.slice(4, 6)] ?? "?";
+  const yr = vto.slice(2, 4);
+  return `${commodity} ${mes} ${yr}`;
+}
+
+function PaseConCoberturaTable({
+  bloques,
+  dim,
+}: {
+  bloques: AgroBloque[];
+  dim: string;
+}) {
+  const filas: { commodity: Commodity; vto: string | null; pase: number | null; ticker?: string }[] = [];
+  for (const b of bloques) {
+    for (const r of b.rows) {
+      if (r.tipo !== "futuro") continue;
+      if (r.us == null) continue; // sin precio, no se calcula
+      filas.push({
+        commodity: b.commodity,
+        vto: r.vencimiento,
+        pase: r.pase,
+        ticker: r.ticker,
+      });
+    }
+  }
+
+  if (filas.length === 0) {
+    return (
+      <p className="text-[#555] text-xs py-3 text-center">
+        Sin futuros con precio
+      </p>
+    );
+  }
+
+  return (
+    <table className="w-full text-[11px] font-mono tabular-nums">
+      <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+        <tr>
+          <th
+            rowSpan={2}
+            className="text-left px-1.5 py-1 border-b border-[#1a1a1a] align-bottom"
+          >
+            Posición
+          </th>
+          <th
+            rowSpan={2}
+            className="text-right px-1.5 py-1 border-b border-[#1a1a1a] align-bottom"
+          >
+            Pase Lleno
+          </th>
+          <th
+            colSpan={3}
+            className="text-center px-1.5 py-1 border-b border-[#1a1a1a] text-[9px] text-[#666]"
+          >
+            Resultado en US$ × Tn
+          </th>
+        </tr>
+        <tr>
+          <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+            Pagaré
+          </th>
+          <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+            ON
+          </th>
+          <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+            Sintético
+          </th>
+        </tr>
+      </thead>
+      <tbody className={dim}>
+        {filas.map((f) => (
+          <tr
+            key={`${f.commodity}-${f.ticker ?? f.vto}`}
+            className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+          >
+            <td className="px-1.5 py-0.5 text-[#d0d0d0] font-semibold">
+              {posicionFromVto(f.commodity, f.vto)}
+            </td>
+            <td className={`px-1.5 py-0.5 text-right ${pasecolor(f.pase)}`}>
+              {fmtPx(f.pase)}
+            </td>
+            <td
+              className="px-1.5 py-0.5 text-right text-[#555]"
+              title="Pendiente — fórmula a definir"
+            >
+              —
+            </td>
+            <td
+              className="px-1.5 py-0.5 text-right text-[#555]"
+              title="Pendiente — fórmula a definir"
+            >
+              —
+            </td>
+            <td
+              className="px-1.5 py-0.5 text-right text-[#555]"
+              title="Pendiente — fórmula a definir"
+            >
+              —
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function BloqueRows({
   bloque,
-  oficial,
   canEdit,
   dim,
   first,
 }: {
   bloque: AgroBloque;
-  oficial: number | null;
   canEdit: boolean;
   dim: string;
   first: boolean;
@@ -320,7 +494,6 @@ function BloqueRows({
               key={`${bloque.commodity}-pizarra`}
               commodity={bloque.commodity}
               row={r}
-              oficial={oficial}
               canEdit={canEdit}
             />
           );
@@ -383,49 +556,33 @@ function BloqueRows({
 function PizarraRow({
   commodity,
   row,
-  oficial,
   canEdit,
 }: {
   commodity: Commodity;
   row: AgroRow;
-  oficial: number | null;
   canEdit: boolean;
 }) {
   const [vto, setVto] = useState<string>(isoFromAny(row.vencimiento));
-  const [us, setUs] = useState<string>(row.us != null ? String(row.us) : "");
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState<null | boolean>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const remoteVtoRef = useRef(isoFromAny(row.vencimiento));
-  const remoteUsRef = useRef(row.us != null ? String(row.us) : "");
 
-  // Si otro usuario editó la pizarra, el poll trae el valor nuevo: lo
-  // adoptamos salvo que el campo esté tocado localmente con algo distinto.
+  // El US$ ya NO se edita acá — sale de Datos (Cámara Cereales). Solo
+  // el vencimiento se edita inline. Si otro user lo cambia, lo adoptamos.
   useEffect(() => {
     const newVto = isoFromAny(row.vencimiento);
     if (newVto !== remoteVtoRef.current) {
       remoteVtoRef.current = newVto;
       if (vto !== remoteVtoRef.current) setVto(newVto);
     }
-    const newUs = row.us != null ? String(row.us) : "";
-    if (newUs !== remoteUsRef.current) {
-      remoteUsRef.current = newUs;
-      if (us !== remoteUsRef.current) setUs(newUs);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.vencimiento, row.us]);
+  }, [row.vencimiento]);
 
-  const arsCalc = useMemo(() => {
-    const v = parseFloat(us);
-    if (!isFinite(v) || !oficial) return null;
-    return v * oficial;
-  }, [us, oficial]);
-  const arsBg = useFlashBg(arsCalc);
+  // Flash si cambia el ARS (vía Cámara → mid_oficial → backend).
+  const arsBg = useFlashBg(row.ars);
 
-  function scheduleSave(payload: {
-    vencimiento_pizarra?: string;
-    us_pizarra?: number;
-  }) {
+  function scheduleSaveVto(v: string) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSaving(true);
@@ -434,7 +591,7 @@ function PizarraRow({
         const res = await fetch(`/api/derivados-agro/pizarra/${commodity}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ vencimiento_pizarra: v }),
         });
         setSavedOk(res.ok);
       } catch {
@@ -448,41 +605,19 @@ function PizarraRow({
 
   function onVtoChange(v: string) {
     setVto(v);
-    if (v) scheduleSave({ vencimiento_pizarra: v });
-  }
-  function onUsChange(v: string) {
-    setUs(v);
-    const n = parseFloat(v);
-    if (isFinite(n) && n > 0) scheduleSave({ us_pizarra: n });
+    if (v) scheduleSaveVto(v);
   }
 
   return (
     <tr className="border-y border-[#3a2c0a] bg-[#1a1308]">
       <td className="px-1.5 py-1 text-[#e0c890]">
         {canEdit ? (
-          <input
-            type="date"
-            value={vto}
-            onChange={(e) => onVtoChange(e.target.value)}
-            className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0 font-mono focus:border-[#ff9900] outline-none"
-          />
-        ) : (
-          fmtFechaVtoFuturo(row.vencimiento)
-        )}
-      </td>
-      <td className="px-1.5 py-1 text-[#ff9900] font-semibold tracking-wide">
-        {row.posicion}
-      </td>
-      <td className="px-1.5 py-1 text-right text-[#e0c890] font-semibold">
-        {canEdit ? (
-          <div className="inline-flex items-center gap-1 justify-end">
+          <div className="inline-flex items-center gap-1">
             <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={us}
-              onChange={(e) => onUsChange(e.target.value)}
-              className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0 font-mono focus:border-[#ff9900] outline-none w-20 text-right"
+              type="date"
+              value={vto}
+              onChange={(e) => onVtoChange(e.target.value)}
+              className="bg-[#0e0e0e] border border-[#3a2c0a] text-[#e0c890] text-[11px] px-1 py-0 font-mono focus:border-[#ff9900] outline-none"
             />
             {saving && <span className="text-[9px] text-[#888]">…</span>}
             {savedOk === true && (
@@ -493,8 +628,17 @@ function PizarraRow({
             )}
           </div>
         ) : (
-          fmtPx(row.us)
+          fmtFechaVtoFuturo(row.vencimiento)
         )}
+      </td>
+      <td className="px-1.5 py-1 text-[#ff9900] font-semibold tracking-wide">
+        {row.posicion}
+      </td>
+      <td
+        className="px-1.5 py-1 text-right text-[#e0c890] font-semibold"
+        title="Editable en la tab Datos (Cámara Arbitral)"
+      >
+        {fmtPx(row.us)}
       </td>
       <td className="px-1.5 py-1 text-right text-[#666]">—</td>
       <td
@@ -504,7 +648,7 @@ function PizarraRow({
           transition: "background-color 0.8s ease-out",
         }}
       >
-        {fmtArs(arsCalc ?? row.ars)}
+        {fmtArs(row.ars)}
       </td>
       <td className="px-1.5 py-1 text-right text-[#666]">—</td>
     </tr>
