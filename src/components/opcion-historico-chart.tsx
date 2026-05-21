@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Brush,
   CartesianGrid,
   Line,
   LineChart,
@@ -83,17 +84,33 @@ export function OpcionHistoricoChart({
     };
   }, [instrumento]);
 
-  const serie = useMemo(
-    () =>
-      data.map((p, idx) => ({
-        idx,
-        t: new Date(p.timestamp).getTime(),
-        last: Number(p.last),
-        spot: p.spot,
-        strike: p.strike,
-      })),
-    [data],
-  );
+  // Bucketing por tiempo (15 min): un punto por bucket (último trade del
+  // bucket). Sin esto el eje X usaba el índice de TRADE, y las opciones más
+  // operadas tienen miles de trades concentrados en los días recientes que se
+  // comen el eje → el histórico viejo quedaba aplastado y no se podía ver si
+  // estaba cara/barata. Con buckets de tiempo cada franja de 15 min pesa
+  // igual (mismo criterio que CostoHistoricoChart, que bucketea en backend).
+  const serie = useMemo(() => {
+    const BUCKET_MS = 15 * 60 * 1000;
+    const byBucket = new Map<number, TradeDoc>();
+    for (const p of data) {
+      const t = new Date(p.timestamp).getTime();
+      if (!Number.isFinite(t)) continue;
+      byBucket.set(Math.floor(t / BUCKET_MS), p); // data asc → último gana
+    }
+    return [...byBucket.keys()]
+      .sort((a, b) => a - b)
+      .map((k, idx) => {
+        const p = byBucket.get(k)!;
+        return {
+          idx,
+          t: new Date(p.timestamp).getTime(),
+          last: Number(p.last),
+          spot: p.spot,
+          strike: p.strike,
+        };
+      });
+  }, [data]);
 
   const stats = useMemo(() => {
     if (!serie.length) return null;
@@ -265,6 +282,14 @@ export function OpcionHistoricoChart({
               strokeWidth={1.4}
               dot={false}
               isAnimationActive={false}
+            />
+            <Brush
+              dataKey="idx"
+              height={16}
+              stroke="#ff9900"
+              fill="#0a0a0a"
+              travellerWidth={8}
+              tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
             />
           </LineChart>
         </ResponsiveContainer>

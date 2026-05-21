@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Brush,
   CartesianGrid,
   Line,
   LineChart,
@@ -298,6 +299,14 @@ export function CostoHistoricoChart({
               dot={false}
               isAnimationActive={false}
               connectNulls={false}
+            />
+            <Brush
+              dataKey="idx"
+              height={16}
+              stroke="#ff9900"
+              fill="#0a0a0a"
+              travellerWidth={8}
+              tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
             />
           </LineChart>
         </ResponsiveContainer>
