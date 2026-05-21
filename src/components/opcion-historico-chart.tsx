@@ -48,6 +48,9 @@ export function OpcionHistoricoChart({
   const [data, setData] = useState<TradeDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 2º eje Y: spot del subyacente (GGAL) desde Opciones.VR-GGal, switch ARS/ADR.
+  const [spotMoneda, setSpotMoneda] = useState<"ARS" | "ADR">("ARS");
+  const [vrMap, setVrMap] = useState<Record<string, { local?: number; adr?: number }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +87,27 @@ export function OpcionHistoricoChart({
     };
   }, [instrumento]);
 
+  // Serie diaria del subyacente (VR-GGal) para el 2º eje. Mapeada por fecha.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/cotizaciones/vr-ggal", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { fecha: string; local?: number; adr?: number }[]) => {
+        if (cancelled) return;
+        const m: Record<string, { local?: number; adr?: number }> = {};
+        for (const r of rows || []) {
+          if (r.fecha) m[r.fecha.slice(0, 10)] = { local: r.local, adr: r.adr };
+        }
+        setVrMap(m);
+      })
+      .catch(() => {
+        if (!cancelled) setVrMap({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Bucketing por tiempo (15 min): un punto por bucket (último trade del
   // bucket). Sin esto el eje X usaba el índice de TRADE, y las opciones más
   // operadas tienen miles de trades concentrados en los días recientes que se
@@ -102,15 +126,22 @@ export function OpcionHistoricoChart({
       .sort((a, b) => a - b)
       .map((k, idx) => {
         const p = byBucket.get(k)!;
+        const t = new Date(p.timestamp).getTime();
+        const fecha = new Date(t).toISOString().slice(0, 10);
+        const vr = vrMap[fecha];
+        const spot2 = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
         return {
           idx,
-          t: new Date(p.timestamp).getTime(),
+          t,
           last: Number(p.last),
           spot: p.spot,
           strike: p.strike,
+          spot2: spot2 ?? null,
         };
       });
-  }, [data]);
+  }, [data, vrMap, spotMoneda]);
+
+  const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
 
   const stats = useMemo(() => {
     if (!serie.length) return null;
@@ -222,7 +253,28 @@ export function OpcionHistoricoChart({
             Δ {stats.delta >= 0 ? "+" : ""}
             {fmtPx(stats.delta)}
           </span>
-          <span className="ml-auto text-[#555]">{serie.length} trades</span>
+          {haySpot2 && (
+            <span className="ml-auto flex items-center gap-1">
+              <span className="text-[#555]">SPOT</span>
+              {(["ARS", "ADR"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setSpotMoneda(m)}
+                  className={
+                    "px-1.5 py-0 text-[9px] uppercase tracking-wider border " +
+                    (spotMoneda === m
+                      ? "bg-[#4a9eff] text-black border-[#4a9eff]"
+                      : "bg-[#0a0a0a] text-[#808080] border-[#2a2a2a] hover:text-[#4a9eff]")
+                  }
+                >
+                  {m}
+                </button>
+              ))}
+            </span>
+          )}
+          <span className={(haySpot2 ? "" : "ml-auto ") + "text-[#555]"}>
+            {serie.length} puntos
+          </span>
         </div>
       )}
       <div className="flex-1 min-h-0">
@@ -252,6 +304,20 @@ export function OpcionHistoricoChart({
               tickCount={6}
               width={60}
             />
+            {haySpot2 && (
+              <YAxis
+                yAxisId="spot"
+                orientation="right"
+                domain={["auto", "auto"]}
+                tick={{ fill: "#4a9eff", fontSize: 9 }}
+                axisLine={{ stroke: "#2a4a6a" }}
+                tickLine={false}
+                tickFormatter={(v: number) =>
+                  spotMoneda === "ADR" ? `$${v.toFixed(1)}` : `$${(v / 1000).toFixed(1)}k`
+                }
+                width={48}
+              />
+            )}
             <Tooltip
               contentStyle={{
                 background: "#0e0e0e",
@@ -260,7 +326,11 @@ export function OpcionHistoricoChart({
                 fontFamily: "JetBrains Mono, monospace",
               }}
               labelFormatter={(v) => fmtTooltipFecha(Number(v))}
-              formatter={(value) => [`$${fmtPx(Number(value))}`, "Last"]}
+              formatter={(value, name) =>
+                name === "spot2"
+                  ? [`$${fmtPx(Number(value))}`, `Spot ${spotMoneda}`]
+                  : [`$${fmtPx(Number(value))}`, "Last"]
+              }
             />
             {typeof lastLive === "number" && lastLive > 0 && (
               <ReferenceLine
@@ -283,6 +353,19 @@ export function OpcionHistoricoChart({
               dot={false}
               isAnimationActive={false}
             />
+            {haySpot2 && (
+              <Line
+                yAxisId="spot"
+                type="monotone"
+                dataKey="spot2"
+                stroke="#4a9eff"
+                strokeWidth={1.2}
+                strokeDasharray="3 3"
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
             <Brush
               dataKey="idx"
               height={16}
