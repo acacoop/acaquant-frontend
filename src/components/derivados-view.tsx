@@ -135,7 +135,11 @@ export function DerivadosView({
 
   const selRow = effectiveSelected != null ? rows[effectiveSelected] : undefined;
   const selLegs = selRow?.legs ?? [];
+  // selCosto = ALL-IN (prima neta × 100 + comisión de prima). Payoff y
+  // escenarios lo usan así. Para el histórico restamos la comisión porque ese
+  // chart grafica prima pura (sin comisión) calculada en el backend.
   const selCosto = selRow?.costo ?? 0;
+  const selComision = selRow?.comision ?? 0;
 
   async function guardarTasa() {
     const val = parseFloat(tasaInput);
@@ -314,7 +318,7 @@ export function DerivadosView({
               <CostoHistoricoChart
                 legs={selRow.tplLegs}
                 bucketMin={15}
-                costoLive={selCosto || 0}
+                costoLive={(selCosto || 0) - selComision}
               />
             )}
           </Panel>
@@ -341,7 +345,10 @@ function buildDetalleTitle(
   }
   if (!selRow) return tag;
   const sign = (selCosto || 0) > 0 ? "DEBIT" : "CREDIT";
-  return `${tag} — ${selRow.nombre} (${sign} $${Math.abs(selCosto || 0).toFixed(2)})`;
+  const com = selRow.comision
+    ? ` · com $${Math.round(selRow.comision).toLocaleString("es-AR")}`
+    : "";
+  return `${tag} — ${selRow.nombre} (${sign} $${Math.abs(selCosto || 0).toFixed(2)})${com}`;
 }
 
 function Kpi({

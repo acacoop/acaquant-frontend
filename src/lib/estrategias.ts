@@ -187,11 +187,24 @@ export interface ResolvedLeg {
   T: number | null;
 }
 
+// Derecho de mercado sobre la PRIMA al armar la estrategia (opciones sobre
+// acciones privadas y CEDEARs, ej. GGAL): 0,20% sobre la prima de CADA pata
+// transaccionada (comprada o vendida) al abrir la posición. Se paga una sola
+// vez en la entrada — a vencimiento no hay venta, así que no se re-cobra.
+// El derecho de ejercicio (0,05% sobre el subyacente al strike) NO se incluye
+// en el payoff por decisión (ver derivados-view).
+export const COMISION_PRIMA_PCT = 0.002;
+
 export interface EstrategiaRow {
   nombre: string;
   categoria: string;
   strikes: string;
+  // `costo` es ALL-IN: prima neta × 100 + comisión de prima. payoff,
+  // escenarios y el label DEBIT/CREDIT lo usan tal cual.
   costo: number | null;
+  // `comision` aislada (derecho de mercado sobre prima) para mostrarla y para
+  // poder restarla cuando se compara contra el histórico (que es prima pura).
+  comision: number | null;
   volPata: number | null;
   delta: number | null;
   gamma: number | null;
@@ -269,6 +282,7 @@ export function calcularEstrategias(
     if (tpl.categoria !== categoria) continue;
 
     let neto = 0;
+    let comision = 0;
     let dNet = 0;
     let gNet = 0;
     let tNet = 0;
@@ -292,6 +306,10 @@ export function calcularEstrategias(
       }
       const m = leg.side === "buy" ? 1 : -1;
       neto += px * leg.qty * m;
+      // Derecho de mercado: 0,20% sobre la prima transaccionada de la pata
+      // (notional = px × qty × 100), independiente del lado (al abrir la
+      // estrategia operás todas las patas, compradas y vendidas).
+      comision += COMISION_PRIMA_PCT * Math.abs(px * leg.qty * 100);
       dNet += (d?.delta || 0) * leg.qty * m;
       gNet += (d?.gamma || 0) * leg.qty * m;
       tNet += (d?.theta || 0) * leg.qty * m;
@@ -315,7 +333,8 @@ export function calcularEstrategias(
       nombre: tpl.nombre,
       categoria: tpl.categoria,
       strikes: valid ? uniqK.map((k) => k.toLocaleString("es-AR", { maximumFractionDigits: 0 })).join("/") : "-",
-      costo: valid ? neto * 100 : null,
+      costo: valid ? neto * 100 + comision : null,
+      comision: valid ? comision : null,
       volPata: valid && legEvs.length ? Math.min(...legEvs) : null,
       delta: valid ? dNet : null,
       gamma: valid ? gNet : null,
