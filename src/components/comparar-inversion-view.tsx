@@ -277,19 +277,26 @@ export function CompararInversionView() {
   // mismo mes aparezcan juntos. Según modo: cupón (renta) o cupón+amort (total).
   const flujosMerged = useMemo(() => {
     if (!data) return [];
-    const pick = (f: FlujoEscalado): number =>
-      modoChart === "renta" ? (f.cupon ?? 0) : (f.monto ?? 0);
+    // En RENTA mostramos solo cupones (el bullet de amortización al vto se
+    // excluye para no aplastar los cupones). PERO los bonos cupón cero
+    // (Lecap/Boncap) no tienen cupones → su única "renta" es el pago final.
+    // Para que no queden con el gráfico vacío, en ese caso mostramos el monto
+    // total (el cobro al vto, que ya se conoce).
+    const aZero = !data.a.flujos.some((f) => (f.cupon ?? 0) > 0);
+    const bZero = !data.b.flujos.some((f) => (f.cupon ?? 0) > 0);
+    const pick = (f: FlujoEscalado, zero: boolean): number =>
+      modoChart === "total" || zero ? (f.monto ?? 0) : (f.cupon ?? 0);
     const map = new Map<string, { mes: string; A: number; B: number }>();
     for (const f of data.a.flujos) {
       const mes = f.fecha.slice(0, 7);
       const ex = map.get(mes) ?? { mes, A: 0, B: 0 };
-      ex.A += pick(f);
+      ex.A += pick(f, aZero);
       map.set(mes, ex);
     }
     for (const f of data.b.flujos) {
       const mes = f.fecha.slice(0, 7);
       const ex = map.get(mes) ?? { mes, A: 0, B: 0 };
-      ex.B += pick(f);
+      ex.B += pick(f, bZero);
       map.set(mes, ex);
     }
     return Array.from(map.values()).sort((x, y) => x.mes.localeCompare(y.mes));
