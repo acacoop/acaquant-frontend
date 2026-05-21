@@ -10,12 +10,14 @@ import { CostoHistoricoChart } from "./costo-historico-chart";
 import { OpcionHistoricoChart } from "./opcion-historico-chart";
 import { GriegasHistoricoChart } from "./griegas-historico-chart";
 import { DerivadosOperar } from "./derivados-operar";
+import { PostTradeLab } from "./post-trade-lab";
 import { usePoll } from "@/lib/use-poll";
 import {
   buildPorStrike,
   calcularEstrategias,
   type EstrategiaRow,
   type OpcionDoc,
+  type ResolvedLeg,
 } from "@/lib/estrategias";
 
 // Intervalo de polling para la chain de opciones. El motor de opciones
@@ -32,7 +34,9 @@ interface Meta {
   updated_at?: string;
 }
 
-type DetalleTab = "payoff" | "escenarios";
+type DetalleTab = "payoff" | "escenarios" | "lab";
+// Tab del panel cuando hay un contrato individual elegido.
+type OpcionTab = "operar" | "lab";
 // Filtro de la tabla OPCIONES GGAL: chain CALL/PUT o la tabla de estrategias.
 type TablaVista = "CALL" | "PUT" | "ESTRATEGIAS";
 
@@ -73,6 +77,7 @@ export function DerivadosView({
   // Filtro de la tabla OPCIONES GGAL (CALL/PUT = chain; ESTRATEGIAS = tabla
   // de estrategias en el mismo panel).
   const [tablaVista, setTablaVista] = useState<TablaVista>("CALL");
+  const [opcionTab, setOpcionTab] = useState<OpcionTab>("operar");
 
   function pickStrategy(i: number) {
     setSelected(i);
@@ -285,15 +290,40 @@ export function DerivadosView({
         {/* ── Columna derecha ── */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
           {selectedOpcion ? (
-            // Contrato elegido → operar ese instrumento (book L2 + ticket).
-            <Panel title={`OPERAR — ${shortTicker(selectedOpcion.instrumento)}`} fill expandable>
-              <DerivadosOperar
-                instrumento={selectedOpcion.instrumento}
-                last={selectedOpcion.last}
-              />
+            // Contrato elegido → OPERAR (book + ticket) o LAB (post-trade).
+            <Panel
+              title={`${opcionTab === "lab" ? "LAB" : "OPERAR"} — ${shortTicker(selectedOpcion.instrumento)}`}
+              fill
+              expandable
+              actions={
+                <div className="flex items-center gap-1">
+                  <TabBtn active={opcionTab === "operar"} onClick={() => setOpcionTab("operar")}>
+                    OPERAR
+                  </TabBtn>
+                  <TabBtn active={opcionTab === "lab"} onClick={() => setOpcionTab("lab")}>
+                    LAB
+                  </TabBtn>
+                </div>
+              }
+            >
+              {opcionTab === "operar" ? (
+                <DerivadosOperar
+                  instrumento={selectedOpcion.instrumento}
+                  last={selectedOpcion.last}
+                />
+              ) : (
+                <PostTradeLab
+                  legs={[opcionAsLeg(selectedOpcion)]}
+                  spot={spot}
+                  tasa={meta.tasa}
+                  entrySugerido={selectedOpcion.last ?? 0}
+                  vence={selectedOpcion.vence}
+                  singleLeg
+                />
+              )}
             </Panel>
           ) : (
-            // Estrategia → payoff / escenarios.
+            // Estrategia → payoff / escenarios / lab.
             <Panel
               title={buildDetalleTitle(detalleTab, selRow, selCosto)}
               fill
@@ -306,22 +336,32 @@ export function DerivadosView({
                   <TabBtn active={detalleTab === "escenarios"} onClick={() => setDetalleTab("escenarios")}>
                     ESCENARIOS
                   </TabBtn>
+                  <TabBtn active={detalleTab === "lab"} onClick={() => setDetalleTab("lab")}>
+                    LAB
+                  </TabBtn>
                 </div>
               }
             >
               {!selRow || !selLegs.length ? (
                 <p className="text-[#555555] text-xs py-4 text-center">
-                  Seleccioná una estrategia con liquidez (filtro ESTRAT.) para ver{" "}
-                  {detalleTab === "payoff" ? "el payoff" : "escenarios"}.
+                  Seleccioná una estrategia con liquidez (filtro ESTRAT.).
                 </p>
               ) : detalleTab === "payoff" ? (
                 <PayoffChart legs={selLegs} spot={spot} costo={selCosto || 0} />
-              ) : (
+              ) : detalleTab === "escenarios" ? (
                 <EscenariosTabla
                   legs={selLegs}
                   spot={spot}
                   costo={selCosto || 0}
                   tasa={meta.tasa}
+                />
+              ) : (
+                <PostTradeLab
+                  legs={selLegs}
+                  spot={spot}
+                  tasa={meta.tasa}
+                  entrySugerido={(selCosto || 0) / 100}
+                  vence={selLegs[0]?.vence}
                 />
               )}
             </Panel>
@@ -350,12 +390,28 @@ export function DerivadosView({
   );
 }
 
+// Convierte un contrato individual (OpcionDoc) en un leg comprado x1, para
+// alimentar el LAB post-trade (el lado/cantidad se editan dentro del LAB).
+function opcionAsLeg(d: OpcionDoc): ResolvedLeg {
+  return {
+    instrumento: d.instrumento,
+    K: d.strike ?? 0,
+    tipo: d.tipo === "PUT" ? "PUT" : "CALL",
+    side: "buy",
+    qty: 1,
+    px: d.last ?? 0,
+    iv: d.iv ?? 0,
+    vence: d.vence ?? "",
+    T: null,
+  };
+}
+
 function buildDetalleTitle(
   tab: DetalleTab,
   selRow: EstrategiaRow | undefined,
   selCosto: number,
 ): string {
-  const tag = tab === "escenarios" ? "ESCENARIOS" : "PAYOFF";
+  const tag = tab === "escenarios" ? "ESCENARIOS" : tab === "lab" ? "LAB" : "PAYOFF";
   if (!selRow) return tag;
   const sign = (selCosto || 0) > 0 ? "DEBIT" : "CREDIT";
   const com = selRow.comision
