@@ -1025,9 +1025,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 <tbody>
                   {posiciones.map((p) => (
                     <tr key={p.unidad ?? p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                      <td className="px-2 py-1 align-top break-words text-[#ff9900] font-semibold">{p.ticker}</td>
-                      <td className="px-2 py-1 align-top break-words text-[#d0d0d0]">{p.emisor || "—"}</td>
-                      <td className="px-2 py-1 align-top break-words text-[#888]">{p.clase_activo || "—"}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900] font-semibold">{p.ticker}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#d0d0d0]">{p.emisor || "—"}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">{p.clase_activo || "—"}</td>
                       <td className="px-2 py-1 align-top">
                         <span className="inline-flex items-center gap-1">
                           <span
@@ -1039,8 +1039,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                           </span>
                         </span>
                       </td>
-                      <td className="px-2 py-1 align-top break-words text-[#888]">{p.calificacion || "—"}</td>
-                      <td className="px-2 py-1 align-top break-words text-[#888]">
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">{p.calificacion || "—"}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">
                         {p.vencimiento ? fmtFechaCorta(p.vencimiento) : "—"}
                       </td>
                       <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
@@ -1169,7 +1169,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
           return (
             <tr key={m.comprobante ?? m.fecha} className="border-t border-[#111] hover:bg-[#0f0f0f]">
               <td className="px-2 py-1 align-top text-[#888]">{fmtFechaCorta(m.fecha)}</td>
-              <td className="px-2 py-1 align-top break-words">
+              <td className="px-2 py-1 align-top whitespace-normal break-words">
                 <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
                   {m.categoria === "deposito"
                     ? "Depósito"
@@ -1193,7 +1193,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
               >
                 {fmtSigned(m.importe_ars)}
               </td>
-              <td className="px-2 py-1 align-top break-words text-[#888]" title={m.informacion ?? ""}>
+              <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]" title={m.informacion ?? ""}>
                 {m.informacion ?? "—"}
               </td>
             </tr>
@@ -1244,7 +1244,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
       <tbody>
         {varResp.filas.map((f) => (
           <tr key={f.unidad} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-            <td className="px-2 py-1 align-top break-words text-[#ff9900]" title={f.unidad}>
+            <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900]" title={f.unidad}>
               {f.unidad}
               {f.estado !== "ambos" && (
                 <span className="text-[#666] ml-1">
@@ -1252,7 +1252,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
                 </span>
               )}
             </td>
-            <td className="px-2 py-1 align-top break-words text-[#888]">{f.tipo ?? "—"}</td>
+            <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">{f.tipo ?? "—"}</td>
             <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(f.val_anterior)}</td>
             <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(f.val_actual)}</td>
             <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(f.delta_mercado) }}>
