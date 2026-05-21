@@ -280,7 +280,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   // Toggle del panel derecho cuando hay fecha seleccionada: posiciones
   // (portfolio), movimientos del mes (flujo) o variación vs mes anterior.
   // Default portfolio. Sin fecha seleccionada solo se muestra portfolio.
-  const [panelMode, setPanelMode] = useState<"portfolio" | "flujo" | "variacion">("portfolio");
+  const [panelMode, setPanelMode] = useState<"flujo" | "variacion">("flujo");
   // Variación del portfolio vs el snapshot anterior — solo con fecha.
   const [varResp, setVarResp] = useState<VariacionResp | null>(null);
   const [varLoading, setVarLoading] = useState(false);
@@ -873,43 +873,12 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
         <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-            {!selectedFecha
-              ? "Posición actual"
-              : panelMode === "portfolio"
-                ? "Posición histórica"
-                : panelMode === "flujo"
-                  ? "Flujo del mes"
-                  : "Variación vs mes anterior"}
+            {!selectedFecha ? "Posición actual" : "Posición histórica"}
           </span>
-          {ultimoSnap && panelMode === "portfolio" && (
+          {ultimoSnap && (
             <span className="text-[9px] text-[#555] font-mono">
               {fmtFechaCorta(ultimoSnap)}
             </span>
-          )}
-          {selectedFecha && panelMode === "flujo" && movResp && (
-            <span className="text-[9px] text-[#555] font-mono">
-              {fmtMesAnio(movResp.mes)}
-            </span>
-          )}
-
-          {/* Toggle portfolio / flujo / variación — solo con fecha seleccionada */}
-          {selectedFecha && (
-            <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333] ml-1">
-              {(["portfolio", "flujo", "variacion"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setPanelMode(m)}
-                  className={
-                    "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                    (panelMode === m
-                      ? "bg-[#ff9900] text-black"
-                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
-                  }
-                >
-                  {m === "portfolio" ? "Portfolio" : m === "flujo" ? "Flujo" : "Variación"}
-                </button>
-              ))}
-            </div>
           )}
 
           {selectedFecha && (
@@ -922,7 +891,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             </button>
           )}
 
-          {(panelMode === "portfolio" ? posLoading : panelMode === "flujo" ? movLoading : varLoading) && (
+          {posLoading && (
             <span className="text-[9px] text-[#888]">cargando…</span>
           )}
 
@@ -1014,35 +983,14 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             }}
           />
 
-          {/* Header right: counts/totales según panel activo */}
+          {/* Header right: posiciones + total */}
           <span className="text-[10px] text-[#888] font-mono">
-            {panelMode === "portfolio" ? (
-              <>
-                {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
-              </>
-            ) : panelMode === "flujo" ? (
-              movResp && (
-                <>
-                  {movResp.n} · <span className="text-[#4a9eff] font-semibold">neto {fmtSigned(movResp.total_neto)}</span>
-                </>
-              )
-            ) : (
-              varResp?.totales && (
-                <>
-                  Δ total{" "}
-                  <span className="font-semibold" style={{ color: colorDelta(varResp.totales.delta_total) }}>
-                    {fmtSigned(varResp.totales.delta_total)}
-                  </span>
-                </>
-              )
-            )}
+            {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
           </span>
         </div>
 
         <div className="flex-1 min-h-0 overflow-auto">
-          {panelMode === "portfolio" ? (
-            // ── PORTFOLIO ──────────────────────────────────────────────
-            posiciones.length === 0 ? (
+          {posiciones.length === 0 ? (
               <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
                 Sin posiciones activas.
               </div>
@@ -1110,164 +1058,248 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                   ))}
                 </tbody>
               </table>
-            )
-          ) : panelMode === "flujo" ? (
-            // ── FLUJO ──────────────────────────────────────────────────
-            !movResp || movResp.movimientos.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
-                Sin depósitos / extracciones / transferencias en el mes.
-              </div>
-            ) : (
-              <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
-                  <tr>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Fecha</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Tipo</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Importe orig</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Mon</th>
-                    <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="Importe convertido a ARS al MEP de la fecha del movimiento"
-                    >Importe ARS</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Detalle</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {movResp.movimientos.map((m) => {
-                    const isDep = m.categoria === "deposito" || m.categoria === "transferencia";
-                    return (
-                      <tr key={m.comprobante ?? m.fecha} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                        <td className="px-2 py-1 text-[#888]">{fmtFechaCorta(m.fecha)}</td>
-                        <td className="px-2 py-1">
-                          <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
-                            {m.categoria === "deposito"
-                              ? "Depósito"
-                              : m.categoria === "extraccion"
-                                ? "Extracción"
-                                : m.categoria === "transferencia"
-                                  ? "Transferencia"
-                                  : m.categoria}
-                          </span>
-                        </td>
-                        <td
-                          className="px-2 py-1 text-right text-[#888]"
-                          title={m.mep_rate ? `MEP usado: ${m.mep_rate.toLocaleString("es-AR")}` : ""}
-                        >
-                          {fmtSigned(m.importe)}
-                        </td>
-                        <td className="px-2 py-1 text-[#888]">{m.moneda ?? "—"}</td>
-                        <td
-                          className="px-2 py-1 text-right font-semibold"
-                          style={{ color: (m.importe_ars ?? 0) >= 0 ? "#00cc66" : "#ff5d6c" }}
-                        >
-                          {fmtSigned(m.importe_ars)}
-                        </td>
-                        <td
-                          className="px-2 py-1 text-[#888] truncate max-w-[260px]"
-                          title={m.informacion ?? ""}
-                        >
-                          {m.informacion ?? "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )
-          ) : (
-            // ── VARIACIÓN vs mes anterior ───────────────────────────────
-            !varResp || varResp.error || !varResp.totales ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
-                {varResp?.error ?? "Sin datos de variación."}
-              </div>
-            ) : (
-              <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
-                  <tr>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Título</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Tipo</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Val. ant.</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Val. actual</th>
-                    <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="Variación por movimiento de precio — el título rindió (a cantidad del mes anterior)."
-                    >Δ mercado</th>
-                    <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
-                      title="Variación por compra/venta — cambió la cantidad."
-                    >Δ operado</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Δ total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {varResp.filas.map((f) => (
-                    <tr key={f.unidad} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                      <td className="px-2 py-1 text-[#ff9900] truncate max-w-[240px]" title={f.unidad}>
-                        {f.unidad}
-                        {f.estado !== "ambos" && (
-                          <span className="text-[#666] ml-1">
-                            {f.estado === "nuevo" ? "(nuevo)" : "(cerrado)"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 text-[#888]">{f.tipo ?? "—"}</td>
-                      <td className="px-2 py-1 text-right text-[#888]">{fmtCompact(f.val_anterior)}</td>
-                      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtCompact(f.val_actual)}</td>
-                      <td className="px-2 py-1 text-right" style={{ color: colorDelta(f.delta_mercado) }}>
-                        {fmtSigned(f.delta_mercado)}
-                      </td>
-                      <td className="px-2 py-1 text-right" style={{ color: colorDelta(f.delta_operado) }}>
-                        {fmtSigned(f.delta_operado)}
-                      </td>
-                      <td className="px-2 py-1 text-right font-semibold" style={{ color: colorDelta(f.delta_total) }}>
-                        {fmtSigned(f.delta_total)}
-                      </td>
-                    </tr>
-                  ))}
-                  {varResp.otros && varResp.otros.delta_total !== 0 && (
-                    <tr className="border-t border-[#222] bg-[#0c0c0c]">
-                      <td className="px-2 py-1 text-[#888] italic">
-                        OTROS · efectivo ({varResp.otros.n ?? 0})
-                      </td>
-                      <td className="px-2 py-1 text-[#888]">—</td>
-                      <td className="px-2 py-1 text-right text-[#888]">{fmtCompact(varResp.otros.val_anterior)}</td>
-                      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtCompact(varResp.otros.val_actual)}</td>
-                      <td className="px-2 py-1 text-right" style={{ color: colorDelta(varResp.otros.delta_mercado) }}>
-                        {fmtSigned(varResp.otros.delta_mercado)}
-                      </td>
-                      <td className="px-2 py-1 text-right" style={{ color: colorDelta(varResp.otros.delta_operado) }}>
-                        {fmtSigned(varResp.otros.delta_operado)}
-                      </td>
-                      <td className="px-2 py-1 text-right font-semibold" style={{ color: colorDelta(varResp.otros.delta_total) }}>
-                        {fmtSigned(varResp.otros.delta_total)}
-                      </td>
-                    </tr>
-                  )}
-                  <tr className="border-t-2 border-[#333] bg-[#0f0f0f] font-semibold">
-                    <td className="px-2 py-1 text-[#ff9900]" colSpan={2}>TOTAL</td>
-                    <td className="px-2 py-1 text-right text-[#888]">{fmtCompact(varResp.totales.val_anterior)}</td>
-                    <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtCompact(varResp.totales.val_actual)}</td>
-                    <td className="px-2 py-1 text-right" style={{ color: colorDelta(varResp.totales.delta_mercado) }}>
-                      {fmtSigned(varResp.totales.delta_mercado)}
-                    </td>
-                    <td className="px-2 py-1 text-right" style={{ color: colorDelta(varResp.totales.delta_operado) }}>
-                      {fmtSigned(varResp.totales.delta_operado)}
-                    </td>
-                    <td className="px-2 py-1 text-right" style={{ color: colorDelta(varResp.totales.delta_total) }}>
-                      {fmtSigned(varResp.totales.delta_total)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            )
-          )}
+            )}
         </div>
       </div>
 
-        {/* Abajo izquierda: vacío por ahora */}
-        <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#080808]" />
+        {/* Abajo izquierda: Flujo / Variación del mes seleccionado */}
+        <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              {panelMode === "flujo" ? "Flujo del mes" : "Variación vs mes anterior"}
+            </span>
+            {selectedFecha && movResp && panelMode === "flujo" && (
+              <span className="text-[9px] text-[#555] font-mono">{fmtMesAnio(movResp.mes)}</span>
+            )}
+            {/* Toggle Flujo / Variación */}
+            <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333] ml-1">
+              {(["flujo", "variacion"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setPanelMode(m)}
+                  className={
+                    "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                    (panelMode === m
+                      ? "bg-[#ff9900] text-black"
+                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                  }
+                >
+                  {m === "flujo" ? "Flujo" : "Variación"}
+                </button>
+              ))}
+            </div>
+            {(panelMode === "flujo" ? movLoading : varLoading) && (
+              <span className="text-[9px] text-[#888]">cargando…</span>
+            )}
+            <span className="ml-auto text-[10px] text-[#888] font-mono">
+              {panelMode === "flujo"
+                ? movResp && (
+                    <>
+                      {movResp.n} · <span className="text-[#4a9eff] font-semibold">neto {fmtSigned(movResp.total_neto)}</span>
+                    </>
+                  )
+                : varResp?.totales && (
+                    <>
+                      Δ total{" "}
+                      <span className="font-semibold" style={{ color: colorDeltaMod(varResp.totales.delta_total) }}>
+                        {fmtSigned(varResp.totales.delta_total)}
+                      </span>
+                    </>
+                  )}
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {!selectedFecha ? (
+              <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+                Seleccioná un mes en la tabla mensual para ver el flujo o la variación.
+              </div>
+            ) : panelMode === "flujo" ? (
+              <FlujoTabla movResp={movResp} />
+            ) : (
+              <VariacionTabla varResp={varResp} />
+            )}
+          </div>
+        </div>
       </div>
 
     </div>
+  );
+}
+
+// ── Color de variación (compartido) ─────────────────────────────────────────
+function colorDeltaMod(n: number | null | undefined): string {
+  return n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
+}
+
+// ── Tabla FLUJO del mes (depósitos / extracciones / transferencias) ─────────
+function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
+  if (!movResp || movResp.movimientos.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+        Sin depósitos / extracciones / transferencias en el mes.
+      </div>
+    );
+  }
+  return (
+    <table className="w-full table-fixed text-[11px] font-mono tabular-nums">
+      <colgroup>
+        <col className="w-[12%]" />
+        <col className="w-[16%]" />
+        <col className="w-[15%]" />
+        <col className="w-[8%]" />
+        <col className="w-[15%]" />
+        <col className="w-[34%]" />
+      </colgroup>
+      <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+        <tr>
+          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Fecha</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Tipo</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Importe orig</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Mon</th>
+          <th
+            className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]"
+            title="Importe convertido a ARS al MEP de la fecha del movimiento"
+          >Importe ARS</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Detalle</th>
+        </tr>
+      </thead>
+      <tbody>
+        {movResp.movimientos.map((m) => {
+          const isDep = m.categoria === "deposito" || m.categoria === "transferencia";
+          return (
+            <tr key={m.comprobante ?? m.fecha} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+              <td className="px-2 py-1 align-top text-[#888]">{fmtFechaCorta(m.fecha)}</td>
+              <td className="px-2 py-1 align-top break-words">
+                <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
+                  {m.categoria === "deposito"
+                    ? "Depósito"
+                    : m.categoria === "extraccion"
+                      ? "Extracción"
+                      : m.categoria === "transferencia"
+                        ? "Transferencia"
+                        : m.categoria}
+                </span>
+              </td>
+              <td
+                className="px-2 py-1 align-top text-right text-[#888]"
+                title={m.mep_rate ? `MEP usado: ${m.mep_rate.toLocaleString("es-AR")}` : ""}
+              >
+                {fmtSigned(m.importe)}
+              </td>
+              <td className="px-2 py-1 align-top text-[#888]">{m.moneda ?? "—"}</td>
+              <td
+                className="px-2 py-1 align-top text-right font-semibold"
+                style={{ color: (m.importe_ars ?? 0) >= 0 ? "#00cc66" : "#ff5d6c" }}
+              >
+                {fmtSigned(m.importe_ars)}
+              </td>
+              <td className="px-2 py-1 align-top break-words text-[#888]" title={m.informacion ?? ""}>
+                {m.informacion ?? "—"}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+// ── Tabla VARIACIÓN vs mes anterior ─────────────────────────────────────────
+function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
+  if (!varResp || varResp.error || !varResp.totales) {
+    return (
+      <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+        {varResp?.error ?? "Sin datos de variación."}
+      </div>
+    );
+  }
+  return (
+    <table className="w-full table-fixed text-[11px] font-mono tabular-nums">
+      <colgroup>
+        <col className="w-[26%]" />
+        <col className="w-[12%]" />
+        <col className="w-[12%]" />
+        <col className="w-[12%]" />
+        <col className="w-[13%]" />
+        <col className="w-[12%]" />
+        <col className="w-[13%]" />
+      </colgroup>
+      <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+        <tr>
+          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Título</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Tipo</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Val. ant.</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Val. actual</th>
+          <th
+            className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]"
+            title="Variación por movimiento de precio — el título rindió (a cantidad del mes anterior)."
+          >Δ mercado</th>
+          <th
+            className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]"
+            title="Variación por compra/venta — cambió la cantidad."
+          >Δ operado</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Δ total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {varResp.filas.map((f) => (
+          <tr key={f.unidad} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+            <td className="px-2 py-1 align-top break-words text-[#ff9900]" title={f.unidad}>
+              {f.unidad}
+              {f.estado !== "ambos" && (
+                <span className="text-[#666] ml-1">
+                  {f.estado === "nuevo" ? "(nuevo)" : "(cerrado)"}
+                </span>
+              )}
+            </td>
+            <td className="px-2 py-1 align-top break-words text-[#888]">{f.tipo ?? "—"}</td>
+            <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(f.val_anterior)}</td>
+            <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(f.val_actual)}</td>
+            <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(f.delta_mercado) }}>
+              {fmtSigned(f.delta_mercado)}
+            </td>
+            <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(f.delta_operado) }}>
+              {fmtSigned(f.delta_operado)}
+            </td>
+            <td className="px-2 py-1 align-top text-right font-semibold" style={{ color: colorDeltaMod(f.delta_total) }}>
+              {fmtSigned(f.delta_total)}
+            </td>
+          </tr>
+        ))}
+        {varResp.otros && varResp.otros.delta_total !== 0 && (
+          <tr className="border-t border-[#222] bg-[#0c0c0c]">
+            <td className="px-2 py-1 align-top text-[#888] italic">
+              OTROS · efectivo ({varResp.otros.n ?? 0})
+            </td>
+            <td className="px-2 py-1 align-top text-[#888]">—</td>
+            <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(varResp.otros.val_anterior)}</td>
+            <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(varResp.otros.val_actual)}</td>
+            <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.otros.delta_mercado) }}>
+              {fmtSigned(varResp.otros.delta_mercado)}
+            </td>
+            <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.otros.delta_operado) }}>
+              {fmtSigned(varResp.otros.delta_operado)}
+            </td>
+            <td className="px-2 py-1 align-top text-right font-semibold" style={{ color: colorDeltaMod(varResp.otros.delta_total) }}>
+              {fmtSigned(varResp.otros.delta_total)}
+            </td>
+          </tr>
+        )}
+        <tr className="border-t-2 border-[#333] bg-[#0f0f0f] font-semibold">
+          <td className="px-2 py-1 align-top text-[#ff9900]" colSpan={2}>TOTAL</td>
+          <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(varResp.totales.val_anterior)}</td>
+          <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(varResp.totales.val_actual)}</td>
+          <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.totales.delta_mercado) }}>
+            {fmtSigned(varResp.totales.delta_mercado)}
+          </td>
+          <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.totales.delta_operado) }}>
+            {fmtSigned(varResp.totales.delta_operado)}
+          </td>
+          <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.totales.delta_total) }}>
+            {fmtSigned(varResp.totales.delta_total)}
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 }
