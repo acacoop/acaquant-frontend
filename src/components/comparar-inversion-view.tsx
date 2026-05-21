@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -234,6 +236,9 @@ export function CompararInversionView() {
   // Modo del gráfico: "renta" = solo cupones (default, así no los aplasta el
   // bullet de amortización); "total" = cupón + capital apilados.
   const [modoChart, setModoChart] = useState<"renta" | "total">("renta");
+  // Vista del gráfico: "mes" = cupón cobrado cada mes; "acum" = cupón
+  // acumulado (cuánta plata juntás de renta hasta cada fecha).
+  const [vista, setVista] = useState<"mes" | "acum">("mes");
   const [data, setData] = useState<CompararResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -289,6 +294,27 @@ export function CompararInversionView() {
     }
     return Array.from(map.values()).sort((x, y) => x.mes.localeCompare(y.mes));
   }, [data, modoChart]);
+
+  // En modo acumulado, running total de A y B mes a mes.
+  const chartData = useMemo(() => {
+    if (vista === "mes") return flujosMerged;
+    let ca = 0;
+    let cb = 0;
+    return flujosMerged.map((r) => {
+      ca += r.A;
+      cb += r.B;
+      return { mes: r.mes, A: ca, B: cb };
+    });
+  }, [flujosMerged, vista]);
+
+  // Símbolo y formato de plata para los ejes/tooltip del gráfico.
+  const curSym = (data?.meta.moneda_input ?? moneda) === "USD" ? "US$" : "$";
+  const fmtAxisMoney = (v: number): string => {
+    const a = Math.abs(v);
+    if (a >= 1_000_000) return `${curSym}${(v / 1_000_000).toFixed(1)}M`;
+    if (a >= 1_000) return `${curSym}${(v / 1_000).toFixed(0)}k`;
+    return `${curSym}${v.toFixed(0)}`;
+  };
 
   return (
     <div className="h-full min-h-0 flex flex-col p-2 gap-2">
@@ -429,7 +455,7 @@ export function CompararInversionView() {
         <div className="border border-[#1a1a1a] bg-[#080808] min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-2 pt-1.5 shrink-0">
             <span className="text-[9px] text-[#ff9900] tracking-widest">
-              FLUJOS / MES
+              FLUJOS
             </span>
             <div className="flex gap-1">
               <button
@@ -453,55 +479,105 @@ export function CompararInversionView() {
                 TOTAL
               </button>
             </div>
+            <div className="flex gap-1 pl-1.5 border-l border-[#1a1a1a]">
+              <button
+                onClick={() => setVista("mes")}
+                className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
+                  vista === "mes"
+                    ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
+                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#3fbf6f]"
+                }`}
+              >
+                POR MES
+              </button>
+              <button
+                onClick={() => setVista("acum")}
+                className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
+                  vista === "acum"
+                    ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
+                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#3fbf6f]"
+                }`}
+              >
+                ACUMULADO
+              </button>
+            </div>
             <span className="text-[8px] text-[#555555]">
-              {modoChart === "renta" ? "solo cupones" : "cupón + amortización"} · {data?.meta.moneda_input ?? moneda}
+              {modoChart === "renta" ? "solo cupones" : "cupón + amortización"}
+              {vista === "acum" ? " · acum." : ""} · {data?.meta.moneda_input ?? moneda}
             </span>
           </div>
           <div className="flex-1 min-h-0 p-1">
-            {data && flujosMerged.length > 0 ? (
+            {data && chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={flujosMerged} margin={{ top: 8, right: 16, left: 8, bottom: 18 }}>
-                  <CartesianGrid stroke="#1a1a1a" strokeDasharray="2 3" vertical={false} />
-                  <XAxis
-                    dataKey="mes"
-                    tick={{ fontSize: 9, fill: "#808080" }}
-                    axisLine={{ stroke: "#2a2a2a" }}
-                    tickLine={false}
-                    angle={-35}
-                    textAnchor="end"
-                    height={36}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 9, fill: "#808080" }}
-                    axisLine={{ stroke: "#2a2a2a" }}
-                    tickLine={false}
-                    width={70}
-                    tickFormatter={(v: number) =>
-                      v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` :
-                      v >= 1_000 ? `${(v / 1_000).toFixed(0)}k` :
-                      v.toFixed(0)
-                    }
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "#0e0e0e",
-                      border: "1px solid #2a2a2a",
-                      fontSize: 11,
-                      fontFamily: "JetBrains Mono, monospace",
-                    }}
-                    labelStyle={{ color: "#ff9900" }}
-                    formatter={(v, name) => [fmt(Number(v), 0), String(name)]}
-                    labelFormatter={(v) => fmtFechaCorta(`${v}-01`).slice(3)}
-                  />
-                  <Legend
-                    verticalAlign="top"
-                    align="right"
-                    height={18}
-                    wrapperStyle={{ fontSize: 10 }}
-                  />
-                  <Bar dataKey="A" fill={COLOR_A} name={data.a.label} />
-                  <Bar dataKey="B" fill={COLOR_B} name={data.b.label} />
-                </BarChart>
+                {vista === "mes" ? (
+                  <BarChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 18 }}>
+                    <CartesianGrid stroke="#1a1a1a" strokeDasharray="2 3" vertical={false} />
+                    <XAxis
+                      dataKey="mes"
+                      tick={{ fontSize: 9, fill: "#808080" }}
+                      axisLine={{ stroke: "#2a2a2a" }}
+                      tickLine={false}
+                      angle={-35}
+                      textAnchor="end"
+                      height={36}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 9, fill: "#808080" }}
+                      axisLine={{ stroke: "#2a2a2a" }}
+                      tickLine={false}
+                      width={70}
+                      tickFormatter={fmtAxisMoney}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#0e0e0e",
+                        border: "1px solid #2a2a2a",
+                        fontSize: 11,
+                        fontFamily: "JetBrains Mono, monospace",
+                      }}
+                      labelStyle={{ color: "#ff9900" }}
+                      formatter={(v, name) => [`${curSym}${fmt(Number(v), 0)}`, String(name)]}
+                      labelFormatter={(v) => fmtFechaCorta(`${v}-01`).slice(3)}
+                    />
+                    <Legend verticalAlign="top" align="right" height={18} wrapperStyle={{ fontSize: 10 }} />
+                    <Bar dataKey="A" fill={COLOR_A} name={data.a.label} />
+                    <Bar dataKey="B" fill={COLOR_B} name={data.b.label} />
+                  </BarChart>
+                ) : (
+                  <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 18 }}>
+                    <CartesianGrid stroke="#1a1a1a" strokeDasharray="2 3" vertical={false} />
+                    <XAxis
+                      dataKey="mes"
+                      tick={{ fontSize: 9, fill: "#808080" }}
+                      axisLine={{ stroke: "#2a2a2a" }}
+                      tickLine={false}
+                      angle={-35}
+                      textAnchor="end"
+                      height={36}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 9, fill: "#808080" }}
+                      axisLine={{ stroke: "#2a2a2a" }}
+                      tickLine={false}
+                      width={70}
+                      tickFormatter={fmtAxisMoney}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#0e0e0e",
+                        border: "1px solid #2a2a2a",
+                        fontSize: 11,
+                        fontFamily: "JetBrains Mono, monospace",
+                      }}
+                      labelStyle={{ color: "#ff9900" }}
+                      formatter={(v, name) => [`${curSym}${fmt(Number(v), 0)}`, String(name)]}
+                      labelFormatter={(v) => fmtFechaCorta(`${v}-01`).slice(3)}
+                    />
+                    <Legend verticalAlign="top" align="right" height={18} wrapperStyle={{ fontSize: 10 }} />
+                    <Area type="monotone" dataKey="A" stroke={COLOR_A} fill={COLOR_A} fillOpacity={0.22} name={data.a.label} />
+                    <Area type="monotone" dataKey="B" stroke={COLOR_B} fill={COLOR_B} fillOpacity={0.22} name={data.b.label} />
+                  </AreaChart>
+                )}
               </ResponsiveContainer>
             ) : (
               <div className="h-full flex items-center justify-center text-[#555555] text-[11px]">
