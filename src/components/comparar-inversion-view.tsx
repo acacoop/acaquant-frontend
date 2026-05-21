@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,14 +13,9 @@ import {
 } from "recharts";
 
 /**
- * COMPARAR INVERSIÓN — sub-tab de Estrategia.
- *
- * Mitad superior de la pantalla: selector A izq, tabla de métricas A vs B
- * en el centro, selector B + gráfico de cupones a la derecha. Mitad inferior
- * vacía (reservada para feature futura).
- *
- * Fase 1: universo Trading.Curvas (cer, tasa_fija, soberanos). BondsMaster
- * pendiente Fase 2 (ver memoria project-comparar-inversion-wip).
+ * COMPARAR INVERSIÓN — tab dentro de /retorno.
+ * Layout: header con monto/moneda/selectores arriba; abajo grid 2 cols
+ * (tabla de métricas izq, gráfico de cupones der) ocupando todo el espacio.
  */
 
 interface BonoSeleccionable {
@@ -86,7 +82,7 @@ const WARNING_LABELS: Record<string, string> = {
   cross_moneda: "Monedas distintas — la conversión usa MEP live constante.",
   sin_precio_live: "Algún bono no tiene precio live — flujos sin escalar al monto.",
   mep_faltante: "No hay MEP disponible para convertir el monto.",
-  flujos_cer_sin_proyectar: "Bonos CER: el gráfico muestra solo flujos con CER ya publicado, no proyectados.",
+  cer_proyectado_constante: "Bonos CER: los flujos futuros se proyectan con el último CER publicado constante (no proyección de inflación).",
 };
 
 const fmt = (n: number | null | undefined, dig = 2): string =>
@@ -96,31 +92,41 @@ const fmtPct = (n: number | null | undefined): string =>
   n == null ? "—" : (n * 100).toFixed(2) + "%";
 
 const fmtMoney = (n: number | null | undefined, moneda: string): string =>
-  n == null ? "—" : `${moneda === "USD" ? "US$" : "$"} ${Math.round(n).toLocaleString("es-AR")}`;
+  n == null ? "—" : `${moneda === "USD" ? "US$" : "$"}${Math.round(n).toLocaleString("es-AR")}`;
+
+function fmtFechaCorta(s: string): string {
+  const d = new Date(s.slice(0, 10));
+  if (isNaN(d.getTime())) return s;
+  return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCFullYear()).slice(2)}`;
+}
 
 function BonoSelector({
   label,
   bonos,
   selected,
   onChange,
+  color,
 }: {
   label: string;
   bonos: BonoSeleccionable[];
   selected: string;
   onChange: (id: string) => void;
+  color: string;
 }) {
   return (
-    <div>
-      <div className="text-[8px] text-[#555555] uppercase mb-0.5">{label}</div>
+    <div className="flex items-center gap-1">
+      <span className="text-[9px] uppercase tracking-wide font-semibold shrink-0" style={{ color }}>
+        {label}
+      </span>
       <select
         value={selected}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+        className="flex-1 bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
       >
-        <option value="">— elegir —</option>
+        <option value="">— elegir bono —</option>
         {bonos.map((b) => (
           <option key={b.id} value={b.id}>
-            {b.moneda} · {b.label}{b.cer_fijado ? " (CER fijado)" : ""} · {b.curva} · {b.vencimiento ?? "—"}
+            {b.moneda} · {b.label}{b.cer_fijado ? " (CER fij.)" : ""} · {b.curva} · {b.vencimiento ?? "—"}
           </option>
         ))}
       </select>
@@ -132,19 +138,24 @@ function MetricRow({
   label,
   a,
   b,
+  highlight,
 }: {
   label: string;
   a: string;
   b: string;
+  highlight?: boolean;
 }) {
   return (
-    <tr className="border-b border-[#141414]">
-      <td className="text-right px-2 py-1 font-mono text-[#d0d0d0] w-[35%]">{a}</td>
-      <td className="text-center px-2 py-1 text-[8px] text-[#555555] uppercase tracking-wide w-[30%]">{label}</td>
-      <td className="text-left px-2 py-1 font-mono text-[#d0d0d0] w-[35%]">{b}</td>
+    <tr className={highlight ? "bg-[#0e0e0e]" : ""}>
+      <td className="text-right px-2 py-0.5 font-mono text-[#d0d0d0] whitespace-nowrap">{a}</td>
+      <td className="text-center px-2 py-0.5 text-[8px] text-[#555555] uppercase tracking-wide whitespace-nowrap">{label}</td>
+      <td className="text-left px-2 py-0.5 font-mono text-[#d0d0d0] whitespace-nowrap">{b}</td>
     </tr>
   );
 }
+
+const COLOR_A = "#ff9900";
+const COLOR_B = "#3fbf6f";
 
 export function CompararInversionView() {
   const [bonos, setBonos] = useState<BonoSeleccionable[]>([]);
@@ -156,7 +167,6 @@ export function CompararInversionView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar universo al montar.
   useEffect(() => {
     fetch("/api/comparar/bonos", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -164,7 +174,6 @@ export function CompararInversionView() {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  // Refetch comparación cuando hay 2 bonos elegidos + monto válido.
   useEffect(() => {
     if (!aId || !bId) {
       setData(null);
@@ -188,193 +197,239 @@ export function CompararInversionView() {
       .finally(() => setLoading(false));
   }, [aId, bId, monto, moneda]);
 
-  // Merge de flujos para el gráfico: union de fechas A∪B.
+  // Agrupamos flujos por mes para que cupones con fechas distintas pero del
+  // mismo mes aparezcan juntos en el gráfico (ej. A paga el 27 y B el 30).
   const flujosMerged = useMemo(() => {
     if (!data) return [];
-    const map = new Map<string, { fecha: string; A: number | null; B: number | null }>();
+    const map = new Map<string, { mes: string; A: number; B: number }>();
     for (const f of data.a.flujos) {
-      map.set(f.fecha, { fecha: f.fecha, A: f.monto, B: null });
+      const mes = f.fecha.slice(0, 7);
+      const ex = map.get(mes) ?? { mes, A: 0, B: 0 };
+      if (f.monto != null) ex.A += f.monto;
+      map.set(mes, ex);
     }
     for (const f of data.b.flujos) {
-      const ex = map.get(f.fecha);
-      if (ex) ex.B = f.monto;
-      else map.set(f.fecha, { fecha: f.fecha, A: null, B: f.monto });
+      const mes = f.fecha.slice(0, 7);
+      const ex = map.get(mes) ?? { mes, A: 0, B: 0 };
+      if (f.monto != null) ex.B += f.monto;
+      map.set(mes, ex);
     }
-    return Array.from(map.values()).sort((x, y) => x.fecha.localeCompare(y.fecha));
+    return Array.from(map.values()).sort((x, y) => x.mes.localeCompare(y.mes));
   }, [data]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col">
-      {/* Bloque superior — 50% de la altura */}
-      <div className="h-1/2 min-h-0 flex flex-col p-3 gap-2 overflow-y-auto">
-        {/* Header: monto + moneda */}
-        <div className="flex items-end gap-2 flex-wrap shrink-0">
-          <div>
-            <div className="text-[8px] text-[#555555] uppercase mb-0.5">Monto a invertir</div>
+    <div className="h-full min-h-0 flex flex-col p-2 gap-2">
+      {/* Toolbar: monto + moneda + selectores */}
+      <div className="border border-[#1a1a1a] bg-[#080808] p-2 shrink-0 flex items-end gap-3 flex-wrap">
+        <div>
+          <div className="text-[8px] text-[#555555] uppercase mb-0.5">Monto a invertir</div>
+          <div className="flex items-stretch">
             <input
               value={monto}
               onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
-              className="w-36 bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="w-32 bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
             />
-          </div>
-          <div className="flex gap-1">
-            {(["ARS", "USD"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMoneda(m)}
-                className={`px-2 py-1 text-[10px] font-semibold border transition-colors ${
-                  moneda === m
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          {loading && <span className="text-[10px] text-[#555555] italic">Cargando…</span>}
-          {error && <span className="text-[10px] text-[#ff7f7f] italic">{error}</span>}
-        </div>
-
-        {/* Grid 3 cols: selector A | tabla | selector B + gráfico */}
-        <div className="flex-1 min-h-0 grid grid-cols-12 gap-2">
-          {/* Col izq: selector A + warnings */}
-          <div className="col-span-3 flex flex-col gap-2 min-h-0">
-            <BonoSelector label="Bono A" bonos={bonos} selected={aId} onChange={setAId} />
-            {data && (
-              <div className="text-[9px] text-[#888888] font-mono border border-[#1a1a1a] bg-[#080808] px-2 py-1">
-                <div className="text-[#ff9900] text-[10px] mb-0.5">{data.a.label}</div>
-                <div>vto {data.a.vencimiento ?? "—"}</div>
-                <div>{data.a.curva} · {data.a.moneda}</div>
-                {data.a.monto_efectivo != null && (
-                  <div className="mt-0.5">monto efectivo {fmtMoney(data.a.monto_efectivo, data.a.moneda)}</div>
-                )}
-                {data.a.vn_nominal != null && (
-                  <div>VN nominal {fmt(data.a.vn_nominal, 0)}</div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Col centro: tabla de métricas */}
-          <div className="col-span-5 min-h-0 overflow-y-auto">
-            {data ? (
-              <table className="w-full text-[10px]">
-                <thead>
-                  <tr className="text-[#ff9900] text-[10px]">
-                    <th className="text-right px-2 py-1">{data.a.label}</th>
-                    <th className="text-center px-2 py-1 text-[#555555] text-[8px] uppercase">métrica</th>
-                    <th className="text-left px-2 py-1">{data.b.label}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <MetricRow label="Curva" a={data.a.curva} b={data.b.curva} />
-                  <MetricRow label="Tipo" a={data.a.tipo ?? "—"} b={data.b.tipo ?? "—"} />
-                  <MetricRow label="Moneda" a={data.a.moneda} b={data.b.moneda} />
-                  <MetricRow label="Vencimiento" a={data.a.vencimiento ?? "—"} b={data.b.vencimiento ?? "—"} />
-                  <MetricRow
-                    label="Meses al vto"
-                    a={data.a.meses_al_vto != null ? fmt(data.a.meses_al_vto, 1) : "—"}
-                    b={data.b.meses_al_vto != null ? fmt(data.b.meses_al_vto, 1) : "—"}
-                  />
-                  <MetricRow
-                    label="Último precio"
-                    a={fmt(data.a.metricas.ultimo_precio)}
-                    b={fmt(data.b.metricas.ultimo_precio)}
-                  />
-                  <MetricRow label="TEA" a={fmtPct(data.a.metricas.tea)} b={fmtPct(data.b.metricas.tea)} />
-                  <MetricRow label="TEM" a={fmtPct(data.a.metricas.tem)} b={fmtPct(data.b.metricas.tem)} />
-                  <MetricRow
-                    label="Duration"
-                    a={fmt(data.a.metricas.duration)}
-                    b={fmt(data.b.metricas.duration)}
-                  />
-                  <MetricRow
-                    label="Mod. Duration"
-                    a={fmt(data.a.metricas.mod_duration)}
-                    b={fmt(data.b.metricas.mod_duration)}
-                  />
-                  <MetricRow
-                    label="Paridad"
-                    a={fmt(data.a.metricas.paridad)}
-                    b={fmt(data.b.metricas.paridad)}
-                  />
-                  <MetricRow
-                    label="Convexity"
-                    a={fmt(data.a.metricas.convexity)}
-                    b={fmt(data.b.metricas.convexity)}
-                  />
-                  <MetricRow
-                    label="TC Breakeven"
-                    a={fmt(data.a.metricas.tc_breakeven)}
-                    b={fmt(data.b.metricas.tc_breakeven)}
-                  />
-                  <MetricRow
-                    label="N° cupones"
-                    a={String(data.a.n_flujos)}
-                    b={String(data.b.n_flujos)}
-                  />
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-[#555555] py-4 text-center">
-                Elegí 2 bonos para comparar.
-              </p>
-            )}
-          </div>
-
-          {/* Col der: selector B + gráfico */}
-          <div className="col-span-4 flex flex-col gap-2 min-h-0">
-            <BonoSelector label="Bono B" bonos={bonos} selected={bId} onChange={setBId} />
-            <div className="flex-1 min-h-[160px] border border-[#1a1a1a] bg-[#080808] p-1">
-              {data && flujosMerged.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={flujosMerged} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                    <CartesianGrid stroke="#1a1a1a" strokeDasharray="2 3" />
-                    <XAxis
-                      dataKey="fecha"
-                      tick={{ fontSize: 8, fill: "#555555" }}
-                      tickFormatter={(d: string) => d.slice(2, 7)}
-                    />
-                    <YAxis tick={{ fontSize: 8, fill: "#555555" }} width={50} />
-                    <Tooltip
-                      contentStyle={{ background: "#080808", border: "1px solid #2a2a2a", fontSize: 10 }}
-                      labelStyle={{ color: "#d0d0d0" }}
-                    />
-                    <Bar dataKey="A" fill="#ff9900" name={data.a.label} />
-                    <Bar dataKey="B" fill="#3fbf6f" name={data.b.label} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-[#555555] text-center py-4 text-[10px]">
-                  El gráfico aparece cuando elegís los dos bonos.
-                </p>
-              )}
+            <div className="flex">
+              {(["ARS", "USD"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMoneda(m)}
+                  className={`px-2 py-0.5 text-[10px] font-semibold border-y border-r transition-colors ${
+                    moneda === m
+                      ? "bg-[#ff9900] text-black border-[#ff9900]"
+                      : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900]"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
             </div>
           </div>
         </div>
+        <div className="flex-1 min-w-[260px] flex flex-col gap-1">
+          <BonoSelector label="A" bonos={bonos} selected={aId} onChange={setAId} color={COLOR_A} />
+          <BonoSelector label="B" bonos={bonos} selected={bId} onChange={setBId} color={COLOR_B} />
+        </div>
+        {loading && <span className="text-[10px] text-[#555555] italic">cargando…</span>}
+        {error && <span className="text-[10px] text-[#ff7f7f] italic">{error}</span>}
+      </div>
 
-        {/* Warnings */}
-        {data && data.meta.warnings.length > 0 && (
-          <div className="shrink-0 flex flex-col gap-0.5">
-            {data.meta.warnings.map((w) => (
-              <div key={w} className="text-[9px] text-[#ffcc66] italic">
-                ⚠ {WARNING_LABELS[w] ?? w}
-              </div>
-            ))}
-            {data.meta.mep_aplicado && (
-              <div className="text-[8px] text-[#555555]">
-                MEP aplicado para conversión: {fmt(data.meta.mep_aplicado, 2)}
+      {/* Cuerpo: tabla izq + gráfico der */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-2">
+        {/* Tabla de métricas */}
+        <div className="border border-[#1a1a1a] bg-[#080808] min-h-0 overflow-y-auto">
+          {data ? (
+            <table className="w-full text-[11px]">
+              <thead className="sticky top-0 bg-[#080808] z-10">
+                <tr>
+                  <th className="text-right px-2 py-1 font-semibold text-[11px]" style={{ color: COLOR_A }}>
+                    {data.a.label}
+                  </th>
+                  <th className="text-center px-2 py-1 text-[8px] uppercase text-[#555555]">métrica</th>
+                  <th className="text-left px-2 py-1 font-semibold text-[11px]" style={{ color: COLOR_B }}>
+                    {data.b.label}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <MetricRow label="Curva" a={data.a.curva} b={data.b.curva} />
+                <MetricRow label="Tipo" a={data.a.tipo ?? "—"} b={data.b.tipo ?? "—"} highlight />
+                <MetricRow label="Moneda" a={data.a.moneda} b={data.b.moneda} />
+                <MetricRow
+                  label="Vencimiento"
+                  a={data.a.vencimiento ?? "—"}
+                  b={data.b.vencimiento ?? "—"}
+                  highlight
+                />
+                <MetricRow
+                  label="Meses al vto"
+                  a={data.a.meses_al_vto != null ? fmt(data.a.meses_al_vto, 1) : "—"}
+                  b={data.b.meses_al_vto != null ? fmt(data.b.meses_al_vto, 1) : "—"}
+                />
+                <MetricRow
+                  label="Último precio"
+                  a={fmt(data.a.metricas.ultimo_precio)}
+                  b={fmt(data.b.metricas.ultimo_precio)}
+                  highlight
+                />
+                <MetricRow label="TEA" a={fmtPct(data.a.metricas.tea)} b={fmtPct(data.b.metricas.tea)} />
+                <MetricRow
+                  label="TEM"
+                  a={fmtPct(data.a.metricas.tem)}
+                  b={fmtPct(data.b.metricas.tem)}
+                  highlight
+                />
+                <MetricRow
+                  label="Duration"
+                  a={fmt(data.a.metricas.duration)}
+                  b={fmt(data.b.metricas.duration)}
+                />
+                <MetricRow
+                  label="Mod. Duration"
+                  a={fmt(data.a.metricas.mod_duration)}
+                  b={fmt(data.b.metricas.mod_duration)}
+                  highlight
+                />
+                <MetricRow
+                  label="Paridad"
+                  a={fmt(data.a.metricas.paridad)}
+                  b={fmt(data.b.metricas.paridad)}
+                />
+                <MetricRow
+                  label="Convexity"
+                  a={fmt(data.a.metricas.convexity)}
+                  b={fmt(data.b.metricas.convexity)}
+                  highlight
+                />
+                <MetricRow
+                  label="TC Breakeven"
+                  a={fmt(data.a.metricas.tc_breakeven)}
+                  b={fmt(data.b.metricas.tc_breakeven)}
+                />
+                <MetricRow
+                  label="N° cupones"
+                  a={String(data.a.n_flujos)}
+                  b={String(data.b.n_flujos)}
+                  highlight
+                />
+                <MetricRow
+                  label="Monto efectivo"
+                  a={fmtMoney(data.a.monto_efectivo, data.a.moneda)}
+                  b={fmtMoney(data.b.monto_efectivo, data.b.moneda)}
+                />
+                <MetricRow
+                  label="VN nominal"
+                  a={data.a.vn_nominal != null ? fmt(data.a.vn_nominal, 0) : "—"}
+                  b={data.b.vn_nominal != null ? fmt(data.b.vn_nominal, 0) : "—"}
+                  highlight
+                />
+              </tbody>
+            </table>
+          ) : (
+            <div className="h-full flex items-center justify-center text-[#555555] text-[11px]">
+              Elegí 2 bonos para comparar
+            </div>
+          )}
+        </div>
+
+        {/* Gráfico */}
+        <div className="border border-[#1a1a1a] bg-[#080808] min-h-0 flex flex-col">
+          <div className="text-[9px] text-[#ff9900] tracking-widest px-2 pt-1.5 shrink-0">
+            CUPONES PROYECTADOS · agrupados por mes ·
+            <span className="text-[#555555] font-normal ml-1">
+              {data?.meta.moneda_input ?? moneda}
+            </span>
+          </div>
+          <div className="flex-1 min-h-0 p-1">
+            {data && flujosMerged.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={flujosMerged} margin={{ top: 8, right: 16, left: 8, bottom: 18 }}>
+                  <CartesianGrid stroke="#1a1a1a" strokeDasharray="2 3" vertical={false} />
+                  <XAxis
+                    dataKey="mes"
+                    tick={{ fontSize: 9, fill: "#808080" }}
+                    axisLine={{ stroke: "#2a2a2a" }}
+                    tickLine={false}
+                    angle={-35}
+                    textAnchor="end"
+                    height={36}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 9, fill: "#808080" }}
+                    axisLine={{ stroke: "#2a2a2a" }}
+                    tickLine={false}
+                    width={70}
+                    tickFormatter={(v: number) =>
+                      v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` :
+                      v >= 1_000 ? `${(v / 1_000).toFixed(0)}k` :
+                      v.toFixed(0)
+                    }
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#0e0e0e",
+                      border: "1px solid #2a2a2a",
+                      fontSize: 11,
+                      fontFamily: "JetBrains Mono, monospace",
+                    }}
+                    labelStyle={{ color: "#ff9900" }}
+                    formatter={(v, name) => [fmt(Number(v), 0), String(name)]}
+                    labelFormatter={(v) => fmtFechaCorta(`${v}-01`).slice(3)}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    height={18}
+                    wrapperStyle={{ fontSize: 10 }}
+                  />
+                  <Bar dataKey="A" fill={COLOR_A} name={data.a.label} />
+                  <Bar dataKey="B" fill={COLOR_B} name={data.b.label} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-[#555555] text-[11px]">
+                El gráfico aparece cuando elegís los dos bonos.
               </div>
             )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Bloque inferior — reservado, vacío */}
-      <div className="h-1/2 min-h-0 border-t border-[#1a1a1a] flex items-center justify-center">
-        <span className="text-[9px] text-[#333333] italic">— reservado —</span>
-      </div>
+      {/* Warnings */}
+      {data && (data.meta.warnings.length > 0 || data.meta.mep_aplicado != null) && (
+        <div className="shrink-0 flex flex-wrap gap-x-3 gap-y-0.5">
+          {data.meta.warnings.map((w) => (
+            <span key={w} className="text-[9px] text-[#ffcc66]">
+              ⚠ {WARNING_LABELS[w] ?? w}
+            </span>
+          ))}
+          {data.meta.mep_aplicado != null && (
+            <span className="text-[9px] text-[#555555]">
+              MEP aplicado: {fmt(data.meta.mep_aplicado, 2)}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
