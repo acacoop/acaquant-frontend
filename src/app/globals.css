@@ -79,30 +79,37 @@ body {
   animation-play-state: paused;
 }
 
-/* ── Tables ── */
-table {
-  border-collapse: collapse;
-  width: 100%;
-  font-size: 12px;
-}
-th {
-  text-align: left;
-  padding: 4px 8px;
-  color: #ff9900;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid #2a2a2a;
-  white-space: nowrap;
-}
-td {
-  padding: 3px 8px;
-  border-bottom: 1px solid #111111;
-  white-space: nowrap;
-}
-tr:hover {
-  background: #0e0e0e;
+/* ── Tables ──
+   En @layer base para que las utilidades de Tailwind (ej. whitespace-normal,
+   break-words) puedan sobreescribir estos defaults. Sin el layer, estas reglas
+   de elemento (no-layereadas) le ganan SIEMPRE a las utilities en Tailwind v4
+   → whitespace-normal no aplicaba y las celdas largas se montaban sobre la
+   columna siguiente. */
+@layer base {
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 12px;
+  }
+  th {
+    text-align: left;
+    padding: 4px 8px;
+    color: #ff9900;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #2a2a2a;
+    white-space: nowrap;
+  }
+  td {
+    padding: 3px 8px;
+    border-bottom: 1px solid #111111;
+    white-space: nowrap;
+  }
+  tr:hover {
+    background: #0e0e0e;
+  }
 }
 
 /* ── Single range slider (breakevens, curvas) ── */
