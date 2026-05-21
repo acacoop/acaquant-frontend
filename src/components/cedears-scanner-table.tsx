@@ -186,10 +186,18 @@ export function CedearsScannerTable({
                       </>
                     ) : (
                       <>
-                        <td className="!px-1 text-right font-semibold tabular-nums text-[#d0d0d0]">
-                          {r.adr_last != null
-                            ? `$${r.adr_last.toFixed(2)}`
-                            : "--"}
+                        <td className="!px-1 text-right font-semibold tabular-nums">
+                          <span className={r.adr_intraday === false ? "text-[#808080]" : "text-[#d0d0d0]"}>
+                            {r.adr_last != null ? `$${r.adr_last.toFixed(2)}` : "--"}
+                          </span>
+                          {r.adr_intraday === false && (
+                            <span
+                              className="ml-1 text-[7px] text-[#ff9900] tracking-widest align-middle"
+                              title="Cierre previo — el mercado aún no operó hoy (pre-market) o es cierre EOD"
+                            >
+                              CIERRE
+                            </span>
+                          )}
                         </td>
                         <PctCell v={r.adr_vs_1d_pct} />
                         <PctCell v={r.adr_ret_7d_pct} />

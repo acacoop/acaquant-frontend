@@ -102,6 +102,9 @@ export interface CedearScannerRow {
   // ADR (USD del underlying, EOD desde Trading.PreciosAcciones)
   adr_last:        number | null;
   adr_fecha:       string | null;
+  // true = precio intradía de hoy; false = cierre previo (pre-market/EOD);
+  // null = sin dato. El frontend marca con "CIERRE" cuando no es intradía.
+  adr_intraday:    boolean | null;
   adr_vs_1d_pct:   number | null;
   adr_ret_7d_pct:  number | null;
   adr_ret_mtd_pct: number | null;
