@@ -34,6 +34,8 @@ interface BonoSeleccionable {
 interface FlujoEscalado {
   fecha: string;
   monto: number | null;
+  cupon: number | null;
+  amort: number | null;
   monto_por_100: number;
 }
 
@@ -163,6 +165,9 @@ export function CompararInversionView() {
   const [bId, setBId] = useState("");
   const [monto, setMonto] = useState("1000000");
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  // Modo del gráfico: "renta" = solo cupones (default, así no los aplasta el
+  // bullet de amortización); "total" = cupón + capital apilados.
+  const [modoChart, setModoChart] = useState<"renta" | "total">("renta");
   const [data, setData] = useState<CompararResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -198,24 +203,26 @@ export function CompararInversionView() {
   }, [aId, bId, monto, moneda]);
 
   // Agrupamos flujos por mes para que cupones con fechas distintas pero del
-  // mismo mes aparezcan juntos en el gráfico (ej. A paga el 27 y B el 30).
+  // mismo mes aparezcan juntos. Según modo: cupón (renta) o cupón+amort (total).
   const flujosMerged = useMemo(() => {
     if (!data) return [];
+    const pick = (f: FlujoEscalado): number =>
+      modoChart === "renta" ? (f.cupon ?? 0) : (f.monto ?? 0);
     const map = new Map<string, { mes: string; A: number; B: number }>();
     for (const f of data.a.flujos) {
       const mes = f.fecha.slice(0, 7);
       const ex = map.get(mes) ?? { mes, A: 0, B: 0 };
-      if (f.monto != null) ex.A += f.monto;
+      ex.A += pick(f);
       map.set(mes, ex);
     }
     for (const f of data.b.flujos) {
       const mes = f.fecha.slice(0, 7);
       const ex = map.get(mes) ?? { mes, A: 0, B: 0 };
-      if (f.monto != null) ex.B += f.monto;
+      ex.B += pick(f);
       map.set(mes, ex);
     }
     return Array.from(map.values()).sort((x, y) => x.mes.localeCompare(y.mes));
-  }, [data]);
+  }, [data, modoChart]);
 
   return (
     <div className="h-full min-h-0 flex flex-col p-2 gap-2">
@@ -354,10 +361,34 @@ export function CompararInversionView() {
 
         {/* Gráfico */}
         <div className="border border-[#1a1a1a] bg-[#080808] min-h-0 flex flex-col">
-          <div className="text-[9px] text-[#ff9900] tracking-widest px-2 pt-1.5 shrink-0">
-            CUPONES PROYECTADOS · agrupados por mes ·
-            <span className="text-[#555555] font-normal ml-1">
-              {data?.meta.moneda_input ?? moneda}
+          <div className="flex items-center gap-2 px-2 pt-1.5 shrink-0">
+            <span className="text-[9px] text-[#ff9900] tracking-widest">
+              FLUJOS / MES
+            </span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setModoChart("renta")}
+                className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
+                  modoChart === "renta"
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900]"
+                }`}
+              >
+                RENTA
+              </button>
+              <button
+                onClick={() => setModoChart("total")}
+                className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
+                  modoChart === "total"
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900]"
+                }`}
+              >
+                TOTAL
+              </button>
+            </div>
+            <span className="text-[8px] text-[#555555]">
+              {modoChart === "renta" ? "solo cupones" : "cupón + amortización"} · {data?.meta.moneda_input ?? moneda}
             </span>
           </div>
           <div className="flex-1 min-h-0 p-1">
