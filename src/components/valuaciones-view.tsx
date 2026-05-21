@@ -1047,31 +1047,43 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 Sin posiciones activas.
               </div>
             ) : (
-              <table className="w-full text-[11px] font-mono tabular-nums">
+              <table className="w-full table-fixed text-[11px] font-mono tabular-nums">
+                <colgroup>
+                  <col className="w-[13%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[5%]" />
+                </colgroup>
                 <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Ticker</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Emisor</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Clase</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Cart.</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Calif.</th>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Vto.</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Cant.</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Precio</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">Valuación</th>
-                    <th className="px-2 py-1 text-right border-b border-[#1a1a1a]">%</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Ticker</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Emisor</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Clase</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Cart.</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Calif.</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Vto.</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Cant.</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Precio</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Valuación</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {posiciones.map((p) => (
                     <tr key={p.unidad ?? p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
-                      <td className="px-2 py-1 text-[#ff9900] font-semibold">{p.ticker}</td>
-                      <td className="px-2 py-1 text-[#d0d0d0]">{p.emisor || "—"}</td>
-                      <td className="px-2 py-1 text-[#888]">{p.clase_activo || "—"}</td>
-                      <td className="px-2 py-1">
+                      <td className="px-2 py-1 align-top break-words text-[#ff9900] font-semibold">{p.ticker}</td>
+                      <td className="px-2 py-1 align-top break-words text-[#d0d0d0]">{p.emisor || "—"}</td>
+                      <td className="px-2 py-1 align-top break-words text-[#888]">{p.clase_activo || "—"}</td>
+                      <td className="px-2 py-1 align-top">
                         <span className="inline-flex items-center gap-1">
                           <span
-                            className="w-1.5 h-1.5 rounded-full inline-block"
+                            className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
                             style={{ background: carteraColor(p.cartera) }}
                           />
                           <span style={{ color: carteraColor(p.cartera) }}>
@@ -1079,19 +1091,19 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                           </span>
                         </span>
                       </td>
-                      <td className="px-2 py-1 text-[#888]">{p.calificacion || "—"}</td>
-                      <td className="px-2 py-1 text-[#888]">
+                      <td className="px-2 py-1 align-top break-words text-[#888]">{p.calificacion || "—"}</td>
+                      <td className="px-2 py-1 align-top break-words text-[#888]">
                         {p.vencimiento ? fmtFechaCorta(p.vencimiento) : "—"}
                       </td>
-                      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
-                      <td className="px-2 py-1 text-right text-[#888]">{fmtPrice(p.precio)}</td>
+                      <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
+                      <td className="px-2 py-1 align-top text-right text-[#888]">{fmtPrice(p.precio)}</td>
                       <td
-                        className="px-2 py-1 text-right font-semibold"
+                        className="px-2 py-1 align-top text-right font-semibold"
                         style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "#ff3333" }}
                       >
                         {fmtCompact(p.valuacion)}
                       </td>
-                      <td className="px-2 py-1 text-right text-[#888]">
+                      <td className="px-2 py-1 align-top text-right text-[#888]">
                         {p.share != null ? p.share.toFixed(1) + "%" : "—"}
                       </td>
                     </tr>
