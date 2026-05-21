@@ -28,9 +28,21 @@ interface TotalesResp {
     pnl_pasivo:          number;
     pnl_realizado_dia:   number;
     pnl_total:           number;
+    // Espejo USD — presentes una vez que el cron recalcula el cache.
+    valor_actual_usd?:   number;
+    costo_remanente_usd?: number;
   };
   filtro_cuenta: string;
 }
+
+type Moneda = "ARS" | "USD";
+
+// Valor / costo / PNL de una fila según la moneda elegida. En USD el costo
+// va al MEP histórico de cada boleto y el valor al MEP de hoy (backend).
+const _valVista = (r: PnLRow, esUSD: boolean) =>
+  esUSD ? (r.valor_actual_usd ?? 0) : (r.valor_actual_live ?? r.valor_actual_aum);
+const _costoVista = (r: PnLRow, esUSD: boolean) =>
+  esUSD ? (r.costo_remanente_usd ?? 0) : r.costo_remanente;
 
 type FiltroCuenta = "todas" | "accionistas" | "sin_accionistas" | "cooperativas" | "productores";
 const FILTRO_OPTS: { value: FiltroCuenta; label: string }[] = [
@@ -43,13 +55,24 @@ const FILTRO_OPTS: { value: FiltroCuenta; label: string }[] = [
 
 type SortKey = "pnl_total" | "valor_actual" | "costo" | "ganpct" | "cuenta" | "ticker";
 
-const _totalView = (r: PnLRow) =>
-  (r.pnl_no_realizado ?? 0) + r.pnl_pasivo + (r.pnl_realizado_dia ?? 0);
+const _totalView = (r: PnLRow, esUSD = false) =>
+  esUSD
+    ? (r.pnl_no_realizado_usd ?? 0) + (r.pnl_pasivo_usd ?? 0) + (r.pnl_realizado_dia_usd ?? 0)
+    : (r.pnl_no_realizado ?? 0) + r.pnl_pasivo + (r.pnl_realizado_dia ?? 0);
+
+// Formato moneda-aware: el "$" base se reescribe a "US$" en vista USD.
+const fmtMon = (n: number, esUSD: boolean) =>
+  esUSD ? fmtCompact(n).replace("$", "US$") : fmtCompact(n);
+const fmtMonSigned = (n: number, esUSD: boolean) =>
+  esUSD ? fmtSigned(n).replace("$", "US$") : fmtSigned(n);
 
 export function PnLTotalesView() {
   const [data, setData]       = useState<TotalesResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState<string | null>(null);
+
+  const [moneda, setMoneda]       = useState<Moneda>("ARS");
+  const esUSD = moneda === "USD";
 
   const [filtroCta, setFiltroCta] = useState<FiltroCuenta>("todas");
   const [searchCta, setSearchCta] = useState<string>("");
@@ -102,18 +125,19 @@ export function PnLTotalesView() {
       switch (sortKey) {
         case "ticker":       return (a.display_name || a.ticker).localeCompare(b.display_name || b.ticker) * sgn;
         case "cuenta":       return a.cuenta.localeCompare(b.cuenta) * sgn;
-        case "pnl_total":    return (_totalView(a) - _totalView(b)) * sgn;
-        case "valor_actual": return ((a.valor_actual_live ?? a.valor_actual_aum) - (b.valor_actual_live ?? b.valor_actual_aum)) * sgn;
-        case "costo":        return (a.costo_remanente - b.costo_remanente) * sgn;
+        case "pnl_total":    return (_totalView(a, esUSD) - _totalView(b, esUSD)) * sgn;
+        case "valor_actual": return (_valVista(a, esUSD) - _valVista(b, esUSD)) * sgn;
+        case "costo":        return (_costoVista(a, esUSD) - _costoVista(b, esUSD)) * sgn;
         case "ganpct": {
-          const ga = a.costo_remanente > 0 ? _totalView(a) / a.costo_remanente : Number.NEGATIVE_INFINITY;
-          const gb = b.costo_remanente > 0 ? _totalView(b) / b.costo_remanente : Number.NEGATIVE_INFINITY;
+          const ca = _costoVista(a, esUSD), cb = _costoVista(b, esUSD);
+          const ga = ca > 0 ? _totalView(a, esUSD) / ca : Number.NEGATIVE_INFINITY;
+          const gb = cb > 0 ? _totalView(b, esUSD) / cb : Number.NEGATIVE_INFINITY;
           return (ga - gb) * sgn;
         }
         default: return 0;
       }
     });
-  }, [filasFiltradas, sortKey, sortDir]);
+  }, [filasFiltradas, sortKey, sortDir, esUSD]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -125,11 +149,11 @@ export function PnLTotalesView() {
   const aggVisible = useMemo(() => {
     let costo = 0, valor = 0, no_real = 0, pasivo = 0, real_dia = 0;
     for (const r of filasFiltradas) {
-      costo    += r.costo_remanente;
-      valor    += (r.valor_actual_live ?? r.valor_actual_aum);
-      no_real  += (r.pnl_no_realizado ?? 0);
-      pasivo   += r.pnl_pasivo;
-      real_dia += (r.pnl_realizado_dia ?? 0);
+      costo    += _costoVista(r, esUSD);
+      valor    += _valVista(r, esUSD);
+      no_real  += esUSD ? (r.pnl_no_realizado_usd ?? 0) : (r.pnl_no_realizado ?? 0);
+      pasivo   += esUSD ? (r.pnl_pasivo_usd ?? 0) : r.pnl_pasivo;
+      real_dia += esUSD ? (r.pnl_realizado_dia_usd ?? 0) : (r.pnl_realizado_dia ?? 0);
     }
     return {
       costo,
@@ -139,7 +163,15 @@ export function PnLTotalesView() {
       pasivo,
       real_dia,
     };
-  }, [filasFiltradas]);
+  }, [filasFiltradas, esUSD]);
+
+  // ¿El cache ya trae datos USD? (cron recalculado). Si no, deshabilitamos
+  // el toggle USD para no mostrar ceros.
+  const usdDisponible = useMemo(
+    () => (data?.totales?.valor_actual_usd ?? 0) > 0
+       || (data?.rows ?? []).some((r) => (r.valor_actual_usd ?? 0) > 0),
+    [data],
+  );
 
   const selectedRow = useMemo(() => {
     if (!selected) return null;
@@ -180,21 +212,21 @@ export function PnLTotalesView() {
       </div>
       {/* KPIs agregados de lo visible */}
       <div className="grid grid-cols-5 gap-3">
-        <Kpi label="PNL TOTAL"
-             value={fmtSigned(aggVisible.pnl)}
+        <Kpi label={`PNL TOTAL · ${moneda}`}
+             value={fmtMonSigned(aggVisible.pnl, esUSD)}
              accent={aggVisible.pnl >= 0 ? "#00cc66" : "#ff4d4d"}
              sub="papel + cobros + dia" />
         <Kpi label="PNL NO REALIZADO"
-             value={fmtSigned(aggVisible.no_real)}
+             value={fmtMonSigned(aggVisible.no_real, esUSD)}
              accent={aggVisible.no_real >= 0 ? "#00cc66" : "#ff4d4d"}
-             sub="stock vivo · papel" />
+             sub={esUSD ? "valor hoy − costo USD" : "stock vivo · papel"} />
         <Kpi label="PNL PASIVO"
-             value={fmtSigned(aggVisible.pasivo)}
+             value={fmtMonSigned(aggVisible.pasivo, esUSD)}
              accent={aggVisible.pasivo >= 0 ? "#00cc66" : "#ff4d4d"}
              sub="cupones · divs · amorts" />
         <Kpi label="VALOR ACTUAL"
-             value={fmtCompact(aggVisible.valor)}
-             sub={aggVisible.costo > 0 ? `costo: ${fmtCompact(aggVisible.costo)}` : ""} />
+             value={fmtMon(aggVisible.valor, esUSD)}
+             sub={aggVisible.costo > 0 ? `costo: ${fmtMon(aggVisible.costo, esUSD)}` : ""} />
         <Kpi label="POSICIONES"
              value={`${filasOrdenadas.length}`}
              sub={`${data.totales.n_cuentas} cuentas`} />
@@ -225,6 +257,29 @@ export function PnLTotalesView() {
           placeholder="Filtrar ticker…"
           className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-44"
         />
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
+          {(["ARS", "USD"] as Moneda[]).map((m) => {
+            const disabled = m === "USD" && !usdDisponible;
+            return (
+              <button
+                key={m}
+                onClick={() => !disabled && setMoneda(m)}
+                disabled={disabled}
+                title={disabled ? "Falta recalcular el cache (jobs.pnl_totales_precompute)" : ""}
+                className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+                  moneda === m
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : disabled
+                      ? "bg-transparent text-[#444] border-[#1a1a1a] cursor-not-allowed"
+                      : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                }`}
+              >
+                {m}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Split layout: tabla 60 / detalle 40 */}
@@ -262,8 +317,10 @@ export function PnLTotalesView() {
                 <tbody>
                   {filasOrdenadas.map((r) => {
                     const isSel = selected?.cuenta === r.id_cuenta && selected?.ticker === r.ticker;
-                    const total = _totalView(r);
-                    const ganPct = r.costo_remanente > 0 ? (total / r.costo_remanente) * 100 : null;
+                    const total = _totalView(r, esUSD);
+                    const costoRow = _costoVista(r, esUSD);
+                    const valorRow = _valVista(r, esUSD);
+                    const ganPct = costoRow > 0 ? (total / costoRow) * 100 : null;
                     const cuentaShort = r.cuenta.replace(/^\[\d+\]\s*/, "");
                     return (
                       <tr
@@ -285,16 +342,16 @@ export function PnLTotalesView() {
                           {r.qty_aum.toLocaleString("es-AR")}
                         </td>
                         <td className="px-2 py-1.5 text-right text-[#888]">
-                          {r.costo_remanente > 0 ? fmtCompact(r.costo_remanente) : "—"}
+                          {costoRow > 0 ? fmtMon(costoRow, esUSD) : "—"}
                         </td>
                         <td className="px-2 py-1.5 text-right text-[#d0d0d0]">
-                          {fmtCompact(r.valor_actual_live ?? r.valor_actual_aum)}
+                          {fmtMon(valorRow, esUSD)}
                         </td>
                         <td className={`px-2 py-1.5 text-right ${pnlClass(ganPct)}`}>
                           {ganPct != null ? `${ganPct >= 0 ? "+" : ""}${ganPct.toFixed(1)}%` : "—"}
                         </td>
                         <td className={`px-2 py-1.5 text-right font-semibold ${pnlClass(total)}`}>
-                          {fmtSigned(total)}
+                          {fmtMonSigned(total, esUSD)}
                         </td>
                         <td className="px-2 py-1.5 text-right text-[9px]">
                           {r.completeness === "parcial" && (

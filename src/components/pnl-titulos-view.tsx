@@ -38,6 +38,16 @@ export interface PnLRow {
   pnl_pasivo_dia?: number;        // cobros pasivos intraday
   breakdown_pasivo: Record<string, number>;
   pnl_total: number;
+  // ── Espejo USD (costo a MEP histórico, valor a MEP de hoy). Opcionales:
+  // solo presentes una vez que el cache PnLTotalesCache se recalcula. ──
+  costo_remanente_usd?: number;
+  valor_actual_usd?: number | null;
+  pnl_realizado_usd?: number;
+  pnl_realizado_dia_usd?: number;
+  pnl_no_realizado_usd?: number | null;
+  pnl_pasivo_usd?: number;
+  pnl_pasivo_dia_usd?: number;
+  pnl_total_usd?: number;
   completeness: "completa" | "parcial" | "sin_boletos";
   moneda_mixta: boolean;
   n_movimientos: number;
