@@ -253,36 +253,24 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
 
   const t = data.totales;
   const tNoReal = esUSD ? (t.pnl_no_realizado_usd ?? 0) : t.pnl_no_realizado;
-  const tPasivo = esUSD ? (t.pnl_pasivo_usd ?? 0) : t.pnl_pasivo;
   const tValor  = esUSD ? (t.valor_actual_usd ?? 0) : t.valor_actual;
   const tCosto  = esUSD ? (t.costo_remanente_usd ?? 0) : t.costo_remanente;
-  const pnlTotalView = tNoReal + tPasivo;
   // ¿El backend trae datos USD? (requiere MEP de hoy disponible).
   const usdDisponible =
     (t.valor_actual_usd ?? 0) > 0 || data.rows.some((r) => (r.valor_actual_usd ?? 0) > 0);
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
-      {/* KPIs — descomposición del PNL */}
-      <div className="grid grid-cols-4 gap-3">
-        <Kpi label={`PNL TOTAL · ${moneda}`}
-             value={fmtMonSigned(pnlTotalView, esUSD)}
-             accent={pnlTotalView >= 0 ? "#00cc66" : "#ff4d4d"}
-             sub="papel + cobros"
+      {/* KPIs — solo Valor Actual + PnL No Realizado (el resto confunde) */}
+      <div className="grid grid-cols-2 gap-3">
+        <Kpi label={`VALOR ACTUAL · ${moneda}`}
+             value={fmtMon(tValor, esUSD)}
+             sub={tCosto > 0 ? `costo: ${fmtMon(tCosto, esUSD)}` : ""}
         />
-        <Kpi label="PNL NO REALIZADO"
+        <Kpi label={`PNL NO REALIZADO · ${moneda}`}
              value={fmtMonSigned(tNoReal, esUSD)}
              accent={tNoReal >= 0 ? "#00cc66" : "#ff4d4d"}
              sub={esUSD ? "valor hoy − costo USD" : "stock vivo · papel"}
-        />
-        <Kpi label="PNL PASIVO"
-             value={fmtMonSigned(tPasivo, esUSD)}
-             accent={tPasivo >= 0 ? "#00cc66" : "#ff4d4d"}
-             sub="cupones · divs · amorts"
-        />
-        <Kpi label="VALOR ACTUAL"
-             value={fmtMon(tValor, esUSD)}
-             sub={tCosto > 0 ? `costo: ${fmtMon(tCosto, esUSD)}` : ""}
         />
       </div>
 
