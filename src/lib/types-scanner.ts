@@ -45,6 +45,8 @@ export interface PivotData {
   ticker:     string;
   last:       number | null;
   last_fecha: string | null;
+  // "live" = precio del ADR (AdrSnapshot, ~cada 15 min); "eod" = cierre EOD.
+  last_source?: "live" | "eod";
   frames: {
     diario:  PivotFrame | null;
     semanal: PivotFrame | null;

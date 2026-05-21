@@ -56,31 +56,38 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
   const [subTab,  setSubTab]  = useState<SubTab>("diario");
   const [loading, setLoading] = useState(false);
 
-  // Fetch pivots cuando cambia el ticker — siempre (los pivots se ven
-  // por default y el sub-tab cambia sin re-fetch).
+  // Fetch pivots cuando cambia el ticker. Además re-fetch cada 60s: los
+  // NIVELES son del período previo (estáticos), pero el `last` viene del
+  // precio live del ADR (refrescado cada 15 min) → el "vs LAST" se actualiza
+  // un par de veces por rueda sin recargar la página.
   useEffect(() => {
     if (!ticker) {
       setPivot(null);
       return;
     }
     let alive = true;
-    setLoading(true);
-    fetch(`/api/scanner/pivot/${encodeURIComponent(ticker)}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (alive) {
-          setPivot(j as PivotData | null);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (alive) {
-          setPivot(null);
-          setLoading(false);
-        }
-      });
+    const load = (withSpinner: boolean) => {
+      if (withSpinner) setLoading(true);
+      fetch(`/api/scanner/pivot/${encodeURIComponent(ticker)}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (alive) {
+            setPivot(j as PivotData | null);
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          if (alive) {
+            setPivot(null);
+            setLoading(false);
+          }
+        });
+    };
+    load(true);
+    const id = setInterval(() => load(false), 60_000);
     return () => {
       alive = false;
+      clearInterval(id);
     };
   }, [ticker]);
 
@@ -152,6 +159,12 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
           <span className="text-[#d0d0d0] font-mono">
             {pivot?.last != null ? `$${pivot.last.toFixed(2)}` : "--"}
           </span>
+          {pivot?.last_source === "live" && (
+            <span className="ml-1 text-[8px] text-[#00cc66] tracking-widest align-middle">LIVE</span>
+          )}
+          {pivot?.last_source === "eod" && (
+            <span className="ml-1 text-[8px] text-[#666] tracking-widest align-middle">EOD</span>
+          )}
         </span>
       </div>
 
