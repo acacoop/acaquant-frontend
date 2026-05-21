@@ -103,6 +103,21 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
     };
   }, [serie]);
 
+  // Dominio Y ajustado al rango real con padding 12% (no forzar 0). Sin esto
+  // recharts arranca en 0 y, si los valores rondan p.ej. 8, la línea queda
+  // pegada arriba. Funciona también para griegas negativas (delta de puts,
+  // theta) y para rangos chiquitos (gamma ~0.0003).
+  const yDomain = useMemo<[number, number] | ["auto", "auto"]>(() => {
+    if (!stats) return ["auto", "auto"];
+    const { min, max } = stats;
+    if (min === max) {
+      const d = Math.abs(min) || 1;
+      return [min - d, max + d];
+    }
+    const pad = (max - min) * 0.12;
+    return [min - pad, max + pad];
+  }, [stats]);
+
   const xTicks = useMemo<number[]>(() => {
     // Un tick por fecha (la data ya es diaria, así que ~1 por punto, pero
     // mantenemos el patrón por consistencia).
@@ -185,6 +200,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
               minTickGap={24}
             />
             <YAxis
+              domain={yDomain}
               tick={{ fill: "#808080", fontSize: 9 }}
               axisLine={{ stroke: "#2a2a2a" }}
               tickLine={false}
