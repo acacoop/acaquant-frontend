@@ -36,6 +36,9 @@ export function CostoHistoricoChart({
   const [data, setData] = useState<Punto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 2º eje Y: spot del subyacente (GGAL) desde Opciones.VR-GGal, switch ARS/ADR.
+  const [spotMoneda, setSpotMoneda] = useState<"ARS" | "ADR">("ARS");
+  const [vrMap, setVrMap] = useState<Record<string, { local?: number; adr?: number }>>({});
 
   // Firma estable de los legs para disparar el refetch al cambiar estrategia.
   const legsKey = useMemo(
@@ -86,22 +89,51 @@ export function CostoHistoricoChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legsKey, bucketMin]);
 
+  // Serie diaria del subyacente (VR-GGal) — una vez, para el 2º eje. Mapeada
+  // por fecha (YYYY-MM-DD) y proyectada a cada bucket del costo según el día.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/cotizaciones/vr-ggal", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { fecha: string; local?: number; adr?: number }[]) => {
+        if (cancelled) return;
+        const m: Record<string, { local?: number; adr?: number }> = {};
+        for (const r of rows || []) {
+          if (r.fecha) m[r.fecha.slice(0, 10)] = { local: r.local, adr: r.adr };
+        }
+        setVrMap(m);
+      })
+      .catch(() => {
+        if (!cancelled) setVrMap({});
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // serie indexada (idx categórico) — el eje X usa el índice del bucket,
   // no el timestamp real, así dos buckets consecutivos quedan pegados
   // aunque haya un fin de semana o feriado entre ellos. Sin esto el
   // chart abre un hueco visual durante 2-3 días por mes que se ve mal.
   const serie = useMemo(
     () =>
-      data.map((p, idx) => ({
-        idx,
-        t: new Date(p.ts).getTime(),
-        costo: p.costo,
-        atm: p.atm,
-        spot: p.spot,
-        strikes: p.strikes,
-      })),
-    [data],
+      data.map((p, idx) => {
+        const vr = vrMap[p.ts.slice(0, 10)];
+        const spot2 = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
+        return {
+          idx,
+          t: new Date(p.ts).getTime(),
+          costo: p.costo,
+          atm: p.atm,
+          spot: p.spot,
+          spot2: spot2 ?? null,
+          strikes: p.strikes,
+        };
+      }),
+    [data, vrMap, spotMoneda],
   );
+
+  const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
 
   const stats = useMemo(() => {
     if (!serie.length) return null;
@@ -228,7 +260,28 @@ export function CostoHistoricoChart({
             Δ {stats.delta >= 0 ? "+" : ""}
             {fmtCosto(stats.delta)}
           </span>
-          <span className="ml-auto text-[#555]">{serie.length} puntos</span>
+          {haySpot2 && (
+            <span className="ml-auto flex items-center gap-1">
+              <span className="text-[#555]">SPOT</span>
+              {(["ARS", "ADR"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setSpotMoneda(m)}
+                  className={
+                    "px-1.5 py-0 text-[9px] uppercase tracking-wider border " +
+                    (spotMoneda === m
+                      ? "bg-[#4a9eff] text-black border-[#4a9eff]"
+                      : "bg-[#0a0a0a] text-[#808080] border-[#2a2a2a] hover:text-[#4a9eff]")
+                  }
+                >
+                  {m}
+                </button>
+              ))}
+            </span>
+          )}
+          <span className={(haySpot2 ? "" : "ml-auto ") + "text-[#555]"}>
+            {serie.length} puntos
+          </span>
         </div>
       )}
       <div className="flex-1 min-h-0">
@@ -259,6 +312,20 @@ export function CostoHistoricoChart({
               width={60}
               allowDecimals={false}
             />
+            {haySpot2 && (
+              <YAxis
+                yAxisId="spot"
+                orientation="right"
+                domain={["auto", "auto"]}
+                tick={{ fill: "#4a9eff", fontSize: 9 }}
+                axisLine={{ stroke: "#2a4a6a" }}
+                tickLine={false}
+                tickFormatter={(v: number) =>
+                  spotMoneda === "ADR" ? `$${v.toFixed(1)}` : `$${(v / 1000).toFixed(1)}k`
+                }
+                width={48}
+              />
+            )}
             <Tooltip
               contentStyle={{
                 background: "#0e0e0e",
@@ -274,6 +341,9 @@ export function CostoHistoricoChart({
                     `$${fmtCosto(Number(value))}  (${p.strikes})`,
                     "Costo",
                   ];
+                }
+                if (key === "spot2") {
+                  return [`$${fmtCosto(Number(value))}`, `Spot ${spotMoneda}`];
                 }
                 return [value, key];
               }}
@@ -300,6 +370,19 @@ export function CostoHistoricoChart({
               isAnimationActive={false}
               connectNulls={false}
             />
+            {haySpot2 && (
+              <Line
+                yAxisId="spot"
+                type="monotone"
+                dataKey="spot2"
+                stroke="#4a9eff"
+                strokeWidth={1.2}
+                strokeDasharray="3 3"
+                dot={false}
+                isAnimationActive={false}
+                connectNulls
+              />
+            )}
             <Brush
               dataKey="idx"
               height={16}
