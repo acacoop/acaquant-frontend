@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -102,6 +102,9 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCFullYear()).slice(2)}`;
 }
 
+const bonoOptionLabel = (b: BonoSeleccionable): string =>
+  `${b.moneda} · ${b.label}${b.cer_fijado ? " (CER fij.)" : ""} · ${b.curva} · ${b.vencimiento ?? "—"}`;
+
 function BonoSelector({
   label,
   bonos,
@@ -115,23 +118,86 @@ function BonoSelector({
   onChange: (id: string) => void;
   color: string;
 }) {
+  // Combobox con búsqueda por texto. El <select> nativo no deja tipear el
+  // ticker (salta a la primera coincidencia y cierra) — acá filtramos por
+  // ticker_corto / curva / moneda / vencimiento mientras escribís.
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selectedBono = bonos.find((b) => b.id === selected) ?? null;
+  const display = open ? query : selectedBono ? bonoOptionLabel(selectedBono) : "";
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const base = q
+      ? bonos.filter((b) =>
+          `${b.ticker_corto} ${b.label} ${b.ticker} ${b.curva} ${b.moneda} ${b.vencimiento ?? ""}`
+            .toLowerCase()
+            .includes(q),
+        )
+      : bonos;
+    return base.slice(0, 60);
+  }, [bonos, query]);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const pick = (b: BonoSeleccionable) => {
+    onChange(b.id);
+    setQuery("");
+    setOpen(false);
+  };
+
   return (
     <div className="flex items-center gap-1">
       <span className="text-[9px] uppercase tracking-wide font-semibold shrink-0" style={{ color }}>
         {label}
       </span>
-      <select
-        value={selected}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
-      >
-        <option value="">— elegir bono —</option>
-        {bonos.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.moneda} · {b.label}{b.cer_fijado ? " (CER fij.)" : ""} · {b.curva} · {b.vencimiento ?? "—"}
-          </option>
-        ))}
-      </select>
+      <div ref={ref} className="relative flex-1">
+        <input
+          value={display}
+          placeholder="— elegir o escribir bono (ej. AE38) —"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => {
+            setQuery("");
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && filtered.length > 0) pick(filtered[0]);
+            else if (e.key === "Escape") setOpen(false);
+          }}
+          className="w-full bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+        />
+        {open && (
+          <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-64 overflow-y-auto bg-black border border-[#2a2a2a] shadow-lg">
+            {filtered.length === 0 ? (
+              <div className="px-2 py-1 text-[10px] text-[#555555] italic">sin resultados</div>
+            ) : (
+              filtered.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => pick(b)}
+                  className={`block w-full text-left px-2 py-0.5 text-[10px] font-mono hover:bg-[#ff9900]/10 ${
+                    b.id === selected ? "text-[#ff9900]" : "text-[#d0d0d0]"
+                  }`}
+                >
+                  {bonoOptionLabel(b)}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
