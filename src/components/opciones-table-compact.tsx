@@ -23,12 +23,19 @@ export function OpcionesTableCompact({
   data,
   selectedInstrumento,
   onSelect,
+  vistaControlada,
+  hideFilter = false,
 }: {
   data: OpcionDoc[];
   selectedInstrumento?: string | null;
   onSelect?: (d: OpcionDoc | null) => void;
+  // Cuando el filtro CALL/PUT/ESTRATEGIAS vive afuera (derivados-view), la
+  // tabla recibe la vista controlada y oculta sus propios botones.
+  vistaControlada?: Vista;
+  hideFilter?: boolean;
 }) {
-  const [vista, setVista] = useState<Vista>("CALL");
+  const [vistaInt, setVistaInt] = useState<Vista>("CALL");
+  const vista = vistaControlada ?? vistaInt;
 
   const spot = data.find((r) => r.spot)?.spot;
 
@@ -46,12 +53,16 @@ export function OpcionesTableCompact({
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 mb-1 shrink-0">
-        <FilterBtn active={vista === "CALL"} onClick={() => setVista("CALL")}>
-          CALL
-        </FilterBtn>
-        <FilterBtn active={vista === "PUT"} onClick={() => setVista("PUT")}>
-          PUT
-        </FilterBtn>
+        {!hideFilter && (
+          <>
+            <FilterBtn active={vista === "CALL"} onClick={() => setVistaInt("CALL")}>
+              CALL
+            </FilterBtn>
+            <FilterBtn active={vista === "PUT"} onClick={() => setVistaInt("PUT")}>
+              PUT
+            </FilterBtn>
+          </>
+        )}
         <TableHelp entries={OPCIONES_GLOSSARY} />
         <span className="ml-auto text-[10px] text-[#555555]">
           {filtered.length} · ordenado por VOL ↓

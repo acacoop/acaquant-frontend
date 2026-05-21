@@ -8,6 +8,7 @@ import { PayoffChart } from "./payoff-chart";
 import { EscenariosTabla } from "./escenarios-tabla";
 import { CostoHistoricoChart } from "./costo-historico-chart";
 import { OpcionHistoricoChart } from "./opcion-historico-chart";
+import { GriegasHistoricoChart } from "./griegas-historico-chart";
 import { usePoll } from "@/lib/use-poll";
 import {
   buildPorStrike,
@@ -30,7 +31,9 @@ interface Meta {
   updated_at?: string;
 }
 
-type DetalleTab = "payoff" | "escenarios" | "historico";
+type DetalleTab = "payoff" | "escenarios";
+// Filtro de la tabla OPCIONES GGAL: chain CALL/PUT o la tabla de estrategias.
+type TablaVista = "CALL" | "PUT" | "ESTRATEGIAS";
 
 export function DerivadosView({
   docs: initialDocs,
@@ -66,6 +69,9 @@ export function DerivadosView({
   const [selected, setSelected] = useState<number | null>(0);
   const [selectedOpcion, setSelectedOpcion] = useState<OpcionDoc | null>(null);
   const [detalleTab, setDetalleTab] = useState<DetalleTab>("payoff");
+  // Filtro de la tabla OPCIONES GGAL (CALL/PUT = chain; ESTRATEGIAS = tabla
+  // de estrategias en el mismo panel).
+  const [tablaVista, setTablaVista] = useState<TablaVista>("CALL");
 
   function pickStrategy(i: number) {
     setSelected(i);
@@ -74,12 +80,7 @@ export function DerivadosView({
 
   function pickOpcion(d: OpcionDoc | null) {
     setSelectedOpcion(d);
-    if (d) {
-      setSelected(null);
-      // El contrato individual sólo tiene sentido en COSTO HIST.;
-      // saltamos automático para que el feedback sea inmediato.
-      if (detalleTab !== "historico") setDetalleTab("historico");
-    }
+    if (d) setSelected(null);
   }
 
   const spot = useMemo(
@@ -210,116 +211,125 @@ export function DerivadosView({
         </span>
       </div>
 
-      {/* Layout: columna izq (opciones + estrategias) | columna der un solo panel detalle */}
+      {/* Layout 2×2: izq (opciones/estrategias + costo hist) | der (payoff/escenarios + griegas) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* ── Columna izquierda ── */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
-          <Panel title="OPCIONES GGAL" count={docs.length} fill expandable>
-            <OpcionesTableCompact
-              data={docs}
-              selectedInstrumento={selectedOpcion?.instrumento ?? null}
-              onSelect={pickOpcion}
-            />
-          </Panel>
-          <Panel title="ESTRATEGIAS" fill expandable>
-            <EstrategiasTabla
-              rows={rows}
-              liquidStrikes={liquidStrikes}
-              atmStrike={atmStrike}
-              strike={strike}
-              setStrike={setStrike}
-              categoria={categoria}
-              setCategoria={setCategoria}
-              selected={effectiveSelected ?? -1}
-              setSelected={pickStrategy}
-            />
-          </Panel>
-        </div>
-
-        <div className="min-w-0 min-h-0">
           <Panel
-            title={buildDetalleTitle(detalleTab, selRow, selCosto, selectedOpcion)}
+            title="OPCIONES GGAL"
+            count={tablaVista === "ESTRATEGIAS" ? rows.length : docs.length}
             fill
             expandable
             actions={
               <div className="flex items-center gap-1">
-                <TabBtn
-                  active={detalleTab === "payoff"}
-                  onClick={() => setDetalleTab("payoff")}
-                >
-                  PAYOFF
-                </TabBtn>
-                <TabBtn
-                  active={detalleTab === "escenarios"}
-                  onClick={() => setDetalleTab("escenarios")}
-                >
-                  ESCENARIOS
-                </TabBtn>
-                <TabBtn
-                  active={detalleTab === "historico"}
-                  onClick={() => setDetalleTab("historico")}
-                >
-                  COSTO HIST.
-                </TabBtn>
-                {selectedOpcion && (
-                  <button
-                    onClick={() => setSelectedOpcion(null)}
-                    title="Limpiar selección de contrato individual"
-                    className="text-[9px] px-1.5 py-0.5 border border-[#2a2a2a] text-[#808080] hover:text-[#ff9900] hover:border-[#ff9900]"
-                  >
-                    ✕ {shortTicker(selectedOpcion.instrumento)}
-                  </button>
-                )}
+                {(["CALL", "PUT", "ESTRATEGIAS"] as const).map((v) => (
+                  <TabBtn key={v} active={tablaVista === v} onClick={() => setTablaVista(v)}>
+                    {v === "ESTRATEGIAS" ? "ESTRAT." : v}
+                  </TabBtn>
+                ))}
               </div>
             }
           >
-            {detalleTab === "payoff" ? (
-              selectedOpcion ? (
-                <p className="text-[#555555] text-xs py-4 text-center">
-                  Hay un contrato individual seleccionado — PAYOFF solo aplica a estrategias.
-                  <br />
-                  Click en una fila de ESTRATEGIAS para volver al payoff.
-                </p>
-              ) : !selRow || !selLegs.length ? (
-                <p className="text-[#555555] text-xs py-4 text-center">
-                  Seleccioná una estrategia con liquidez para ver el payoff.
-                </p>
-              ) : (
-                <PayoffChart legs={selLegs} spot={spot} costo={selCosto || 0} />
-              )
-            ) : detalleTab === "escenarios" ? (
-              selectedOpcion ? (
-                <p className="text-[#555555] text-xs py-4 text-center">
-                  Hay un contrato individual seleccionado — ESCENARIOS solo aplica a estrategias.
-                  <br />
-                  Click en una fila de ESTRATEGIAS para volver a escenarios.
-                </p>
-              ) : !selRow || !selLegs.length ? (
-                <p className="text-[#555555] text-xs py-4 text-center">
-                  Seleccioná una estrategia con liquidez para ver escenarios.
-                </p>
-              ) : (
-                <EscenariosTabla
-                  legs={selLegs}
-                  spot={spot}
-                  costo={selCosto || 0}
-                  tasa={meta.tasa}
-                />
-              )
-            ) : selectedOpcion ? (
+            {tablaVista === "ESTRATEGIAS" ? (
+              <EstrategiasTabla
+                rows={rows}
+                liquidStrikes={liquidStrikes}
+                atmStrike={atmStrike}
+                strike={strike}
+                setStrike={setStrike}
+                categoria={categoria}
+                setCategoria={setCategoria}
+                selected={effectiveSelected ?? -1}
+                setSelected={pickStrategy}
+              />
+            ) : (
+              <OpcionesTableCompact
+                data={docs}
+                vistaControlada={tablaVista}
+                hideFilter
+                selectedInstrumento={selectedOpcion?.instrumento ?? null}
+                onSelect={pickOpcion}
+              />
+            )}
+          </Panel>
+
+          <Panel
+            title={
+              selectedOpcion
+                ? `COSTO HIST. — ${shortTicker(selectedOpcion.instrumento)}`
+                : "COSTO HISTÓRICO"
+            }
+            fill
+            expandable
+          >
+            {selectedOpcion ? (
               <OpcionHistoricoChart
                 instrumento={selectedOpcion.instrumento}
                 lastLive={selectedOpcion.last}
               />
-            ) : !selRow || !selRow.tplLegs?.length ? (
-              <p className="text-[#555555] text-xs py-4 text-center">
-                Seleccioná una estrategia o clickeá un contrato en OPCIONES GGAL.
-              </p>
-            ) : (
+            ) : selRow && selRow.tplLegs?.length ? (
               <CostoHistoricoChart
                 legs={selRow.tplLegs}
                 bucketMin={15}
                 costoLive={(selCosto || 0) - selComision}
               />
+            ) : (
+              <p className="text-[#555555] text-xs py-4 text-center">
+                Elegí una estrategia (filtro ESTRAT.) o un contrato (CALL/PUT) para ver el costo histórico.
+              </p>
+            )}
+          </Panel>
+        </div>
+
+        {/* ── Columna derecha ── */}
+        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
+          <Panel
+            title={buildDetalleTitle(detalleTab, selRow, selCosto)}
+            fill
+            expandable
+            actions={
+              <div className="flex items-center gap-1">
+                <TabBtn active={detalleTab === "payoff"} onClick={() => setDetalleTab("payoff")}>
+                  PAYOFF
+                </TabBtn>
+                <TabBtn active={detalleTab === "escenarios"} onClick={() => setDetalleTab("escenarios")}>
+                  ESCENARIOS
+                </TabBtn>
+              </div>
+            }
+          >
+            {!selRow || !selLegs.length ? (
+              <p className="text-[#555555] text-xs py-4 text-center">
+                Seleccioná una estrategia con liquidez (filtro ESTRAT.) para ver{" "}
+                {detalleTab === "payoff" ? "el payoff" : "escenarios"}.
+              </p>
+            ) : detalleTab === "payoff" ? (
+              <PayoffChart legs={selLegs} spot={spot} costo={selCosto || 0} />
+            ) : (
+              <EscenariosTabla
+                legs={selLegs}
+                spot={spot}
+                costo={selCosto || 0}
+                tasa={meta.tasa}
+              />
+            )}
+          </Panel>
+
+          <Panel
+            title={
+              selectedOpcion
+                ? `GRIEGAS — ${shortTicker(selectedOpcion.instrumento)}`
+                : "GRIEGAS"
+            }
+            fill
+            expandable
+          >
+            {selectedOpcion ? (
+              <GriegasHistoricoChart instrumento={selectedOpcion.instrumento} />
+            ) : (
+              <p className="text-[#555555] text-xs py-4 text-center">
+                Clickeá un contrato en OPCIONES GGAL (CALL/PUT) para ver la variación de sus griegas.
+              </p>
             )}
           </Panel>
         </div>
@@ -332,17 +342,8 @@ function buildDetalleTitle(
   tab: DetalleTab,
   selRow: EstrategiaRow | undefined,
   selCosto: number,
-  selectedOpcion: OpcionDoc | null,
 ): string {
-  const tag =
-    tab === "historico" ? "COSTO HIST." : tab === "escenarios" ? "ESCENARIOS" : "PAYOFF";
-  if (selectedOpcion) {
-    if (tab === "historico") {
-      return `COSTO HIST. — ${shortTicker(selectedOpcion.instrumento)}`;
-    }
-    // Payoff / Escenarios no aplican a un contrato individual.
-    return tag;
-  }
+  const tag = tab === "escenarios" ? "ESCENARIOS" : "PAYOFF";
   if (!selRow) return tag;
   const sign = (selCosto || 0) > 0 ? "DEBIT" : "CREDIT";
   const com = selRow.comision
