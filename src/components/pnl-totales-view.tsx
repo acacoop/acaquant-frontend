@@ -380,7 +380,7 @@ export function PnLTotalesView() {
               <div className="px-3 py-1 bg-[#0e0e0e] border-b border-[#1a1a1a] text-[9px] tracking-widest text-[#666]">
                 <span className="text-[#888]">CUENTA</span> [{selectedRow.id_cuenta}] {selectedRow.cuenta.replace(/^\[\d+\]\s*/, "")}
               </div>
-              <PosicionDetalle row={selectedRow} />
+              <PosicionDetalle row={selectedRow} esUSD={esUSD} />
             </>
           ) : (
             <div className="h-full flex items-center justify-center text-[#555] text-[11px] tracking-widest">

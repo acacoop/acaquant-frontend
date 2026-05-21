@@ -68,9 +68,16 @@ interface PnLResp {
     pnl_pasivo:         number;
     pnl_pasivo_dia?:    number;
     pnl_total:          number;
+    // Espejo USD (costo a MEP histórico, valor a MEP de hoy).
+    costo_remanente_usd?:  number;
+    valor_actual_usd?:     number;
+    pnl_no_realizado_usd?: number;
+    pnl_pasivo_usd?:       number;
   };
   n_tickers: number;
 }
+
+type Moneda = "ARS" | "USD";
 
 type SortKey =
   | "pnl_total"
@@ -102,6 +109,19 @@ export function pnlClass(n: number | null | undefined): string {
   if (n < 0) return "text-[#ff4d4d]";
   return "text-[#888]";
 }
+
+// Valor / costo de una fila según moneda. En USD el costo va al MEP
+// histórico de cada boleto y el valor al MEP de hoy (campos del backend).
+const valVista = (r: PnLRow, esUSD: boolean) =>
+  esUSD ? (r.valor_actual_usd ?? 0) : (r.valor_actual_live ?? r.valor_actual_aum);
+const costoVista = (r: PnLRow, esUSD: boolean) =>
+  esUSD ? (r.costo_remanente_usd ?? 0) : r.costo_remanente;
+
+// Formato moneda-aware: el "$" base pasa a "US$" en vista USD.
+const fmtMon = (n: number, esUSD: boolean) =>
+  esUSD ? fmtCompact(n).replace("$", "US$") : fmtCompact(n);
+const fmtMonSigned = (n: number, esUSD: boolean) =>
+  esUSD ? fmtSigned(n).replace("$", "US$") : fmtSigned(n);
 
 // Filtra boletos al "período activo del stock actual" — desde la última
 // vez que qty pasó por 0. Los boletos previos se compensaron entre sí
@@ -156,6 +176,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   const [sortKey, setSortKey]   = useState<SortKey>("pnl_total");
   const [sortDir, setSortDir]   = useState<"asc" | "desc">("desc");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [moneda, setMoneda]     = useState<Moneda>("ARS");
+  const esUSD = moneda === "USD";
 
   useEffect(() => {
     if (!idCuenta) return;
@@ -191,18 +213,24 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   // hasta que tengamos la vista histórica de realizado (futuro). El
   // backend sigue devolviendo `pnl_realizado` y `pnl_total` (que lo
   // incluye) — acá los ignoramos para no presentar números mezclados.
-  const totalView = (r: PnLRow) => (r.pnl_no_realizado ?? 0) + r.pnl_pasivo;
+  const totalView = (r: PnLRow) =>
+    esUSD
+      ? (r.pnl_no_realizado_usd ?? 0) + (r.pnl_pasivo_usd ?? 0)
+      : (r.pnl_no_realizado ?? 0) + r.pnl_pasivo;
 
   const filasOrdenadas = useMemo(() => {
     const sgn = sortDir === "asc" ? 1 : -1;
     return [...filasFiltradas].sort((a, b) => {
       if (sortKey === "ticker") return a.ticker.localeCompare(b.ticker) * sgn;
       if (sortKey === "pnl_total") return (totalView(a) - totalView(b)) * sgn;
+      if (sortKey === "valor_actual_aum") return (valVista(a, esUSD) - valVista(b, esUSD)) * sgn;
+      if (sortKey === "costo_remanente") return (costoVista(a, esUSD) - costoVista(b, esUSD)) * sgn;
       const av = (a[sortKey] ?? Number.NEGATIVE_INFINITY) as number;
       const bv = (b[sortKey] ?? Number.NEGATIVE_INFINITY) as number;
       return (av - bv) * sgn;
     });
-  }, [filasFiltradas, sortKey, sortDir]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filasFiltradas, sortKey, sortDir, esUSD]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -224,35 +252,65 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   if (!data) return null;
 
   const t = data.totales;
-  const pnlTotalView = t.pnl_no_realizado + t.pnl_pasivo;
+  const tNoReal = esUSD ? (t.pnl_no_realizado_usd ?? 0) : t.pnl_no_realizado;
+  const tPasivo = esUSD ? (t.pnl_pasivo_usd ?? 0) : t.pnl_pasivo;
+  const tValor  = esUSD ? (t.valor_actual_usd ?? 0) : t.valor_actual;
+  const tCosto  = esUSD ? (t.costo_remanente_usd ?? 0) : t.costo_remanente;
+  const pnlTotalView = tNoReal + tPasivo;
+  // ¿El backend trae datos USD? (requiere MEP de hoy disponible).
+  const usdDisponible =
+    (t.valor_actual_usd ?? 0) > 0 || data.rows.some((r) => (r.valor_actual_usd ?? 0) > 0);
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
       {/* KPIs — descomposición del PNL */}
       <div className="grid grid-cols-4 gap-3">
-        <Kpi label="PNL TOTAL"
-             value={fmtSigned(pnlTotalView)}
+        <Kpi label={`PNL TOTAL · ${moneda}`}
+             value={fmtMonSigned(pnlTotalView, esUSD)}
              accent={pnlTotalView >= 0 ? "#00cc66" : "#ff4d4d"}
              sub="papel + cobros"
         />
         <Kpi label="PNL NO REALIZADO"
-             value={fmtSigned(t.pnl_no_realizado)}
-             accent={t.pnl_no_realizado >= 0 ? "#00cc66" : "#ff4d4d"}
-             sub="stock vivo · papel"
+             value={fmtMonSigned(tNoReal, esUSD)}
+             accent={tNoReal >= 0 ? "#00cc66" : "#ff4d4d"}
+             sub={esUSD ? "valor hoy − costo USD" : "stock vivo · papel"}
         />
         <Kpi label="PNL PASIVO"
-             value={fmtSigned(t.pnl_pasivo)}
-             accent={t.pnl_pasivo >= 0 ? "#00cc66" : "#ff4d4d"}
+             value={fmtMonSigned(tPasivo, esUSD)}
+             accent={tPasivo >= 0 ? "#00cc66" : "#ff4d4d"}
              sub="cupones · divs · amorts"
         />
         <Kpi label="VALOR ACTUAL"
-             value={fmtCompact(t.valor_actual)}
-             sub={t.costo_remanente > 0 ? `costo: ${fmtCompact(t.costo_remanente)}` : ""}
+             value={fmtMon(tValor, esUSD)}
+             sub={tCosto > 0 ? `costo: ${fmtMon(tCosto, esUSD)}` : ""}
         />
       </div>
 
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
+          {(["ARS", "USD"] as Moneda[]).map((m) => {
+            const disabled = m === "USD" && !usdDisponible;
+            return (
+              <button
+                key={m}
+                onClick={() => !disabled && setMoneda(m)}
+                disabled={disabled}
+                title={disabled ? "Sin MEP de hoy para convertir a USD" : ""}
+                className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+                  moneda === m
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : disabled
+                      ? "bg-transparent text-[#444] border-[#1a1a1a] cursor-not-allowed"
+                      : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                }`}
+              >
+                {m}
+              </button>
+            );
+          })}
+        </div>
         <span className="text-[9px] text-[#555] ml-auto font-mono">
           {filasOrdenadas.length} tickers
           {data.fecha_actual ? ` · al ${data.fecha_actual}` : ""}
@@ -291,8 +349,10 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                   {filasOrdenadas.map((r) => {
                     const isSel  = selectedTicker === r.ticker;
                     const total  = totalView(r);
-                    const ganPct = r.costo_remanente > 0
-                      ? (total / r.costo_remanente) * 100
+                    const costoRow = costoVista(r, esUSD);
+                    const valorRow = valVista(r, esUSD);
+                    const ganPct = costoRow > 0
+                      ? (total / costoRow) * 100
                       : null;
                     return (
                       <tr
@@ -315,10 +375,10 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                           )}
                         </td>
                         <td className="px-2 py-1.5 text-right text-[#888]">
-                          {r.costo_remanente > 0 ? fmtCompact(r.costo_remanente) : "—"}
+                          {costoRow > 0 ? fmtMon(costoRow, esUSD) : "—"}
                         </td>
                         <td className="px-2 py-1.5 text-right text-[#d0d0d0]">
-                          {fmtCompact(r.valor_actual_live ?? r.valor_actual_aum)}
+                          {fmtMon(valorRow, esUSD)}
                           {r.valor_actual_source === "live" && (
                             <span className="ml-1 text-[7px] text-[#00cc66] tracking-widest">LIVE</span>
                           )}
@@ -333,7 +393,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                           {ganPct != null ? `${ganPct >= 0 ? "+" : ""}${ganPct.toFixed(1)}%` : "—"}
                         </td>
                         <td className={`px-2 py-1.5 text-right font-semibold ${pnlClass(total)}`}>
-                          {fmtSigned(total)}
+                          {fmtMonSigned(total, esUSD)}
                         </td>
                         <td className="px-2 py-1.5 text-right text-[9px]">
                           {r.completeness === "parcial" && (
@@ -360,6 +420,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
           {selectedTicker ? (
             <PosicionDetalle
               row={filasOrdenadas.find((r) => r.ticker === selectedTicker)!}
+              esUSD={esUSD}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-[#555] text-[11px] tracking-widest">
@@ -373,13 +434,19 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
 }
 
 // ── Panel detalle ────────────────────────────────────────────────────────
-export function PosicionDetalle({ row }: { row: PnLRow }) {
+export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: boolean }) {
   const boletosPeriodo = _filtrarPeriodoActual(row.boletos);
   const stats = _statsDelPeriodo(boletosPeriodo);
   const tieneBreakdown = Object.keys(stats.breakdownPasivo).length > 0;
-  const ganPct = row.costo_remanente > 0
-    ? ((row.pnl_no_realizado ?? 0) + row.pnl_pasivo + (row.pnl_realizado_dia ?? 0)) / row.costo_remanente * 100
-    : null;
+  // Vista moneda-aware. En USD: costo a MEP histórico, valor a MEP de hoy.
+  // El realizado del día (intraday) entra al total/GAN% acá, igual que en ARS.
+  const costo   = costoVista(row, esUSD);
+  const valor   = valVista(row, esUSD);
+  const noReal  = esUSD ? (row.pnl_no_realizado_usd ?? null) : row.pnl_no_realizado;
+  const pasivo  = esUSD ? (row.pnl_pasivo_usd ?? 0) : row.pnl_pasivo;
+  const realDia = esUSD ? (row.pnl_realizado_dia_usd ?? 0) : (row.pnl_realizado_dia ?? 0);
+  const pnlTot  = (noReal ?? 0) + pasivo + realDia;
+  const ganPct = costo > 0 ? (pnlTot / costo) * 100 : null;
 
   return (
     <div className="p-3 text-[10px] text-[#888]">
@@ -394,25 +461,25 @@ export function PosicionDetalle({ row }: { row: PnLRow }) {
 
       {/* Mini-KPIs por ticker */}
       <div className="grid grid-cols-3 gap-2 mb-3">
-        <DetKpi label="COSTO"    value={row.costo_remanente > 0 ? fmtCompact(row.costo_remanente) : "—"} />
-        <DetKpi label="VALOR"    value={fmtCompact(row.valor_actual_live ?? row.valor_actual_aum)} />
+        <DetKpi label={`COSTO${esUSD ? " USD" : ""}`} value={costo > 0 ? fmtMon(costo, esUSD) : "—"} />
+        <DetKpi label="VALOR"    value={fmtMon(valor, esUSD)} />
         <DetKpi label="PNL"
-                value={fmtSigned((row.pnl_no_realizado ?? 0) + row.pnl_pasivo + (row.pnl_realizado_dia ?? 0))}
-                accent={((row.pnl_no_realizado ?? 0) + row.pnl_pasivo + (row.pnl_realizado_dia ?? 0)) >= 0 ? "#00cc66" : "#ff4d4d"} />
-        <DetKpi label="NO REAL"  value={row.pnl_no_realizado != null ? fmtSigned(row.pnl_no_realizado) : "—"}
-                accent={(row.pnl_no_realizado ?? 0) >= 0 ? "#00cc66" : "#ff4d4d"} />
-        <DetKpi label="COBROS"   value={row.pnl_pasivo !== 0 ? fmtSigned(row.pnl_pasivo) : "—"}
-                accent={row.pnl_pasivo >= 0 ? "#00cc66" : "#ff4d4d"} />
+                value={fmtMonSigned(pnlTot, esUSD)}
+                accent={pnlTot >= 0 ? "#00cc66" : "#ff4d4d"} />
+        <DetKpi label="NO REAL"  value={noReal != null ? fmtMonSigned(noReal, esUSD) : "—"}
+                accent={(noReal ?? 0) >= 0 ? "#00cc66" : "#ff4d4d"} />
+        <DetKpi label="COBROS"   value={pasivo !== 0 ? fmtMonSigned(pasivo, esUSD) : "—"}
+                accent={pasivo >= 0 ? "#00cc66" : "#ff4d4d"} />
         <DetKpi label="GAN %"    value={ganPct != null ? `${ganPct >= 0 ? "+" : ""}${ganPct.toFixed(2)}%` : "—"}
                 accent={(ganPct ?? 0) >= 0 ? "#00cc66" : "#ff4d4d"} />
       </div>
 
       {/* Realizado intraday — solo si hubo day-trades cerrados */}
-      {row.pnl_realizado_dia != null && row.pnl_realizado_dia !== 0 && (
+      {realDia !== 0 && (
         <div className="mb-3 px-2 py-1 border border-[#4a9eff]/30 bg-[#4a9eff]/5 text-[10px]">
           <span className="text-[#666] tracking-widest mr-2">REALIZADO HOY:</span>
-          <span className={pnlClass(row.pnl_realizado_dia) + " font-semibold"}>
-            {fmtSigned(row.pnl_realizado_dia)}
+          <span className={pnlClass(realDia) + " font-semibold"}>
+            {fmtMonSigned(realDia, esUSD)}
           </span>
           <span className="ml-1 text-[8px] text-[#4a9eff]">day-trade cerrado</span>
         </div>
