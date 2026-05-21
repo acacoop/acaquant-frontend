@@ -6,6 +6,7 @@ import { DualRange } from "./dual-range";
 import { SensibilidadTable } from "./sensibilidad-table";
 import { CanjeTab } from "./canje-tab";
 import { DescomposicionTab } from "./descomposicion-tab";
+import { CompararInversionView } from "./comparar-inversion-view";
 import {
   CartesianGrid,
   Legend,
@@ -75,7 +76,7 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "descomposicion";
+type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "descomposicion" | "comparar";
 
 export function RetornoTotalView() {
   const [tab, setTab] = useState<EstrategiaTab>("retorno_total");
@@ -106,12 +107,18 @@ export function RetornoTotalView() {
           active={tab === "descomposicion"}
           onClick={() => setTab("descomposicion")}
         />
+        <TabPill
+          label="COMPARAR INVERSIÓN"
+          active={tab === "comparar"}
+          onClick={() => setTab("comparar")}
+        />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "retorno_total" && <HistoricoTab />}
         {tab === "sensibilidad" && <SensibilidadTable />}
         {tab === "canje" && <CanjeTab />}
         {tab === "descomposicion" && <DescomposicionTab />}
+        {tab === "comparar" && <CompararInversionView />}
       </div>
     </div>
   );
