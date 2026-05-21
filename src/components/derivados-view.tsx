@@ -9,6 +9,7 @@ import { EscenariosTabla } from "./escenarios-tabla";
 import { CostoHistoricoChart } from "./costo-historico-chart";
 import { OpcionHistoricoChart } from "./opcion-historico-chart";
 import { GriegasHistoricoChart } from "./griegas-historico-chart";
+import { DerivadosOperar } from "./derivados-operar";
 import { usePoll } from "@/lib/use-poll";
 import {
   buildPorStrike,
@@ -283,37 +284,48 @@ export function DerivadosView({
 
         {/* ── Columna derecha ── */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
-          <Panel
-            title={buildDetalleTitle(detalleTab, selRow, selCosto)}
-            fill
-            expandable
-            actions={
-              <div className="flex items-center gap-1">
-                <TabBtn active={detalleTab === "payoff"} onClick={() => setDetalleTab("payoff")}>
-                  PAYOFF
-                </TabBtn>
-                <TabBtn active={detalleTab === "escenarios"} onClick={() => setDetalleTab("escenarios")}>
-                  ESCENARIOS
-                </TabBtn>
-              </div>
-            }
-          >
-            {!selRow || !selLegs.length ? (
-              <p className="text-[#555555] text-xs py-4 text-center">
-                Seleccioná una estrategia con liquidez (filtro ESTRAT.) para ver{" "}
-                {detalleTab === "payoff" ? "el payoff" : "escenarios"}.
-              </p>
-            ) : detalleTab === "payoff" ? (
-              <PayoffChart legs={selLegs} spot={spot} costo={selCosto || 0} />
-            ) : (
-              <EscenariosTabla
-                legs={selLegs}
-                spot={spot}
-                costo={selCosto || 0}
-                tasa={meta.tasa}
+          {selectedOpcion ? (
+            // Contrato elegido → operar ese instrumento (book L2 + ticket).
+            <Panel title={`OPERAR — ${shortTicker(selectedOpcion.instrumento)}`} fill expandable>
+              <DerivadosOperar
+                instrumento={selectedOpcion.instrumento}
+                last={selectedOpcion.last}
               />
-            )}
-          </Panel>
+            </Panel>
+          ) : (
+            // Estrategia → payoff / escenarios.
+            <Panel
+              title={buildDetalleTitle(detalleTab, selRow, selCosto)}
+              fill
+              expandable
+              actions={
+                <div className="flex items-center gap-1">
+                  <TabBtn active={detalleTab === "payoff"} onClick={() => setDetalleTab("payoff")}>
+                    PAYOFF
+                  </TabBtn>
+                  <TabBtn active={detalleTab === "escenarios"} onClick={() => setDetalleTab("escenarios")}>
+                    ESCENARIOS
+                  </TabBtn>
+                </div>
+              }
+            >
+              {!selRow || !selLegs.length ? (
+                <p className="text-[#555555] text-xs py-4 text-center">
+                  Seleccioná una estrategia con liquidez (filtro ESTRAT.) para ver{" "}
+                  {detalleTab === "payoff" ? "el payoff" : "escenarios"}.
+                </p>
+              ) : detalleTab === "payoff" ? (
+                <PayoffChart legs={selLegs} spot={spot} costo={selCosto || 0} />
+              ) : (
+                <EscenariosTabla
+                  legs={selLegs}
+                  spot={spot}
+                  costo={selCosto || 0}
+                  tasa={meta.tasa}
+                />
+              )}
+            </Panel>
+          )}
 
           <Panel
             title={
