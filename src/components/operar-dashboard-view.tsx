@@ -501,7 +501,7 @@ function SaldoCell({
 
 // ─── Componentes ─────────────────────────────────────────────────────────────
 
-function AccountSearch({
+export function AccountSearch({
   value,
   cuentas,
   onPick,
