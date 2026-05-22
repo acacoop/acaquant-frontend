@@ -400,7 +400,7 @@ export function CurvasChart({
           CER
         </FilterBtn>
         <FilterBtn active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>
-          GLOBALES
+          HARD DOLAR
         </FilterBtn>
         <FilterBtn active={curva === "dolar_linked"} onClick={() => setCurva("dolar_linked")}>
           DOLAR LINKED

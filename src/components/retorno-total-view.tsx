@@ -417,7 +417,7 @@ function HistoricoTab() {
             CER
           </FilterBtn>
           <FilterBtn active={curva === "soberanos"} onClick={() => { setCurva("soberanos"); setRangoIdx(null); }}>
-            GLOBALES
+            HARD DOLAR
           </FilterBtn>
         </div>
 

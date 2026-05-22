@@ -79,7 +79,7 @@ export function RentaFijaTable({
           CER
         </FilterBtn>
         <FilterBtn active={vista === "soberanos"} onClick={() => setVista("soberanos")}>
-          GLOBALES
+          HARD DOLAR
         </FilterBtn>
         <FilterBtn active={vista === "dolar_linked"} onClick={() => setVista("dolar_linked")}>
           DOLAR LINKED
