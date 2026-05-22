@@ -1720,6 +1720,9 @@ function TabClientes() {
   const [fNivel1, setFNivel1] = useState("");
   const [campoVacio, setCampoVacio] = useState<ClienteCampo | "">("");
   const [q, setQ] = useState("");
+  // Import de archivo (csv/xlsx)
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const fetchClientes = () => {
     setLoading(true);
@@ -1795,6 +1798,69 @@ function TabClientes() {
     }
   };
 
+  // Import desde archivo .csv / .xlsx. Columnas válidas = id_cuenta + campos
+  // manuales (mismo nombre que la base). Cualquier otra columna → error.
+  const onImportFile = async (file: File) => {
+    setImportMsg(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      if (!json.length) { setImportMsg({ ok: false, text: "El archivo está vacío." }); return; }
+
+      const norm = (h: string) => h.trim().toLowerCase().replace(/[-\s]+/g, "_").replace(/\//g, "_");
+      const valid = new Set<string>(["id_cuenta", ...CLIENTE_CAMPOS]);
+      const map: Record<string, string> = {};
+      const unknown: string[] = [];
+      for (const h of Object.keys(json[0])) {
+        const n = norm(h);
+        if (valid.has(n)) map[h] = n;
+        else unknown.push(h);
+      }
+      if (unknown.length) {
+        setImportMsg({ ok: false, text: `Columnas no reconocidas: ${unknown.join(", ")}. Deben ser id_cuenta + alguno de: ${CLIENTE_CAMPOS.join(", ")}` });
+        return;
+      }
+      const dataCols = Object.values(map).filter((c) => c !== "id_cuenta");
+      if (!Object.values(map).includes("id_cuenta")) { setImportMsg({ ok: false, text: "Falta la columna id_cuenta." }); return; }
+      if (!dataCols.length) { setImportMsg({ ok: false, text: "Necesitás al menos una columna de datos además de id_cuenta." }); return; }
+
+      const rowsOut: Record<string, string>[] = [];
+      for (const r of json) {
+        const out: Record<string, string> = {};
+        for (const [h, c] of Object.entries(map)) {
+          const v = String(r[h] ?? "").trim();
+          if (c === "id_cuenta") out.id_cuenta = v;
+          else if (v !== "") out[c] = v;
+        }
+        if (out.id_cuenta) rowsOut.push(out);
+      }
+      if (!rowsOut.length) { setImportMsg({ ok: false, text: "No hay filas con id_cuenta." }); return; }
+
+      if (!window.confirm(`Importar ${rowsOut.length} filas · columnas: ${dataCols.join(", ")}.\n¿Aplicar?`)) return;
+
+      setImporting(true);
+      const res = await fetch("/api/manager/clientes/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: rowsOut }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setImportMsg({ ok: false, text: j.detail || `HTTP ${res.status}` }); return; }
+      setImportMsg({
+        ok: true,
+        text: `✓ ${j.actualizadas} actualizadas` + (j.n_no_encontradas ? ` · ${j.n_no_encontradas} id_cuenta no encontradas en el master` : ""),
+      });
+      fetchClientes();
+    } catch (e) {
+      setImportMsg({ ok: false, text: e instanceof Error ? e.message : "error parseando el archivo" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Datalists para autocomplete de cada campo manual */}
@@ -1838,11 +1904,31 @@ function TabClientes() {
           className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-[170px]"
         />
 
+        <label
+          className={`ml-auto px-3 py-1 text-[10px] font-semibold border cursor-pointer transition-colors ${importing ? "opacity-40 pointer-events-none border-[#2a2a2a] text-[#555]" : "border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900]"}`}
+          title="Subí un .csv/.xlsx con columna id_cuenta + las columnas a rellenar (nombres = campos: nivel_1, riesgo_la_ft, …). Solo rellena lo que traiga el archivo."
+        >
+          {importing ? "Importando…" : "📁 Importar archivo"}
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ""; }}
+          />
+        </label>
+
         <button onClick={fetchClientes} disabled={loading}
-          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+          className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
           {loading ? "Cargando…" : "↻ Recargar"}
         </button>
       </div>
+
+      {importMsg && (
+        <div className={`px-3 py-1.5 text-[10px] border-b border-[#1a1a1a] shrink-0 ${importMsg.ok ? "bg-[#0c1a0c] text-green-400" : "bg-[#1a0c0c] text-red-400"}`}>
+          {importMsg.text}
+          <button onClick={() => setImportMsg(null)} className="ml-2 text-[#888] hover:text-white">✕</button>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-auto">
         {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
