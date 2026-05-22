@@ -14,7 +14,7 @@ const NAV_LINKS: { href: string; label: string; module: string }[] = [
   { href: "/sinteticos",      label: "SINTÉTICOS",    module: "sinteticos" },
   { href: "/renta-variable",  label: "RENTA VARIABLE",module: "renta-variable" },
   { href: "/retorno",         label: "ESTRATEGIA",    module: "estrategia" },
-  { href: "/operar",          label: "OPERAR",        module: "operar" },
+  { href: "/operar",          label: "TRADING",       module: "operar" },
   { href: "/operaciones",     label: "OPERACIONES",   module: "operaciones" },
   { href: "/aum",             label: "AUM",           module: "portfolios" },
   { href: "/valuaciones",     label: "VALUACIONES",   module: "portfolios" },

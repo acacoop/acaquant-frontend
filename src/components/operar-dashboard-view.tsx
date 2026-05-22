@@ -74,12 +74,20 @@ interface FormState {
   tif: Tif;
 }
 
-const CARDS_LS_KEY = "trd-fx-operar-cards";
+// v2: layout 50/50 con 4 slots de book de base (arrancan vacíos). El bump
+// de versión resetea el LS viejo (2 cards AL30/GD30) al nuevo default.
+const CARDS_LS_KEY = "trd-fx-operar-cards-v2";
 const ACCOUNT_LS_KEY = "trd-fx-operar-account";
 
+// 4 books de base, siempre presentes aunque estén vacíos. removeCard no baja
+// de este piso (limpia el ticker en vez de eliminar el slot).
+const MIN_CARDS = 4;
+
 const DEFAULT_CARDS: CardCfg[] = [
-  { id: "default-al30", tickerCorto: "AL30" },
-  { id: "default-gd30", tickerCorto: "GD30" },
+  { id: "slot-1", tickerCorto: "" },
+  { id: "slot-2", tickerCorto: "" },
+  { id: "slot-3", tickerCorto: "" },
+  { id: "slot-4", tickerCorto: "" },
 ];
 
 function loadCards(): CardCfg[] {
@@ -352,8 +360,8 @@ function PortfolioPanel({
   };
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0">
-      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a]">
+    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 h-full">
+      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a] shrink-0">
         <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold truncate">
           PORTFOLIO{" "}
           {account && (
@@ -807,7 +815,7 @@ function OperarCard({
     form.side === "BUY" ? "bg-[#0d1d0d]" : "bg-[#1d0d0d]";
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-w-[300px]">
+    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-w-0 w-full">
       {/* Header */}
       <div className="flex items-center gap-1 px-2 py-1 border-b border-[#1a1a1a]">
         <TickerSearch value={cfg.tickerCorto} onPick={onChangeTicker} />
@@ -1042,8 +1050,8 @@ function OrderManagement({
   );
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808]">
-      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a]">
+    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 h-full">
+      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a] shrink-0">
         <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
           ÓRDENES DEL DÍA
         </span>
@@ -1061,13 +1069,14 @@ function OrderManagement({
         </div>
       </div>
 
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {orders.length === 0 ? (
         <div className="px-2 py-3 text-[10px] text-[#555] text-center">
           Sin órdenes hoy
         </div>
       ) : (
         <table className="w-full text-[10px] font-mono tabular-nums">
-          <thead className="text-[9px] text-[#666] tracking-wider bg-[#0a0a0a]">
+          <thead className="text-[9px] text-[#666] tracking-wider bg-[#0a0a0a] sticky top-0">
             <tr>
               <th className="text-left px-2 py-1">HORA</th>
               <th className="text-left px-2 py-1">TICKER</th>
@@ -1154,6 +1163,7 @@ function OrderManagement({
           </tbody>
         </table>
       )}
+      </div>
     </div>
   );
 }
@@ -1217,11 +1227,20 @@ export function OperarDashboardView() {
   }, [account]);
 
   function addCard() {
-    setCards((cs) => [...cs, { id: uid(), tickerCorto: "AL30" }]);
+    setCards((cs) => [...cs, { id: uid(), tickerCorto: "" }]);
   }
 
   function removeCard(id: string) {
-    setCards((cs) => cs.filter((c) => c.id !== id));
+    setCards((cs) => {
+      // Piso de 4 slots: si estamos en el mínimo, el × limpia el ticker
+      // (deja el slot vacío) en vez de eliminar el panel.
+      if (cs.length <= MIN_CARDS) {
+        return cs.map((c) =>
+          c.id === id ? { ...c, tickerCorto: "", fullTicker: undefined } : c,
+        );
+      }
+      return cs.filter((c) => c.id !== id);
+    });
   }
 
   function changeTicker(id: string, corto: string, full?: string) {
@@ -1273,7 +1292,7 @@ export function OperarDashboardView() {
   }
 
   return (
-    <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-auto">
+    <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[#080808] shrink-0">
         <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
@@ -1290,14 +1309,11 @@ export function OperarDashboardView() {
         </button>
       </div>
 
-      {/* Cards row */}
-      <div className="flex gap-2 overflow-x-auto pb-1 shrink-0">
-        {cards.length === 0 ? (
-          <div className="border border-[#1a1a1a] bg-[#080808] p-4 text-[10px] text-[#666] text-center w-full">
-            Sin paneles. Click en "+ AGREGAR PANEL" para arrancar.
-          </div>
-        ) : (
-          cards.map((c) => (
+      {/* Split 50/50: izquierda = order books, derecha = portfolio + órdenes */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
+        {/* Izquierda (50%): grid 2×2 de order books, scroll si desborda */}
+        <div className="min-h-0 overflow-y-auto grid grid-cols-1 xl:grid-cols-2 gap-2 auto-rows-min content-start">
+          {cards.map((c) => (
             <OperarCard
               key={c.id}
               cfg={c}
@@ -1307,29 +1323,29 @@ export function OperarDashboardView() {
               onRemove={() => removeCard(c.id)}
               onExecuted={refresh}
             />
-          ))
-        )}
-      </div>
-
-      {/* Bottom split: órdenes (izquierda) + portfolio (derecha) */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 gap-2">
-        <div className="min-h-0 overflow-hidden">
-          <OrderManagement
-            orders={orders}
-            refresh={refresh}
-            onCancel={cancelOrder}
-          />
+          ))}
         </div>
-        <div className="min-h-0 overflow-hidden">
-          <PortfolioPanel
-            account={account}
-            accountNombre={
-              cuentas.find((c) => c.account_id === account)?.nombre ?? null
-            }
-            saldo={saldo}
-            detailed={detailed}
-            refresh={refreshPortfolio}
-          />
+
+        {/* Derecha (50%): portfolio arriba (50%) + órdenes abajo (50%) */}
+        <div className="min-h-0 grid grid-rows-2 gap-2">
+          <div className="min-h-0 overflow-hidden">
+            <PortfolioPanel
+              account={account}
+              accountNombre={
+                cuentas.find((c) => c.account_id === account)?.nombre ?? null
+              }
+              saldo={saldo}
+              detailed={detailed}
+              refresh={refreshPortfolio}
+            />
+          </div>
+          <div className="min-h-0 overflow-hidden">
+            <OrderManagement
+              orders={orders}
+              refresh={refresh}
+              onCancel={cancelOrder}
+            />
+          </div>
         </div>
       </div>
     </div>
