@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -90,6 +91,35 @@ function carteraColor(c: string): string {
 function carteraShort(c: string): string {
   if (!c) return "—";
   return c.replace("CARTERA ", "");
+}
+
+// ── Operar desde una posición (deep-link a Trading) ─────────────────────────
+// Click derecho en la fila → "OPERAR" → /operar con cuenta + asset cargados.
+// No se opera cash (MONEDA). FCI va a la tab FCI con el buscador prefilleado.
+function _posOperable(p: Posicion): { operable: boolean; isFci: boolean } {
+  const clase = (p.clase_activo || "").toUpperCase();
+  const cart = (p.cartera || "").toUpperCase();
+  const isFci = clase === "FCI" || cart.includes("FCI");
+  const isCash = clase === "MONEDA" || clase === "MONEDAS";
+  return { operable: !isCash, isFci };
+}
+
+// "[1114] CAFCI684-1114 - FCI Balanz Capital Ahorro - Clase A" → "Balanz Capital Ahorro - Clase A"
+function _fciSearchSeed(p: Posicion): string {
+  let s = p.ticker || "";
+  s = s.replace(/^\s*\[[^\]]*\]\s*/, "");        // "[1114] "
+  s = s.replace(/^\s*CAFCI[\w-]*\s*-\s*/i, "");  // "CAFCI684-1114 - "
+  s = s.replace(/^\s*FCI\s+/i, "");              // "FCI " inicial
+  return s.trim() || p.emisor || "";
+}
+
+function _operarHref(p: Posicion, idCuenta: string): string {
+  const { isFci } = _posOperable(p);
+  const acc = encodeURIComponent(idCuenta);
+  if (isFci) {
+    return `/operar?tab=fci&account=${acc}&fci=${encodeURIComponent(_fciSearchSeed(p))}`;
+  }
+  return `/operar?account=${acc}&ticker=${encodeURIComponent(p.ticker)}`;
 }
 
 interface PosicionesResp {
@@ -266,6 +296,27 @@ function computeYRange(vals: number[]): { min: number; max: number; ticks: numbe
 // ── Componente ────────────────────────────────────────────────────────────
 
 export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
+  const router = useRouter();
+  // Menú contextual (click derecho) para operar una posición desde el portfolio.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; pos: Posicion } | null>(null);
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [ctxMenu]);
+
   const [serieResp, setSerieResp] = useState<SerieResp | null>(null);
   const [mensualResp, setMensualResp] = useState<MensualResp | null>(null);
   const [posResp, setPosResp] = useState<PosicionesResp | null>(null);
@@ -1024,7 +1075,17 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 </thead>
                 <tbody>
                   {posiciones.map((p) => (
-                    <tr key={p.unidad ?? p.ticker} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+                    <tr
+                      key={p.unidad ?? p.ticker}
+                      onContextMenu={(e) => {
+                        if (!_posOperable(p).operable) return; // cash: menú nativo
+                        e.preventDefault();
+                        setCtxMenu({ x: e.clientX, y: e.clientY, pos: p });
+                      }}
+                      className={`border-t border-[#111] hover:bg-[#0f0f0f] ${
+                        _posOperable(p).operable ? "cursor-context-menu" : ""
+                      }`}
+                    >
                       <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900] font-semibold">{p.ticker}</td>
                       <td className="px-2 py-1 align-top whitespace-normal break-words text-[#d0d0d0]">{p.emisor || "—"}</td>
                       <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">{p.clase_activo || "—"}</td>
@@ -1122,6 +1183,41 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         </div>
       </div>
 
+      {/* Menú contextual (click derecho en una posición) → operar en Trading. */}
+      {ctxMenu && (
+        <div
+          className="fixed z-50 min-w-[210px] bg-[#0d0d0d] border border-[#2a2a2a] shadow-xl text-[11px]"
+          style={{
+            top: Math.min(ctxMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 120),
+            left: Math.min(ctxMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 230),
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 border-b border-[#1a1a1a] text-[#888] flex items-center gap-1">
+            <span
+              className="text-[#ff9900] font-semibold truncate max-w-[150px]"
+              title={ctxMenu.pos.ticker}
+            >
+              {ctxMenu.pos.ticker}
+            </span>
+            <span className="text-[9px] uppercase">{ctxMenu.pos.clase_activo}</span>
+          </div>
+          <button
+            onClick={() => {
+              const href = _operarHref(ctxMenu.pos, idCuenta);
+              setCtxMenu(null);
+              router.push(href);
+            }}
+            className="w-full text-left px-3 py-2 hover:bg-[#1a1308] text-[#ffcf66] flex items-center gap-2"
+          >
+            <span>▸</span>
+            <span>
+              OPERAR{_posOperable(ctxMenu.pos).isFci ? " (FCI)" : ""} ·{" "}
+              <span className="text-[#888]">cuenta {idCuenta}</span>
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

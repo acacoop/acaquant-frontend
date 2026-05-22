@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DolarMepShell } from "./dolar-mep-shell";
 import { OperarDashboardView } from "./operar-dashboard-view";
 import { OperarFciView } from "./operar-fci-view";
@@ -9,6 +9,15 @@ type Tab = "dashboard" | "fci" | "dolar-mep";
 
 export function OperarShell() {
   const [tab, setTab] = useState<Tab>("dashboard");
+
+  // Deep-link desde Valuaciones: ?tab=fci abre la tab correcta en mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t === "fci" || t === "dolar-mep" || t === "dashboard") {
+      setTab(t as Tab);
+    }
+  }, []);
 
   return (
     <div className="h-full flex flex-col min-h-0">

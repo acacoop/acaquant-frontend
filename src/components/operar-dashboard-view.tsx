@@ -1184,6 +1184,9 @@ export function OperarDashboardView() {
   const [cards, setCards] = useState<CardCfg[]>(loadCards);
   const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
   const [account, setAccount] = useState<string>(ACCOUNT_DEFAULT_FALLBACK);
+  // Cuenta llegada por deep-link desde Valuaciones (?account=). Dispara el
+  // banner de contexto para que sea obvio que se opera la cuenta del cliente.
+  const [derivedAccount, setDerivedAccount] = useState<string | null>(null);
   const { orders, refresh } = useOrdenesDia(account);
   const { saldo, detailed, refresh: refreshPortfolio } = usePortfolio(account);
 
@@ -1192,7 +1195,31 @@ export function OperarDashboardView() {
     saveCards(cards);
   }, [cards]);
 
-  // Cuentas + restore LS.
+  // Deep-link desde Valuaciones (?account= & ?ticker=). Corre una vez en mount.
+  // Precarga la cuenta del cliente y mete el ticker en el primer slot de book.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const acc = p.get("account");
+    const tk = p.get("ticker");
+    if (acc) {
+      setAccount(acc);
+      setDerivedAccount(acc);
+    }
+    if (tk) {
+      setCards((cs) => {
+        if (cs.some((c) => c.tickerCorto === tk)) return cs;
+        if (cs.length === 0) return [{ id: uid(), tickerCorto: tk }];
+        const copy = [...cs];
+        const emptyIdx = copy.findIndex((c) => !c.tickerCorto);
+        const idx = emptyIdx >= 0 ? emptyIdx : 0;
+        copy[idx] = { ...copy[idx], tickerCorto: tk, fullTicker: undefined };
+        return copy;
+      });
+    }
+  }, []);
+
+  // Cuentas + restore. Precedencia: ?account= (deep-link) > LS.
   useEffect(() => {
     let alive = true;
     async function fetchCuentas() {
@@ -1203,11 +1230,17 @@ export function OperarDashboardView() {
         if (!alive || !r.ok) return;
         const list = (await r.json()) as CuentaDescubierta[];
         setCuentas(list);
+        const urlAcc =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("account")
+            : null;
         const persisted =
           typeof window !== "undefined"
             ? window.localStorage.getItem(ACCOUNT_LS_KEY)
             : null;
-        if (persisted && list.some((c) => c.account_id === persisted)) {
+        if (urlAcc && list.some((c) => c.account_id === urlAcc)) {
+          setAccount(urlAcc);
+        } else if (persisted && list.some((c) => c.account_id === persisted)) {
           setAccount(persisted);
         }
       } catch {
@@ -1308,6 +1341,36 @@ export function OperarDashboardView() {
           + AGREGAR PANEL
         </button>
       </div>
+
+      {/* Banner de contexto cuando se llega derivado desde Valuaciones. */}
+      {derivedAccount && (() => {
+        const nombre = cuentas.find((c) => c.account_id === derivedAccount)?.nombre;
+        const noOperable =
+          cuentas.length > 0 && !cuentas.some((c) => c.account_id === derivedAccount);
+        return (
+          <div
+            className={`shrink-0 flex items-center gap-2 px-2 py-1 text-[10px] border ${
+              noOperable
+                ? "border-[#f87171]/50 bg-[#1a0d0d] text-[#f87171]"
+                : "border-[#ff9900]/40 bg-[#1a1308] text-[#ffcf66]"
+            }`}
+          >
+            <span>
+              ↪ Derivado de Valuaciones · operando cuenta{" "}
+              <b className="text-white">{derivedAccount}</b>
+              {nombre ? ` — ${nombre}` : ""}
+              {noOperable && " · ⚠ esta cuenta no figura como operable por API"}
+            </span>
+            <button
+              onClick={() => setDerivedAccount(null)}
+              className="ml-auto text-[#888] hover:text-white leading-none"
+              title="Ocultar"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Split 50/50: izquierda = order books, derecha = portfolio + órdenes */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">

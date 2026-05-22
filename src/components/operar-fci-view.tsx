@@ -38,11 +38,25 @@ const ACCOUNT_LS_KEY = "trd-fx-operar-account";
 
 // ─── Buscador de FCI ───────────────────────────────────────────────────────
 
-function FciSearch({ onPick }: { onPick: (hit: FciHit) => void }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
+function FciSearch({
+  onPick,
+  initialQuery,
+}: {
+  onPick: (hit: FciHit) => void;
+  initialQuery?: string;
+}) {
+  const [q, setQ] = useState(initialQuery ?? "");
+  const [open, setOpen] = useState(Boolean(initialQuery));
   const [hits, setHits] = useState<FciHit[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Seed desde deep-link (?fci=) — prefilltrea y abre el dropdown.
+  useEffect(() => {
+    if (initialQuery) {
+      setQ(initialQuery);
+      setOpen(true);
+    }
+  }, [initialQuery]);
 
   useEffect(() => {
     if (!open || q.trim().length < 2) {
@@ -129,9 +143,11 @@ function fmtNum(n: number | null | undefined, dec = 4): string {
 function FciOperatePanel({
   account,
   onExecuted,
+  initialFundQuery,
 }: {
   account: string;
   onExecuted: () => void;
+  initialFundQuery?: string;
 }) {
   const [fci, setFci] = useState<FciQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -231,6 +247,7 @@ function FciOperatePanel({
           <span className="text-[9px] tracking-wider text-[#888]">FONDO</span>
           <div className="mt-1">
             <FciSearch
+              initialQuery={initialFundQuery}
               onPick={(h) => {
                 setFci({
                   ticker: h.ticker,
@@ -395,11 +412,26 @@ function Meta({ label, value, accent }: { label: string; value: string; accent?:
 export function OperarFciView() {
   const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
   const [account, setAccount] = useState<string>(ACCOUNT_DEFAULT_FALLBACK);
+  const [derivedAccount, setDerivedAccount] = useState<string | null>(null);
+  const [fundSeed, setFundSeed] = useState<string | undefined>(undefined);
 
   const { orders, refresh } = useOrdenesDia(account);
   const { saldo, detailed, refresh: refreshPortfolio } = usePortfolio(account);
 
-  // Cuentas + restore del LS (compartido con el dashboard de Trading).
+  // Deep-link desde Valuaciones: ?account= & ?fci= (nombre del fondo a buscar).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const acc = p.get("account");
+    const fci = p.get("fci");
+    if (acc) {
+      setAccount(acc);
+      setDerivedAccount(acc);
+    }
+    if (fci) setFundSeed(fci);
+  }, []);
+
+  // Cuentas + restore. Precedencia: ?account= (deep-link) > LS.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -408,9 +440,15 @@ export function OperarFciView() {
         if (!alive || !r.ok) return;
         const list = (await r.json()) as CuentaDescubierta[];
         setCuentas(list);
+        const urlAcc =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("account")
+            : null;
         const persisted =
           typeof window !== "undefined" ? window.localStorage.getItem(ACCOUNT_LS_KEY) : null;
-        if (persisted && list.some((c) => c.account_id === persisted)) {
+        if (urlAcc && list.some((c) => c.account_id === urlAcc)) {
+          setAccount(urlAcc);
+        } else if (persisted && list.some((c) => c.account_id === persisted)) {
           setAccount(persisted);
         }
       } catch {
@@ -456,11 +494,42 @@ export function OperarFciView() {
         </span>
       </div>
 
+      {/* Banner de contexto cuando se llega derivado desde Valuaciones. */}
+      {derivedAccount && (() => {
+        const nombre = cuentas.find((c) => c.account_id === derivedAccount)?.nombre;
+        const noOperable =
+          cuentas.length > 0 && !cuentas.some((c) => c.account_id === derivedAccount);
+        return (
+          <div
+            className={`shrink-0 flex items-center gap-2 px-2 py-1 text-[10px] border ${
+              noOperable
+                ? "border-[#f87171]/50 bg-[#1a0d0d] text-[#f87171]"
+                : "border-[#ff9900]/40 bg-[#1a1308] text-[#ffcf66]"
+            }`}
+          >
+            <span>
+              ↪ Derivado de Valuaciones · operando cuenta{" "}
+              <b className="text-white">{derivedAccount}</b>
+              {nombre ? ` — ${nombre}` : ""}
+              {noOperable && " · ⚠ esta cuenta no figura como operable por API"}
+            </span>
+            <button
+              onClick={() => setDerivedAccount(null)}
+              className="ml-auto text-[#888] hover:text-white leading-none"
+              title="Ocultar"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Split 50/50 — espejo del dashboard */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
         {/* Izquierda: panel FCI (en lugar de los order books) */}
         <FciOperatePanel
           account={account}
+          initialFundQuery={fundSeed}
           onExecuted={() => {
             void refresh();
             void refreshPortfolio();
