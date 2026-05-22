@@ -1669,6 +1669,246 @@ function TabAssets() {
   );
 }
 
+// ── Tab: Clientes ─────────────────────────────────────────────────────────────
+// Edición de Clientes.Comitentes (master del Tablero Comercial). Espejo de
+// TabAssets: campos de Aunesa read-only, edición in-place de los 13 campos
+// manuales de segmentación. PATCH a /api/manager/clientes.
+const CLIENTE_CAMPOS = [
+  "nivel_1", "nivel_2", "nivel_3", "nivel_4", "nivel_5",
+  "primer_contacto_comercial", "riesgo_la_ft", "division",
+  "adc", "dma", "observaciones", "sucursal", "referido",
+] as const;
+type ClienteCampo = (typeof CLIENTE_CAMPOS)[number];
+const CLIENTE_CAMPO_LABEL: Record<ClienteCampo, string> = {
+  nivel_1: "NIVEL 1", nivel_2: "NIVEL 2", nivel_3: "NIVEL 3",
+  nivel_4: "NIVEL 4", nivel_5: "NIVEL 5",
+  primer_contacto_comercial: "1ER CONTACTO", riesgo_la_ft: "RIESGO LA/FT",
+  division: "DIVISIÓN", adc: "ADC", dma: "DMA",
+  observaciones: "OBSERVACIONES", sucursal: "SUCURSAL", referido: "REFERIDO",
+};
+
+type Cliente = {
+  id_cuenta: string;
+  denominacion?: string | null;
+  operador_nombre?: string | null;
+  operador_email?: string | null;
+  actualizado_por?: string | null;
+  actualizado_at?: string | null;
+} & Partial<Record<ClienteCampo, string | null>>;
+
+type ClienteDraft = Record<ClienteCampo, string>;
+
+function emptyClienteDraft(): ClienteDraft {
+  return Object.fromEntries(CLIENTE_CAMPOS.map((c) => [c, ""])) as ClienteDraft;
+}
+function draftFromCliente(c: Cliente): ClienteDraft {
+  const d = emptyClienteDraft();
+  for (const k of CLIENTE_CAMPOS) d[k] = (c[k] ?? "") as string;
+  return d;
+}
+
+function TabClientes() {
+  const [rows, setRows] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rowState, setRowState] = useState<Record<string, RowState>>({});
+  const [drafts, setDrafts] = useState<Record<string, ClienteDraft>>({});
+  const [vals, setVals] = useState<Record<string, string[]>>({});
+  const [operadores, setOperadores] = useState<{ email: string; nombre: string }[]>([]);
+  // Filtros
+  const [fOperador, setFOperador] = useState("");
+  const [fNivel1, setFNivel1] = useState("");
+  const [campoVacio, setCampoVacio] = useState<ClienteCampo | "">("");
+  const [q, setQ] = useState("");
+
+  const fetchClientes = () => {
+    setLoading(true);
+    setError(null);
+    const qs = new URLSearchParams();
+    if (fOperador) qs.set("operador", fOperador);
+    if (fNivel1) qs.set("nivel_1", fNivel1);
+    if (campoVacio) qs.set("campo_vacio", campoVacio);
+    if (q.trim()) qs.set("q", q.trim());
+    fetch(`/api/manager/clientes?${qs}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const txt = await r.text().catch(() => "");
+          throw new Error(`HTTP ${r.status} — ${txt.slice(0, 200) || r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((d: { clientes: Cliente[] }) => {
+        setRows(d.clientes || []);
+        const initial: Record<string, ClienteDraft> = {};
+        for (const c of d.clientes || []) initial[c.id_cuenta] = draftFromCliente(c);
+        setDrafts(initial);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetch("/api/manager/clientes/values")
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((d: { values: Record<string, string[]>; operadores: { email: string; nombre: string }[] }) => {
+        setVals(d.values || {});
+        setOperadores(d.operadores || []);
+      })
+      .catch(() => { /* silencioso */ });
+  }, []);
+
+  // Re-fetch al cambiar filtros de select. La búsqueda libre va por Enter/botón.
+  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, campoVacio]);
+
+  const setDraftField = (id: string, field: ClienteCampo, value: string) => {
+    setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || emptyClienteDraft()), [field]: value } }));
+  };
+
+  const saveRow = async (c: Cliente) => {
+    const draft = drafts[c.id_cuenta];
+    if (!draft) return;
+    const payload: Record<string, string> = { id_cuenta: c.id_cuenta };
+    for (const k of CLIENTE_CAMPOS) {
+      if (draft[k] !== ((c[k] ?? "") as string)) payload[k] = draft[k];
+    }
+    if (Object.keys(payload).length === 1) return;
+    setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "saving" } }));
+    try {
+      const r = await fetch(`/api/manager/clientes`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      const updated: Cliente = await r.json();
+      setRows((prev) => prev.map((x) => (x.id_cuenta === c.id_cuenta ? updated : x)));
+      setDrafts((prev) => ({ ...prev, [c.id_cuenta]: draftFromCliente(updated) }));
+      setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "saved" } }));
+      setTimeout(() => setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "idle" } })), 1500);
+    } catch (e) {
+      setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      {/* Datalists para autocomplete de cada campo manual */}
+      {CLIENTE_CAMPOS.map((cmp) => (
+        <datalist key={cmp} id={`cli-${cmp}`}>
+          {(vals[cmp] || []).map((v) => <option key={v} value={v} />)}
+        </datalist>
+      ))}
+
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">CLIENTES</span>
+        <span className="text-[10px] text-[#666]">{rows.length} resultados</span>
+
+        <span className="text-[9px] tracking-widest text-[#666]">OPERADOR</span>
+        <select value={fOperador} onChange={(e) => setFOperador(e.target.value)}
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+          <option value="">— todos —</option>
+          {operadores.map((o) => <option key={o.email} value={o.email}>{o.nombre}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[#666]">NIVEL 1</span>
+        <select value={fNivel1} onChange={(e) => setFNivel1(e.target.value)}
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+          <option value="">— todos —</option>
+          {(vals["nivel_1"] || []).map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[#666]">CAMPO VACÍO</span>
+        <select value={campoVacio} onChange={(e) => setCampoVacio(e.target.value as ClienteCampo | "")}
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          title="Mostrar solo los clientes con este campo sin completar">
+          <option value="">— sin filtro —</option>
+          {CLIENTE_CAMPOS.map((c) => <option key={c} value={c}>{CLIENTE_CAMPO_LABEL[c]}</option>)}
+        </select>
+
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") fetchClientes(); }}
+          placeholder="buscar id o nombre…"
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-[170px]"
+        />
+
+        <button onClick={fetchClientes} disabled={loading}
+          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+          {loading ? "Cargando…" : "↻ Recargar"}
+        </button>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
+        {!error && loading && rows.length === 0 && <div className="p-3 text-[11px] text-[#555]">Cargando…</div>}
+        {!error && !loading && rows.length === 0 && <div className="p-3 text-[11px] text-[#555]">Sin resultados para el filtro actual.</div>}
+        {rows.length > 0 && (
+          <table className="text-[11px] font-mono">
+            <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
+              <tr className="text-left text-[#888] tracking-widest text-[9px]">
+                <th className="px-3 py-2">CUENTA</th>
+                <th className="px-2 py-2">DENOMINACIÓN</th>
+                <th className="px-2 py-2">OPERADOR</th>
+                {CLIENTE_CAMPOS.map((c) => <th key={c} className="px-2 py-2 whitespace-nowrap">{CLIENTE_CAMPO_LABEL[c]}</th>)}
+                <th className="px-3 py-2">EDITADO</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((c) => {
+                const draft = drafts[c.id_cuenta] || emptyClienteDraft();
+                const state: RowState = rowState[c.id_cuenta] || { kind: "idle" };
+                const dirty = CLIENTE_CAMPOS.some((k) => draft[k] !== ((c[k] ?? "") as string));
+                return (
+                  <tr key={c.id_cuenta} className="border-b border-[#141414] hover:bg-[#0c0c0c]">
+                    <td className="px-3 py-1.5 text-[#ff9900] whitespace-nowrap">{c.id_cuenta}</td>
+                    <td className="px-2 py-1.5 text-[#d0d0d0] whitespace-nowrap max-w-[220px] truncate" title={c.denominacion ?? ""}>{c.denominacion ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-[#888] whitespace-nowrap max-w-[140px] truncate" title={c.operador_email ?? ""}>{c.operador_nombre ?? "—"}</td>
+                    {CLIENTE_CAMPOS.map((k) => (
+                      <td key={k} className="px-2 py-1.5">
+                        <input
+                          type="text"
+                          list={`cli-${k}`}
+                          value={draft[k]}
+                          onChange={(e) => setDraftField(c.id_cuenta, k, e.target.value)}
+                          onBlur={() => saveRow(c)}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                          placeholder="—"
+                          className={`bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none ${k === "observaciones" ? "min-w-[180px]" : "min-w-[90px]"} w-full`}
+                        />
+                      </td>
+                    ))}
+                    <td className="px-3 py-1.5 text-[#666] text-[10px] whitespace-nowrap">
+                      {c.actualizado_at ? (
+                        <>
+                          {new Date(c.actualizado_at).toLocaleString("es-AR", { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                          {c.actualizado_por && <div className="text-[#444]">{c.actualizado_por}</div>}
+                        </>
+                      ) : "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
+                      {state.kind === "saving" && <span className="text-[#ff9900]">Guardando…</span>}
+                      {state.kind === "saved" && <span className="text-green-400">✓ guardado</span>}
+                      {state.kind === "error" && <span className="text-red-400 cursor-help" title={state.msg}>✗ {state.msg.length > 40 ? state.msg.slice(0, 40) + "…" : state.msg}</span>}
+                      {state.kind === "idle" && dirty && <span className="text-[#666]">sin guardar</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TabInstrumentos() {
   const [discLoading, setDiscLoading] = useState(false);
   const [discData, setDiscData] = useState<{
@@ -1915,6 +2155,7 @@ type Tab =
   | "validaciones"
   | "instrumentos"
   | "assets"
+  | "clientes"
   | "aunesa"
   | "asistente"
   | "recursos"
@@ -1958,6 +2199,7 @@ export function ManagerView() {
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "instrumentos", label: "INSTRUMENTOS" },
     { id: "assets",       label: "ASSETS"       },
+    { id: "clientes",     label: "CLIENTES"     },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "recursos",     label: "RECURSOS"     },
     { id: "logs",         label: "LOGS"         },
@@ -1986,6 +2228,7 @@ export function ManagerView() {
         {tab === "validaciones" && <TabValidaciones />}
         {tab === "instrumentos" && <TabInstrumentos />}
         {tab === "assets"       && <TabAssets />}
+        {tab === "clientes"     && <TabClientes />}
         {tab === "aunesa"       && <AunesaGroup />}
         {tab === "recursos"     && <RecursosPanel />}
         {tab === "logs"         && <LogsPanel />}
