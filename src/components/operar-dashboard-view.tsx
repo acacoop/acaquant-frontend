@@ -168,7 +168,7 @@ function useOrderBook(
   return { book, status, error };
 }
 
-function useOrdenesDia(account: string, pollMs = 4000) {
+export function useOrdenesDia(account: string, pollMs = 4000) {
   const [orders, setOrders] = useState<OrderDia[]>([]);
   const [lastFetch, setLastFetch] = useState<number>(0);
 
@@ -270,7 +270,7 @@ interface TenenciaFlat {
   currency: string;
 }
 
-function usePortfolio(account: string, pollMs = 8000) {
+export function usePortfolio(account: string, pollMs = 8000) {
   const [saldo, setSaldo] = useState<SaldoResp | null>(null);
   const [detailed, setDetailed] = useState<DetailedResp | null>(null);
 
@@ -303,7 +303,7 @@ function usePortfolio(account: string, pollMs = 8000) {
   return { saldo, detailed, refresh };
 }
 
-function PortfolioPanel({
+export function PortfolioPanel({
   account,
   accountNombre,
   saldo,
@@ -1023,7 +1023,7 @@ function OperarCard({
   );
 }
 
-function OrderManagement({
+export function OrderManagement({
   orders,
   refresh,
   onCancel,

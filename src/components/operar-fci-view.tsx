@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ACCOUNT_DEFAULT_FALLBACK, CuentaDescubierta } from "./dolar-mep-shared";
 import {
-  ACCOUNT_DEFAULT_FALLBACK,
-  CuentaDescubierta,
-  fmtTime,
-} from "./dolar-mep-shared";
-import { AccountSearch } from "./operar-dashboard-view";
+  AccountSearch,
+  OrderManagement,
+  PortfolioPanel,
+  usePortfolio,
+  useOrdenesDia,
+} from "./operar-dashboard-view";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -27,21 +29,6 @@ interface FciQuote {
   min_trade_vol?: number | null;
   settl_type?: number | string | null;
   plazo?: string | null;
-}
-
-interface OrderDia {
-  cl_ord_id?: string;
-  ticker?: string;
-  side?: "BUY" | "SELL";
-  size?: number;
-  price?: number;
-  status?: string;
-  cum_qty?: number;
-  account?: string;
-  created_at?: string;
-  reject_reason?: string | null;
-  kind?: string;
-  op?: string;
 }
 
 type Side = "BUY" | "SELL";
@@ -96,7 +83,7 @@ function FciSearch({ onPick }: { onPick: (hit: FciHit) => void }) {
         placeholder="buscar FCI por nombre…"
         className="bg-black border border-[#2a2a2a] px-2 py-1 text-[12px] w-full focus:border-[#ff9900] outline-none"
       />
-      {open && (q.trim().length >= 2) && (
+      {open && q.trim().length >= 2 && (
         <div className="absolute top-full left-0 right-0 mt-0.5 bg-[#0d0d0d] border border-[#2a2a2a] z-20 max-h-[320px] overflow-y-auto text-[11px]">
           {loading && hits.length === 0 ? (
             <div className="px-2 py-2 text-[#666]">buscando…</div>
@@ -122,9 +109,7 @@ function FciSearch({ onPick }: { onPick: (hit: FciHit) => void }) {
                 <span className="text-[9px] text-[#ff9900] w-9 text-right">
                   {h.currency ?? ""}
                 </span>
-                <span className="text-[9px] text-[#888] w-10 text-right">
-                  {h.plazo ?? ""}
-                </span>
+                <span className="text-[9px] text-[#888] w-10 text-right">{h.plazo ?? ""}</span>
               </div>
             ))
           )}
@@ -134,56 +119,20 @@ function FciSearch({ onPick }: { onPick: (hit: FciHit) => void }) {
   );
 }
 
-// ─── Órdenes FCI del día ─────────────────────────────────────────────────────
-
-function useFciOrders(account: string, pollMs = 5000) {
-  const [orders, setOrders] = useState<OrderDia[]>([]);
-  const fetchNow = useCallback(async () => {
-    if (!account) {
-      setOrders([]);
-      return;
-    }
-    try {
-      const r = await fetch(`/api/ordenes/dia?account=${encodeURIComponent(account)}`, {
-        cache: "no-store",
-      });
-      if (r.ok) {
-        const all = (await r.json()) as OrderDia[];
-        setOrders(all.filter((o) => o.kind === "FCI"));
-      }
-    } catch {
-      // ignore
-    }
-  }, [account]);
-
-  useEffect(() => {
-    void fetchNow();
-    const id = setInterval(fetchNow, pollMs);
-    return () => clearInterval(id);
-  }, [fetchNow, pollMs]);
-
-  return { orders, refresh: fetchNow };
-}
-
-function statusColor(s?: string): string {
-  if (!s) return "text-[#888]";
-  if (s === "FILLED") return "text-[#7fff7f]";
-  if (s === "REJECTED" || s === "CANCELLED" || s === "EXPIRED") return "text-[#ff7f7f]";
-  if (s === "NEW" || s === "PARTIALLY_FILLED" || s === "PENDING_NEW") return "text-[#ffe066]";
-  return "text-white";
-}
-
 function fmtNum(n: number | null | undefined, dec = 4): string {
   if (n === null || n === undefined) return "—";
   return n.toLocaleString("es-AR", { maximumFractionDigits: dec });
 }
 
-// ─── Vista principal ─────────────────────────────────────────────────────────
+// ─── Panel de operación FCI (lado izquierdo) ─────────────────────────────────
 
-export function OperarFciView() {
-  const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
-  const [account, setAccount] = useState<string>(ACCOUNT_DEFAULT_FALLBACK);
-
+function FciOperatePanel({
+  account,
+  onExecuted,
+}: {
+  account: string;
+  onExecuted: () => void;
+}) {
   const [fci, setFci] = useState<FciQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [side, setSide] = useState<Side>("BUY");
@@ -192,40 +141,6 @@ export function OperarFciView() {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  const { orders, refresh: refreshOrders } = useFciOrders(account);
-
-  // Cuentas + restore del LS (compartido con el dashboard de Trading).
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/risk/account/listado", { cache: "no-store" });
-        if (!alive || !r.ok) return;
-        const list = (await r.json()) as CuentaDescubierta[];
-        setCuentas(list);
-        const persisted =
-          typeof window !== "undefined"
-            ? window.localStorage.getItem(ACCOUNT_LS_KEY)
-            : null;
-        if (persisted && list.some((c) => c.account_id === persisted)) {
-          setAccount(persisted);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (account && typeof window !== "undefined") {
-      window.localStorage.setItem(ACCOUNT_LS_KEY, account);
-    }
-  }, [account]);
-
-  // Refrescar la cuota del fondo seleccionado (cambia ~diario, refresco suave).
   const fetchQuote = useCallback(async (ticker: string) => {
     setQuoteLoading(true);
     try {
@@ -240,6 +155,7 @@ export function OperarFciView() {
     }
   }, []);
 
+  // Refresco suave de la cuota del fondo elegido (cambia ~diario).
   const selectedTicker = fci?.ticker;
   useEffect(() => {
     if (!selectedTicker) return;
@@ -251,35 +167,21 @@ export function OperarFciView() {
   const sizePrecision = fci?.size_precision ?? 4;
   const ccy = fci?.currency ?? "";
 
-  // Conversión live importe ↔ cuotapartes.
   const amountNum = parseFloat(amount.replace(",", "."));
   const conversion = useMemo(() => {
     if (!cuota || !isFinite(amountNum) || amountNum <= 0) return null;
     if (amountMode === "importe") {
-      const cuotapartes = +(amountNum / cuota).toFixed(sizePrecision ?? 4);
-      return { cuotapartes, importe: amountNum };
+      return { cuotapartes: +(amountNum / cuota).toFixed(sizePrecision ?? 4), importe: amountNum };
     }
-    const importe = +(amountNum * cuota).toFixed(2);
-    return { cuotapartes: amountNum, importe };
+    return { cuotapartes: amountNum, importe: +(amountNum * cuota).toFixed(2) };
   }, [amountMode, amountNum, cuota, sizePrecision]);
 
   async function ejecutar() {
-    if (!fci) {
-      setResult({ ok: false, msg: "Elegí un FCI" });
-      return;
-    }
-    if (!account) {
-      setResult({ ok: false, msg: "Elegí una cuenta arriba" });
-      return;
-    }
-    if (!isFinite(amountNum) || amountNum <= 0) {
-      setResult({ ok: false, msg: "Monto inválido" });
-      return;
-    }
-    if (!cuota || cuota <= 0) {
-      setResult({ ok: false, msg: "Sin cuota operable (¿mercado cerrado?)" });
-      return;
-    }
+    if (!fci) return setResult({ ok: false, msg: "Elegí un FCI" });
+    if (!account) return setResult({ ok: false, msg: "Elegí una cuenta arriba" });
+    if (!isFinite(amountNum) || amountNum <= 0) return setResult({ ok: false, msg: "Monto inválido" });
+    if (!cuota || cuota <= 0) return setResult({ ok: false, msg: "Sin cuota operable (¿mercado cerrado?)" });
+
     setSending(true);
     setResult(null);
     try {
@@ -304,7 +206,7 @@ export function OperarFciView() {
           )} cuotapartes @ ${fmtNum(j.cuota, 6)} · ${j.cl_ord_id ?? ""}`,
         });
         setAmount("");
-        refreshOrders();
+        onExecuted();
       } else {
         setResult({ ok: false, msg: j.error ?? j.detail ?? `HTTP ${r.status}` });
       }
@@ -319,221 +221,153 @@ export function OperarFciView() {
   const isBuy = side === "BUY";
 
   return (
-    <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[#080808] shrink-0">
-        <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
-        <AccountSearch value={account} cuentas={cuentas} onPick={(id) => setAccount(id)} />
-        <span className="ml-auto text-[9px] text-[#555] tracking-wide">
-          FCI · suscripción / rescate · orden = cuotapartes @ cuota del día
-        </span>
+    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 overflow-y-auto">
+      <div className="px-2 py-1 border-b border-[#1a1a1a] text-[11px] tracking-wide text-[#d0d0d0] font-semibold shrink-0">
+        OPERAR FCI
       </div>
-
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* Panel de operación */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 overflow-y-auto">
-          <div className="px-2 py-1 border-b border-[#1a1a1a] text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
-            OPERAR FCI
+      <div className="p-3 flex flex-col gap-3">
+        {/* Buscador */}
+        <div>
+          <span className="text-[9px] tracking-wider text-[#888]">FONDO</span>
+          <div className="mt-1">
+            <FciSearch
+              onPick={(h) => {
+                setFci({
+                  ticker: h.ticker,
+                  underlying: h.underlying,
+                  currency: h.currency,
+                  cuota: null,
+                  settl_type: h.settl_type,
+                  plazo: h.plazo,
+                });
+                setResult(null);
+                void fetchQuote(h.ticker);
+              }}
+            />
           </div>
-          <div className="p-3 flex flex-col gap-3">
-            {/* Buscador */}
-            <div>
-              <span className="text-[9px] tracking-wider text-[#888]">FONDO</span>
-              <div className="mt-1">
-                <FciSearch
-                  onPick={(h) => {
-                    setFci({
-                      ticker: h.ticker,
-                      underlying: h.underlying,
-                      currency: h.currency,
-                      cuota: null,
-                      settl_type: h.settl_type,
-                      plazo: h.plazo,
-                    });
-                    setResult(null);
-                    void fetchQuote(h.ticker);
-                  }}
-                />
-              </div>
+        </div>
+
+        {/* Fondo seleccionado */}
+        {fci && (
+          <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-2 flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span
+                className="text-[#ff9900] font-semibold text-[12px] flex-1 truncate"
+                title={fci.ticker}
+              >
+                {fci.ticker}
+              </span>
+              <button
+                onClick={() => fci && fetchQuote(fci.ticker)}
+                className="text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
+                title="Refrescar cuota"
+              >
+                ↻
+              </button>
             </div>
+            <div className="grid grid-cols-4 gap-2 text-[10px]">
+              <Meta label="TIPO" value={fci.underlying ?? "—"} />
+              <Meta label="MONEDA" value={ccy || "—"} />
+              <Meta label="PLAZO" value={fci.plazo ?? "—"} />
+              <Meta
+                label="CUOTA"
+                value={quoteLoading && cuota === null ? "…" : fmtNum(cuota, 6)}
+                accent
+              />
+            </div>
+          </div>
+        )}
 
-            {/* Fondo seleccionado */}
-            {fci && (
-              <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-2 flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[#ff9900] font-semibold text-[12px] flex-1 truncate" title={fci.ticker}>
-                    {fci.ticker}
-                  </span>
-                  <button
-                    onClick={() => fci && fetchQuote(fci.ticker)}
-                    className="text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
-                    title="Refrescar cuota"
-                  >
-                    ↻
-                  </button>
-                </div>
-                <div className="grid grid-cols-4 gap-2 text-[10px]">
-                  <Meta label="TIPO" value={fci.underlying ?? "—"} />
-                  <Meta label="MONEDA" value={ccy || "—"} />
-                  <Meta label="PLAZO" value={fci.plazo ?? "—"} />
-                  <Meta
-                    label="CUOTA"
-                    value={quoteLoading && cuota === null ? "…" : fmtNum(cuota, 6)}
-                    accent
-                  />
-                </div>
-              </div>
-            )}
+        {/* SUSCRIBIR / RESCATAR */}
+        <div className="flex gap-0.5">
+          {(["BUY", "SELL"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setSide(s)}
+              className={`flex-1 px-2 py-1 text-[11px] font-bold border ${
+                s === side
+                  ? s === "BUY"
+                    ? "bg-[#4ade80] text-black border-[#4ade80]"
+                    : "bg-[#f87171] text-black border-[#f87171]"
+                  : "bg-transparent text-[#888] border-[#2a2a2a]"
+              }`}
+            >
+              {s === "BUY" ? "SUSCRIBIR" : "RESCATAR"}
+            </button>
+          ))}
+        </div>
 
-            {/* SUSCRIBIR / RESCATAR */}
-            <div className="flex gap-0.5">
-              {(["BUY", "SELL"] as const).map((s) => (
+        {/* Monto */}
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[9px] tracking-wider text-[#888]">MONTO</span>
+            <div className="flex gap-0.5 ml-auto">
+              {(["importe", "cuotapartes"] as const).map((m) => (
                 <button
-                  key={s}
-                  onClick={() => setSide(s)}
-                  className={`flex-1 px-2 py-1 text-[11px] font-bold border ${
-                    s === side
-                      ? s === "BUY"
-                        ? "bg-[#4ade80] text-black border-[#4ade80]"
-                        : "bg-[#f87171] text-black border-[#f87171]"
+                  key={m}
+                  onClick={() => setAmountMode(m)}
+                  className={`px-2 py-0.5 text-[9px] font-semibold border ${
+                    m === amountMode
+                      ? "bg-[#ff9900] text-black border-[#ff9900]"
                       : "bg-transparent text-[#888] border-[#2a2a2a]"
                   }`}
                 >
-                  {s === "BUY" ? "SUSCRIBIR" : "RESCATAR"}
+                  {m === "importe" ? `$ ${ccy || "IMPORTE"}` : "CUOTAPARTES"}
                 </button>
               ))}
             </div>
-
-            {/* Monto: importe $ / cuotapartes */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[9px] tracking-wider text-[#888]">MONTO</span>
-                <div className="flex gap-0.5 ml-auto">
-                  {(["importe", "cuotapartes"] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setAmountMode(m)}
-                      className={`px-2 py-0.5 text-[9px] font-semibold border ${
-                        m === amountMode
-                          ? "bg-[#ff9900] text-black border-[#ff9900]"
-                          : "bg-transparent text-[#888] border-[#2a2a2a]"
-                      }`}
-                    >
-                      {m === "importe" ? `$ ${ccy || "IMPORTE"}` : "CUOTAPARTES"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <input
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder={amountMode === "importe" ? `importe en ${ccy || "$"}` : "cuotapartes"}
-                inputMode="decimal"
-                className="bg-black border border-[#2a2a2a] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[#ff9900] outline-none"
-              />
-              {/* Conversión live */}
-              <div className="mt-1 text-[10px] text-[#888] min-h-[14px]">
-                {conversion ? (
-                  amountMode === "importe" ? (
-                    <>
-                      ≈ <span className="text-[#d0d0d0] tabular-nums">{fmtNum(conversion.cuotapartes, sizePrecision ?? 4)}</span> cuotapartes
-                    </>
-                  ) : (
-                    <>
-                      ≈ <span className="text-[#d0d0d0] tabular-nums">{ccy} {fmtNum(conversion.importe, 2)}</span> importe
-                    </>
-                  )
-                ) : cuota === null && fci ? (
-                  "sin cuota — no se puede convertir"
-                ) : (
-                  ""
-                )}
-              </div>
-            </div>
-
-            {/* Ejecutar */}
-            <button
-              onClick={ejecutar}
-              disabled={sending || !fci || !account || !cuota}
-              className={`w-full px-2 py-1.5 font-bold text-[12px] tracking-wide border disabled:opacity-30 disabled:cursor-not-allowed ${
-                isBuy
-                  ? "bg-[#4ade80] text-black border-[#4ade80] hover:bg-[#5eea90]"
-                  : "bg-[#f87171] text-black border-[#f87171] hover:bg-[#ff8585]"
-              }`}
-            >
-              {sending ? "…" : isBuy ? "SUSCRIBIR" : "RESCATAR"}
-            </button>
-
-            {result && (
-              <div className={`text-[10px] ${result.ok ? "text-[#4ade80]" : "text-[#f87171]"}`}>
-                {result.msg}
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* Órdenes FCI del día */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0">
-          <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a] shrink-0">
-            <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
-              ÓRDENES FCI DEL DÍA
-            </span>
-            <button
-              onClick={refreshOrders}
-              className="text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
-              title="Refrescar"
-            >
-              ↻
-            </button>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            {orders.length === 0 ? (
-              <div className="px-2 py-3 text-[10px] text-[#555] text-center">Sin órdenes FCI hoy</div>
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder={amountMode === "importe" ? `importe en ${ccy || "$"}` : "cuotapartes"}
+            inputMode="decimal"
+            className="bg-black border border-[#2a2a2a] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[#ff9900] outline-none"
+          />
+          <div className="mt-1 text-[10px] text-[#888] min-h-[14px]">
+            {conversion ? (
+              amountMode === "importe" ? (
+                <>
+                  ≈{" "}
+                  <span className="text-[#d0d0d0] tabular-nums">
+                    {fmtNum(conversion.cuotapartes, sizePrecision ?? 4)}
+                  </span>{" "}
+                  cuotapartes
+                </>
+              ) : (
+                <>
+                  ≈{" "}
+                  <span className="text-[#d0d0d0] tabular-nums">
+                    {ccy} {fmtNum(conversion.importe, 2)}
+                  </span>{" "}
+                  importe
+                </>
+              )
+            ) : cuota === null && fci ? (
+              "sin cuota — no se puede convertir"
             ) : (
-              <table className="w-full text-[10px] font-mono tabular-nums">
-                <thead className="text-[9px] text-[#666] tracking-wider bg-[#0a0a0a] sticky top-0">
-                  <tr>
-                    <th className="text-left px-2 py-1">HORA</th>
-                    <th className="text-left px-2 py-1">FONDO</th>
-                    <th className="text-left px-2 py-1">OP</th>
-                    <th className="text-right px-2 py-1">CUOTAP.</th>
-                    <th className="text-right px-2 py-1">CUOTA</th>
-                    <th className="text-left px-2 py-1">STATUS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((o) => (
-                    <tr key={o.cl_ord_id ?? Math.random()} className="border-t border-[#101010] hover:bg-[#0d0d0d]">
-                      <td className="px-2 py-0.5 text-[#888]">
-                        {o.created_at ? fmtTime(o.created_at) : "—"}
-                      </td>
-                      <td className="px-2 py-0.5 text-[#d0d0d0] max-w-[160px] truncate" title={o.ticker}>
-                        {o.ticker ?? "—"}
-                      </td>
-                      <td
-                        className={`px-2 py-0.5 font-semibold ${
-                          o.op === "SUSCRIPCION" || o.side === "BUY" ? "text-[#7fff7f]" : "text-[#ff7f7f]"
-                        }`}
-                      >
-                        {o.op === "SUSCRIPCION" ? "SUSC" : o.op === "RESCATE" ? "RESC" : o.side ?? "—"}
-                      </td>
-                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">{fmtNum(o.size, 4)}</td>
-                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">{fmtNum(o.price, 6)}</td>
-                      <td className={`px-2 py-0.5 ${statusColor(o.status)}`}>
-                        {o.status ?? "—"}
-                        {o.reject_reason && (
-                          <span className="text-[#888] ml-1 truncate inline-block max-w-[120px]" title={o.reject_reason}>
-                            ({o.reject_reason})
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              ""
             )}
           </div>
         </div>
+
+        <button
+          onClick={ejecutar}
+          disabled={sending || !fci || !account || !cuota}
+          className={`w-full px-2 py-1.5 font-bold text-[12px] tracking-wide border disabled:opacity-30 disabled:cursor-not-allowed ${
+            isBuy
+              ? "bg-[#4ade80] text-black border-[#4ade80] hover:bg-[#5eea90]"
+              : "bg-[#f87171] text-black border-[#f87171] hover:bg-[#ff8585]"
+          }`}
+        >
+          {sending ? "…" : isBuy ? "SUSCRIBIR" : "RESCATAR"}
+        </button>
+
+        {result && (
+          <div className={`text-[10px] ${result.ok ? "text-[#4ade80]" : "text-[#f87171]"}`}>
+            {result.msg}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -543,9 +377,112 @@ function Meta({ label, value, accent }: { label: string; value: string; accent?:
   return (
     <div className="flex flex-col gap-0.5 leading-tight">
       <span className="text-[8px] tracking-wider text-[#666]">{label}</span>
-      <span className={`text-[11px] font-semibold tabular-nums ${accent ? "text-[#ff9900]" : "text-[#d0d0d0]"}`}>
+      <span
+        className={`text-[11px] font-semibold tabular-nums ${
+          accent ? "text-[#ff9900]" : "text-[#d0d0d0]"
+        }`}
+      >
         {value}
       </span>
+    </div>
+  );
+}
+
+// ─── Vista principal — espejo del DASHBOARD ──────────────────────────────────
+// Izquierda: panel FCI. Derecha: portfolio (arriba) + órdenes del día (abajo),
+// reusando los MISMOS componentes que el dashboard de assets.
+
+export function OperarFciView() {
+  const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
+  const [account, setAccount] = useState<string>(ACCOUNT_DEFAULT_FALLBACK);
+
+  const { orders, refresh } = useOrdenesDia(account);
+  const { saldo, detailed, refresh: refreshPortfolio } = usePortfolio(account);
+
+  // Cuentas + restore del LS (compartido con el dashboard de Trading).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/risk/account/listado", { cache: "no-store" });
+        if (!alive || !r.ok) return;
+        const list = (await r.json()) as CuentaDescubierta[];
+        setCuentas(list);
+        const persisted =
+          typeof window !== "undefined" ? window.localStorage.getItem(ACCOUNT_LS_KEY) : null;
+        if (persisted && list.some((c) => c.account_id === persisted)) {
+          setAccount(persisted);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (account && typeof window !== "undefined") {
+      window.localStorage.setItem(ACCOUNT_LS_KEY, account);
+    }
+  }, [account]);
+
+  async function cancelOrder(cl_ord_id: string, proprietary?: string) {
+    try {
+      const qs = proprietary ? `?proprietary=${encodeURIComponent(proprietary)}` : "";
+      const r = await fetch(`/api/ordenes/${encodeURIComponent(cl_ord_id)}${qs}`, {
+        method: "DELETE",
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) {
+        alert(`Cancelar falló: ${j.error || j.detail || `HTTP ${r.status}`}`);
+      }
+    } catch (e) {
+      alert(`Cancelar falló: ${e instanceof Error ? e.message : "error"}`);
+    } finally {
+      void refresh();
+    }
+  }
+
+  return (
+    <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
+      {/* Toolbar — mismo que el dashboard */}
+      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[#080808] shrink-0">
+        <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
+        <AccountSearch value={account} cuentas={cuentas} onPick={(id) => setAccount(id)} />
+        <span className="ml-auto text-[9px] text-[#555] tracking-wide">
+          FCI · suscripción / rescate · orden = cuotapartes @ cuota del día
+        </span>
+      </div>
+
+      {/* Split 50/50 — espejo del dashboard */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
+        {/* Izquierda: panel FCI (en lugar de los order books) */}
+        <FciOperatePanel
+          account={account}
+          onExecuted={() => {
+            void refresh();
+            void refreshPortfolio();
+          }}
+        />
+
+        {/* Derecha: portfolio arriba + órdenes del día abajo (idéntico al dashboard) */}
+        <div className="min-h-0 grid grid-rows-2 gap-2">
+          <div className="min-h-0 overflow-hidden">
+            <PortfolioPanel
+              account={account}
+              accountNombre={cuentas.find((c) => c.account_id === account)?.nombre ?? null}
+              saldo={saldo}
+              detailed={detailed}
+              refresh={refreshPortfolio}
+            />
+          </div>
+          <div className="min-h-0 overflow-hidden">
+            <OrderManagement orders={orders} refresh={refresh} onCancel={cancelOrder} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
