@@ -417,6 +417,12 @@ export function AumView() {
   // (cartera) del leaderboard izquierdo. Los tres se combinan con AND.
   const [cuentaSel, setCuentaSel] = useState<string | null>(null);
   const [unidadSel, setUnidadSel] = useState<string | null>(null);
+  // Búsqueda libre por cuenta / asset. Substring (puede matchear varios).
+  // El click pinea uno solo (cuentaSel/unidadSel); el buscador filtra por
+  // texto y afecta al resto de los paneles igual que la selección. Si hay
+  // selección de ese eje, la selección manda (es más específica que el texto).
+  const [cuentaQuery, setCuentaQuery] = useState("");
+  const [unidadQuery, setUnidadQuery] = useState("");
   // Indicadores de MEP faltante para el banner.
   const [fechasSinMep, setFechasSinMep] = useState<string[]>([]);
   const [mepMissingSnap, setMepMissingSnap] = useState<boolean>(false);
@@ -566,9 +572,15 @@ export function AumView() {
     // entre carteras (split por emisor). Si selecciona un asset, las
     // carteras donde ese asset existe. NO se filtra por emisorSel —
     // emisorSel es contexto de drill-down, no se aplica a su propio eje.
+    const cq = cuentaQuery.trim().toLowerCase();
+    const uq = unidadQuery.trim().toLowerCase();
     let base = snapshot;
+    // Eje cuenta: la selección pinea una; sin selección, el buscador filtra
+    // por substring (puede dejar varias). Idem eje asset.
     if (cuentaSel) base = base.filter((r) => r.cuenta === cuentaSel);
+    else if (cq) base = base.filter((r) => r.cuenta.toLowerCase().includes(cq));
     if (unidadSel) base = base.filter((r) => r.ticker === unidadSel || r.unidad === unidadSel);
+    else if (uq) base = base.filter((r) => (r.ticker || r.unidad).toLowerCase().includes(uq));
     const agg: Record<string, number> = {};
     for (const r of base) agg[r.emisor] = (agg[r.emisor] || 0) + r.valuacion;
     const totalCtx = Object.values(agg).reduce((s, v) => s + v, 0);
@@ -579,7 +591,7 @@ export function AumView() {
         share: totalCtx ? (val / totalCtx) * 100 : 0,
       }))
       .sort((a, b) => b.valuacion - a.valuacion);
-  }, [snapshot, cuentaSel, unidadSel]);
+  }, [snapshot, cuentaSel, unidadSel, cuentaQuery, unidadQuery]);
 
   // ── Drill-down para TOTAL ──────────────────────────────────────────────
   // Snapshot filtrado por la cartera seleccionada en el leaderboard izquierdo
@@ -589,40 +601,53 @@ export function AumView() {
     [snapshot, emisorSel]
   );
 
-  // Lista POR CUENTA: respeta filtro de cartera + filtro cruzado de unidad.
+  // Lista POR CUENTA: respeta cartera + cruce con el asset (sel o buscado).
+  // La búsqueda de cuenta filtra las filas mostradas acá (post-agregación,
+  // para que el share siga siendo % del contexto completo).
   const porCuenta = useMemo(() => {
+    const cq = cuentaQuery.trim().toLowerCase();
+    const uq = unidadQuery.trim().toLowerCase();
     let base = snapshotByCartera;
     if (unidadSel) base = base.filter((r) => r.ticker === unidadSel || r.unidad === unidadSel);
+    else if (uq) base = base.filter((r) => (r.ticker || r.unidad).toLowerCase().includes(uq));
     const agg: Record<string, number> = {};
     for (const r of base) agg[r.cuenta] = (agg[r.cuenta] || 0) + r.valuacion;
     const totalCtx = Object.values(agg).reduce((s, v) => s + v, 0);
-    return Object.entries(agg)
+    let rows = Object.entries(agg)
       .map(([cuenta, val]) => ({
         cuenta,
         valuacion: val,
         share: totalCtx ? (val / totalCtx) * 100 : 0,
       }))
       .sort((a, b) => b.valuacion - a.valuacion);
-  }, [snapshotByCartera, unidadSel]);
+    if (cq && !cuentaSel) rows = rows.filter((r) => r.cuenta.toLowerCase().includes(cq));
+    return rows;
+  }, [snapshotByCartera, unidadSel, cuentaSel, cuentaQuery, unidadQuery]);
 
-  // Lista POR ASSET (unidad/ticker): respeta cartera + filtro cruzado de cuenta.
+  // Lista POR ASSET (unidad/ticker): respeta cartera + cruce con la cuenta
+  // (sel o buscada). La búsqueda de asset filtra las filas mostradas acá.
   const porUnidad = useMemo(() => {
+    const cq = cuentaQuery.trim().toLowerCase();
+    const uq = unidadQuery.trim().toLowerCase();
     let base = snapshotByCartera;
     if (cuentaSel) base = base.filter((r) => r.cuenta === cuentaSel);
+    else if (cq) base = base.filter((r) => r.cuenta.toLowerCase().includes(cq));
     const agg: Record<string, number> = {};
     for (const r of base) {
       const k = r.ticker || r.unidad;
       agg[k] = (agg[k] || 0) + r.valuacion;
     }
     const totalCtx = Object.values(agg).reduce((s, v) => s + v, 0);
-    return Object.entries(agg)
+    let rows = Object.entries(agg)
       .map(([ticker, val]) => ({
         ticker,
         valuacion: val,
         share: totalCtx ? (val / totalCtx) * 100 : 0,
       }))
       .sort((a, b) => b.valuacion - a.valuacion);
-  }, [snapshotByCartera, cuentaSel]);
+    if (uq && !unidadSel) rows = rows.filter((r) => r.ticker.toLowerCase().includes(uq));
+    return rows;
+  }, [snapshotByCartera, cuentaSel, unidadSel, cuentaQuery, unidadQuery]);
 
   // Reset selecciones de drill-down sólo cuando cambia la tab (FCI ↔ TOTAL
   // tienen shape distinto). Cambiar moneda, fecha o cartera preserva las
@@ -633,6 +658,8 @@ export function AumView() {
     setEmisorSel(null);
     setCuentaSel(null);
     setUnidadSel(null);
+    setCuentaQuery("");
+    setUnidadQuery("");
   }, [tab]);
 
   const detalleEmisor = useMemo(() => {
@@ -1094,15 +1121,22 @@ export function AumView() {
               <div className="flex-1 min-h-0 overflow-y-auto p-2 grid grid-rows-2 gap-2">
                 {/* POR CUENTA */}
                 <div className="border border-[#1a1a1a] bg-[#0a0a0a] flex flex-col min-h-0">
-                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center border-b border-[#1a1a1a]">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[#1a1a1a]">
                     <span>POR CUENTA</span>
-                    <span className="ml-2 text-[#555]">{porCuenta.length}</span>
-                    {(cuentaSel || unidadSel) && (
+                    <span className="text-[#555]">{porCuenta.length}</span>
+                    <input
+                      value={cuentaQuery}
+                      onChange={(e) => setCuentaQuery(e.target.value)}
+                      placeholder="buscar cuenta…"
+                      className="ml-auto bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
+                    />
+                    {(cuentaSel || unidadSel || cuentaQuery || unidadQuery) && (
                       <button
-                        onClick={() => { setCuentaSel(null); setUnidadSel(null); }}
-                        className="ml-auto text-[#666] hover:text-[#ff9900] text-[9px]"
+                        onClick={() => { setCuentaSel(null); setUnidadSel(null); setCuentaQuery(""); setUnidadQuery(""); }}
+                        className="text-[#666] hover:text-[#ff9900] text-[12px] leading-none"
+                        title="Limpiar selección y búsqueda"
                       >
-                        ↺ limpiar
+                        ↺
                       </button>
                     )}
                   </div>
@@ -1131,9 +1165,15 @@ export function AumView() {
                 </div>
                 {/* POR ASSET */}
                 <div className="border border-[#1a1a1a] bg-[#0a0a0a] flex flex-col min-h-0">
-                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center border-b border-[#1a1a1a]">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[#1a1a1a]">
                     <span>POR ASSET</span>
-                    <span className="ml-2 text-[#555]">{porUnidad.length}</span>
+                    <span className="text-[#555]">{porUnidad.length}</span>
+                    <input
+                      value={unidadQuery}
+                      onChange={(e) => setUnidadQuery(e.target.value)}
+                      placeholder="buscar asset…"
+                      className="ml-auto bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
+                    />
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     {porUnidad.length === 0 ? (
