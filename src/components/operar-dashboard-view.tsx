@@ -710,7 +710,11 @@ function OperarCard({
       ...f,
       side,
       order_type: "LIMIT",
-      price: price.toFixed(2),
+      // Respetar la precisión real del instrumento: NO truncar a 2 decimales
+      // (bonos USD/MEP y futuros ROFEX cotizan con 3+) — mandaríamos un precio
+      // distinto al del book. toFixed(8)+Number quita ceros de relleno y
+      // artefactos de float sin perder los decimales reales.
+      price: String(Number(price.toFixed(8))),
       size: String(size),
     }));
   }
