@@ -8,6 +8,7 @@ import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { GruposPanel } from "./grupos-panel";
+import { ComercialPanel } from "./comercial-panel";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { RecursosPanel } from "./recursos-panel";
@@ -2146,6 +2147,7 @@ type Tab =
   | "jobs"
   | "validaciones"
   | "titulos"
+  | "comercial"
   | "clientes"
   | "aunesa"
   | "asistente"
@@ -2266,6 +2268,7 @@ export function ManagerView() {
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "titulos",      label: "TÍTULOS"      },
+    { id: "comercial",    label: "COMERCIAL"    },
     { id: "clientes",     label: "CLIENTES"     },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "asistente",    label: "ASISTENTE"    },
@@ -2288,6 +2291,7 @@ export function ManagerView() {
         {tab === "jobs"         && <JobsRunsPanel />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup />}
+        {tab === "comercial"    && <ComercialPanel />}
         {tab === "clientes"     && <TabClientes />}
         {tab === "aunesa"       && <AunesaGroup />}
         {tab === "asistente"    && <TabAsistente />}
