@@ -25,7 +25,7 @@ export function usePoll<T>(
   // poll exitoso. Evita llamar Date.now() dentro del render
   // (react-hooks/purity).
   const [lastAt, setLastAt] = useState<number>(0);
-  const initialRef = useRef(initial);
+  const endpointRef = useRef(endpoint);
 
   useEffect(() => {
     let alive = true;
@@ -57,14 +57,17 @@ export function usePoll<T>(
     };
   }, [endpoint, intervalMs, fetchOnMount]);
 
-  // Si initial cambia de verdad (navigate + SSR otra vez), resetear.
+  // Resetear SOLO cuando cambia el ENDPOINT (navegación a otra data). Antes
+  // se comparaba `initial` por referencia, pero casi todos los callers recrean
+  // ese objeto en cada render del padre → el reset se disparaba de más y
+  // pisaba la data fresca del poll con el `initial` (SSR viejo). Comparar por
+  // endpoint evita el "salto" a un valor viejo en todo el frontend.
   useEffect(() => {
-    if (initial !== initialRef.current) {
-      initialRef.current = initial;
-      setData(initial);
-      setLastAt(Date.now());
-    }
-  }, [initial]);
+    if (endpoint === endpointRef.current) return;
+    endpointRef.current = endpoint;
+    setData(initial);
+    setLastAt(0);
+  }, [endpoint, initial]);
 
   return { data, lastAt };
 }

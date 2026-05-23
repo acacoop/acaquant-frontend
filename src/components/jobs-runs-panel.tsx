@@ -62,9 +62,11 @@ export function JobsRunsPanel() {
     if (filtroStatus) qs.set("status", filtroStatus);
     qs.set("limit", "100");
 
+    // Chequear r.ok: un 500 devuelve HTML y r.json() rompería el parse.
+    const okJson = (r: Response) => (r.ok ? r.json() : []);
     Promise.all([
-      fetch(`/api/manager/jobs/history?${qs}`).then((r) => r.json()),
-      fetch(`/api/manager/jobs/history/stats`).then((r) => r.json()),
+      fetch(`/api/manager/jobs/history?${qs}`).then(okJson),
+      fetch(`/api/manager/jobs/history/stats`).then(okJson),
     ])
       .then(([h, s]) => {
         setRuns(Array.isArray(h) ? h : []);
@@ -183,9 +185,9 @@ export function JobsRunsPanel() {
                 </tr>
               </thead>
               <tbody>
-                {runs.map((r, i) => (
+                {runs.map((r) => (
                   <tr
-                    key={i}
+                    key={`${r.tipo}-${r.started_at}`}
                     onClick={() => setSelected(r)}
                     className="border-b border-[#141414] hover:bg-[#141414] cursor-pointer"
                   >

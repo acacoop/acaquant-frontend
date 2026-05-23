@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -97,6 +97,11 @@ export function DerivadosAgroEstrategias({
 }) {
   const [panel, setPanel] = useState<PanelResp | null>(null);
   const [vencimiento, setVencimiento] = useState<string | null>(null);
+  // El poll (effect con deps [commodity]) lee el vencimiento elegido por ref,
+  // no del closure — si no, congela el valor inicial y pisa la selección del
+  // usuario en cada tick (stale closure).
+  const vencimientoRef = useRef(vencimiento);
+  vencimientoRef.current = vencimiento;
   const [tipo, setTipo] = useState<TipoEstrategia>("put_sintetico");
   const [strike, setStrike] = useState<number | null>(null);
   const [primaOverride, setPrimaOverride] = useState<string>("");
@@ -127,7 +132,7 @@ export function DerivadosAgroEstrategias({
         setLastAt(Date.now());
         if (data.vencimientos.length > 0) {
           const stillThere = data.vencimientos.some(
-            (v) => v.vencimiento === vencimiento,
+            (v) => v.vencimiento === vencimientoRef.current,
           );
           if (!stillThere) {
              

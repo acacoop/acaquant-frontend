@@ -500,7 +500,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       </div>
     );
   }
-  if (error) {
+  // Solo pantalla de error completa si NO cargó la data primaria (mensual).
+  // Un fallo de un panel secundario (movimientos/variación) no debe tapar la
+  // vista entera con datos válidos ya cargados.
+  if (error && !mensualResp) {
     return (
       <div className="h-full flex items-center justify-center text-[#ff3333] text-sm p-4">
         Error: {error}

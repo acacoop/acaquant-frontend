@@ -1100,13 +1100,13 @@ export function OrderManagement({
             </tr>
           </thead>
           <tbody>
-            {[...activas, ...restantes].map((o) => {
+            {[...activas, ...restantes].map((o, i) => {
               const corto =
                 o.ticker?.split(" - ")[2] ?? o.ticker ?? "?";
               const isActive = activas.includes(o);
               return (
                 <tr
-                  key={o.cl_ord_id ?? Math.random()}
+                  key={o.cl_ord_id ?? `ord-${i}`}
                   className="border-t border-[#101010] hover:bg-[#0d0d0d]"
                 >
                   <td className="px-2 py-0.5 text-[#888]">

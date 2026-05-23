@@ -45,7 +45,9 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
       <nav className="flex gap-0.5 items-center">
         {links.map(({ href, label }) => {
           const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
+            href === "/"
+              ? pathname === "/"
+              : pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}

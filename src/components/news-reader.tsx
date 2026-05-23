@@ -45,7 +45,10 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
     setLoading(true);
     setArticle(null);
     fetch(`/api/news/article?url=${encodeURIComponent(url)}`, { cache: "no-store" })
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: ArticleResponse) => {
         if (!cancelled) setArticle(data);
       })
