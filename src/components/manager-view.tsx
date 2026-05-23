@@ -113,7 +113,7 @@ function SectionHeader({ title }: { title: string }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
       <SectionHeader title={title} />
       <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
@@ -136,7 +136,7 @@ function TabDiagnostico() {
   useEffect(() => { refresh(); const id = setInterval(refresh, 10000); return () => clearInterval(id); }, [refresh]);
 
   return (
-    <div className="h-full flex flex-col gap-3 overflow-y-auto p-3">
+    <div className="h-full flex flex-col gap-3 p-3 min-h-0">
       <div className="flex items-center gap-3 shrink-0">
         <span className={`text-[11px] font-semibold ${data?.en_rueda ? "text-[#00cc66]" : "text-[#555555]"}`}>
           {data ? (data.en_rueda ? "● EN RUEDA" : "● FUERA DE RUEDA") : "—"}
@@ -145,109 +145,68 @@ function TabDiagnostico() {
         <span className="ml-auto text-[10px] text-[#555555]">Chequeado: {lastCheck} · auto 10s</span>
       </div>
 
-      <Panel title="MOTORES (TIEMPO REAL)">
-        <table>
-          <thead><tr><th>MOTOR</th><th>ÚLTIMA ACTUALIZACIÓN</th><th>HACE</th><th>UMBRAL</th><th>ESTADO</th></tr></thead>
-          <tbody>
-            {(data?.motores ?? []).map((m) => (
-              <tr key={m.nombre}>
-                <td className="text-[#d0d0d0] font-semibold">{m.nombre}</td>
-                <td className="font-mono">{m.ultima ?? "—"}</td>
-                <td className="font-mono text-[#808080]">{m.hace}</td>
-                <td className="font-mono text-[#555555]">{m.umbral}s</td>
-                <td><Badge estado={m.estado} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Panel>
+      {/* Izq 50% (full height): motores · Der 50%: apis arriba / jobs abajo */}
+      <div className="flex-1 min-h-0 flex gap-3">
+        <div className="w-1/2 min-h-0">
+          <Panel title="MOTORES (TIEMPO REAL)">
+            <table>
+              <thead><tr><th>MOTOR</th><th>ÚLTIMA ACTUALIZACIÓN</th><th>HACE</th><th>UMBRAL</th><th>ESTADO</th></tr></thead>
+              <tbody>
+                {(data?.motores ?? []).map((m) => (
+                  <tr key={m.nombre}>
+                    <td className="text-[#d0d0d0] font-semibold">{m.nombre}</td>
+                    <td className="font-mono">{m.ultima ?? "—"}</td>
+                    <td className="font-mono text-[#808080]">{m.hace}</td>
+                    <td className="font-mono text-[#555555]">{m.umbral}s</td>
+                    <td><Badge estado={m.estado} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+        </div>
 
-      <Panel title="JOBS (PERIÓDICOS)">
-        <table>
-          <thead><tr><th>JOB</th><th>ÚLTIMO DATO</th><th>HACE</th><th>FRECUENCIA</th><th>ESTADO</th></tr></thead>
-          <tbody>
-            {(data?.jobs ?? []).map((j) => (
-              <tr key={j.nombre}>
-                <td className="text-[#d0d0d0] font-semibold">{j.nombre}</td>
-                <td className="font-mono">{j.ultimo ?? "—"}</td>
-                <td className="font-mono text-[#808080]">{j.hace}</td>
-                <td className="text-[#555555]">{j.frecuencia}</td>
-                <td><Badge estado={j.estado} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Panel>
+        <div className="w-1/2 min-h-0 flex flex-col gap-3">
+          <div className="flex-1 min-h-0">
+            <Panel title="APIS EXTERNAS (FUENTES DE DATOS)">
+              <table>
+                <thead><tr><th>FUENTE</th><th>ÚLTIMO DATO</th><th>HACE</th><th>CADENCIA</th><th>UMBRAL</th><th>ESTADO</th></tr></thead>
+                <tbody>
+                  {(data?.apis ?? []).map((a) => (
+                    <tr key={a.nombre}>
+                      <td className="text-[#d0d0d0] font-semibold">{a.nombre}</td>
+                      <td className="font-mono">{a.ultimo ?? "—"}</td>
+                      <td className="font-mono text-[#808080]">{a.hace}</td>
+                      <td className="text-[#555555]">{a.cadencia}</td>
+                      <td className="font-mono text-[#555555]">{a.umbral ?? "—"}</td>
+                      <td><Badge estado={a.estado} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Panel>
+          </div>
 
-      <Panel title="APIS EXTERNAS (FUENTES DE DATOS)">
-        <table>
-          <thead><tr><th>FUENTE</th><th>ÚLTIMO DATO</th><th>HACE</th><th>CADENCIA</th><th>UMBRAL</th><th>ESTADO</th></tr></thead>
-          <tbody>
-            {(data?.apis ?? []).map((a) => (
-              <tr key={a.nombre}>
-                <td className="text-[#d0d0d0] font-semibold">{a.nombre}</td>
-                <td className="font-mono">{a.ultimo ?? "—"}</td>
-                <td className="font-mono text-[#808080]">{a.hace}</td>
-                <td className="text-[#555555]">{a.cadencia}</td>
-                <td className="font-mono text-[#555555]">{a.umbral ?? "—"}</td>
-                <td><Badge estado={a.estado} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Panel>
-    </div>
-  );
-}
-
-// ── Tab: Backfills ────────────────────────────────────────────────────────────
-
-const JOBS_DISPONIBLES = [
-  { tipo: "aum_backfill",    label: "AuM Backfill",         desc: "Reconstruye AuM para una fecha específica",      needsDate: true  },
-  { tipo: "aum_resumen_fci", label: "Rollup AuMResumenFCI", desc: "Materializa resumen FCI post-backfill",           needsDate: false },
-  { tipo: "cashflow",        label: "CashFlow --today",      desc: "Movimientos del día desde Aunesa",               needsDate: false },
-  { tipo: "flujo",           label: "Flujo Contrapartes",    desc: "Operaciones del día por contraparte",            needsDate: false },
-  { tipo: "bcra",            label: "BCRA --today",          desc: "Actualiza CER/DOLAR/BADLAR/TAMAR",               needsDate: false },
-  { tipo: "sync_api_copies", label: "Sync API Copies (ALL)", desc: "Re-sincroniza todas las colecciones API",        needsDate: false },
-  { tipo: "crear_indices",   label: "Crear Índices",         desc: "Idempotente — crea índices faltantes",           needsDate: false },
-  { tipo: "cleanup_curvas",  label: "Cleanup Curvas (--dry)","desc": "Preview de instrumentos a eliminar (solo dry)",needsDate: false },
-];
-
-function JobCard({ job_id, tipo, onClear }: { job_id: string; tipo: string; onClear: () => void }) {
-  const [job, setJob] = useState<Job | null>(null);
-
-  useEffect(() => {
-    if (!job_id) return;
-    const poll = () => {
-      fetch(`/api/manager/jobs/${job_id}`)
-        .then((r) => r.json())
-        .then((d: Job) => { setJob(d); if (d.status !== "running") clearInterval(id); })
-        .catch(console.error);
-    };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => clearInterval(id);
-  }, [job_id]);
-
-  if (!job) return <span className="text-[10px] text-[#555555]">iniciando…</span>;
-
-  const color = job.status === "done" ? "#00cc66" : job.status === "error" ? "#ff3333" : "#ff9900";
-  return (
-    <div className="mt-2 border border-[#2a2a2a] p-2 flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-semibold" style={{ color }}>
-          {job.status === "running" ? "⟳ CORRIENDO…" : job.status === "done" ? "✓ OK" : "✗ ERROR"}
-        </span>
-        <span className="text-[10px] text-[#555555] font-mono">{tipo} · {job_id}</span>
-        {job.status !== "running" && (
-          <button onClick={onClear} className="ml-auto text-[10px] text-[#555555] hover:text-[#ff9900]">cerrar</button>
-        )}
+          <div className="flex-1 min-h-0">
+            <Panel title="JOBS (PERIÓDICOS)">
+              <table>
+                <thead><tr><th>JOB</th><th>ÚLTIMO DATO</th><th>HACE</th><th>FRECUENCIA</th><th>ESTADO</th></tr></thead>
+                <tbody>
+                  {(data?.jobs ?? []).map((j) => (
+                    <tr key={j.nombre}>
+                      <td className="text-[#d0d0d0] font-semibold">{j.nombre}</td>
+                      <td className="font-mono">{j.ultimo ?? "—"}</td>
+                      <td className="font-mono text-[#808080]">{j.hace}</td>
+                      <td className="text-[#555555]">{j.frecuencia}</td>
+                      <td><Badge estado={j.estado} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Panel>
+          </div>
+        </div>
       </div>
-      {job.result && (
-        <pre className="text-[9px] text-[#808080] font-mono whitespace-pre-wrap max-h-[120px] overflow-y-auto bg-[#0a0a0a] p-1.5">
-          {job.result}
-        </pre>
-      )}
     </div>
   );
 }
@@ -403,58 +362,6 @@ function OpcionesExpiriesPanel() {
 }
 
 
-function TabBackfills() {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [activeJobs, setActiveJobs] = useState<Record<string, { job_id: string; tipo: string }>>({});
-
-  const runJob = (tipo: string, args: string[] = []) => {
-    fetch("/api/manager/jobs/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tipo, args }),
-    })
-      .then((r) => r.json())
-      .then((d) => setActiveJobs((prev) => ({ ...prev, [tipo]: { job_id: d.job_id, tipo } })))
-      .catch(console.error);
-  };
-
-  return (
-    <div className="h-full overflow-y-auto p-3 space-y-3">
-      <OpcionesExpiriesPanel />
-      <div className="grid grid-cols-2 gap-3">
-        {JOBS_DISPONIBLES.map(({ tipo, label, desc, needsDate }) => (
-          <div key={tipo} className="border border-[#1a1a1a] bg-[#080808] p-3 flex flex-col gap-2">
-            <div>
-              <div className="text-[11px] font-semibold text-[#d0d0d0]">{label}</div>
-              <div className="text-[10px] text-[#555555] mt-0.5">{desc}</div>
-            </div>
-            {needsDate && (
-              <input
-                type="date" value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-full"
-              />
-            )}
-            <button
-              onClick={() => runJob(tipo, needsDate ? [date] : [])}
-              disabled={!!activeJobs[tipo] && activeJobs[tipo].job_id !== ""}
-              className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
-            >
-              ▶ Ejecutar
-            </button>
-            {activeJobs[tipo] && (
-              <JobCard
-                job_id={activeJobs[tipo].job_id}
-                tipo={tipo}
-                onClear={() => setActiveJobs((prev) => { const n = { ...prev }; delete n[tipo]; return n; })}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
@@ -2236,26 +2143,102 @@ function TabAsistente() {
 
 type Tab =
   | "diagnostico"
-  | "backfills"
   | "jobs"
   | "validaciones"
-  | "instrumentos"
-  | "assets"
+  | "titulos"
   | "clientes"
   | "aunesa"
   | "asistente"
-  | "recursos"
-  | "logs"
-  | "usuarios"
-  | "roles"
-  | "grupos"
-  | "debug_xirr";
+  | "usuarios";
 
 // AUNESA es un grupo con tres sub-vistas:
 //  - FLUJO:    explorador de movimientos de Aunesa.
 //  - AUM:      consulta de Valuaciones.AuM (la base) por cuenta/fecha.
 //  - POSICIÓN: pega EN VIVO a Aunesa (posicionValuada) — para comparar
 //              lo que Aunesa manda contra lo persistido en AUM.
+// ── Grupos consolidados (sub-tabs con Pill, patrón AunesaGroup) ───────────────
+
+const GROUP_HEADER = "flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0";
+const GROUP_TITLE = "text-[9px] font-semibold text-[#666] tracking-widest mr-2";
+
+// DIAGNÓSTICO: Motores (rediseñado 50/50) + Recursos + Logs.
+function DiagnosticoGroup() {
+  const [sub, setSub] = useState<"motores" | "recursos" | "logs">("motores");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className={GROUP_HEADER}>
+        <span className={GROUP_TITLE}>DIAGNÓSTICO</span>
+        <Pill label="MOTORES" active={sub === "motores"} onClick={() => setSub("motores")} />
+        <Pill label="RECURSOS" active={sub === "recursos"} onClick={() => setSub("recursos")} />
+        <Pill label="LOGS" active={sub === "logs"} onClick={() => setSub("logs")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "motores"  && <TabDiagnostico />}
+        {sub === "recursos" && <RecursosPanel />}
+        {sub === "logs"     && <LogsPanel />}
+      </div>
+    </div>
+  );
+}
+
+// VALIDACIONES: checks + Opciones Vto (relocalizado de Backfills) + Debug XIRR.
+function ValidacionesGroup() {
+  const [sub, setSub] = useState<"checks" | "opciones" | "xirr">("checks");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className={GROUP_HEADER}>
+        <span className={GROUP_TITLE}>VALIDACIONES</span>
+        <Pill label="VALIDACIONES" active={sub === "checks"} onClick={() => setSub("checks")} />
+        <Pill label="OPCIONES VTO" active={sub === "opciones"} onClick={() => setSub("opciones")} />
+        <Pill label="DEBUG XIRR" active={sub === "xirr"} onClick={() => setSub("xirr")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "checks"   && <TabValidaciones />}
+        {sub === "opciones" && <div className="h-full overflow-y-auto p-3"><OpcionesExpiriesPanel /></div>}
+        {sub === "xirr"     && <ManagerDebugXirrPanel />}
+      </div>
+    </div>
+  );
+}
+
+// TÍTULOS: Instrumentos + Assets.
+function TitulosGroup() {
+  const [sub, setSub] = useState<"instrumentos" | "assets">("instrumentos");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className={GROUP_HEADER}>
+        <span className={GROUP_TITLE}>TÍTULOS</span>
+        <Pill label="INSTRUMENTOS" active={sub === "instrumentos"} onClick={() => setSub("instrumentos")} />
+        <Pill label="ASSETS" active={sub === "assets"} onClick={() => setSub("assets")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "instrumentos" && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
+        {sub === "assets"       && <TabAssets />}
+      </div>
+    </div>
+  );
+}
+
+// USUARIOS: Usuarios + Roles y Permisos + Grupos.
+function UsuariosGroup() {
+  const [sub, setSub] = useState<"usuarios" | "roles" | "grupos">("usuarios");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className={GROUP_HEADER}>
+        <span className={GROUP_TITLE}>USUARIOS</span>
+        <Pill label="USUARIOS" active={sub === "usuarios"} onClick={() => setSub("usuarios")} />
+        <Pill label="ROLES Y PERMISOS" active={sub === "roles"} onClick={() => setSub("roles")} />
+        <Pill label="GRUPOS" active={sub === "grupos"} onClick={() => setSub("grupos")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "usuarios" && <UsuariosPanel />}
+        {sub === "roles"    && <RolesPanel />}
+        {sub === "grupos"   && <GruposPanel />}
+      </div>
+    </div>
+  );
+}
+
 function AunesaGroup() {
   const [sub, setSub] = useState<"flujo" | "aum" | "posicion">("flujo");
   return (
@@ -2280,20 +2263,13 @@ export function ManagerView() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "diagnostico",  label: "DIAGNÓSTICO"  },
-    { id: "backfills",    label: "BACKFILLS"    },
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
-    { id: "instrumentos", label: "INSTRUMENTOS" },
-    { id: "assets",       label: "ASSETS"       },
+    { id: "titulos",      label: "TÍTULOS"      },
     { id: "clientes",     label: "CLIENTES"     },
     { id: "aunesa",       label: "AUNESA"       },
-    { id: "recursos",     label: "RECURSOS"     },
-    { id: "logs",         label: "LOGS"         },
     { id: "asistente",    label: "ASISTENTE"    },
     { id: "usuarios",     label: "USUARIOS"     },
-    { id: "roles",        label: "ROLES Y PERMISOS" },
-    { id: "grupos",       label: "GRUPOS"       },
-    { id: "debug_xirr",   label: "DEBUG XIRR"   },
   ];
 
   return (
@@ -2308,21 +2284,14 @@ export function ManagerView() {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "diagnostico"  && <TabDiagnostico />}
-        {tab === "backfills"    && <TabBackfills />}
+        {tab === "diagnostico"  && <DiagnosticoGroup />}
         {tab === "jobs"         && <JobsRunsPanel />}
-        {tab === "validaciones" && <TabValidaciones />}
-        {tab === "instrumentos" && <TabInstrumentos />}
-        {tab === "assets"       && <TabAssets />}
+        {tab === "validaciones" && <ValidacionesGroup />}
+        {tab === "titulos"      && <TitulosGroup />}
         {tab === "clientes"     && <TabClientes />}
         {tab === "aunesa"       && <AunesaGroup />}
-        {tab === "recursos"     && <RecursosPanel />}
-        {tab === "logs"         && <LogsPanel />}
         {tab === "asistente"    && <TabAsistente />}
-        {tab === "usuarios"     && <UsuariosPanel />}
-        {tab === "roles"        && <RolesPanel />}
-        {tab === "grupos"       && <GruposPanel />}
-        {tab === "debug_xirr"   && <ManagerDebugXirrPanel />}
+        {tab === "usuarios"     && <UsuariosGroup />}
       </div>
     </div>
   );
