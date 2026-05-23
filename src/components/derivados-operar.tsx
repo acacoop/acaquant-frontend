@@ -126,6 +126,8 @@ export function DerivadosOperar({
     if (typeof window !== "undefined") localStorage.setItem(CUENTA_LS_KEY, cuenta);
     setSending(true);
     setResult(null);
+    // Clave de idempotencia: invisible, anti doble orden por reenvío.
+    const clientOrderId = crypto.randomUUID();
     try {
       let r: Response;
       if (usaBracket) {
@@ -140,6 +142,7 @@ export function DerivadosOperar({
             price_exit: parseFloat(priceExit),
             tif,
             account: cuenta,
+            client_order_id: clientOrderId,
           }),
         });
       } else {
@@ -150,6 +153,7 @@ export function DerivadosOperar({
           order_type: orderType,
           tif,
           account: cuenta,
+          client_order_id: clientOrderId,
         };
         if (orderType === "LIMIT") body.price = parseFloat(price);
         r = await fetch("/api/ordenes", {

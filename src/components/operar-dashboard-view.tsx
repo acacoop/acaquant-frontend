@@ -753,6 +753,9 @@ function OperarCard({
 
     setSending(true);
     setResult(null);
+    // Clave de idempotencia: invisible, evita doble orden si el request se
+    // reenvía (red/race). Una orden nueva genera otra clave → nunca bloquea.
+    const clientOrderId = crypto.randomUUID();
     try {
       let r: Response;
       if (usaBracket) {
@@ -767,6 +770,7 @@ function OperarCard({
             price_exit: parseFloat(priceExit),
             tif: form.tif,
             account,
+            client_order_id: clientOrderId,
           }),
         });
       } else {
@@ -777,6 +781,7 @@ function OperarCard({
           order_type: form.order_type,
           tif: form.tif,
           account,
+          client_order_id: clientOrderId,
         };
         if (form.order_type === "LIMIT") body.price = parseFloat(form.price);
         r = await fetch("/api/ordenes", {

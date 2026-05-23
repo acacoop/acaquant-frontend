@@ -125,6 +125,7 @@ export function DolarMepVentaView({
           comision_pct: comNum,
           rueda,
           account: account || null,
+          client_order_id: crypto.randomUUID(),  // idempotencia: anti doble operativa
         }),
       });
       const data = await r.json();

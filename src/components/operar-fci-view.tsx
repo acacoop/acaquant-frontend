@@ -210,6 +210,7 @@ function FciOperatePanel({
           amount: amountNum,
           amount_mode: amountMode,
           account,
+          client_order_id: crypto.randomUUID(),  // idempotencia: anti doble orden
         }),
       });
       const j = await r.json().catch(() => ({}));
