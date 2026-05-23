@@ -18,6 +18,16 @@ type UsersResponse = {
   roles: string[];
 };
 
+// Umbral de inactividad para la revisión periódica de accesos.
+const INACTIVE_DAYS = 90;
+
+function daysSince(s?: string): number | null {
+  if (!s) return null;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86_400_000);
+}
+
 export function UsuariosPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
@@ -173,7 +183,7 @@ export function UsuariosPanel() {
 
       {/* Tabla */}
       <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_90px_1fr_140px_80px] gap-2 px-3 py-2 border-b border-[#1a1a1a] text-[9px] text-[#808080] tracking-wide shrink-0">
+        <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-2 border-b border-[#1a1a1a] text-[9px] text-[#808080] tracking-wide shrink-0">
           <div>EMAIL</div>
           <div>ROLE</div>
           <div>ENABLED</div>
@@ -219,17 +229,8 @@ function UserRow({
   onPatch: (patch: Partial<User>) => void;
   onDelete: () => void;
 }) {
-  const fmtDate = (s?: string) => {
-    if (!s) return "—";
-    const d = new Date(s);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(
-      d.getMonth() + 1,
-    ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
-      d.getMinutes(),
-    ).padStart(2, "0")}`;
-  };
   return (
-    <div className="grid grid-cols-[1fr_120px_90px_1fr_140px_80px] gap-2 px-3 py-1.5 border-b border-[#141414] text-xs items-center hover:bg-[#0e0e0e]">
+    <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-1.5 border-b border-[#141414] text-xs items-center hover:bg-[#0e0e0e]">
       <div className="text-[#d0d0d0] font-mono truncate flex items-center gap-1.5">
         <span className="truncate">{user.email}</span>
         {user.auto_registered && (
@@ -268,9 +269,8 @@ function UserRow({
         </span>
       </label>
       <div className="text-[#808080] text-[11px] truncate">{user.notes || "—"}</div>
-      <div className="text-[#555] text-[10px]">
-        {fmtDate(user.last_seen_at ?? user.updated_at)}
-      </div>
+      <LastSeenCell lastSeen={user.last_seen_at} />
+
       <button
         onClick={onDelete}
         disabled={busy}
@@ -278,6 +278,41 @@ function UserRow({
       >
         BORRAR
       </button>
+    </div>
+  );
+}
+
+// Celda "último acceso": muestra la fecha real del último login (no cae a
+// updated_at, que es solo cuándo se editó el registro). "(nunca)" si el user
+// jamás entró, y un badge INACTIVO si no se ve hace > INACTIVE_DAYS — los
+// candidatos a deshabilitar en la revisión periódica de accesos.
+function LastSeenCell({ lastSeen }: { lastSeen?: string }) {
+  const dias = daysSince(lastSeen);
+  if (!lastSeen || dias === null) {
+    return <div className="text-[#ff9900] text-[10px]">(nunca entró)</div>;
+  }
+  const d = new Date(lastSeen);
+  const fecha = `${String(d.getDate()).padStart(2, "0")}/${String(
+    d.getMonth() + 1,
+  ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes(),
+  ).padStart(2, "0")}`;
+  const inactivo = dias >= INACTIVE_DAYS;
+  return (
+    <div className="flex items-center gap-1.5 text-[10px]">
+      <span className="text-[#888]">{fecha}</span>
+      <span className={inactivo ? "text-[#ff6666]" : "text-[#555]"}>
+        ·{" "}
+        {dias === 0 ? "hoy" : `hace ${dias}d`}
+      </span>
+      {inactivo && (
+        <span
+          title={`Sin actividad hace ${dias} días — candidato a deshabilitar`}
+          className="text-[8px] px-1 py-0.5 border border-[#ff4444]/40 text-[#ff6666] bg-[#ff4444]/10 shrink-0"
+        >
+          INACTIVO
+        </span>
+      )}
     </div>
   );
 }
