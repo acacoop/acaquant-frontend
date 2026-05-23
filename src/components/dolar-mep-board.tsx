@@ -4,8 +4,8 @@ import { Rueda } from "./dolar-mep-shared";
 import { DolarMepTimeSalesChart } from "./dolar-mep-timesales-chart";
 
 // Split horizontal chart MEP (izq 50%) + tabla específica de cada vista
-// (der 50%). Lo comparten DolarMepCompraView (tabla operativas) y
-// DolarMepTradingView (tabla triggers) — solo cambia el children.
+// (der 50%). Lo comparten DolarMepCompraView y DolarMepVentaView — solo
+// cambia el children.
 export function DolarMepBoard({
   rueda,
   children,

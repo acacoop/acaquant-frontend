@@ -57,32 +57,6 @@ export interface SaldoCuenta {
   last_calc?: string | null;
 }
 
-export interface TriggerMep {
-  trigger_id: string;
-  account?: string;
-  actor_email?: string;
-  monto_ars: number;
-  comision_pct: number;
-  rueda: Rueda;
-  tc_objetivo: number;
-  tp_objetivo?: number | null;
-  sl_objetivo?: number | null;
-  estado: string;
-  operativa_id?: string | null;
-  operativa_exit_id?: string | null;
-  nominales_entry?: number | null;
-  last_seen_mep?: number | null;
-  created_at?: string;
-  updated_at?: string;
-  fired_at?: string | null;
-  fired_at_mep?: number | null;
-  exit_fired_at?: string | null;
-  exit_fired_mep?: number | null;
-  exit_motivo?: string | null;
-  error?: string | null;
-  exit_error?: string | null;
-}
-
 // Fallback solo si /api/risk/account/listado todavía no devolvió nada
 // (job descubrir_cuentas no corrió, primer load del frontend, etc.).
 // La cuenta operativa real viene del listado, no de acá.
