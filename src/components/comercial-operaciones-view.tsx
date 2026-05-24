@@ -53,6 +53,32 @@ type OperadorResp = { operador: string; moneda: string; resumen: Resumen; client
 type SeriePoint = { fecha: string; valor: number };
 type Posicion = { unidad: string; valuacion: number; pct: number };
 type Portafolio = { id_cuenta: string; fecha_snapshot: string | null; total: number; posiciones: Posicion[] };
+type Operacion = {
+  fecha: string;
+  comprobante: string;
+  categoria: string;
+  op: string | null;
+  ticker: string | null;
+  cantidad: number | null;
+  precio: number | null;
+  importe: number | null;
+  moneda: string | null;
+  plazo: string | null;
+};
+type PortTab = "tenencia" | "operaciones";
+
+const OP_CAT_LABEL: Record<string, string> = {
+  compra: "Compra", venta: "Venta",
+  suscripcion_fci: "Susc FCI", solicitud_suscripcion_fci: "Sol. susc",
+  rescate_fci: "Rescate FCI", solicitud_rescate_fci: "Sol. rescate",
+  caucion_tom_ap: "Cauc tom", caucion_col_ap: "Cauc col",
+};
+const OP_CAT_COLOR: Record<string, string> = {
+  compra: "#3fbf6f", venta: "#ff5d6c",
+  suscripcion_fci: "#94e7b3", solicitud_suscripcion_fci: "#94e7b3",
+  rescate_fci: "#e7b394", solicitud_rescate_fci: "#e7b394",
+  caucion_tom_ap: "#d09060", caucion_col_ap: "#5fd0d0",
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
@@ -149,6 +175,9 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
   const [metric, setMetric] = useState<"volumen" | "aum">("volumen");
   const [serie, setSerie] = useState<SeriePoint[]>([]);
   const [portafolio, setPortafolio] = useState<Portafolio | null>(null);
+  const [portTab, setPortTab] = useState<PortTab>("tenencia");
+  const [operaciones, setOperaciones] = useState<Operacion[]>([]);
+  const [loadingOps, setLoadingOps] = useState(false);
   const [fichaTab, setFichaTab] = useState<"datos">("datos");
   const [agg, setAgg] = useState<AggKey>("DIARIO");
   const [rango, setRango] = useState<RangoKey>("YTD");
@@ -224,6 +253,26 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
     })();
     return () => { cancelled = true; };
   }, [selCuenta]);
+
+  // Operaciones del cliente — solo cuando la tab Operaciones está activa.
+  useEffect(() => {
+    if (!selCuenta || portTab !== "operaciones") { setOperaciones([]); return; }
+    let cancelled = false;
+    setLoadingOps(true);
+    void (async () => {
+      try {
+        const d = await getJson<{ operaciones: Operacion[] }>(
+          `/api/operaciones/comercial/operaciones?id_cuenta=${encodeURIComponent(selCuenta)}`,
+        );
+        if (!cancelled) setOperaciones(Array.isArray(d.operaciones) ? d.operaciones : []);
+      } catch {
+        if (!cancelled) setOperaciones([]);
+      } finally {
+        if (!cancelled) setLoadingOps(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selCuenta, portTab]);
 
   const cliente = useMemo(
     () => clientes.find((c) => c.id_cuenta === selCuenta) ?? null,
@@ -533,46 +582,108 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
             </div>
           </div>
 
-          {/* PORTAFOLIO / TENENCIA */}
+          {/* PORTAFOLIO — tabs Tenencia / Operaciones del cliente */}
           <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Portafolio</span>
-              {portafolio?.fecha_snapshot && (
+              {portTab === "tenencia" && portafolio?.fecha_snapshot && (
                 <span className="text-[9px] text-[#555] font-mono">{portafolio.fecha_snapshot}</span>
               )}
-              {loadingPort && <span className="text-[9px] text-[#888]">cargando…</span>}
-              {portafolio && portafolio.posiciones.length > 0 && (
-                <span className="ml-auto text-[10px] text-[#888] font-mono">
-                  Total {fmtAum(portafolio.total)}
-                </span>
+              {(loadingPort || loadingOps) && <span className="text-[9px] text-[#888]">cargando…</span>}
+              {portTab === "tenencia" && portafolio && portafolio.posiciones.length > 0 && (
+                <span className="text-[10px] text-[#888] font-mono">Total {fmtAum(portafolio.total)}</span>
               )}
+              {portTab === "operaciones" && cliente && operaciones.length > 0 && (
+                <span className="text-[10px] text-[#888] font-mono">{operaciones.length} ops</span>
+              )}
+              <div className="ml-auto inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+                {(["tenencia", "operaciones"] as PortTab[]).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setPortTab(t)}
+                    className={
+                      "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                      (portTab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                    }
+                  >
+                    {t === "tenencia" ? "Tenencia" : "Operaciones"}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {!cliente ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center">
-                  Seleccioná un cliente para ver su tenencia.
+                  Seleccioná un cliente para ver su {portTab === "operaciones" ? "actividad" : "tenencia"}.
                 </div>
-              ) : !portafolio || portafolio.posiciones.length === 0 ? (
+              ) : portTab === "tenencia" ? (
+                !portafolio || portafolio.posiciones.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                    {loadingPort ? "cargando…" : "Sin posiciones."}
+                  </div>
+                ) : (
+                  <table className="w-full text-[11px] font-mono tabular-nums">
+                    <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                      <tr>
+                        <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Unidad</th>
+                        <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Valuación</th>
+                        <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {portafolio.posiciones.map((p) => (
+                        <tr key={p.unidad} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                          <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[280px]" title={p.unidad}>{p.unidad}</td>
+                          <td className="px-2 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(p.valuacion)}</td>
+                          <td className="px-3 py-1.5 text-right text-[#888]">{p.pct.toFixed(1)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : operaciones.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
-                  {loadingPort ? "cargando…" : "Sin posiciones."}
+                  {loadingOps ? "cargando…" : "Sin operaciones."}
                 </div>
               ) : (
-                <table className="w-full text-[11px] font-mono tabular-nums">
+                <table className="w-full text-[10px] font-mono tabular-nums">
                   <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                     <tr>
-                      <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Unidad</th>
-                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Valuación</th>
-                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">%</th>
+                      <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Fecha</th>
+                      <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Categ</th>
+                      <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Ticker</th>
+                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Cant</th>
+                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Precio</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Importe</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {portafolio.posiciones.map((p) => (
-                      <tr key={p.unidad} className="border-t border-[#111] hover:bg-[#0e0e0e]">
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[280px]" title={p.unidad}>{p.unidad}</td>
-                        <td className="px-2 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(p.valuacion)}</td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">{p.pct.toFixed(1)}%</td>
-                      </tr>
-                    ))}
+                    {operaciones.map((o) => {
+                      const color = OP_CAT_COLOR[o.categoria] ?? "#666";
+                      const imp = o.importe ?? 0;
+                      return (
+                        <tr key={o.comprobante} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                          <td className="px-3 py-1 text-[#888] whitespace-nowrap">{fmtFechaCorta(o.fecha.slice(0, 10))}</td>
+                          <td className="px-2 py-1">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 inline-block shrink-0" style={{ background: color }} />
+                              <span className="text-[#888] whitespace-nowrap">{OP_CAT_LABEL[o.categoria] ?? o.categoria}</span>
+                            </span>
+                          </td>
+                          <td className="px-2 py-1 text-[#ff9900] truncate max-w-[90px]" title={o.ticker ?? ""}>{o.ticker ?? "—"}</td>
+                          <td className="px-2 py-1 text-right text-[#d0d0d0]">
+                            {o.cantidad != null ? o.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                          </td>
+                          <td className="px-2 py-1 text-right text-[#d0d0d0]">
+                            {o.precio != null ? o.precio.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+                          </td>
+                          <td className={"px-3 py-1 text-right whitespace-nowrap " + (imp > 0 ? "text-[#3fbf6f]" : imp < 0 ? "text-[#ff5d6c]" : "text-[#888]")}>
+                            {o.importe != null ? fmtAum(o.importe) : "—"}
+                            {o.moneda === "USD" && <span className="text-[#555] ml-0.5">u$s</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
