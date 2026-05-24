@@ -70,6 +70,66 @@ async function getJson<T>(url: string): Promise<T> {
   return (await r.json()) as T;
 }
 
+// ── Agregación + rango del gráfico (estilo NEGOCIO/AUM) ───────────────────
+type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";
+type RangoKey = "1W" | "1M" | "3M" | "6M" | "YTD" | "1A" | "ALL";
+// Cuentas de días hábiles aprox por preset (los datos son L-V).
+const RANGO_N: Record<Exclude<RangoKey, "YTD" | "ALL">, number> = {
+  "1W": 5, "1M": 22, "3M": 65, "6M": 130, "1A": 252,
+};
+const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+const fmtFechaCorta = (s: string) => {
+  const [y, m, d] = s.split("-");
+  return `${d}/${m}/${y.slice(-2)}`;
+};
+const fmtMesCorto = (s: string) => {
+  const [y, m] = s.split("-").map(Number);
+  return `${MESES[m - 1]} ${String(y).slice(-2)}`;
+};
+function lunesDeSemana(fechaIso: string): string {
+  const d = new Date(fechaIso + "T00:00:00Z");
+  const dow = d.getUTCDay();
+  const offset = dow === 0 ? -6 : 1 - dow;
+  return new Date(d.getTime() + offset * 86400000).toISOString().slice(0, 10);
+}
+const bucketKey = (f: string, agg: AggKey) =>
+  agg === "MENSUAL" ? f.slice(0, 7) : agg === "SEMANAL" ? lunesDeSemana(f) : f;
+const fmtBucket = (k: string, agg: AggKey) =>
+  agg === "MENSUAL" ? fmtMesCorto(k) : fmtFechaCorta(k);
+
+// Volumen es flujo → suma por bucket; AuM es stock → último del bucket.
+function aggregateSerie(serie: SeriePoint[], agg: AggKey, metric: "volumen" | "aum"): SeriePoint[] {
+  if (agg === "DIARIO") return serie;
+  const buckets = new Map<string, SeriePoint[]>();
+  for (const p of serie) {
+    const k = bucketKey(p.fecha, agg);
+    const arr = buckets.get(k);
+    if (arr) arr.push(p); else buckets.set(k, [p]);
+  }
+  const out: SeriePoint[] = [];
+  for (const [k, pts] of buckets) {
+    const valor = metric === "aum"
+      ? pts.reduce((acc, p) => (p.fecha >= acc.fecha ? p : acc), pts[0]).valor
+      : pts.reduce((a, p) => a + p.valor, 0);
+    out.push({ fecha: k, valor });
+  }
+  return out.sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
+// Slice por rango + offset (pan). offset=0 = ventana más reciente.
+function filtrarRango(serie: SeriePoint[], rango: RangoKey, offset = 0): SeriePoint[] {
+  if (rango === "ALL" || serie.length === 0) return serie;
+  if (rango === "YTD") {
+    const yyyy = new Date().getFullYear() - offset;
+    return serie.filter((s) => s.fecha.startsWith(`${yyyy}-`));
+  }
+  const n = RANGO_N[rango];
+  const end = serie.length - offset * n;
+  const start = Math.max(0, end - n);
+  return serie.slice(Math.max(0, start), Math.max(0, end));
+}
+
 // Campos de la ficha (tab "Datos") — se muestran SIEMPRE, incluso null.
 const FICHA_DATOS: [keyof Ficha, string][] = [
   ["nivel_1", "Nivel 1"], ["nivel_2", "Nivel 2"], ["nivel_3", "Nivel 3"],
@@ -88,6 +148,9 @@ export function ComercialOperacionesView() {
   const [serie, setSerie] = useState<SeriePoint[]>([]);
   const [portafolio, setPortafolio] = useState<Portafolio | null>(null);
   const [fichaTab, setFichaTab] = useState<"datos">("datos");
+  const [agg, setAgg] = useState<AggKey>("DIARIO");
+  const [rango, setRango] = useState<RangoKey>("YTD");
+  const [rangoOffset, setRangoOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingSerie, setLoadingSerie] = useState(false);
   const [loadingPort, setLoadingPort] = useState(false);
@@ -177,7 +240,33 @@ export function ComercialOperacionesView() {
     () => clientes.find((c) => c.id_cuenta === selCuenta) ?? null,
     [clientes, selCuenta],
   );
-  const tickInterval = Math.max(0, Math.floor(serie.length / 12));
+
+  // Volver al inicio del rango cuando cambia el scope o el preset/métrica.
+  useEffect(() => { setRangoOffset(0); }, [rango, metric, sel, selCuenta]);
+
+  const serieRango = useMemo(
+    () => filtrarRango(serie, rango, rangoOffset),
+    [serie, rango, rangoOffset],
+  );
+  const chartData = useMemo(
+    () => aggregateSerie(serieRango, agg, metric),
+    [serieRango, agg, metric],
+  );
+  const visDesde = serieRango[0]?.fecha ?? null;
+  const visHasta = serieRango[serieRango.length - 1]?.fecha ?? null;
+  // Volumen (flujo) → total del período; AuM (stock) → último valor visible.
+  const resumenSerie = useMemo(() => {
+    if (metric === "aum") return serieRango[serieRango.length - 1]?.valor ?? 0;
+    return serieRango.reduce((a, p) => a + p.valor, 0);
+  }, [serieRango, metric]);
+
+  const puedeAtras = rango !== "ALL" && serieRango.length > 0 && (
+    rango === "YTD"
+      ? serie.some((s) => s.fecha.startsWith(`${new Date().getFullYear() - rangoOffset - 1}-`))
+      : serie.length - (rangoOffset + 1) * RANGO_N[rango] > 0
+  );
+  const puedeAdelante = rangoOffset > 0;
+  const tickInterval = Math.max(0, Math.floor(chartData.length / 12));
 
   return (
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[#d0d0d0] overflow-hidden">
@@ -212,27 +301,44 @@ export function ComercialOperacionesView() {
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
           {/* GRÁFICO DE EVOLUCIÓN */}
-          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] shrink-0 flex-wrap">
-              <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">Evolución</span>
-              <span className="text-[10px] text-[#888] font-mono truncate max-w-[50%]">
-                {cliente ? `· ${cliente.denominacion}` : "· Cartera del operador"}
+              <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
+                {metric === "aum" ? "AUM" : "Volumen operado"} · ARS
               </span>
+              {visDesde && visHasta && (
+                <span className="text-[9px] text-[#555] font-mono">
+                  {fmtFechaCorta(visDesde)} → {fmtFechaCorta(visHasta)}
+                </span>
+              )}
+              {serieRango.length > 0 && (
+                <span className="text-[10px] font-mono">
+                  <span className="text-[#666] uppercase tracking-wider">
+                    {metric === "aum" ? "Último: " : "Total período: "}
+                  </span>
+                  <span className="text-[#ff9900] font-semibold">{fmtAum(resumenSerie)}</span>
+                </span>
+              )}
               {cliente && (
-                <button
-                  onClick={() => setSelCuenta(null)}
-                  className="text-[#888] hover:text-[#ff9900] text-[13px] leading-none"
-                  title="Volver a la cartera del operador"
-                >×</button>
+                <span className="text-[10px] text-[#888] font-mono truncate max-w-[35%]">
+                  · {cliente.denominacion}
+                  <button
+                    onClick={() => setSelCuenta(null)}
+                    className="ml-1 text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
+                    title="Volver a la cartera del operador"
+                  >×</button>
+                </span>
               )}
               {loadingSerie && <span className="text-[9px] text-[#888]">cargando…</span>}
+
+              {/* Volumen / AuM */}
               <div className="ml-auto inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
                 {(["volumen", "aum"] as const).map((m) => (
                   <button
                     key={m}
                     onClick={() => setMetric(m)}
                     className={
-                      "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
+                      "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                       (metric === m ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
                     }
                   >
@@ -240,21 +346,66 @@ export function ComercialOperacionesView() {
                   </button>
                 ))}
               </div>
+              {/* Agregación */}
+              <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+                {(["DIARIO", "SEMANAL", "MENSUAL"] as AggKey[]).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setAgg(k)}
+                    className={
+                      "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                      (agg === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                    }
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+              {/* Rango + pan */}
+              <div className="inline-flex items-center gap-1">
+                <button
+                  onClick={() => setRangoOffset((o) => o + 1)}
+                  disabled={!puedeAtras}
+                  title="Período anterior"
+                  className="px-1 py-0.5 text-[10px] text-[#888] border border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                >◀</button>
+                <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+                  {(["1W", "1M", "3M", "6M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
+                    <button
+                      key={k}
+                      onClick={() => { setRango(k); setRangoOffset(0); }}
+                      className={
+                        "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                        (rango === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      }
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
+                  disabled={!puedeAdelante}
+                  title="Período siguiente"
+                  className="px-1 py-0.5 text-[10px] text-[#888] border border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                >▶</button>
+              </div>
             </div>
             <div className="flex-1 min-h-0 p-2">
-              {serie.length === 0 ? (
+              {chartData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
-                  Sin datos de {metric === "aum" ? "AuM" : "volumen"}.
+                  Sin datos de {metric === "aum" ? "AuM" : "volumen"} en este rango.
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={serie} margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
+                  <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
                     <CartesianGrid stroke="#161616" vertical={false} />
                     <XAxis
                       dataKey="fecha"
                       tick={{ fill: "#808080", fontSize: 10 }}
                       axisLine={{ stroke: "#2a2a2a" }}
                       tickLine={false}
+                      tickFormatter={(v: string) => fmtBucket(v, agg)}
                       interval={tickInterval}
                       angle={-35}
                       textAnchor="end"
@@ -272,6 +423,7 @@ export function ComercialOperacionesView() {
                       contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
                       labelStyle={{ color: "#808080" }}
                       itemStyle={{ color: "#d0d0d0" }}
+                      labelFormatter={(v) => fmtBucket(String(v), agg)}
                       formatter={(v) => [fmtAum(Number(v)), metric === "aum" ? "AuM" : "Volumen"]}
                     />
                     <Line type="monotone" dataKey="valor" stroke="#ff9900" strokeWidth={1.5} dot={false} isAnimationActive={false} />
@@ -281,8 +433,8 @@ export function ComercialOperacionesView() {
             </div>
           </div>
 
-          {/* FICHA DEL CLIENTE (con tabs) */}
-          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          {/* FICHA DEL CLIENTE (con tabs) — alineada con el portafolio (40%) */}
+          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Ficha</span>
               {cliente && (
