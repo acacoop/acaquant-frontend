@@ -183,6 +183,7 @@ type AnalisisCliente = {
   ultima_op: string | null;
   dias_sin_operar: number | null;
   estado: string;
+  opero_ytd: boolean;
   nivel_1: string | null;
   nivel_2: string | null;
   nivel_3: string | null;
@@ -766,11 +767,13 @@ function AnalisisComercial({ operador }: { operador: string }) {
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<"aum" | "dias">("aum");
+  const [nivelSel, setNivelSel] = useState<string | null>(null);
 
   useEffect(() => {
     if (!operador) { setClientes([]); return; }
     let cancelled = false;
     setLoading(true);
+    setNivelSel(null);
     void (async () => {
       try {
         const d = await getJson<{ clientes: AnalisisCliente[] }>(
@@ -786,36 +789,44 @@ function AnalisisComercial({ operador }: { operador: string }) {
     return () => { cancelled = true; };
   }, [operador]);
 
+  const nivelDe = (c: AnalisisCliente) => c.nivel_1 || "(sin segmentar)";
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { ACTIVA: 0, ENFRIANDOSE: 0, DORMIDA: 0, NUEVA: 0 };
     for (const x of clientes) c[x.estado] = (c[x.estado] ?? 0) + 1;
     return c;
   }, [clientes]);
+  const sinAum = useMemo(() => clientes.filter((c) => c.aum <= 0).length, [clientes]);
+  const sinOperarYtd = useMemo(() => clientes.filter((c) => !c.opero_ytd).length, [clientes]);
 
-  const ordenados = useMemo(() => {
-    const arr = [...clientes];
-    if (sort === "aum") arr.sort((a, b) => b.aum - a.aum);
-    else arr.sort((a, b) => (b.dias_sin_operar ?? -1) - (a.dias_sin_operar ?? -1));
-    return arr;
-  }, [clientes, sort]);
-
-  const churn = useMemo(
-    () => clientes
-      .filter((c) => (c.estado === "ENFRIANDOSE" || c.estado === "DORMIDA") && c.aum > 0)
-      .sort((a, b) => b.aum - a.aum),
-    [clientes],
-  );
-
+  // Distribución por nivel_1 — # clientes, sin operar (año) y AuM consolidado.
   const porNivel = useMemo(() => {
-    const m = new Map<string, { nivel: string; aum: number; n: number }>();
+    const m = new Map<string, { nivel: string; aum: number; n: number; sinOperar: number }>();
     for (const c of clientes) {
-      const k = c.nivel_1 || "(sin segmentar)";
-      const cur = m.get(k) ?? { nivel: k, aum: 0, n: 0 };
-      cur.aum += c.aum; cur.n += 1; m.set(k, cur);
+      const k = nivelDe(c);
+      const cur = m.get(k) ?? { nivel: k, aum: 0, n: 0, sinOperar: 0 };
+      cur.aum += c.aum; cur.n += 1; if (!c.opero_ytd) cur.sinOperar += 1;
+      m.set(k, cur);
     }
     return [...m.values()].sort((a, b) => b.aum - a.aum);
   }, [clientes]);
-  const totalNivelAum = porNivel.reduce((a, x) => a + x.aum, 0);
+
+  // Estado comercial — filtrado por el nivel elegido (click en distribución) + orden.
+  const ordenados = useMemo(() => {
+    const arr = (nivelSel ? clientes.filter((c) => nivelDe(c) === nivelSel) : [...clientes]);
+    const out = [...arr];
+    if (sort === "aum") out.sort((a, b) => b.aum - a.aum);
+    else out.sort((a, b) => (b.dias_sin_operar ?? -1) - (a.dias_sin_operar ?? -1));
+    return out;
+  }, [clientes, sort, nivelSel]);
+
+  // Riesgo de churn — respeta también el nivel elegido.
+  const churn = useMemo(
+    () => (nivelSel ? clientes.filter((c) => nivelDe(c) === nivelSel) : clientes)
+      .filter((c) => (c.estado === "ENFRIANDOSE" || c.estado === "DORMIDA") && c.aum > 0)
+      .sort((a, b) => b.aum - a.aum),
+    [clientes, nivelSel],
+  );
 
   if (!operador) return <Empty msg="Elegí un operador." />;
   if (loading && clientes.length === 0) return <Empty msg="cargando…" />;
@@ -832,6 +843,14 @@ function AnalisisComercial({ operador }: { operador: string }) {
             <span className="font-semibold tabular-nums text-[#d0d0d0]">{counts[e] ?? 0}</span>
           </span>
         ))}
+        <span className="inline-flex items-center gap-1.5 border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px]">
+          <span className="text-[#888]">Sin AuM</span>
+          <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinAum}</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5 border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px]">
+          <span className="text-[#888]">Sin operar (año)</span>
+          <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinOperarYtd}</span>
+        </span>
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
@@ -839,7 +858,13 @@ function AnalisisComercial({ operador }: { operador: string }) {
         <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Estado comercial</span>
-            <span className="text-[10px] text-[#888] font-mono">{clientes.length}</span>
+            {nivelSel && (
+              <span className="text-[10px] text-[#ff9900] font-mono inline-flex items-center gap-1">
+                · {nivelSel}
+                <button onClick={() => setNivelSel(null)} className="text-[#888] hover:text-[#ff9900]" title="Quitar filtro de nivel">×</button>
+              </span>
+            )}
+            <span className="text-[10px] text-[#888] font-mono">{ordenados.length}</span>
             <div className="ml-auto inline-flex border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
               {(["aum", "dias"] as const).map((s) => (
                 <button key={s} onClick={() => setSort(s)}
@@ -875,8 +900,49 @@ function AnalisisComercial({ operador }: { operador: string }) {
           </div>
         </div>
 
-        {/* DER — Riesgo de churn (arriba) + Distribución por nivel (abajo) */}
+        {/* DER — Distribución por nivel (arriba, click = filtra clientes) + Riesgo de churn (abajo) */}
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Distribución por nivel 1</span>
+              <span className="text-[10px] text-[#888] font-mono">{porNivel.length}</span>
+              <span className="ml-auto text-[9px] text-[#666]">click = filtra clientes</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 1</th>
+                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">#</th>
+                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Sin oper.</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {porNivel.map((n) => {
+                    const active = nivelSel === n.nivel;
+                    return (
+                      <tr
+                        key={n.nivel}
+                        onClick={() => setNivelSel(active ? null : n.nivel)}
+                        className={
+                          "border-t border-[#111] cursor-pointer transition-colors " +
+                          (active ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                        }
+                        title="Click: filtrar la tabla de Estado comercial por este nivel"
+                      >
+                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
+                        <td className="px-2 py-1.5 text-right text-[#888]">{n.n}</td>
+                        <td className="px-2 py-1.5 text-right text-[#ff5d6c]">{n.sinOperar}</td>
+                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(n.aum)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff5d6c]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff5d6c] tracking-wide uppercase">Riesgo de churn</span>
@@ -902,38 +968,6 @@ function AnalisisComercial({ operador }: { operador: string }) {
                   </tbody>
                 </table>
               )}
-            </div>
-          </div>
-
-          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Distribución por nivel 1</span>
-              <span className="ml-auto text-[10px] text-[#888] font-mono">{porNivel.length}</span>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
-                  <tr>
-                    <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 1</th>
-                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">#</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {porNivel.map((n) => {
-                    const pct = totalNivelAum > 0 ? (n.aum / totalNivelAum) * 100 : 0;
-                    return (
-                      <tr key={n.nivel} className="border-t border-[#111] hover:bg-[#0e0e0e]">
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
-                        <td className="px-2 py-1.5 text-right text-[#888]">{n.n}</td>
-                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(n.aum)}</td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">{pct.toFixed(1)}%</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
