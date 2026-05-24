@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -398,36 +400,72 @@ export function ComercialOperacionesView() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
-                    <CartesianGrid stroke="#161616" vertical={false} />
-                    <XAxis
-                      dataKey="fecha"
-                      tick={{ fill: "#808080", fontSize: 10 }}
-                      axisLine={{ stroke: "#2a2a2a" }}
-                      tickLine={false}
-                      tickFormatter={(v: string) => fmtBucket(v, agg)}
-                      interval={tickInterval}
-                      angle={-35}
-                      textAnchor="end"
-                      height={32}
-                      minTickGap={4}
-                    />
-                    <YAxis
-                      tick={{ fill: "#808080", fontSize: 10 }}
-                      axisLine={{ stroke: "#2a2a2a" }}
-                      tickLine={false}
-                      tickFormatter={(v) => fmtAum(Number(v))}
-                      width={56}
-                    />
-                    <Tooltip
-                      contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                      labelStyle={{ color: "#808080" }}
-                      itemStyle={{ color: "#d0d0d0" }}
-                      labelFormatter={(v) => fmtBucket(String(v), agg)}
-                      formatter={(v) => [fmtAum(Number(v)), metric === "aum" ? "AuM" : "Volumen"]}
-                    />
-                    <Line type="monotone" dataKey="valor" stroke="#ff9900" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                  </LineChart>
+                  {metric === "aum" ? (
+                    // AuM es saldo continuo → línea.
+                    <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
+                      <CartesianGrid stroke="#161616" vertical={false} />
+                      <XAxis
+                        dataKey="fecha"
+                        tick={{ fill: "#808080", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2a2a" }}
+                        tickLine={false}
+                        tickFormatter={(v: string) => fmtBucket(v, agg)}
+                        interval={tickInterval}
+                        angle={-35}
+                        textAnchor="end"
+                        height={32}
+                        minTickGap={4}
+                      />
+                      <YAxis
+                        tick={{ fill: "#808080", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2a2a" }}
+                        tickLine={false}
+                        tickFormatter={(v) => fmtAum(Number(v))}
+                        width={56}
+                      />
+                      <Tooltip
+                        contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                        labelStyle={{ color: "#808080" }}
+                        itemStyle={{ color: "#d0d0d0" }}
+                        labelFormatter={(v) => fmtBucket(String(v), agg)}
+                        formatter={(v) => [fmtAum(Number(v)), "AuM"]}
+                      />
+                      <Line type="monotone" dataKey="valor" stroke="#ff9900" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  ) : (
+                    // Volumen es flujo → barras.
+                    <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
+                      <CartesianGrid stroke="#161616" vertical={false} />
+                      <XAxis
+                        dataKey="fecha"
+                        tick={{ fill: "#808080", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2a2a" }}
+                        tickLine={false}
+                        tickFormatter={(v: string) => fmtBucket(v, agg)}
+                        interval={tickInterval}
+                        angle={-35}
+                        textAnchor="end"
+                        height={32}
+                        minTickGap={4}
+                      />
+                      <YAxis
+                        tick={{ fill: "#808080", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2a2a" }}
+                        tickLine={false}
+                        tickFormatter={(v) => fmtAum(Number(v))}
+                        width={56}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "#ffffff08" }}
+                        contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                        labelStyle={{ color: "#808080" }}
+                        itemStyle={{ color: "#d0d0d0" }}
+                        labelFormatter={(v) => fmtBucket(String(v), agg)}
+                        formatter={(v) => [fmtAum(Number(v)), "Volumen"]}
+                      />
+                      <Bar dataKey="valor" fill="#ff9900" maxBarSize={40} isAnimationActive={false} />
+                    </BarChart>
+                  )}
                 </ResponsiveContainer>
               )}
             </div>
