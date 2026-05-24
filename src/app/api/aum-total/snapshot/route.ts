@@ -35,6 +35,8 @@ export async function GET(req: Request) {
     const q = new URLSearchParams({ fecha });
     if (cf) q.set("cuenta_filter", cf);
     if (moneda) q.set("moneda", moneda);
+    const operador = url.searchParams.get("operador");
+    if (operador) q.set("operador", operador);
 
     const data = await apiFetch<BackendResp>(
       `/api/portfolio/total-snapshot?${q}`,

@@ -49,19 +49,21 @@ function fmtVto(s: string | null): string {
   return `${d}/${m}/${y.slice(-2)}`;
 }
 
-function TabTasaFija() {
+function TabTasaFija({ operador }: { operador: string }) {
   const [data, setData]           = useState<TFData | null>(null);
   const [loading, setLoading]     = useState(true);
   const [selTicker, setSelTicker] = useState<string | null>(null);
   const [verVN, setVerVN]         = useState(false);
 
   useEffect(() => {
-    fetch("/api/portfolio/tasa-fija", { cache: "no-store" })
+    setLoading(true);
+    const q = operador ? `?operador=${encodeURIComponent(operador)}` : "";
+    fetch(`/api/portfolio/tasa-fija${q}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d: TFData) => { setData(d); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [operador]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Cargando…</div>;
   if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Sin posiciones de Tasa Fija.</div>;
@@ -233,19 +235,21 @@ function fmtPct(v: number | null | undefined, digits = 2): string {
   return v.toFixed(digits);
 }
 
-function TabCer() {
+function TabCer({ operador }: { operador: string }) {
   const [data, setData]           = useState<CERData | null>(null);
   const [loading, setLoading]     = useState(true);
   const [selTicker, setSelTicker] = useState<string | null>(null);
   const [verVN, setVerVN]         = useState(false);
 
   useEffect(() => {
-    fetch("/api/portfolio/cer", { cache: "no-store" })
+    setLoading(true);
+    const q = operador ? `?operador=${encodeURIComponent(operador)}` : "";
+    fetch(`/api/portfolio/cer${q}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d: CERData) => { setData(d); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [operador]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Cargando…</div>;
   if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Sin posiciones CER.</div>;
@@ -413,6 +417,13 @@ export function AumView() {
   });
   const [cuentaFilter, setCuentaFilter] = useState<CuentaFilter>("todas");
   const [moneda, setMoneda] = useState<Moneda>("ARS");
+  // Filtro MADRE: si hay operador elegido, TODA la vista (y todas las tabs) se
+  // scopea a sus cuentas. "" = todos. Se pasa como `operador=` a cada endpoint;
+  // el backend (scope_aum) estrecha el scope → no hay lógica por tab.
+  const [operador, setOperador] = useState<string>("");
+  const [operadores, setOperadores] = useState<
+    { operador_email: string; operador_nombre: string | null; n_cuentas: number }[]
+  >([]);
   // Selecciones del drill-down de TOTAL — independientes del emisorSel
   // (cartera) del leaderboard izquierdo. Los tres se combinan con AND.
   const [cuentaSel, setCuentaSel] = useState<string | null>(null);
@@ -437,6 +448,19 @@ export function AumView() {
       tab: tab === "total" ? null : tab,  // default = sin param
     });
   }, [tab]);
+
+  // Operadores para el filtro madre (una vez).
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/portfolio/operadores", { cache: "no-store" });
+        if (!r.ok) return;
+        setOperadores(await r.json());
+      } catch {
+        // silencioso — sin operadores el selector queda en "TODOS".
+      }
+    })();
+  }, []);
 
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
@@ -464,6 +488,7 @@ export function AumView() {
         const base = tab === "fci" ? "/api/aum-fci/serie" : "/api/aum-total/serie";
         const q = new URLSearchParams({ moneda });
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
+        if (operador) q.set("operador", operador);
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -495,7 +520,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, moneda, cuentaFilter]);
+  }, [tab, moneda, cuentaFilter, operador]);
 
   // Snapshot — depende de fecha + cuentaFilter + moneda. Es lo que cambia
   // cuando el usuario juega con los filtros; el chart de evolución se queda
@@ -510,6 +535,7 @@ export function AumView() {
         const base = tab === "total" ? "/api/aum-total/snapshot" : "/api/aum-fci/snapshot";
         const q = new URLSearchParams({ fecha: fechaSel, moneda });
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
+        if (operador) q.set("operador", operador);
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -536,7 +562,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, fechaSel, cuentaFilter, moneda]);
+  }, [tab, fechaSel, cuentaFilter, moneda, operador]);
 
   const fechasAll = useMemo(() => serie.map((s) => s.fecha), [serie]);
 
@@ -654,13 +680,15 @@ export function AumView() {
   // selecciones — la lista de cuentas/assets sigue siendo la misma. Si la
   // selección ya no existe en el dataset filtrado, las tablas se ven
   // vacías y el botón "↺ limpiar" del panel resetea.
+  // Reset de drill-downs al cambiar de tab O de operador (filtro madre): la
+  // selección vieja ya no aplica al nuevo scope.
   useEffect(() => {
     setEmisorSel(null);
     setCuentaSel(null);
     setUnidadSel(null);
     setCuentaQuery("");
     setUnidadQuery("");
-  }, [tab]);
+  }, [tab, operador]);
 
   const detalleEmisor = useMemo(() => {
     if (!emisorSel) return [];
@@ -701,8 +729,28 @@ export function AumView() {
            : "ANÁLISIS DE DINERO"}
         </button>
       ))}
+      {/* OPERADOR — filtro MADRE: scopea TODA la vista (todas las tabs) a las
+          cuentas del operador. Afuera del condicional fci/total → siempre visible. */}
+      <div className="ml-auto flex items-center gap-2">
+        <span className="text-[9px] tracking-widest text-[#666]">OPERADOR</span>
+        <select
+          value={operador}
+          onChange={(e) => setOperador(e.target.value)}
+          className={`bg-black border text-[10px] px-2 py-0.5 font-mono focus:outline-none ${
+            operador ? "border-[#ff9900] text-[#ff9900]" : "border-[#2a2a2a] text-[#d0d0d0] focus:border-[#ff9900]"
+          }`}
+          title="Filtra toda la vista AUM a las cuentas de un operador"
+        >
+          <option value="">TODOS</option>
+          {operadores.map((o) => (
+            <option key={o.operador_email} value={o.operador_email}>
+              {(o.operador_nombre || o.operador_email)} ({o.n_cuentas})
+            </option>
+          ))}
+        </select>
+      </div>
       {(tab === "fci" || tab === "total") && (
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex items-center gap-3">
           {tab === "total" && (
             <>
               {/* FECHA + TOTAL inline para que el chart use todo el espacio
@@ -772,7 +820,7 @@ export function AumView() {
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
         <div className="flex-1 min-h-0">
-          <AnalisisDinero fechasAll={fechasAll} />
+          <AnalisisDinero fechasAll={fechasAll} operador={operador} />
         </div>
       </div>
     );
@@ -782,7 +830,7 @@ export function AumView() {
     return (
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
-        <div className="flex-1 min-h-0"><TabTasaFija /></div>
+        <div className="flex-1 min-h-0"><TabTasaFija operador={operador} /></div>
       </div>
     );
   }
@@ -791,7 +839,7 @@ export function AumView() {
     return (
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
-        <div className="flex-1 min-h-0"><TabCer /></div>
+        <div className="flex-1 min-h-0"><TabCer operador={operador} /></div>
       </div>
     );
   }
@@ -1281,7 +1329,7 @@ interface DiffResp {
   n_cerradas:              number;
 }
 
-function AnalisisDinero({ fechasAll }: { fechasAll: string[] }) {
+function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador: string }) {
   const [plazo, setPlazo] = useState<DiffPlazo>("previo");
   const [moneda, setMoneda] = useState<DiffMoneda>("ARS");
   const [customActual, setCustomActual] = useState<string>("");
@@ -1333,6 +1381,7 @@ function AnalisisDinero({ fechasAll }: { fechasAll: string[] }) {
           fecha_anterior:  fechaAnterior,
           moneda,
         });
+        if (operador) q.set("operador", operador);
         const res = await fetch(`/api/aum-diff?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -1345,7 +1394,7 @@ function AnalisisDinero({ fechasAll }: { fechasAll: string[] }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [fechaActual, fechaAnterior, moneda]);
+  }, [fechaActual, fechaAnterior, moneda, operador]);
 
   const filasOrdenadas = useMemo(() => {
     if (!data) return [];

@@ -25,6 +25,8 @@ export async function GET(req: Request) {
     if (desde) q.set("desde", desde);
     if (hasta) q.set("hasta", hasta);
     if (cf) q.set("cuenta_filter", cf);
+    const operador = url.searchParams.get("operador");
+    if (operador) q.set("operador", operador);
     const suffix = q.toString() ? `?${q}` : "";
 
     const serie = await apiFetch<SerieDoc[]>(

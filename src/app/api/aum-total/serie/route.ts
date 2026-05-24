@@ -31,6 +31,8 @@ export async function GET(req: Request) {
     if (hasta) q.set("hasta", hasta);
     if (cf) q.set("cuenta_filter", cf);
     if (moneda) q.set("moneda", moneda);
+    const operador = url.searchParams.get("operador");
+    if (operador) q.set("operador", operador);
     const suffix = q.toString() ? `?${q}` : "";
 
     const data = await apiFetch<BackendResp>(

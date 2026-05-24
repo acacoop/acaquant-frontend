@@ -26,6 +26,8 @@ export async function GET(req: Request) {
     const cf = url.searchParams.get("cuenta_filter");
     const q = new URLSearchParams({ fecha });
     if (cf) q.set("cuenta_filter", cf);
+    const operador = url.searchParams.get("operador");
+    if (operador) q.set("operador", operador);
 
     const docs = await apiFetch<SnapshotDoc[]>(
       `/api/portfolio/fci-snapshot?${q}`,
