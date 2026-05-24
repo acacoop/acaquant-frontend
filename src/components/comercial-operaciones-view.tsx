@@ -768,6 +768,7 @@ function AnalisisComercial({ operador }: { operador: string }) {
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<"aum" | "dias">("aum");
   const [nivelSel, setNivelSel] = useState<string | null>(null);
+  const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 30, dormida: 90 });
 
   useEffect(() => {
     if (!operador) { setClientes([]); return; }
@@ -776,10 +777,12 @@ function AnalisisComercial({ operador }: { operador: string }) {
     setNivelSel(null);
     void (async () => {
       try {
-        const d = await getJson<{ clientes: AnalisisCliente[] }>(
+        const d = await getJson<{ clientes: AnalisisCliente[]; dias_activa?: number; dias_dormida?: number }>(
           `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}`,
         );
-        if (!cancelled) setClientes(Array.isArray(d.clientes) ? d.clientes : []);
+        if (cancelled) return;
+        setUmbral({ activa: d.dias_activa ?? 30, dormida: d.dias_dormida ?? 90 });
+        setClientes(Array.isArray(d.clientes) ? d.clientes : []);
       } catch {
         if (!cancelled) setClientes([]);
       } finally {
@@ -851,6 +854,23 @@ function AnalisisComercial({ operador }: { operador: string }) {
           <span className="text-[#888]">Sin operar (año)</span>
           <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinOperarYtd}</span>
         </span>
+
+        {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
+        <div className="ml-auto relative group">
+          <span className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[#2a2a2a] text-[#888] text-[10px] cursor-help group-hover:border-[#ff9900] group-hover:text-[#ff9900]">
+            ?
+          </span>
+          <div className="hidden group-hover:block absolute right-0 top-5 z-50 w-[320px] border border-[#2a2a2a] bg-[#0e0e0e] p-3 text-[10px] leading-relaxed shadow-lg">
+            <div className="text-[#ff9900] uppercase tracking-widest text-[9px] mb-1.5">Cómo se calcula</div>
+            <p><span style={{ color: ESTADO_COLOR.ACTIVA }}>● Activa</span><span className="text-[#888]">: operó hace ≤ {umbral.activa} días.</span></p>
+            <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[#888]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
+            <p><span style={{ color: ESTADO_COLOR.DORMIDA }}>● Dormida</span><span className="text-[#888]">: operó alguna vez, pero hace más de {umbral.dormida} días.</span></p>
+            <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Nueva</span><span className="text-[#888]">: nunca operó.</span></p>
+            <p className="mt-1.5 text-[#888]"><span className="text-[#d0d0d0]">Sin AuM</span>: cuenta con AuM = $0 en el último snapshot.</p>
+            <p className="text-[#888]"><span className="text-[#d0d0d0]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
+            <p className="mt-1.5 text-[#666]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
