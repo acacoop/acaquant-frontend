@@ -166,9 +166,34 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
   ["division", "División"], ["adc", "ADC"], ["dma", "DMA"],
 ];
 
+// Sub-vistas de COMERCIAL (sub-nav arriba-izquierda).
+type SubView = "portfolio" | "analisis";
+
+// Estado comercial: color + label para las badges de la vista Análisis.
+const ESTADO_COLOR: Record<string, string> = {
+  ACTIVA: "#3fbf6f", ENFRIANDOSE: "#ff9900", DORMIDA: "#ff5d6c", NUEVA: "#5fa8d0",
+};
+const ESTADO_LABEL: Record<string, string> = {
+  ACTIVA: "Activa", ENFRIANDOSE: "Enfriándose", DORMIDA: "Dormida", NUEVA: "Nueva",
+};
+type AnalisisCliente = {
+  id_cuenta: string;
+  denominacion: string;
+  aum: number;
+  ultima_op: string | null;
+  dias_sin_operar: number | null;
+  estado: string;
+  nivel_1: string | null;
+  nivel_2: string | null;
+  nivel_3: string | null;
+  nivel_4: string | null;
+  nivel_5: string | null;
+};
+
 // `operador` (email) lo controla el selector que vive en la barra de tabs de
 // operaciones-view.tsx (margen superior derecho) → llega como prop.
 export function ComercialOperacionesView({ operador }: { operador: string }) {
+  const [subview, setSubview] = useState<SubView>("portfolio");
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
@@ -309,18 +334,37 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
   return (
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[#d0d0d0] overflow-hidden">
 
-      {/* ── HEADER SLIM: KPIs (métricas generales). El selector de operador
-            vive en la barra de tabs (operaciones-view.tsx). ─────────────────── */}
+      {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#080808] shrink-0 flex-wrap">
-        <KpiChip label="AUM" value={resumen ? fmtAum(resumen.aum_gestionado) : "—"} />
-        <KpiChip label="CLIENTES" value={resumen ? fmtN(resumen.n_clientes) : "—"} />
-        <KpiChip label="VOL. MTD" value={resumen ? fmtAum(resumen.volumen_mtd) : "—"} />
-        <KpiChip label="VOL. YTD" value={resumen ? fmtAum(resumen.volumen_ytd) : "—"} />
+        <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis"]] as [SubView, string][]).map(
+            ([v, label]) => (
+              <button
+                key={v}
+                onClick={() => setSubview(v)}
+                className={
+                  "px-3 py-1 text-[11px] font-semibold tracking-wide " +
+                  (subview === v ? "bg-[#ff9900] text-black" : "bg-transparent text-[#888] hover:text-[#ff9900]")
+                }
+              >
+                {label}
+              </button>
+            ),
+          )}
+        </div>
         {loading && <span className="text-[9px] text-[#888]">cargando…</span>}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
+        <div className="ml-auto flex items-center gap-3">
+          <KpiChip label="AUM" value={resumen ? fmtAum(resumen.aum_gestionado) : "—"} />
+          <KpiChip label="CLIENTES" value={resumen ? fmtN(resumen.n_clientes) : "—"} />
+          <KpiChip label="VOL. MTD" value={resumen ? fmtAum(resumen.volumen_mtd) : "—"} />
+          <KpiChip label="VOL. YTD" value={resumen ? fmtAum(resumen.volumen_ytd) : "—"} />
+        </div>
       </div>
 
-      {/* ── BODY: 2 columnas ───────────────────────────────────────────────── */}
+      {/* ── BODY ───────────────────────────────────────────────────────────── */}
+      {subview === "analisis" && <AnalisisComercial operador={operador} />}
+      {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
         {/* IZQUIERDA: gráfico (chico) + ficha con tabs */}
@@ -691,6 +735,7 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -713,4 +758,200 @@ function Field({ label, value }: { label: string; value: string | null }) {
       </span>
     </div>
   );
+}
+
+// ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
+// Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
+function AnalisisComercial({ operador }: { operador: string }) {
+  const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sort, setSort] = useState<"aum" | "dias">("aum");
+
+  useEffect(() => {
+    if (!operador) { setClientes([]); return; }
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const d = await getJson<{ clientes: AnalisisCliente[] }>(
+          `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}`,
+        );
+        if (!cancelled) setClientes(Array.isArray(d.clientes) ? d.clientes : []);
+      } catch {
+        if (!cancelled) setClientes([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [operador]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { ACTIVA: 0, ENFRIANDOSE: 0, DORMIDA: 0, NUEVA: 0 };
+    for (const x of clientes) c[x.estado] = (c[x.estado] ?? 0) + 1;
+    return c;
+  }, [clientes]);
+
+  const ordenados = useMemo(() => {
+    const arr = [...clientes];
+    if (sort === "aum") arr.sort((a, b) => b.aum - a.aum);
+    else arr.sort((a, b) => (b.dias_sin_operar ?? -1) - (a.dias_sin_operar ?? -1));
+    return arr;
+  }, [clientes, sort]);
+
+  const churn = useMemo(
+    () => clientes
+      .filter((c) => (c.estado === "ENFRIANDOSE" || c.estado === "DORMIDA") && c.aum > 0)
+      .sort((a, b) => b.aum - a.aum),
+    [clientes],
+  );
+
+  const porNivel = useMemo(() => {
+    const m = new Map<string, { nivel: string; aum: number; n: number }>();
+    for (const c of clientes) {
+      const k = c.nivel_1 || "(sin segmentar)";
+      const cur = m.get(k) ?? { nivel: k, aum: 0, n: 0 };
+      cur.aum += c.aum; cur.n += 1; m.set(k, cur);
+    }
+    return [...m.values()].sort((a, b) => b.aum - a.aum);
+  }, [clientes]);
+  const totalNivelAum = porNivel.reduce((a, x) => a + x.aum, 0);
+
+  if (!operador) return <Empty msg="Elegí un operador." />;
+  if (loading && clientes.length === 0) return <Empty msg="cargando…" />;
+  if (clientes.length === 0) return <Empty msg="Sin clientes." />;
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col gap-3 p-3 overflow-hidden">
+      {/* Resumen por estado */}
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        {(["ACTIVA", "ENFRIANDOSE", "DORMIDA", "NUEVA"] as const).map((e) => (
+          <span key={e} className="inline-flex items-center gap-1.5 border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px]">
+            <span className="w-2 h-2 inline-block" style={{ background: ESTADO_COLOR[e] }} />
+            <span className="text-[#888]">{ESTADO_LABEL[e]}</span>
+            <span className="font-semibold tabular-nums text-[#d0d0d0]">{counts[e] ?? 0}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
+        {/* IZQ — Estado comercial (todos) */}
+        <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Estado comercial</span>
+            <span className="text-[10px] text-[#888] font-mono">{clientes.length}</span>
+            <div className="ml-auto inline-flex border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+              {(["aum", "dias"] as const).map((s) => (
+                <button key={s} onClick={() => setSort(s)}
+                  className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (sort === s ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")}>
+                  {s === "aum" ? "AuM" : "Días"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-[11px] font-mono tabular-nums">
+              <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <tr>
+                  <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
+                  <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Estado</th>
+                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Días</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordenados.map((c) => (
+                  <tr key={c.id_cuenta} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                    <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[220px]" title={c.denominacion}>
+                      <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
+                    </td>
+                    <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
+                    <td className="px-2 py-1.5 text-right text-[#888]">{c.dias_sin_operar ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* DER — Riesgo de churn (arriba) + Distribución por nivel (abajo) */}
+        <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff5d6c]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[#ff5d6c] tracking-wide uppercase">Riesgo de churn</span>
+              <span className="text-[10px] text-[#888] font-mono">{churn.length}</span>
+              <span className="ml-auto text-[9px] text-[#666]">enfriándose / dormidas · por AuM</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              {churn.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-[11px] text-[#555]">Sin clientes en riesgo. 👍</div>
+              ) : (
+                <table className="w-full text-[11px] font-mono tabular-nums">
+                  <tbody>
+                    {churn.map((c) => (
+                      <tr key={c.id_cuenta} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={c.denominacion}>
+                          <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
+                        </td>
+                        <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
+                        <td className="px-2 py-1.5 text-right text-[#888]">{c.dias_sin_operar ?? "—"}d</td>
+                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Distribución por nivel 1</span>
+              <span className="ml-auto text-[10px] text-[#888] font-mono">{porNivel.length}</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 1</th>
+                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">#</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {porNivel.map((n) => {
+                    const pct = totalNivelAum > 0 ? (n.aum / totalNivelAum) * 100 : 0;
+                    return (
+                      <tr key={n.nivel} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
+                        <td className="px-2 py-1.5 text-right text-[#888]">{n.n}</td>
+                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(n.aum)}</td>
+                        <td className="px-3 py-1.5 text-right text-[#888]">{pct.toFixed(1)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EstadoBadge({ estado }: { estado: string }) {
+  const c = ESTADO_COLOR[estado] ?? "#666";
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px]">
+      <span className="w-1.5 h-1.5 inline-block" style={{ background: c }} />
+      <span style={{ color: c }}>{ESTADO_LABEL[estado] ?? estado}</span>
+    </span>
+  );
+}
+
+function Empty({ msg }: { msg: string }) {
+  return <div className="flex-1 min-h-0 flex items-center justify-center text-[11px] text-[#555]">{msg}</div>;
 }
