@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CashFlowView } from "./cashflow-view";
-import { ComercialOperacionesView } from "./comercial-operaciones-view";
+import { ComercialOperacionesView, type Operador } from "./comercial-operaciones-view";
 import { ContrapartesView } from "./contrapartes-view";
 import { FlujoVsAumView } from "./flujo-vs-aum-view";
 import { IntradayView } from "./intraday-view";
@@ -12,6 +12,25 @@ type Tab = "negocio" | "comercial" | "cashflow" | "contrapartes" | "flujo-vs-aum
 
 export function OperacionesView() {
   const [tab, setTab] = useState<Tab>("negocio");
+  // Selector de operador de la vista COMERCIAL — vive acá (en la barra de tabs)
+  // para no ocupar espacio dentro del panel. Se pasa como prop a la vista.
+  const [operadores, setOperadores] = useState<Operador[]>([]);
+  const [operador, setOperador] = useState<string>("");
+
+  useEffect(() => {
+    if (tab !== "comercial" || operadores.length > 0) return;
+    void (async () => {
+      try {
+        const r = await fetch("/api/operaciones/comercial/operadores", { cache: "no-store" });
+        if (!r.ok) return;
+        const d: Operador[] = await r.json();
+        setOperadores(d);
+        setOperador((s) => s || (d[0]?.operador_email ?? ""));
+      } catch {
+        // silencioso — la vista muestra su propio estado de error/vacío.
+      }
+    })();
+  }, [tab, operadores.length]);
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -40,13 +59,31 @@ export function OperacionesView() {
         <TabBtn active={tab === "intraday"} onClick={() => setTab("intraday")}>
           INTRADAY
         </TabBtn>
+
+        {/* Selector de operador (solo en COMERCIAL), al margen superior derecho. */}
+        {tab === "comercial" && operadores.length > 0 && (
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[9px] text-[#666] tracking-widest">OPERADOR</span>
+            <select
+              value={operador}
+              onChange={(e) => setOperador(e.target.value)}
+              className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none max-w-[280px]"
+            >
+              {operadores.map((o) => (
+                <option key={o.operador_email} value={o.operador_email}>
+                  {(o.operador_nombre || o.operador_email)} ({o.n_cuentas})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "negocio" ? (
           <NegocioView />
         ) : tab === "comercial" ? (
-          <ComercialOperacionesView />
+          <ComercialOperacionesView operador={operador} />
         ) : tab === "cashflow" ? (
           <CashFlowView />
         ) : tab === "contrapartes" ? (

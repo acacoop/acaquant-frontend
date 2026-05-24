@@ -22,7 +22,7 @@ import {
 // fetch) y carga su tenencia. Consume /api/operaciones/comercial/*.
 // Ver docs/TABLERO_COMERCIAL.md [5].
 
-type Operador = { operador_email: string; operador_nombre: string | null; n_cuentas: number };
+export type Operador = { operador_email: string; operador_nombre: string | null; n_cuentas: number };
 type Resumen = {
   aum_gestionado: number;
   n_clientes: number;
@@ -140,9 +140,9 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
   ["division", "División"], ["adc", "ADC"], ["dma", "DMA"],
 ];
 
-export function ComercialOperacionesView() {
-  const [operadores, setOperadores] = useState<Operador[]>([]);
-  const [sel, setSel] = useState<string>("");
+// `operador` (email) lo controla el selector que vive en la barra de tabs de
+// operaciones-view.tsx (margen superior derecho) → llega como prop.
+export function ComercialOperacionesView({ operador }: { operador: string }) {
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
@@ -158,22 +158,9 @@ export function ComercialOperacionesView() {
   const [loadingPort, setLoadingPort] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Operadores (una vez).
-  useEffect(() => {
-    void (async () => {
-      try {
-        const d = await getJson<Operador[]>("/api/operaciones/comercial/operadores");
-        setOperadores(d);
-        setSel((s) => s || (d[0]?.operador_email ?? ""));
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : String(e));
-      }
-    })();
-  }, []);
-
   // Resumen + clientes del operador (una pasada). Limpia el cliente elegido.
   useEffect(() => {
-    if (!sel) return;
+    if (!operador) return;
     let cancelled = false;
     setLoading(true);
     setErr(null);
@@ -181,7 +168,7 @@ export function ComercialOperacionesView() {
     void (async () => {
       try {
         const d = await getJson<OperadorResp>(
-          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(sel)}`,
+          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}`,
         );
         if (cancelled) return;
         setResumen(d.resumen);
@@ -196,16 +183,16 @@ export function ComercialOperacionesView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [sel]);
+  }, [operador]);
 
   // Serie del gráfico: operador completo o, si hay cliente, esa cuenta.
   useEffect(() => {
-    if (!sel) return;
+    if (!operador) return;
     let cancelled = false;
     setLoadingSerie(true);
     void (async () => {
       try {
-        let q = `operador=${encodeURIComponent(sel)}&metric=${metric}`;
+        let q = `operador=${encodeURIComponent(operador)}&metric=${metric}`;
         if (selCuenta) q += `&id_cuenta=${encodeURIComponent(selCuenta)}`;
         const d = await getJson<{ serie: SeriePoint[] }>(`/api/operaciones/comercial/serie?${q}`);
         if (!cancelled) setSerie(Array.isArray(d.serie) ? d.serie : []);
@@ -216,7 +203,7 @@ export function ComercialOperacionesView() {
       }
     })();
     return () => { cancelled = true; };
-  }, [sel, metric, selCuenta]);
+  }, [operador, metric, selCuenta]);
 
   // Tenencia del cliente seleccionado.
   useEffect(() => {
@@ -244,7 +231,7 @@ export function ComercialOperacionesView() {
   );
 
   // Volver al inicio del rango cuando cambia el scope o el preset/métrica.
-  useEffect(() => { setRangoOffset(0); }, [rango, metric, sel, selCuenta]);
+  useEffect(() => { setRangoOffset(0); }, [rango, metric, operador, selCuenta]);
 
   const serieRango = useMemo(
     () => filtrarRango(serie, rango, rangoOffset),
@@ -273,21 +260,9 @@ export function ComercialOperacionesView() {
   return (
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[#d0d0d0] overflow-hidden">
 
-      {/* ── HEADER SLIM: selector + KPIs (métricas generales) ──────────────── */}
+      {/* ── HEADER SLIM: KPIs (métricas generales). El selector de operador
+            vive en la barra de tabs (operaciones-view.tsx). ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#080808] shrink-0 flex-wrap">
-        <span className="text-[9px] text-[#666] tracking-widest">OPERADOR</span>
-        <select
-          value={sel}
-          onChange={(e) => setSel(e.target.value)}
-          className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none max-w-[280px]"
-        >
-          {operadores.map((o) => (
-            <option key={o.operador_email} value={o.operador_email}>
-              {(o.operador_nombre || o.operador_email)} ({o.n_cuentas})
-            </option>
-          ))}
-        </select>
-        <span className="text-[#222]">│</span>
         <KpiChip label="AUM" value={resumen ? fmtAum(resumen.aum_gestionado) : "—"} />
         <KpiChip label="CLIENTES" value={resumen ? fmtN(resumen.n_clientes) : "—"} />
         <KpiChip label="VOL. MTD" value={resumen ? fmtAum(resumen.volumen_mtd) : "—"} />
