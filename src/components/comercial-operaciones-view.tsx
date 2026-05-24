@@ -174,7 +174,7 @@ const ESTADO_COLOR: Record<string, string> = {
   ACTIVA: "#3fbf6f", ENFRIANDOSE: "#ff9900", DORMIDA: "#ff5d6c", NUEVA: "#5fa8d0",
 };
 const ESTADO_LABEL: Record<string, string> = {
-  ACTIVA: "Activa", ENFRIANDOSE: "Enfriándose", DORMIDA: "Dormida", NUEVA: "Nueva",
+  ACTIVA: "Activa", ENFRIANDOSE: "Enfriándose", DORMIDA: "Dormida", NUEVA: "Sin Operaciones",
 };
 type AnalisisCliente = {
   id_cuenta: string;
@@ -865,7 +865,7 @@ function AnalisisComercial({ operador }: { operador: string }) {
             <p><span style={{ color: ESTADO_COLOR.ACTIVA }}>● Activa</span><span className="text-[#888]">: operó hace ≤ {umbral.activa} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[#888]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.DORMIDA }}>● Dormida</span><span className="text-[#888]">: operó alguna vez, pero hace más de {umbral.dormida} días.</span></p>
-            <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Nueva</span><span className="text-[#888]">: nunca operó.</span></p>
+            <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Sin Operaciones</span><span className="text-[#888]">: nunca operó.</span></p>
             <p className="mt-1.5 text-[#888]"><span className="text-[#d0d0d0]">Sin AuM</span>: cuenta con AuM = $0 en el último snapshot.</p>
             <p className="text-[#888]"><span className="text-[#d0d0d0]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
             <p className="mt-1.5 text-[#666]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
