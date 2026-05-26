@@ -31,6 +31,8 @@ type Resumen = {
 };
 type Ficha = {
   denominacion: string | null;
+  telefono: string | null;
+  email: string | null;
   nivel_1: string | null;
   nivel_2: string | null;
   nivel_3: string | null;
@@ -160,6 +162,7 @@ function filtrarRango(serie: SeriePoint[], rango: RangoKey, offset = 0): SeriePo
 
 // Campos de la ficha (tab "Datos") — se muestran SIEMPRE, incluso null.
 const FICHA_DATOS: [keyof Ficha, string][] = [
+  ["telefono", "Teléfono"], ["email", "Email"],
   ["nivel_1", "Nivel 1"], ["nivel_2", "Nivel 2"], ["nivel_3", "Nivel 3"],
   ["nivel_4", "Nivel 4"], ["nivel_5", "Nivel 5"],
   ["primer_contacto_comercial", "1er contacto"], ["riesgo_la_ft", "Riesgo LA/FT"],
@@ -179,6 +182,7 @@ const ESTADO_LABEL: Record<string, string> = {
 type AnalisisCliente = {
   id_cuenta: string;
   denominacion: string;
+  telefono: string | null;
   aum: number;
   ultima_op: string | null;
   dias_sin_operar: number | null;
@@ -977,8 +981,11 @@ function AnalisisComercial({ operador }: { operador: string }) {
                   <tbody>
                     {churn.map((c) => (
                       <tr key={c.id_cuenta} className="border-t border-[#111] hover:bg-[#0e0e0e]">
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={c.denominacion}>
+                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={c.denominacion}>
                           <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
+                        </td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-[#9fb8d0]">
+                          {c.telefono ? `☎ ${c.telefono}` : <span className="text-[#555]">—</span>}
                         </td>
                         <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
                         <td className="px-2 py-1.5 text-right text-[#888]">{c.dias_sin_operar ?? "—"}d</td>
