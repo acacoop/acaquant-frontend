@@ -13,6 +13,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { ComercialInforme } from "./comercial-informe-view";
+
 // Vista COMERCIAL (en OPERACIONES) — lente por operador.
 // Layout:
 //   · Header slim: selector de operador + KPIs (métricas generales, no interactivas).
@@ -170,7 +172,7 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
 ];
 
 // Sub-vistas de COMERCIAL (sub-nav arriba-izquierda).
-type SubView = "portfolio" | "analisis";
+type SubView = "portfolio" | "analisis" | "informe";
 
 // Estado comercial: color + label para las badges de la vista Análisis.
 const ESTADO_COLOR: Record<string, string> = {
@@ -342,7 +344,7 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#080808] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
-          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis"]] as [SubView, string][]).map(
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis"], ["informe", "Informe"]] as [SubView, string][]).map(
             ([v, label]) => (
               <button
                 key={v}
@@ -359,15 +361,18 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
         </div>
         {loading && <span className="text-[9px] text-[#888]">cargando…</span>}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
-        <div className="ml-auto flex items-center gap-3">
-          <KpiChip label="AUM" value={resumen ? fmtAum(resumen.aum_gestionado) : "—"} />
-          <KpiChip label="CLIENTES" value={resumen ? fmtN(resumen.n_clientes) : "—"} />
-          <KpiChip label="VOL. MTD" value={resumen ? fmtAum(resumen.volumen_mtd) : "—"} />
-          <KpiChip label="VOL. YTD" value={resumen ? fmtAum(resumen.volumen_ytd) : "—"} />
-        </div>
+        {subview !== "informe" && (
+          <div className="ml-auto flex items-center gap-3">
+            <KpiChip label="AUM" value={resumen ? fmtAum(resumen.aum_gestionado) : "—"} />
+            <KpiChip label="CLIENTES" value={resumen ? fmtN(resumen.n_clientes) : "—"} />
+            <KpiChip label="VOL. MTD" value={resumen ? fmtAum(resumen.volumen_mtd) : "—"} />
+            <KpiChip label="VOL. YTD" value={resumen ? fmtAum(resumen.volumen_ytd) : "—"} />
+          </div>
+        )}
       </div>
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
+      {subview === "informe" && <ComercialInforme />}
       {subview === "analisis" && <AnalisisComercial operador={operador} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
