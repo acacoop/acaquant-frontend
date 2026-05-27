@@ -1722,16 +1722,28 @@ function TabClientes() {
       if (!json.length) { setImportMsg({ ok: false, text: "El archivo está vacío." }); return; }
 
       const norm = (h: string) => h.trim().toLowerCase().replace(/[-\s]+/g, "_").replace(/\//g, "_");
-      const valid = new Set<string>(["id_cuenta", ...CLIENTE_CAMPOS]);
+      // El bulk también puede corregir el operador (mail + nombre). No está en
+      // CLIENTE_CAMPOS (en el editor fila-por-fila sigue read-only).
+      const OPERADOR_COLS = ["operador_email", "operador_nombre"];
+      // Alias: nombres de columna habituales del Excel → campo real de la base.
+      const ALIAS: Record<string, string> = {
+        operador: "operador_nombre",
+        nombre_operador: "operador_nombre",
+        comercial: "operador_nombre",
+        operador_mail: "operador_email",
+        mail_operador: "operador_email",
+        email_operador: "operador_email",
+      };
+      const valid = new Set<string>(["id_cuenta", ...CLIENTE_CAMPOS, ...OPERADOR_COLS]);
       const map: Record<string, string> = {};
       const unknown: string[] = [];
       for (const h of Object.keys(json[0])) {
-        const n = norm(h);
+        const n = ALIAS[norm(h)] ?? norm(h);
         if (valid.has(n)) map[h] = n;
         else unknown.push(h);
       }
       if (unknown.length) {
-        setImportMsg({ ok: false, text: `Columnas no reconocidas: ${unknown.join(", ")}. Deben ser id_cuenta + alguno de: ${CLIENTE_CAMPOS.join(", ")}` });
+        setImportMsg({ ok: false, text: `Columnas no reconocidas: ${unknown.join(", ")}. Deben ser id_cuenta + alguno de: ${[...CLIENTE_CAMPOS, ...OPERADOR_COLS].join(", ")}` });
         return;
       }
       const dataCols = Object.values(map).filter((c) => c !== "id_cuenta");
