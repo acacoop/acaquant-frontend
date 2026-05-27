@@ -510,6 +510,14 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
                         tickLine={false}
                         tickFormatter={(v) => fmtAum(Number(v))}
                         width={56}
+                        // AuM no arranca en 0: zoom al rango real (±2%) para que la
+                        // variación se vea y no quede una línea plana arriba.
+                        domain={[
+                          (min: number) => Math.floor(min * 0.98),
+                          (max: number) => Math.ceil(max * 1.02),
+                        ]}
+                        tickCount={6}
+                        allowDecimals={false}
                       />
                       <Tooltip
                         contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
@@ -857,13 +865,21 @@ function AnalisisComercial({ operador }: { operador: string }) {
     return out;
   }, [clientes, sort, nivelSel, estadoSel]);
 
-  // Riesgo de churn — respeta también el nivel elegido.
-  const churn = useMemo(
-    () => (nivelSel ? clientes.filter((c) => nivelDe(c) === nivelSel) : clientes)
-      .filter((c) => (c.estado === "ENFRIANDOSE" || c.estado === "DORMIDA") && c.aum > 0)
-      .sort((a, b) => b.aum - a.aum),
-    [clientes, nivelSel],
-  );
+  // Desglose por nivel 2 y 3 del nivel_1 elegido en la distribución (dinámico).
+  const niveles23 = useMemo(() => {
+    if (!nivelSel) return [];
+    const m = new Map<string, { n2: string; n3: string; n: number; aum: number }>();
+    for (const c of clientes) {
+      if (nivelDe(c) !== nivelSel) continue;
+      const n2 = c.nivel_2 || "—";
+      const n3 = c.nivel_3 || "—";
+      const k = `${n2}||${n3}`;
+      const cur = m.get(k) ?? { n2, n3, n: 0, aum: 0 };
+      cur.n += 1; cur.aum += c.aum;
+      m.set(k, cur);
+    }
+    return [...m.values()].sort((a, b) => b.aum - a.aum);
+  }, [clientes, nivelSel]);
 
   if (!operador) return <Empty msg="Elegí un operador." />;
   if (loading && clientes.length === 0) return <Empty msg="cargando…" />;
@@ -1020,28 +1036,35 @@ function AnalisisComercial({ operador }: { operador: string }) {
           </div>
 
           <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff5d6c]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff5d6c] tracking-wide uppercase">Riesgo de churn</span>
-              <span className="text-[10px] text-[#888] font-mono">{churn.length}</span>
-              <span className="ml-auto text-[9px] text-[#666]">enfriándose / dormidas · por AuM</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Niveles 2 y 3</span>
+              {nivelSel && <span className="text-[10px] text-[#ff9900] font-mono truncate max-w-[160px]">· {nivelSel}</span>}
+              <span className="ml-auto text-[9px] text-[#666]">{nivelSel ? `${niveles23.length} combinaciones` : "tocá un nivel 1"}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
-              {churn.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#555]">Sin clientes en riesgo. 👍</div>
+              {!nivelSel ? (
+                <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center px-4">
+                  Tocá un nivel 1 en la distribución para ver su desglose por nivel 2 y 3.
+                </div>
+              ) : niveles23.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-[11px] text-[#555]">Sin datos.</div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
+                  <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                    <tr>
+                      <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 2</th>
+                      <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 3</th>
+                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">#</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    {churn.map((c) => (
-                      <tr key={c.id_cuenta} className="border-t border-[#111] hover:bg-[#0e0e0e]">
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={c.denominacion}>
-                          <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
-                        </td>
-                        <td className="px-2 py-1.5 whitespace-nowrap text-[#9fb8d0]">
-                          {c.telefono ? `☎ ${c.telefono}` : <span className="text-[#555]">—</span>}
-                        </td>
-                        <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
-                        <td className="px-2 py-1.5 text-right text-[#888]">{c.dias_sin_operar ?? "—"}d</td>
-                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
+                    {niveles23.map((r) => (
+                      <tr key={`${r.n2}||${r.n3}`} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[150px]" title={r.n2}>{r.n2}</td>
+                        <td className="px-2 py-1.5 text-[#aaa] truncate max-w-[150px]" title={r.n3}>{r.n3}</td>
+                        <td className="px-2 py-1.5 text-right text-[#888]">{r.n}</td>
+                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(r.aum)}</td>
                       </tr>
                     ))}
                   </tbody>

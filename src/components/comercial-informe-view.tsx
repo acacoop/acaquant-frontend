@@ -195,9 +195,9 @@ export function ComercialInforme() {
             <tr className="text-[9px] text-[#666] tracking-wide">
               <th className="text-left px-2 py-2">#</th>
               <th className="text-left px-1">COMERCIAL</th>
+              <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">VOL. TOTAL</th>
               <th className="text-right px-2">VOL. MES</th>
-              <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">ARANC. TOTAL</th>
               <th className="text-right px-3">ARANC. MES</th>
             </tr>
@@ -223,9 +223,9 @@ export function ComercialInforme() {
                 <td className="px-1 py-1.5 text-[#d0d0d0] truncate max-w-[160px]" title={c.operador_nombre}>
                   {c.operador_nombre}
                 </td>
+                <td className="text-right px-2 text-[#d0d0d0]">{fmtAum(c.ticket_promedio)}</td>
                 <td className="text-right px-2 font-semibold text-[#ff9900]">{fmtAum(c.vol_total)}</td>
                 <td className="text-right px-2 text-[#aaa]">{fmtAum(c.vol_mes)}</td>
-                <td className="text-right px-2 text-[#d0d0d0]">{fmtAum(c.ticket_promedio)}</td>
                 <td className="text-right px-2 text-[#9fb8d0]">{fmtAr(c.ar_total)}</td>
                 <td className="text-right px-3 text-[#9fb8d0]">{fmtAr(c.ar_mes)}</td>
               </tr>
