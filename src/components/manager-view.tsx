@@ -11,6 +11,7 @@ import { GruposPanel } from "./grupos-panel";
 import { ComercialPanel } from "./comercial-panel";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
+import { ManagerDebugComercialPanel } from "./manager-debug-comercial";
 import { RecursosPanel } from "./recursos-panel";
 import { RolesPanel } from "./roles-panel";
 import { UsuariosPanel } from "./usuarios-panel";
@@ -579,6 +580,8 @@ function TabValidaciones() {
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-2">
+
+      <ManagerDebugComercialPanel />
 
       <CheckPanel title="Curvas Pendientes — docs sin duration en TimeSales">
         <RunBtn onClick={runCp} loading={cpLoading} />
