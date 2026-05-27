@@ -218,6 +218,16 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
   const [loadingSerie, setLoadingSerie] = useState(false);
   const [loadingPort, setLoadingPort] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [qCuenta, setQCuenta] = useState("");
+
+  // Búsqueda por cuenta/nombre dentro de los clientes del operador (no cambia el scope).
+  const clientesFiltrados = useMemo(() => {
+    const q = qCuenta.trim().toLowerCase();
+    if (!q) return clientes;
+    return clientes.filter(
+      (c) => c.id_cuenta.toLowerCase().includes(q) || c.denominacion.toLowerCase().includes(q),
+    );
+  }, [clientes, qCuenta]);
 
   // Resumen + clientes del operador (una pasada). Limpia el cliente elegido.
   useEffect(() => {
@@ -594,9 +604,15 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
 
           {/* TABLA DE CLIENTES */}
           <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-            <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Clientes</span>
-              <span className="ml-auto text-[10px] text-[#888] font-mono">{clientes.length}</span>
+              <input
+                value={qCuenta}
+                onChange={(e) => setQCuenta(e.target.value)}
+                placeholder="buscar cuenta o nombre…"
+                className="ml-2 flex-1 max-w-[220px] bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+              />
+              <span className="ml-auto text-[10px] text-[#888] font-mono">{clientesFiltrados.length}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
@@ -608,10 +624,10 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {clientes.length === 0 && !loading && (
+                  {clientesFiltrados.length === 0 && !loading && (
                     <tr><td colSpan={3} className="text-center text-[#555] py-6">Sin clientes.</td></tr>
                   )}
-                  {clientes.map((c) => {
+                  {clientesFiltrados.map((c) => {
                     const active = c.id_cuenta === selCuenta;
                     return (
                       <tr
@@ -777,6 +793,7 @@ function AnalisisComercial({ operador }: { operador: string }) {
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<"aum" | "dias">("aum");
   const [nivelSel, setNivelSel] = useState<string | null>(null);
+  const [estadoSel, setEstadoSel] = useState<string | null>(null);
   const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 30, dormida: 90 });
 
   useEffect(() => {
@@ -784,6 +801,7 @@ function AnalisisComercial({ operador }: { operador: string }) {
     let cancelled = false;
     setLoading(true);
     setNivelSel(null);
+    setEstadoSel(null);
     void (async () => {
       try {
         const d = await getJson<{ clientes: AnalisisCliente[]; dias_activa?: number; dias_dormida?: number }>(
@@ -825,12 +843,19 @@ function AnalisisComercial({ operador }: { operador: string }) {
 
   // Estado comercial — filtrado por el nivel elegido (click en distribución) + orden.
   const ordenados = useMemo(() => {
-    const arr = (nivelSel ? clientes.filter((c) => nivelDe(c) === nivelSel) : [...clientes]);
+    const matchEstado = (c: AnalisisCliente) => {
+      if (!estadoSel) return true;
+      if (estadoSel === "SIN_AUM") return c.aum <= 0;
+      if (estadoSel === "SIN_OP_YTD") return !c.opero_ytd;
+      return c.estado === estadoSel;
+    };
+    let arr = nivelSel ? clientes.filter((c) => nivelDe(c) === nivelSel) : [...clientes];
+    arr = arr.filter(matchEstado);
     const out = [...arr];
     if (sort === "aum") out.sort((a, b) => b.aum - a.aum);
     else out.sort((a, b) => (b.dias_sin_operar ?? -1) - (a.dias_sin_operar ?? -1));
     return out;
-  }, [clientes, sort, nivelSel]);
+  }, [clientes, sort, nivelSel, estadoSel]);
 
   // Riesgo de churn — respeta también el nivel elegido.
   const churn = useMemo(
@@ -849,20 +874,42 @@ function AnalisisComercial({ operador }: { operador: string }) {
       {/* Resumen por estado */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
         {(["ACTIVA", "ENFRIANDOSE", "DORMIDA", "NUEVA"] as const).map((e) => (
-          <span key={e} className="inline-flex items-center gap-1.5 border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px]">
+          <button
+            key={e}
+            onClick={() => setEstadoSel((s) => (s === e ? null : e))}
+            title="Filtrar la tabla por este estado"
+            className={
+              "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
+              (estadoSel === e ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[#080808] hover:border-[#2a2a2a]")
+            }
+          >
             <span className="w-2 h-2 inline-block" style={{ background: ESTADO_COLOR[e] }} />
             <span className="text-[#888]">{ESTADO_LABEL[e]}</span>
             <span className="font-semibold tabular-nums text-[#d0d0d0]">{counts[e] ?? 0}</span>
-          </span>
+          </button>
         ))}
-        <span className="inline-flex items-center gap-1.5 border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px]">
+        <button
+          onClick={() => setEstadoSel((s) => (s === "SIN_AUM" ? null : "SIN_AUM"))}
+          title="Filtrar: cuentas sin AuM"
+          className={
+            "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
+            (estadoSel === "SIN_AUM" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[#080808] hover:border-[#2a2a2a]")
+          }
+        >
           <span className="text-[#888]">Sin AuM</span>
           <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinAum}</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5 border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px]">
+        </button>
+        <button
+          onClick={() => setEstadoSel((s) => (s === "SIN_OP_YTD" ? null : "SIN_OP_YTD"))}
+          title="Filtrar: sin operar en el año"
+          className={
+            "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
+            (estadoSel === "SIN_OP_YTD" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[#080808] hover:border-[#2a2a2a]")
+          }
+        >
           <span className="text-[#888]">Sin operar (año)</span>
           <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinOperarYtd}</span>
-        </span>
+        </button>
 
         {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
         <div className="ml-auto relative group">

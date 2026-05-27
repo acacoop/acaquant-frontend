@@ -192,7 +192,6 @@ export function ComercialInforme() {
           <thead className="sticky top-0 bg-[#0a0a0a]">
             <tr className="text-[9px] text-[#666] tracking-wide">
               <th className="text-left px-3 py-2">SEGMENTO</th>
-              <th className="text-right px-2"># CTAS</th>
               <th className="text-right px-2">ARANC. TOTAL</th>
               <th className="text-right px-3">ARANC. MES</th>
             </tr>
@@ -212,7 +211,6 @@ export function ComercialInforme() {
                 }
               >
                 <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
-                <td className="text-right px-2 text-[#888]">{s.n_cuentas}</td>
                 <td className="text-right px-2 font-semibold text-[#9fb8d0]">{fmtAr(s.ar_total)}</td>
                 <td className="text-right px-3 text-[#9fb8d0]">{fmtAr(s.ar_mes)}</td>
               </tr>
