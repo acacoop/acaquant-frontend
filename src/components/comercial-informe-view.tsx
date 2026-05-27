@@ -82,37 +82,58 @@ export function ComercialInforme() {
   const [selSeg, setSelSeg] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<SegDetalle | null>(null);
   const [q4tab, setQ4tab] = useState<"clientes" | "operaciones">("clientes");
+  const [selComercial, setSelComercial] = useState<string | null>(null);
+  const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
 
   useEffect(() => {
     void getJson<InformeResp | null>("/api/operaciones/comercial/informe", null).then(setInforme);
   }, []);
 
+  // Q1 (cuentas por segmento) — se re-scopea al comercial elegido (item 7).
   useEffect(() => {
-    const q = mes ? `?hasta=${mes}` : "";
+    const params = new URLSearchParams();
+    if (mes) params.set("hasta", mes);
+    if (selComercial) params.set("operador", selComercial);
+    const q = params.toString() ? `?${params.toString()}` : "";
     void getJson<SegmentoResp | null>(`/api/operaciones/comercial/informe-segmento${q}`, null).then((d) => {
       setSeg(d);
       if (d && !mes) setMes(d.mes); // primer load → fija el mes actual
     });
-  }, [mes]);
+  }, [mes, selComercial]);
 
-  // Detalle del segmento seleccionado (Q4 dinámica).
+  // Q3 re-scopeada: aranceles por segmento del comercial elegido.
+  useEffect(() => {
+    if (!selComercial) { setSegScoped(null); return; }
+    setSegScoped(null);
+    void getJson<{ aranceles_segmento: ArancelSeg[] } | null>(
+      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}`,
+      null,
+    ).then((d) => setSegScoped(d?.aranceles_segmento ?? []));
+  }, [selComercial]);
+
+  // Detalle del segmento seleccionado (Q4 dinámica) — respeta el comercial.
   useEffect(() => {
     if (!selSeg) { setDetalle(null); return; }
     setDetalle(null);
+    const op = selComercial ? `&operador=${encodeURIComponent(selComercial)}` : "";
     void getJson<SegDetalle | null>(
-      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(selSeg)}`,
+      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(selSeg)}${op}`,
       null,
     ).then(setDetalle);
-  }, [selSeg]);
+  }, [selSeg, selComercial]);
 
   const canPrev = !!(seg && mes && mes > seg.mes_min);
   const canNext = !!(seg && mes && mes < seg.mes_actual);
+  const comercialNombre = selComercial
+    ? (informe?.comerciales.find((c) => c.operador_email === selComercial)?.operador_nombre ?? selComercial)
+    : null;
+  const q3segs = selComercial ? segScoped : (informe?.aranceles_segmento ?? null);
 
   return (
     <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
       {/* Q1 — Cuentas por segmento (barras) + selector temporal estilo cashflow */}
       <Panel
-        title={`Cuentas por segmento${seg ? ` · ${seg.total}` : ""}`}
+        title={`Cuentas por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${seg ? ` · ${seg.total}` : ""}`}
         extra={
           <div className="flex items-center gap-1">
             <button
@@ -155,8 +176,20 @@ export function ComercialInforme() {
         </div>
       </Panel>
 
-      {/* Q2 — Volumen + aranceles por comercial (ranking) */}
-      <Panel title="Volumen por comercial · ranking">
+      {/* Q2 — Volumen + aranceles por comercial (ranking). Click = re-scopea Q1/Q3/Q4. */}
+      <Panel
+        title="Volumen por comercial · ranking"
+        extra={
+          selComercial ? (
+            <button
+              onClick={() => { setSelComercial(null); setSelSeg(null); }}
+              className="text-[10px] text-[#ff9900] hover:text-[#ffb84d]"
+            >✕ quitar filtro</button>
+          ) : (
+            <span className="text-[9px] text-[#666]">click = filtrar</span>
+          )
+        }
+      >
         <table className="w-full text-[11px] tabular-nums">
           <thead className="sticky top-0 bg-[#0a0a0a]">
             <tr className="text-[9px] text-[#666] tracking-wide">
@@ -171,10 +204,21 @@ export function ComercialInforme() {
           </thead>
           <tbody>
             {!informe && (
-              <tr><td colSpan={6} className="text-center text-[#555] py-4">cargando…</td></tr>
+              <tr><td colSpan={7} className="text-center text-[#555] py-4">cargando…</td></tr>
             )}
             {informe?.comerciales.map((c) => (
-              <tr key={c.operador_email ?? c.operador_nombre} className="border-t border-[#141414] hover:bg-[#0e0e0e]">
+              <tr
+                key={c.operador_email ?? c.operador_nombre}
+                onClick={() => {
+                  const em = c.operador_email;
+                  if (em) { setSelComercial((s) => (s === em ? null : em)); setSelSeg(null); }
+                }}
+                title="Filtrar gráfico y tablas por este comercial"
+                className={
+                  "border-t border-[#141414] cursor-pointer " +
+                  (selComercial === c.operador_email ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                }
+              >
                 <td className="px-2 py-1.5 text-[#666]">{c.rank}</td>
                 <td className="px-1 py-1.5 text-[#d0d0d0] truncate max-w-[160px]" title={c.operador_nombre}>
                   {c.operador_nombre}
@@ -190,8 +234,8 @@ export function ComercialInforme() {
         </table>
       </Panel>
 
-      {/* Q3 — Aranceles por segmento (nivel_1) */}
-      <Panel title="Aranceles por segmento">
+      {/* Q3 — Aranceles por segmento (nivel_1). Se re-scopea al comercial elegido. */}
+      <Panel title={`Aranceles por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}`}>
         <table className="w-full text-[11px] tabular-nums">
           <thead className="sticky top-0 bg-[#0a0a0a]">
             <tr className="text-[9px] text-[#666] tracking-wide">
@@ -202,10 +246,10 @@ export function ComercialInforme() {
             </tr>
           </thead>
           <tbody>
-            {!informe && (
+            {!q3segs && (
               <tr><td colSpan={4} className="text-center text-[#555] py-4">cargando…</td></tr>
             )}
-            {informe?.aranceles_segmento.map((s) => (
+            {q3segs?.map((s) => (
               <tr
                 key={s.segmento}
                 onClick={() => setSelSeg(s.segmento)}
