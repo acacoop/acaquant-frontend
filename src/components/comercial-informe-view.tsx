@@ -21,9 +21,11 @@ type SegmentoResp = {
 };
 type Comercial = {
   rank: number; operador_email: string | null; operador_nombre: string;
-  vol_total: number; vol_mes: number; ar_total: number; ar_mes: number;
+  vol_total: number; vol_mes: number; ar_total: number; ar_mes: number; ticket_promedio: number;
 };
-type ArancelSeg = { segmento: string; ar_total: number; ar_mes: number; n_cuentas: number };
+type ArancelSeg = {
+  segmento: string; ar_total: number; ar_mes: number; n_cuentas: number; ticket_promedio: number;
+};
 type InformeResp = { mes_actual: string; comerciales: Comercial[]; aranceles_segmento: ArancelSeg[] };
 type ClienteArancel = { id_cuenta: string; denominacion: string; arancel_total: number; arancel_mes: number };
 type OperacionArancel = {
@@ -162,6 +164,7 @@ export function ComercialInforme() {
               <th className="text-left px-1">COMERCIAL</th>
               <th className="text-right px-2">VOL. TOTAL</th>
               <th className="text-right px-2">VOL. MES</th>
+              <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">ARANC. TOTAL</th>
               <th className="text-right px-3">ARANC. MES</th>
             </tr>
@@ -178,6 +181,7 @@ export function ComercialInforme() {
                 </td>
                 <td className="text-right px-2 font-semibold text-[#ff9900]">{fmtAum(c.vol_total)}</td>
                 <td className="text-right px-2 text-[#aaa]">{fmtAum(c.vol_mes)}</td>
+                <td className="text-right px-2 text-[#d0d0d0]">{fmtAum(c.ticket_promedio)}</td>
                 <td className="text-right px-2 text-[#9fb8d0]">{fmtAr(c.ar_total)}</td>
                 <td className="text-right px-3 text-[#9fb8d0]">{fmtAr(c.ar_mes)}</td>
               </tr>
@@ -193,7 +197,8 @@ export function ComercialInforme() {
             <tr className="text-[9px] text-[#666] tracking-wide">
               <th className="text-left px-3 py-2">SEGMENTO</th>
               <th className="text-right px-2">ARANC. TOTAL</th>
-              <th className="text-right px-3">ARANC. MES</th>
+              <th className="text-right px-2">ARANC. MES</th>
+              <th className="text-right px-3">TICKET PROM.</th>
             </tr>
           </thead>
           <tbody>
@@ -212,7 +217,8 @@ export function ComercialInforme() {
               >
                 <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
                 <td className="text-right px-2 font-semibold text-[#9fb8d0]">{fmtAr(s.ar_total)}</td>
-                <td className="text-right px-3 text-[#9fb8d0]">{fmtAr(s.ar_mes)}</td>
+                <td className="text-right px-2 text-[#9fb8d0]">{fmtAr(s.ar_mes)}</td>
+                <td className="text-right px-3 text-[#d0d0d0]">{fmtAum(s.ticket_promedio)}</td>
               </tr>
             ))}
           </tbody>
