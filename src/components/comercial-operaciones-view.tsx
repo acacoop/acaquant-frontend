@@ -186,6 +186,7 @@ type AnalisisCliente = {
   dias_sin_operar: number | null;
   estado: string;
   opero_ytd: boolean;
+  opero_mtd: boolean;
   nivel_1: string | null;
   nivel_2: string | null;
   nivel_3: string | null;
@@ -882,16 +883,19 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
   const sinAum = useMemo(() => clientes.filter((c) => c.aum <= 0).length, [clientes]);
   const sinOperarYtd = useMemo(() => clientes.filter((c) => !c.opero_ytd).length, [clientes]);
 
-  // Distribución por nivel_1 — # clientes, sin operar (año) y AuM consolidado.
+  // Distribución por nivel_1 — cuentas totales, activas del mes (operó en el mes
+  // calendario) + % activas/total y AuM consolidado.
   const porNivel = useMemo(() => {
-    const m = new Map<string, { nivel: string; aum: number; n: number; sinOperar: number }>();
+    const m = new Map<string, { nivel: string; aum: number; n: number; activas: number }>();
     for (const c of clientes) {
       const k = nivelDe(c);
-      const cur = m.get(k) ?? { nivel: k, aum: 0, n: 0, sinOperar: 0 };
-      cur.aum += c.aum; cur.n += 1; if (!c.opero_ytd) cur.sinOperar += 1;
+      const cur = m.get(k) ?? { nivel: k, aum: 0, n: 0, activas: 0 };
+      cur.aum += c.aum; cur.n += 1; if (c.opero_mtd) cur.activas += 1;
       m.set(k, cur);
     }
-    return [...m.values()].sort((a, b) => b.aum - a.aum);
+    return [...m.values()]
+      .map((r) => ({ ...r, pctActivas: r.n > 0 ? (r.activas / r.n) * 100 : 0 }))
+      .sort((a, b) => b.aum - a.aum);
   }, [clientes]);
 
   // Estado comercial — filtrado por el nivel elegido (click en distribución) + orden.
@@ -949,8 +953,9 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
     filename: `comercial-distribucion-nivel1-${timestampSuffix()}.xlsx`,
     sheets: [{ name: "Distribución nivel 1", rows: porNivel, columns: [
       { header: "Nivel 1", key: "nivel", format: "text", width: 24 },
-      { header: "# clientes", key: "n", format: "integer" },
-      { header: "Sin operar", key: "sinOperar", format: "integer" },
+      { header: "Cuentas totales", key: "n", format: "integer" },
+      { header: "Activas (mes)", key: "activas", format: "integer" },
+      { header: "% activas", key: "pctActivas", format: "integer" },
       { header: "AuM", key: "aum", format: "currency", width: 16 },
     ] }],
   });
@@ -1090,8 +1095,9 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                 <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 1</th>
-                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">#</th>
-                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Sin oper.</th>
+                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cuentas totales asignadas al segmento">Ctas. Tot.</th>
+                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cuentas que operaron en el mes calendario actual">Activas</th>
+                    <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="% activas sobre el total del segmento">%</th>
                     <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
                   </tr>
                 </thead>
@@ -1110,7 +1116,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                       >
                         <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
                         <td className="px-2 py-1.5 text-right text-[#888]">{n.n}</td>
-                        <td className="px-2 py-1.5 text-right text-[#ff5d6c]">{n.sinOperar}</td>
+                        <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{n.activas}</td>
+                        <td className="px-2 py-1.5 text-right text-[#888]">{n.pctActivas.toFixed(0)}%</td>
                         <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(n.aum)}</td>
                       </tr>
                     );
