@@ -11,6 +11,9 @@ import {
   YAxis,
 } from "recharts";
 
+import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
+import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
+
 // Vista INFORME (sub-vista de COMERCIAL) — reporte GLOBAL de la mesa (no por
 // operador). 4 cuadrantes. Consume /api/operaciones/comercial/informe[-segmento].
 // Ver docs/TABLERO_COMERCIAL.md [5].
@@ -38,9 +41,21 @@ type SegDetalle = {
 };
 
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
-const fmtAum = (n: number) =>
-  "$" + (Math.abs(n) >= 1e6 ? (n / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "M" : fmtN(n));
-const fmtAr = (n: number) => (n ? "$" + Math.round(n).toLocaleString("es-AR") : "—");
+// Montos: formato compacto compartido (M/MM/B). fmtAr conserva "—" para 0.
+const fmtAum = (n: number) => fmtMoney(n);
+const fmtAr = (n: number) => (n ? fmtMoney(n) : "—");
+
+function DownloadBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Descargar a Excel"
+      className="text-[9px] tracking-wider text-[#888] hover:text-[#ff9900] border border-[#2a2a2a] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
+    >
+      ⬇ xls
+    </button>
+  );
+}
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const ymLabel = (ym: string) => {
@@ -111,13 +126,14 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     ).then((d) => setSegScoped(d?.aranceles_segmento ?? []));
   }, [selComercial, moneda]);
 
-  // Detalle del segmento seleccionado (Q4 dinámica) — respeta el comercial.
+  // Detalle (Q4): por defecto TODOS los segmentos; al elegir uno en Q3, filtra.
+  // Respeta el comercial elegido en Q2.
   useEffect(() => {
-    if (!selSeg) { setDetalle(null); return; }
     setDetalle(null);
     const op = selComercial ? `&operador=${encodeURIComponent(selComercial)}` : "";
+    const segParam = selSeg ?? "todos";
     void getJson<SegDetalle | null>(
-      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(selSeg)}${op}&moneda=${moneda}`,
+      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}`,
       null,
     ).then(setDetalle);
   }, [selSeg, selComercial, moneda]);
@@ -128,6 +144,66 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     ? (informe?.comerciales.find((c) => c.operador_email === selComercial)?.operador_nombre ?? selComercial)
     : null;
   const q3segs = selComercial ? segScoped : (informe?.aranceles_segmento ?? null);
+
+  // Totales del ranking (fila fija abajo). El ticket promedio no se suma.
+  const totRanking = (informe?.comerciales ?? []).reduce(
+    (a, c) => ({
+      vol_total: a.vol_total + c.vol_total, vol_mes: a.vol_mes + c.vol_mes,
+      ar_total: a.ar_total + c.ar_total, ar_mes: a.ar_mes + c.ar_mes,
+    }),
+    { vol_total: 0, vol_mes: 0, ar_total: 0, ar_mes: 0 },
+  );
+
+  // ── Export a Excel (item 4) ──────────────────────────────────────────────
+  const dlCuentasSeg = () => void exportToXlsx({
+    filename: `comercial-cuentas-segmento-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Cuentas x segmento", rows: seg?.segmentos ?? [], columns: [
+      { header: "Segmento", key: "segmento", format: "text", width: 28 },
+      { header: "Cuentas", key: "n", format: "integer" },
+    ] }],
+  });
+  const dlRanking = () => void exportToXlsx({
+    filename: `comercial-ranking-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Ranking comercial", rows: informe?.comerciales ?? [], columns: [
+      { header: "#", key: "rank", format: "integer", width: 5 },
+      { header: "Comercial", key: "operador_nombre", format: "text", width: 28 },
+      { header: "Ticket prom.", key: "ticket_promedio", format: "currency" },
+      { header: "Vol. total", key: "vol_total", format: "currency", width: 18 },
+      { header: "Vol. mes", key: "vol_mes", format: "currency", width: 18 },
+      { header: "Aranc. total", key: "ar_total", format: "currency" },
+      { header: "Aranc. mes", key: "ar_mes", format: "currency" },
+    ] }],
+  });
+  const dlAranceles = () => void exportToXlsx({
+    filename: `comercial-aranceles-segmento-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Aranceles x segmento", rows: q3segs ?? [], columns: [
+      { header: "Segmento", key: "segmento", format: "text", width: 28 },
+      { header: "Aranc. total", key: "ar_total", format: "currency" },
+      { header: "Aranc. mes", key: "ar_mes", format: "currency" },
+      { header: "Ticket prom.", key: "ticket_promedio", format: "currency" },
+      { header: "# cuentas", key: "n_cuentas", format: "integer" },
+    ] }],
+  });
+  const dlDetalle = () => void exportToXlsx({
+    filename: `comercial-detalle-${selSeg ?? "todos"}-${timestampSuffix()}.xlsx`,
+    sheets: q4tab === "clientes"
+      ? [{ name: "Clientes", rows: detalle?.clientes ?? [], columns: [
+          { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
+          { header: "Cliente", key: "denominacion", format: "text", width: 32 },
+          { header: "Aranc. total", key: "arancel_total", format: "currency" },
+          { header: "Aranc. mes", key: "arancel_mes", format: "currency" },
+        ] }]
+      : [{ name: "Operaciones", rows: detalle?.operaciones ?? [], columns: [
+          { header: "Fecha", key: "fecha", format: "text", width: 12 },
+          { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
+          { header: "Cliente", key: "denominacion", format: "text", width: 28 },
+          { header: "Ticker", key: "ticker", format: "text", width: 14 },
+          { header: "Categoría", key: "categoria", format: "text", width: 14 },
+          { header: "Importe", key: "importe", format: "currency", width: 16 },
+          { header: "Moneda", key: "moneda", format: "text", width: 8 },
+          { header: "Arancel", key: "arancel", format: "currency" },
+        ] }],
+  });
 
   return (
     <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
@@ -149,6 +225,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
               onClick={() => mes && setMes(ymAdd(mes, 1))}
               className="px-1.5 text-[#888] hover:text-[#ff9900] disabled:opacity-30 disabled:hover:text-[#888]"
             >▶</button>
+            <DownloadBtn onClick={dlCuentasSeg} />
           </div>
         }
       >
@@ -180,14 +257,17 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
       <Panel
         title="Volumen por comercial · ranking"
         extra={
-          selComercial ? (
-            <button
-              onClick={() => { setSelComercial(null); setSelSeg(null); }}
-              className="text-[10px] text-[#ff9900] hover:text-[#ffb84d]"
-            >✕ quitar filtro</button>
-          ) : (
-            <span className="text-[9px] text-[#666]">click = filtrar</span>
-          )
+          <div className="flex items-center gap-2">
+            {selComercial ? (
+              <button
+                onClick={() => { setSelComercial(null); setSelSeg(null); }}
+                className="text-[10px] text-[#ff9900] hover:text-[#ffb84d]"
+              >✕ quitar filtro</button>
+            ) : (
+              <span className="text-[9px] text-[#666]">click = filtrar</span>
+            )}
+            <DownloadBtn onClick={dlRanking} />
+          </div>
         }
       >
         <table className="w-full text-[11px] tabular-nums">
@@ -223,19 +303,34 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 <td className="px-1 py-1.5 text-[#d0d0d0] truncate max-w-[160px]" title={c.operador_nombre}>
                   {c.operador_nombre}
                 </td>
-                <td className="text-right px-2 text-[#d0d0d0]">{fmtAum(c.ticket_promedio)}</td>
-                <td className="text-right px-2 font-semibold text-[#ff9900]">{fmtAum(c.vol_total)}</td>
-                <td className="text-right px-2 text-[#aaa]">{fmtAum(c.vol_mes)}</td>
-                <td className="text-right px-2 text-[#9fb8d0]">{fmtAr(c.ar_total)}</td>
-                <td className="text-right px-3 text-[#9fb8d0]">{fmtAr(c.ar_mes)}</td>
+                <td className="text-right px-2 text-[#d0d0d0]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
+                <td className="text-right px-2 font-semibold text-[#ff9900]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
+                <td className="text-right px-2 text-[#aaa]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
+                <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
+                <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
               </tr>
             ))}
           </tbody>
+          {informe && informe.comerciales.length > 0 && (
+            <tfoot className="sticky bottom-0 bg-[#0e0e0e]">
+              <tr className="border-t-2 border-[#2a2a2a] font-semibold text-[#d0d0d0]">
+                <td className="px-2 py-1.5" colSpan={2}>TOTAL</td>
+                <td className="text-right px-2 text-[#666]">—</td>
+                <td className="text-right px-2 text-[#ff9900]" title={fmtMoneyFull(totRanking.vol_total)}>{fmtMoney(totRanking.vol_total)}</td>
+                <td className="text-right px-2 text-[#aaa]" title={fmtMoneyFull(totRanking.vol_mes)}>{fmtMoney(totRanking.vol_mes)}</td>
+                <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(totRanking.ar_total)}>{fmtMoney(totRanking.ar_total)}</td>
+                <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(totRanking.ar_mes)}>{fmtMoney(totRanking.ar_mes)}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </Panel>
 
       {/* Q3 — Aranceles por segmento (nivel_1). Se re-scopea al comercial elegido. */}
-      <Panel title={`Aranceles por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}`}>
+      <Panel
+        title={`Aranceles por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}`}
+        extra={<DownloadBtn onClick={dlAranceles} />}
+      >
         <table className="w-full text-[11px] tabular-nums">
           <thead className="sticky top-0 bg-[#0a0a0a]">
             <tr className="text-[9px] text-[#666] tracking-wide">
@@ -271,9 +366,16 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
 
       {/* Q4 — detalle dinámico del segmento elegido en Q3 (2 tabs) */}
       <Panel
-        title={selSeg ? `Detalle · ${selSeg}` : "Detalle de segmento"}
+        title={selSeg ? `Detalle · ${selSeg}` : "Detalle · todos"}
         extra={
-          selSeg ? (
+          <div className="flex items-center gap-2">
+            {selSeg && (
+              <button
+                onClick={() => setSelSeg(null)}
+                title="Ver todos los segmentos"
+                className="text-[10px] text-[#ff9900] hover:text-[#ffb84d]"
+              >✕ todos</button>
+            )}
             <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
               {(["clientes", "operaciones"] as const).map((t) => (
                 <button
@@ -288,14 +390,11 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 </button>
               ))}
             </div>
-          ) : null
+            <DownloadBtn onClick={dlDetalle} />
+          </div>
         }
       >
-        {!selSeg ? (
-          <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center px-4">
-            Tocá un segmento en “Aranceles por segmento” para ver sus clientes y operaciones.
-          </div>
-        ) : !detalle ? (
+        {!detalle ? (
           <div className="h-full flex items-center justify-center text-[11px] text-[#555]">cargando…</div>
         ) : q4tab === "clientes" ? (
           <table className="w-full text-[11px] tabular-nums">

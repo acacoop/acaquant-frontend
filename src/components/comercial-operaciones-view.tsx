@@ -13,6 +13,9 @@ import {
   YAxis,
 } from "recharts";
 
+import { fmtMoney } from "@/lib/fmt-money";
+import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
+
 import { ComercialInforme } from "./comercial-informe-view";
 
 // Vista COMERCIAL (en OPERACIONES) — lente por operador.
@@ -86,15 +89,8 @@ const OP_CAT_COLOR: Record<string, string> = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
-const fmtAum = (n: number | null | undefined): string => {
-  if (n == null || Number.isNaN(n)) return "—";
-  const abs = Math.abs(n);
-  const sign = n < 0 ? "-" : "";
-  if (abs >= 1e9) return sign + "$" + (abs / 1e9).toLocaleString("es-AR", { maximumFractionDigits: 2 }) + "B";
-  if (abs >= 1e6) return sign + "$" + (abs / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "M";
-  if (abs >= 1e3) return sign + "$" + (abs / 1e3).toLocaleString("es-AR", { maximumFractionDigits: 0 }) + "k";
-  return sign + "$" + fmtN(abs);
-};
+// Montos: formato compacto compartido (M/MM/B), unificado con el resto de Comercial.
+const fmtAum = fmtMoney;
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url, { cache: "no-store" });
@@ -347,6 +343,41 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
   );
   const puedeAdelante = rangoOffset > 0;
   const tickInterval = Math.max(0, Math.floor(chartData.length / 12));
+
+  // ── Export a Excel (item 4) ──────────────────────────────────────────────
+  const dlClientes = () => void exportToXlsx({
+    filename: `comercial-clientes-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Clientes", rows: clientesFiltrados.map((c) => ({
+      id_cuenta: c.id_cuenta, denominacion: c.denominacion, aum: c.aum, volumen_ytd: c.volumen_ytd,
+      nivel_1: c.ficha.nivel_1, nivel_2: c.ficha.nivel_2, nivel_3: c.ficha.nivel_3,
+    })), columns: [
+      { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
+      { header: "Cliente", key: "denominacion", format: "text", width: 32 },
+      { header: "AuM", key: "aum", format: "currency", width: 16 },
+      { header: "Vol. YTD", key: "volumen_ytd", format: "currency", width: 16 },
+      { header: "Nivel 1", key: "nivel_1", format: "text", width: 18 },
+      { header: "Nivel 2", key: "nivel_2", format: "text", width: 18 },
+      { header: "Nivel 3", key: "nivel_3", format: "text", width: 18 },
+    ] }],
+  });
+  const dlPortafolio = () => void exportToXlsx({
+    filename: `comercial-${portTab}-${timestampSuffix()}.xlsx`,
+    sheets: portTab === "tenencia"
+      ? [{ name: "Tenencia", rows: portafolio?.posiciones ?? [], columns: [
+          { header: "Unidad", key: "unidad", format: "text", width: 32 },
+          { header: "Valuación", key: "valuacion", format: "currency", width: 16 },
+          { header: "%", key: "pct", format: "percent" },
+        ] }]
+      : [{ name: "Operaciones", rows: operaciones, columns: [
+          { header: "Fecha", key: "fecha", format: "text", width: 12 },
+          { header: "Categoría", key: "categoria", format: "text", width: 14 },
+          { header: "Ticker", key: "ticker", format: "text", width: 14 },
+          { header: "Cantidad", key: "cantidad", format: "number" },
+          { header: "Precio", key: "precio", format: "number" },
+          { header: "Importe", key: "importe", format: "currency", width: 16 },
+          { header: "Moneda", key: "moneda", format: "text", width: 8 },
+        ] }],
+  });
 
   return (
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[#d0d0d0] overflow-hidden">
@@ -621,6 +652,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 className="ml-2 flex-1 max-w-[220px] bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
               />
               <span className="ml-auto text-[10px] text-[#888] font-mono">{clientesFiltrados.length}</span>
+              <DownloadBtn onClick={dlClientes} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
@@ -688,6 +720,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   </button>
                 ))}
               </div>
+              <DownloadBtn onClick={dlPortafolio} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {!cliente ? (
@@ -771,6 +804,18 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
       </div>
       )}
     </div>
+  );
+}
+
+function DownloadBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Descargar a Excel"
+      className="text-[9px] tracking-wider text-[#888] hover:text-[#ff9900] border border-[#2a2a2a] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
+    >
+      ⬇ xls
+    </button>
   );
 }
 
@@ -881,6 +926,44 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
     return [...m.values()].sort((a, b) => b.aum - a.aum);
   }, [clientes, nivelSel]);
 
+  // ── Export a Excel (item 4) ──────────────────────────────────────────────
+  const dlEstado = () => void exportToXlsx({
+    filename: `comercial-estado-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Estado comercial", rows: ordenados.map((c) => ({
+      id_cuenta: c.id_cuenta, denominacion: c.denominacion,
+      estado: ESTADO_LABEL[c.estado] ?? c.estado, dias_sin_operar: c.dias_sin_operar,
+      aum: c.aum, ultima_op: c.ultima_op, nivel_1: c.nivel_1, nivel_2: c.nivel_2, nivel_3: c.nivel_3,
+    })), columns: [
+      { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
+      { header: "Cliente", key: "denominacion", format: "text", width: 32 },
+      { header: "Estado", key: "estado", format: "text", width: 16 },
+      { header: "Días s/operar", key: "dias_sin_operar", format: "integer" },
+      { header: "AuM", key: "aum", format: "currency", width: 16 },
+      { header: "Última op", key: "ultima_op", format: "text", width: 12 },
+      { header: "Nivel 1", key: "nivel_1", format: "text", width: 18 },
+      { header: "Nivel 2", key: "nivel_2", format: "text", width: 18 },
+      { header: "Nivel 3", key: "nivel_3", format: "text", width: 18 },
+    ] }],
+  });
+  const dlPorNivel = () => void exportToXlsx({
+    filename: `comercial-distribucion-nivel1-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Distribución nivel 1", rows: porNivel, columns: [
+      { header: "Nivel 1", key: "nivel", format: "text", width: 24 },
+      { header: "# clientes", key: "n", format: "integer" },
+      { header: "Sin operar", key: "sinOperar", format: "integer" },
+      { header: "AuM", key: "aum", format: "currency", width: 16 },
+    ] }],
+  });
+  const dlNiveles23 = () => void exportToXlsx({
+    filename: `comercial-niveles-2-3-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Niveles 2 y 3", rows: niveles23, columns: [
+      { header: "Nivel 2", key: "n2", format: "text", width: 20 },
+      { header: "Nivel 3", key: "n3", format: "text", width: 20 },
+      { header: "# clientes", key: "n", format: "integer" },
+      { header: "AuM", key: "aum", format: "currency", width: 16 },
+    ] }],
+  });
+
   if (!operador) return <Empty msg="Elegí un operador." />;
   if (loading && clientes.length === 0) return <Empty msg="cargando…" />;
   if (clientes.length === 0) return <Empty msg="Sin clientes." />;
@@ -965,6 +1048,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                 </button>
               ))}
             </div>
+            <DownloadBtn onClick={dlEstado} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-[11px] font-mono tabular-nums">
@@ -999,6 +1083,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Distribución por nivel 1</span>
               <span className="text-[10px] text-[#888] font-mono">{porNivel.length}</span>
               <span className="ml-auto text-[9px] text-[#666]">click = filtra clientes</span>
+              <DownloadBtn onClick={dlPorNivel} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
@@ -1040,6 +1125,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Niveles 2 y 3</span>
               {nivelSel && <span className="text-[10px] text-[#ff9900] font-mono truncate max-w-[160px]">· {nivelSel}</span>}
               <span className="ml-auto text-[9px] text-[#666]">{nivelSel ? `${niveles23.length} combinaciones` : "tocá un nivel 1"}</span>
+              <DownloadBtn onClick={dlNiveles23} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {!nivelSel ? (
