@@ -1709,6 +1709,34 @@ function TabClientes() {
     }
   };
 
+  // Cambio inline del operador (desplegable). Setea mail + nombre juntos (el
+  // nombre se busca en la lista de operadores) → quedan coherentes. Para un
+  // operador nuevo que no esté en la lista, se usa la carga por Excel.
+  const saveOperador = async (c: Cliente, email: string) => {
+    if (email === (c.operador_email ?? "")) return;
+    const nombre = operadores.find((o) => o.email === email)?.nombre ?? "";
+    setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "saving" } }));
+    try {
+      const r = await fetch(`/api/manager/clientes`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_cuenta: c.id_cuenta, operador_email: email, operador_nombre: nombre }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      const updated: Cliente = await r.json();
+      setRows((prev) => prev.map((x) => (x.id_cuenta === c.id_cuenta ? updated : x)));
+      setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "saved" } }));
+      setTimeout(() => setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "idle" } })), 1500);
+    } catch (e) {
+      setRowState((s) => ({ ...s, [c.id_cuenta]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
   // Import desde archivo .csv / .xlsx. Columnas válidas = id_cuenta + campos
   // manuales (mismo nombre que la base). Cualquier otra columna → error.
   const onImportFile = async (file: File) => {
@@ -1878,7 +1906,22 @@ function TabClientes() {
                   <tr key={c.id_cuenta} className="border-b border-[#141414] hover:bg-[#0c0c0c]">
                     <td className="px-3 py-1.5 text-[#ff9900] whitespace-nowrap">{c.id_cuenta}</td>
                     <td className="px-2 py-1.5 text-[#d0d0d0] whitespace-nowrap max-w-[220px] truncate" title={c.denominacion ?? ""}>{c.denominacion ?? "—"}</td>
-                    <td className="px-2 py-1.5 text-[#888] whitespace-nowrap max-w-[140px] truncate" title={c.operador_email ?? ""}>{c.operador_nombre ?? "—"}</td>
+                    <td className="px-2 py-1.5">
+                      <select
+                        value={c.operador_email ?? ""}
+                        onChange={(e) => saveOperador(c, e.target.value)}
+                        title={c.operador_email ?? "sin operador"}
+                        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none min-w-[120px] max-w-[170px]"
+                      >
+                        {!c.operador_email && <option value="" disabled>— elegí —</option>}
+                        {c.operador_email && !operadores.some((o) => o.email === c.operador_email) && (
+                          <option value={c.operador_email}>{c.operador_nombre ?? c.operador_email}</option>
+                        )}
+                        {operadores.map((o) => (
+                          <option key={o.email} value={o.email}>{o.nombre || o.email}</option>
+                        ))}
+                      </select>
+                    </td>
                     {CLIENTE_CAMPOS.map((k) => (
                       <td key={k} className="px-2 py-1.5">
                         <input
