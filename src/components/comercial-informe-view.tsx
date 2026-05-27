@@ -25,6 +25,15 @@ type Comercial = {
 };
 type ArancelSeg = { segmento: string; ar_total: number; ar_mes: number; n_cuentas: number };
 type InformeResp = { mes_actual: string; comerciales: Comercial[]; aranceles_segmento: ArancelSeg[] };
+type ClienteArancel = { id_cuenta: string; denominacion: string; arancel_total: number; arancel_mes: number };
+type OperacionArancel = {
+  fecha: string; id_cuenta: string; denominacion: string; comprobante: string;
+  ticker: string | null; categoria: string; op: string | null;
+  importe: number; moneda: string; arancel: number;
+};
+type SegDetalle = {
+  segmento: string; n_clientes: number; clientes: ClienteArancel[]; operaciones: OperacionArancel[];
+};
 
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
 const fmtAum = (n: number) =>
@@ -68,6 +77,9 @@ export function ComercialInforme() {
   const [informe, setInforme] = useState<InformeResp | null>(null);
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
   const [mes, setMes] = useState<string | null>(null);
+  const [selSeg, setSelSeg] = useState<string | null>(null);
+  const [detalle, setDetalle] = useState<SegDetalle | null>(null);
+  const [q4tab, setQ4tab] = useState<"clientes" | "operaciones">("clientes");
 
   useEffect(() => {
     void getJson<InformeResp | null>("/api/operaciones/comercial/informe", null).then(setInforme);
@@ -80,6 +92,16 @@ export function ComercialInforme() {
       if (d && !mes) setMes(d.mes); // primer load → fija el mes actual
     });
   }, [mes]);
+
+  // Detalle del segmento seleccionado (Q4 dinámica).
+  useEffect(() => {
+    if (!selSeg) { setDetalle(null); return; }
+    setDetalle(null);
+    void getJson<SegDetalle | null>(
+      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(selSeg)}`,
+      null,
+    ).then(setDetalle);
+  }, [selSeg]);
 
   const canPrev = !!(seg && mes && mes > seg.mes_min);
   const canNext = !!(seg && mes && mes < seg.mes_actual);
@@ -180,7 +202,15 @@ export function ComercialInforme() {
               <tr><td colSpan={4} className="text-center text-[#555] py-4">cargando…</td></tr>
             )}
             {informe?.aranceles_segmento.map((s) => (
-              <tr key={s.segmento} className="border-t border-[#141414] hover:bg-[#0e0e0e]">
+              <tr
+                key={s.segmento}
+                onClick={() => setSelSeg(s.segmento)}
+                title="Ver clientes y operaciones de este segmento"
+                className={
+                  "border-t border-[#141414] cursor-pointer " +
+                  (selSeg === s.segmento ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                }
+              >
                 <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
                 <td className="text-right px-2 text-[#888]">{s.n_cuentas}</td>
                 <td className="text-right px-2 font-semibold text-[#9fb8d0]">{fmtAr(s.ar_total)}</td>
@@ -191,11 +221,85 @@ export function ComercialInforme() {
         </table>
       </Panel>
 
-      {/* Q4 — reservado (a definir) */}
-      <Panel title="—">
-        <div className="h-full flex items-center justify-center text-[11px] text-[#444]">
-          Próximamente.
-        </div>
+      {/* Q4 — detalle dinámico del segmento elegido en Q3 (2 tabs) */}
+      <Panel
+        title={selSeg ? `Detalle · ${selSeg}` : "Detalle de segmento"}
+        extra={
+          selSeg ? (
+            <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+              {(["clientes", "operaciones"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setQ4tab(t)}
+                  className={
+                    "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
+                    (q4tab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                  }
+                >
+                  {t === "clientes" ? "Clientes" : "Operaciones"}
+                </button>
+              ))}
+            </div>
+          ) : null
+        }
+      >
+        {!selSeg ? (
+          <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center px-4">
+            Tocá un segmento en “Aranceles por segmento” para ver sus clientes y operaciones.
+          </div>
+        ) : !detalle ? (
+          <div className="h-full flex items-center justify-center text-[11px] text-[#555]">cargando…</div>
+        ) : q4tab === "clientes" ? (
+          <table className="w-full text-[11px] tabular-nums">
+            <thead className="sticky top-0 bg-[#0a0a0a]">
+              <tr className="text-[9px] text-[#666] tracking-wide">
+                <th className="text-left px-3 py-2">CLIENTE</th>
+                <th className="text-right px-2">ARANC. TOTAL</th>
+                <th className="text-right px-3">ARANC. MES</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detalle.clientes.length === 0 && (
+                <tr><td colSpan={3} className="text-center text-[#555] py-4">Sin aranceles.</td></tr>
+              )}
+              {detalle.clientes.map((c) => (
+                <tr key={c.id_cuenta} className="border-t border-[#141414] hover:bg-[#0e0e0e]">
+                  <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={c.denominacion}>
+                    <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
+                  </td>
+                  <td className="text-right px-2 font-semibold text-[#9fb8d0]">{fmtAr(c.arancel_total)}</td>
+                  <td className="text-right px-3 text-[#9fb8d0]">{fmtAr(c.arancel_mes)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <table className="w-full text-[11px] tabular-nums">
+            <thead className="sticky top-0 bg-[#0a0a0a]">
+              <tr className="text-[9px] text-[#666] tracking-wide">
+                <th className="text-left px-3 py-2">FECHA</th>
+                <th className="text-left px-1">CLIENTE</th>
+                <th className="text-left px-1">TICKER</th>
+                <th className="text-right px-2">IMPORTE</th>
+                <th className="text-right px-3">ARANCEL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detalle.operaciones.length === 0 && (
+                <tr><td colSpan={5} className="text-center text-[#555] py-4">Sin operaciones.</td></tr>
+              )}
+              {detalle.operaciones.map((o, i) => (
+                <tr key={o.comprobante + i} className="border-t border-[#141414] hover:bg-[#0e0e0e]">
+                  <td className="px-3 py-1.5 text-[#888] whitespace-nowrap">{o.fecha}</td>
+                  <td className="px-1 py-1.5 text-[#d0d0d0] truncate max-w-[120px]" title={o.denominacion}>{o.denominacion}</td>
+                  <td className="px-1 py-1.5 text-[#aaa]">{o.ticker ?? o.categoria}</td>
+                  <td className="text-right px-2 text-[#aaa]">{fmtAum(o.importe)}</td>
+                  <td className="text-right px-3 font-semibold text-[#9fb8d0]">{fmtAr(o.arancel)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </Panel>
     </div>
   );
