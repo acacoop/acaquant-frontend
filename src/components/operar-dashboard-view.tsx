@@ -77,7 +77,6 @@ interface FormState {
 // v2: layout 50/50 con 4 slots de book de base (arrancan vacíos). El bump
 // de versión resetea el LS viejo (2 cards AL30/GD30) al nuevo default.
 const CARDS_LS_KEY = "trd-fx-operar-cards-v2";
-const ACCOUNT_LS_KEY = "trd-fx-operar-account";
 
 // 4 books de base, siempre presentes aunque estén vacíos. removeCard no baja
 // de este piso (limpia el ticker en vez de eliminar el slot).
@@ -1228,7 +1227,7 @@ export function OperarDashboardView() {
     }
   }, []);
 
-  // Cuentas + restore. Precedencia: ?account= (deep-link) > LS.
+  // Cuentas + deep-link. La cuenta NO se persiste entre sesiones.
   useEffect(() => {
     let alive = true;
     async function fetchCuentas() {
@@ -1243,14 +1242,12 @@ export function OperarDashboardView() {
           typeof window !== "undefined"
             ? new URLSearchParams(window.location.search).get("account")
             : null;
-        const persisted =
-          typeof window !== "undefined"
-            ? window.localStorage.getItem(ACCOUNT_LS_KEY)
-            : null;
+        // La cuenta arranca VACÍA en cada sesión: no se restaura de
+        // localStorage (un navegador compartido en la mesa heredaría la cuenta
+        // del usuario anterior). Solo el deep-link ?account= desde Valuaciones
+        // la precarga.
         if (urlAcc && list.some((c) => c.account_id === urlAcc)) {
           setAccount(urlAcc);
-        } else if (persisted && list.some((c) => c.account_id === persisted)) {
-          setAccount(persisted);
         }
       } catch {
         // ignore
@@ -1261,12 +1258,6 @@ export function OperarDashboardView() {
       alive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (account && typeof window !== "undefined") {
-      window.localStorage.setItem(ACCOUNT_LS_KEY, account);
-    }
-  }, [account]);
 
   function addCard() {
     setCards((cs) => [...cs, { id: uid(), tickerCorto: "" }]);

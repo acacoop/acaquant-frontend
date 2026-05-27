@@ -34,8 +34,6 @@ interface FciQuote {
 type Side = "BUY" | "SELL";
 type AmountMode = "importe" | "cuotapartes";
 
-const ACCOUNT_LS_KEY = "trd-fx-operar-account";
-
 // ─── Buscador de FCI ───────────────────────────────────────────────────────
 
 function FciSearch({
@@ -432,7 +430,7 @@ export function OperarFciView() {
     if (fci) setFundSeed(fci);
   }, []);
 
-  // Cuentas + restore. Precedencia: ?account= (deep-link) > LS.
+  // Cuentas + deep-link. La cuenta NO se persiste entre sesiones.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -445,12 +443,11 @@ export function OperarFciView() {
           typeof window !== "undefined"
             ? new URLSearchParams(window.location.search).get("account")
             : null;
-        const persisted =
-          typeof window !== "undefined" ? window.localStorage.getItem(ACCOUNT_LS_KEY) : null;
+        // La cuenta arranca VACÍA en cada sesión: no se restaura de
+        // localStorage (navegador compartido en la mesa heredaría la cuenta del
+        // usuario anterior). Solo el deep-link ?account= la precarga.
         if (urlAcc && list.some((c) => c.account_id === urlAcc)) {
           setAccount(urlAcc);
-        } else if (persisted && list.some((c) => c.account_id === persisted)) {
-          setAccount(persisted);
         }
       } catch {
         // ignore
@@ -460,12 +457,6 @@ export function OperarFciView() {
       alive = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (account && typeof window !== "undefined") {
-      window.localStorage.setItem(ACCOUNT_LS_KEY, account);
-    }
-  }, [account]);
 
   async function cancelOrder(cl_ord_id: string, proprietary?: string) {
     try {

@@ -14,8 +14,6 @@ import {
 
 type SubTab = "compra" | "venta";
 
-const ACCOUNT_LS_KEY = "trd-fx-mep-account";
-
 export function DolarMepShell() {
   // Estado compartido entre las sub-tabs (rueda/monto/comision/account).
   // Cuando el user cambia entre COMPRA y TRADING, los valores se preservan.
@@ -49,10 +47,10 @@ export function DolarMepShell() {
     }
   }
 
-  // Cargar listado de cuentas (1 vez al montar). Solo restauramos lo que
-  // el user había elegido (localStorage). Si no hay LS, queda vacío — el
-  // user debe elegir manualmente antes de operar (evita disparos a la
-  // cuenta equivocada por default heredado).
+  // Cargar listado de cuentas (1 vez al montar). La cuenta arranca SIEMPRE
+  // vacía: no se restaura de localStorage (un navegador compartido en la mesa
+  // heredaría la cuenta del usuario anterior → disparo a cuenta equivocada).
+  // El user debe elegirla manualmente en cada sesión antes de operar.
   useEffect(() => {
     let alive = true;
     async function fetchCuentas() {
@@ -61,11 +59,6 @@ export function DolarMepShell() {
         if (!alive || !r.ok) return;
         const list = (await r.json()) as CuentaDescubierta[];
         setCuentas(list);
-        const persisted = typeof window !== "undefined"
-          ? window.localStorage.getItem(ACCOUNT_LS_KEY)
-          : null;
-        const persistedExists = list.some((c) => c.account_id === persisted);
-        if (persistedExists) setAccount(persisted!);
       } catch {
         // ignore
       }
@@ -75,13 +68,6 @@ export function DolarMepShell() {
       alive = false;
     };
   }, []);
-
-  // Persistir la elección del user para que la próxima visita arranque ahí.
-  useEffect(() => {
-    if (account && typeof window !== "undefined") {
-      window.localStorage.setItem(ACCOUNT_LS_KEY, account);
-    }
-  }, [account]);
 
   useEffect(() => {
     let alive = true;
