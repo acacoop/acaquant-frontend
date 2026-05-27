@@ -69,6 +69,7 @@ export function OperacionesView() {
               onChange={(e) => setOperador(e.target.value)}
               className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none max-w-[280px]"
             >
+              <option value="__todos__">— Todos los operadores —</option>
               {operadores.map((o) => (
                 <option key={o.operador_email} value={o.operador_email}>
                   {(o.operador_nombre || o.operador_email)} ({o.n_cuentas})
