@@ -199,7 +199,7 @@ type AnalisisCliente = {
 
 // `operador` (email) lo controla el selector que vive en la barra de tabs de
 // operaciones-view.tsx (margen superior derecho) → llega como prop.
-export function ComercialOperacionesView({ operador }: { operador: string }) {
+export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operador: string; moneda?: "ARS" | "USD" }) {
   const [subview, setSubview] = useState<SubView>("portfolio");
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -239,7 +239,7 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
     void (async () => {
       try {
         const d = await getJson<OperadorResp>(
-          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}`,
+          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}&moneda=${moneda}`,
         );
         if (cancelled) return;
         setResumen(d.resumen);
@@ -254,7 +254,7 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [operador]);
+  }, [operador, moneda]);
 
   // Serie del gráfico: operador completo o, si hay cliente, esa cuenta.
   useEffect(() => {
@@ -263,7 +263,7 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
     setLoadingSerie(true);
     void (async () => {
       try {
-        let q = `operador=${encodeURIComponent(operador)}&metric=${metric}`;
+        let q = `operador=${encodeURIComponent(operador)}&metric=${metric}&moneda=${moneda}`;
         if (selCuenta) q += `&id_cuenta=${encodeURIComponent(selCuenta)}`;
         const d = await getJson<{ serie: SeriePoint[] }>(`/api/operaciones/comercial/serie?${q}`);
         if (!cancelled) setSerie(Array.isArray(d.serie) ? d.serie : []);
@@ -274,7 +274,7 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, metric, selCuenta]);
+  }, [operador, metric, selCuenta, moneda]);
 
   // Tenencia del cliente seleccionado.
   useEffect(() => {
@@ -382,8 +382,8 @@ export function ComercialOperacionesView({ operador }: { operador: string }) {
       </div>
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
-      {subview === "informe" && <ComercialInforme />}
-      {subview === "analisis" && <AnalisisComercial operador={operador} />}
+      {subview === "informe" && <ComercialInforme moneda={moneda} />}
+      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
@@ -796,7 +796,7 @@ function Field({ label, value }: { label: string; value: string | null }) {
 
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
-function AnalisisComercial({ operador }: { operador: string }) {
+function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; moneda?: "ARS" | "USD" }) {
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<"aum" | "dias">("aum");
@@ -813,7 +813,7 @@ function AnalisisComercial({ operador }: { operador: string }) {
     void (async () => {
       try {
         const d = await getJson<{ clientes: AnalisisCliente[]; dias_activa?: number; dias_dormida?: number }>(
-          `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}`,
+          `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}&moneda=${moneda}`,
         );
         if (cancelled) return;
         setUmbral({ activa: d.dias_activa ?? 30, dormida: d.dias_dormida ?? 90 });
@@ -825,7 +825,7 @@ function AnalisisComercial({ operador }: { operador: string }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [operador]);
+  }, [operador, moneda]);
 
   const nivelDe = (c: AnalisisCliente) => c.nivel_1 || "(sin segmentar)";
 

@@ -75,7 +75,7 @@ function Panel({ title, extra, children }: { title: string; extra?: React.ReactN
   );
 }
 
-export function ComercialInforme() {
+export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" }) {
   const [informe, setInforme] = useState<InformeResp | null>(null);
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
   const [mes, setMes] = useState<string | null>(null);
@@ -86,8 +86,8 @@ export function ComercialInforme() {
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
 
   useEffect(() => {
-    void getJson<InformeResp | null>("/api/operaciones/comercial/informe", null).then(setInforme);
-  }, []);
+    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}`, null).then(setInforme);
+  }, [moneda]);
 
   // Q1 (cuentas por segmento) — se re-scopea al comercial elegido (item 7).
   useEffect(() => {
@@ -106,10 +106,10 @@ export function ComercialInforme() {
     if (!selComercial) { setSegScoped(null); return; }
     setSegScoped(null);
     void getJson<{ aranceles_segmento: ArancelSeg[] } | null>(
-      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}`,
+      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}`,
       null,
     ).then((d) => setSegScoped(d?.aranceles_segmento ?? []));
-  }, [selComercial]);
+  }, [selComercial, moneda]);
 
   // Detalle del segmento seleccionado (Q4 dinámica) — respeta el comercial.
   useEffect(() => {
@@ -117,10 +117,10 @@ export function ComercialInforme() {
     setDetalle(null);
     const op = selComercial ? `&operador=${encodeURIComponent(selComercial)}` : "";
     void getJson<SegDetalle | null>(
-      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(selSeg)}${op}`,
+      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(selSeg)}${op}&moneda=${moneda}`,
       null,
     ).then(setDetalle);
-  }, [selSeg, selComercial]);
+  }, [selSeg, selComercial, moneda]);
 
   const canPrev = !!(seg && mes && mes > seg.mes_min);
   const canNext = !!(seg && mes && mes < seg.mes_actual);

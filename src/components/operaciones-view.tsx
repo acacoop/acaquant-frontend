@@ -16,6 +16,7 @@ export function OperacionesView() {
   // para no ocupar espacio dentro del panel. Se pasa como prop a la vista.
   const [operadores, setOperadores] = useState<Operador[]>([]);
   const [operador, setOperador] = useState<string>("");
+  const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
 
   useEffect(() => {
     if (tab !== "comercial" || operadores.length > 0) return;
@@ -76,6 +77,18 @@ export function OperacionesView() {
                 </option>
               ))}
             </select>
+            <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+              {(["ARS", "USD"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMoneda(m)}
+                  className={
+                    "px-2 py-1 text-[10px] font-semibold " +
+                    (moneda === m ? "bg-[#ff9900] text-black" : "bg-[#0e0e0e] text-[#888] hover:text-[#ff9900]")
+                  }
+                >{m}</button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -84,7 +97,7 @@ export function OperacionesView() {
         {tab === "negocio" ? (
           <NegocioView />
         ) : tab === "comercial" ? (
-          <ComercialOperacionesView operador={operador} />
+          <ComercialOperacionesView operador={operador} moneda={moneda} />
         ) : tab === "cashflow" ? (
           <CashFlowView />
         ) : tab === "contrapartes" ? (
