@@ -1150,7 +1150,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
+      <div className="flex-1 min-h-0 grid grid-cols-[3fr_2fr] gap-3 overflow-hidden">
         {/* IZQ — Estado comercial (todos) */}
         <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
