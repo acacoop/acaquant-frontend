@@ -856,10 +856,29 @@ function Field({ label, value }: { label: string; value: string | null }) {
 function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; moneda?: "ARS" | "USD" }) {
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sort, setSort] = useState<"aum" | "dias">("aum");
+  type SortCol = "cuenta" | "estado" | "dias" | "aum" | "cupo_trans" | "cupo_usado";
+  const [sortCol, setSortCol] = useState<SortCol>("aum");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [nivelSel, setNivelSel] = useState<string | null>(null);
   const [nivel3Sel, setNivel3Sel] = useState<string | null>(null);
   const [estadoSel, setEstadoSel] = useState<string | null>(null);
+
+  // Orden lógico de Estado (Activa primero, Sin Operaciones al fondo).
+  const ESTADO_ORDER: Record<string, number> = {
+    ACTIVA: 0, ENFRIANDOSE: 1, DORMIDA: 2, NUEVA: 3,
+  };
+
+  const onSortClick = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      // Default por tipo: texto = asc, numérico = desc.
+      setSortDir(col === "cuenta" || col === "estado" ? "asc" : "desc");
+    }
+  };
+
+  const sortArrow = (col: SortCol) => (sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : "");
   const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 30, dormida: 90 });
 
   useEffect(() => {
@@ -939,11 +958,31 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
     let arr = nivelSel ? clientes.filter((c) => nivelDe(c) === nivelSel) : [...clientes];
     if (nivel3Sel) arr = arr.filter((c) => nivel3De(c) === nivel3Sel);
     arr = arr.filter(matchEstado);
+
+    // Nullable numeric comparator: los null siempre van al FONDO (sin importar dir).
+    const cmpN = (a: number | null | undefined, b: number | null | undefined, dir: number): number => {
+      const an = a ?? null; const bn = b ?? null;
+      if (an === null && bn === null) return 0;
+      if (an === null) return 1;
+      if (bn === null) return -1;
+      return dir * (an - bn);
+    };
+
+    const dir = sortDir === "asc" ? 1 : -1;
     const out = [...arr];
-    if (sort === "aum") out.sort((a, b) => b.aum - a.aum);
-    else out.sort((a, b) => (b.dias_sin_operar ?? -1) - (a.dias_sin_operar ?? -1));
+    out.sort((a, b) => {
+      switch (sortCol) {
+        case "cuenta": return dir * a.id_cuenta.localeCompare(b.id_cuenta, "es-AR", { numeric: true });
+        case "estado": return dir * ((ESTADO_ORDER[a.estado] ?? 99) - (ESTADO_ORDER[b.estado] ?? 99));
+        case "dias":   return cmpN(a.dias_sin_operar, b.dias_sin_operar, dir);
+        case "aum":    return dir * (a.aum - b.aum);
+        case "cupo_trans": return cmpN(a.cupo_transaccional_usd, b.cupo_transaccional_usd, dir);
+        case "cupo_usado": return cmpN(a.cupo_usado_usd, b.cupo_usado_usd, dir);
+        default: return 0;
+      }
+    });
     return out;
-  }, [clientes, sort, nivelSel, nivel3Sel, estadoSel]);
+  }, [clientes, sortCol, sortDir, nivelSel, nivel3Sel, estadoSel]);
 
   // Desglose por nivel_3 — por default agrupa TODOS los clientes; si hay un
   // nivel_1 seleccionado (click en Distribución), se restringe a ese subset.
@@ -1123,26 +1162,19 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
               </span>
             )}
             <span className="text-[10px] text-[#888] font-mono">{ordenados.length}</span>
-            <div className="ml-auto inline-flex border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
-              {(["aum", "dias"] as const).map((s) => (
-                <button key={s} onClick={() => setSort(s)}
-                  className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (sort === s ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")}>
-                  {s === "aum" ? "AuM" : "Días"}
-                </button>
-              ))}
-            </div>
+            <span className="ml-auto text-[9px] text-[#666]">click en cualquier header para ordenar</span>
             <DownloadBtn onClick={dlEstado} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                 <tr>
-                  <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
-                  <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Estado</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Días sin operar</th>
-                  <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cupo transaccional del custodio (USD al MEP).">Cupo Trans. (USD)</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cupo usado (USD al MEP).">Cupo Usado (USD)</th>
+                  <th onClick={() => onSortClick("cuenta")}     className="px-3 py-1.5 text-left border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]">Cuenta{sortArrow("cuenta")}</th>
+                  <th onClick={() => onSortClick("estado")}     className="px-2 py-1.5 text-left border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]">Estado{sortArrow("estado")}</th>
+                  <th onClick={() => onSortClick("dias")}       className="px-2 py-1.5 text-right border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]">Días sin operar{sortArrow("dias")}</th>
+                  <th onClick={() => onSortClick("aum")}        className="px-3 py-1.5 text-right border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]">AuM{sortArrow("aum")}</th>
+                  <th onClick={() => onSortClick("cupo_trans")} className="px-2 py-1.5 text-right border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]" title="Cupo transaccional del custodio (USD al MEP).">Cupo Trans. (USD){sortArrow("cupo_trans")}</th>
+                  <th onClick={() => onSortClick("cupo_usado")} className="px-2 py-1.5 text-right border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]" title="Cupo usado (USD al MEP).">Cupo Usado (USD){sortArrow("cupo_usado")}</th>
                 </tr>
               </thead>
               <tbody>
