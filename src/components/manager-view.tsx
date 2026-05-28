@@ -1618,7 +1618,7 @@ function draftFromCliente(c: Cliente): ClienteDraft {
   return d;
 }
 
-function TabClientes() {
+function TabClientesSegmentacion() {
   const [rows, setRows] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1956,6 +1956,250 @@ function TabClientes() {
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-tab: Fondeos ──────────────────────────────────────────────────────────
+// Carga masiva del límite de fondeo del custodio (ARS). Pega a
+// POST /api/manager/clientes/bulk-fondeo. Subdoc `limite_fondeo` en
+// Clientes.Comitentes (ver docs/SEGMENTACION_PATRIMONIAL.md en TradingAV).
+type LimiteFondeo = {
+  disponible_ars?: number | null;
+  utilizado_ars?: number | null;
+  utilizacion_pct?: number | null;
+  cargado_en?: string | null;
+  fuente?: string | null;
+};
+type ClienteFondeo = {
+  id_cuenta: string;
+  denominacion?: string | null;
+  tipo_cliente?: string | null;
+  operador_nombre?: string | null;
+  limite_fondeo?: LimiteFondeo | null;
+};
+
+function fmtARS(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(Number(n))) return "—";
+  return Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+}
+
+function TabClientesFondeos() {
+  const [rows, setRows] = useState<ClienteFondeo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [soloCargados, setSoloCargados] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const fetchClientes = () => {
+    setLoading(true);
+    setError(null);
+    const qs = new URLSearchParams();
+    if (q.trim()) qs.set("q", q.trim());
+    fetch(`/api/manager/clientes?${qs}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          const txt = await r.text().catch(() => "");
+          throw new Error(`HTTP ${r.status} — ${txt.slice(0, 200) || r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((d: { clientes: ClienteFondeo[] }) => setRows(d.clientes || []))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const visibles = soloCargados
+    ? rows.filter((c) => {
+        const lf = c.limite_fondeo;
+        return lf && (lf.disponible_ars != null || lf.utilizado_ars != null);
+      })
+    : rows;
+
+  // Import .csv / .xlsx. Headers válidos: id_cuenta, limite_disponible,
+  // limite_utilizado. Solo se mandan filas con al menos un valor cargado.
+  const onImportFile = async (file: File) => {
+    setImportMsg(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      if (!json.length) { setImportMsg({ ok: false, text: "El archivo está vacío." }); return; }
+
+      const norm = (h: string) => h.trim().toLowerCase().replace(/[-\s]+/g, "_").replace(/\//g, "_");
+      const valid = new Set<string>(["id_cuenta", "limite_disponible", "limite_utilizado"]);
+      const map: Record<string, string> = {};
+      const unknown: string[] = [];
+      for (const h of Object.keys(json[0])) {
+        const n = norm(h);
+        if (valid.has(n)) map[h] = n;
+        else unknown.push(h);
+      }
+      if (unknown.length) {
+        setImportMsg({ ok: false, text: `Columnas no reconocidas: ${unknown.join(", ")}. Deben ser: id_cuenta, limite_disponible, limite_utilizado.` });
+        return;
+      }
+      if (!Object.values(map).includes("id_cuenta")) {
+        setImportMsg({ ok: false, text: "Falta la columna id_cuenta." });
+        return;
+      }
+      if (!Object.values(map).some((c) => c !== "id_cuenta")) {
+        setImportMsg({ ok: false, text: "Necesitás al menos una columna de límite (limite_disponible y/o limite_utilizado)." });
+        return;
+      }
+
+      const rowsOut: Record<string, string>[] = [];
+      for (const r of json) {
+        const out: Record<string, string> = {};
+        for (const [h, c] of Object.entries(map)) {
+          const v = String(r[h] ?? "").trim();
+          if (c === "id_cuenta") out.id_cuenta = v;
+          else if (v !== "") out[c] = v;
+        }
+        if (out.id_cuenta && (out.limite_disponible || out.limite_utilizado)) rowsOut.push(out);
+      }
+      if (!rowsOut.length) { setImportMsg({ ok: false, text: "No hay filas con id_cuenta + algún límite." }); return; }
+
+      if (!window.confirm(`Importar ${rowsOut.length} filas de fondeo.\nFuente: ${file.name}\n¿Aplicar?`)) return;
+
+      setImporting(true);
+      const res = await fetch("/api/manager/clientes/bulk-fondeo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: rowsOut, fuente: `archivo:${file.name}` }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setImportMsg({ ok: false, text: j.detail || `HTTP ${res.status}` }); return; }
+      const extras: string[] = [];
+      if (j.sin_numeros) extras.push(`${j.sin_numeros} filas con valores no numéricos`);
+      if (j.n_no_encontradas) extras.push(`${j.n_no_encontradas} id_cuenta no encontradas`);
+      setImportMsg({
+        ok: true,
+        text: `✓ ${j.actualizadas} actualizadas` + (extras.length ? ` · ${extras.join(" · ")}` : ""),
+      });
+      fetchClientes();
+    } catch (e) {
+      setImportMsg({ ok: false, text: e instanceof Error ? e.message : "error parseando el archivo" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">FONDEOS</span>
+        <span className="text-[10px] text-[#666]">{visibles.length} / {rows.length}</span>
+
+        <label className="flex items-center gap-1.5 text-[10px] text-[#888]">
+          <input type="checkbox" checked={soloCargados} onChange={(e) => setSoloCargados(e.target.checked)} className="accent-[#ff9900]" />
+          solo con fondeo cargado
+        </label>
+
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") fetchClientes(); }}
+          placeholder="buscar id o nombre…"
+          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-[170px]"
+        />
+
+        <label
+          className={`ml-auto px-3 py-1 text-[10px] font-semibold border cursor-pointer transition-colors ${importing ? "opacity-40 pointer-events-none border-[#2a2a2a] text-[#555]" : "border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900]"}`}
+          title="CSV/XLSX con columnas: id_cuenta, limite_disponible, limite_utilizado (ARS). Solo toca las cuentas que vienen en el archivo."
+        >
+          {importing ? "Importando…" : "📁 Importar archivo"}
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onImportFile(f); e.target.value = ""; }}
+          />
+        </label>
+
+        <button onClick={fetchClientes} disabled={loading}
+          className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+          {loading ? "Cargando…" : "↻ Recargar"}
+        </button>
+      </div>
+
+      {importMsg && (
+        <div className={`px-3 py-1.5 text-[10px] border-b border-[#1a1a1a] shrink-0 ${importMsg.ok ? "bg-[#0c1a0c] text-green-400" : "bg-[#1a0c0c] text-red-400"}`}>
+          {importMsg.text}
+          <button onClick={() => setImportMsg(null)} className="ml-2 text-[#888] hover:text-white">✕</button>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
+        {!error && loading && rows.length === 0 && <div className="p-3 text-[11px] text-[#555]">Cargando…</div>}
+        {!error && !loading && visibles.length === 0 && <div className="p-3 text-[11px] text-[#555]">{soloCargados ? "Ninguna cuenta tiene límite de fondeo cargado." : "Sin resultados."}</div>}
+        {visibles.length > 0 && (
+          <table className="text-[11px] font-mono w-full">
+            <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
+              <tr className="text-left text-[#888] tracking-widest text-[9px]">
+                <th className="px-3 py-2">CUENTA</th>
+                <th className="px-2 py-2">DENOMINACIÓN</th>
+                <th className="px-2 py-2">TIPO</th>
+                <th className="px-2 py-2 text-right">LÍMITE DISP. (ARS)</th>
+                <th className="px-2 py-2 text-right">LÍMITE USADO (ARS)</th>
+                <th className="px-2 py-2 text-right">% UTIL.</th>
+                <th className="px-3 py-2">CARGADO</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map((c) => {
+                const lf = c.limite_fondeo || {};
+                const cargado = lf.cargado_en ? new Date(lf.cargado_en).toLocaleDateString("es-AR") : "—";
+                return (
+                  <tr key={c.id_cuenta} className="border-b border-[#1a1a1a]/50 hover:bg-[#0c0c0c]">
+                    <td className="px-3 py-1.5 text-[#d0d0d0]">{c.id_cuenta}</td>
+                    <td className="px-2 py-1.5 text-[#d0d0d0]">{c.denominacion || "—"}</td>
+                    <td className="px-2 py-1.5 text-[#888]">{c.tipo_cliente || "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtARS(lf.disponible_ars)}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtARS(lf.utilizado_ars)}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{lf.utilizacion_pct != null ? `${lf.utilizacion_pct.toFixed(1)}%` : "—"}</td>
+                    <td className="px-3 py-1.5 text-[#666]">{cargado}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Wrapper TabClientes: switch entre sub-tabs Segmentación / Fondeos ────────
+function TabClientes() {
+  const [subTab, setSubTab] = useState<"segmentacion" | "fondeos">("segmentacion");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+        {([
+          { id: "segmentacion", label: "SEGMENTACIÓN" },
+          { id: "fondeos",      label: "FONDEOS" },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setSubTab(t.id)}
+            className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${subTab === t.id ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[#666] hover:text-[#aaa]"}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0">
+        {subTab === "segmentacion" && <TabClientesSegmentacion />}
+        {subTab === "fondeos"      && <TabClientesFondeos />}
       </div>
     </div>
   );
