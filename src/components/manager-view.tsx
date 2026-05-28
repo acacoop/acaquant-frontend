@@ -1962,12 +1962,12 @@ function TabClientesSegmentacion() {
 }
 
 // ── Sub-tab: Fondeos ──────────────────────────────────────────────────────────
-// Carga masiva del límite de fondeo del custodio (ARS). Pega a
-// POST /api/manager/clientes/bulk-fondeo. Subdoc `limite_fondeo` en
+// Carga masiva del cupo de fondeo del custodio (ARS). Pega a
+// POST /api/manager/clientes/bulk-fondeo. Subdoc `cupo` en
 // Clientes.Comitentes (ver docs/SEGMENTACION_PATRIMONIAL.md en TradingAV).
-type LimiteFondeo = {
-  disponible_ars?: number | null;
-  utilizado_ars?: number | null;
+type Cupo = {
+  transaccional_ars?: number | null;
+  usado_ars?: number | null;
   utilizacion_pct?: number | null;
   cargado_en?: string | null;
   fuente?: string | null;
@@ -1977,7 +1977,7 @@ type ClienteFondeo = {
   denominacion?: string | null;
   tipo_cliente?: string | null;
   operador_nombre?: string | null;
-  limite_fondeo?: LimiteFondeo | null;
+  cupo?: Cupo | null;
 };
 
 function fmtARS(n: number | null | undefined): string {
@@ -2016,13 +2016,13 @@ function TabClientesFondeos() {
 
   const visibles = soloCargados
     ? rows.filter((c) => {
-        const lf = c.limite_fondeo;
-        return lf && (lf.disponible_ars != null || lf.utilizado_ars != null);
+        const lf = c.cupo;
+        return lf && (lf.transaccional_ars != null || lf.usado_ars != null);
       })
     : rows;
 
-  // Import .csv / .xlsx. Headers válidos: id_cuenta, limite_disponible,
-  // limite_utilizado. Solo se mandan filas con al menos un valor cargado.
+  // Import .csv / .xlsx. Headers válidos: id_cuenta, cupo_transaccional,
+  // cupo_usado. Solo se mandan filas con al menos un valor cargado.
   const onImportFile = async (file: File) => {
     setImportMsg(null);
     try {
@@ -2034,7 +2034,7 @@ function TabClientesFondeos() {
       if (!json.length) { setImportMsg({ ok: false, text: "El archivo está vacío." }); return; }
 
       const norm = (h: string) => h.trim().toLowerCase().replace(/[-\s]+/g, "_").replace(/\//g, "_");
-      const valid = new Set<string>(["id_cuenta", "limite_disponible", "limite_utilizado"]);
+      const valid = new Set<string>(["id_cuenta", "cupo_transaccional", "cupo_usado"]);
       const map: Record<string, string> = {};
       const unknown: string[] = [];
       for (const h of Object.keys(json[0])) {
@@ -2043,7 +2043,7 @@ function TabClientesFondeos() {
         else unknown.push(h);
       }
       if (unknown.length) {
-        setImportMsg({ ok: false, text: `Columnas no reconocidas: ${unknown.join(", ")}. Deben ser: id_cuenta, limite_disponible, limite_utilizado.` });
+        setImportMsg({ ok: false, text: `Columnas no reconocidas: ${unknown.join(", ")}. Deben ser: id_cuenta, cupo_transaccional, cupo_usado.` });
         return;
       }
       if (!Object.values(map).includes("id_cuenta")) {
@@ -2051,7 +2051,7 @@ function TabClientesFondeos() {
         return;
       }
       if (!Object.values(map).some((c) => c !== "id_cuenta")) {
-        setImportMsg({ ok: false, text: "Necesitás al menos una columna de límite (limite_disponible y/o limite_utilizado)." });
+        setImportMsg({ ok: false, text: "Necesitás al menos una columna de cupo (cupo_transaccional y/o cupo_usado)." });
         return;
       }
 
@@ -2063,7 +2063,7 @@ function TabClientesFondeos() {
           if (c === "id_cuenta") out.id_cuenta = v;
           else if (v !== "") out[c] = v;
         }
-        if (out.id_cuenta && (out.limite_disponible || out.limite_utilizado)) rowsOut.push(out);
+        if (out.id_cuenta && (out.cupo_transaccional || out.cupo_usado)) rowsOut.push(out);
       }
       if (!rowsOut.length) { setImportMsg({ ok: false, text: "No hay filas con id_cuenta + algún límite." }); return; }
 
@@ -2113,7 +2113,7 @@ function TabClientesFondeos() {
 
         <label
           className={`ml-auto px-3 py-1 text-[10px] font-semibold border cursor-pointer transition-colors ${importing ? "opacity-40 pointer-events-none border-[#2a2a2a] text-[#555]" : "border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900]"}`}
-          title="CSV/XLSX con columnas: id_cuenta, limite_disponible, limite_utilizado (ARS). Solo toca las cuentas que vienen en el archivo."
+          title="CSV/XLSX con columnas: id_cuenta, cupo_transaccional, cupo_usado (ARS). Solo toca las cuentas que vienen en el archivo."
         >
           {importing ? "Importando…" : "📁 Importar archivo"}
           <input
@@ -2140,7 +2140,7 @@ function TabClientesFondeos() {
       <div className="flex-1 min-h-0 overflow-auto">
         {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
         {!error && loading && rows.length === 0 && <div className="p-3 text-[11px] text-[#555]">Cargando…</div>}
-        {!error && !loading && visibles.length === 0 && <div className="p-3 text-[11px] text-[#555]">{soloCargados ? "Ninguna cuenta tiene límite de fondeo cargado." : "Sin resultados."}</div>}
+        {!error && !loading && visibles.length === 0 && <div className="p-3 text-[11px] text-[#555]">{soloCargados ? "Ninguna cuenta tiene cupo de fondeo cargado." : "Sin resultados."}</div>}
         {visibles.length > 0 && (
           <table className="text-[11px] font-mono w-full">
             <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
@@ -2148,23 +2148,23 @@ function TabClientesFondeos() {
                 <th className="px-3 py-2">CUENTA</th>
                 <th className="px-2 py-2">DENOMINACIÓN</th>
                 <th className="px-2 py-2">TIPO</th>
-                <th className="px-2 py-2 text-right">LÍMITE DISP. (ARS)</th>
-                <th className="px-2 py-2 text-right">LÍMITE USADO (ARS)</th>
+                <th className="px-2 py-2 text-right">CUPO TRANS. (ARS)</th>
+                <th className="px-2 py-2 text-right">CUPO USADO (ARS)</th>
                 <th className="px-2 py-2 text-right">% UTIL.</th>
                 <th className="px-3 py-2">CARGADO</th>
               </tr>
             </thead>
             <tbody>
               {visibles.map((c) => {
-                const lf = c.limite_fondeo || {};
+                const lf = c.cupo || {};
                 const cargado = lf.cargado_en ? new Date(lf.cargado_en).toLocaleDateString("es-AR") : "—";
                 return (
                   <tr key={c.id_cuenta} className="border-b border-[#1a1a1a]/50 hover:bg-[#0c0c0c]">
                     <td className="px-3 py-1.5 text-[#d0d0d0]">{c.id_cuenta}</td>
                     <td className="px-2 py-1.5 text-[#d0d0d0]">{c.denominacion || "—"}</td>
                     <td className="px-2 py-1.5 text-[#888]">{c.tipo_cliente || "—"}</td>
-                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtARS(lf.disponible_ars)}</td>
-                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtARS(lf.utilizado_ars)}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtARS(lf.transaccional_ars)}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtARS(lf.usado_ars)}</td>
                     <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{lf.utilizacion_pct != null ? `${lf.utilizacion_pct.toFixed(1)}%` : "—"}</td>
                     <td className="px-3 py-1.5 text-[#666]">{cargado}</td>
                   </tr>
