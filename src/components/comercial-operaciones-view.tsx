@@ -187,6 +187,10 @@ type AnalisisCliente = {
   estado: string;
   opero_ytd: boolean;
   opero_mtd: boolean;
+  // Cupo de fondeo del custodio — SIEMPRE en USD al MEP del día (decisión de
+  // producto), independiente del toggle ARS/USD global. null si no hay carga.
+  cupo_transaccional_usd: number | null;
+  cupo_usado_usd: number | null;
   nivel_1: string | null;
   nivel_2: string | null;
   nivel_3: string | null;
@@ -883,6 +887,20 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
   const sinAum = useMemo(() => clientes.filter((c) => c.aum <= 0).length, [clientes]);
   const sinOperarYtd = useMemo(() => clientes.filter((c) => !c.opero_ytd).length, [clientes]);
 
+  // KPIs de cupo (USD al MEP del día), totales del operador — independientes
+  // de los filtros de la tabla (mismo criterio que los counts de estado).
+  const cupoTotales = useMemo(() => {
+    let trans = 0;
+    let usado = 0;
+    for (const c of clientes) {
+      if (c.cupo_transaccional_usd != null) trans += c.cupo_transaccional_usd;
+      if (c.cupo_usado_usd != null) usado += c.cupo_usado_usd;
+    }
+    const libre = Math.max(0, trans - usado);
+    const pct = trans > 0 ? (usado / trans) * 100 : null;
+    return { trans, usado, libre, pct };
+  }, [clientes]);
+
   // Distribución por nivel_1 — cuentas totales, activas del mes (operó en el mes
   // calendario) + % activas/total y AuM consolidado.
   const porNivel = useMemo(() => {
@@ -937,12 +955,16 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
       id_cuenta: c.id_cuenta, denominacion: c.denominacion,
       estado: ESTADO_LABEL[c.estado] ?? c.estado, dias_sin_operar: c.dias_sin_operar,
       aum: c.aum, ultima_op: c.ultima_op, nivel_1: c.nivel_1, nivel_2: c.nivel_2, nivel_3: c.nivel_3,
+      cupo_transaccional_usd: c.cupo_transaccional_usd,
+      cupo_usado_usd: c.cupo_usado_usd,
     })), columns: [
       { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
       { header: "Cliente", key: "denominacion", format: "text", width: 32 },
       { header: "Estado", key: "estado", format: "text", width: 16 },
       { header: "Días s/operar", key: "dias_sin_operar", format: "integer" },
       { header: "AuM", key: "aum", format: "currency", width: 16 },
+      { header: "Cupo Trans. (USD)", key: "cupo_transaccional_usd", format: "currency", width: 16 },
+      { header: "Cupo Usado (USD)", key: "cupo_usado_usd", format: "currency", width: 16 },
       { header: "Última op", key: "ultima_op", format: "text", width: 12 },
       { header: "Nivel 1", key: "nivel_1", format: "text", width: 18 },
       { header: "Nivel 2", key: "nivel_2", format: "text", width: 18 },
@@ -1015,8 +1037,29 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinOperarYtd}</span>
         </button>
 
-        {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
-        <div className="ml-auto relative group">
+        {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. */}
+        <div className="ml-auto flex items-center gap-2">
+          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="Cupo transaccional asignado por el custodio (suma USD).">
+            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">Cupo trans.</span>
+            <span className="font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtAum(cupoTotales.trans)}</span>
+          </div>
+          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="Cupo usado (suma USD).">
+            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">Cupo usado</span>
+            <span className="font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtAum(cupoTotales.usado)}</span>
+          </div>
+          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="% utilización = usado / transaccional.">
+            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">% util.</span>
+            <span className="font-semibold tabular-nums text-[#d0d0d0] leading-tight">
+              {cupoTotales.pct != null ? `${cupoTotales.pct.toFixed(1)}%` : "—"}
+            </span>
+          </div>
+          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="Cupo libre = transaccional − usado.">
+            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">Cupo libre</span>
+            <span className="font-semibold tabular-nums text-[#5dd6a0] leading-tight">{fmtAum(cupoTotales.libre)}</span>
+          </div>
+
+          {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
+          <div className="relative group">
           <span className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[#2a2a2a] text-[#888] text-[10px] cursor-help group-hover:border-[#ff9900] group-hover:text-[#ff9900]">
             ?
           </span>
@@ -1029,6 +1072,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             <p className="mt-1.5 text-[#888]"><span className="text-[#d0d0d0]">Sin AuM</span>: cuenta con AuM = $0 en el último snapshot.</p>
             <p className="text-[#888]"><span className="text-[#d0d0d0]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
             <p className="mt-1.5 text-[#666]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
+          </div>
           </div>
         </div>
       </div>
@@ -1063,6 +1107,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                   <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Estado</th>
                   <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Días</th>
                   <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
+                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cupo transaccional del custodio (USD al MEP).">Cupo Trans. (USD)</th>
+                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cupo usado (USD al MEP).">Cupo Usado (USD)</th>
                 </tr>
               </thead>
               <tbody>
@@ -1074,6 +1120,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                     <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
                     <td className="px-2 py-1.5 text-right text-[#888]">{c.dias_sin_operar ?? "—"}</td>
                     <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_transaccional_usd != null ? fmtAum(c.cupo_transaccional_usd) : "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_usado_usd != null ? fmtAum(c.cupo_usado_usd) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
