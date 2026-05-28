@@ -11,6 +11,7 @@ import { GruposPanel } from "./grupos-panel";
 import { ComercialPanel } from "./comercial-panel";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
+import { ManagerDebugSegmentoPanel } from "./manager-debug-segmento";
 import { ManagerDebugComercialPanel } from "./manager-debug-comercial";
 import { RecursosPanel } from "./recursos-panel";
 import { RolesPanel } from "./roles-panel";
@@ -2492,7 +2493,7 @@ function DiagnosticoGroup() {
 
 // VALIDACIONES: checks + Opciones Vto (relocalizado de Backfills) + Debug XIRR.
 function ValidacionesGroup() {
-  const [sub, setSub] = useState<"checks" | "opciones" | "xirr">("checks");
+  const [sub, setSub] = useState<"checks" | "opciones" | "xirr" | "segmento">("checks");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -2500,11 +2501,13 @@ function ValidacionesGroup() {
         <Pill label="VALIDACIONES" active={sub === "checks"} onClick={() => setSub("checks")} />
         <Pill label="OPCIONES VTO" active={sub === "opciones"} onClick={() => setSub("opciones")} />
         <Pill label="DEBUG XIRR" active={sub === "xirr"} onClick={() => setSub("xirr")} />
+        <Pill label="DEBUG SEGMENTO" active={sub === "segmento"} onClick={() => setSub("segmento")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "checks"   && <TabValidaciones />}
         {sub === "opciones" && <div className="h-full overflow-y-auto p-3"><OpcionesExpiriesPanel /></div>}
         {sub === "xirr"     && <ManagerDebugXirrPanel />}
+        {sub === "segmento" && <ManagerDebugSegmentoPanel />}
       </div>
     </div>
   );
