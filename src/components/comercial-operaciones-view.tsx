@@ -851,6 +851,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
   const [loading, setLoading] = useState(false);
   const [sort, setSort] = useState<"aum" | "dias">("aum");
   const [nivelSel, setNivelSel] = useState<string | null>(null);
+  const [nivel3Sel, setNivel3Sel] = useState<string | null>(null);
   const [estadoSel, setEstadoSel] = useState<string | null>(null);
   const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 30, dormida: 90 });
 
@@ -859,6 +860,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
     let cancelled = false;
     setLoading(true);
     setNivelSel(null);
+    setNivel3Sel(null);
     setEstadoSel(null);
     void (async () => {
       try {
@@ -916,7 +918,10 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
       .sort((a, b) => b.aum - a.aum);
   }, [clientes]);
 
-  // Estado comercial — filtrado por el nivel elegido (click en distribución) + orden.
+  const nivel3De = (c: AnalisisCliente) => c.nivel_3 || "(sin nivel 3)";
+
+  // Estado comercial — filtrado por nivel_1 (click en distribución) + nivel_3
+  // (click en la tabla de Nivel 3) + estado. Los 3 filtros son aditivos.
   const ordenados = useMemo(() => {
     const matchEstado = (c: AnalisisCliente) => {
       if (!estadoSel) return true;
@@ -925,27 +930,46 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
       return c.estado === estadoSel;
     };
     let arr = nivelSel ? clientes.filter((c) => nivelDe(c) === nivelSel) : [...clientes];
+    if (nivel3Sel) arr = arr.filter((c) => nivel3De(c) === nivel3Sel);
     arr = arr.filter(matchEstado);
     const out = [...arr];
     if (sort === "aum") out.sort((a, b) => b.aum - a.aum);
     else out.sort((a, b) => (b.dias_sin_operar ?? -1) - (a.dias_sin_operar ?? -1));
     return out;
-  }, [clientes, sort, nivelSel, estadoSel]);
+  }, [clientes, sort, nivelSel, nivel3Sel, estadoSel]);
 
-  // Desglose por nivel 2 y 3 del nivel_1 elegido en la distribución (dinámico).
-  const niveles23 = useMemo(() => {
+  // Desglose por nivel_3 del nivel_1 elegido (dinámico). Suma de cupo USD,
+  // counts de estado y AuM. Click en una fila filtra el Estado comercial.
+  const nivel3Det = useMemo(() => {
     if (!nivelSel) return [];
-    const m = new Map<string, { n2: string; n3: string; n: number; aum: number }>();
+    type Acc = {
+      n3: string;
+      cupo_trans_usd: number;
+      cupo_usado_usd: number;
+      n_activas: number;
+      n_enfriandose: number;
+      aum: number;
+      n: number;
+    };
+    const m = new Map<string, Acc>();
     for (const c of clientes) {
       if (nivelDe(c) !== nivelSel) continue;
-      const n2 = c.nivel_2 || "—";
-      const n3 = c.nivel_3 || "—";
-      const k = `${n2}||${n3}`;
-      const cur = m.get(k) ?? { n2, n3, n: 0, aum: 0 };
-      cur.n += 1; cur.aum += c.aum;
+      const k = nivel3De(c);
+      const cur = m.get(k) ?? {
+        n3: k, cupo_trans_usd: 0, cupo_usado_usd: 0,
+        n_activas: 0, n_enfriandose: 0, aum: 0, n: 0,
+      };
+      cur.cupo_trans_usd += c.cupo_transaccional_usd ?? 0;
+      cur.cupo_usado_usd += c.cupo_usado_usd ?? 0;
+      if (c.estado === "ACTIVA") cur.n_activas += 1;
+      if (c.estado === "ENFRIANDOSE") cur.n_enfriandose += 1;
+      cur.aum += c.aum;
+      cur.n += 1;
       m.set(k, cur);
     }
-    return [...m.values()].sort((a, b) => b.aum - a.aum);
+    return [...m.values()]
+      .map((r) => ({ ...r, cupo_libre_usd: Math.max(0, r.cupo_trans_usd - r.cupo_usado_usd) }))
+      .sort((a, b) => b.cupo_trans_usd - a.cupo_trans_usd);
   }, [clientes, nivelSel]);
 
   // ── Export a Excel (item 4) ──────────────────────────────────────────────
@@ -981,13 +1005,16 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
       { header: "AuM", key: "aum", format: "currency", width: 16 },
     ] }],
   });
-  const dlNiveles23 = () => void exportToXlsx({
-    filename: `comercial-niveles-2-3-${timestampSuffix()}.xlsx`,
-    sheets: [{ name: "Niveles 2 y 3", rows: niveles23, columns: [
-      { header: "Nivel 2", key: "n2", format: "text", width: 20 },
-      { header: "Nivel 3", key: "n3", format: "text", width: 20 },
-      { header: "# clientes", key: "n", format: "integer" },
+  const dlNivel3 = () => void exportToXlsx({
+    filename: `comercial-nivel3-${timestampSuffix()}.xlsx`,
+    sheets: [{ name: "Nivel 3", rows: nivel3Det, columns: [
+      { header: "Nivel 3", key: "n3", format: "text", width: 22 },
+      { header: "Cupo Trans. (USD)", key: "cupo_trans_usd", format: "currency", width: 18 },
+      { header: "Cupo Libre (USD)", key: "cupo_libre_usd", format: "currency", width: 18 },
+      { header: "Activas", key: "n_activas", format: "integer" },
+      { header: "Enfriándose", key: "n_enfriandose", format: "integer" },
       { header: "AuM", key: "aum", format: "currency", width: 16 },
+      { header: "# clientes", key: "n", format: "integer" },
     ] }],
   });
 
@@ -1085,7 +1112,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             {nivelSel && (
               <span className="text-[10px] text-[#ff9900] font-mono inline-flex items-center gap-1">
                 · {nivelSel}
-                <button onClick={() => setNivelSel(null)} className="text-[#888] hover:text-[#ff9900]" title="Quitar filtro de nivel">×</button>
+                <button onClick={() => { setNivelSel(null); setNivel3Sel(null); }} className="text-[#888] hover:text-[#ff9900]" title="Quitar filtro de nivel">×</button>
               </span>
             )}
             <span className="text-[10px] text-[#888] font-mono">{ordenados.length}</span>
@@ -1155,7 +1182,12 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                     return (
                       <tr
                         key={n.nivel}
-                        onClick={() => setNivelSel(active ? null : n.nivel)}
+                        onClick={() => {
+                          // Cambiar de nivel_1 invalida el nivel_3 seleccionado
+                          // (era de otro nivel_1) — siempre resetearlo.
+                          setNivel3Sel(null);
+                          setNivelSel(active ? null : n.nivel);
+                        }}
                         className={
                           "border-t border-[#111] cursor-pointer transition-colors " +
                           (active ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
@@ -1177,37 +1209,58 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
 
           <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Niveles 2 y 3</span>
+              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Nivel 3</span>
               {nivelSel && <span className="text-[10px] text-[#ff9900] font-mono truncate max-w-[160px]">· {nivelSel}</span>}
-              <span className="ml-auto text-[9px] text-[#666]">{nivelSel ? `${niveles23.length} combinaciones` : "tocá un nivel 1"}</span>
-              <DownloadBtn onClick={dlNiveles23} />
+              {nivel3Sel && (
+                <span className="text-[10px] text-[#ff9900] font-mono inline-flex items-center gap-1">
+                  · {nivel3Sel}
+                  <button onClick={() => setNivel3Sel(null)} className="text-[#888] hover:text-[#ff9900]" title="Quitar filtro de nivel 3">×</button>
+                </span>
+              )}
+              <span className="ml-auto text-[9px] text-[#666]">{nivelSel ? `${nivel3Det.length} valores` : "tocá un nivel 1"}</span>
+              <DownloadBtn onClick={dlNivel3} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {!nivelSel ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center px-4">
-                  Tocá un nivel 1 en la distribución para ver su desglose por nivel 2 y 3.
+                  Tocá un nivel 1 en la distribución para ver su desglose por nivel 3.
                 </div>
-              ) : niveles23.length === 0 ? (
+              ) : nivel3Det.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#555]">Sin datos.</div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
                   <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                     <tr>
-                      <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 2</th>
-                      <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 3</th>
-                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">#</th>
+                      <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 3</th>
+                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Suma del cupo transaccional (USD al MEP) del segmento.">Cupo Trans. (USD)</th>
+                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Suma del cupo libre = transaccional − usado (USD).">Cupo Libre (USD)</th>
+                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cuentas con estado Activa.">Activas</th>
+                      <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cuentas con estado Enfriándose.">Enfr.</th>
                       <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {niveles23.map((r) => (
-                      <tr key={`${r.n2}||${r.n3}`} className="border-t border-[#111] hover:bg-[#0e0e0e]">
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[150px]" title={r.n2}>{r.n2}</td>
-                        <td className="px-2 py-1.5 text-[#aaa] truncate max-w-[150px]" title={r.n3}>{r.n3}</td>
-                        <td className="px-2 py-1.5 text-right text-[#888]">{r.n}</td>
-                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(r.aum)}</td>
-                      </tr>
-                    ))}
+                    {nivel3Det.map((r) => {
+                      const active = nivel3Sel === r.n3;
+                      return (
+                        <tr
+                          key={r.n3}
+                          onClick={() => setNivel3Sel(active ? null : r.n3)}
+                          className={
+                            "border-t border-[#111] cursor-pointer transition-colors " +
+                            (active ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                          }
+                          title="Click: filtrar la tabla de Estado comercial por este nivel 3"
+                        >
+                          <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={r.n3}>{r.n3}</td>
+                          <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtAum(r.cupo_trans_usd)}</td>
+                          <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{fmtAum(r.cupo_libre_usd)}</td>
+                          <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{r.n_activas}</td>
+                          <td className="px-2 py-1.5 text-right text-[#ff9900]">{r.n_enfriandose}</td>
+                          <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(r.aum)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
