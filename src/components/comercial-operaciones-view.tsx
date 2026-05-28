@@ -91,6 +91,13 @@ const OP_CAT_COLOR: Record<string, string> = {
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
 // Montos: formato compacto compartido (M/MM/B), unificado con el resto de Comercial.
 const fmtAum = fmtMoney;
+// Variante para mostrar EXPLÍCITAMENTE en USD (cupo): "$1,2 M" → "USD 1,2 M".
+// Reemplaza el "$" hardcodeado de fmtMoney por "USD " para que la mesa vea
+// la moneda sin confundir con ARS.
+const fmtUsd = (n: number | null | undefined): string => {
+  const s = fmtAum(n);
+  return s === "—" ? s : "USD " + s.replace("$", "").trimStart();
+};
 
 async function getJson<T>(url: string): Promise<T> {
   const r = await fetch(url, { cache: "no-store" });
@@ -938,10 +945,10 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
     return out;
   }, [clientes, sort, nivelSel, nivel3Sel, estadoSel]);
 
-  // Desglose por nivel_3 del nivel_1 elegido (dinámico). Suma de cupo USD,
-  // counts de estado y AuM. Click en una fila filtra el Estado comercial.
+  // Desglose por nivel_3 — por default agrupa TODOS los clientes; si hay un
+  // nivel_1 seleccionado (click en Distribución), se restringe a ese subset.
+  // Click en una fila filtra el Estado comercial por ese nivel_3.
   const nivel3Det = useMemo(() => {
-    if (!nivelSel) return [];
     type Acc = {
       n3: string;
       cupo_trans_usd: number;
@@ -953,7 +960,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
     };
     const m = new Map<string, Acc>();
     for (const c of clientes) {
-      if (nivelDe(c) !== nivelSel) continue;
+      if (nivelSel && nivelDe(c) !== nivelSel) continue;
       const k = nivel3De(c);
       const cur = m.get(k) ?? {
         n3: k, cupo_trans_usd: 0, cupo_usado_usd: 0,
@@ -1066,23 +1073,23 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
 
         {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. */}
         <div className="ml-auto flex items-center gap-2">
-          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="Cupo transaccional asignado por el custodio (suma USD).">
-            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">Cupo trans.</span>
-            <span className="font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtAum(cupoTotales.trans)}</span>
+          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo transaccional asignado por el custodio (suma USD).">
+            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo trans.</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtUsd(cupoTotales.trans)}</span>
           </div>
-          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="Cupo usado (suma USD).">
-            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">Cupo usado</span>
-            <span className="font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtAum(cupoTotales.usado)}</span>
+          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo usado (suma USD).">
+            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo usado</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtUsd(cupoTotales.usado)}</span>
           </div>
-          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="% utilización = usado / transaccional.">
-            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">% util.</span>
-            <span className="font-semibold tabular-nums text-[#d0d0d0] leading-tight">
+          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="% utilización = usado / transaccional.">
+            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">% util.</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">
               {cupoTotales.pct != null ? `${cupoTotales.pct.toFixed(1)}%` : "—"}
             </span>
           </div>
-          <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1 text-[11px] inline-flex flex-col" title="Cupo libre = transaccional − usado.">
-            <span className="text-[9px] text-[#666] uppercase tracking-widest leading-none">Cupo libre</span>
-            <span className="font-semibold tabular-nums text-[#5dd6a0] leading-tight">{fmtAum(cupoTotales.libre)}</span>
+          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo libre = transaccional − usado.">
+            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo libre</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[#5dd6a0] leading-tight">{fmtUsd(cupoTotales.libre)}</span>
           </div>
 
           {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
@@ -1132,7 +1139,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                 <tr>
                   <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
                   <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Estado</th>
-                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Días</th>
+                  <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Días sin operar</th>
                   <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
                   <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cupo transaccional del custodio (USD al MEP).">Cupo Trans. (USD)</th>
                   <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cupo usado (USD al MEP).">Cupo Usado (USD)</th>
@@ -1147,8 +1154,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                     <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
                     <td className="px-2 py-1.5 text-right text-[#888]">{c.dias_sin_operar ?? "—"}</td>
                     <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
-                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_transaccional_usd != null ? fmtAum(c.cupo_transaccional_usd) : "—"}</td>
-                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_usado_usd != null ? fmtAum(c.cupo_usado_usd) : "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_transaccional_usd != null ? fmtUsd(c.cupo_transaccional_usd) : "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_usado_usd != null ? fmtUsd(c.cupo_usado_usd) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1217,15 +1224,11 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                   <button onClick={() => setNivel3Sel(null)} className="text-[#888] hover:text-[#ff9900]" title="Quitar filtro de nivel 3">×</button>
                 </span>
               )}
-              <span className="ml-auto text-[9px] text-[#666]">{nivelSel ? `${nivel3Det.length} valores` : "tocá un nivel 1"}</span>
+              <span className="ml-auto text-[9px] text-[#666]">{nivel3Det.length} valores{nivelSel ? "" : " · todos"}</span>
               <DownloadBtn onClick={dlNivel3} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
-              {!nivelSel ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center px-4">
-                  Tocá un nivel 1 en la distribución para ver su desglose por nivel 3.
-                </div>
-              ) : nivel3Det.length === 0 ? (
+              {nivel3Det.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[#555]">Sin datos.</div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
@@ -1253,8 +1256,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                           title="Click: filtrar la tabla de Estado comercial por este nivel 3"
                         >
                           <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={r.n3}>{r.n3}</td>
-                          <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtAum(r.cupo_trans_usd)}</td>
-                          <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{fmtAum(r.cupo_libre_usd)}</td>
+                          <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtUsd(r.cupo_trans_usd)}</td>
+                          <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{fmtUsd(r.cupo_libre_usd)}</td>
                           <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{r.n_activas}</td>
                           <td className="px-2 py-1.5 text-right text-[#ff9900]">{r.n_enfriandose}</td>
                           <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(r.aum)}</td>
