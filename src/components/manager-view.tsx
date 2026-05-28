@@ -2037,7 +2037,12 @@ function TabClientesFondeos() {
       const valid = new Set<string>(["id_cuenta", "cupo_transaccional", "cupo_usado"]);
       const map: Record<string, string> = {};
       const unknown: string[] = [];
+      // xlsx asigna `__EMPTY`, `__EMPTY_1`, ... a columnas sin header. Las
+      // ignoramos en silencio — ruido común en Excels reales (columnas en
+      // blanco al lado de las útiles, títulos mergeados, etc.).
+      const isPhantom = (h: string) => /^__EMPTY(?:_\d+)?$/i.test(h) || h.trim() === "";
       for (const h of Object.keys(json[0])) {
+        if (isPhantom(h)) continue;
         const n = norm(h);
         if (valid.has(n)) map[h] = n;
         else unknown.push(h);
