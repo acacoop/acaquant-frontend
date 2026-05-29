@@ -1,0 +1,297 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+// Tab BOLETOS dentro de MANAGER → AUNESA. Sub-tabs:
+//   FALTANTES — lista boletos sin arancel (Fase A — implementado).
+//   BACKFILL  — dispara el matching contra Aunesa /informes (Fase B — pendiente).
+//
+// Backend: GET /api/manager/aunesa/boletos/faltantes?desde&hasta&id_cuenta
+// Excluye futuros DLR (USDL) en backend (api/services/_negocio_futuros.py).
+
+type Sub = "faltantes" | "backfill";
+
+interface ResumenRow {
+  id_cuenta: string;
+  fecha: string;
+  denominacion: string | null;
+  n: number;
+  importe_abs: number;
+}
+
+interface BoletoRow {
+  comprobante: string | null;
+  id_cuenta: string | null;
+  cuenta: string | null;
+  denominacion: string | null;
+  fecha: string | null;
+  categoria: string | null;
+  moneda: string | null;
+  ticker: string | null;
+  unidad: string | null;
+  importe: number | null;
+  arancel: number | null;
+}
+
+interface FaltantesResp {
+  desde: string;
+  hasta: string;
+  id_cuenta: string | null;
+  n_total: number;
+  truncado: boolean;
+  limit: number;
+  resumen: ResumenRow[];
+  boletos: BoletoRow[];
+}
+
+// Fecha hoy en ART (UTC-3) — el backend interpreta YYYY-MM-DD como fecha de
+// concertación, no necesita ajuste por TZ.
+function hoyArt(): string {
+  const d = new Date();
+  const ms = d.getTime() - d.getTimezoneOffset() * 60_000 - 3 * 60 * 60_000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function inicioMesArt(): string {
+  return hoyArt().slice(0, 8) + "01";
+}
+
+export function AunesaBoletosPanel() {
+  const [sub, setSub] = useState<Sub>("faltantes");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+        <span className="text-[9px] font-semibold text-[#666] tracking-widest mr-2">BOLETOS</span>
+        <button
+          onClick={() => setSub("faltantes")}
+          className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${
+            sub === "faltantes" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[#666] hover:text-[#aaa]"
+          }`}
+        >
+          FALTANTES
+        </button>
+        <button
+          onClick={() => setSub("backfill")}
+          disabled
+          className="px-3 py-1 text-[10px] font-semibold tracking-widest text-[#444] cursor-not-allowed"
+          title="Próximamente"
+        >
+          BACKFILL
+        </button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "faltantes" && <Faltantes />}
+        {sub === "backfill" && (
+          <div className="p-6 text-[11px] text-[#555] text-center">
+            BACKFILL — Fase B (en preparación). Por ahora usá el script desde el Droplet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Faltantes() {
+  const [desde, setDesde] = useState(inicioMesArt());
+  const [hasta, setHasta] = useState(hoyArt());
+  const [idCuenta, setIdCuenta] = useState("");
+  const [data, setData] = useState<FaltantesResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showDetalle, setShowDetalle] = useState(false);
+
+  async function buscar() {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ desde, hasta });
+      if (idCuenta.trim()) params.set("id_cuenta", idCuenta.trim());
+      const r = await fetch(`/api/manager/aunesa/boletos/faltantes?${params}`, {
+        cache: "no-store",
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || `error ${r.status}`);
+      }
+      setData(await r.json());
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Buscar al montar — UX más fluida que el form en blanco.
+  useEffect(() => {
+    void buscar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const importeTotal = data?.resumen.reduce((s, r) => s + (r.importe_abs ?? 0), 0) ?? 0;
+  const cuentasUnicas = new Set(data?.resumen.map((r) => r.id_cuenta) ?? []).size;
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      {/* Form */}
+      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+        <Field label="DESDE">
+          <input
+            type="date"
+            value={desde}
+            onChange={(e) => setDesde(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="HASTA">
+          <input
+            type="date"
+            value={hasta}
+            onChange={(e) => setHasta(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="ID CUENTA (opcional)">
+          <input
+            type="text"
+            value={idCuenta}
+            onChange={(e) => setIdCuenta(e.target.value)}
+            placeholder="ej. 1346"
+            className={inputCls + " w-[120px]"}
+          />
+        </Field>
+        <button
+          onClick={buscar}
+          disabled={loading}
+          className="bg-[#ff9900] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+        >
+          {loading ? "BUSCANDO…" : "BUSCAR"}
+        </button>
+        {data && (
+          <div className="ml-auto flex items-center gap-4 text-[10px] text-[#888]">
+            <span>
+              Boletos sin arancel:{" "}
+              <span className="text-[#ff9900] font-bold">{data.n_total.toLocaleString("es-AR")}</span>
+            </span>
+            <span>Cuentas: {cuentasUnicas}</span>
+            <span>
+              Importe abs:{" "}
+              <span className="text-[#d0d0d0]">
+                ${importeTotal.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+              </span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <div className="px-3 py-2 text-[11px] text-[#ff7f7f] bg-[#1a0a0a] border-b border-[#2a1a1a]">
+          {error}
+        </div>
+      )}
+
+      {/* Resumen por (cuenta, fecha) */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        {!data ? (
+          <div className="p-6 text-[11px] text-[#555] text-center">
+            {loading ? "Cargando…" : "Sin datos"}
+          </div>
+        ) : data.resumen.length === 0 ? (
+          <div className="p-6 text-[11px] text-[#7fff7f] text-center">
+            ✓ Sin boletos faltantes en el rango — todos tienen arancel.
+          </div>
+        ) : (
+          <>
+            <table className="w-full text-[11px] font-mono tabular-nums">
+              <thead className="text-[9px] text-[#666] tracking-widest bg-[#0a0a0a] sticky top-0 z-10">
+                <tr>
+                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">FECHA</th>
+                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">ID CUENTA</th>
+                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">DENOMINACIÓN</th>
+                  <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">N</th>
+                  <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">IMPORTE ABS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.resumen.map((r, i) => (
+                  <tr
+                    key={`${r.id_cuenta}-${r.fecha}-${i}`}
+                    className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+                  >
+                    <td className="px-2 py-0.5 text-[#888]">{r.fecha}</td>
+                    <td className="px-2 py-0.5 text-[#ff9900]">{r.id_cuenta}</td>
+                    <td className="px-2 py-0.5 text-[#d0d0d0]">{r.denominacion ?? "—"}</td>
+                    <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                      {r.n.toLocaleString("es-AR")}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+                      ${r.importe_abs.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Detalle plegable — boletos individuales. */}
+            <div className="border-t border-[#1a1a1a] mt-2 px-3 py-2">
+              <button
+                onClick={() => setShowDetalle((v) => !v)}
+                className="text-[10px] text-[#888] hover:text-[#ff9900] tracking-wide"
+              >
+                {showDetalle ? "▾" : "▸"} DETALLE POR BOLETO ({data.boletos.length}
+                {data.truncado ? ` de ${data.n_total} — truncado a ${data.limit}` : ""})
+              </button>
+              {showDetalle && (
+                <table className="w-full text-[10px] font-mono tabular-nums mt-2">
+                  <thead className="text-[9px] text-[#666] tracking-widest">
+                    <tr>
+                      <th className="text-left px-2 py-1">FECHA</th>
+                      <th className="text-left px-2 py-1">COMPROBANTE</th>
+                      <th className="text-left px-2 py-1">CUENTA</th>
+                      <th className="text-left px-2 py-1">CATEGORÍA</th>
+                      <th className="text-left px-2 py-1">TICKER</th>
+                      <th className="text-left px-2 py-1">MON</th>
+                      <th className="text-right px-2 py-1">IMPORTE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.boletos.map((b, i) => (
+                      <tr
+                        key={`${b.comprobante}-${i}`}
+                        className="border-t border-[#101010] hover:bg-[#0d0d0d]"
+                      >
+                        <td className="px-2 py-0.5 text-[#888]">{b.fecha ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[#d0d0d0]">{b.comprobante ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[#ff9900]">{b.id_cuenta ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[#aaa]">{b.categoria ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[#d0d0d0]">{b.ticker ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[#888]">{b.moneda ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+                          {b.importe != null
+                            ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 })
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const inputCls =
+  "bg-black border border-[#2a2a2a] text-[#d0d0d0] px-2 py-1 text-[11px] tabular-nums focus:border-[#ff9900] outline-none";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] text-[#666] tracking-widest">{label}</span>
+      {children}
+    </div>
+  );
+}

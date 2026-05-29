@@ -6,6 +6,7 @@ import { ChatView } from "./chat-view";
 import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
+import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { GruposPanel } from "./grupos-panel";
 import { ComercialPanel } from "./comercial-panel";
@@ -2557,7 +2558,7 @@ function UsuariosGroup() {
 }
 
 function AunesaGroup() {
-  const [sub, setSub] = useState<"flujo" | "aum" | "posicion">("flujo");
+  const [sub, setSub] = useState<"flujo" | "aum" | "posicion" | "boletos">("flujo");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
@@ -2565,11 +2566,13 @@ function AunesaGroup() {
         <Pill label="FLUJO" active={sub === "flujo"} onClick={() => setSub("flujo")} />
         <Pill label="AUM" active={sub === "aum"} onClick={() => setSub("aum")} />
         <Pill label="POSICIÓN" active={sub === "posicion"} onClick={() => setSub("posicion")} />
+        <Pill label="BOLETOS" active={sub === "boletos"} onClick={() => setSub("boletos")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "flujo"    && <AunesaExplorarPanel />}
         {sub === "aum"      && <AunesaAumPanel />}
         {sub === "posicion" && <AunesaPosicionPanel />}
+        {sub === "boletos"  && <AunesaBoletosPanel />}
       </div>
     </div>
   );
