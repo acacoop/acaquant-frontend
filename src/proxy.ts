@@ -15,38 +15,42 @@ import { NextRequest, NextResponse } from "next/server";
  * deja pasar. No es un agujero: el backend tiene su propio gate con
  * require_module(), que devuelve 403 server-side igual.
  */
-const PATH_MODULES: [string, string][] = [
-  ["/manager", "manager"],
+// Cada prefijo lista los módulos que habilitan acceso (OR). El path pasa si el
+// user tiene CUALQUIERA. /manager acepta el umbrella `manager` (admin) O los
+// sub-módulos (asistente_comercial = manager_comercial + manager_clientes).
+// Coincide con require_any_module() del backend en api/auth.py.
+const PATH_MODULES: [string, string[]][] = [
+  ["/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk"]],
   // Asistente (legacy): accesible solo desde Manager. Sin entrada propia.
-  ["/api/chat", "manager"],
+  ["/api/chat", ["manager"]],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
-  ["/operar", "operar"],
-  ["/api/ordenes", "operar"],
-  ["/api/operativa", "operar"],
-  ["/api/risk", "operar"],
+  ["/operar", ["operar"]],
+  ["/api/ordenes", ["operar"]],
+  ["/api/operativa", ["operar"]],
+  ["/api/risk", ["operar"]],
   // /operaciones (mesa, flujo, contrapartes) — módulo `operaciones`
-  ["/operaciones", "operaciones"],
-  ["/api/operaciones", "operaciones"],
-  ["/api/cuentas", "operaciones"],
-  ["/aum", "portfolios"],
-  ["/api/portfolio", "portfolios"],
-  ["/api/titulos", "portfolios"],
+  ["/operaciones", ["operaciones"]],
+  ["/api/operaciones", ["operaciones"]],
+  ["/api/cuentas", ["operaciones"]],
+  ["/aum", ["portfolios"]],
+  ["/api/portfolio", ["portfolios"]],
+  ["/api/titulos", ["portfolios"]],
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
-  ["/renta-variable", "renta-variable"],
-  ["/api/scanner",    "renta-variable"],
+  ["/renta-variable", ["renta-variable"]],
+  ["/api/scanner",    ["renta-variable"]],
 ];
 
-function moduleForPath(path: string): string | null {
-  for (const [prefix, mod] of PATH_MODULES) {
-    if (path === prefix || path.startsWith(prefix + "/")) return mod;
+function modulesForPath(path: string): string[] | null {
+  for (const [prefix, mods] of PATH_MODULES) {
+    if (path === prefix || path.startsWith(prefix + "/")) return mods;
   }
   return null;
 }
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  const requiredModule = moduleForPath(path);
-  if (!requiredModule) return NextResponse.next();
+  const requiredModules = modulesForPath(path);
+  if (!requiredModules) return NextResponse.next();
 
   const email = (
     request.headers.get("cf-access-authenticated-user-email") ?? ""
@@ -91,10 +95,11 @@ export async function proxy(request: NextRequest) {
         : NextResponse.redirect(new URL("/", request.url));
     }
     const me = (await res.json()) as { modules: string[] };
-    if (!me.modules?.includes(requiredModule)) {
+    const ok = requiredModules.some((m) => me.modules?.includes(m));
+    if (!ok) {
       if (path.startsWith("/api/")) {
         return NextResponse.json(
-          { error: "forbidden", module: requiredModule },
+          { error: "forbidden", modules: requiredModules },
           { status: 403 },
         );
       }
