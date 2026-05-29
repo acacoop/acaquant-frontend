@@ -12,20 +12,21 @@ import { useEffect, useState } from "react";
 type Sub = "faltantes" | "backfill";
 
 interface ResumenRow {
-  id_cuenta: string;
-  fecha: string;
-  denominacion: string | null;
+  categoria: string | null;
+  op: string | null;
   n: number;
   importe_abs: number;
+  n_cuentas: number;
 }
 
 interface BoletoRow {
   comprobante: string | null;
   id_cuenta: string | null;
   cuenta: string | null;
-  denominacion: string | null;
   fecha: string | null;
   categoria: string | null;
+  op: string | null;
+  informacion: string | null;
   moneda: string | null;
   ticker: string | null;
   unidad: string | null;
@@ -125,7 +126,10 @@ function Faltantes() {
   }, []);
 
   const importeTotal = data?.resumen.reduce((s, r) => s + (r.importe_abs ?? 0), 0) ?? 0;
-  const cuentasUnicas = new Set(data?.resumen.map((r) => r.id_cuenta) ?? []).size;
+  // Header KPI: ahora el resumen agrupa por (categoria, op) → el max de n_cuentas
+  // entre las filas es el peor escenario; sumar n_cuentas dobla cuentas que tienen
+  // boletos en varias categorías. Mostramos el max como aproximación útil.
+  const cuentasMax = data?.resumen.reduce((m, r) => Math.max(m, r.n_cuentas ?? 0), 0) ?? 0;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -169,7 +173,7 @@ function Faltantes() {
               Boletos sin arancel:{" "}
               <span className="text-[#ff9900] font-bold">{data.n_total.toLocaleString("es-AR")}</span>
             </span>
-            <span>Cuentas: {cuentasUnicas}</span>
+            <span>Cuentas (máx): {cuentasMax}</span>
             <span>
               Importe abs:{" "}
               <span className="text-[#d0d0d0]">
@@ -198,27 +202,31 @@ function Faltantes() {
           </div>
         ) : (
           <>
+            {/* Resumen agrupado por (categoría, op) — dice qué tipos de
+                movimiento están rebotando el match. n_cuentas = ámbito. */}
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead className="text-[9px] text-[#666] tracking-widest bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">FECHA</th>
-                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">ID CUENTA</th>
-                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">DENOMINACIÓN</th>
+                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">CATEGORÍA</th>
+                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">OP</th>
                   <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">N</th>
+                  <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">CUENTAS</th>
                   <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">IMPORTE ABS</th>
                 </tr>
               </thead>
               <tbody>
                 {data.resumen.map((r, i) => (
                   <tr
-                    key={`${r.id_cuenta}-${r.fecha}-${i}`}
+                    key={`${r.categoria}-${r.op}-${i}`}
                     className="border-b border-[#101010] hover:bg-[#0d0d0d]"
                   >
-                    <td className="px-2 py-0.5 text-[#888]">{r.fecha}</td>
-                    <td className="px-2 py-0.5 text-[#ff9900]">{r.id_cuenta}</td>
-                    <td className="px-2 py-0.5 text-[#d0d0d0]">{r.denominacion ?? "—"}</td>
+                    <td className="px-2 py-0.5 text-[#ff9900]">{r.categoria ?? "—"}</td>
+                    <td className="px-2 py-0.5 text-[#d0d0d0]">{r.op ?? "—"}</td>
                     <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
                       {r.n.toLocaleString("es-AR")}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-[#aaa]">
+                      {r.n_cuentas.toLocaleString("es-AR")}
                     </td>
                     <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
                       ${r.importe_abs.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
@@ -228,7 +236,8 @@ function Faltantes() {
               </tbody>
             </table>
 
-            {/* Detalle plegable — boletos individuales. */}
+            {/* Detalle plegable — boletos individuales con columnas útiles
+                para el control (informacion truncada al final). */}
             <div className="border-t border-[#1a1a1a] mt-2 px-3 py-2">
               <button
                 onClick={() => setShowDetalle((v) => !v)}
@@ -242,12 +251,13 @@ function Faltantes() {
                   <thead className="text-[9px] text-[#666] tracking-widest">
                     <tr>
                       <th className="text-left px-2 py-1">FECHA</th>
-                      <th className="text-left px-2 py-1">COMPROBANTE</th>
                       <th className="text-left px-2 py-1">CUENTA</th>
-                      <th className="text-left px-2 py-1">CATEGORÍA</th>
                       <th className="text-left px-2 py-1">TICKER</th>
+                      <th className="text-left px-2 py-1">CATEGORÍA</th>
+                      <th className="text-left px-2 py-1">OP</th>
                       <th className="text-left px-2 py-1">MON</th>
                       <th className="text-right px-2 py-1">IMPORTE</th>
+                      <th className="text-left px-2 py-1">INFORMACIÓN</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -257,15 +267,21 @@ function Faltantes() {
                         className="border-t border-[#101010] hover:bg-[#0d0d0d]"
                       >
                         <td className="px-2 py-0.5 text-[#888]">{b.fecha ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[#d0d0d0]">{b.comprobante ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[#ff9900]">{b.id_cuenta ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[#aaa]">{b.categoria ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[#d0d0d0]">{b.ticker ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[#aaa]">{b.categoria ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[#aaa]">{b.op ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[#888]">{b.moneda ?? "—"}</td>
                         <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
                           {b.importe != null
                             ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 })
                             : "—"}
+                        </td>
+                        <td
+                          className="px-2 py-0.5 text-[#666] max-w-[280px] truncate"
+                          title={b.informacion ?? undefined}
+                        >
+                          {b.informacion ?? "—"}
                         </td>
                       </tr>
                     ))}
