@@ -22,6 +22,17 @@ const NAV_LINKS: { href: string; label: string; module: string }[] = [
   { href: "/manager",         label: "MANAGER",       module: "manager" },
 ];
 
+// Sub-módulos de manager: cualquier rol con uno de estos ve el link MANAGER
+// y entra a /manager (la propia view filtra qué tabs muestra). El rol
+// `asistente_comercial` tiene manager_comercial + manager_clientes pero NO
+// el umbrella `manager`.
+const MANAGER_MODULES = [
+  "manager",
+  "manager_comercial",
+  "manager_clientes",
+  "manager_clientes_bulk",
+];
+
 export function Header({ modules = null }: { modules?: string[] | null }) {
   const pathname = usePathname();
   // modules === null → dev mode / backend caído: mostrar todos los links.
@@ -29,7 +40,12 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
   const links =
     modules === null
       ? NAV_LINKS
-      : NAV_LINKS.filter((l) => modules.includes(l.module));
+      : NAV_LINKS.filter((l) => {
+          if (l.href === "/manager") {
+            return MANAGER_MODULES.some((m) => modules.includes(m));
+          }
+          return modules.includes(l.module);
+        });
   return (
     <header className="flex items-center h-10 px-3 bg-[#094293] border-b border-[#062d66]">
       <Link href="/" className="flex items-center gap-2 mr-6">

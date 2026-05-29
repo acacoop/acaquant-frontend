@@ -2185,15 +2185,20 @@ function TabClientesFondeos() {
 }
 
 // ── Wrapper TabClientes: switch entre sub-tabs Segmentación / Fondeos ────────
-function TabClientes() {
+// canBulk = true → muestra ambas sub-tabs. false → solo SEGMENTACIÓN (carga
+// masiva de fondeos requiere el módulo manager_clientes_bulk, admin-only).
+function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
   const [subTab, setSubTab] = useState<"segmentacion" | "fondeos">("segmentacion");
+  const subs = canBulk
+    ? ([
+        { id: "segmentacion", label: "SEGMENTACIÓN" },
+        { id: "fondeos",      label: "FONDEOS" },
+      ] as const)
+    : ([{ id: "segmentacion", label: "SEGMENTACIÓN" }] as const);
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
-        {([
-          { id: "segmentacion", label: "SEGMENTACIÓN" },
-          { id: "fondeos",      label: "FONDEOS" },
-        ] as const).map((t) => (
+        {subs.map((t) => (
           <button
             key={t.id}
             onClick={() => setSubTab(t.id)}
@@ -2205,7 +2210,7 @@ function TabClientes() {
       </div>
       <div className="flex-1 min-h-0">
         {subTab === "segmentacion" && <TabClientesSegmentacion />}
-        {subTab === "fondeos"      && <TabClientesFondeos />}
+        {subTab === "fondeos" && canBulk && <TabClientesFondeos />}
       </div>
     </div>
   );
@@ -2570,10 +2575,24 @@ function AunesaGroup() {
   );
 }
 
-export function ManagerView() {
-  const [tab, setTab] = useState<Tab>("diagnostico");
+// Cada tab requiere un módulo. Si el user no lo tiene, la tab no aparece.
+// Mantener sincronizado con el gating server-side en
+// api/routers/manager/__init__.py — la API es fuente de verdad; este filtro
+// es solo UX para que el asistente_comercial no vea pills que le tirarían 403.
+const TAB_MODULE: Record<Tab, string> = {
+  diagnostico:  "manager",
+  jobs:         "manager",
+  validaciones: "manager",
+  titulos:      "manager",
+  comercial:    "manager_comercial",
+  clientes:     "manager_clientes",
+  aunesa:       "manager",
+  asistente:    "manager",
+  usuarios:     "manager",
+};
 
-  const tabs: { id: Tab; label: string }[] = [
+export function ManagerView({ modules = null }: { modules?: string[] | null }) {
+  const allTabs: { id: Tab; label: string }[] = [
     { id: "diagnostico",  label: "DIAGNÓSTICO"  },
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
@@ -2584,6 +2603,13 @@ export function ManagerView() {
     { id: "asistente",    label: "ASISTENTE"    },
     { id: "usuarios",     label: "USUARIOS"     },
   ];
+  // modules === null → dev / backend caído: mostrar todo (sin RBAC en cliente).
+  const tabs =
+    modules === null
+      ? allTabs
+      : allTabs.filter((t) => modules.includes(TAB_MODULE[t.id]));
+  const canBulk = modules === null ? true : modules.includes("manager_clientes_bulk");
+  const [tab, setTab] = useState<Tab>(tabs[0]?.id ?? "comercial");
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -2602,7 +2628,7 @@ export function ManagerView() {
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup />}
         {tab === "comercial"    && <ComercialPanel />}
-        {tab === "clientes"     && <TabClientes />}
+        {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "aunesa"       && <AunesaGroup />}
         {tab === "asistente"    && <TabAsistente />}
         {tab === "usuarios"     && <UsuariosGroup />}
