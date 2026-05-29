@@ -5,6 +5,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -186,6 +187,26 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
       .sort((a, b) => a.plazo - b.plazo);
   }, [rows]);
 
+  // Domain del eje Y calculado del dataset: padding ~15% del rango (con piso 1%)
+  // para que la línea no quede pegada al techo. Si el rango cruza 0, fuerza que
+  // 0 esté visible para distinguir tasa positiva de negativa. Antes Recharts
+  // autoescaleaba desde ~0 → cuando todas las TNAs viven en ~24%, el chart
+  // quedaba 70% vacío con la línea contra el borde.
+  const yDomain = useMemo<[number, number] | undefined>(() => {
+    if (data.length === 0) return undefined;
+    const vs = data.map((d) => d.tnaPct);
+    const min = Math.min(...vs);
+    const max = Math.max(...vs);
+    const pad = Math.max(1, (max - min) * 0.15);
+    let lo = min - pad;
+    let hi = max + pad;
+    if (min < 0 && max > 0) {
+      lo = Math.min(lo, 0);
+      hi = Math.max(hi, 0);
+    }
+    return [lo, hi];
+  }, [data]);
+
   return (
     <div className="h-full min-h-0 p-3 flex flex-col">
       <div className="flex-1 min-h-0">
@@ -199,11 +220,13 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={data}
-                  margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
+                  margin={{ top: 8, right: 24, bottom: 8, left: 0 }}
                 >
                   <CartesianGrid strokeDasharray="2 4" stroke="#1a1a1a" />
                   <XAxis
+                    type="number"
                     dataKey="plazo"
+                    domain={["dataMin", "dataMax"]}
                     stroke="#666"
                     tick={{ fontSize: 9, fill: "#888" }}
                     label={{
@@ -217,6 +240,7 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
                     stroke="#666"
                     tick={{ fontSize: 9, fill: "#888" }}
                     tickFormatter={(v: number) => `${v.toFixed(0)}%`}
+                    domain={yDomain ?? ["auto", "auto"]}
                   />
                   <Tooltip
                     contentStyle={{
@@ -232,8 +256,13 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
                     }}
                     labelFormatter={(label) => `Plazo: ${label}d`}
                   />
+                  {yDomain && yDomain[0] < 0 && yDomain[1] > 0 && (
+                    <ReferenceLine y={0} stroke="#444" strokeDasharray="3 3" />
+                  )}
                   <Line
-                    type="monotone"
+                    // linear cuando hay 2-3 puntos (monotone los curvea raro);
+                    // monotone con 4+ para suavizar la curva de tasas.
+                    type={data.length <= 3 ? "linear" : "monotone"}
                     dataKey="tnaPct"
                     stroke="#ff9900"
                     strokeWidth={1.5}
