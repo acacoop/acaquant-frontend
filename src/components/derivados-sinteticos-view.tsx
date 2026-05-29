@@ -130,24 +130,28 @@ export function DerivadosSinteticosView() {
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col">
-        {/* Long-LECAP arriba (70%): tabla 60% + chart 40%. */}
-        <div className="h-[70%] min-h-0 border-b border-[#1a1a1a] flex">
-          <div className="w-[60%] min-w-0 border-r border-[#1a1a1a]">
+        {/* Fila 1 — Tablas lado a lado. Altura por contenido (shrink-0) con
+            cap al 50% para que los charts tengan al menos la otra mitad. Si
+            una tabla tiene muchas filas, scrollea internamente (panel.tsx ya
+            hace overflow-y-auto). Antes la fila ocupaba 70/30 con flex-grow
+            → el Long-LECAP con 7 filas quedaba con espacio vacío gigante. */}
+        <div className="shrink-0 max-h-[50%] flex items-start border-b border-[#1a1a1a]">
+          <div className="w-1/2 min-w-0 border-r border-[#1a1a1a]">
             <LongLecapPanel rows={data.long_rofex_long_lecap} />
           </div>
-          <div className="w-[40%] min-w-0">
+          <div className="w-1/2 min-w-0">
+            <ShortDlkPanel rows={data.short_rofex_long_dlk} />
+          </div>
+        </div>
+        {/* Fila 2 — Charts lado a lado. flex-1 → llenan el resto vertical. */}
+        <div className="flex-1 min-h-0 flex">
+          <div className="w-1/2 min-w-0 border-r border-[#1a1a1a]">
             <CurvaTnaChart
               titulo="Curva TNA · Long Rofex − Long Lecap"
               rows={data.long_rofex_long_lecap}
             />
           </div>
-        </div>
-        {/* Short-DLK abajo (30%): tabla 60% + chart 40%. */}
-        <div className="h-[30%] min-h-0 flex">
-          <div className="w-[60%] min-w-0 border-r border-[#1a1a1a]">
-            <ShortDlkPanel rows={data.short_rofex_long_dlk} />
-          </div>
-          <div className="w-[40%] min-w-0">
+          <div className="w-1/2 min-w-0">
             <CurvaTnaChart
               titulo="Curva TNA · Short Rofex − Long DLK"
               rows={data.short_rofex_long_dlk}
@@ -290,8 +294,8 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
     [rows],
   );
   return (
-    <div className="h-full min-h-0 p-3 flex flex-col">
-      <div className="flex-1 min-h-0">
+    <div className="p-3">
+      <div>
         <Panel title="SINTÉTICO · LONG ROFEX − LONG LECAP" expandable>
           {visibles.length === 0 ? (
             <p className="text-[#555555] text-xs py-4 text-center">
@@ -404,8 +408,8 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
     [rows],
   );
   return (
-    <div className="h-full min-h-0 p-3 flex flex-col">
-      <div className="flex-1 min-h-0">
+    <div className="p-3">
+      <div>
         <Panel title="SINTÉTICO · SHORT ROFEX − LONG DLK" expandable>
           {visibles.length === 0 ? (
             <p className="text-[#555555] text-xs py-4 text-center">
