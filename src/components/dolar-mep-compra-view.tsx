@@ -53,6 +53,12 @@ export function DolarMepCompraView({
   const [feedback, setFeedback] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [detalleId, setDetalleId] = useState<string | null>(null);
+  // Modo de input: ARS (default) o USD. El backend sólo acepta `monto_ars`,
+  // así que cuando el user pone USD calculamos los ARS equivalentes y los
+  // mandamos. La cotización del bono se mueve en vivo → el cálculo se
+  // refresca con cada tick.
+  const [inputMode, setInputMode] = useState<"ARS" | "USD">("ARS");
+  const [montoUsd, setMontoUsd] = useState<string>("");
 
   async function fetchOperativas() {
     try {
@@ -72,13 +78,27 @@ export function DolarMepCompraView({
     return () => clearInterval(id);
   }, []);
 
-  const montoNum = parseInt(monto, 10) || 0;
-  const montoDisplay = montoNum ? montoNum.toLocaleString("es-AR") : "";
   const comNum = parseFloat(comision) || 0;
-  const arsNeto = montoNum * (1 - comNum / 100);
   const precioAl30 = cot?.al30?.price ?? null;
   const precioAl30d = cot?.al30d?.price ?? null;
   const mep = cot?.mep_implicito ?? null;
+  // Conversión inversa USD → ARS: si querés N USD, necesitás
+  //   arsNeto = N * (precioAl30 / precioAl30d)
+  //   montoArs = arsNeto / (1 - comNum/100)
+  // Cuando el modo es USD y los precios están disponibles, sincronizamos
+  // `monto` (que es lo que va al backend) con el ARS calculado.
+  const usdNum = parseFloat(montoUsd.replace(",", ".")) || 0;
+  useEffect(() => {
+    if (inputMode !== "USD") return;
+    if (!precioAl30 || !precioAl30d || !usdNum) return;
+    const arsNetoCalc = usdNum * (precioAl30 / precioAl30d);
+    const arsCalc = Math.round(arsNetoCalc / (1 - comNum / 100));
+    setMonto(String(arsCalc));
+  }, [inputMode, usdNum, precioAl30, precioAl30d, comNum, setMonto]);
+
+  const montoNum = parseInt(monto, 10) || 0;
+  const montoDisplay = montoNum ? montoNum.toLocaleString("es-AR") : "";
+  const arsNeto = montoNum * (1 - comNum / 100);
   const nominalesEstim =
     precioAl30 && precioAl30 > 0 ? Math.floor(arsNeto / (precioAl30 * PRICE_FACTOR_BONOS)) : null;
   const usdEstim =
@@ -134,16 +154,59 @@ export function DolarMepCompraView({
     <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
       {/* Form: inputs + EJECUTAR + cálculos horizontales pegados al botón */}
       <div className="flex gap-2 items-end p-3 bg-[#080808] border border-[#1a1a1a] flex-wrap">
-        <Field label="MONTO ARS" className="w-[160px]">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={montoDisplay}
-            onChange={(e) => setMonto(e.target.value.replace(/\D/g, ""))}
-            className={inputCls}
-            placeholder="0"
-          />
+        {/* Toggle ARS / USD: cuando el user pone monto en USD, el ARS equivalente
+            se calcula con la cotización viva del par AL30/AL30D y se manda al
+            backend (que sólo conoce ARS). */}
+        <Field label="MODO" className="w-[110px]">
+          <div className="flex gap-0.5">
+            {(["ARS", "USD"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setInputMode(m);
+                  // Al cambiar de modo, blanqueamos el campo NO activo para
+                  // evitar valores stale en pantalla.
+                  if (m === "ARS") setMontoUsd("");
+                  else setMonto("");
+                }}
+                className={`flex-1 px-2 py-0.5 text-[11px] font-bold border ${
+                  inputMode === m
+                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#d0d0d0]"
+                }`}
+                title={m === "USD" ? "Ingresar cantidad de USD a comprar" : "Ingresar monto ARS a invertir"}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
         </Field>
+        {inputMode === "ARS" ? (
+          <Field label="MONTO ARS" className="w-[160px]">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={montoDisplay}
+              onChange={(e) => setMonto(e.target.value.replace(/\D/g, ""))}
+              className={inputCls}
+              placeholder="0"
+            />
+          </Field>
+        ) : (
+          <Field label="MONTO USD" className="w-[160px]">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={montoUsd}
+              onChange={(e) =>
+                // Acepta dígitos, coma y punto; normaliza coma→punto.
+                setMontoUsd(e.target.value.replace(/[^0-9.,]/g, "").replace(",", "."))
+              }
+              className={inputCls}
+              placeholder="0"
+            />
+          </Field>
+        )}
         <Field label="COMISIÓN %" className="w-[110px]">
           <input
             type="number"
@@ -172,6 +235,14 @@ export function DolarMepCompraView({
         </button>
 
         <div className="flex items-center gap-4 text-[10px] text-[#888]">
+          {inputMode === "USD" && (
+            <span>
+              ARS necesarios:{" "}
+              <span className="text-[#ff9900]">
+                ${montoNum.toLocaleString("es-AR")}
+              </span>
+            </span>
+          )}
           <span>ARS neto: ${arsNeto.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>
           <span>Nominales estim.: {nominalesEstim ?? "—"}</span>
           <span>USD estim.: {usdEstim ? `US$${usdEstim.toFixed(2)}` : "—"}</span>

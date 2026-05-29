@@ -870,6 +870,38 @@ function OperarCard({
         </div>
       )}
 
+      {/* Quick-pick cauciones — tickers fijos ROFEX, no pasan por el autocomplete.
+          Si el book no aparece tras 5s puede ser que Manager.PyRofexInstruments
+          no tenga la caución cargada (correr scripts/discovery_pyrofex). */}
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-[#1a1a1a] bg-[#0a0a0a]">
+        <span className="text-[8px] text-[#555] tracking-widest mr-1">CAUCIÓN</span>
+        {[1, 7, 14, 30].map((d) => (
+          <button
+            key={`p${d}`}
+            onClick={() =>
+              onChangeTicker(`PESOS - ${d}D`, `MERV - XMEV - PESOS - ${d}D`)
+            }
+            className="px-1.5 py-0.5 text-[9px] border border-[#2a2a2a] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            title={`Caución pesos a ${d} día(s)`}
+          >
+            ${d}D
+          </button>
+        ))}
+        <span className="text-[8px] text-[#333] mx-1">·</span>
+        {[1, 7].map((d) => (
+          <button
+            key={`d${d}`}
+            onClick={() =>
+              onChangeTicker(`DOLAR - ${d}D`, `MERV - XMEV - DOLAR - ${d}D`)
+            }
+            className="px-1.5 py-0.5 text-[9px] border border-[#2a2a2a] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            title={`Caución dólares a ${d} día(s)`}
+          >
+            U${d}D
+          </button>
+        ))}
+      </div>
+
       {/* Book */}
       <table className="w-full text-[11px] font-mono tabular-nums">
         <thead className="text-[9px] text-[#666] tracking-wider">
@@ -971,7 +1003,10 @@ function OperarCard({
             placeholder="precio"
             disabled={form.order_type === "MARKET"}
             onChange={(e) =>
-              setForm((f) => ({ ...f, price: e.target.value }))
+              // Aceptar coma decimal: el user en AR escribe "1234,56" por costumbre,
+              // pero parseFloat("1234,56") devuelve 12 — orden con precio mal. Lo
+              // normalizamos al tipear (no al enviar) para que el user VEA el punto.
+              setForm((f) => ({ ...f, price: e.target.value.replace(",", ".") }))
             }
             className="bg-black border border-[#2a2a2a] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40"
           />
@@ -979,7 +1014,7 @@ function OperarCard({
             value={form.size}
             placeholder="nominales"
             onChange={(e) =>
-              setForm((f) => ({ ...f, size: e.target.value }))
+              setForm((f) => ({ ...f, size: e.target.value.replace(",", ".") }))
             }
             className="bg-black border border-[#2a2a2a] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none"
           />
@@ -991,7 +1026,7 @@ function OperarCard({
             value={priceExit}
             placeholder="precio salida (bracket — opcional)"
             disabled={form.order_type === "MARKET"}
-            onChange={(e) => setPriceExit(e.target.value)}
+            onChange={(e) => setPriceExit(e.target.value.replace(",", "."))}
             className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40 ${
               priceExit.trim() !== ""
                 ? "border-[#ff9900] text-[#ff9900]"

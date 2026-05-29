@@ -271,7 +271,13 @@ const _HORA_ART_HMS = new Intl.DateTimeFormat("es-AR", {
 
 export function fmtTime(iso?: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
+  // pymongo (sin tz_aware=True) deserializa BSON datetime como naive Python →
+  // FastAPI/orjson lo serializa "YYYY-MM-DDTHH:MM:SS.fff" (sin Z, sin offset).
+  // `new Date(iso)` con string naive lo interpreta como hora LOCAL del browser
+  // → si el browser está en ART y el dato real era UTC, queda adelantada 3hs.
+  // Asumimos UTC cuando el ISO no tenga indicador: el backend escribe UTC.
+  const hasTz = /[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso);
+  const d = new Date(hasTz ? iso : iso + "Z");
   if (isNaN(d.getTime())) return "";
   return _HORA_ART_HMS.format(d);
 }
