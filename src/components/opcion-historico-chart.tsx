@@ -122,21 +122,26 @@ export function OpcionHistoricoChart({
       if (!Number.isFinite(t)) continue;
       byBucket.set(Math.floor(t / BUCKET_MS), p); // data asc → último gana
     }
+    // El spot (VR-GGal) es DIARIO: lo ponemos UNA vez por día y null en el
+    // resto → con connectNulls + type linear la línea queda recta, no escalonada.
+    let lastDay = "";
     return [...byBucket.keys()]
       .sort((a, b) => a - b)
       .map((k, idx) => {
         const p = byBucket.get(k)!;
         const t = new Date(p.timestamp).getTime();
         const fecha = new Date(t).toISOString().slice(0, 10);
+        const nuevoDia = fecha !== lastDay;
+        lastDay = fecha;
         const vr = vrMap[fecha];
-        const spot2 = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
+        const spotDia = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
         return {
           idx,
           t,
           last: Number(p.last),
           spot: p.spot,
           strike: p.strike,
-          spot2: spot2 ?? null,
+          spot2: nuevoDia ? (spotDia ?? null) : null,
         };
       });
   }, [data, vrMap, spotMoneda]);
@@ -356,7 +361,7 @@ export function OpcionHistoricoChart({
             {haySpot2 && (
               <Line
                 yAxisId="spot"
-                type="monotone"
+                type="linear"
                 dataKey="spot2"
                 stroke="#4a9eff"
                 strokeWidth={1.2}

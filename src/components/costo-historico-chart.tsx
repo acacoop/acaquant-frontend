@@ -115,23 +115,29 @@ export function CostoHistoricoChart({
   // no el timestamp real, así dos buckets consecutivos quedan pegados
   // aunque haya un fin de semana o feriado entre ellos. Sin esto el
   // chart abre un hueco visual durante 2-3 días por mes que se ve mal.
-  const serie = useMemo(
-    () =>
-      data.map((p, idx) => {
-        const vr = vrMap[p.ts.slice(0, 10)];
-        const spot2 = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
-        return {
-          idx,
-          t: new Date(p.ts).getTime(),
-          costo: p.costo,
-          atm: p.atm,
-          spot: p.spot,
-          spot2: spot2 ?? null,
-          strikes: p.strikes,
-        };
-      }),
-    [data, vrMap, spotMoneda],
-  );
+  const serie = useMemo(() => {
+    // El spot (VR-GGal) es DIARIO; el costo es intradía (buckets de 15 min).
+    // Ponemos el spot UNA vez por día (primer bucket) y null en el resto: con
+    // connectNulls + type linear la línea conecta los puntos diarios en recto,
+    // en vez de quedar escalonada (flat dentro del día + salto entre días).
+    let lastDay = "";
+    return data.map((p, idx) => {
+      const day = p.ts.slice(0, 10);
+      const nuevoDia = day !== lastDay;
+      lastDay = day;
+      const vr = vrMap[day];
+      const spotDia = vr ? (spotMoneda === "ARS" ? vr.local : vr.adr) : undefined;
+      return {
+        idx,
+        t: new Date(p.ts).getTime(),
+        costo: p.costo,
+        atm: p.atm,
+        spot: p.spot,
+        spot2: nuevoDia ? (spotDia ?? null) : null,
+        strikes: p.strikes,
+      };
+    });
+  }, [data, vrMap, spotMoneda]);
 
   const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
 
@@ -373,7 +379,7 @@ export function CostoHistoricoChart({
             {haySpot2 && (
               <Line
                 yAxisId="spot"
-                type="monotone"
+                type="linear"
                 dataKey="spot2"
                 stroke="#4a9eff"
                 strokeWidth={1.2}
