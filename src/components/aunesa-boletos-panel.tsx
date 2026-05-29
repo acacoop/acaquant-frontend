@@ -72,20 +72,16 @@ export function AunesaBoletosPanel() {
         </button>
         <button
           onClick={() => setSub("backfill")}
-          disabled
-          className="px-3 py-1 text-[10px] font-semibold tracking-widest text-[#444] cursor-not-allowed"
-          title="Próximamente"
+          className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${
+            sub === "backfill" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[#666] hover:text-[#aaa]"
+          }`}
         >
           BACKFILL
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "faltantes" && <Faltantes />}
-        {sub === "backfill" && (
-          <div className="p-6 text-[11px] text-[#555] text-center">
-            BACKFILL — Fase B (en preparación). Por ahora usá el script desde el Droplet.
-          </div>
-        )}
+        {sub === "backfill" && <Backfill />}
       </div>
     </div>
   );
@@ -292,6 +288,368 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="flex flex-col gap-0.5">
       <span className="text-[9px] text-[#666] tracking-widest">{label}</span>
       {children}
+    </div>
+  );
+}
+
+// ── BACKFILL ────────────────────────────────────────────────────────────────
+
+interface JobStats {
+  inf: number;
+  match: number;
+  sin_match: number;
+  escritos: number;
+}
+
+interface JobError {
+  cuenta: string;
+  error: string;
+}
+
+interface Job {
+  job_id?: string;  // viene en el response del POST start, no en el doc Mongo
+  status: "running" | "done" | "error" | "stale";
+  actor: string | null;
+  desde: string;
+  hasta: string;
+  cuentas: string[] | null;
+  workers: number;
+  apply: boolean;
+  started_at: string;
+  updated_at: string;
+  finished_at: string | null;
+  cuentas_total: number;
+  cuentas_done: number;
+  stats: JobStats;
+  ejemplos: string[];
+  errores: JobError[];
+  error: string | null;
+}
+
+function Backfill() {
+  const [desde, setDesde] = useState(inicioMesArt());
+  const [hasta, setHasta] = useState(hoyArt());
+  const [cuentasTxt, setCuentasTxt] = useState("");  // CSV opcional
+  const [workers, setWorkers] = useState(6);
+  const [apply, setApply] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [job, setJob] = useState<Job | null>(null);
+  const [historial, setHistorial] = useState<Job[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  async function refreshHistorial() {
+    try {
+      const r = await fetch("/api/manager/aunesa/boletos/backfill?limit=10", {
+        cache: "no-store",
+      });
+      if (r.ok) setHistorial(await r.json());
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    void refreshHistorial();
+  }, []);
+
+  // Polling cuando hay un job activo. Se detiene cuando el job termina.
+  useEffect(() => {
+    if (!jobId) return;
+    let alive = true;
+    const tick = async () => {
+      try {
+        const r = await fetch(`/api/manager/aunesa/boletos/backfill/${jobId}`, {
+          cache: "no-store",
+        });
+        if (!alive) return;
+        if (r.ok) {
+          const j = (await r.json()) as Job;
+          setJob(j);
+          if (j.status !== "running") {
+            void refreshHistorial();
+            return; // detiene el polling
+          }
+        }
+      } catch {
+        // ignore — el siguiente tick reintenta
+      }
+      if (alive) setTimeout(tick, 2000);
+    };
+    void tick();
+    return () => {
+      alive = false;
+    };
+  }, [jobId]);
+
+  async function start() {
+    setStarting(true);
+    setError(null);
+    setJob(null);
+    try {
+      const cuentas = cuentasTxt
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const r = await fetch("/api/manager/aunesa/boletos/backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          desde,
+          hasta,
+          cuentas: cuentas.length ? cuentas : null,
+          workers,
+          apply,
+        }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || `error ${r.status}`);
+      }
+      const j = await r.json();
+      setJobId(j.job_id);
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  const progressPct =
+    job && job.cuentas_total > 0
+      ? Math.round((job.cuentas_done / job.cuentas_total) * 100)
+      : 0;
+
+  return (
+    <div className="h-full flex flex-col min-h-0 overflow-y-auto">
+      {/* Form */}
+      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0 flex-wrap">
+        <Field label="DESDE">
+          <input
+            type="date"
+            value={desde}
+            onChange={(e) => setDesde(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="HASTA">
+          <input
+            type="date"
+            value={hasta}
+            onChange={(e) => setHasta(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="CUENTAS (CSV opcional)">
+          <input
+            type="text"
+            value={cuentasTxt}
+            onChange={(e) => setCuentasTxt(e.target.value)}
+            placeholder="ej. 1346, 101 — vacío = todas del rango"
+            className={inputCls + " w-[300px]"}
+          />
+        </Field>
+        <Field label="WORKERS">
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={workers}
+            onChange={(e) => setWorkers(parseInt(e.target.value, 10) || 6)}
+            className={inputCls + " w-[60px]"}
+          />
+        </Field>
+        <label className="flex items-center gap-1.5 text-[10px] text-[#aaa] mb-1">
+          <input
+            type="checkbox"
+            checked={apply}
+            onChange={(e) => setApply(e.target.checked)}
+            className="accent-[#ff9900]"
+          />
+          <span className="tracking-wide">
+            {apply ? (
+              <span className="text-[#ff9900] font-bold">APPLY</span>
+            ) : (
+              "DRY-RUN"
+            )}
+          </span>
+        </label>
+        <button
+          onClick={start}
+          disabled={starting || job?.status === "running"}
+          className="bg-[#ff9900] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+        >
+          {starting
+            ? "ARRANCANDO…"
+            : job?.status === "running"
+              ? "EN CURSO…"
+              : "EJECUTAR"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="px-3 py-2 text-[11px] text-[#ff7f7f] bg-[#1a0a0a] border-b border-[#2a1a1a]">
+          {error}
+        </div>
+      )}
+
+      {/* Job en curso / último resultado */}
+      {job && (
+        <div className="px-3 py-3 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+          <div className="flex items-center gap-3 mb-2">
+            <span
+              className={`text-[10px] font-bold tracking-widest px-2 py-0.5 ${
+                job.status === "done"
+                  ? "bg-[#0d2a0d] text-[#7fff7f]"
+                  : job.status === "error"
+                    ? "bg-[#2a0d0d] text-[#ff7f7f]"
+                    : job.status === "stale"
+                      ? "bg-[#2a1a0a] text-[#ffaa44]"
+                      : "bg-[#0a1a2a] text-[#7faaff]"
+              }`}
+            >
+              {job.status.toUpperCase()}
+            </span>
+            <span className="text-[10px] text-[#888]">
+              {job.cuentas_done.toLocaleString("es-AR")} /{" "}
+              {job.cuentas_total.toLocaleString("es-AR")} cuentas ({progressPct}%)
+            </span>
+            <span className="text-[10px] text-[#666] ml-auto">
+              {job.apply ? "APPLY" : "DRY-RUN"} · workers={job.workers} · actor={job.actor ?? "—"}
+            </span>
+          </div>
+
+          {/* Barra de progreso */}
+          <div className="h-1.5 bg-[#1a1a1a] mb-3">
+            <div
+              className={`h-full ${job.status === "error" ? "bg-[#ff7f7f]" : "bg-[#ff9900]"}`}
+              style={{ width: `${progressPct}%`, transition: "width 0.3s ease-out" }}
+            />
+          </div>
+
+          <div className="grid grid-cols-4 gap-2 text-[10px]">
+            <Kpi label="Informes (Aunesa)" v={job.stats.inf} />
+            <Kpi label="Match" v={job.stats.match} color="#7fff7f" />
+            <Kpi label="Sin match" v={job.stats.sin_match} color="#ffaa44" />
+            <Kpi
+              label={job.apply ? "Escritos" : "Escribiría"}
+              v={job.stats.escritos}
+              color="#ff9900"
+            />
+          </div>
+
+          {job.status === "error" && job.error && (
+            <div className="mt-2 text-[10px] text-[#ff7f7f]">
+              <span className="font-bold">Error fatal:</span> {job.error}
+            </div>
+          )}
+
+          {job.errores.length > 0 && (
+            <div className="mt-2 text-[10px] text-[#ffaa44]">
+              {job.errores.length} cuenta(s) con error tras reintento:{" "}
+              <span className="text-[#888]">
+                {job.errores.slice(0, 5).map((e) => e.cuenta).join(", ")}
+                {job.errores.length > 5 ? ` … +${job.errores.length - 5}` : ""}
+              </span>
+            </div>
+          )}
+
+          {!job.apply && job.ejemplos.length > 0 && (
+            <div className="mt-2 text-[9px] text-[#666]">
+              <div className="font-bold text-[#888] mb-0.5">Ejemplos (dry-run):</div>
+              {job.ejemplos.map((ej, i) => (
+                <div key={i} className="font-mono">{ej}</div>
+              ))}
+            </div>
+          )}
+
+          {job.status === "stale" && (
+            <div className="mt-2 text-[10px] text-[#ffaa44]">
+              ⚠ El proceso API se reinició o se cortó. El job no terminó.
+              Podés re-ejecutar el mismo rango — es idempotente.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Historial */}
+      <div className="flex-1 min-h-0">
+        <div className="px-3 py-1.5 text-[9px] text-[#666] tracking-widest border-b border-[#1a1a1a]">
+          HISTORIAL (últimos 10)
+        </div>
+        {historial.length === 0 ? (
+          <div className="p-6 text-[11px] text-[#555] text-center">
+            Sin corridas previas
+          </div>
+        ) : (
+          <table className="w-full text-[10px] font-mono tabular-nums">
+            <thead className="text-[9px] text-[#666] tracking-widest bg-[#0a0a0a]">
+              <tr>
+                <th className="text-left px-2 py-1">START</th>
+                <th className="text-left px-2 py-1">ACTOR</th>
+                <th className="text-left px-2 py-1">RANGO</th>
+                <th className="text-left px-2 py-1">MODO</th>
+                <th className="text-left px-2 py-1">STATUS</th>
+                <th className="text-right px-2 py-1">CUENTAS</th>
+                <th className="text-right px-2 py-1">MATCH</th>
+                <th className="text-right px-2 py-1">ESCRITOS</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historial.map((h, i) => (
+                <tr key={i} className="border-t border-[#101010] hover:bg-[#0d0d0d]">
+                  <td className="px-2 py-0.5 text-[#888]">
+                    {h.started_at?.replace("T", " ").slice(0, 19) ?? "—"}
+                  </td>
+                  <td className="px-2 py-0.5 text-[#aaa]">{h.actor ?? "—"}</td>
+                  <td className="px-2 py-0.5 text-[#d0d0d0]">
+                    {h.desde} → {h.hasta}
+                  </td>
+                  <td className="px-2 py-0.5 text-[#888]">
+                    {h.apply ? "APPLY" : "DRY"}
+                  </td>
+                  <td
+                    className={`px-2 py-0.5 font-bold ${
+                      h.status === "done"
+                        ? "text-[#7fff7f]"
+                        : h.status === "error"
+                          ? "text-[#ff7f7f]"
+                          : h.status === "stale"
+                            ? "text-[#ffaa44]"
+                            : "text-[#7faaff]"
+                    }`}
+                  >
+                    {h.status}
+                  </td>
+                  <td className="px-2 py-0.5 text-right text-[#aaa]">
+                    {h.cuentas_done}/{h.cuentas_total}
+                  </td>
+                  <td className="px-2 py-0.5 text-right text-[#7fff7f]">
+                    {h.stats.match}
+                  </td>
+                  <td className="px-2 py-0.5 text-right text-[#ff9900]">
+                    {h.stats.escritos}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Kpi({ label, v, color }: { label: string; v: number; color?: string }) {
+  return (
+    <div className="bg-[#080808] border border-[#1a1a1a] px-2 py-1">
+      <div className="text-[9px] text-[#666] tracking-widest">{label}</div>
+      <div
+        className="text-[14px] font-bold tabular-nums"
+        style={{ color: color ?? "#d0d0d0" }}
+      >
+        {v.toLocaleString("es-AR")}
+      </div>
     </div>
   );
 }
