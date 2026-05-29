@@ -2575,20 +2575,21 @@ function AunesaGroup() {
   );
 }
 
-// Cada tab requiere un módulo. Si el user no lo tiene, la tab no aparece.
-// Mantener sincronizado con el gating server-side en
-// api/routers/manager/__init__.py — la API es fuente de verdad; este filtro
-// es solo UX para que el asistente_comercial no vea pills que le tirarían 403.
-const TAB_MODULE: Record<Tab, string> = {
-  diagnostico:  "manager",
-  jobs:         "manager",
-  validaciones: "manager",
-  titulos:      "manager",
-  comercial:    "manager_comercial",
-  clientes:     "manager_clientes",
-  aunesa:       "manager",
-  asistente:    "manager",
-  usuarios:     "manager",
+// Cada tab habilita con CUALQUIERA de los módulos listados (OR). El umbrella
+// `manager` da acceso a todas (admin); las tabs que también listan un sub-módulo
+// (comercial, clientes) son accesibles a `asistente_comercial` aunque NO tenga
+// `manager`. Mantener sincronizado con el gating server-side en
+// api/routers/manager/__init__.py — la API es la fuente de verdad.
+const TAB_MODULES: Record<Tab, string[]> = {
+  diagnostico:  ["manager"],
+  jobs:         ["manager"],
+  validaciones: ["manager"],
+  titulos:      ["manager"],
+  comercial:    ["manager", "manager_comercial"],
+  clientes:     ["manager", "manager_clientes"],
+  aunesa:       ["manager"],
+  asistente:    ["manager"],
+  usuarios:     ["manager"],
 };
 
 export function ManagerView({ modules = null }: { modules?: string[] | null }) {
@@ -2607,8 +2608,14 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   const tabs =
     modules === null
       ? allTabs
-      : allTabs.filter((t) => modules.includes(TAB_MODULE[t.id]));
-  const canBulk = modules === null ? true : modules.includes("manager_clientes_bulk");
+      : allTabs.filter((t) =>
+          TAB_MODULES[t.id].some((m) => modules.includes(m)),
+        );
+  // canBulk: `manager` (admin) o `manager_clientes_bulk` (rol futuro con bulks pero sin umbrella).
+  const canBulk =
+    modules === null ||
+    modules.includes("manager") ||
+    modules.includes("manager_clientes_bulk");
   const [tab, setTab] = useState<Tab>(tabs[0]?.id ?? "comercial");
 
   return (
