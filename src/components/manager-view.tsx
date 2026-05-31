@@ -1447,6 +1447,20 @@ function TabAssets() {
       const updated: AssetGap = await r.json();
       setAssets((prev) => prev.map((a) => (a.unidad === asset.unidad ? updated : a)));
       setDrafts((prev) => ({ ...prev, [asset.unidad]: draftFromAsset(updated) }));
+      // Sumar valores nuevos al pool de sugerencias para el resto de las filas
+      // (sin re-fetch — merge local instantáneo).
+      setValueOpts((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const c of ASSET_CAMPOS) {
+          const v = (updated[c] ?? "") as string;
+          if (v && v !== "NO APLICA" && !next[c].includes(v)) {
+            next[c] = [...next[c], v].sort();
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
       setRowState((s) => ({ ...s, [asset.unidad]: { kind: "saved" } }));
       setTimeout(() => {
         setRowState((s) => ({ ...s, [asset.unidad]: { kind: "idle" } }));
