@@ -28,8 +28,11 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/ordenes", ["operar"]],
   ["/api/operativa", ["operar"]],
   ["/api/risk", ["operar"]],
-  // /operaciones (mesa, flujo, contrapartes) — módulo `operaciones`
+  // /operaciones (movimientos, depósitos, intraday) + /operadores (ex comercial)
+  // + /contrapartes (contrapartes + flujo vs aum) — todas módulo `operaciones`
   ["/operaciones", ["operaciones"]],
+  ["/operadores", ["operaciones"]],
+  ["/contrapartes", ["operaciones"]],
   ["/api/operaciones", ["operaciones"]],
   ["/api/cuentas", ["operaciones"]],
   ["/aum", ["portfolios"]],
@@ -118,6 +121,8 @@ export const config = {
   matcher: [
     "/manager/:path*",
     "/operaciones/:path*",
+    "/operadores/:path*",
+    "/contrapartes/:path*",
     "/operar/:path*",
     "/aum/:path*",
     "/api/chat/:path*",
