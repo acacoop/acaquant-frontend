@@ -1,5 +1,54 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────────────────────────────────
+   TEMA — andamiaje (Paso 1).
+   Las variables --t-* son los tokens de tema. En modo OSCURO (default, :root)
+   valen EXACTAMENTE los hex de siempre → el oscuro NO cambia en nada. La clase
+   .light (en <html>) las redefine para el modo claro. Por ahora NADA usa estos
+   tokens todavía — los componentes se migran en pasos posteriores.
+
+   Mapa de tokens (nombre → qué es → hex oscuro actual):
+   --t-bg          fondo de página          #000000
+   --t-panel       paneles / barras         #080808
+   --t-surface     inputs / superficies     #0e0e0e
+   --t-surface-2   hover de filas           #0f0f0f
+   --t-border      borde principal          #1a1a1a
+   --t-border-2    borde claro / inputs     #2a2a2a
+   --t-text        texto principal          #d0d0d0
+   --t-text-dim    texto secundario         #808080
+   --t-text-muted  texto apagado            #555555
+   --t-accent      naranja terminal         #ff9900  (no cambia entre temas)
+   --t-brand       azul de empresa          #094293
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --t-bg: #000000;
+  --t-panel: #080808;
+  --t-surface: #0e0e0e;
+  --t-surface-2: #0f0f0f;
+  --t-border: #1a1a1a;
+  --t-border-2: #2a2a2a;
+  --t-text: #d0d0d0;
+  --t-text-dim: #808080;
+  --t-text-muted: #555555;
+  --t-accent: #ff9900;
+  --t-brand: #094293;
+}
+
+/* Modo claro: blanco + azul de empresa. Se activa con class="light" en <html>. */
+.light {
+  --t-bg: #ffffff;
+  --t-panel: #f4f6fa;
+  --t-surface: #eef1f6;
+  --t-surface-2: #e7ebf2;
+  --t-border: #d4dae6;
+  --t-border-2: #b9c2d4;
+  --t-text: #0f1c33;
+  --t-text-dim: #4a5a78;
+  --t-text-muted: #7a88a0;
+  --t-accent: #b35a00;   /* naranja más oscuro para que se lea sobre blanco */
+  --t-brand: #094293;
+}
+
 @theme inline {
   /* ACA Valores + Bloomberg palette */
   --color-aca-blue: #094293;
