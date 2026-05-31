@@ -163,7 +163,7 @@ function Faltantes() {
         <button
           onClick={buscar}
           disabled={loading}
-          className="bg-[var(--t-accent)] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+          className="bg-[var(--t-accent)] text-[var(--t-on-accent)] font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
         >
           {loading ? "BUSCANDO…" : "BUSCAR"}
         </button>
@@ -493,7 +493,7 @@ function Backfill() {
         <button
           onClick={start}
           disabled={starting || job?.status === "running"}
-          className="bg-[var(--t-accent)] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+          className="bg-[var(--t-accent)] text-[var(--t-on-accent)] font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
         >
           {starting
             ? "ARRANCANDO…"

@@ -718,7 +718,7 @@ export function AumView() {
       {(["total", "fci", "tasa_fija", "cer", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
-            tab === t ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]" : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+            tab === t ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
           }`}>
           {t === "fci" ? "FCI"
            : t === "total" ? "TOTAL"
@@ -786,7 +786,7 @@ export function AumView() {
                     onClick={() => setMoneda(m)}
                     className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
                       moneda === m
-                        ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                        ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                         : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                     }`}
                   >
@@ -984,7 +984,7 @@ export function AumView() {
                       onClick={() => setRangoKey(k)}
                       className={`px-2 h-[22px] text-[10px] font-semibold tracking-wide border transition-colors ${
                         rangoKey === k
-                          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                           : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                       }`}
                     >
@@ -1374,7 +1374,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
           <button key={p} onClick={() => setPlazo(p)}
             className={`text-left px-2 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
               plazo === p
-                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                 : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}>
             {p === "previo" ? "DÍA ANTERIOR"
@@ -1409,7 +1409,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
             <button key={m} onClick={() => setMoneda(m)}
               className={`flex-1 px-2 py-1 text-[10px] font-semibold border transition-colors ${
                 moneda === m
-                  ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                   : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
               }`}>
               {m}

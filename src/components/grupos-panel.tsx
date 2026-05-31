@@ -149,7 +149,7 @@ export function GruposPanel() {
           <button
             onClick={createGrupo}
             disabled={!newNombre.trim() || busy === "__new__"}
-            className="px-3 py-1 text-[11px] font-semibold text-black bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-[11px] font-semibold text-[var(--t-on-accent)] bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy === "__new__" ? "..." : "AGREGAR"}
           </button>
@@ -250,7 +250,7 @@ function GrupoCard({
             onSave({ nombre: nombre.trim(), emails, id_cuentas: idCuentas })
           }
           disabled={busy || !dirty || !nombre.trim()}
-          className="px-3 py-1 text-[11px] font-semibold text-black bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-3 py-1 text-[11px] font-semibold text-[var(--t-on-accent)] bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {busy ? "..." : "GUARDAR"}
         </button>

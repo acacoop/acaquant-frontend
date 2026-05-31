@@ -169,7 +169,7 @@ export function MonitorView() {
         <button
           onClick={analizar}
           disabled={loading || !posiciones.length}
-          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black transition-colors disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] transition-colors disabled:opacity-40"
         >
           {loading ? "Analizando…" : "▶ Analizar book"}
         </button>

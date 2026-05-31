@@ -342,7 +342,7 @@ export function CompararInversionView() {
                   onClick={() => setMoneda(m)}
                   className={`px-2 py-0.5 text-[10px] font-semibold border-y border-r transition-colors ${
                     moneda === m
-                      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                       : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
                   }`}
                 >
@@ -469,7 +469,7 @@ export function CompararInversionView() {
                 onClick={() => setModoChart("renta")}
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "renta"
-                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                     : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
                 }`}
               >
@@ -479,7 +479,7 @@ export function CompararInversionView() {
                 onClick={() => setModoChart("total")}
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "total"
-                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                     : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
                 }`}
               >

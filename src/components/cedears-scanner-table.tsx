@@ -248,7 +248,7 @@ function ViewBtn({
   // Tono distinto para que el switch visual sea claro pero minimalista.
   const activeColor =
     tone === "orange"
-      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
       : "bg-[#5fb3d4] text-black border-[#5fb3d4]";
   const inactiveColor =
     tone === "orange"

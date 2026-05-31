@@ -583,7 +583,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     className={
                       "px-2 py-0 text-[9px] uppercase tracking-wider " +
                       (chartRango === k
-                        ? "bg-[var(--t-accent)] text-black"
+                        ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                         : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >{k}</button>
@@ -744,7 +744,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                   className={
                     "px-2 py-0 text-[9px] uppercase tracking-wider " +
                     (moneda === m
-                      ? "bg-[var(--t-accent)] text-black"
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                       : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                   title={
@@ -968,7 +968,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 className={
                   "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                   (portfolioTab === t
-                    ? "bg-[var(--t-accent)] text-black"
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                     : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                 }
                 title={t === "variacion" ? "Variación vs mes anterior (requiere mes seleccionado)" : "Posiciones del portfolio"}

@@ -171,7 +171,7 @@ export function DolarMepCompraView({
                 }}
                 className={`flex-1 px-2 py-0.5 text-[11px] font-bold border ${
                   inputMode === m
-                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                     : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-text)]"
                 }`}
                 title={m === "USD" ? "Ingresar cantidad de USD a comprar" : "Ingresar monto ARS a invertir"}
@@ -229,7 +229,7 @@ export function DolarMepCompraView({
         <button
           onClick={handleEjecutar}
           disabled={submitting}
-          className="bg-[var(--t-accent)] text-black font-bold tracking-wide px-5 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+          className="bg-[var(--t-accent)] text-[var(--t-on-accent)] font-bold tracking-wide px-5 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
         >
           {submitting ? "EJECUTANDO…" : "EJECUTAR"}
         </button>

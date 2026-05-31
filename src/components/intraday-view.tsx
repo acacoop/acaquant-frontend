@@ -316,7 +316,7 @@ export function IntradayView() {
     <div className="h-full flex flex-col min-h-0 p-3 gap-3 overflow-hidden">
       {/* Upload + filtros */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
-        <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black cursor-pointer transition-colors">
+        <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] cursor-pointer transition-colors">
           EXAMINAR ARCHIVO
           <input
             type="file"
@@ -343,7 +343,7 @@ export function IntradayView() {
                   onClick={() => setFiltro(p)}
                   className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                     filtro === p
-                      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                       : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                   }`}
                 >

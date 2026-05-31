@@ -124,7 +124,7 @@ export function CanjeTab() {
                 onClick={() => setPar(p)}
                 className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                   par === p
-                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                     : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                 }`}
               >

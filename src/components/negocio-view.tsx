@@ -669,7 +669,7 @@ export function NegocioView() {
               className={
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (vistaMode === m
-                  ? "bg-[var(--t-accent)] text-black"
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                   : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
               }
               title={m === "DIA"
@@ -769,7 +769,7 @@ export function NegocioView() {
               className={
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (moneda === m
-                  ? "bg-[var(--t-accent)] text-black"
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                   : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
               }
             >
@@ -830,7 +830,7 @@ export function NegocioView() {
                       className={
                         "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                         (agg === k
-                          ? "bg-[var(--t-accent)] text-black"
+                          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                           : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                       }
                     >
@@ -854,7 +854,7 @@ export function NegocioView() {
                         className={
                           "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                           (rango === k
-                            ? "bg-[var(--t-accent)] text-black"
+                            ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                             : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                         }
                       >
@@ -876,7 +876,7 @@ export function NegocioView() {
                   className={
                     "px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[var(--t-border-2)] " +
                     (focoDia
-                      ? "bg-[var(--t-accent)] text-black"
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                       : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                   title={focoDia

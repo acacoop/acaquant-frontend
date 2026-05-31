@@ -163,7 +163,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
             onClick={() => setGriega(g.key)}
             className={`text-[9px] px-1.5 py-0.5 border transition-colors ${
               griega === g.key
-                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                 : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
           >

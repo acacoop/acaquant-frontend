@@ -341,7 +341,7 @@ export function DerivadosOperar({
         <button
           onClick={ejecutar}
           disabled={sending || !account.trim() || !fullTicker}
-          className="w-full px-2 py-1 bg-[var(--t-accent)] text-black font-bold text-[11px] tracking-wide border border-[var(--t-accent)] hover:bg-[#ffaa20] disabled:opacity-30 disabled:cursor-not-allowed"
+          className="w-full px-2 py-1 bg-[var(--t-accent)] text-[var(--t-on-accent)] font-bold text-[11px] tracking-wide border border-[var(--t-accent)] hover:bg-[#ffaa20] disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {sending ? "…" : priceExit.trim() !== "" ? `EJECUTAR BRACKET ${side}` : `EJECUTAR ${side}`}
         </button>

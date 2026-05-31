@@ -109,7 +109,7 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
   return (
     <button onClick={onClick}
       className={`px-3 py-1 text-[11px] font-semibold tracking-wide transition-colors border ${
-        active ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+        active ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}>
       {label}
@@ -331,7 +331,7 @@ function OpcionesExpiriesPanel() {
                     disabled={saving}
                     className={`px-2 py-1 text-[10px] font-mono border transition-colors ${
                       sel
-                        ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                        ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                         : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                     }`}
                   >
@@ -345,7 +345,7 @@ function OpcionesExpiriesPanel() {
               <button
                 onClick={guardar}
                 disabled={saving}
-                className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black transition-colors disabled:opacity-40"
+                className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] transition-colors disabled:opacity-40"
               >
                 {saving ? "Guardando…" : "Guardar selección"}
               </button>

@@ -148,7 +148,7 @@ export function RolesPanel() {
         <button
           onClick={save}
           disabled={dirtyRoles.size === 0 || saving}
-          className="ml-auto px-3 py-1 text-[11px] font-semibold text-black bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="ml-auto px-3 py-1 text-[11px] font-semibold text-[var(--t-on-accent)] bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {saving ? "GUARDANDO…" : "GUARDAR"}
         </button>

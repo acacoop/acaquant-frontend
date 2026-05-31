@@ -133,7 +133,7 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide text-[10px]"
+              className="inline-block px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] uppercase tracking-wide text-[10px]"
             >
               Abrir original ↗
             </a>

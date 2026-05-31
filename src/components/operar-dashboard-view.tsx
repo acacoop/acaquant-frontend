@@ -1039,7 +1039,7 @@ function OperarCard({
         <button
           onClick={ejecutar}
           disabled={sending || !account || !fullTicker}
-          className="w-full px-2 py-1 bg-[var(--t-accent)] text-black font-bold text-[11px] tracking-wide border border-[var(--t-accent)] hover:bg-[#ffaa20] disabled:opacity-30 disabled:cursor-not-allowed"
+          className="w-full px-2 py-1 bg-[var(--t-accent)] text-[var(--t-on-accent)] font-bold text-[11px] tracking-wide border border-[var(--t-accent)] hover:bg-[#ffaa20] disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {sending
             ? "…"
@@ -1371,7 +1371,7 @@ export function OperarDashboardView() {
         />
         <button
           onClick={addCard}
-          className="ml-auto px-2 py-0.5 text-[10px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black"
+          className="ml-auto px-2 py-0.5 text-[10px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
         >
           + AGREGAR PANEL
         </button>

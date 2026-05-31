@@ -383,7 +383,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                   onClick={() => setQ4tab(t)}
                   className={
                     "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
-                    (q4tab === t ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                    (q4tab === t ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                 >
                   {t === "clientes" ? "Clientes" : "Operaciones"}

@@ -28,7 +28,7 @@ export default function GlobalError({
         <div className="flex gap-2 pt-1">
           <button
             onClick={reset}
-            className="px-3 py-1 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black transition-colors"
+            className="px-3 py-1 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] transition-colors"
           >
             Reintentar
           </button>

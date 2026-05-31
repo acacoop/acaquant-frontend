@@ -60,7 +60,7 @@ function TabBtn({
       onClick={onClick}
       className={`px-3 py-1 text-[11px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
           : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >

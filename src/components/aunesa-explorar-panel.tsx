@@ -200,7 +200,7 @@ export function AunesaExplorarPanel() {
         <button
           onClick={explorar}
           disabled={loading}
-          className="bg-[var(--t-accent)] text-black px-3 py-1 text-[10px] font-semibold tracking-wider disabled:opacity-50"
+          className="bg-[var(--t-accent)] text-[var(--t-on-accent)] px-3 py-1 text-[10px] font-semibold tracking-wider disabled:opacity-50"
         >
           {loading ? "EXPLORANDO…" : "EXPLORAR"}
         </button>
@@ -233,7 +233,7 @@ export function AunesaExplorarPanel() {
               className={
                 "px-3 py-0.5 text-[10px] uppercase tracking-wider " +
                 (vista === v
-                  ? "bg-[var(--t-accent)] text-black"
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                   : "bg-[var(--t-surface-2)] text-[var(--t-text-dim)] hover:text-[#ddd]")
               }
             >
@@ -307,7 +307,7 @@ export function AunesaExplorarPanel() {
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                       (capFilter === f
-                        ? "bg-[var(--t-accent)] text-black"
+                        ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
                         : "bg-[var(--t-surface-2)] text-[var(--t-text-dim)] hover:text-[#ddd]")
                     }
                   >
@@ -780,7 +780,7 @@ function CalendarPopup({
           const baseClasses = "py-1 text-[11px] font-mono text-center transition";
           let cls = "";
           if (isSelected) {
-            cls = "bg-[var(--t-accent)] text-black font-semibold";
+            cls = "bg-[var(--t-accent)] text-[var(--t-on-accent)] font-semibold";
           } else if (isToday) {
             cls = "border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-border)]";
           } else if (isFuture) {

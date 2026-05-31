@@ -672,7 +672,7 @@ export function ChatView() {
                 <button
                   onClick={reintentar}
                   disabled={loading}
-                  className="mt-2 text-[10px] px-2.5 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide disabled:opacity-40"
+                  className="mt-2 text-[10px] px-2.5 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] uppercase tracking-wide disabled:opacity-40"
                 >
                   Reintentar
                 </button>
@@ -697,7 +697,7 @@ export function ChatView() {
           <button
             onClick={() => abrirFormCartera()}
             disabled={loading || carteraFormOpen}
-            className="text-[10px] px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
           >
             + Recomendar cartera
           </button>
@@ -770,7 +770,7 @@ function ConversationsSidebar({
         <button
           onClick={onNueva}
           title="Nueva conversación"
-          className="w-6 h-6 flex items-center justify-center text-[14px] font-bold bg-[var(--t-accent)] text-black hover:bg-[#ffaa22]"
+          className="w-6 h-6 flex items-center justify-center text-[14px] font-bold bg-[var(--t-accent)] text-[var(--t-on-accent)] hover:bg-[#ffaa22]"
         >
           +
         </button>
@@ -786,7 +786,7 @@ function ConversationsSidebar({
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
         <button
           onClick={onNueva}
-          className="flex-1 px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[var(--t-accent)] text-black hover:bg-[#ffaa22]"
+          className="flex-1 px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[var(--t-accent)] text-[var(--t-on-accent)] hover:bg-[#ffaa22]"
         >
           + NUEVA CONVERSACIÓN
         </button>

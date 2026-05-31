@@ -32,6 +32,7 @@
   --t-text-muted: #555555;
   --t-accent: #ff9900;
   --t-brand: #094293;
+  --t-on-accent: #000000;  /* texto SOBRE el acento (negro sobre naranja en oscuro) */
 }
 
 /* Modo claro: blanco + azul de empresa. Se activa con class="light" en <html>.
@@ -50,6 +51,7 @@
   --t-text-muted: #8190a6;/* texto apagado / labels */
   --t-accent: #094293;    /* acento = azul de empresa (en claro no es naranja) */
   --t-brand: #094293;
+  --t-on-accent: #ffffff; /* texto sobre el acento = BLANCO (sobre azul empresa) */
 }
 
 @theme inline {

@@ -324,7 +324,7 @@ function FciOperatePanel({
                   onClick={() => setAmountMode(m)}
                   className={`px-2 py-0.5 text-[9px] font-semibold border ${
                     m === amountMode
-                      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                       : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)]"
                   }`}
                 >

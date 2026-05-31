@@ -345,7 +345,7 @@ export function AsistenteDashboard() {
               onClick={() => setHoras(o.h)}
               className={`px-2 py-0.5 text-[10px] font-mono border ${
                 horas === o.h
-                  ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                   : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
               }`}
             >
@@ -361,7 +361,7 @@ export function AsistenteDashboard() {
               onClick={() => setEstadoFiltro(o.v)}
               className={`px-2 py-0.5 text-[10px] font-mono border ${
                 estadoFiltro === o.v
-                  ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                   : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
               }`}
             >

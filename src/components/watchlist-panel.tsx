@@ -266,7 +266,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
             onClick={() => setFiltro(g)}
             className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
               filtro === g
-                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                 : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
           >

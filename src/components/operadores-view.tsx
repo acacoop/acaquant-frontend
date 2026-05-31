@@ -52,7 +52,7 @@ export function OperadoresView() {
                   onClick={() => setMoneda(m)}
                   className={
                     "px-2 py-1 text-[10px] font-semibold " +
-                    (moneda === m ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                    (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                 >{m}</button>
               ))}

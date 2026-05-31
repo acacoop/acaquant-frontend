@@ -49,7 +49,7 @@ export function CarteraResponse({
         {onModificar && (
           <button
             onClick={onModificar}
-            className="mt-2 text-[10px] px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide"
+            className="mt-2 text-[10px] px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] uppercase tracking-wide"
           >
             Modificar parámetros
           </button>
