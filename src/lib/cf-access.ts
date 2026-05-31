@@ -10,8 +10,10 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 // que las agregues en Vercel, y borrar una revierte al instante (sin tocar código):
 //   CF_ACCESS_TEAM_DOMAIN = acaquant.cloudflareaccess.com
 //   CF_ACCESS_AUD         = <AUD tag de la app de Access que cubre trading.acaquant.com>
-const TEAM = process.env.CF_ACCESS_TEAM_DOMAIN || "";
-const AUD = process.env.CF_ACCESS_AUD || "";
+// .trim() defensivo: un espacio al pegar la env var en Vercel rompía el match
+// exacto de iss/aud y rechazaba sellos legítimos.
+const TEAM = (process.env.CF_ACCESS_TEAM_DOMAIN || "").trim();
+const AUD = (process.env.CF_ACCESS_AUD || "").trim();
 
 export function cfAccessEnforced(): boolean {
   return Boolean(TEAM && AUD);
