@@ -4,28 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// module coincide con core/roles.py::MODULES en el backend. Link visible
-// si el user tiene ese módulo en /api/me.modules.
-const NAV_LINKS: { href: string; label: string; module: string }[] = [
-  { href: "/",                label: "HOME",          module: "home" },
-  { href: "/renta-fija",      label: "RENTA FIJA",    module: "renta-fija" },
-  { href: "/derivados",       label: "DERIVADOS",     module: "derivados" },
-  { href: "/agro",            label: "AGRO",          module: "agro" },
-  { href: "/sinteticos",      label: "SINTÉTICOS",    module: "sinteticos" },
-  { href: "/renta-variable",  label: "RENTA VARIABLE",module: "renta-variable" },
-  { href: "/retorno",         label: "ESTRATEGIA",    module: "estrategia" },
-  { href: "/operar",          label: "TRADING",       module: "operar" },
-  { href: "/operaciones",     label: "OPERACIONES",   module: "operaciones" },
-  { href: "/aum",             label: "AUM",           module: "portfolios" },
-  { href: "/valuaciones",     label: "VALUACIONES",   module: "portfolios" },
-  { href: "/back-office",     label: "BACK OFFICE",   module: "back-office" },
-  { href: "/manager",         label: "MANAGER",       module: "manager" },
-];
+// Cada vista gateada por su `module` (coincide con core/roles.py::MODULES).
+// La nav agrupa las vistas: links sueltos (HOME, OPERAR, CARTERAS, BACK OFFICE,
+// MANAGER) + dropdowns (MERCADOS, NEGOCIO). Un grupo aparece solo si el user
+// tiene al menos una vista adentro.
+type Leaf = { href: string; label: string; module: string };
+type Entry =
+  | ({ kind: "link" } & Leaf)
+  | { kind: "group"; label: string; items: Leaf[] };
 
 // Sub-módulos de manager: cualquier rol con uno de estos ve el link MANAGER
-// y entra a /manager (la propia view filtra qué tabs muestra). El rol
-// `asistente_comercial` tiene manager_comercial + manager_clientes pero NO
-// el umbrella `manager`.
+// (la propia view filtra qué tabs muestra). `asistente_comercial` tiene
+// manager_comercial + manager_clientes pero NO el umbrella `manager`.
 const MANAGER_MODULES = [
   "manager",
   "manager_comercial",
@@ -33,21 +23,63 @@ const MANAGER_MODULES = [
   "manager_clientes_bulk",
 ];
 
+const NAV: Entry[] = [
+  { kind: "link", href: "/",            label: "HOME",        module: "home" },
+  { kind: "link", href: "/operar",      label: "OPERAR",      module: "operar" },
+  {
+    kind: "group",
+    label: "MERCADOS",
+    items: [
+      { href: "/renta-fija",     label: "Renta Fija",     module: "renta-fija" },
+      { href: "/derivados",      label: "Derivados",      module: "derivados" },
+      { href: "/agro",           label: "Agro",           module: "agro" },
+      { href: "/sinteticos",     label: "Sintéticos",     module: "sinteticos" },
+      { href: "/renta-variable", label: "Renta Variable", module: "renta-variable" },
+      { href: "/retorno",        label: "Estrategia",     module: "estrategia" },
+    ],
+  },
+  {
+    kind: "group",
+    label: "NEGOCIO",
+    items: [
+      { href: "/operaciones", label: "Operaciones", module: "operaciones" },
+      { href: "/aum",         label: "AUM",         module: "portfolios" },
+    ],
+  },
+  { kind: "link", href: "/valuaciones", label: "CARTERAS",    module: "portfolios" },
+  { kind: "link", href: "/back-office", label: "BACK OFFICE", module: "back-office" },
+  { kind: "link", href: "/manager",     label: "MANAGER",     module: "manager" },
+];
+
+// modules === null → dev mode / backend caído: mostrar todo.
+function hasModule(modules: string[] | null, module: string): boolean {
+  if (modules === null) return true;
+  if (module === "manager") return MANAGER_MODULES.some((m) => modules.includes(m));
+  return modules.includes(module);
+}
+
 export function Header({ modules = null }: { modules?: string[] | null }) {
   const pathname = usePathname();
-  // modules === null → dev mode / backend caído: mostrar todos los links.
-  // modules === [] o distinto → filtrar por pertenencia.
-  const links =
-    modules === null
-      ? NAV_LINKS
-      : NAV_LINKS.filter((l) => {
-          if (l.href === "/manager") {
-            return MANAGER_MODULES.some((m) => modules.includes(m));
-          }
-          return modules.includes(l.module);
-        });
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
+
+  // Filtrado RBAC: links por su módulo; grupos quedan con sus items visibles
+  // y se ocultan si no queda ninguno.
+  const entries: Entry[] = NAV.map((e) => {
+    if (e.kind === "link") return hasModule(modules, e.module) ? e : null;
+    const items = e.items.filter((it) => hasModule(modules, it.module));
+    return items.length ? { ...e, items } : null;
+  }).filter((e): e is Entry => e !== null);
+
+  const linkClass = (active: boolean) =>
+    "px-3 py-1 text-[11px] font-semibold tracking-wide transition-colors " +
+    (active
+      ? "text-white bg-white/15"
+      : "text-white/60 hover:text-white hover:bg-white/10");
+
   return (
-    <header className="flex items-center h-10 px-3 bg-[#094293] border-b border-[#062d66]">
+    <header className="relative z-50 flex items-center h-10 px-3 bg-[#094293] border-b border-[#062d66]">
       <Link href="/" className="flex items-center gap-2 mr-6">
         <Image
           src="/logo-login.png"
@@ -59,23 +91,39 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
       </Link>
       <div className="h-4 w-px bg-white/20 mr-4" />
       <nav className="flex gap-0.5 items-center">
-        {links.map(({ href, label }) => {
-          const active =
-            href === "/"
-              ? pathname === "/"
-              : pathname === href || pathname.startsWith(href + "/");
+        {entries.map((e) => {
+          if (e.kind === "link") {
+            return (
+              <Link key={e.href} href={e.href} className={linkClass(isActive(e.href))}>
+                {e.label}
+              </Link>
+            );
+          }
+          const groupActive = e.items.some((it) => isActive(it.href));
           return (
-            <Link
-              key={href}
-              href={href}
-              className={`px-3 py-1 text-[11px] font-semibold tracking-wide transition-colors ${
-                active
-                  ? "text-white bg-white/15"
-                  : "text-white/60 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              {label}
-            </Link>
+            <div key={e.label} className="relative group">
+              <button type="button" className={linkClass(groupActive) + " inline-flex items-center gap-1 cursor-default"}>
+                {e.label}
+                <span className="text-[7px] leading-none opacity-70">▼</span>
+              </button>
+              {/* Dropdown — aparece on-hover (CSS puro, sin estado). */}
+              <div className="absolute left-0 top-full hidden group-hover:block z-50 min-w-[180px] bg-[#073876] border border-[#0b50ad] shadow-xl py-1">
+                {e.items.map((it) => (
+                  <Link
+                    key={it.href}
+                    href={it.href}
+                    className={
+                      "block px-3 py-1.5 text-[11px] font-semibold tracking-wide whitespace-nowrap transition-colors " +
+                      (isActive(it.href)
+                        ? "text-white bg-white/15"
+                        : "text-white/70 hover:text-white hover:bg-white/10")
+                    }
+                  >
+                    {it.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           );
         })}
       </nav>
