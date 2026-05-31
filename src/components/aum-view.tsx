@@ -583,8 +583,6 @@ export function AumView() {
     return serie.filter((s) => s.fecha >= corteStr);
   }, [serie, rangoKey]);
 
-  const ultimo = serie.length ? serie[serie.length - 1] : null;
-
   // snapshot: total, por emisor, por ticker/cuenta
   const snapshotTotal = useMemo(
     () => snapshot.reduce((s, r) => s + r.valuacion, 0),
@@ -892,30 +890,8 @@ export function AumView() {
             leaderboard "POR CARTERA" content-based con max-height (suelen
             ser pocas carteras, no llena la pantalla). */}
         <div className={`min-h-0 grid gap-3 ${
-          tab === "total" ? "grid-rows-[1fr_28vh]" : "grid-rows-[auto_auto_1fr]"
+          tab === "total" ? "grid-rows-[1fr_28vh]" : "grid-rows-[auto_1fr]"
         }`}>
-          {/* KPIs — solo FCI los muestra. TOTAL los movió al tabBar
-              (FECHA · TOTAL) para que el chart tenga toda la altura
-              y no haya bounce al cargar la serie. */}
-          {tab !== "total" && (
-            <div className="grid grid-cols-3 gap-3">
-              <Kpi
-                label="TOTAL FCI (HOY)"
-                value={fmtCompact(ultimo?.total || 0)}
-                accent={BRAND_BLUE}
-              />
-              <Kpi
-                label="SOC. GERENTES"
-                value={String(Object.keys(ultimo?.por_emisor || {}).length)}
-              />
-              <Kpi
-                label="SNAPSHOTS"
-                value={String(serie.length)}
-                sub={`desde ${fmtFecha(serie[0].fecha)}`}
-              />
-            </div>
-          )}
-
           {/* Chart evolución */}
           <div className={`border border-[#1a1a1a] bg-[#080808] ${
             tab === "total" ? "flex flex-col min-h-0" : ""
@@ -1089,39 +1065,7 @@ export function AumView() {
             están en el tabBar de arriba, así que el panel de SNAPSHOT
             se oculta y el detalle ocupa toda la columna. En FCI se
             mantiene el card de SNAPSHOT como antes. */}
-        <div className={`min-h-0 grid gap-3 ${
-          tab === "total" ? "grid-rows-[1fr]" : "grid-rows-[auto_1fr]"
-        }`}>
-          {tab !== "total" && (
-            <div className="border border-[#1a1a1a] bg-[#080808]">
-              <PanelHeader title="SNAPSHOT" sub={fmtFecha(fechaSel)} />
-              <div className="p-3 grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
-                    Fecha snapshot
-                  </div>
-                  <select
-                    value={fechaSel}
-                    onChange={(e) => setFechaSel(e.target.value)}
-                    className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
-                  >
-                    {fechasAll.slice().reverse().map((f) => (
-                      <option key={f} value={f}>{fmtFecha(f)}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col justify-end">
-                  <div className="text-[10px] text-[#555555] uppercase tracking-wide">
-                    Total FCI
-                  </div>
-                  <div className="text-[20px] font-semibold" style={{ color: BRAND_BLUE }}>
-                    {fmtFull(snapshotTotal)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
+        <div className="min-h-0 grid gap-3 grid-rows-[1fr]">
           {tab === "total" ? (
             // ── DETALLE TOTAL: dos sub-tablas (CUENTA + ASSET) con
             //     filtro cruzado y reactivo a la cartera del leaderboard.
@@ -1251,7 +1195,7 @@ export function AumView() {
           ) : (
             <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
               <PanelHeader
-                title="DETALLE"
+                title={`DETALLE · ${fmtFull(snapshotTotal)}`}
                 sub={
                   emisorSel
                     ? `${emisorSel} · ${fmtCompact(
@@ -1260,6 +1204,7 @@ export function AumView() {
                       )}`
                     : "Seleccioná un emisor"
                 }
+                actions={<DateStepper fechas={fechasAll} value={fechaSel} onChange={setFechaSel} />}
               />
               <div className="flex-1 min-h-0 overflow-y-auto p-2">
                 {snapErr ? (
@@ -1824,6 +1769,36 @@ function PanelHeader({
         </span>
       )}
     </div>
+  );
+}
+
+// Navegador de fecha horizontal: ◀ fecha ▶. `fechas` ascendente; ◀ va a la
+// anterior, ▶ a la siguiente. Reemplaza el dropdown de fecha del snapshot FCI.
+function DateStepper({
+  fechas,
+  value,
+  onChange,
+}: {
+  fechas: string[];
+  value: string;
+  onChange: (f: string) => void;
+}) {
+  const idx = fechas.indexOf(value);
+  const go = (d: number) => {
+    const ni = idx + d;
+    if (ni >= 0 && ni < fechas.length) onChange(fechas[ni]);
+  };
+  const btn =
+    "px-1.5 h-[20px] text-[11px] leading-none border border-[#2a2a2a] text-[#888888] " +
+    "hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-30 disabled:cursor-not-allowed";
+  return (
+    <span className="inline-flex items-center gap-1 font-mono">
+      <button type="button" onClick={() => go(-1)} disabled={idx <= 0} className={btn} title="Fecha anterior">◀</button>
+      <span className="text-[11px] text-[#d0d0d0] min-w-[58px] text-center tabular-nums">
+        {value ? fmtFecha(value) : "—"}
+      </span>
+      <button type="button" onClick={() => go(1)} disabled={idx < 0 || idx >= fechas.length - 1} className={btn} title="Fecha siguiente">▶</button>
+    </span>
   );
 }
 
