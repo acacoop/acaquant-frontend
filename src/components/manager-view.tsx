@@ -1328,10 +1328,20 @@ const ASSET_CAMPOS = [
 type AssetCampo = (typeof ASSET_CAMPOS)[number];
 type AssetDraft = Record<AssetCampo, string>;
 
+// Campos de dropdown CERRADO: solo se eligen valores existentes, no se
+// pueden tipear nuevos. El resto son inputs editables con datalist.
+const ASSET_CAMPOS_CERRADOS: readonly AssetCampo[] = ["CARTERA", "CLASE_ACTIVO"];
+
 function emptyDraft(): AssetDraft {
   return {
     CARTERA: "", EMISOR: "", CLASE_ACTIVO: "", CALIFICACION: "",
     TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "",
+  };
+}
+function emptyOpts(): Record<AssetCampo, string[]> {
+  return {
+    CARTERA: [], EMISOR: [], CLASE_ACTIVO: [], CALIFICACION: [],
+    TICKER: [], VENCIMIENTO: [], INSTRUMENTO: [],
   };
 }
 function draftFromAsset(a: AssetGap): AssetDraft {
@@ -1346,8 +1356,8 @@ function TabAssets() {
   const [error, setError] = useState<string | null>(null);
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [drafts, setDrafts] = useState<Record<string, AssetDraft>>({});
-  const [carteraOpts, setCarteraOpts] = useState<string[]>([]);
-  const [emisorOpts, setEmisorOpts] = useState<string[]>([]);
+  // Valores únicos por campo (dropdown cerrado / datalist editable).
+  const [valueOpts, setValueOpts] = useState<Record<AssetCampo, string[]>>(emptyOpts);
   // Filtros de la query backend.
   const [filtroCartera, setFiltroCartera] = useState<string>("");
   const [filtroEmisor, setFiltroEmisor] = useState<string>("");
@@ -1382,9 +1392,15 @@ function TabAssets() {
   useEffect(() => {
     fetch("/api/manager/assets/values")
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d: { carteras: string[]; emisores: string[] }) => {
-        setCarteraOpts(d.carteras || []);
-        setEmisorOpts(d.emisores || []);
+      .then((d: { values?: Partial<Record<AssetCampo, string[]>>; carteras?: string[]; emisores?: string[] }) => {
+        const opts = emptyOpts();
+        for (const c of ASSET_CAMPOS) opts[c] = d.values?.[c] ?? [];
+        // Fallback a los alias viejos si el backend no manda `values`.
+        if (!d.values) {
+          opts.CARTERA = d.carteras ?? [];
+          opts.EMISOR = d.emisores ?? [];
+        }
+        setValueOpts(opts);
       })
       .catch(() => { /* silencioso — sin sugerencias el input sigue funcionando */ });
   }, []);
@@ -1399,8 +1415,8 @@ function TabAssets() {
     }));
   };
 
-  const saveRow = async (asset: AssetGap) => {
-    const draft = drafts[asset.unidad];
+  const saveRow = async (asset: AssetGap, draftOverride?: AssetDraft) => {
+    const draft = draftOverride ?? drafts[asset.unidad];
     if (!draft) return;
     const payload: Record<string, string> = { unidad: asset.unidad };
     for (const c of ASSET_CAMPOS) {
@@ -1441,21 +1457,18 @@ function TabAssets() {
     }
   };
 
-  // Solo CARTERA y EMISOR tienen autocomplete (datalist).
-  const listId: Partial<Record<AssetCampo, string>> = {
-    CARTERA: "cartera-options",
-    EMISOR: "emisor-options",
-  };
+  // Campos abiertos (input editable): datalist con valores existentes.
+  // Los campos cerrados (CARTERA, CLASE_ACTIVO) van como <select> y no usan list.
+  const camposAbiertos = ASSET_CAMPOS.filter((c) => !ASSET_CAMPOS_CERRADOS.includes(c));
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      {/* Datalists para autocomplete — compartidos por los inputs via list="..." */}
-      <datalist id="cartera-options">
-        {carteraOpts.map((c) => <option key={c} value={c} />)}
-      </datalist>
-      <datalist id="emisor-options">
-        {emisorOpts.map((e) => <option key={e} value={e} />)}
-      </datalist>
+      {/* Datalists para autocomplete de los campos abiertos — via list="<campo>-options" */}
+      {camposAbiertos.map((c) => (
+        <datalist key={c} id={`${c}-options`}>
+          {(valueOpts[c] || []).map((v) => <option key={v} value={v} />)}
+        </datalist>
+      ))}
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">ASSETS</span>
         <span className="text-[10px] text-[#666]">{assets.length} resultados</span>
@@ -1467,7 +1480,7 @@ function TabAssets() {
           className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
         >
           <option value="">— todas —</option>
-          {carteraOpts.map((c) => <option key={c} value={c}>{c}</option>)}
+          {valueOpts.CARTERA.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[#666]">EMISOR</span>
@@ -1477,7 +1490,7 @@ function TabAssets() {
           className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
         >
           <option value="">— todos —</option>
-          {emisorOpts.map((e) => <option key={e} value={e}>{e}</option>)}
+          {valueOpts.EMISOR.map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[#666]">CAMPO VACÍO</span>
@@ -1531,22 +1544,47 @@ function TabAssets() {
                     >
                       {a.unidad}
                     </td>
-                    {ASSET_CAMPOS.map((c) => (
-                      <td key={c} className="px-2 py-1.5">
-                        <input
-                          type="text"
-                          list={listId[c]}
-                          value={draft[c]}
-                          onChange={(e) => setDraftField(a.unidad, c, e.target.value)}
-                          onBlur={() => saveRow(a)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                          }}
-                          placeholder="—"
-                          className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full min-w-[90px]"
-                        />
-                      </td>
-                    ))}
+                    {ASSET_CAMPOS.map((c) => {
+                      const cerrado = ASSET_CAMPOS_CERRADOS.includes(c);
+                      return (
+                        <td key={c} className="px-2 py-1.5">
+                          {cerrado ? (
+                            // Dropdown cerrado: solo valores existentes, sin tipear nuevos.
+                            // Guarda al instante al elegir (no depende del blur del select).
+                            <select
+                              value={draft[c]}
+                              onChange={(e) => {
+                                const nd = { ...(drafts[a.unidad] || emptyDraft()), [c]: e.target.value };
+                                setDraftField(a.unidad, c, e.target.value);
+                                saveRow(a, nd);
+                              }}
+                              className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full min-w-[90px]"
+                            >
+                              <option value="">—</option>
+                              {/* Incluye el valor actual aunque no esté en la lista (placeholder viejo). */}
+                              {(draft[c] && !valueOpts[c].includes(draft[c])
+                                ? [draft[c], ...valueOpts[c]]
+                                : valueOpts[c]
+                              ).map((o) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            // Campo abierto: input editable + datalist (flechita de sugerencias).
+                            <input
+                              type="text"
+                              list={`${c}-options`}
+                              value={draft[c]}
+                              onChange={(e) => setDraftField(a.unidad, c, e.target.value)}
+                              onBlur={() => saveRow(a)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                              }}
+                              placeholder="—"
+                              className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-full min-w-[90px]"
+                            />
+                          )}
+                        </td>
+                      );
+                    })}
                     <td className="px-3 py-1.5 text-[#666] text-[10px] whitespace-nowrap">
                       {a.actualizado_at ? (
                         <>
