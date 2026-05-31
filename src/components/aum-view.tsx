@@ -892,8 +892,8 @@ export function AumView() {
         <div className={`min-h-0 grid gap-3 ${
           tab === "total" ? "grid-rows-[1fr_28vh]" : "grid-rows-[auto_1fr]"
         }`}>
-          {/* Chart evolución */}
-          <div className={`border border-[var(--t-border)] bg-[var(--t-panel)] ${
+          {/* Chart evolución — brand-watermark: logo de fondo tenue en modo claro */}
+          <div className={`brand-watermark border border-[var(--t-border)] bg-[var(--t-panel)] ${
             tab === "total" ? "flex flex-col min-h-0" : ""
           }`}>
             <PanelHeader

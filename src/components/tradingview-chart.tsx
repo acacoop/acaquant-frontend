@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * TradingView Advanced Chart Widget (gratis, sin API key).
@@ -72,6 +72,17 @@ function loadTvScript(): Promise<void> {
 export function TradingViewChart({ symbol, height = "100%" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const idRef = useRef<string>(`tv_${Math.random().toString(36).slice(2, 10)}`);
+  // Tema actual; se actualiza cuando el switch cambia la clase "light" en <html>,
+  // y al cambiar reconstruye el widget (sin necesidad de refrescar la página).
+  const [isLight, setIsLight] = useState(false);
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setIsLight(el.classList.contains("light"));
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,8 +96,6 @@ export function TradingViewChart({ symbol, height = "100%" }: Props) {
     inner.style.width = "100%";
     containerRef.current.appendChild(inner);
 
-    // Tema del widget según el tema de la app (clase "light" en <html>).
-    const isLight = document.documentElement.classList.contains("light");
     loadTvScript()
       .then(() => {
         if (cancelled || !window.TradingView) return;
@@ -122,7 +131,7 @@ export function TradingViewChart({ symbol, height = "100%" }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [symbol]);
+  }, [symbol, isLight]);
 
   return <div ref={containerRef} style={{ height, width: "100%" }} />;
 }

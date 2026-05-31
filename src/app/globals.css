@@ -74,6 +74,31 @@
   font-weight: 500;
 }
 
+/* Marca de agua: logo de empresa de fondo, MUY tenue, SOLO en modo claro.
+   Aplicá la clase `brand-watermark` a cualquier contenedor (chart/tabla/panel)
+   que deba mostrarlo. El contenido va por encima (necesita position relativa).
+   En oscuro no aparece (la regla solo existe bajo .light). */
+.light .brand-watermark {
+  position: relative;
+}
+.light .brand-watermark::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/logo-header.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(45%, 320px);
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Los hijos directos quedan por encima de la marca de agua. */
+.light .brand-watermark > * {
+  position: relative;
+  z-index: 1;
+}
+
 @theme inline {
   /* ACA Valores + Bloomberg palette */
   --color-aca-blue: #094293;
