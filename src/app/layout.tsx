@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { JetBrains_Mono } from "next/font/google";
 import { Header } from "@/components/header";
 import { PauseBanner } from "@/components/pause-banner";
 import { getMe } from "@/lib/me";
@@ -16,6 +17,15 @@ export const metadata: Metadata = {
   description: "TradingAV — Terminal para mercados argentinos",
 };
 
+// Self-host de la fuente (antes era un <link> render-blocking a Google Fonts).
+// Setea --font-jb-mono, que globals.css usa como primaria de --font-mono.
+const jbMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-jb-mono",
+  display: "swap",
+});
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -31,13 +41,7 @@ export default async function RootLayout({
   const isProd = !!process.env.API_URL;
   const modules = me?.modules ?? (isProd ? [] : null);
   return (
-    <html lang="es" className="h-full">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="es" className={`h-full ${jbMono.variable}`}>
       <body className="h-full flex flex-col">
         <Header modules={modules} />
         <PauseBanner />

@@ -19,7 +19,7 @@
   --color-bb-red: #ff3333;
   --color-bb-blue: #3399ff;
 
-  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", "SF Mono", "Consolas", monospace;
+  --font-mono: var(--font-jb-mono), "JetBrains Mono", "Cascadia Code", "Fira Code", "SF Mono", "Consolas", monospace;
 }
 
 * {
