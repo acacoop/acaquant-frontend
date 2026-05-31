@@ -44,9 +44,9 @@ const NAV: Entry[] = [
     items: [
       { href: "/operaciones", label: "Operaciones", module: "operaciones" },
       { href: "/aum",         label: "AUM",         module: "portfolios" },
+      { href: "/valuaciones", label: "Carteras",    module: "portfolios" },
     ],
   },
-  { kind: "link", href: "/valuaciones", label: "CARTERAS",    module: "portfolios" },
   { kind: "link", href: "/back-office", label: "BACK OFFICE", module: "back-office" },
   { kind: "link", href: "/manager",     label: "MANAGER",     module: "manager" },
 ];
