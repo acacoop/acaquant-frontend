@@ -11,6 +11,8 @@
  * handlers de Next que tienen que conservar la semántica HTTP del backend.
  */
 
+import { trustedEmail } from "./cf-access";
+
 const API_URL = process.env.API_URL || "https://api.acaquant.com";
 const API_KEY = process.env.API_KEY || "";
 const CF_CLIENT_ID = process.env.CF_ACCESS_CLIENT_ID || "";
@@ -37,8 +39,13 @@ export async function proxyToBackend(
     headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
   }
 
-  const email = req.headers.get("cf-access-authenticated-user-email");
-  if (email) headers["cf-access-authenticated-user-email"] = email;
+  // Email de confianza desde el sello firmado de CF (no spoofeable). Forwardeamos
+  // x-acaquant-user-email (el que el backend lee con prioridad). Ver lib/cf-access.ts.
+  const email = await trustedEmail((n) => req.headers.get(n));
+  if (email) {
+    headers["cf-access-authenticated-user-email"] = email;
+    headers["x-acaquant-user-email"] = email;
+  }
 
   if (opts.body) headers["Content-Type"] = "application/json";
 

@@ -22,12 +22,14 @@ import { trustedEmail } from "./lib/cf-access";
 // Coincide con require_any_module() del backend en api/auth.py.
 const PATH_MODULES: [string, string[]][] = [
   ["/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk"]],
+  ["/api/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk"]],
   // Asistente (legacy): accesible solo desde Manager. Sin entrada propia.
   ["/api/chat", ["manager"]],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
   ["/operar", ["operar"]],
   ["/api/ordenes", ["operar"]],
   ["/api/operativa", ["operar"]],
+  ["/api/operar", ["operar"]],
   ["/api/risk", ["operar"]],
   // /operaciones (movimientos, depósitos, intraday) + /operadores (ex comercial)
   // + /contrapartes (contrapartes + flujo vs aum) — todas módulo `operaciones`
@@ -55,15 +57,29 @@ function modulesForPath(path: string): string[] | null {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  const requiredModules = modulesForPath(path);
-  if (!requiredModules) return NextResponse.next();
 
-  const email = (
-    request.headers.get("cf-access-authenticated-user-email") ?? ""
-  ).toLowerCase();
+  // Email de confianza: con validación CF activa sale del sello firmado
+  // (no spoofeable); si no, del header de texto plano. Ver lib/cf-access.ts.
+  const email = (await trustedEmail((n) => request.headers.get(n))).toLowerCase();
+
+  // Sanitización: borramos cualquier email que venga en el request entrante
+  // (spoofeado si alguien saltea Cloudflare) y seteamos SOLO el verificado. Así
+  // TODO route handler aguas abajo (catch-alls /api/manager, /api/ordenes, etc.)
+  // lee la identidad de confianza desde estos headers, no la del atacante.
+  const fwd = new Headers(request.headers);
+  fwd.delete("cf-access-authenticated-user-email");
+  fwd.delete("x-acaquant-user-email");
+  if (email) {
+    fwd.set("cf-access-authenticated-user-email", email);
+    fwd.set("x-acaquant-user-email", email);
+  }
+  const pass = () => NextResponse.next({ request: { headers: fwd } });
+
+  const requiredModules = modulesForPath(path);
+  if (!requiredModules) return pass();
 
   // Dev (sin CF Access activo): dejar pasar todo
-  if (!email && !process.env.API_URL) return NextResponse.next();
+  if (!email && !process.env.API_URL) return pass();
 
   const apiUrl = process.env.API_URL || "https://api.acaquant.com";
   const apiKey = process.env.API_KEY || "";
@@ -117,7 +133,7 @@ export async function proxy(request: NextRequest) {
       : NextResponse.redirect(new URL("/", request.url));
   }
 
-  return NextResponse.next();
+  return pass();
 }
 
 export const config = {
@@ -130,10 +146,12 @@ export const config = {
     "/aum/:path*",
     "/valuaciones/:path*",
     "/back-office/:path*",
+    "/api/manager/:path*",
     "/api/chat/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
     "/api/operativa/:path*",
+    "/api/operar/:path*",
     "/api/risk/:path*",
     "/api/cuentas/:path*",
     "/api/portfolio/:path*",

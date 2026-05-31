@@ -20,6 +20,7 @@
  *               no cachea para evitar cambios no deseados en rutas viejas.
  */
 import { headers as nextHeaders } from "next/headers";
+import { trustedEmail } from "./cf-access";
 
 const API_URL = process.env.API_URL || "https://api.acaquant.com";
 const API_KEY = process.env.API_KEY || "";
@@ -31,7 +32,9 @@ async function _readUserEmail(): Promise<string | null> {
   // se llama fuera de contexto request (ej. al construir un módulo).
   try {
     const h = await nextHeaders();
-    return h.get("cf-access-authenticated-user-email");
+    // Email de confianza: con validación CF activa sale del sello firmado, no del
+    // header de texto plano (no spoofeable). Ver lib/cf-access.ts.
+    return (await trustedEmail((n) => h.get(n))) || null;
   } catch {
     return null;
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { trustedEmail } from "@/lib/cf-access";
 
 // Proxy a /api/me del backend FastAPI — identidad del caller
 // (email + role + modules + is_admin). Consumido por el layout y por proxy.ts.
@@ -12,7 +13,8 @@ export async function GET(req: Request) {
     // CF Access estripa cf-access-authenticated-user-email con service
     // token; mandamos x-acaquant-user-email también (el que el backend
     // mira con prioridad cuando el JWT es de service token).
-    const email = req.headers.get("cf-access-authenticated-user-email") ?? "";
+    // Email de confianza desde el sello firmado de CF (no spoofeable). Ver cf-access.ts.
+    const email = await trustedEmail((n) => req.headers.get(n));
     const headers: Record<string, string> = {};
     if (email) {
       headers["cf-access-authenticated-user-email"] = email;
