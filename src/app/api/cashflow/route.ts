@@ -16,11 +16,10 @@ interface Accionista {
   grupo: string;
 }
 
-// Cache-Control: Vercel Edge cachea 5 min y sirve stale hasta 10 min
-// mientras revalida en background. El backend también cachea 300s, así
-// que en el peor caso sólo se pega a Mongo 12×/hora.
+// PII de clientes (nombre/cuenta/grupo) → NO se cachea en el CDN compartido
+// de Vercel. El backend ya cachea 300s, así que el ahorro a Mongo se mantiene.
 const CACHE_HEADERS = {
-  "Cache-Control": "s-maxage=300, stale-while-revalidate=600",
+  "Cache-Control": "private, no-store",
 };
 
 export async function GET() {

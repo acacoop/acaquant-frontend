@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { headers } from "next/headers";
 
 export type Me = {
@@ -16,7 +17,10 @@ export type Me = {
  * el caller decide cómo manejarlo (típicamente: mostrar todos los
  * links en dev, ocultar todos los admin en prod sin me).
  */
-export async function getMe(): Promise<Me | null> {
+// Envuelto en React.cache(): layout + page suelen llamar getMe() en el mismo
+// render (ej. /manager, /derivados) → sin esto son 2 round-trips a /api/me.
+// cache() los deduplica dentro del mismo request server.
+export const getMe = cache(async function getMe(): Promise<Me | null> {
   const API_URL = process.env.API_URL || "https://api.acaquant.com";
   const API_KEY = process.env.API_KEY || "";
   const CF_ID = process.env.CF_ACCESS_CLIENT_ID || "";
@@ -50,4 +54,4 @@ export async function getMe(): Promise<Me | null> {
   } catch {
     return null;
   }
-}
+});

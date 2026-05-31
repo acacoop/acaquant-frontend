@@ -21,8 +21,9 @@ interface ContraparteDoc {
   grupo?: string;
 }
 
+// PII de contrapartes → NO al CDN compartido (el backend ya cachea 300s).
 const CACHE_HEADERS = {
-  "Cache-Control": "s-maxage=300, stale-while-revalidate=600",
+  "Cache-Control": "private, no-store",
 };
 
 export async function GET() {

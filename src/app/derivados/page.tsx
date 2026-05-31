@@ -24,14 +24,16 @@ export default async function DerivadosPage() {
   // Derivados ahora es SOLO Opciones — Agro y Sintéticos se promovieron a
   // módulos top-level (/agro y /sinteticos). Esta page se queda con la meta
   // de Opciones; la chain se polleea client-side al montar.
-  const me = await getMe();
+  // En paralelo: me y meta son independientes (antes iban en serie → 2 RTT).
+  const [me, meta] = await Promise.all([
+    getMe(),
+    safeFetch<Meta>(
+      "/api/cotizaciones/opciones/meta",
+      { tasa: 0.242, vr_local: 0, vr_adr: 0 },
+      30,
+    ),
+  ]);
   const isAdmin = me?.is_admin ?? false;
-
-  const meta = await safeFetch<Meta>(
-    "/api/cotizaciones/opciones/meta",
-    { tasa: 0.242, vr_local: 0, vr_adr: 0 },
-    30,
-  );
   const opciones: OpcionDoc[] = [];
 
   return (

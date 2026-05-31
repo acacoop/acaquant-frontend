@@ -1,0 +1,18 @@
+# Vigía automático de dependencias del frontend. Agrupa minor/patch para no
+# inundar de PRs; los major (Next/React) vienen sueltos para revisarlos a mano.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

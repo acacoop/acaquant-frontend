@@ -160,18 +160,25 @@ function renderMarkdown(text: string): React.ReactNode[] {
     if (match.index > idx) nodes.push(text.slice(idx, match.index));
     if (match[1] && match[2]) {
       const [label, href] = [match[1], match[2]];
-      const external = href.startsWith("http");
-      nodes.push(
-        <a
-          key={key++}
-          href={href}
-          target={external ? "_blank" : undefined}
-          rel={external ? "noopener noreferrer" : undefined}
-          className="text-[#ff9900] underline decoration-dotted underline-offset-2 hover:text-[#ffb84d]"
-        >
-          {label}
-        </a>,
-      );
+      // Solo permitimos http(s) o rutas internas. Esquemas como javascript:/
+      // data: del output del LLM se renderizan como texto plano (anti-XSS).
+      const safe = /^(https?:\/\/|\/)/i.test(href.trim());
+      if (!safe) {
+        nodes.push(`${label} (${href})`);
+      } else {
+        const external = href.startsWith("http");
+        nodes.push(
+          <a
+            key={key++}
+            href={href}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noopener noreferrer" : undefined}
+            className="text-[#ff9900] underline decoration-dotted underline-offset-2 hover:text-[#ffb84d]"
+          >
+            {label}
+          </a>,
+        );
+      }
     } else if (match[3]) {
       nodes.push(
         <strong key={key++} className="text-white font-semibold">
