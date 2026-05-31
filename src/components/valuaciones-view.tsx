@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -330,10 +330,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   // Movimientos del mes — solo se fetcha cuando hay fecha seleccionada.
   const [movResp, setMovResp] = useState<MovimientosResp | null>(null);
   const [movLoading, setMovLoading] = useState(false);
-  // Toggle del panel derecho cuando hay fecha seleccionada: posiciones
-  // (portfolio), movimientos del mes (flujo) o variación vs mes anterior.
-  // Default portfolio. Sin fecha seleccionada solo se muestra portfolio.
-  const [panelMode, setPanelMode] = useState<"flujo" | "variacion">("flujo");
+  // Tab del panel PORTFOLIO (fila inferior, full width): posiciones o
+  // variación vs mes anterior. La variación necesita una fecha seleccionada.
+  // Los flujos del mes ya no viven acá — se despliegan inline en la tabla mensual.
+  const [portfolioTab, setPortfolioTab] = useState<"posiciones" | "variacion">("posiciones");
   // Variación del portfolio vs el snapshot anterior — solo con fecha.
   const [varResp, setVarResp] = useState<VariacionResp | null>(null);
   const [varLoading, setVarLoading] = useState(false);
@@ -551,13 +551,13 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
     n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
 
   return (
-    <div className="h-full flex gap-3 p-3 overflow-hidden">
+    <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
 
-      {/* COLUMNA DERECHA (order-2): gráfico de evolución (arriba) + tabla mensual (abajo) */}
-      <div className="flex-1 min-w-0 min-h-0 grid grid-rows-[1fr_1fr] gap-3 overflow-hidden order-2">
+      {/* FILA SUPERIOR: gráfico (50%) + tabla mensual (50%), juntos */}
+      <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
 
-        {/* Chart panel — arriba derecha */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden min-w-0 min-h-0">
+        {/* Chart panel — izquierda */}
+        <div className="w-1/2 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               Evolución mensual · [{idCuenta}]
@@ -729,8 +729,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           </div>
         </div>
 
-        {/* Tabla mensual compacta — abajo derecha */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden min-w-0 min-h-0">
+        {/* Tabla mensual compacta — derecha (con flujos inline al seleccionar un mes) */}
+        <div className="w-1/2 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               Mensual
@@ -854,8 +854,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     const tem        = esUSD ? m.tem_periodo_usd       : m.tem_periodo;
                     const tea        = esUSD ? m.tea_mensual_usd       : m.tea_mensual;
                     return (
+                      <Fragment key={m.mes}>
                       <tr
-                        key={m.mes}
                         onClick={() => setSelectedFecha(active ? null : m.ultimo_dia)}
                         className={
                           "cursor-pointer border-t border-[#111] transition-colors " +
@@ -912,6 +912,29 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                           {`${base100 - 100 >= 0 ? "+" : ""}${(base100 - 100).toFixed(2)}%`}
                         </td>
                       </tr>
+                      {/* Flujos del mes — se despliegan inline debajo del mes seleccionado */}
+                      {active && (
+                        <tr className="bg-[#070707]">
+                          <td colSpan={7} className="p-0 border-t border-[#1a1a1a]">
+                            <div className="px-2 py-1.5">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-[9px] uppercase tracking-widest text-[#ff9900]">Flujo del mes</span>
+                                {movResp && <span className="text-[9px] text-[#555] font-mono">{fmtMesAnio(movResp.mes)}</span>}
+                                {movLoading && <span className="text-[9px] text-[#888]">cargando…</span>}
+                                {movResp && (
+                                  <span className="ml-auto text-[9px] text-[#888] font-mono">
+                                    {movResp.n} · <span className="text-[#4a9eff] font-semibold">neto {fmtSigned(movResp.total_neto)}</span>
+                                  </span>
+                                )}
+                              </div>
+                              <div className="max-h-[220px] overflow-auto border border-[#141414]">
+                                <FlujoTabla movResp={movResp} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -922,19 +945,40 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
       </div>
 
-      {/* COLUMNA IZQUIERDA (order-1): posición actual (arriba) + vacío (abajo) */}
-      <div className="flex-1 min-w-0 min-h-0 grid grid-rows-[1fr_1fr] gap-3 overflow-hidden order-1">
-
-      {/* Posición actual / histórica con toggle Portfolio/Flujo cuando hay fecha. */}
-      <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+      {/* FILA INFERIOR: PORTFOLIO a todo el ancho, con tabs Posiciones / Variación */}
+      <div className="flex-1 min-w-0 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
         <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-            {!selectedFecha ? "Posición actual" : "Posición histórica"}
+            Portfolio
+          </span>
+          <span className="text-[9px] text-[#555] font-mono uppercase">
+            {!selectedFecha ? "actual" : "histórica"}
           </span>
           {ultimoSnap && (
             <span className="text-[9px] text-[#555] font-mono">
               {fmtFechaCorta(ultimoSnap)}
             </span>
+          )}
+          {/* Tabs Posiciones / Variación */}
+          <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333] ml-1">
+            {(["posiciones", "variacion"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setPortfolioTab(t)}
+                className={
+                  "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
+                  (portfolioTab === t
+                    ? "bg-[#ff9900] text-black"
+                    : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                }
+                title={t === "variacion" ? "Variación vs mes anterior (requiere mes seleccionado)" : "Posiciones del portfolio"}
+              >
+                {t === "posiciones" ? "Posiciones" : "Variación"}
+              </button>
+            ))}
+          </div>
+          {portfolioTab === "variacion" && varLoading && (
+            <span className="text-[9px] text-[#888]">cargando…</span>
           )}
 
           {selectedFecha && (
@@ -1039,14 +1083,26 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             }}
           />
 
-          {/* Header right: posiciones + total */}
+          {/* Header right: posiciones + total, o Δ total en la tab variación */}
           <span className="text-[10px] text-[#888] font-mono">
-            {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
+            {portfolioTab === "posiciones"
+              ? <>{posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span></>
+              : varResp?.totales && (
+                  <>Δ total <span className="font-semibold" style={{ color: colorDeltaMod(varResp.totales.delta_total) }}>{fmtSigned(varResp.totales.delta_total)}</span></>
+                )}
           </span>
         </div>
 
         <div className="flex-1 min-h-0 overflow-auto">
-          {posiciones.length === 0 ? (
+          {portfolioTab === "variacion" ? (
+            !selectedFecha ? (
+              <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+                Seleccioná un mes en la tabla mensual para ver la variación vs el mes anterior.
+              </div>
+            ) : (
+              <VariacionTabla varResp={varResp} />
+            )
+          ) : posiciones.length === 0 ? (
               <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
                 Sin posiciones activas.
               </div>
@@ -1125,66 +1181,6 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 </tbody>
               </table>
             )}
-        </div>
-      </div>
-
-        {/* Abajo izquierda: Flujo / Variación del mes seleccionado */}
-        <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
-              {panelMode === "flujo" ? "Flujo del mes" : "Variación vs mes anterior"}
-            </span>
-            {selectedFecha && movResp && panelMode === "flujo" && (
-              <span className="text-[9px] text-[#555] font-mono">{fmtMesAnio(movResp.mes)}</span>
-            )}
-            {/* Toggle Flujo / Variación */}
-            <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333] ml-1">
-              {(["flujo", "variacion"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setPanelMode(m)}
-                  className={
-                    "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                    (panelMode === m
-                      ? "bg-[#ff9900] text-black"
-                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
-                  }
-                >
-                  {m === "flujo" ? "Flujo" : "Variación"}
-                </button>
-              ))}
-            </div>
-            {(panelMode === "flujo" ? movLoading : varLoading) && (
-              <span className="text-[9px] text-[#888]">cargando…</span>
-            )}
-            <span className="ml-auto text-[10px] text-[#888] font-mono">
-              {panelMode === "flujo"
-                ? movResp && (
-                    <>
-                      {movResp.n} · <span className="text-[#4a9eff] font-semibold">neto {fmtSigned(movResp.total_neto)}</span>
-                    </>
-                  )
-                : varResp?.totales && (
-                    <>
-                      Δ total{" "}
-                      <span className="font-semibold" style={{ color: colorDeltaMod(varResp.totales.delta_total) }}>
-                        {fmtSigned(varResp.totales.delta_total)}
-                      </span>
-                    </>
-                  )}
-            </span>
-          </div>
-          <div className="flex-1 min-h-0 overflow-auto">
-            {!selectedFecha ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
-                Seleccioná un mes en la tabla mensual para ver el flujo o la variación.
-              </div>
-            ) : panelMode === "flujo" ? (
-              <FlujoTabla movResp={movResp} />
-            ) : (
-              <VariacionTabla varResp={varResp} />
-            )}
-          </div>
         </div>
       </div>
 
