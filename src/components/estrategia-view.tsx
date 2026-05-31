@@ -96,7 +96,7 @@ export function EstrategiaView() {
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
             placeholder="IBIT"
-            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div>
@@ -105,7 +105,7 @@ export function EstrategiaView() {
             value={monto}
             onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
-            className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div className="flex gap-1">
@@ -128,7 +128,7 @@ export function EstrategiaView() {
         <button
           onClick={analizar}
           disabled={loading || !ticker.trim()}
-          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40"
         >
           {loading ? "Analizando…" : "▶ Analizar"}
         </button>
@@ -143,7 +143,7 @@ export function EstrategiaView() {
         <>
           {/* Caracterización */}
           <div>
-            <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">
+            <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">
               CARACTERIZACIÓN — {data.trade.ticker} · {data.trade.direccion.toUpperCase()} · {fmtUsd(data.trade.monto)}
             </div>
             <div className="grid grid-cols-4 md:grid-cols-7 gap-1">
@@ -168,7 +168,7 @@ export function EstrategiaView() {
           {/* Hedge por beta */}
           {data.hedge_beta.length > 0 && (
             <div>
-              <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">
+              <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">
                 HEDGE POR BETA — neutralizar el mercado
               </div>
               <div className="flex gap-2 flex-wrap font-mono">
@@ -190,7 +190,7 @@ export function EstrategiaView() {
           {/* Hedge-finder */}
           {data.hedge_finder.length > 0 && (
             <div>
-              <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">
+              <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">
                 HEDGE-FINDER — universo rankeado por correlación
               </div>
               <table className="w-full font-mono">
@@ -207,7 +207,7 @@ export function EstrategiaView() {
                 <tbody>
                   {data.hedge_finder.slice(0, 15).map((h) => (
                     <tr key={h.ticker} className="border-b border-[var(--t-border)]">
-                      <td className="text-[#ff9900] px-1">{h.ticker}</td>
+                      <td className="text-[var(--t-accent)] px-1">{h.ticker}</td>
                       <td className={`text-right px-1 ${h.correlacion < 0 ? "text-[#3fbf6f]" : "text-[var(--t-text)]"}`}>
                         {h.correlacion.toFixed(2)}
                       </td>

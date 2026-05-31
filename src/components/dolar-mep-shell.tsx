@@ -117,7 +117,7 @@ export function DolarMepShell() {
         </div>
         <div className="flex items-baseline gap-2">
           <span className="text-[9px] tracking-wider text-[var(--t-text-dim)]">MEP {rueda}</span>
-          <span className="text-[20px] font-bold tracking-wide text-[#ff9900] tabular-nums leading-none">
+          <span className="text-[20px] font-bold tracking-wide text-[var(--t-accent)] tabular-nums leading-none">
             {mep !== null ? `$${mep.toFixed(2)}` : "—"}
           </span>
         </div>
@@ -182,8 +182,8 @@ function SubTabBtn({
       onClick={onClick}
       className={`px-3 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

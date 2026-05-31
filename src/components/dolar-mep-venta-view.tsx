@@ -270,7 +270,7 @@ export function DolarMepVentaView({
                   <PataCell pata={op.buy} />
                   <PataCell pata={op.sell} />
                   <Td right>{op.usd_efectivo ? `US$${op.usd_efectivo.toFixed(2)}` : "—"}</Td>
-                  <Td right className="text-[#ff9900]">
+                  <Td right className="text-[var(--t-accent)]">
                     {op.mep_efectivo ?? "—"}
                   </Td>
                   <Td className={estadoColor(op.estado)}>{op.estado ?? ""}</Td>

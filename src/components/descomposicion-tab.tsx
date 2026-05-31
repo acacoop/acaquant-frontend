@@ -309,7 +309,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
           <span className="text-[10px] text-[var(--t-text-muted)]">cargando fechas…</span>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-[300px]">
-            <span className="text-[10px] text-[#ff9900] font-mono min-w-[42px]">
+            <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[42px]">
               {fmtFechaCorta(fechaDesde)}
             </span>
             <DualRange
@@ -320,7 +320,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
               setLo={(v) => setRangoIdx([v, Math.max(v, effectiveRango[1])])}
               setHi={(v) => setRangoIdx([Math.min(v, effectiveRango[0]), v])}
             />
-            <span className="text-[10px] text-[#ff9900] font-mono min-w-[42px] text-right">
+            <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[42px] text-right">
               {fmtFechaCorta(fechaHasta)}
             </span>
           </div>
@@ -432,12 +432,12 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                         setAuditOpen(true);
                       }}
                       className={`cursor-pointer ${
-                        isSel ? "bg-[#ff9900]/15" : i % 2 === 0 ? "bg-[#0a0a0a]" : ""
+                        isSel ? "bg-[var(--t-accent)]/15" : i % 2 === 0 ? "bg-[#0a0a0a]" : ""
                       } hover:bg-[#1a1a1a]`}
                     >
-                      <td className="!px-1 text-[#ff9900]">{b.ticker_corto || b.ticker}</td>
+                      <td className="!px-1 text-[var(--t-accent)]">{b.ticker_corto || b.ticker}</td>
                       <td className="!px-1 text-right text-[#4a9eff]">{pct(b.carry)}</td>
-                      <td className="!px-1 text-right text-[#ff9900]">{pct(b.rolldown)}</td>
+                      <td className="!px-1 text-right text-[var(--t-accent)]">{pct(b.rolldown)}</td>
                       <td className={`!px-1 text-right ${colorRet(b.cambio_tasa)}`}>
                         {pctSigned(b.cambio_tasa)}
                       </td>
@@ -639,13 +639,13 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                         setAuditOpen(true);
                       }}
                       className={`cursor-pointer ${
-                        isSel ? "bg-[#ff9900]/15" : i % 2 === 0 ? "bg-[#0a0a0a]" : ""
+                        isSel ? "bg-[var(--t-accent)]/15" : i % 2 === 0 ? "bg-[#0a0a0a]" : ""
                       } hover:bg-[#1a1a1a]`}
                     >
-                      <td className="!px-1 text-[#ff9900]">{b.ticker_corto || b.ticker}</td>
+                      <td className="!px-1 text-[var(--t-accent)]">{b.ticker_corto || b.ticker}</td>
                       <td className="!px-1 text-right text-[var(--t-text)]">{pct(b.tasa)}</td>
                       <td className="!px-1 text-right text-[#4a9eff]">{pct(b.carry_esperado)}</td>
-                      <td className="!px-1 text-right text-[#ff9900]">{pct(b.rolldown_esperado)}</td>
+                      <td className="!px-1 text-right text-[var(--t-accent)]">{pct(b.rolldown_esperado)}</td>
                       <td className="!px-1 text-right font-semibold text-[#00cc66]">
                         {pct(b.total_esperado)}
                       </td>
@@ -701,7 +701,7 @@ function AuditDrawer({
     >
       <button
         onClick={onToggle}
-        className="w-8 flex flex-col items-center justify-start py-2 text-[var(--t-text-muted)] hover:text-[#ff9900] border-r border-[var(--t-border)] shrink-0"
+        className="w-8 flex flex-col items-center justify-start py-2 text-[var(--t-text-muted)] hover:text-[var(--t-accent)] border-r border-[var(--t-border)] shrink-0"
         title={open ? "Cerrar audit" : "Abrir audit"}
       >
         <span className="text-[14px] leading-none mb-1">{open ? "›" : "‹"}</span>
@@ -746,14 +746,14 @@ function AuditRealizado({
   return (
     <div className="p-3 space-y-3">
       <div>
-        <div className="text-[#ff9900] text-[11px] font-semibold tracking-wide">
+        <div className="text-[var(--t-accent)] text-[11px] font-semibold tracking-wide">
           {bono.ticker_corto || bono.ticker}
         </div>
         <div className="text-[var(--t-text-muted)] text-[9px]">
           {curva.toUpperCase()} · {dias} días · vto {bono.fecha_vencimiento}
         </div>
         {bono.is_zero_coupon === false && (
-          <div className="text-[#ff9900] text-[9px] mt-1">
+          <div className="text-[var(--t-accent)] text-[9px] mt-1">
             ⚠ Boncer cupón — descompuesto pero NO usado en curva ref
           </div>
         )}
@@ -833,7 +833,7 @@ function AuditEsperado({
   return (
     <div className="p-3 space-y-3">
       <div>
-        <div className="text-[#ff9900] text-[11px] font-semibold tracking-wide">
+        <div className="text-[var(--t-accent)] text-[11px] font-semibold tracking-wide">
           {bono.ticker_corto || bono.ticker}
         </div>
         <div className="text-[var(--t-text-muted)] text-[9px]">
@@ -888,7 +888,7 @@ Total = Carry + Roll${curva === "cer" ? "\nTotal_ARS = (1+Total)(1+CER_esp) − 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[9px] tracking-widest text-[#ff9900] font-semibold mb-1">
+      <div className="text-[9px] tracking-widest text-[var(--t-accent)] font-semibold mb-1">
         {title}
       </div>
       <div className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 space-y-0.5">
@@ -937,8 +937,8 @@ function FilterBtn({
       onClick={onClick}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

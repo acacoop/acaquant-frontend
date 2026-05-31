@@ -65,7 +65,7 @@ export function ManagerDebugComercialPanel() {
             <select
               value={operador}
               onChange={(e) => setOperador(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option value="">— operador —</option>
               {operadores.map((o) => (
@@ -78,12 +78,12 @@ export function ManagerDebugComercialPanel() {
               value={segmento}
               onChange={(e) => setSegmento(e.target.value)}
               placeholder="segmento (nivel_1)"
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             />
             <button
               onClick={run}
               disabled={loading || (!operador && !segmento.trim())}
-              className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+              className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40"
             >
               {loading ? "Ejecutando…" : "▶ Ejecutar"}
             </button>
@@ -94,11 +94,11 @@ export function ManagerDebugComercialPanel() {
             <>
               <div className="text-[11px] text-[var(--t-text)] flex flex-wrap gap-x-4 gap-y-1 font-mono">
                 <span className="text-[var(--t-text-dim)]">cuentas: {data.n_cuentas_con_actividad}/{data.n_cuentas_filtradas}</span>
-                <span># ops: <b className="text-[#ff9900]">{fmt(data.totales.n_ops)}</b></span>
+                <span># ops: <b className="text-[var(--t-accent)]">{fmt(data.totales.n_ops)}</b></span>
                 <span>vol total: ${fmt(data.totales.vol_total)}</span>
                 <span>vol mes: ${fmt(data.totales.vol_mes)}</span>
                 <span>aranceles: ${fmt(data.totales.ar_total)}</span>
-                <span>ticket prom: <b className="text-[#ff9900]">${fmt(data.totales.ticket_promedio)}</b></span>
+                <span>ticket prom: <b className="text-[var(--t-accent)]">${fmt(data.totales.ticket_promedio)}</b></span>
               </div>
               <div className="max-h-[320px] overflow-auto border border-[var(--t-border)]">
                 <table className="w-full text-[10px] font-mono tabular-nums">

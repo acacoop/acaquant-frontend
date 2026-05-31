@@ -71,8 +71,8 @@ export function InfoIcon({ tip, width = "300px", align = "left" }: Props) {
         }}
         className={`text-[8px] border rounded-full px-[3px] leading-[1.2] font-mono select-none ${
           pinned
-            ? "text-[#ff9900] border-[#ff9900]"
-            : "text-[var(--t-text-muted)] hover:text-[#ff9900] border-[#333]"
+            ? "text-[var(--t-accent)] border-[var(--t-accent)]"
+            : "text-[var(--t-text-muted)] hover:text-[var(--t-accent)] border-[#333]"
         }`}
       >
         ?
@@ -83,8 +83,8 @@ export function InfoIcon({ tip, width = "300px", align = "left" }: Props) {
             ? "block pointer-events-auto"
             : "hidden group-hover:block pointer-events-none"
         } bg-black border ${
-          pinned ? "border-[#ff9900]" : "border-[var(--t-border-2)]"
-        } p-3 ${pinned ? "pr-6" : ""} text-[10px] text-[var(--t-text)] leading-relaxed shadow-xl normal-case tracking-normal whitespace-normal max-h-[60vh] overflow-y-auto [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h4]:text-[10px] [&_h4]:text-[#ff9900] [&_h4]:font-semibold [&_h4]:tracking-wider [&_h4]:mb-1 [&_h4]:mt-2 [&_h4:first-child]:mt-0 [&_ul]:my-2 [&_ul]:pl-3 [&_li]:mb-1 [&_strong]:text-[#ff9900] [&_strong]:font-semibold [&_code]:text-[#3fbf6f] [&_code]:font-mono [&_code]:bg-[#0a0a0a] [&_code]:px-1`}
+          pinned ? "border-[var(--t-accent)]" : "border-[var(--t-border-2)]"
+        } p-3 ${pinned ? "pr-6" : ""} text-[10px] text-[var(--t-text)] leading-relaxed shadow-xl normal-case tracking-normal whitespace-normal max-h-[60vh] overflow-y-auto [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h4]:text-[10px] [&_h4]:text-[var(--t-accent)] [&_h4]:font-semibold [&_h4]:tracking-wider [&_h4]:mb-1 [&_h4]:mt-2 [&_h4:first-child]:mt-0 [&_ul]:my-2 [&_ul]:pl-3 [&_li]:mb-1 [&_strong]:text-[var(--t-accent)] [&_strong]:font-semibold [&_code]:text-[#3fbf6f] [&_code]:font-mono [&_code]:bg-[#0a0a0a] [&_code]:px-1`}
         style={{ width }}
       >
         {pinned && (
@@ -93,7 +93,7 @@ export function InfoIcon({ tip, width = "300px", align = "left" }: Props) {
               e.stopPropagation();
               setPinned(false);
             }}
-            className="absolute top-1 right-1 text-[var(--t-text-muted)] hover:text-[#ff9900] text-[12px] leading-none"
+            className="absolute top-1 right-1 text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px] leading-none"
             aria-label="cerrar"
           >
             ×

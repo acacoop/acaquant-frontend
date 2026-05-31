@@ -28,13 +28,13 @@ export default function GlobalError({
         <div className="flex gap-2 pt-1">
           <button
             onClick={reset}
-            className="px-3 py-1 text-[11px] font-semibold border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black transition-colors"
+            className="px-3 py-1 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black transition-colors"
           >
             Reintentar
           </button>
           <a
             href="/"
-            className="px-3 py-1 text-[11px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:border-[#ff9900] transition-colors"
+            className="px-3 py-1 text-[11px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] transition-colors"
           >
             Ir al inicio
           </a>

@@ -58,7 +58,7 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
 function ExposicionTabla({ titulo, filas }: { titulo: string; filas: Grupo[] }) {
   return (
     <div>
-      <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">{titulo}</div>
+      <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">{titulo}</div>
       <table className="w-full font-mono">
         <thead className="text-[var(--t-text-muted)] text-[8px]">
           <tr>
@@ -74,7 +74,7 @@ function ExposicionTabla({ titulo, filas }: { titulo: string; filas: Grupo[] }) 
               <td className="text-[var(--t-text)] px-1">{f.grupo}</td>
               <td className="text-right px-1 text-[var(--t-text-dim)]">{fmtUsd(f.neto)}</td>
               <td className="text-right px-1 text-[var(--t-text)]">{fmtUsd(f.bruto)}</td>
-              <td className="text-right px-1 text-[#ff9900]">{f.pct_bruto}%</td>
+              <td className="text-right px-1 text-[var(--t-accent)]">{f.pct_bruto}%</td>
             </tr>
           ))}
         </tbody>
@@ -131,7 +131,7 @@ export function MonitorView() {
             onChange={(e) => setTk(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
             placeholder="NVDA"
-            className="w-24 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-24 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div>
@@ -140,7 +140,7 @@ export function MonitorView() {
             value={monto}
             onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
-            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div className="flex gap-1">
@@ -162,14 +162,14 @@ export function MonitorView() {
         </div>
         <button
           onClick={agregar}
-          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors"
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors"
         >
           + Agregar
         </button>
         <button
           onClick={analizar}
           disabled={loading || !posiciones.length}
-          className="px-3 py-1 text-[10px] font-semibold border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black transition-colors disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black transition-colors disabled:opacity-40"
         >
           {loading ? "Analizando…" : "▶ Analizar book"}
         </button>
@@ -186,7 +186,7 @@ export function MonitorView() {
               <span className={p.notional >= 0 ? "text-[#3fbf6f]" : "text-[#ff7f7f]"}>
                 {p.notional >= 0 ? "L" : "S"}
               </span>
-              <span className="text-[#ff9900]">{p.ticker}</span>
+              <span className="text-[var(--t-accent)]">{p.ticker}</span>
               <span className="text-[var(--t-text-dim)]">{fmtUsd(Math.abs(p.notional))}</span>
               <button
                 onClick={() => quitar(p.ticker)}
@@ -239,7 +239,7 @@ export function MonitorView() {
           {/* Contribución de riesgo */}
           {data.contribucion_riesgo.length > 0 && (
             <div>
-              <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">
+              <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">
                 CONTRIBUCIÓN DE RIESGO — quién aporta el riesgo (no la plata)
               </div>
               <table className="w-full font-mono">
@@ -253,7 +253,7 @@ export function MonitorView() {
                 <tbody>
                   {data.contribucion_riesgo.map((c) => (
                     <tr key={c.ticker} className="border-b border-[var(--t-border)]">
-                      <td className="text-[#ff9900] px-1">{c.ticker}</td>
+                      <td className="text-[var(--t-accent)] px-1">{c.ticker}</td>
                       <td className="text-right px-1 text-[var(--t-text-dim)]">{fmtUsd(c.notional)}</td>
                       <td className={`text-right px-1 ${c.contrib_pct < 0 ? "text-[#3fbf6f]" : "text-[var(--t-text)]"}`}>
                         {c.contrib_pct}%

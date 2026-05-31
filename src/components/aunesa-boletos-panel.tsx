@@ -66,7 +66,7 @@ export function AunesaBoletosPanel() {
         <button
           onClick={() => setSub("faltantes")}
           className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${
-            sub === "faltantes" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"
+            sub === "faltantes" ? "text-[var(--t-accent)] border-b border-[var(--t-accent)]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"
           }`}
         >
           FALTANTES
@@ -74,7 +74,7 @@ export function AunesaBoletosPanel() {
         <button
           onClick={() => setSub("backfill")}
           className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${
-            sub === "backfill" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"
+            sub === "backfill" ? "text-[var(--t-accent)] border-b border-[var(--t-accent)]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"
           }`}
         >
           BACKFILL
@@ -163,7 +163,7 @@ function Faltantes() {
         <button
           onClick={buscar}
           disabled={loading}
-          className="bg-[#ff9900] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+          className="bg-[var(--t-accent)] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
         >
           {loading ? "BUSCANDO…" : "BUSCAR"}
         </button>
@@ -171,7 +171,7 @@ function Faltantes() {
           <div className="ml-auto flex items-center gap-4 text-[10px] text-[var(--t-text-dim)]">
             <span>
               Boletos sin arancel:{" "}
-              <span className="text-[#ff9900] font-bold">{data.n_total.toLocaleString("es-AR")}</span>
+              <span className="text-[var(--t-accent)] font-bold">{data.n_total.toLocaleString("es-AR")}</span>
             </span>
             <span>Cuentas (máx): {cuentasMax}</span>
             <span>
@@ -220,7 +220,7 @@ function Faltantes() {
                     key={`${r.categoria}-${r.op}-${i}`}
                     className="border-b border-[#101010] hover:bg-[#0d0d0d]"
                   >
-                    <td className="px-2 py-0.5 text-[#ff9900]">{r.categoria ?? "—"}</td>
+                    <td className="px-2 py-0.5 text-[var(--t-accent)]">{r.categoria ?? "—"}</td>
                     <td className="px-2 py-0.5 text-[var(--t-text)]">{r.op ?? "—"}</td>
                     <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                       {r.n.toLocaleString("es-AR")}
@@ -241,7 +241,7 @@ function Faltantes() {
             <div className="border-t border-[var(--t-border)] mt-2 px-3 py-2">
               <button
                 onClick={() => setShowDetalle((v) => !v)}
-                className="text-[10px] text-[var(--t-text-dim)] hover:text-[#ff9900] tracking-wide"
+                className="text-[10px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] tracking-wide"
               >
                 {showDetalle ? "▾" : "▸"} DETALLE POR BOLETO ({data.boletos.length}
                 {data.truncado ? ` de ${data.n_total} — truncado a ${data.limit}` : ""})
@@ -267,7 +267,7 @@ function Faltantes() {
                         className="border-t border-[#101010] hover:bg-[#0d0d0d]"
                       >
                         <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.fecha ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[#ff9900]">{b.id_cuenta ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[var(--t-accent)]">{b.id_cuenta ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[var(--t-text)]">{b.ticker ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.categoria ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.op ?? "—"}</td>
@@ -297,7 +297,7 @@ function Faltantes() {
 }
 
 const inputCls =
-  "bg-black border border-[var(--t-border-2)] text-[var(--t-text)] px-2 py-1 text-[11px] tabular-nums focus:border-[#ff9900] outline-none";
+  "bg-black border border-[var(--t-border-2)] text-[var(--t-text)] px-2 py-1 text-[11px] tabular-nums focus:border-[var(--t-accent)] outline-none";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -480,11 +480,11 @@ function Backfill() {
             type="checkbox"
             checked={apply}
             onChange={(e) => setApply(e.target.checked)}
-            className="accent-[#ff9900]"
+            className="accent-[var(--t-accent)]"
           />
           <span className="tracking-wide">
             {apply ? (
-              <span className="text-[#ff9900] font-bold">APPLY</span>
+              <span className="text-[var(--t-accent)] font-bold">APPLY</span>
             ) : (
               "DRY-RUN"
             )}
@@ -493,7 +493,7 @@ function Backfill() {
         <button
           onClick={start}
           disabled={starting || job?.status === "running"}
-          className="bg-[#ff9900] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+          className="bg-[var(--t-accent)] text-black font-bold tracking-wide px-4 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
         >
           {starting
             ? "ARRANCANDO…"
@@ -538,7 +538,7 @@ function Backfill() {
           {/* Barra de progreso */}
           <div className="h-1.5 bg-[#1a1a1a] mb-3">
             <div
-              className={`h-full ${job.status === "error" ? "bg-[#ff7f7f]" : "bg-[#ff9900]"}`}
+              className={`h-full ${job.status === "error" ? "bg-[#ff7f7f]" : "bg-[var(--t-accent)]"}`}
               style={{ width: `${progressPct}%`, transition: "width 0.3s ease-out" }}
             />
           </div>
@@ -643,7 +643,7 @@ function Backfill() {
                   <td className="px-2 py-0.5 text-right text-[#7fff7f]">
                     {h.stats.match}
                   </td>
-                  <td className="px-2 py-0.5 text-right text-[#ff9900]">
+                  <td className="px-2 py-0.5 text-right text-[var(--t-accent)]">
                     {h.stats.escritos}
                   </td>
                 </tr>

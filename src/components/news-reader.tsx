@@ -69,8 +69,8 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
   return (
     <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
       {/* Header */}
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           Lectura
         </span>
         <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{fuente}</span>
@@ -102,7 +102,7 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#ff9900] hover:text-[#ffb84d] underline decoration-dotted"
+                className="text-[var(--t-accent)] hover:text-[#ffb84d] underline decoration-dotted"
               >
                 abrir original ↗
               </a>
@@ -122,7 +122,7 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
           </article>
         )}
         {!loading && (!article || !article.ok) && (
-          <div className="text-[11px] text-[#ff9900] font-mono space-y-2">
+          <div className="text-[11px] text-[var(--t-accent)] font-mono space-y-2">
             <div>
               No pude extraer la nota limpia{article?.error ? `: ${article.error}` : ""}.
             </div>
@@ -133,7 +133,7 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block px-2 py-1 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black uppercase tracking-wide text-[10px]"
+              className="inline-block px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide text-[10px]"
             >
               Abrir original ↗
             </a>

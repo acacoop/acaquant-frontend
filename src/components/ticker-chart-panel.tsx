@@ -69,8 +69,8 @@ export function TickerChartPanel({ ticker }: { ticker: string | null }) {
             onClick={() => setTab(key)}
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
               tab === key
-                ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
           >
             {label}
@@ -369,7 +369,7 @@ function Stat({
 }) {
   const color =
     accent === "orange"
-      ? "text-[#ff9900]"
+      ? "text-[var(--t-accent)]"
       : accent === "red"
       ? "text-[#ff3333]"
       : accent === "green"

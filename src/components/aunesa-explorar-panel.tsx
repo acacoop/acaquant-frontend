@@ -200,7 +200,7 @@ export function AunesaExplorarPanel() {
         <button
           onClick={explorar}
           disabled={loading}
-          className="bg-[#ff9900] text-black px-3 py-1 text-[10px] font-semibold tracking-wider disabled:opacity-50"
+          className="bg-[var(--t-accent)] text-black px-3 py-1 text-[10px] font-semibold tracking-wider disabled:opacity-50"
         >
           {loading ? "EXPLORANDO…" : "EXPLORAR"}
         </button>
@@ -233,7 +233,7 @@ export function AunesaExplorarPanel() {
               className={
                 "px-3 py-0.5 text-[10px] uppercase tracking-wider " +
                 (vista === v
-                  ? "bg-[#ff9900] text-black"
+                  ? "bg-[var(--t-accent)] text-black"
                   : "bg-[var(--t-surface-2)] text-[var(--t-text-dim)] hover:text-[#ddd]")
               }
             >
@@ -264,7 +264,7 @@ export function AunesaExplorarPanel() {
               {catFilter && (
                 <button
                   onClick={() => setCatFilter("")}
-                  className="text-[var(--t-text-dim)] hover:text-[#ff9900]"
+                  className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
                 >
                   × clear
                 </button>
@@ -282,7 +282,7 @@ export function AunesaExplorarPanel() {
                     className={
                       "w-full flex items-center gap-2 px-3 py-1 text-left text-[11px] font-mono " +
                       (active
-                        ? "bg-[#1a1a1a] border-l-2 border-[#ff9900]"
+                        ? "bg-[#1a1a1a] border-l-2 border-[var(--t-accent)]"
                         : "hover:bg-[var(--t-surface-2)] border-l-2 border-transparent")
                     }
                   >
@@ -307,7 +307,7 @@ export function AunesaExplorarPanel() {
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                       (capFilter === f
-                        ? "bg-[#ff9900] text-black"
+                        ? "bg-[var(--t-accent)] text-black"
                         : "bg-[var(--t-surface-2)] text-[var(--t-text-dim)] hover:text-[#ddd]")
                     }
                   >
@@ -429,7 +429,7 @@ function FragBoleto({
           {b.cuenta ?? "—"}
         </td>
         <td className="px-2 py-1 text-[var(--t-text)]">{b.op ?? "—"}</td>
-        <td className="px-2 py-1 text-[#ff9900]">{b.ticker ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-accent)]">{b.ticker ?? "—"}</td>
         <td className={`px-2 py-1 text-right ${cantClr}`}>{fmtNum(b.cantidad, 2)}</td>
         <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(b.precio, 2)}</td>
         <td className={`px-2 py-1 text-right ${impClr}`}>{fmtNum(b.importe, 2)}</td>
@@ -441,7 +441,7 @@ function FragBoleto({
         <tr className="bg-[var(--t-panel)]">
           <td colSpan={11} className="px-4 py-3">
             <div className="text-[10px] text-[var(--t-text-muted)] mb-2">
-              <strong className="text-[#ff9900]">{b.informacion}</strong> · {b.n_lineas} líneas raw
+              <strong className="text-[var(--t-accent)]">{b.informacion}</strong> · {b.n_lineas} líneas raw
             </div>
             <table className="w-full text-[10px] font-mono">
               <thead className="text-[9px] uppercase text-[var(--t-text-muted)]">
@@ -664,7 +664,7 @@ function DatePickerCompact({
     <div ref={wrapperRef} className="relative inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
       <button
         onClick={() => onChange(addDays(value, -1))}
-        className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] hover:bg-[#1a1a1a]"
+        className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[#1a1a1a]"
         title="Día anterior"
       >
         ‹
@@ -673,7 +673,7 @@ function DatePickerCompact({
         onClick={() => setOpen((p) => !p)}
         className={
           "px-3 py-1 text-[11px] font-mono min-w-[170px] text-center " +
-          (open ? "bg-[#1a1a1a] text-[#ff9900]" : "bg-black text-[var(--t-text)] hover:bg-[var(--t-surface-2)]")
+          (open ? "bg-[#1a1a1a] text-[var(--t-accent)]" : "bg-black text-[var(--t-text)] hover:bg-[var(--t-surface-2)]")
         }
       >
         {fmtDisplay(value)}
@@ -681,7 +681,7 @@ function DatePickerCompact({
       <button
         onClick={() => onChange(addDays(value, 1))}
         disabled={isFuture}
-        className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] hover:bg-[#1a1a1a] disabled:text-[#333] disabled:hover:bg-transparent"
+        className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[#1a1a1a] disabled:text-[#333] disabled:hover:bg-transparent"
         title="Día siguiente"
       >
         ›
@@ -693,7 +693,7 @@ function DatePickerCompact({
           "px-2 text-[10px] uppercase tracking-wider " +
           (isToday
             ? "bg-[#0a0a0a] text-[var(--t-text-muted)]"
-            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:bg-[#1a1a1a]")
+            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[#1a1a1a]")
         }
       >
         Hoy
@@ -740,21 +740,21 @@ function CalendarPopup({
   const valD = parseISO(value);
 
   return (
-    <div className="absolute top-full left-0 mt-1 z-50 bg-black border border-[#ff9900] p-3 shadow-2xl min-w-[260px]">
+    <div className="absolute top-full left-0 mt-1 z-50 bg-black border border-[var(--t-accent)] p-3 shadow-2xl min-w-[260px]">
       {/* Header — mes/año + nav */}
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={() => setViewDate(new Date(year, month - 1, 1))}
-          className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900]"
+          className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           ‹
         </button>
-        <div className="text-[11px] font-mono text-[#ff9900]">
+        <div className="text-[11px] font-mono text-[var(--t-accent)]">
           {MESES_AR[month]} {year}
         </div>
         <button
           onClick={() => setViewDate(new Date(year, month + 1, 1))}
-          className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900]"
+          className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           ›
         </button>
@@ -780,15 +780,15 @@ function CalendarPopup({
           const baseClasses = "py-1 text-[11px] font-mono text-center transition";
           let cls = "";
           if (isSelected) {
-            cls = "bg-[#ff9900] text-black font-semibold";
+            cls = "bg-[var(--t-accent)] text-black font-semibold";
           } else if (isToday) {
-            cls = "border border-[#ff9900] text-[#ff9900] hover:bg-[#1a1a1a]";
+            cls = "border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[#1a1a1a]";
           } else if (isFuture) {
             cls = "text-[#333] cursor-not-allowed";
           } else if (isWeekend) {
             cls = "text-[var(--t-text-muted)] hover:bg-[#1a1a1a] hover:text-[var(--t-text-dim)]";
           } else {
-            cls = "text-[var(--t-text)] hover:bg-[#1a1a1a] hover:text-[#ff9900]";
+            cls = "text-[var(--t-text)] hover:bg-[#1a1a1a] hover:text-[var(--t-accent)]";
           }
           return (
             <button
@@ -807,7 +807,7 @@ function CalendarPopup({
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--t-border)] text-[9px] uppercase tracking-wider">
         <button
           onClick={() => onPick(today)}
-          className="text-[var(--t-text-dim)] hover:text-[#ff9900]"
+          className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           → Hoy
         </button>

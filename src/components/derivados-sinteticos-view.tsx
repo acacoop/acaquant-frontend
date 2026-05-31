@@ -119,7 +119,7 @@ export function DerivadosSinteticosView() {
         </span>
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-[10px] text-[var(--t-text-dim)] tracking-wide">SPOT</span>
-          <span className="text-[#ff9900] font-mono text-[11px]">
+          <span className="text-[var(--t-accent)] font-mono text-[11px]">
             {data.spot ? fmtPx(data.spot) : "—"}
           </span>
           <span className="text-[9px] text-[var(--t-text-muted)]">({data.spot_source})</span>
@@ -351,7 +351,7 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
                     key={r.ticker ?? ""}
                     className="border-b border-[#101010] hover:bg-[#0d0d0d]"
                   >
-                    <td className="px-1.5 py-0.5 text-[#ff9900] font-semibold">
+                    <td className="px-1.5 py-0.5 text-[var(--t-accent)] font-semibold">
                       {r.ticker ?? "—"}
                     </td>
                     <td className="px-1.5 py-0.5 text-[var(--t-text)]">
@@ -462,7 +462,7 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
                     key={r.ticker ?? ""}
                     className="border-b border-[#101010] hover:bg-[#0d0d0d]"
                   >
-                    <td className="px-1.5 py-0.5 text-[#ff9900] font-semibold">
+                    <td className="px-1.5 py-0.5 text-[var(--t-accent)] font-semibold">
                       {r.ticker ?? "—"}
                     </td>
                     <td className="px-1.5 py-0.5 text-[var(--t-text)]">

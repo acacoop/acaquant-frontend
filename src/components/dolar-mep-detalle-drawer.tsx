@@ -111,7 +111,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
       <div className="fixed right-0 top-0 h-full w-[420px] max-w-[95vw] bg-[var(--t-panel)] border-l border-[var(--t-border)] z-50 flex flex-col">
         {/* Header */}
         <div className="flex items-center px-4 py-3 border-b border-[var(--t-border)] shrink-0">
-          <span className="text-[12px] tracking-wider text-[#ff9900] font-semibold uppercase">
+          <span className="text-[12px] tracking-wider text-[var(--t-accent)] font-semibold uppercase">
             Detalle operativa
           </span>
           <button

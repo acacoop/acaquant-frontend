@@ -309,7 +309,7 @@ export function CashFlowView() {
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] text-[#ff9900] font-mono min-w-[54px]">{desde}</span>
+          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[54px]">{desde}</span>
           <DualRange
             min={0}
             max={Math.max(0, fechasUnicas.length - 1)}
@@ -318,7 +318,7 @@ export function CashFlowView() {
             setLo={(v) => setRangoIdx([v, Math.max(v, efectivoRango[1])])}
             setHi={(v) => setRangoIdx([Math.min(v, efectivoRango[0]), v])}
           />
-          <span className="text-[10px] text-[#ff9900] font-mono min-w-[54px] text-right">{hasta}</span>
+          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[54px] text-right">{hasta}</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <LabeledInput label="Monedas">
@@ -351,7 +351,7 @@ export function CashFlowView() {
             <select
               value={filtroAcc}
               onChange={(e) => setFiltroAcc(e.target.value as FiltroAcc)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option>Todas</option>
               <option>Sin accionistas</option>
@@ -363,7 +363,7 @@ export function CashFlowView() {
             <select
               value={seleccion}
               onChange={(e) => setSeleccion(e.target.value)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option value="__TODAS__">Todas</option>
               {opciones.map((o) => (
@@ -438,7 +438,7 @@ function MonedaChart({
 
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
-      <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10">
+      <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
         <span
           className="text-[11px] font-semibold tracking-wide uppercase"
           style={{ color }}
@@ -569,8 +569,8 @@ function Toggle({
       onClick={onClick}
       className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

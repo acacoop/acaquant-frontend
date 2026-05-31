@@ -219,7 +219,7 @@ function ExpandedRow({ log }: { log: LogEntry }) {
             {log.tool_calls.map((tc, i) => (
               <div key={i} className="text-[var(--t-text-dim)]">
                 <span className={tc.ok ? "text-[#00cc66]" : "text-[#ff3333]"}>{tc.ok ? "✓" : "✗"}</span>{" "}
-                <span className="text-[#ff9900]">{tc.name}</span>
+                <span className="text-[var(--t-accent)]">{tc.name}</span>
                 <span className="text-[var(--t-text-muted)]">
                   ({JSON.stringify(tc.args)})
                 </span>
@@ -345,8 +345,8 @@ export function AsistenteDashboard() {
               onClick={() => setHoras(o.h)}
               className={`px-2 py-0.5 text-[10px] font-mono border ${
                 horas === o.h
-                  ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
               }`}
             >
               {o.label}
@@ -361,8 +361,8 @@ export function AsistenteDashboard() {
               onClick={() => setEstadoFiltro(o.v)}
               className={`px-2 py-0.5 text-[10px] font-mono border ${
                 estadoFiltro === o.v
-                  ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
               }`}
             >
               {o.label}

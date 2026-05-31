@@ -103,14 +103,14 @@ function SimuladorModal({
       className="fixed inset-0 z-50 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)]"
       style={{ margin: "12px" }}
     >
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           Simulador de Estrategias — {commodity}
         </span>
         <div className="flex items-center gap-2 ml-auto">{extras}</div>
         <button
           onClick={onClose}
-          className="text-[var(--t-text-dim)] hover:text-[#ff9900] transition-colors text-[13px] px-1 ml-2"
+          className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] transition-colors text-[13px] px-1 ml-2"
           title="Cerrar (Esc)"
         >
           ✕

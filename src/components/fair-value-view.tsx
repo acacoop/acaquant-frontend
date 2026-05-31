@@ -207,7 +207,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
       onClick={() =>
         setSort((s) => ({ key, dir: s.key === key && s.dir === "desc" ? "asc" : "desc" }))
       }
-      className={`!px-2 !py-1 !text-[10px] cursor-pointer hover:text-[#ff9900] ${align === "left" ? "text-left" : "text-right"}`}
+      className={`!px-2 !py-1 !text-[10px] cursor-pointer hover:text-[var(--t-accent)] ${align === "left" ? "text-left" : "text-right"}`}
     >
       {label}
       {sort.key === key ? (sort.dir === "desc" ? " ▼" : " ▲") : ""}
@@ -219,11 +219,11 @@ export function FairValueView({ curva, initialDoc }: Props) {
       {/* Header con métricas del fit */}
       <div className="flex items-center gap-3 text-[10px] text-[var(--t-text-dim)] shrink-0 flex-wrap">
         <span>
-          β cierre <span className="text-[#ff9900]">{doc.ts_cierre_beta ?? doc.ts_cierre ?? "—"}</span>
+          β cierre <span className="text-[var(--t-accent)]">{doc.ts_cierre_beta ?? doc.ts_cierre ?? "—"}</span>
         </span>
-        <span>R² <span className="text-[#ff9900]">{doc.r2.toFixed(3)}</span></span>
-        <span>σ <span className="text-[#ff9900]">{doc.sigma_dia_bps.toFixed(1)} bps</span></span>
-        <span>universo <span className="text-[#ff9900]">{doc.n_bonos_universo}</span></span>
+        <span>R² <span className="text-[var(--t-accent)]">{doc.r2.toFixed(3)}</span></span>
+        <span>σ <span className="text-[var(--t-accent)]">{doc.sigma_dia_bps.toFixed(1)} bps</span></span>
+        <span>universo <span className="text-[var(--t-accent)]">{doc.n_bonos_universo}</span></span>
         {doc.error && <span className="text-[#c0271a]">⚠ {doc.error}</span>}
         <span className="ml-auto flex items-center gap-1">
           <span className="text-[9px] text-[var(--t-text-muted)]">qué mira esta tabla</span>
@@ -267,7 +267,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
                     onClick={() => setTickerSel(b.ticker)}
                     className="cursor-pointer hover:bg-[#181818]"
                   >
-                    <td className="!px-2 !py-0.5 text-[#ff9900]">{tk}</td>
+                    <td className="!px-2 !py-0.5 text-[var(--t-accent)]">{tk}</td>
                     <td className="!px-2 !py-0.5 text-right text-[var(--t-text)]">{b.duration.toFixed(2)}</td>
                     <td className="!px-2 !py-0.5 text-right text-[var(--t-text)]">{(b.tea_obs * 100).toFixed(2)}%</td>
                     <td className="!px-2 !py-0.5 text-right text-[var(--t-text-dim)]">{(b.tea_teorica * 100).toFixed(2)}%</td>

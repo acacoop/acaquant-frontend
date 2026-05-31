@@ -48,8 +48,8 @@ export function HomeView() {
   );
 
   const chartHeader = (
-    <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 flex items-center">
-      <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+    <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center">
+      <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
         Chart
       </span>
       <span className="ml-2 text-[10px] text-[var(--t-text)] font-mono">
@@ -63,7 +63,7 @@ export function HomeView() {
           onClick={() => setMaximized((m) => !m)}
           aria-label={maximized ? "Minimizar" : "Maximizar"}
           title={maximized ? "Minimizar (Esc)" : "Maximizar"}
-          className="text-[var(--t-text-muted)] hover:text-[#ff9900] transition-colors text-[14px] leading-none px-1"
+          className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors text-[14px] leading-none px-1"
         >
           {maximized ? "⊡" : "⛶"}
         </button>
@@ -105,7 +105,7 @@ export function HomeView() {
           onClick={() => setMaximized(false)}
         >
           <div
-            className="bg-[var(--t-panel)] border border-[#ff9900] w-[96vw] h-[92vh] flex flex-col overflow-hidden"
+            className="bg-[var(--t-panel)] border border-[var(--t-accent)] w-[96vw] h-[92vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {chartHeader}

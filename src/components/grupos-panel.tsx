@@ -132,7 +132,7 @@ export function GruposPanel() {
 
       {/* Crear grupo */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0">
-        <div className="text-[10px] text-[#ff9900] tracking-widest font-semibold mb-2">
+        <div className="text-[10px] text-[var(--t-accent)] tracking-widest font-semibold mb-2">
           AGREGAR GRUPO
         </div>
         <div className="flex items-end gap-2">
@@ -143,13 +143,13 @@ export function GruposPanel() {
               value={newNombre}
               onChange={(e) => setNewNombre(e.target.value)}
               placeholder="ej. Mesa Rosario"
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             />
           </div>
           <button
             onClick={createGrupo}
             disabled={!newNombre.trim() || busy === "__new__"}
-            className="px-3 py-1 text-[11px] font-semibold text-black bg-[#ff9900] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-[11px] font-semibold text-black bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy === "__new__" ? "..." : "AGREGAR"}
           </button>
@@ -243,14 +243,14 @@ function GrupoCard({
           type="text"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
-          className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+          className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
         />
         <button
           onClick={() =>
             onSave({ nombre: nombre.trim(), emails, id_cuentas: idCuentas })
           }
           disabled={busy || !dirty || !nombre.trim()}
-          className="px-3 py-1 text-[11px] font-semibold text-black bg-[#ff9900] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-3 py-1 text-[11px] font-semibold text-black bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {busy ? "..." : "GUARDAR"}
         </button>
@@ -293,7 +293,7 @@ function GrupoCard({
             onChange={(e) => {
               if (e.target.value) setEmails([...emails, e.target.value]);
             }}
-            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none"
+            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
           >
             <option value="">+ agregar usuario…</option>
             {usersDisponibles.map((u) => (
@@ -319,7 +319,7 @@ function GrupoCard({
                 title={cuentaLabel(id)}
                 className="flex items-center gap-1 text-[10px] font-mono text-[var(--t-text)] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
               >
-                <span className="text-[#ff9900]">{id}</span>
+                <span className="text-[var(--t-accent)]">{id}</span>
                 <span className="text-[var(--t-text-dim)] max-w-[120px] truncate">
                   {cuentaLabel(id)}
                 </span>
@@ -339,7 +339,7 @@ function GrupoCard({
             value={filtroCuenta}
             onChange={(e) => setFiltroCuenta(e.target.value)}
             placeholder="buscar cuenta por id o nombre…"
-            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none mb-1"
+            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-1 font-mono focus:border-[var(--t-accent)] outline-none mb-1"
           />
           {filtroCuenta.trim() && (
             <div className="max-h-[140px] overflow-y-auto border border-[var(--t-border)]">
@@ -357,7 +357,7 @@ function GrupoCard({
                     }}
                     className="w-full text-left text-[10px] font-mono px-1.5 py-1 hover:bg-[#141414] flex gap-2"
                   >
-                    <span className="text-[#ff9900] w-12 shrink-0">
+                    <span className="text-[var(--t-accent)] w-12 shrink-0">
                       {c.id_cuenta}
                     </span>
                     <span className="text-[var(--t-text)] truncate">{c.cuenta}</span>

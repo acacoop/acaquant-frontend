@@ -75,7 +75,7 @@ export function ValuacionesShell() {
             onClick={() => prev && setValCuenta(prev)}
             disabled={!prev}
             title="Cuenta anterior"
-            className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+            className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
           >
             ◀
           </button>
@@ -88,7 +88,7 @@ export function ValuacionesShell() {
             onClick={() => next && setValCuenta(next)}
             disabled={!next}
             title="Cuenta siguiente"
-            className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+            className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
           >
             ▶
           </button>
@@ -100,8 +100,8 @@ export function ValuacionesShell() {
               onClick={() => setValSubtab(s)}
               className={`px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
                 valSubtab === s
-                  ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
               }`}
             >
               {s === "portafolio"

@@ -195,7 +195,7 @@ export function FlujoVsAumView() {
           <select
             value={sel ?? ""}
             onChange={(e) => setSel(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none min-w-[240px]"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none min-w-[240px]"
           >
             {fondos.map((f) => (
               <option key={f} value={f}>
@@ -213,7 +213,7 @@ export function FlujoVsAumView() {
 
       {chartData.length >= 2 && (
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-1.5 shrink-0 flex items-center gap-2">
-          <span className="text-[10px] text-[#ff9900] font-mono min-w-[40px]">
+          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[40px]">
             {chartData[efectivoRango[0]]?.label}
           </span>
           <DualRange
@@ -224,7 +224,7 @@ export function FlujoVsAumView() {
             setLo={(v) => sel && setRangoState({ sel, idx: [v, Math.max(v, efectivoRango[1])] })}
             setHi={(v) => sel && setRangoState({ sel, idx: [Math.min(v, efectivoRango[0]), v] })}
           />
-          <span className="text-[10px] text-[#ff9900] font-mono min-w-[40px] text-right">
+          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[40px] text-right">
             {chartData[efectivoRango[1]]?.label}
           </span>
         </div>

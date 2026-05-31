@@ -45,7 +45,7 @@ export function DownloadButton({
       onClick={handleClick}
       disabled={loading}
       title={title}
-      className={`text-[var(--t-text-dim)] hover:text-[#ff9900] transition-colors disabled:opacity-50 disabled:cursor-wait p-0.5 ${className}`}
+      className={`text-[var(--t-text-dim)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-50 disabled:cursor-wait p-0.5 ${className}`}
       aria-label={title}
     >
       {/* Icon download — SVG inline, sin dep externa. */}

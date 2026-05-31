@@ -330,7 +330,7 @@ export function ContrapartesView() {
             dia ? "opacity-40 pointer-events-none" : ""
           }`}
         >
-          <span className="text-[10px] text-[#ff9900] font-mono min-w-[78px]">
+          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[78px]">
             {desde}
           </span>
           <DualRange
@@ -341,7 +341,7 @@ export function ContrapartesView() {
             setLo={(v) => setRangoIdx([v, Math.max(v, efectivoRango[1])])}
             setHi={(v) => setRangoIdx([Math.min(v, efectivoRango[0]), v])}
           />
-          <span className="text-[10px] text-[#ff9900] font-mono min-w-[78px] text-right">
+          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[78px] text-right">
             {hasta}
           </span>
         </div>
@@ -352,7 +352,7 @@ export function ContrapartesView() {
               <select
                 value={dia}
                 onChange={(e) => setDia(e.target.value)}
-                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
               >
                 <option value="">(rango completo)</option>
                 {[...diasAll].reverse().map((d) => (
@@ -365,7 +365,7 @@ export function ContrapartesView() {
                 <button
                   onClick={() => setDia("")}
                   title="Limpiar día"
-                  className="h-[26px] px-2 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  className="h-[26px] px-2 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                 >
                   ✕
                 </button>
@@ -440,8 +440,8 @@ export function ContrapartesView() {
       {/* Si hay día específico: tabla de operaciones del día. Si no: contrapartes + meses. */}
       {dia ? (
         <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col">
-          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               OPERACIONES · {dia}
             </span>
             <span className="ml-2 text-[10px] text-[var(--t-text-muted)]">
@@ -449,7 +449,7 @@ export function ContrapartesView() {
             </span>
             <span className="ml-auto text-[10px] text-[var(--t-text-dim)]">
               Total bruto:{" "}
-              <span className="text-[#ff9900] font-semibold">
+              <span className="text-[var(--t-accent)] font-semibold">
                 {fmtFull(opsDelDia.reduce((s, o) => s + (o.bruto || 0), 0))}
               </span>
             </span>
@@ -457,7 +457,7 @@ export function ContrapartesView() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                <tr className="border-b border-[var(--t-border)] text-left text-[#ff9900] uppercase tracking-wide">
+                <tr className="border-b border-[var(--t-border)] text-left text-[var(--t-accent)] uppercase tracking-wide">
                   <th className="!px-2 !py-1">Boleto</th>
                   <th className="!px-2 !py-1">Tipo</th>
                   <th className="!px-2 !py-1">Cuenta</th>
@@ -472,7 +472,7 @@ export function ContrapartesView() {
                 {opsDelDia.map((o, i) => (
                   <tr
                     key={`${o.boleto ?? ""}-${i}`}
-                    className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
                   >
                     <td className="!px-2 !py-1 text-[var(--t-text-dim)]">
                       {o.boleto ?? "—"}
@@ -495,7 +495,7 @@ export function ContrapartesView() {
                     <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
                       {fmtFull(o.bruto ?? 0)}
                     </td>
-                    <td className="!px-2 !py-1 text-[#ff9900]">
+                    <td className="!px-2 !py-1 text-[var(--t-accent)]">
                       {o.moneda ?? ""}
                     </td>
                   </tr>
@@ -520,16 +520,16 @@ export function ContrapartesView() {
             <table className="w-full text-[11px] font-mono">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                 <tr className="border-b border-[var(--t-border)]">
-                  <th className="!px-2 !py-1 text-left text-[#ff9900] font-semibold tracking-wide uppercase">
+                  <th className="!px-2 !py-1 text-left text-[var(--t-accent)] font-semibold tracking-wide uppercase">
                     CONTRAPARTE
                     <span className="ml-1 text-[10px] text-[var(--t-text-muted)] font-normal normal-case">
                       ({contrapartesTabla.length})
                     </span>
                   </th>
-                  <th className="!px-2 !py-1 text-right text-[#ff9900] font-semibold tracking-wide uppercase">
+                  <th className="!px-2 !py-1 text-right text-[var(--t-accent)] font-semibold tracking-wide uppercase">
                     BRUTO
                   </th>
-                  <th className="!px-2 !py-1 text-right text-[#ff9900] font-semibold tracking-wide uppercase">
+                  <th className="!px-2 !py-1 text-right text-[var(--t-accent)] font-semibold tracking-wide uppercase">
                     <div className="flex items-center justify-end gap-1">
                       <span>%</span>
                       <span className="ml-1 flex items-center gap-1">
@@ -556,8 +556,8 @@ export function ContrapartesView() {
                       onClick={() => setCpSel(active ? null : r.cp)}
                       className={`cursor-pointer border-b border-[var(--t-border)] transition-colors ${
                         active
-                          ? "bg-[#ff9900]/10 text-[#ff9900]"
-                          : "hover:bg-[#ff9900]/5"
+                          ? "bg-[var(--t-accent)]/10 text-[var(--t-accent)]"
+                          : "hover:bg-[var(--t-accent)]/5"
                       }`}
                     >
                       <td className="!px-2 !py-1 text-[var(--t-text)]">{r.cp}</td>
@@ -587,8 +587,8 @@ export function ContrapartesView() {
 
         {/* Meses */}
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               MESES
             </span>
             <span className="ml-auto text-[10px] text-[var(--t-text-dim)] truncate max-w-[60%]">
@@ -607,7 +607,7 @@ export function ContrapartesView() {
                 {mesesTabla.map((r) => (
                   <tr
                     key={r.key}
-                    className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
                   >
                     <td className="!px-2 !py-1 text-[var(--t-text)]">{r.label}</td>
                     <td className="!px-2 !py-1 text-right">
@@ -636,8 +636,8 @@ export function ContrapartesView() {
            el chart muestra un solo punto y no aporta; la tabla alcanza. */}
       {!dia && (
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10">
-          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
+          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
             FLUJO ACUMULADO
           </span>
         </div>
@@ -790,8 +790,8 @@ function Chip({
       onClick={onClick}
       className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}
@@ -813,8 +813,8 @@ function MiniChip({
       onClick={onClick}
       className={`px-1.5 h-[18px] text-[9px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

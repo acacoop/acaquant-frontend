@@ -252,7 +252,7 @@ export function CostoHistoricoChart({
           </span>
           <span>
             ÚLT{" "}
-            <span className="text-[#ff9900] font-semibold">
+            <span className="text-[var(--t-accent)] font-semibold">
               ${fmtCosto(stats.ultimo)}
             </span>
           </span>

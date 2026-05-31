@@ -46,8 +46,8 @@ export function Panel({
   }, [expanded]);
 
   const header = (
-    <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-      <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+    <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+      <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
         {title}
       </span>
       {count !== undefined && (
@@ -60,7 +60,7 @@ export function Panel({
       {expandable && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="ml-auto text-[var(--t-text-muted)] hover:text-[#ff9900] transition-colors p-0.5"
+          className="ml-auto text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors p-0.5"
           title={expanded ? "Minimizar" : "Maximizar"}
         >
           {expanded ? <CollapseIcon /> : <ExpandIcon />}

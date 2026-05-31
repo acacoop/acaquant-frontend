@@ -239,8 +239,8 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
   return (
     <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)]">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           Watchlist
         </span>
         <span
@@ -266,8 +266,8 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
             onClick={() => setFiltro(g)}
             className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
               filtro === g
-                ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
           >
             {g}
@@ -309,7 +309,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     onClick={clickable ? () => onSelect!(q.symbol) : undefined}
                     className={`border-b border-[#0e0e0e] ${
                       isSel
-                        ? "bg-[#ff9900]/15"
+                        ? "bg-[var(--t-accent)]/15"
                         : clickable
                         ? "hover:bg-[var(--t-surface)] cursor-pointer"
                         : "hover:bg-[var(--t-surface)]"
@@ -372,7 +372,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     onClick={clickable ? () => onSelect!(f.ticker) : undefined}
                     className={`border-b border-[#0e0e0e] ${
                       isSel
-                        ? "bg-[#ff9900]/15"
+                        ? "bg-[var(--t-accent)]/15"
                         : clickable
                         ? "hover:bg-[var(--t-surface)] cursor-pointer"
                         : "hover:bg-[var(--t-surface)]"

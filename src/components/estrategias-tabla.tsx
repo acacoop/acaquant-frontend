@@ -42,7 +42,7 @@ export function EstrategiasTabla({
           <select
             value={strike ?? atmStrike ?? ""}
             onChange={(e) => setStrike(Number(e.target.value))}
-            className="ml-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="ml-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-1 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
           >
             {liquidStrikes.map((k) => (
               <option key={k} value={k}>
@@ -57,7 +57,7 @@ export function EstrategiasTabla({
           <select
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
-            className="ml-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="ml-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-1 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
           >
             {CATEGORIAS.map((c) => (
               <option key={c} value={c}>
@@ -99,7 +99,7 @@ export function EstrategiasTabla({
                   onClick={() => setSelected(i)}
                   className={`cursor-pointer ${
                     isSel
-                      ? "bg-[#ff9900]/15 outline outline-1 outline-[#ff9900]/50"
+                      ? "bg-[var(--t-accent)]/15 outline outline-1 outline-[var(--t-accent)]/50"
                       : "hover:bg-[#1a1a1a]"
                   }`}
                 >

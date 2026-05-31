@@ -141,14 +141,14 @@ export function RolesPanel() {
           {data.roles.length} roles × {data.modules.length} módulos
         </div>
         {dirtyRoles.size > 0 && (
-          <div className="text-[10px] text-[#ff9900]">
+          <div className="text-[10px] text-[var(--t-accent)]">
             {dirtyRoles.size} {dirtyRoles.size === 1 ? "cambio pendiente" : "cambios pendientes"}
           </div>
         )}
         <button
           onClick={save}
           disabled={dirtyRoles.size === 0 || saving}
-          className="ml-auto px-3 py-1 text-[11px] font-semibold text-black bg-[#ff9900] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="ml-auto px-3 py-1 text-[11px] font-semibold text-black bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {saving ? "GUARDANDO…" : "GUARDAR"}
         </button>
@@ -166,7 +166,7 @@ export function RolesPanel() {
                 <th
                   key={r}
                   className={`px-3 py-2 text-center text-[10px] font-semibold tracking-wide ${
-                    dirtyRoles.has(r) ? "text-[#ff9900]" : "text-[var(--t-text-dim)]"
+                    dirtyRoles.has(r) ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"
                   }`}
                 >
                   {r}
@@ -190,7 +190,7 @@ export function RolesPanel() {
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggle(r, m)}
-                        className="accent-[#ff9900] cursor-pointer"
+                        className="accent-[var(--t-accent)] cursor-pointer"
                       />
                     </td>
                   );
@@ -203,7 +203,7 @@ export function RolesPanel() {
 
       {/* Audit log */}
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] text-[#ff9900] tracking-widest font-semibold">
+        <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] text-[var(--t-accent)] tracking-widest font-semibold">
           AUDIT LOG — ÚLTIMOS {audit.length}
         </div>
         <div className="flex-1 overflow-y-auto font-mono text-[11px]">
@@ -216,7 +216,7 @@ export function RolesPanel() {
                 className="grid grid-cols-[140px_1fr_180px_1fr] gap-2 px-3 py-1 border-b border-[var(--t-border)]"
               >
                 <div className="text-[var(--t-text-muted)]">{fmtDate(ev.ts)}</div>
-                <div className="text-[#ff9900] truncate">{ev.actor}</div>
+                <div className="text-[var(--t-accent)] truncate">{ev.actor}</div>
                 <div className="text-[var(--t-text)]">{ev.action}</div>
                 <div className="text-[var(--t-text-dim)] truncate">{ev.target}</div>
               </div>

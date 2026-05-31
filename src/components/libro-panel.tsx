@@ -163,7 +163,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
               if (e.key === "Escape") setOpen(false);
               if (e.key === "Enter" && filtered.length > 0) pickTicker(filtered[0]);
             }}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#ff9900] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[140px]"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-accent)] text-[11px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-[140px]"
           />
           {open && filtered.length > 0 && (
             <div
@@ -174,8 +174,8 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
                 <div
                   key={t}
                   onMouseDown={() => pickTicker(t)}
-                  className={`px-2 py-0.5 text-[11px] font-mono cursor-pointer hover:bg-[#ff9900]/10 ${
-                    t === effectiveSelected ? "text-[#ff9900]" : "text-[var(--t-text)]"
+                  className={`px-2 py-0.5 text-[11px] font-mono cursor-pointer hover:bg-[var(--t-accent)]/10 ${
+                    t === effectiveSelected ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
                   }`}
                 >
                   {shortTicker(t)}
@@ -196,8 +196,8 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
           espacio en un panel chico (~50%×50% de pantalla) y el eje X no
           se entendía. Time & Sales solo, full width. */}
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[#0a0a0a] overflow-hidden flex flex-col">
-        <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[#ff9900]/10">
-          <span className="text-[10px] text-[#ff9900] tracking-wide font-semibold">
+        <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
+          <span className="text-[10px] text-[var(--t-accent)] tracking-wide font-semibold">
             TIME &amp; SALES
           </span>
           {sessionLabel && sessionLabel !== "HOY" && (
@@ -258,7 +258,7 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
           return (
             <tr
               key={`${t.timestamp}-${i}`}
-              className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
+              className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
             >
               <td className="px-1.5 py-0.5 text-[var(--t-text-dim)]">{hora}</td>
               <td className={`px-1.5 py-0.5 text-right font-semibold ${color}`}>

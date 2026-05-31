@@ -288,10 +288,10 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                 title={disabled ? "Sin MEP de hoy para convertir a USD" : ""}
                 className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
                   moneda === m
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
                     : disabled
                       ? "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border)] cursor-not-allowed"
-                      : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                 }`}
               >
                 {m}
@@ -316,18 +316,18 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
               <table className="w-full text-[11px] font-mono">
                 <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
                   <tr className="text-[9px] tracking-widest text-[var(--t-text-dim)]">
-                    <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[var(--t-accent)] select-none">
                       TICKER {arrow("ticker")}
                     </th>
                     <th className="px-2 py-2 text-right">CANT</th>
-                    <th onClick={() => toggleSort("costo_remanente")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("costo_remanente")} className="px-2 py-2 text-right cursor-pointer hover:text-[var(--t-accent)] select-none">
                       COSTO {arrow("costo_remanente")}
                     </th>
-                    <th onClick={() => toggleSort("valor_actual_aum")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("valor_actual_aum")} className="px-2 py-2 text-right cursor-pointer hover:text-[var(--t-accent)] select-none">
                       VALOR {arrow("valor_actual_aum")}
                     </th>
                     <th className="px-2 py-2 text-right">GAN %</th>
-                    <th onClick={() => toggleSort("pnl_total")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("pnl_total")} className="px-2 py-2 text-right cursor-pointer hover:text-[var(--t-accent)] select-none">
                       PNL {arrow("pnl_total")}
                     </th>
                     <th className="px-2 py-2 text-right">FLAGS</th>
@@ -348,7 +348,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                         onClick={() => setSelectedTicker(isSel ? null : r.ticker)}
                         className={
                           "border-b border-[var(--t-border)] cursor-pointer " +
-                          (isSel ? "bg-[#ff9900]/10" : "hover:bg-[#ff9900]/5")
+                          (isSel ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-accent)]/5")
                         }
                       >
                         <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={r.display_name || r.ticker}>
@@ -357,7 +357,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                         <td className="px-2 py-1.5 text-right text-[var(--t-text)]">
                           {r.qty_aum.toLocaleString("es-AR")}
                           {r.qty_calc !== r.qty_aum && (
-                            <span className="ml-1 text-[#ff9900] text-[9px]" title={`Boletos: ${r.qty_calc}`}>
+                            <span className="ml-1 text-[var(--t-accent)] text-[9px]" title={`Boletos: ${r.qty_calc}`}>
                               ({r.qty_calc.toLocaleString("es-AR")})
                             </span>
                           )}
@@ -385,7 +385,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                         </td>
                         <td className="px-2 py-1.5 text-right text-[9px]">
                           {r.completeness === "parcial" && (
-                            <span className="px-1 py-0 bg-[#ff9900]/15 text-[#ff9900] tracking-widest">P</span>
+                            <span className="px-1 py-0 bg-[var(--t-accent)]/15 text-[var(--t-accent)] tracking-widest">P</span>
                           )}
                           {r.completeness === "sin_boletos" && (
                             <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SB</span>
@@ -480,7 +480,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
         {stats.ventas > 0 && <span>ventas: {stats.ventas.toLocaleString("es-AR")} · </span>}
         <span>neto: {stats.neto.toLocaleString("es-AR")}</span>
         {row.qty_calc !== row.qty_aum && (
-          <span className="text-[#ff9900]"> · AuM: {row.qty_aum.toLocaleString("es-AR")} (Δ {(row.qty_aum - row.qty_calc).toLocaleString("es-AR")})</span>
+          <span className="text-[var(--t-accent)]"> · AuM: {row.qty_aum.toLocaleString("es-AR")} (Δ {(row.qty_aum - row.qty_calc).toLocaleString("es-AR")})</span>
         )}
         <span className="text-[var(--t-text-muted)]"> · {boletosPeriodo.length}/{row.boletos.length} movs</span>
       </div>
@@ -499,7 +499,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
       )}
 
       {row.fechas_sin_mep.length > 0 && (
-        <div className="mb-2 text-[9px] text-[#ff9900]">
+        <div className="mb-2 text-[9px] text-[var(--t-accent)]">
           ⚠ {row.fechas_sin_mep.length} fechas sin MEP — montos USD sin pesificar correctamente
         </div>
       )}

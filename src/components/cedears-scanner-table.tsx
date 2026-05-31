@@ -159,13 +159,13 @@ export function CedearsScannerTable({
                     onClick={onSelect ? () => onSelect(r.ticker_corto) : undefined}
                     className={`${onSelect ? "cursor-pointer" : ""} ${
                       isSelected
-                        ? "bg-[#ff9900]/15"
+                        ? "bg-[var(--t-accent)]/15"
                         : onSelect
                         ? "hover:bg-[#1a1a1a]"
                         : ""
                     }`}
                   >
-                    <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[#ff9900]"}`}>
+                    <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[var(--t-accent)]"}`}>
                       {r.ticker_corto}
                     </td>
                     <td className="!px-1 text-[var(--t-text)] truncate max-w-[180px]" title={r.nombre ?? ""}>
@@ -192,7 +192,7 @@ export function CedearsScannerTable({
                           </span>
                           {r.adr_intraday === false && (
                             <span
-                              className="ml-1 text-[7px] text-[#ff9900] tracking-widest align-middle"
+                              className="ml-1 text-[7px] text-[var(--t-accent)] tracking-widest align-middle"
                               title="Cierre previo — el mercado aún no operó hoy (pre-market) o es cierre EOD"
                             >
                               CIERRE
@@ -248,11 +248,11 @@ function ViewBtn({
   // Tono distinto para que el switch visual sea claro pero minimalista.
   const activeColor =
     tone === "orange"
-      ? "bg-[#ff9900] text-black border-[#ff9900]"
+      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
       : "bg-[#5fb3d4] text-black border-[#5fb3d4]";
   const inactiveColor =
     tone === "orange"
-      ? "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+      ? "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#5fb3d4] hover:border-[#5fb3d4]";
   return (
     <button
@@ -287,9 +287,9 @@ function SortableTh({
 }) {
   const active = sortKey === col;
   const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : "";
-  const activeColor = tone === "cyan" ? "text-[#5fb3d4]" : "text-[#ff9900]";
+  const activeColor = tone === "cyan" ? "text-[#5fb3d4]" : "text-[var(--t-accent)]";
   const hoverColor =
-    tone === "cyan" ? "hover:text-[#5fb3d4]" : "hover:text-[#ff9900]";
+    tone === "cyan" ? "hover:text-[#5fb3d4]" : "hover:text-[var(--t-accent)]";
   return (
     <th
       onClick={() => onClick(col)}

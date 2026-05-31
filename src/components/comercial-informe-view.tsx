@@ -50,7 +50,7 @@ function DownloadBtn({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       title="Descargar a Excel"
-      className="text-[9px] tracking-wider text-[var(--t-text-dim)] hover:text-[#ff9900] border border-[var(--t-border-2)] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
+      className="text-[9px] tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] hover:border-[var(--t-accent)] px-1.5 py-0.5 uppercase"
     >
       ⬇ xls
     </button>
@@ -215,7 +215,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
             <button
               disabled={!canPrev}
               onClick={() => mes && setMes(ymAdd(mes, -1))}
-              className="px-1.5 text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]"
+              className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]"
             >◀</button>
             <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center">
               {mes ? ymLabel(mes) : "…"}
@@ -223,7 +223,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
             <button
               disabled={!canNext}
               onClick={() => mes && setMes(ymAdd(mes, 1))}
-              className="px-1.5 text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]"
+              className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]"
             >▶</button>
             <DownloadBtn onClick={dlCuentasSeg} />
           </div>
@@ -261,7 +261,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
             {selComercial ? (
               <button
                 onClick={() => { setSelComercial(null); setSelSeg(null); }}
-                className="text-[10px] text-[#ff9900] hover:text-[#ffb84d]"
+                className="text-[10px] text-[var(--t-accent)] hover:text-[#ffb84d]"
               >✕ quitar filtro</button>
             ) : (
               <span className="text-[9px] text-[var(--t-text-muted)]">click = filtrar</span>
@@ -296,7 +296,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 title="Filtrar gráfico y tablas por este comercial"
                 className={
                   "border-t border-[var(--t-border)] cursor-pointer " +
-                  (selComercial === c.operador_email ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
+                  (selComercial === c.operador_email ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
                 }
               >
                 <td className="px-2 py-1.5 text-[var(--t-text-muted)]">{c.rank}</td>
@@ -304,7 +304,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                   {c.operador_nombre}
                 </td>
                 <td className="text-right px-2 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
-                <td className="text-right px-2 font-semibold text-[#ff9900]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
+                <td className="text-right px-2 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
                 <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
                 <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
@@ -316,7 +316,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
               <tr className="border-t-2 border-[var(--t-border-2)] font-semibold text-[var(--t-text)]">
                 <td className="px-2 py-1.5" colSpan={2}>TOTAL</td>
                 <td className="text-right px-2 text-[var(--t-text-muted)]">—</td>
-                <td className="text-right px-2 text-[#ff9900]" title={fmtMoneyFull(totRanking.vol_total)}>{fmtMoney(totRanking.vol_total)}</td>
+                <td className="text-right px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totRanking.vol_total)}>{fmtMoney(totRanking.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totRanking.vol_mes)}>{fmtMoney(totRanking.vol_mes)}</td>
                 <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(totRanking.ar_total)}>{fmtMoney(totRanking.ar_total)}</td>
                 <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(totRanking.ar_mes)}>{fmtMoney(totRanking.ar_mes)}</td>
@@ -351,7 +351,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 title="Ver clientes y operaciones de este segmento"
                 className={
                   "border-t border-[var(--t-border)] cursor-pointer " +
-                  (selSeg === s.segmento ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
+                  (selSeg === s.segmento ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
                 }
               >
                 <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
@@ -373,7 +373,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
               <button
                 onClick={() => setSelSeg(null)}
                 title="Ver todos los segmentos"
-                className="text-[10px] text-[#ff9900] hover:text-[#ffb84d]"
+                className="text-[10px] text-[var(--t-accent)] hover:text-[#ffb84d]"
               >✕ todos</button>
             )}
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
@@ -383,7 +383,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                   onClick={() => setQ4tab(t)}
                   className={
                     "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
-                    (q4tab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                    (q4tab === t ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                 >
                   {t === "clientes" ? "Clientes" : "Operaciones"}

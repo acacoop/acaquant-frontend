@@ -84,7 +84,7 @@ export function RetornoTotalView() {
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest mr-3">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest mr-3">
           ESTRATEGIA
         </span>
         <TabPill
@@ -132,8 +132,8 @@ function TabPill({
       onClick={onClick}
       className={`px-3 py-1 text-[11px] font-semibold tracking-wide border ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {label}
@@ -457,7 +457,7 @@ function HistoricoTab() {
           <span className="text-[10px] text-[var(--t-text-muted)]">sin datos</span>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-[260px]">
-            <span className="text-[10px] text-[#ff9900] font-mono min-w-[36px]">
+            <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[36px]">
               {fmtFechaCorta(fechaDesde || "")}
             </span>
             <DualRange
@@ -468,7 +468,7 @@ function HistoricoTab() {
               setLo={(v) => setRangoIdx([v, Math.max(v, effectiveRango[1])])}
               setHi={(v) => setRangoIdx([Math.min(v, effectiveRango[0]), v])}
             />
-            <span className="text-[10px] text-[#ff9900] font-mono min-w-[36px] text-right">
+            <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[36px] text-right">
               {fmtFechaCorta(fechaHasta || "")}
             </span>
           </div>
@@ -568,7 +568,7 @@ function HistoricoTab() {
                         : "")
                     }
                   >
-                    <td className="!px-1 text-[#ff9900] whitespace-nowrap">
+                    <td className="!px-1 text-[var(--t-accent)] whitespace-nowrap">
                       {r.ticker}
                       {baseDesalineada && (
                         <span className="text-[var(--t-text-muted)] ml-1">›{fmtFechaCorta(r.fechaBase)}</span>
@@ -635,8 +635,8 @@ function FilterBtn({
       onClick={onClick}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

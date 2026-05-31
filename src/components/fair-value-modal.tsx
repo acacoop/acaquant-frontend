@@ -92,12 +92,12 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--t-border-2)]">
           <div className="flex items-baseline gap-3">
-            <span className="text-[#ff9900] font-semibold tracking-wide">{tickerCorto}</span>
+            <span className="text-[var(--t-accent)] font-semibold tracking-wide">{tickerCorto}</span>
             <span className="text-[10px] text-[var(--t-text-muted)]">RESIDUO 60 DÍAS</span>
           </div>
           <button
             onClick={onClose}
-            className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-sm px-2"
+            className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-sm px-2"
           >
             ✕
           </button>
@@ -175,7 +175,7 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
 
           {stats && (
             <div className="mt-2 text-[10px] text-[var(--t-text-dim)] flex gap-4 flex-wrap">
-              <span>Hoy <span className="text-[#ff9900]">{stats.last.residuo_bps.toFixed(1)}bps</span></span>
+              <span>Hoy <span className="text-[var(--t-accent)]">{stats.last.residuo_bps.toFixed(1)}bps</span></span>
               <span>Media 30d {stats.media.toFixed(1)}bps</span>
               <span>σ 30d {stats.desvio.toFixed(1)}bps</span>
               {stats.last.z_temporal !== null && stats.last.z_temporal !== undefined && (

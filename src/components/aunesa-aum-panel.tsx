@@ -77,7 +77,7 @@ export function AunesaAumPanel() {
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[var(--t-accent)] focus:outline-none"
         />
         {data && data.fechas_disponibles.length > 0 && (
           <>
@@ -85,7 +85,7 @@ export function AunesaAumPanel() {
             <select
               value={fecha}
               onChange={(e) => { setFecha(e.target.value); consultar(e.target.value); }}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
             >
               {data.fechas_disponibles.slice().reverse().map((f) => (
                 <option key={f} value={f}>{f}</option>
@@ -96,7 +96,7 @@ export function AunesaAumPanel() {
         <button
           onClick={() => consultar()}
           disabled={loading}
-          className="text-[10px] tracking-widest px-3 py-1 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="text-[10px] tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? "CARGANDO…" : "CONSULTAR"}
         </button>

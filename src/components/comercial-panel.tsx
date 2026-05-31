@@ -88,7 +88,7 @@ export function ComercialPanel() {
               <th className="text-left px-3 py-2">OPERADOR</th>
               <th className="text-right px-2">CUENTAS</th>
               <th className="text-right px-2 text-[#00cc66]">ACTIVAS</th>
-              <th className="text-right px-2 text-[#ff9900]">ENFRIÁND.</th>
+              <th className="text-right px-2 text-[var(--t-accent)]">ENFRIÁND.</th>
               <th className="text-right px-2 text-[#ff6666]">DORMIDAS</th>
               <th className="text-right px-2 text-[var(--t-text-dim)]">NUEVAS</th>
               <th className="text-right px-2">SIN SEG.</th>
@@ -113,11 +113,11 @@ export function ComercialPanel() {
                 </td>
                 <td className="text-right px-2 tabular-nums font-semibold">{fmtN(o.n_cuentas)}</td>
                 <td className="text-right px-2 tabular-nums text-[#00cc66]">{fmtN(o.n_activas)}</td>
-                <td className="text-right px-2 tabular-nums text-[#ff9900]">{fmtN(o.n_enfriandose)}</td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-accent)]">{fmtN(o.n_enfriandose)}</td>
                 <td className="text-right px-2 tabular-nums text-[#ff6666]">{fmtN(o.n_dormidas)}</td>
                 <td className="text-right px-2 tabular-nums text-[var(--t-text-dim)]">{fmtN(o.n_nuevas)}</td>
                 <td className="text-right px-2 tabular-nums text-[var(--t-text-dim)]">{fmtN(o.n_sin_segmentar)}</td>
-                <td className="text-right px-3 tabular-nums font-semibold text-[#ff9900]">{fmtAum(o.aum_total)}</td>
+                <td className="text-right px-3 tabular-nums font-semibold text-[var(--t-accent)]">{fmtAum(o.aum_total)}</td>
               </tr>
             ))}
           </tbody>

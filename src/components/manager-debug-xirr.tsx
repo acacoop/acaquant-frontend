@@ -143,12 +143,12 @@ export function ManagerDebugXirrPanel() {
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") cargar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[var(--t-accent)] focus:outline-none"
         />
         <button
           onClick={cargar}
           disabled={loading}
-          className="text-[10px] tracking-widest px-3 py-1 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="text-[10px] tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? "CARGANDO…" : "CARGAR"}
         </button>
@@ -238,7 +238,7 @@ export function ManagerDebugXirrPanel() {
                 <th className="text-right px-2 py-1">BASE 100</th>
                 <th className="text-right px-2 py-1">TEM</th>
                 <th className="text-right px-2 py-1">TEA</th>
-                {moneda === "USD" && <th className="text-right px-2 py-1 text-[#ff9900]">MEP</th>}
+                {moneda === "USD" && <th className="text-right px-2 py-1 text-[var(--t-accent)]">MEP</th>}
               </tr>
             </thead>
             <tbody>
@@ -281,7 +281,7 @@ export function ManagerDebugXirrPanel() {
                       <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(twr_base100, 2)}</td>
                       <td className={`px-2 py-1 text-right ${pctColor(tem_periodo)}`}>{fmtPct(tem_periodo, 4)}</td>
                       <td className={`px-2 py-1 text-right font-semibold ${pctColor(tea_mensual)}`}>{fmtPct(tea_mensual, 2)}</td>
-                      {moneda === "USD" && <td className="px-2 py-1 text-right text-[#ff9900]">{fmtNum(m.mep_cierre, 2)}</td>}
+                      {moneda === "USD" && <td className="px-2 py-1 text-right text-[var(--t-accent)]">{fmtNum(m.mep_cierre, 2)}</td>}
                     </tr>
 
                     {isOpen && (
@@ -290,7 +290,7 @@ export function ManagerDebugXirrPanel() {
                           <div className="grid grid-cols-2 gap-6">
                             {/* Cashflow XIRR */}
                             <div>
-                              <div className="text-[10px] tracking-widest text-[#ff9900] mb-1">
+                              <div className="text-[10px] tracking-widest text-[var(--t-accent)] mb-1">
                                 CASHFLOW XIRR ({cf.length} entradas) — pegar en Excel TIR.NO.PER
                               </div>
                               <table className="w-full text-[10px]">
@@ -320,7 +320,7 @@ export function ManagerDebugXirrPanel() {
 
                             {/* Flujos individuales */}
                             <div>
-                              <div className="text-[10px] tracking-widest text-[#ff9900] mb-1">
+                              <div className="text-[10px] tracking-widest text-[var(--t-accent)] mb-1">
                                 FLUJOS INDIVIDUALES ({flujos.length})
                               </div>
                               <table className="w-full text-[10px]">

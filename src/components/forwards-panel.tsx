@@ -204,7 +204,7 @@ export function ForwardsPanel({
                 }
               }}
               placeholder="agregar par…"
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[130px]"
+              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-[130px]"
             />
             {dropOpen && filteredPares.length > 0 && (
               <div
@@ -218,7 +218,7 @@ export function ForwardsPanel({
                     <div
                       key={par}
                       onMouseDown={() => { togglePar(par); setParSearch(""); setDropOpen(false); }}
-                      className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${activo ? "text-[#ff9900]" : "text-[var(--t-text)]"}`}
+                      className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[var(--t-accent)]/10 flex items-center gap-1.5 ${activo ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"}`}
                     >
                       <span className="w-3 text-center">{activo ? "✓" : ""}</span>
                       {shortTicker(tLargo)}→{shortTicker(tCorto)}
@@ -443,8 +443,8 @@ function FilterBtn({
         disabled
           ? "bg-transparent text-[#333333] border-[var(--t-border)] cursor-not-allowed"
           : active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

@@ -134,7 +134,7 @@ export function UsuariosPanel() {
 
       {/* Crear usuario */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0">
-        <div className="text-[10px] text-[#ff9900] tracking-widest font-semibold mb-2">
+        <div className="text-[10px] text-[var(--t-accent)] tracking-widest font-semibold mb-2">
           AGREGAR USUARIO
         </div>
         <div className="flex items-end gap-2">
@@ -145,7 +145,7 @@ export function UsuariosPanel() {
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="usuario@dominio.com"
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             />
           </div>
           <div>
@@ -153,7 +153,7 @@ export function UsuariosPanel() {
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               {roles.map((r) => (
                 <option key={r} value={r}>
@@ -168,13 +168,13 @@ export function UsuariosPanel() {
               type="text"
               value={newNotes}
               onChange={(e) => setNewNotes(e.target.value)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
             />
           </div>
           <button
             onClick={createUser}
             disabled={!newEmail.trim() || !newRole || busy === "__new__"}
-            className="px-3 py-1 text-[11px] font-semibold text-black bg-[#ff9900] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1 text-[11px] font-semibold text-black bg-[var(--t-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {busy === "__new__" ? "..." : "AGREGAR"}
           </button>
@@ -236,7 +236,7 @@ function UserRow({
         {user.auto_registered && (
           <span
             title="Detectado automáticamente en primera visita — revisar role"
-            className="text-[8px] px-1 py-0.5 border border-[#ff9900]/40 text-[#ff9900] bg-[#ff9900]/10 shrink-0"
+            className="text-[8px] px-1 py-0.5 border border-[var(--t-accent)]/40 text-[var(--t-accent)] bg-[var(--t-accent)]/10 shrink-0"
           >
             AUTO
           </span>
@@ -246,7 +246,7 @@ function UserRow({
         value={user.role}
         disabled={busy}
         onChange={(e) => onPatch({ role: e.target.value })}
-        className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none disabled:opacity-40"
+        className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none disabled:opacity-40"
       >
         {roles.map((r) => (
           <option key={r} value={r}>
@@ -260,7 +260,7 @@ function UserRow({
           checked={user.enabled}
           disabled={busy}
           onChange={(e) => onPatch({ enabled: e.target.checked })}
-          className="accent-[#ff9900]"
+          className="accent-[var(--t-accent)]"
         />
         <span
           className={`text-[10px] ${user.enabled ? "text-[#00cc66]" : "text-[var(--t-text-muted)]"}`}
@@ -289,7 +289,7 @@ function UserRow({
 function LastSeenCell({ lastSeen }: { lastSeen?: string }) {
   const dias = daysSince(lastSeen);
   if (!lastSeen || dias === null) {
-    return <div className="text-[#ff9900] text-[10px]">(nunca entró)</div>;
+    return <div className="text-[var(--t-accent)] text-[10px]">(nunca entró)</div>;
   }
   const d = new Date(lastSeen);
   const fecha = `${String(d.getDate()).padStart(2, "0")}/${String(

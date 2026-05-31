@@ -200,12 +200,12 @@ export function PnLTotalesView() {
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
       {/* Toggle POR TÍTULO / POR CUENTA */}
       <div className="flex gap-1">
-        <button className="px-3 py-1 text-[10px] tracking-widest border border-[#ff9900] bg-[#ff9900]/10 text-[#ff9900]">
+        <button className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-accent)]">
           POR TÍTULO
         </button>
         <button
           onClick={() => setModo("cuenta")}
-          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900]"
+          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           POR CUENTA
         </button>
@@ -237,7 +237,7 @@ export function PnLTotalesView() {
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as FiltroCuenta)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           {FILTRO_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -248,14 +248,14 @@ export function PnLTotalesView() {
           value={searchCta}
           onChange={(e) => setSearchCta(e.target.value)}
           placeholder="Filtrar cuenta…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none w-44"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-44"
         />
         <input
           type="text"
           value={searchTk}
           onChange={(e) => setSearchTk(e.target.value)}
           placeholder="Filtrar ticker…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none w-44"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-44"
         />
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">MONEDA</span>
@@ -269,10 +269,10 @@ export function PnLTotalesView() {
                 title={disabled ? "Falta recalcular el cache (jobs.pnl_totales_precompute)" : ""}
                 className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
                   moneda === m
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
                     : disabled
                       ? "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border)] cursor-not-allowed"
-                      : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                 }`}
               >
                 {m}
@@ -292,23 +292,23 @@ export function PnLTotalesView() {
               <table className="w-full text-[11px] font-mono">
                 <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
                   <tr className="text-[9px] tracking-widest text-[var(--t-text-dim)]">
-                    <th onClick={() => toggleSort("cuenta")} className="px-2 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("cuenta")} className="px-2 py-2 text-left cursor-pointer hover:text-[var(--t-accent)] select-none">
                       CUENTA {arrow("cuenta")}
                     </th>
-                    <th onClick={() => toggleSort("ticker")} className="px-2 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("ticker")} className="px-2 py-2 text-left cursor-pointer hover:text-[var(--t-accent)] select-none">
                       TICKER {arrow("ticker")}
                     </th>
                     <th className="px-2 py-2 text-right">CANT</th>
-                    <th onClick={() => toggleSort("costo")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("costo")} className="px-2 py-2 text-right cursor-pointer hover:text-[var(--t-accent)] select-none">
                       COSTO {arrow("costo")}
                     </th>
-                    <th onClick={() => toggleSort("valor_actual")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("valor_actual")} className="px-2 py-2 text-right cursor-pointer hover:text-[var(--t-accent)] select-none">
                       VALOR {arrow("valor_actual")}
                     </th>
-                    <th onClick={() => toggleSort("ganpct")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("ganpct")} className="px-2 py-2 text-right cursor-pointer hover:text-[var(--t-accent)] select-none">
                       GAN % {arrow("ganpct")}
                     </th>
-                    <th onClick={() => toggleSort("pnl_total")} className="px-2 py-2 text-right cursor-pointer hover:text-[#ff9900] select-none">
+                    <th onClick={() => toggleSort("pnl_total")} className="px-2 py-2 text-right cursor-pointer hover:text-[var(--t-accent)] select-none">
                       PNL {arrow("pnl_total")}
                     </th>
                     <th className="px-2 py-2 text-right">FLAGS</th>
@@ -328,7 +328,7 @@ export function PnLTotalesView() {
                         onClick={() => setSelected(isSel ? null : { cuenta: r.id_cuenta, ticker: r.ticker })}
                         className={
                           "border-b border-[var(--t-border)] cursor-pointer " +
-                          (isSel ? "bg-[#ff9900]/10" : "hover:bg-[#ff9900]/5")
+                          (isSel ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-accent)]/5")
                         }
                       >
                         <td className="px-2 py-1.5 text-[var(--t-text-dim)] truncate max-w-[140px]" title={r.cuenta}>
@@ -355,7 +355,7 @@ export function PnLTotalesView() {
                         </td>
                         <td className="px-2 py-1.5 text-right text-[9px]">
                           {r.completeness === "parcial" && (
-                            <span className="px-1 py-0 bg-[#ff9900]/15 text-[#ff9900] tracking-widest">P</span>
+                            <span className="px-1 py-0 bg-[var(--t-accent)]/15 text-[var(--t-accent)] tracking-widest">P</span>
                           )}
                           {r.completeness === "sin_boletos" && (
                             <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SB</span>

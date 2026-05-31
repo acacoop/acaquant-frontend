@@ -246,7 +246,7 @@ export function OpcionHistoricoChart({
           </span>
           <span>
             ÚLT{" "}
-            <span className="text-[#ff9900] font-semibold">
+            <span className="text-[var(--t-accent)] font-semibold">
               ${fmtPx(stats.ultimo)}
             </span>
           </span>

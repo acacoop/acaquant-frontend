@@ -163,8 +163,8 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
             onClick={() => setGriega(g.key)}
             className={`text-[9px] px-1.5 py-0.5 border transition-colors ${
               griega === g.key
-                ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
           >
             {g.label}
@@ -179,7 +179,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
               MÁX <span className="text-[var(--t-text)] font-semibold">{fmtVal(stats.max)}</span>
             </span>
             <span>
-              ÚLT <span className="text-[#ff9900] font-semibold">{fmtVal(stats.ultimo)}</span>
+              ÚLT <span className="text-[var(--t-accent)] font-semibold">{fmtVal(stats.ultimo)}</span>
             </span>
           </span>
         )}

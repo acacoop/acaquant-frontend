@@ -195,7 +195,7 @@ export function BreakevensBlock({
             onChange={(e) => setFechaIdx(Number(e.target.value))}
             className="flex-1 range-slider"
           />
-          <span className="text-[10px] text-[#ff9900] font-mono min-w-[60px] text-right">
+          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[60px] text-right">
             {fechaSel ? fmtFechaCorta(fechaSel) : "--"}
           </span>
         </div>
@@ -234,7 +234,7 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
             const mesLabel = p.mes_inflacion ? fmtPeriodoMensual(p.mes_inflacion) : "—";
             return (
               <tr key={p.n}>
-                <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
+                <td className="text-[var(--t-accent)]">{shortTicker(p.lecap)}</td>
                 <td className="text-[var(--t-text-dim)]">{shortTicker(p.cer)}</td>
                 <td className="text-right text-[var(--t-text)] font-mono">{mesLabel}</td>
                 <td className="text-right text-[var(--t-text-dim)]">{p.dias}</td>
@@ -463,8 +463,8 @@ function FilterBtn({
         disabled
           ? "bg-transparent text-[#333333] border-[var(--t-border)] cursor-not-allowed"
           : active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

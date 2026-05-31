@@ -64,8 +64,8 @@ export function PauseBanner() {
   const countdown = fmtCountdown(resume.getTime() - now.getTime());
 
   return (
-    <div className="bg-[#ff9900]/15 border-b border-[#ff9900]/40 px-3 py-2 text-center shrink-0">
-      <span className="text-[11px] font-mono text-[#ff9900] tracking-wide">
+    <div className="bg-[var(--t-accent)]/15 border-b border-[var(--t-accent)]/40 px-3 py-2 text-center shrink-0">
+      <span className="text-[11px] font-mono text-[var(--t-accent)] tracking-wide">
         ● <span className="font-semibold">Sistema en pausa nocturna</span> ·
         <span className="text-[var(--t-text)] mx-1">
           cluster Atlas + crons detenidos para ahorro

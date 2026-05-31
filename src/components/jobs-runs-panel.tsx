@@ -92,8 +92,8 @@ export function JobsRunsPanel() {
     <div className="h-full flex flex-col overflow-hidden p-3 gap-3">
       {/* Stats por tipo (últimos 7 días) */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10">
-          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+        <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
+          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
             Resumen 7 días
           </span>
         </div>
@@ -107,8 +107,8 @@ export function JobsRunsPanel() {
               <button
                 key={s.tipo}
                 onClick={() => setFiltroTipo(filtroTipo === s.tipo ? "" : s.tipo)}
-                className={`border p-2 text-left hover:border-[#ff9900] transition-colors ${
-                  filtroTipo === s.tipo ? "border-[#ff9900]" : "border-[var(--t-border-2)]"
+                className={`border p-2 text-left hover:border-[var(--t-accent)] transition-colors ${
+                  filtroTipo === s.tipo ? "border-[var(--t-accent)]" : "border-[var(--t-border-2)]"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -117,7 +117,7 @@ export function JobsRunsPanel() {
                 </div>
                 <div className="text-[10px] text-[var(--t-text-muted)] mt-1 font-mono">
                   <span className="text-[#00cc66]">{s.ok} ok</span>
-                  {s.partial > 0 && <> · <span className="text-[#ff9900]">{s.partial} partial</span></>}
+                  {s.partial > 0 && <> · <span className="text-[var(--t-accent)]">{s.partial} partial</span></>}
                   {s.error > 0 && <> · <span className="text-[#ff3333]">{s.error} err</span></>}
                   <> · {s.total} total</>
                 </div>
@@ -132,15 +132,15 @@ export function JobsRunsPanel() {
 
       {/* Filtros + tabla */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col flex-1 overflow-hidden">
-        <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 flex items-center justify-between gap-3">
-          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+        <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center justify-between gap-3">
+          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
             Historial de runs ({runs.length})
           </span>
           <div className="flex items-center gap-2">
             <select
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option value="">todos los tipos</option>
               {tipos.map((t) => (
@@ -150,7 +150,7 @@ export function JobsRunsPanel() {
             <select
               value={filtroStatus}
               onChange={(e) => setFiltroStatus(e.target.value)}
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option value="">todos</option>
               <option value="ok">ok</option>
@@ -159,7 +159,7 @@ export function JobsRunsPanel() {
             </select>
             <button
               onClick={fetchData}
-              className="text-[10px] font-semibold px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors"
+              className="text-[10px] font-semibold px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors"
             >
               ↻
             </button>
@@ -177,11 +177,11 @@ export function JobsRunsPanel() {
             <table className="w-full text-[10px] font-mono">
               <thead className="sticky top-0 bg-[#0a0a0a]">
                 <tr className="text-left border-b border-[var(--t-border)]">
-                  <th className="px-2 py-1 text-[#ff9900] uppercase">Tipo</th>
-                  <th className="px-2 py-1 text-[#ff9900] uppercase">Start (ART)</th>
-                  <th className="px-2 py-1 text-[#ff9900] uppercase">Duración</th>
-                  <th className="px-2 py-1 text-[#ff9900] uppercase">Status</th>
-                  <th className="px-2 py-1 text-[#ff9900] uppercase">Resumen</th>
+                  <th className="px-2 py-1 text-[var(--t-accent)] uppercase">Tipo</th>
+                  <th className="px-2 py-1 text-[var(--t-accent)] uppercase">Start (ART)</th>
+                  <th className="px-2 py-1 text-[var(--t-accent)] uppercase">Duración</th>
+                  <th className="px-2 py-1 text-[var(--t-accent)] uppercase">Status</th>
+                  <th className="px-2 py-1 text-[var(--t-accent)] uppercase">Resumen</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,7 +197,7 @@ export function JobsRunsPanel() {
                     <td className="px-2 py-1"><StatusBadge status={r.status} /></td>
                     <td className="px-2 py-1 text-[var(--t-text-dim)] truncate max-w-[400px]">
                       {r.errors.length > 0
-                        ? <span className="text-[#ff9900]">{r.errors[0]}</span>
+                        ? <span className="text-[var(--t-accent)]">{r.errors[0]}</span>
                         : resumenStats(r.stats)}
                     </td>
                   </tr>
@@ -215,16 +215,16 @@ export function JobsRunsPanel() {
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-[var(--t-panel)] border border-[#ff9900] max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            className="bg-[var(--t-panel)] border border-[var(--t-accent)] max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+            <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
                 {selected.tipo} · {selected.started_at} · <StatusBadge status={selected.status} />
               </span>
               <button
                 onClick={() => setSelected(null)}
-                className="text-[var(--t-text-muted)] hover:text-[#ff9900] text-lg leading-none px-2"
+                className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-lg leading-none px-2"
               >
                 ×
               </button>
@@ -236,7 +236,7 @@ export function JobsRunsPanel() {
 
               {selected.errors.length > 0 && (
                 <div>
-                  <div className="text-[#ff9900] uppercase text-[10px] mb-1">Errores</div>
+                  <div className="text-[var(--t-accent)] uppercase text-[10px] mb-1">Errores</div>
                   <ul className="space-y-0.5 text-[#ff3333]">
                     {selected.errors.map((e, i) => <li key={i}>• {e}</li>)}
                   </ul>
@@ -245,7 +245,7 @@ export function JobsRunsPanel() {
 
               {Object.keys(selected.stats || {}).length > 0 && (
                 <div>
-                  <div className="text-[#ff9900] uppercase text-[10px] mb-1">Stats</div>
+                  <div className="text-[var(--t-accent)] uppercase text-[10px] mb-1">Stats</div>
                   <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[var(--t-text)] overflow-x-auto whitespace-pre-wrap">
                     {JSON.stringify(selected.stats, null, 2)}
                   </pre>
@@ -254,7 +254,7 @@ export function JobsRunsPanel() {
 
               {selected.log && selected.log.length > 0 && (
                 <div>
-                  <div className="text-[#ff9900] uppercase text-[10px] mb-1">Log ({selected.log.length} líneas)</div>
+                  <div className="text-[var(--t-accent)] uppercase text-[10px] mb-1">Log ({selected.log.length} líneas)</div>
                   <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[var(--t-text-dim)] overflow-x-auto whitespace-pre-wrap max-h-[400px] overflow-y-auto">
                     {selected.log.join("\n")}
                   </pre>

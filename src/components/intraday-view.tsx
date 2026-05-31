@@ -316,7 +316,7 @@ export function IntradayView() {
     <div className="h-full flex flex-col min-h-0 p-3 gap-3 overflow-hidden">
       {/* Upload + filtros */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
-        <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black cursor-pointer transition-colors">
+        <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black cursor-pointer transition-colors">
           EXAMINAR ARCHIVO
           <input
             type="file"
@@ -343,8 +343,8 @@ export function IntradayView() {
                   onClick={() => setFiltro(p)}
                   className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                     filtro === p
-                      ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                   }`}
                 >
                   {p === "todos" ? "AMBOS" : p.toUpperCase()}
@@ -362,7 +362,7 @@ export function IntradayView() {
 
             <div className="ml-auto flex items-center gap-3 text-[10px] text-[var(--t-text-dim)] font-mono">
               <span>{resultado.filasCrudas} filas totales</span>
-              <span className="text-[#ff9900]">
+              <span className="text-[var(--t-accent)]">
                 {resultado.filasFiltradas} con Client ID {CLIENT_ID_FILTRO}
               </span>
             </div>
@@ -395,7 +395,7 @@ export function IntradayView() {
           <div className="overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
             <table className="w-full text-[11px] font-mono border-collapse">
               <thead className="sticky top-0 bg-[#0c0c0c] z-10">
-                <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[#ff9900]">
+                <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[var(--t-accent)]">
                   <th className="!px-2 !py-1.5 text-left">Símbolo</th>
                   <th className="!px-2 !py-1.5 text-center">Moneda</th>
                   <th className="!px-2 !py-1.5 text-center">Plazo</th>
@@ -411,7 +411,7 @@ export function IntradayView() {
                   return (
                     <tr
                       key={r.simbolo}
-                      className={`border-b border-[var(--t-border)] hover:bg-[#ff9900]/5 ${
+                      className={`border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5 ${
                         divisor ? "border-t-2 border-t-[var(--t-border)]" : ""
                       }`}
                     >
@@ -445,7 +445,7 @@ export function IntradayView() {
           {/* Sidebar derecho: totales + consolidado por especie */}
           <div className="shrink-0 w-96 flex flex-col gap-3 overflow-hidden">
             <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 flex flex-col gap-2 shrink-0">
-              <div className="text-[9px] uppercase tracking-widest text-[#ff9900]">
+              <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
                 Totales por moneda
               </div>
               {totalesPorMoneda.map((t) => (
@@ -468,7 +468,7 @@ export function IntradayView() {
 
             {/* Consolidado por especie (descalce de títulos) */}
             <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 flex flex-col overflow-hidden flex-1 min-h-0">
-              <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-2 shrink-0">
+              <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-2 shrink-0">
                 Consolidado por especie
               </div>
               <div className="flex-1 overflow-y-auto">

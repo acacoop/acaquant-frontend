@@ -109,8 +109,8 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
   return (
     <button onClick={onClick}
       className={`px-3 py-1 text-[11px] font-semibold tracking-wide transition-colors border ${
-        active ? "bg-[#ff9900] text-black border-[#ff9900]"
-               : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+        active ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+               : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}>
       {label}
     </button>
@@ -119,8 +119,8 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-      <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">{title}</span>
+    <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+      <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">{title}</span>
     </div>
   );
 }
@@ -298,8 +298,8 @@ function OpcionesExpiriesPanel() {
 
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           Opciones — vencimientos a trackear
         </span>
         <span className="text-[9px] text-[var(--t-text-muted)]">
@@ -316,7 +316,7 @@ function OpcionesExpiriesPanel() {
         {!data ? (
           <div className="text-[10px] text-[var(--t-text-muted)] font-mono">Cargando…</div>
         ) : data.disponibles.length === 0 ? (
-          <div className="text-[10px] text-[#ff9900] font-mono">
+          <div className="text-[10px] text-[var(--t-accent)] font-mono">
             No hay vencimientos disponibles en Metadata. ¿Está corriendo el motor de opciones?
           </div>
         ) : (
@@ -331,8 +331,8 @@ function OpcionesExpiriesPanel() {
                     disabled={saving}
                     className={`px-2 py-1 text-[10px] font-mono border transition-colors ${
                       sel
-                        ? "bg-[#ff9900] text-black border-[#ff9900]"
-                        : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                        ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                        : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                     }`}
                   >
                     {fmtExpiry(exp)}
@@ -345,14 +345,14 @@ function OpcionesExpiriesPanel() {
               <button
                 onClick={guardar}
                 disabled={saving}
-                className="px-3 py-1 text-[10px] font-semibold border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black transition-colors disabled:opacity-40"
+                className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black transition-colors disabled:opacity-40"
               >
                 {saving ? "Guardando…" : "Guardar selección"}
               </button>
               <button
                 onClick={volverAuto}
                 disabled={saving}
-                className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+                className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40"
               >
                 Volver a auto-pick
               </button>
@@ -361,7 +361,7 @@ function OpcionesExpiriesPanel() {
                 {data.auto_pick ? (
                   <span className="text-[#00cc66]">AUTO (próximo &gt; hoy)</span>
                 ) : (
-                  <span className="text-[#ff9900]">
+                  <span className="text-[var(--t-accent)]">
                     {data.activos.map(fmtExpiry).join(", ")}
                   </span>
                 )}
@@ -398,7 +398,7 @@ function CheckPanel({ title, children }: { title: string; children: React.ReactN
 function RunBtn({ onClick, loading }: { onClick: () => void; loading: boolean }) {
   return (
     <button onClick={onClick} disabled={loading}
-      className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40 mb-2">
+      className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40 mb-2">
       {loading ? "Ejecutando…" : "▶ Ejecutar"}
     </button>
   );
@@ -605,7 +605,7 @@ function TabValidaciones() {
             {!cpData.ok && (
               <table><thead><tr><th>TICKER</th><th className="text-right">PENDIENTES</th></tr></thead>
                 <tbody>{cpData.tickers.map(t => (
-                  <tr key={t.ticker}><td className="text-[#ff9900]">{t.ticker}</td><td className="text-right font-mono">{t.pendientes.toLocaleString()}</td></tr>
+                  <tr key={t.ticker}><td className="text-[var(--t-accent)]">{t.ticker}</td><td className="text-right font-mono">{t.pendientes.toLocaleString()}</td></tr>
                 ))}</tbody>
               </table>
             )}
@@ -624,7 +624,7 @@ function TabValidaciones() {
             <table><thead><tr><th>TICKER</th><th>VTO.</th><th className="text-right">TEA</th><th className="text-right">DURATION</th><th>ÚLTIMO</th><th>ESTADO</th></tr></thead>
               <tbody>{curva.tickers.map(t => (
                 <tr key={t.ticker}>
-                  <td className="text-[#ff9900]">{t.ticker}</td>
+                  <td className="text-[var(--t-accent)]">{t.ticker}</td>
                   <td className="text-[var(--t-text-dim)]">{t.vto}</td>
                   <td className="text-right font-mono">{t.tea != null ? `${t.tea.toFixed(2)}%` : "—"}</td>
                   <td className="text-right font-mono">{t.duration != null ? t.duration.toFixed(3) : "—"}</td>
@@ -647,7 +647,7 @@ function TabValidaciones() {
             <table><thead><tr><th>TICKER</th><th>ÚLTIMO TRADE</th><th>SETTLEMENT</th><th>CER FECHA</th><th className="text-right">CER VALOR</th><th className="text-right">RATIO</th><th className="text-right">PARIDAD</th></tr></thead>
               <tbody>{cerData.instrumentos.map(r => (
                 <tr key={r.ticker}>
-                  <td className="text-[#ff9900]">{r.ticker}</td>
+                  <td className="text-[var(--t-accent)]">{r.ticker}</td>
                   <td className="text-[var(--t-text-dim)] font-mono">{r.ultimo_trade ?? "—"}</td>
                   <td className="text-[var(--t-text-dim)]">{r.settlement ?? "—"}</td>
                   <td className="text-[var(--t-text-dim)]">{r.cer_fecha ?? "—"}</td>
@@ -667,7 +667,7 @@ function TabValidaciones() {
           <>
             <div className="text-[10px] text-[var(--t-text-muted)] font-mono mb-2">
               CER publicado más reciente:{" "}
-              <span className="text-[#ff9900]">{bkvDebugData.fecha_cer_max ?? "—"}</span>
+              <span className="text-[var(--t-accent)]">{bkvDebugData.fecha_cer_max ?? "—"}</span>
               {bkvDebugData.cer_actual != null && (
                 <> ({bkvDebugData.cer_actual.toFixed(4)})</>
               )}
@@ -696,15 +696,15 @@ function TabValidaciones() {
                       <tr
                         key={key}
                         onClick={() => setBkvExpanded(expanded ? null : key)}
-                        className="cursor-pointer hover:bg-[#ff9900]/10"
+                        className="cursor-pointer hover:bg-[var(--t-accent)]/10"
                       >
-                        <td className="text-[#ff9900]">{p.lecap}</td>
+                        <td className="text-[var(--t-accent)]">{p.lecap}</td>
                         <td className="text-[var(--t-text-dim)]">{p.cer}</td>
                         <td className="text-right text-[var(--t-text-dim)] font-mono">{p.dias}</td>
                         <td className="text-right font-mono">
                           {p.meses_pendientes != null ? p.meses_pendientes.toFixed(3) : "—"}
                         </td>
-                        <td className="text-right font-bold font-mono text-[#ff9900]">
+                        <td className="text-right font-bold font-mono text-[var(--t-accent)]">
                           {bo != null ? `${(bo * 100).toFixed(2)}%` : "—"}
                         </td>
                         <td className="text-right font-mono text-[var(--t-text-dim)]">
@@ -719,11 +719,11 @@ function TabValidaciones() {
                       </tr>
                       {expanded && (
                         <tr key={`${key}_detail`}>
-                          <td colSpan={7} className="!py-2 !px-3 bg-[#0a0a0a] border-l-2 border-l-[#ff9900]">
+                          <td colSpan={7} className="!py-2 !px-3 bg-[#0a0a0a] border-l-2 border-l-[var(--t-accent)]">
                             <div className="font-mono text-[10px] text-[var(--t-text)] grid grid-cols-2 gap-4">
                               {/* Buscar Objetivo */}
                               <div className="flex flex-col gap-1">
-                                <div className="text-[#ff9900] font-semibold uppercase tracking-wide">
+                                <div className="text-[var(--t-accent)] font-semibold uppercase tracking-wide">
                                   Buscar Objetivo
                                 </div>
                                 <div className="text-[var(--t-text-muted)]">Inputs:</div>
@@ -737,7 +737,7 @@ function TabValidaciones() {
                                 <div className="text-[var(--t-text-muted)] mt-1">Cálculo:</div>
                                 <div>
                                   R<sub>lecap</sub> = Flujo/P − 1
-                                  <span className="text-[#ff9900] font-semibold">
+                                  <span className="text-[var(--t-accent)] font-semibold">
                                     {" = "}{p.retorno_lecap != null ? `${(p.retorno_lecap * 100).toFixed(3)}%` : "—"}
                                   </span>
                                 </div>
@@ -809,8 +809,8 @@ function TabValidaciones() {
             <table><thead><tr><th>TICKER</th><th>ESTADO</th></tr></thead>
               <tbody>{tfData.instrumentos.map(r => (
                 <tr key={r.ticker}>
-                  <td className="text-[#ff9900]">{r.ticker}</td>
-                  <td className={r.estado === "ok" ? "text-[#00cc66]" : r.estado === "sin_posicion" ? "text-[#ff9900]" : "text-[#ff3333]"}>
+                  <td className="text-[var(--t-accent)]">{r.ticker}</td>
+                  <td className={r.estado === "ok" ? "text-[#00cc66]" : r.estado === "sin_posicion" ? "text-[var(--t-accent)]" : "text-[#ff3333]"}>
                     {ESTADO_LABEL[r.estado] ?? r.estado}
                   </td>
                 </tr>
@@ -823,16 +823,16 @@ function TabValidaciones() {
       <CheckPanel title="Debug Forward — cálculo paso a paso entre dos instrumentos">
         <div className="flex items-center gap-2 mb-2">
           <select value={tcA} onChange={e => setTcA(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-accent)] text-[10px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none">
             {tickers.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <span className="text-[var(--t-text-muted)] text-[10px]">→</span>
           <select value={tcB} onChange={e => setTcB(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-accent)] text-[10px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none">
             {tickers.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <button onClick={runDbf} disabled={dbfLoading || tcA === tcB}
-            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
             {dbfLoading ? "Calculando…" : "Calcular"}
           </button>
         </div>
@@ -846,7 +846,7 @@ function TabValidaciones() {
                   {[{ tc: dbfData.tc_a, tea: dbfData.tea_a, dur: dbfData.duration_a, ts: dbfData.ts_a },
                     { tc: dbfData.tc_b, tea: dbfData.tea_b, dur: dbfData.duration_b, ts: dbfData.ts_b }].map(x => (
                     <div key={x.tc} className="border border-[var(--t-border)] p-2">
-                      <div className="text-[11px] font-semibold text-[#ff9900]">{x.tc}</div>
+                      <div className="text-[11px] font-semibold text-[var(--t-accent)]">{x.tc}</div>
                       <div className="text-[10px] font-mono text-[var(--t-text)]">TEA: {x.tea != null ? `${(x.tea * 100).toFixed(4)}%` : "—"}</div>
                       <div className="text-[10px] font-mono text-[var(--t-text-dim)]">Duration: {x.dur?.toFixed(6) ?? "—"}</div>
                       <div className="text-[9px] text-[var(--t-text-muted)]">{x.ts ?? ""}</div>
@@ -872,12 +872,12 @@ function TabValidaciones() {
       <CheckPanel title="Debug Soberano — cálculo paso a paso del YTM (GD30D / GD35D / GD38D)">
         <div className="flex items-center gap-2 mb-2">
           <select value={tcSob} onChange={e => setTcSob(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-accent)] text-[10px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none">
             <option value="">— elegir ticker —</option>
             {tickers.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <button onClick={runSob} disabled={sobLoading || !tcSob}
-            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
             {sobLoading ? "Calculando…" : "Calcular"}
           </button>
         </div>
@@ -886,7 +886,7 @@ function TabValidaciones() {
           <>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div className="border border-[var(--t-border)] p-2">
-                <div className="text-[11px] font-semibold text-[#ff9900] mb-1">{sobData.instrumento.ticker_corto}</div>
+                <div className="text-[11px] font-semibold text-[var(--t-accent)] mb-1">{sobData.instrumento.ticker_corto}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text)]">Ticker: {sobData.instrumento.ticker}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text-dim)]">Tipo: {sobData.instrumento.tipo} · Curva: {sobData.instrumento.curva}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text-dim)]">Emisión: {sobData.instrumento.fecha_emision}</div>
@@ -894,7 +894,7 @@ function TabValidaciones() {
                 <div className="text-[10px] font-mono text-[var(--t-text-dim)]">VN: {sobData.instrumento.valor_nominal} · Flujos totales: {sobData.instrumento.flujos_total}</div>
               </div>
               <div className="border border-[var(--t-border)] p-2">
-                <div className="text-[11px] font-semibold text-[#ff9900] mb-1">Precio</div>
+                <div className="text-[11px] font-semibold text-[var(--t-accent)] mb-1">Precio</div>
                 <div className="text-[10px] font-mono text-[var(--t-text)]">Último trade: {sobData.precio.ultimo_trade_ts ?? "—"}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text)]">Precio ROFEX: {sobData.precio.precio_rofex?.toFixed(4) ?? "—"}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text-dim)]">MEP: {sobData.precio.mep?.toFixed(2) ?? "—"}</div>
@@ -956,12 +956,12 @@ function TabValidaciones() {
             onChange={(e) => setCurvaTickerInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") runCurva(); }}
             placeholder="ticker_corto (ej: TX26, AL30D, T15E7, S30M6)"
-            className="flex-1 max-w-[280px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="flex-1 max-w-[280px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
           <button
             onClick={runCurva}
             disabled={curvaLoading || !curvaTickerInput.trim()}
-            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40"
           >
             {curvaLoading ? "Calculando…" : "▶ Ejecutar"}
           </button>
@@ -978,7 +978,7 @@ function TabValidaciones() {
               <div className="border border-[var(--t-border)] p-2">
                 <div className="text-[9px] text-[var(--t-text-muted)] tracking-widest mb-1">INSTRUMENTO</div>
                 <div className="font-mono space-y-0.5">
-                  <div><span className="text-[var(--t-text-muted)]">ticker</span> <span className="text-[#ff9900]">{curvaData.instrumento.ticker_corto}</span> <span className="text-[var(--t-text-muted)]">({curvaData.instrumento.curva})</span></div>
+                  <div><span className="text-[var(--t-text-muted)]">ticker</span> <span className="text-[var(--t-accent)]">{curvaData.instrumento.ticker_corto}</span> <span className="text-[var(--t-text-muted)]">({curvaData.instrumento.curva})</span></div>
                   <div><span className="text-[var(--t-text-muted)]">vto</span> {curvaData.instrumento.fecha_vencimiento ?? "—"}</div>
                   <div><span className="text-[var(--t-text-muted)]">VN</span> {curvaData.instrumento.valor_nominal}</div>
                   {curvaData.instrumento.cer_emision !== null && (
@@ -992,7 +992,7 @@ function TabValidaciones() {
                 <div className="font-mono space-y-0.5">
                   <div><span className="text-[var(--t-text-muted)]">ts</span> {curvaData.trade.timestamp ? new Date(curvaData.trade.timestamp).toLocaleString("es-AR") : "—"}</div>
                   <div><span className="text-[var(--t-text-muted)]">price</span> <span className="text-[var(--t-text)]">{curvaData.trade.price.toFixed(3)}</span></div>
-                  <div><span className="text-[var(--t-text-muted)]">TEA persistido</span> <span className="text-[#ff9900]">{curvaData.trade.TEA_persistido !== null ? `${(curvaData.trade.TEA_persistido * 100).toFixed(4)}%` : "—"}</span></div>
+                  <div><span className="text-[var(--t-text-muted)]">TEA persistido</span> <span className="text-[var(--t-accent)]">{curvaData.trade.TEA_persistido !== null ? `${(curvaData.trade.TEA_persistido * 100).toFixed(4)}%` : "—"}</span></div>
                   <div><span className="text-[var(--t-text-muted)]">duration persistido</span> {curvaData.trade.duration_persistido?.toFixed(4) ?? "—"}</div>
                   <div><span className="text-[var(--t-text-muted)]">paridad persistido</span> {curvaData.trade.paridad_persistido?.toFixed(2) ?? "—"}{curvaData.trade.paridad_persistido !== null && "%"}</div>
                 </div>
@@ -1019,7 +1019,7 @@ function TabValidaciones() {
                   <div className="font-mono space-y-0.5">
                     <div><span className="text-[var(--t-text-muted)]">CER emisión</span> {curvaData.cer_info.cer_emision.toFixed(4)}</div>
                     <div><span className="text-[var(--t-text-muted)]">CER liquidación</span> {curvaData.cer_info.cer_liq.toFixed(4)}</div>
-                    <div><span className="text-[var(--t-text-muted)]">ratio (CER_liq / CER_em)</span> <span className="text-[#ff9900]">{curvaData.cer_info.ratio.toFixed(6)}</span></div>
+                    <div><span className="text-[var(--t-text-muted)]">ratio (CER_liq / CER_em)</span> <span className="text-[var(--t-accent)]">{curvaData.cer_info.ratio.toFixed(6)}</span></div>
                   </div>
                 </div>
               )}
@@ -1058,8 +1058,8 @@ function TabValidaciones() {
             )}
 
             {/* Resultado calculado vs persistido */}
-            <div className="border border-[#ff9900]/40 p-2">
-              <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">RESULTADO CALCULADO vs PERSISTIDO</div>
+            <div className="border border-[var(--t-accent)]/40 p-2">
+              <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">RESULTADO CALCULADO vs PERSISTIDO</div>
               {curvaData.error_calc ? (
                 <div className="text-[10px] text-[#ff7f7f] italic">⚠ {curvaData.error_calc}</div>
               ) : (
@@ -1096,7 +1096,7 @@ function TabValidaciones() {
                               ? (row.pct ? `${(row.p * 100).toFixed(4)}%` : `${row.p.toFixed(4)}${row.suffix ?? ""}`)
                               : "—"}
                           </td>
-                          <td className={`text-right ${diffOk ? "text-[#3fbf6f]" : diff === "—" ? "text-[var(--t-text-muted)]" : "text-[#ff9900]"}`}>{diff ?? "—"}</td>
+                          <td className={`text-right ${diffOk ? "text-[#3fbf6f]" : diff === "—" ? "text-[var(--t-text-muted)]" : "text-[var(--t-accent)]"}`}>{diff ?? "—"}</td>
                         </tr>
                       );
                     })}
@@ -1137,9 +1137,9 @@ function TabValidaciones() {
                   <th className="text-right">MID BOOK</th>
                   <th className="text-right">DIRECTO%</th>
                   <th className="text-right text-[#3fbf6f]">TNA LIN (last)</th>
-                  <th className="text-right text-[#ff9900]">TEA COMP (last)</th>
+                  <th className="text-right text-[var(--t-accent)]">TEA COMP (last)</th>
                   <th className="text-right text-[#3fbf6f]">TNA LIN (mid)</th>
-                  <th className="text-right text-[#ff9900]">TEA COMP (mid)</th>
+                  <th className="text-right text-[var(--t-accent)]">TEA COMP (mid)</th>
                   <th className="text-right">PERSISTIDA</th>
                 </tr>
               </thead>
@@ -1154,13 +1154,13 @@ function TabValidaciones() {
                     <td className="text-right text-[#3fbf6f]">
                       {f.tna_lineal_last?.toFixed(2) ?? "—"}%
                     </td>
-                    <td className="text-right text-[#ff9900]">
+                    <td className="text-right text-[var(--t-accent)]">
                       {f.tea_compuesta_last?.toFixed(2) ?? "—"}%
                     </td>
                     <td className="text-right text-[#3fbf6f]">
                       {f.tna_lineal_mid?.toFixed(2) ?? "—"}%
                     </td>
-                    <td className="text-right text-[#ff9900]">
+                    <td className="text-right text-[var(--t-accent)]">
                       {f.tea_compuesta_mid?.toFixed(2) ?? "—"}%
                     </td>
                     <td className="text-right text-[var(--t-text)] font-semibold">
@@ -1172,7 +1172,7 @@ function TabValidaciones() {
             </table>
             <div className="text-[10px] text-[var(--t-text-muted)] mt-2">
               <span className="text-[#3fbf6f]">TNA LIN</span> = directo × 365/días (lineal — terminal Rofex){" "}
-              · <span className="text-[#ff9900]">TEA COMP</span> = (1+directo)^(365/días) − 1 (compuesta) ·{" "}
+              · <span className="text-[var(--t-accent)]">TEA COMP</span> = (1+directo)^(365/días) − 1 (compuesta) ·{" "}
               <span className="text-[var(--t-text)]">PERSISTIDA</span> = lo que el motor escribe a Mongo (hoy = TEA COMP)
             </div>
           </>
@@ -1187,12 +1187,12 @@ function TabValidaciones() {
             onChange={(e) => setPvTicker(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") runPv(); }}
             placeholder="ticker (ej: NVDA, AAPL, KO)"
-            className="flex-1 max-w-[280px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="flex-1 max-w-[280px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
           <button
             onClick={runPv}
             disabled={pvLoading || !pvTicker.trim()}
-            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40"
           >
             {pvLoading ? "Calculando…" : "▶ Ejecutar"}
           </button>
@@ -1210,7 +1210,7 @@ function TabValidaciones() {
               const fr = pvData.frames[k];
               return (
                 <div key={k} className="border border-[var(--t-border)] p-2">
-                  <div className="text-[9px] text-[#ff9900] tracking-widest mb-1">
+                  <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">
                     {fr.label.toUpperCase()} — VENTANA {d10(fr.rango_desde)} → {d10(fr.rango_hasta)} · {fr.n_velas} VELAS
                   </div>
                   {!fr.ok ? (
@@ -1241,7 +1241,7 @@ function TabValidaciones() {
                                   <td className={`text-right px-1 ${esL ? "text-[#ff7f7f] font-bold" : "text-[var(--t-text)]"}`}>
                                     {v.low != null ? v.low.toFixed(4) : "—"}{esL ? " ◄L" : ""}
                                   </td>
-                                  <td className={`text-right px-1 ${esC ? "text-[#ff9900] font-bold" : "text-[var(--t-text)]"}`}>
+                                  <td className={`text-right px-1 ${esC ? "text-[var(--t-accent)] font-bold" : "text-[var(--t-text)]"}`}>
                                     {v.close != null ? v.close.toFixed(4) : "—"}{esC ? " ◄C" : ""}
                                   </td>
                                 </tr>
@@ -1254,7 +1254,7 @@ function TabValidaciones() {
                       <div className="text-[10px] font-mono text-[var(--t-text-dim)]">
                         H = <span className="text-[#3fbf6f]">{fr.h ? fr.h.valor.toFixed(4) : "—"}</span> ({d10(fr.h?.fecha)}) ·{" "}
                         L = <span className="text-[#ff7f7f]">{fr.l ? fr.l.valor.toFixed(4) : "—"}</span> ({d10(fr.l?.fecha)}) ·{" "}
-                        C = <span className="text-[#ff9900]">{fr.c ? fr.c.valor.toFixed(4) : "—"}</span> ({d10(fr.c?.fecha)})
+                        C = <span className="text-[var(--t-accent)]">{fr.c ? fr.c.valor.toFixed(4) : "—"}</span> ({d10(fr.c?.fecha)})
                       </div>
 
                       <table className="w-full text-[10px] font-mono">
@@ -1273,7 +1273,7 @@ function TabValidaciones() {
                           {([["S3", fr.levels.s3], ["S2", fr.levels.s2], ["S1", fr.levels.s1], ["PP", fr.levels.pp], ["R1", fr.levels.r1], ["R2", fr.levels.r2], ["R3", fr.levels.r3]] as [string, number][]).map(([lbl, val]) => (
                             <div key={lbl} className="border border-[var(--t-border)] py-1">
                               <div className="text-[8px] text-[var(--t-text-muted)]">{lbl}</div>
-                              <div className={lbl === "PP" ? "text-[#ff9900] font-bold" : "text-[var(--t-text)]"}>{val.toFixed(2)}</div>
+                              <div className={lbl === "PP" ? "text-[var(--t-accent)] font-bold" : "text-[var(--t-text)]"}>{val.toFixed(2)}</div>
                             </div>
                           ))}
                         </div>
@@ -1494,14 +1494,14 @@ function TabAssets() {
         </datalist>
       ))}
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">ASSETS</span>
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">ASSETS</span>
         <span className="text-[10px] text-[var(--t-text-muted)]">{assets.length} resultados</span>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CARTERA</span>
         <select
           value={filtroCartera}
           onChange={(e) => setFiltroCartera(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           <option value="">— todas —</option>
           {valueOpts.CARTERA.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -1511,7 +1511,7 @@ function TabAssets() {
         <select
           value={filtroEmisor}
           onChange={(e) => setFiltroEmisor(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           <option value="">— todos —</option>
           {valueOpts.EMISOR.map((e) => <option key={e} value={e}>{e}</option>)}
@@ -1521,7 +1521,7 @@ function TabAssets() {
         <select
           value={campoVacio}
           onChange={(e) => setCampoVacio(e.target.value as AssetCampo | "")}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           title="Mostrar solo los assets con este campo sin completar"
         >
           <option value="">— sin filtro —</option>
@@ -1531,7 +1531,7 @@ function TabAssets() {
         <button
           onClick={fetchAssets}
           disabled={loading}
-          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40"
         >
           {loading ? "Cargando…" : "↻ Recargar"}
         </button>
@@ -1582,7 +1582,7 @@ function TabAssets() {
                                 setDraftField(a.unidad, c, e.target.value);
                                 saveRow(a, nd);
                               }}
-                              className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none w-full min-w-[90px]"
+                              className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-full min-w-[90px]"
                             >
                               <option value="">—</option>
                               {/* Incluye el valor actual aunque no esté en la lista (placeholder viejo). */}
@@ -1603,7 +1603,7 @@ function TabAssets() {
                                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                               }}
                               placeholder="—"
-                              className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none w-full min-w-[90px]"
+                              className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-full min-w-[90px]"
                             />
                           )}
                         </td>
@@ -1621,7 +1621,7 @@ function TabAssets() {
                       ) : "—"}
                     </td>
                     <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
-                      {state.kind === "saving" && <span className="text-[#ff9900]">Guardando…</span>}
+                      {state.kind === "saving" && <span className="text-[var(--t-accent)]">Guardando…</span>}
                       {state.kind === "saved"  && <span className="text-green-400">✓ guardado</span>}
                       {state.kind === "error"  && (
                         <span
@@ -1886,26 +1886,26 @@ function TabClientesSegmentacion() {
       ))}
 
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">CLIENTES</span>
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">CLIENTES</span>
         <span className="text-[10px] text-[var(--t-text-muted)]">{rows.length} resultados</span>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">OPERADOR</span>
         <select value={fOperador} onChange={(e) => setFOperador(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none">
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
           {operadores.map((o) => <option key={o.email} value={o.email}>{o.nombre}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 1</span>
         <select value={fNivel1} onChange={(e) => setFNivel1(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none">
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
           {(vals["nivel_1"] || []).map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CAMPO VACÍO</span>
         <select value={campoVacio} onChange={(e) => setCampoVacio(e.target.value as ClienteCampo | "")}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           title="Mostrar solo los clientes con este campo sin completar">
           <option value="">— sin filtro —</option>
           {CLIENTE_CAMPOS.map((c) => <option key={c} value={c}>{CLIENTE_CAMPO_LABEL[c]}</option>)}
@@ -1916,11 +1916,11 @@ function TabClientesSegmentacion() {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") fetchClientes(); }}
           placeholder="buscar id o nombre…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none w-[170px]"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[170px]"
         />
 
         <label
-          className={`ml-auto px-3 py-1 text-[10px] font-semibold border cursor-pointer transition-colors ${importing ? "opacity-40 pointer-events-none border-[var(--t-border-2)] text-[var(--t-text-muted)]" : "border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900]"}`}
+          className={`ml-auto px-3 py-1 text-[10px] font-semibold border cursor-pointer transition-colors ${importing ? "opacity-40 pointer-events-none border-[var(--t-border-2)] text-[var(--t-text-muted)]" : "border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"}`}
           title="Subí un .csv/.xlsx con columna id_cuenta + las columnas a rellenar (nombres = campos: nivel_1, riesgo_la_ft, …). Solo rellena lo que traiga el archivo."
         >
           {importing ? "Importando…" : "📁 Importar archivo"}
@@ -1933,7 +1933,7 @@ function TabClientesSegmentacion() {
         </label>
 
         <button onClick={fetchClientes} disabled={loading}
-          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
           {loading ? "Cargando…" : "↻ Recargar"}
         </button>
       </div>
@@ -1968,14 +1968,14 @@ function TabClientesSegmentacion() {
                 const dirty = CLIENTE_CAMPOS.some((k) => draft[k] !== ((c[k] ?? "") as string));
                 return (
                   <tr key={c.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[#0c0c0c]">
-                    <td className="px-3 py-1.5 text-[#ff9900] whitespace-nowrap">{c.id_cuenta}</td>
+                    <td className="px-3 py-1.5 text-[var(--t-accent)] whitespace-nowrap">{c.id_cuenta}</td>
                     <td className="px-2 py-1.5 text-[var(--t-text)] whitespace-nowrap max-w-[220px] truncate" title={c.denominacion ?? ""}>{c.denominacion ?? "—"}</td>
                     <td className="px-2 py-1.5">
                       <select
                         value={c.operador_email ?? ""}
                         onChange={(e) => saveOperador(c, e.target.value)}
                         title={c.operador_email ?? "sin operador"}
-                        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none min-w-[120px] max-w-[170px]"
+                        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none min-w-[120px] max-w-[170px]"
                       >
                         {!c.operador_email && <option value="" disabled>— elegí —</option>}
                         {c.operador_email && !operadores.some((o) => o.email === c.operador_email) && (
@@ -1996,7 +1996,7 @@ function TabClientesSegmentacion() {
                           onBlur={() => saveRow(c)}
                           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                           placeholder="—"
-                          className={`bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none ${k === "observaciones" ? "min-w-[180px]" : "min-w-[90px]"} w-full`}
+                          className={`bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none ${k === "observaciones" ? "min-w-[180px]" : "min-w-[90px]"} w-full`}
                         />
                       </td>
                     ))}
@@ -2009,7 +2009,7 @@ function TabClientesSegmentacion() {
                       ) : "—"}
                     </td>
                     <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
-                      {state.kind === "saving" && <span className="text-[#ff9900]">Guardando…</span>}
+                      {state.kind === "saving" && <span className="text-[var(--t-accent)]">Guardando…</span>}
                       {state.kind === "saved" && <span className="text-green-400">✓ guardado</span>}
                       {state.kind === "error" && <span className="text-red-400 cursor-help" title={state.msg}>✗ {state.msg.length > 40 ? state.msg.slice(0, 40) + "…" : state.msg}</span>}
                       {state.kind === "idle" && dirty && <span className="text-[var(--t-text-muted)]">sin guardar</span>}
@@ -2164,11 +2164,11 @@ function TabClientesFondeos() {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">FONDEOS</span>
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">FONDEOS</span>
         <span className="text-[10px] text-[var(--t-text-muted)]">{visibles.length} / {rows.length}</span>
 
         <label className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-dim)]">
-          <input type="checkbox" checked={soloCargados} onChange={(e) => setSoloCargados(e.target.checked)} className="accent-[#ff9900]" />
+          <input type="checkbox" checked={soloCargados} onChange={(e) => setSoloCargados(e.target.checked)} className="accent-[var(--t-accent)]" />
           solo con fondeo cargado
         </label>
 
@@ -2177,11 +2177,11 @@ function TabClientesFondeos() {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") fetchClientes(); }}
           placeholder="buscar id o nombre…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none w-[170px]"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[170px]"
         />
 
         <label
-          className={`ml-auto px-3 py-1 text-[10px] font-semibold border cursor-pointer transition-colors ${importing ? "opacity-40 pointer-events-none border-[var(--t-border-2)] text-[var(--t-text-muted)]" : "border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900]"}`}
+          className={`ml-auto px-3 py-1 text-[10px] font-semibold border cursor-pointer transition-colors ${importing ? "opacity-40 pointer-events-none border-[var(--t-border-2)] text-[var(--t-text-muted)]" : "border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"}`}
           title="CSV/XLSX con columnas: id_cuenta, cupo_transaccional, cupo_usado (ARS). Solo toca las cuentas que vienen en el archivo."
         >
           {importing ? "Importando…" : "📁 Importar archivo"}
@@ -2194,7 +2194,7 @@ function TabClientesFondeos() {
         </label>
 
         <button onClick={fetchClientes} disabled={loading}
-          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40">
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
           {loading ? "Cargando…" : "↻ Recargar"}
         </button>
       </div>
@@ -2265,7 +2265,7 @@ function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
           <button
             key={t.id}
             onClick={() => setSubTab(t.id)}
-            className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${subTab === t.id ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"}`}
+            className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${subTab === t.id ? "text-[var(--t-accent)] border-b border-[var(--t-accent)]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"}`}
           >
             {t.label}
           </button>
@@ -2369,7 +2369,7 @@ function TabInstrumentos() {
           <button
             onClick={runDisc}
             disabled={discLoading}
-            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40"
           >
             {discLoading ? "Cargando…" : "↻ Recargar"}
           </button>
@@ -2378,7 +2378,7 @@ function TabInstrumentos() {
           <select
             value={selectedCfi}
             onChange={(e) => setSelectedCfi(e.target.value)}
-            className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[#ff9900] font-mono min-w-[180px] focus:border-[#ff9900] focus:outline-none"
+            className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-accent)] font-mono min-w-[180px] focus:border-[var(--t-accent)] focus:outline-none"
             disabled={!discData?.ok}
           >
             {!discData?.ok && <option value="">— sin data —</option>}
@@ -2393,7 +2393,7 @@ function TabInstrumentos() {
           <select
             value={selectedUnderlying}
             onChange={(e) => setSelectedUnderlying(e.target.value)}
-            className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono min-w-[300px] focus:border-[#ff9900] focus:outline-none"
+            className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono min-w-[300px] focus:border-[var(--t-accent)] focus:outline-none"
             disabled={instruments.length === 0}
           >
             <option value="__ALL__">
@@ -2411,7 +2411,7 @@ function TabInstrumentos() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar ticker o maturity"
-            className="flex-1 min-w-[200px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="flex-1 min-w-[200px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
             disabled={!instruments.length}
           />
 
@@ -2687,7 +2687,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     <div className="h-full flex flex-col min-h-0">
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest mr-3">MANAGER</span>
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest mr-3">MANAGER</span>
         {tabs.map((t) => (
           <Pill key={t.id} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />
         ))}

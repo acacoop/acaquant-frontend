@@ -22,7 +22,7 @@ export function DualRange({
     <div className="relative flex-1 h-4 flex items-center">
       <div className="absolute inset-x-0 h-[2px] bg-[#2a2a2a] rounded pointer-events-none" />
       <div
-        className="absolute h-[2px] bg-[#ff9900] rounded pointer-events-none"
+        className="absolute h-[2px] bg-[var(--t-accent)] rounded pointer-events-none"
         style={{ left: `${loPct}%`, width: `${Math.max(0, hiPct - loPct)}%` }}
       />
       <input

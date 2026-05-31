@@ -404,7 +404,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 onClick={() => setSubview(v)}
                 className={
                   "px-3 py-1 text-[11px] font-semibold tracking-wide " +
-                  (subview === v ? "bg-[#ff9900] text-black" : "bg-transparent text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                  (subview === v ? "bg-[var(--t-accent)] text-black" : "bg-transparent text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                 }
               >
                 {label}
@@ -436,7 +436,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
           {/* GRÁFICO DE EVOLUCIÓN */}
           <div className="flex-[3_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
-              <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
                 {metric === "aum" ? "AUM" : "Volumen operado"} · ARS
               </span>
               {visDesde && visHasta && (
@@ -449,7 +449,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   <span className="text-[var(--t-text-muted)] uppercase tracking-wider">
                     {metric === "aum" ? "Último: " : "Total período: "}
                   </span>
-                  <span className="text-[#ff9900] font-semibold">{fmtAum(resumenSerie)}</span>
+                  <span className="text-[var(--t-accent)] font-semibold">{fmtAum(resumenSerie)}</span>
                 </span>
               )}
               {cliente && (
@@ -457,7 +457,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   · {cliente.denominacion}
                   <button
                     onClick={() => setSelCuenta(null)}
-                    className="ml-1 text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
+                    className="ml-1 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[12px] leading-none"
                     title="Volver a la cartera del operador"
                   >×</button>
                 </span>
@@ -472,7 +472,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setMetric(m)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (metric === m ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                      (metric === m ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {m === "volumen" ? "Volumen" : "AuM"}
@@ -487,7 +487,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setAgg(k)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (agg === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                      (agg === k ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {k}
@@ -500,7 +500,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   onClick={() => setRangoOffset((o) => o + 1)}
                   disabled={!puedeAtras}
                   title="Período anterior"
-                  className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                  className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                 >◀</button>
                 <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
                   {(["1W", "1M", "3M", "6M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
@@ -509,7 +509,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                       onClick={() => { setRango(k); setRangoOffset(0); }}
                       className={
                         "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                        (rango === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                        (rango === k ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                       }
                     >
                       {k}
@@ -520,7 +520,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
                   disabled={!puedeAdelante}
                   title="Período siguiente"
-                  className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                  className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                 >▶</button>
               </div>
             </div>
@@ -612,8 +612,8 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
 
           {/* FICHA DEL CLIENTE (con tabs) — alineada con el portafolio (40%) */}
           <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Ficha</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Ficha</span>
               {cliente && (
                 <span className="text-[10px] text-[var(--t-text-dim)] font-mono truncate">
                   [{cliente.id_cuenta}] {cliente.ficha.denominacion || cliente.denominacion}
@@ -626,7 +626,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setFichaTab(t)}
                     className={
                       "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
-                      (fichaTab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                      (fichaTab === t ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {t === "datos" ? "Datos" : t}
@@ -655,13 +655,13 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
 
           {/* TABLA DE CLIENTES */}
           <div className="flex-[3_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Clientes</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Clientes</span>
               <input
                 value={qCuenta}
                 onChange={(e) => setQCuenta(e.target.value)}
                 placeholder="buscar cuenta o nombre…"
-                className="ml-2 flex-1 max-w-[220px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                className="ml-2 flex-1 max-w-[220px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
               />
               <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">{clientesFiltrados.length}</span>
               <DownloadBtn onClick={dlClientes} />
@@ -687,14 +687,14 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         onClick={() => setSelCuenta(active ? null : c.id_cuenta)}
                         className={
                           "border-t border-[var(--t-border)] cursor-pointer transition-colors " +
-                          (active ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
+                          (active ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
                         }
                         title="Click: ficha + tenencia + gráfico de este cliente"
                       >
                         <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[260px]" title={c.denominacion}>
                           <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
                         </td>
-                        <td className="px-2 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(c.aum)}</td>
                         <td className="px-3 py-1.5 text-right text-[var(--t-text)]">{fmtAum(c.volumen_ytd)}</td>
                       </tr>
                     );
@@ -706,8 +706,8 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
 
           {/* PORTAFOLIO — tabs Tenencia / Operaciones del cliente */}
           <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Portafolio</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Portafolio</span>
               {portTab === "tenencia" && portafolio?.fecha_snapshot && (
                 <span className="text-[9px] text-[var(--t-text-muted)] font-mono">{portafolio.fecha_snapshot}</span>
               )}
@@ -725,7 +725,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setPortTab(t)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (portTab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                      (portTab === t ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {t === "tenencia" ? "Tenencia" : "Operaciones"}
@@ -757,7 +757,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                       {portafolio.posiciones.map((p) => (
                         <tr key={p.unidad} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                           <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[280px]" title={p.unidad}>{p.unidad}</td>
-                          <td className="px-2 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(p.valuacion)}</td>
+                          <td className="px-2 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(p.valuacion)}</td>
                           <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)]">{p.pct.toFixed(1)}%</td>
                         </tr>
                       ))}
@@ -793,7 +793,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                               <span className="text-[var(--t-text-dim)] whitespace-nowrap">{OP_CAT_LABEL[o.categoria] ?? o.categoria}</span>
                             </span>
                           </td>
-                          <td className="px-2 py-1 text-[#ff9900] truncate max-w-[90px]" title={o.ticker ?? ""}>{o.ticker ?? "—"}</td>
+                          <td className="px-2 py-1 text-[var(--t-accent)] truncate max-w-[90px]" title={o.ticker ?? ""}>{o.ticker ?? "—"}</td>
                           <td className="px-2 py-1 text-right text-[var(--t-text)]">
                             {o.cantidad != null ? o.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
                           </td>
@@ -824,7 +824,7 @@ function DownloadBtn({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       title="Descargar a Excel"
-      className="text-[9px] tracking-wider text-[var(--t-text-dim)] hover:text-[#ff9900] border border-[var(--t-border-2)] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
+      className="text-[9px] tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] hover:border-[var(--t-accent)] px-1.5 py-0.5 uppercase"
     >
       ⬇ xls
     </button>
@@ -1079,7 +1079,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             title="Filtrar la tabla por este estado"
             className={
               "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
-              (estadoSel === e ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
+              (estadoSel === e ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
             }
           >
             <span className="w-2 h-2 inline-block" style={{ background: ESTADO_COLOR[e] }} />
@@ -1092,7 +1092,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           title="Filtrar: cuentas sin AuM"
           className={
             "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
-            (estadoSel === "SIN_AUM" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
+            (estadoSel === "SIN_AUM" ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
           }
         >
           <span className="text-[var(--t-text-dim)]">Sin AuM</span>
@@ -1103,7 +1103,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           title="Filtrar: sin operar en el año"
           className={
             "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
-            (estadoSel === "SIN_OP_YTD" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
+            (estadoSel === "SIN_OP_YTD" ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
           }
         >
           <span className="text-[var(--t-text-dim)]">Sin operar (año)</span>
@@ -1133,11 +1133,11 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
 
           {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
           <div className="relative group">
-          <span className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[var(--t-border-2)] text-[var(--t-text-dim)] text-[10px] cursor-help group-hover:border-[#ff9900] group-hover:text-[#ff9900]">
+          <span className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[var(--t-border-2)] text-[var(--t-text-dim)] text-[10px] cursor-help group-hover:border-[var(--t-accent)] group-hover:text-[var(--t-accent)]">
             ?
           </span>
           <div className="hidden group-hover:block absolute right-0 top-5 z-50 w-[320px] border border-[var(--t-border-2)] bg-[var(--t-surface)] p-3 text-[10px] leading-relaxed shadow-lg">
-            <div className="text-[#ff9900] uppercase tracking-widest text-[9px] mb-1.5">Cómo se calcula</div>
+            <div className="text-[var(--t-accent)] uppercase tracking-widest text-[9px] mb-1.5">Cómo se calcula</div>
             <p><span style={{ color: ESTADO_COLOR.ACTIVA }}>● Activa</span><span className="text-[var(--t-text-dim)]">: operó hace ≤ {umbral.activa} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[var(--t-text-dim)]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.DORMIDA }}>● Dormida</span><span className="text-[var(--t-text-dim)]">: operó alguna vez, pero hace más de {umbral.dormida} días.</span></p>
@@ -1153,12 +1153,12 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
       <div className="flex-1 min-h-0 grid grid-cols-[3fr_2fr] gap-3 overflow-hidden">
         {/* IZQ — Estado comercial (todos) */}
         <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Estado comercial</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Estado comercial</span>
             {nivelSel && (
-              <span className="text-[10px] text-[#ff9900] font-mono inline-flex items-center gap-1">
+              <span className="text-[10px] text-[var(--t-accent)] font-mono inline-flex items-center gap-1">
                 · {nivelSel}
-                <button onClick={() => { setNivelSel(null); setNivel3Sel(null); }} className="text-[var(--t-text-dim)] hover:text-[#ff9900]" title="Quitar filtro de nivel">×</button>
+                <button onClick={() => { setNivelSel(null); setNivel3Sel(null); }} className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Quitar filtro de nivel">×</button>
               </span>
             )}
             <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{ordenados.length}</span>
@@ -1169,12 +1169,12 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                 <tr>
-                  <th onClick={() => onSortClick("cuenta")}     className="px-3 py-1.5 text-left border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]">Cuenta{sortArrow("cuenta")}</th>
-                  <th onClick={() => onSortClick("estado")}     className="px-2 py-1.5 text-left border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]">Estado{sortArrow("estado")}</th>
-                  <th onClick={() => onSortClick("dias")}       className="px-2 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]">Días sin operar{sortArrow("dias")}</th>
-                  <th onClick={() => onSortClick("aum")}        className="px-3 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]">AuM{sortArrow("aum")}</th>
-                  <th onClick={() => onSortClick("cupo_trans")} className="px-2 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]" title="Cupo transaccional del custodio (USD al MEP).">Cupo Trans. (USD){sortArrow("cupo_trans")}</th>
-                  <th onClick={() => onSortClick("cupo_usado")} className="px-2 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]" title="Cupo usado (USD al MEP).">Cupo Usado (USD){sortArrow("cupo_usado")}</th>
+                  <th onClick={() => onSortClick("cuenta")}     className="px-3 py-1.5 text-left border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]">Cuenta{sortArrow("cuenta")}</th>
+                  <th onClick={() => onSortClick("estado")}     className="px-2 py-1.5 text-left border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]">Estado{sortArrow("estado")}</th>
+                  <th onClick={() => onSortClick("dias")}       className="px-2 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]">Días sin operar{sortArrow("dias")}</th>
+                  <th onClick={() => onSortClick("aum")}        className="px-3 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]">AuM{sortArrow("aum")}</th>
+                  <th onClick={() => onSortClick("cupo_trans")} className="px-2 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]" title="Cupo transaccional del custodio (USD al MEP).">Cupo Trans. (USD){sortArrow("cupo_trans")}</th>
+                  <th onClick={() => onSortClick("cupo_usado")} className="px-2 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]" title="Cupo usado (USD al MEP).">Cupo Usado (USD){sortArrow("cupo_usado")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1185,7 +1185,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                     </td>
                     <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{c.dias_sin_operar ?? "—"}</td>
-                    <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
+                    <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(c.aum)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{c.cupo_transaccional_usd != null ? fmtUsd(c.cupo_transaccional_usd) : "—"}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{c.cupo_usado_usd != null ? fmtUsd(c.cupo_usado_usd) : "—"}</td>
                   </tr>
@@ -1198,8 +1198,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
         {/* DER — Distribución por nivel (arriba, click = filtra clientes) + Riesgo de churn (abajo) */}
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
           <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Distribución por nivel 1</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Distribución por nivel 1</span>
               <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{porNivel.length}</span>
               <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">click = filtra clientes</span>
               <DownloadBtn onClick={dlPorNivel} />
@@ -1229,7 +1229,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                         }}
                         className={
                           "border-t border-[var(--t-border)] cursor-pointer transition-colors " +
-                          (active ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
+                          (active ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
                         }
                         title="Click: filtrar la tabla de Estado comercial por este nivel"
                       >
@@ -1237,7 +1237,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                         <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.n}</td>
                         <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{n.activas}</td>
                         <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.pctActivas.toFixed(0)}%</td>
-                        <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(n.aum)}</td>
+                        <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(n.aum)}</td>
                       </tr>
                     );
                   })}
@@ -1247,13 +1247,13 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           </div>
 
           <div className="flex-[3_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Nivel 3</span>
-              {nivelSel && <span className="text-[10px] text-[#ff9900] font-mono truncate max-w-[160px]">· {nivelSel}</span>}
+            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Nivel 3</span>
+              {nivelSel && <span className="text-[10px] text-[var(--t-accent)] font-mono truncate max-w-[160px]">· {nivelSel}</span>}
               {nivel3Sel && (
-                <span className="text-[10px] text-[#ff9900] font-mono inline-flex items-center gap-1">
+                <span className="text-[10px] text-[var(--t-accent)] font-mono inline-flex items-center gap-1">
                   · {nivel3Sel}
-                  <button onClick={() => setNivel3Sel(null)} className="text-[var(--t-text-dim)] hover:text-[#ff9900]" title="Quitar filtro de nivel 3">×</button>
+                  <button onClick={() => setNivel3Sel(null)} className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Quitar filtro de nivel 3">×</button>
                 </span>
               )}
               <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{nivel3Det.length} valores{nivelSel ? "" : " · todos"}</span>
@@ -1283,7 +1283,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                           onClick={() => setNivel3Sel(active ? null : r.n3)}
                           className={
                             "border-t border-[var(--t-border)] cursor-pointer transition-colors " +
-                            (active ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
+                            (active ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
                           }
                           title="Click: filtrar la tabla de Estado comercial por este nivel 3"
                         >
@@ -1291,8 +1291,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                           <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtUsd(r.cupo_trans_usd)}</td>
                           <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{fmtUsd(r.cupo_libre_usd)}</td>
                           <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{r.n_activas}</td>
-                          <td className="px-2 py-1.5 text-right text-[#ff9900]">{r.n_enfriandose}</td>
-                          <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(r.aum)}</td>
+                          <td className="px-2 py-1.5 text-right text-[var(--t-accent)]">{r.n_enfriandose}</td>
+                          <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(r.aum)}</td>
                         </tr>
                       );
                     })}

@@ -299,7 +299,7 @@ export function DerivadosAgroEstrategias({
           value={vencimiento ?? ""}
           onChange={(e) => setVencimiento(e.target.value || null)}
           disabled={!panel || panel.vencimientos.length === 0}
-          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
         >
           {panel?.vencimientos.map((v) => (
             <option key={v.vencimiento} value={v.vencimiento}>
@@ -308,7 +308,7 @@ export function DerivadosAgroEstrategias({
           ))}
         </select>
         <span className="text-[10px] text-[var(--t-text-dim)] tracking-wide ml-2">FUT</span>
-        <span className="text-[#ff9900] font-mono text-[11px]">{fmtPx(futuro)}</span>
+        <span className="text-[var(--t-accent)] font-mono text-[11px]">{fmtPx(futuro)}</span>
         {vtoBlock?.dias_a_vto != null && (
           <span className="text-[9px] text-[var(--t-text-muted)]">({vtoBlock.dias_a_vto}d)</span>
         )}
@@ -563,7 +563,7 @@ function PanelOpciones({
             <tr
               key={s.strike}
               className={`border-b border-[#101010] ${
-                isAtm ? "bg-[#ff9900]/10" : "hover:bg-[#0d0d0d]"
+                isAtm ? "bg-[var(--t-accent)]/10" : "hover:bg-[#0d0d0d]"
               }`}
             >
               <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
@@ -577,7 +577,7 @@ function PanelOpciones({
               </td>
               <td
                 className={`px-2 py-0.5 text-center font-semibold ${
-                  isAtm ? "text-[#ff9900]" : "text-[var(--t-text)]"
+                  isAtm ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
                 }`}
               >
                 {fmtPx(s.strike, 0)}
@@ -661,7 +661,7 @@ function SimuladorForm({
               setStrike(e.target.value ? Number(e.target.value) : null)
             }
             disabled={strikes.length === 0}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
           >
             {strikes.map((s) => (
               <option key={s.strike} value={s.strike}>
@@ -688,9 +688,9 @@ function SimuladorForm({
             onChange={(e) => setPrimaOverride(e.target.value)}
             className={`bg-[var(--t-surface)] border ${
               !strikeTieneLast && !primaOverride
-                ? "border-[#ff9900]/60"
+                ? "border-[var(--t-accent)]/60"
                 : "border-[var(--t-border-2)]"
-            } text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-20`}
+            } text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-20`}
           />
           <span className="text-[9px] text-[var(--t-text-muted)]">USD</span>
         </div>
@@ -704,7 +704,7 @@ function SimuladorForm({
       ) : sim ? (
         <ResultCard sim={sim} />
       ) : !puedeSimular && strike != null ? (
-        <div className="border border-[#ff9900]/30 bg-[#ff9900]/5 px-2 py-1.5 text-[10px] text-[#ff9900]">
+        <div className="border border-[var(--t-accent)]/30 bg-[var(--t-accent)]/5 px-2 py-1.5 text-[10px] text-[var(--t-accent)]">
           Strike sin último operado — ingresá prima manual (bid/offer del panel).
         </div>
       ) : (

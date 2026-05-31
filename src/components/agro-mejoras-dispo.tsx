@@ -150,7 +150,7 @@ export function AgroMejorasDispo() {
                         key={c.id}
                         colSpan={2}
                         className={`text-center px-1 py-1 border-b border-[var(--t-border)] border-l border-l-[var(--t-border)] ${
-                          hasPx ? "text-[#ff9900]" : "text-[var(--t-text-muted)]"
+                          hasPx ? "text-[var(--t-accent)]" : "text-[var(--t-text-muted)]"
                         }`}
                       >
                         {c.short}
@@ -175,7 +175,7 @@ export function AgroMejorasDispo() {
                       key={key}
                       className="border-b border-[#101010] hover:bg-[#0d0d0d]"
                     >
-                      <td className="px-1 py-0.5 text-[#ff9900] font-semibold">
+                      <td className="px-1 py-0.5 text-[var(--t-accent)] font-semibold">
                         {r.ticker ?? "—"}
                       </td>
                       <td className="px-1 py-0.5 text-center text-[var(--t-text-dim)]">
@@ -242,7 +242,7 @@ function CommodityCells({
       </td>
       <td
         className={`px-1 py-0.5 text-right font-semibold ${
-          valorUsd === null ? "text-[var(--t-text-muted)]" : "text-[#ff9900]"
+          valorUsd === null ? "text-[var(--t-text-muted)]" : "text-[var(--t-accent)]"
         }`}
       >
         {fmtUsd(valorUsd)}

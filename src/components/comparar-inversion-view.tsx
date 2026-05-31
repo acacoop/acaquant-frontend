@@ -177,7 +177,7 @@ function BonoSelector({
             if (e.key === "Enter" && filtered.length > 0) pick(filtered[0]);
             else if (e.key === "Escape") setOpen(false);
           }}
-          className="w-full bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="w-full bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         />
         {open && (
           <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-64 overflow-y-auto bg-black border border-[var(--t-border-2)] shadow-lg">
@@ -189,8 +189,8 @@ function BonoSelector({
                   key={b.id}
                   type="button"
                   onClick={() => pick(b)}
-                  className={`block w-full text-left px-2 py-0.5 text-[10px] font-mono hover:bg-[#ff9900]/10 ${
-                    b.id === selected ? "text-[#ff9900]" : "text-[var(--t-text)]"
+                  className={`block w-full text-left px-2 py-0.5 text-[10px] font-mono hover:bg-[var(--t-accent)]/10 ${
+                    b.id === selected ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
                   }`}
                 >
                   {bonoOptionLabel(b)}
@@ -333,7 +333,7 @@ export function CompararInversionView() {
             <input
               value={monto}
               onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
-              className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
             />
             <div className="flex">
               {(["ARS", "USD"] as const).map((m) => (
@@ -342,8 +342,8 @@ export function CompararInversionView() {
                   onClick={() => setMoneda(m)}
                   className={`px-2 py-0.5 text-[10px] font-semibold border-y border-r transition-colors ${
                     moneda === m
-                      ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900]"
+                      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
                   }`}
                 >
                   {m}
@@ -461,7 +461,7 @@ export function CompararInversionView() {
         {/* Gráfico */}
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-2 pt-1.5 shrink-0">
-            <span className="text-[9px] text-[#ff9900] tracking-widest">
+            <span className="text-[9px] text-[var(--t-accent)] tracking-widest">
               FLUJOS
             </span>
             <div className="flex gap-1">
@@ -469,8 +469,8 @@ export function CompararInversionView() {
                 onClick={() => setModoChart("renta")}
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "renta"
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900]"
+                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
                 }`}
               >
                 RENTA
@@ -479,8 +479,8 @@ export function CompararInversionView() {
                 onClick={() => setModoChart("total")}
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "total"
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900]"
+                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
                 }`}
               >
                 TOTAL

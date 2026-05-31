@@ -365,7 +365,7 @@ export function PortfolioPanel({
           PORTFOLIO{" "}
           {account && (
             <>
-              · <span className="text-[#ff9900]">{account}</span>
+              · <span className="text-[var(--t-accent)]">{account}</span>
               {accountNombre && (
                 <span className="text-[var(--t-text-dim)] font-normal ml-1">
                   — {accountNombre}
@@ -376,7 +376,7 @@ export function PortfolioPanel({
         </span>
         <button
           onClick={refresh}
-          className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
+          className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[12px] leading-none"
           title="Refrescar"
         >
           ↻
@@ -428,7 +428,7 @@ export function PortfolioPanel({
                       <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                         {t.price != null ? t.price.toFixed(2) : "—"}
                       </td>
-                      <td className="px-2 py-0.5 text-right text-[#ff9900]">
+                      <td className="px-2 py-0.5 text-right text-[var(--t-accent)]">
                         {t.marketValue != null
                           ? `$${t.marketValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
                           : "—"}
@@ -442,7 +442,7 @@ export function PortfolioPanel({
                       <td colSpan={4} className="px-2 py-1 text-right text-[10px] text-[var(--t-text-dim)]">
                         TOTAL
                       </td>
-                      <td className="px-2 py-1 text-right text-[#ff9900] font-bold">
+                      <td className="px-2 py-1 text-right text-[var(--t-accent)] font-bold">
                         ${totalMarketValue.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                       </td>
                     </tr>
@@ -557,7 +557,7 @@ export function AccountSearch({
           setTimeout(() => setOpen(false), 200);
         }}
         placeholder="ID o nombre"
-        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[260px] focus:border-[#ff9900] outline-none"
+        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[260px] focus:border-[var(--t-accent)] outline-none"
       />
       {open && hits.length > 0 && (
         <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[280px] overflow-y-auto w-[320px] text-[11px]">
@@ -572,7 +572,7 @@ export function AccountSearch({
                 c.account_id === value ? "bg-[#1a1308]" : ""
               }`}
             >
-              <span className="text-[#ff9900] font-mono tabular-nums min-w-[60px]">
+              <span className="text-[var(--t-accent)] font-mono tabular-nums min-w-[60px]">
                 {c.account_id}
               </span>
               <span className="text-[var(--t-text)] flex-1 truncate">
@@ -638,7 +638,7 @@ function TickerSearch({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
         placeholder="ticker"
-        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[#ff9900] outline-none"
+        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[var(--t-accent)] outline-none"
       />
       {open && hits.length > 0 && (
         <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[200px] overflow-y-auto min-w-[260px] text-[10px]">
@@ -832,7 +832,7 @@ function OperarCard({
           onChange={(e) =>
             onChangePlazo(e.target.value as "CI" | "24hs" | "48hs")
           }
-          className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] focus:border-[#ff9900] outline-none"
+          className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] focus:border-[var(--t-accent)] outline-none"
           title="Plazo de liquidación (ignorado si elegiste el ticker full del autocomplete)"
         >
           <option value="CI">CI</option>
@@ -841,7 +841,7 @@ function OperarCard({
         </select>
         <div className="flex items-baseline gap-2 ml-1 flex-1 justify-end">
           <span className="text-[9px] text-[var(--t-text-muted)]">last</span>
-          <span className="text-[#ff9900] font-bold tabular-nums text-[13px]">
+          <span className="text-[var(--t-accent)] font-bold tabular-nums text-[13px]">
             {last !== null ? last.toFixed(2) : "—"}
           </span>
           {close !== null && (
@@ -881,7 +881,7 @@ function OperarCard({
             onClick={() =>
               onChangeTicker(`PESOS - ${d}D`, `MERV - XMEV - PESOS - ${d}D`)
             }
-            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] font-mono"
             title={`Caución pesos a ${d} día(s)`}
           >
             ${d}D
@@ -894,7 +894,7 @@ function OperarCard({
             onClick={() =>
               onChangeTicker(`DOLAR - ${d}D`, `MERV - XMEV - DOLAR - ${d}D`)
             }
-            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] font-mono"
             title={`Caución dólares a ${d} día(s)`}
           >
             U${d}D
@@ -978,7 +978,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, order_type: e.target.value as OrderType }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
           >
             <option value="LIMIT">LIMIT</option>
             <option value="MARKET">MARKET</option>
@@ -988,7 +988,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, tif: e.target.value as Tif }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
           >
             <option value="DAY">DAY</option>
             <option value="IOC">IOC</option>
@@ -1008,7 +1008,7 @@ function OperarCard({
               // normalizamos al tipear (no al enviar) para que el user VEA el punto.
               setForm((f) => ({ ...f, price: e.target.value.replace(",", ".") }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40"
           />
           <input
             value={form.size}
@@ -1016,7 +1016,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, size: e.target.value.replace(",", ".") }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none"
           />
         </div>
 
@@ -1027,9 +1027,9 @@ function OperarCard({
             placeholder="precio salida (bracket — opcional)"
             disabled={form.order_type === "MARKET"}
             onChange={(e) => setPriceExit(e.target.value.replace(",", "."))}
-            className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40 ${
+            className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40 ${
               priceExit.trim() !== ""
-                ? "border-[#ff9900] text-[#ff9900]"
+                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
                 : "border-[var(--t-border-2)]"
             }`}
             title="Cuando la entrada se llene, manda automáticamente la salida LIMIT a este precio (side opuesto, mismo size)"
@@ -1039,7 +1039,7 @@ function OperarCard({
         <button
           onClick={ejecutar}
           disabled={sending || !account || !fullTicker}
-          className="w-full px-2 py-1 bg-[#ff9900] text-black font-bold text-[11px] tracking-wide border border-[#ff9900] hover:bg-[#ffaa20] disabled:opacity-30 disabled:cursor-not-allowed"
+          className="w-full px-2 py-1 bg-[var(--t-accent)] text-black font-bold text-[11px] tracking-wide border border-[var(--t-accent)] hover:bg-[#ffaa20] disabled:opacity-30 disabled:cursor-not-allowed"
         >
           {sending
             ? "…"
@@ -1104,7 +1104,7 @@ export function OrderManagement({
           </span>
           <button
             onClick={refresh}
-            className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
+            className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[12px] leading-none"
             title="Refrescar"
           >
             ↻
@@ -1371,7 +1371,7 @@ export function OperarDashboardView() {
         />
         <button
           onClick={addCard}
-          className="ml-auto px-2 py-0.5 text-[10px] font-semibold tracking-wide border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black"
+          className="ml-auto px-2 py-0.5 text-[10px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black"
         >
           + AGREGAR PANEL
         </button>
@@ -1387,7 +1387,7 @@ export function OperarDashboardView() {
             className={`shrink-0 flex items-center gap-2 px-2 py-1 text-[10px] border ${
               noOperable
                 ? "border-[#f87171]/50 bg-[#1a0d0d] text-[#f87171]"
-                : "border-[#ff9900]/40 bg-[#1a1308] text-[#ffcf66]"
+                : "border-[var(--t-accent)]/40 bg-[#1a1308] text-[#ffcf66]"
             }`}
           >
             <span>

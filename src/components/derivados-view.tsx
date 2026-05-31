@@ -191,12 +191,12 @@ export function DerivadosView({
                 max="3"
                 value={tasaInput}
                 onChange={(e) => setTasaInput(e.target.value)}
-                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-16"
+                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-16"
               />
               <button
                 onClick={guardarTasa}
                 disabled={savingTasa || parseFloat(tasaInput) === meta.tasa}
-                className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#ff9900] hover:border-[#ff9900] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {savingTasa ? "..." : "OK"}
               </button>
@@ -207,7 +207,7 @@ export function DerivadosView({
           ) : (
             // Read-only para todos los users que no son admin: la tasa
             // risk-free es global y afecta los Greeks de toda la mesa.
-            <span className="text-[#ff9900] font-mono text-[11px] px-1">
+            <span className="text-[var(--t-accent)] font-mono text-[11px] px-1">
               {(meta.tasa * 100).toFixed(1)}%
             </span>
           )}
@@ -436,7 +436,7 @@ function Kpi({
       </span>
       <span
         className={`text-[13px] font-semibold ${
-          accent ? "text-[#ff9900]" : "text-[var(--t-text)]"
+          accent ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
         }`}
       >
         {value}
@@ -459,8 +459,8 @@ function TabBtn({
       onClick={onClick}
       className={`text-[9px] px-1.5 py-0.5 border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}

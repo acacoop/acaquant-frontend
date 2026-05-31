@@ -93,7 +93,7 @@ function FciSearch({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
         placeholder="buscar FCI por nombre…"
-        className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full focus:border-[#ff9900] outline-none"
+        className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full focus:border-[var(--t-accent)] outline-none"
       />
       {open && q.trim().length >= 2 && (
         <div className="absolute top-full left-0 right-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[320px] overflow-y-auto text-[11px]">
@@ -118,7 +118,7 @@ function FciSearch({
                 {h.underlying && (
                   <span className="text-[8px] text-[var(--t-text-muted)] uppercase">{h.underlying}</span>
                 )}
-                <span className="text-[9px] text-[#ff9900] w-9 text-right">
+                <span className="text-[9px] text-[var(--t-accent)] w-9 text-right">
                   {h.currency ?? ""}
                 </span>
                 <span className="text-[9px] text-[var(--t-text-dim)] w-10 text-right">{h.plazo ?? ""}</span>
@@ -268,14 +268,14 @@ function FciOperatePanel({
           <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-2 flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <span
-                className="text-[#ff9900] font-semibold text-[12px] flex-1 truncate"
+                className="text-[var(--t-accent)] font-semibold text-[12px] flex-1 truncate"
                 title={fci.ticker}
               >
                 {fci.ticker}
               </span>
               <button
                 onClick={() => fci && fetchQuote(fci.ticker)}
-                className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
+                className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[12px] leading-none"
                 title="Refrescar cuota"
               >
                 ↻
@@ -324,7 +324,7 @@ function FciOperatePanel({
                   onClick={() => setAmountMode(m)}
                   className={`px-2 py-0.5 text-[9px] font-semibold border ${
                     m === amountMode
-                      ? "bg-[#ff9900] text-black border-[#ff9900]"
+                      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
                       : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)]"
                   }`}
                 >
@@ -338,7 +338,7 @@ function FciOperatePanel({
             onChange={(e) => setAmount(e.target.value)}
             placeholder={amountMode === "importe" ? `importe en ${ccy || "$"}` : "cuotapartes"}
             inputMode="decimal"
-            className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[var(--t-accent)] outline-none"
           />
           <div className="mt-1 text-[10px] text-[var(--t-text-dim)] min-h-[14px]">
             {conversion ? (
@@ -395,7 +395,7 @@ function Meta({ label, value, accent }: { label: string; value: string; accent?:
       <span className="text-[8px] tracking-wider text-[var(--t-text-muted)]">{label}</span>
       <span
         className={`text-[11px] font-semibold tabular-nums ${
-          accent ? "text-[#ff9900]" : "text-[var(--t-text)]"
+          accent ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
         }`}
       >
         {value}
@@ -496,7 +496,7 @@ export function OperarFciView() {
             className={`shrink-0 flex items-center gap-2 px-2 py-1 text-[10px] border ${
               noOperable
                 ? "border-[#f87171]/50 bg-[#1a0d0d] text-[#f87171]"
-                : "border-[#ff9900]/40 bg-[#1a1308] text-[#ffcf66]"
+                : "border-[var(--t-accent)]/40 bg-[#1a1308] text-[#ffcf66]"
             }`}
           >
             <span>

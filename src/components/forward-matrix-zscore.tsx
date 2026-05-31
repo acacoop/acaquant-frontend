@@ -50,7 +50,7 @@ export function ForwardMatrixZscore({ tickers, matrix, stats }: Props) {
         <tbody>
           {tickers.slice(1).map((tLargo, i) => (
             <tr key={tLargo} className="hover:!bg-transparent">
-              <td className="!px-2 !py-1 text-[#ff9900] font-semibold whitespace-nowrap">
+              <td className="!px-2 !py-1 text-[var(--t-accent)] font-semibold whitespace-nowrap">
                 {short[i + 1]}
               </td>
               {tickers.slice(0, -1).map((tCorto, j) => {

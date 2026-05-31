@@ -49,7 +49,7 @@ export function CarteraResponse({
         {onModificar && (
           <button
             onClick={onModificar}
-            className="mt-2 text-[10px] px-2 py-1 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black uppercase tracking-wide"
+            className="mt-2 text-[10px] px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide"
           >
             Modificar parámetros
           </button>
@@ -64,15 +64,15 @@ export function CarteraResponse({
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-3 font-mono space-y-3">
       {/* Tesis arriba destacada */}
-      <div className="border-l-2 border-[#ff9900] pl-2">
+      <div className="border-l-2 border-[var(--t-accent)] pl-2">
         <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide mb-0.5">Tesis</div>
         <div className="text-[12px] text-[var(--t-text)] leading-snug">{data.tesis}</div>
       </div>
 
       {/* Alertas (si hay) */}
       {alertas.length > 0 && (
-        <div className="border border-[#ff9900]/40 bg-[#ff9900]/5 px-2 py-1.5">
-          <div className="text-[9px] text-[#ff9900] uppercase tracking-wide mb-0.5">
+        <div className="border border-[var(--t-accent)]/40 bg-[var(--t-accent)]/5 px-2 py-1.5">
+          <div className="text-[9px] text-[var(--t-accent)] uppercase tracking-wide mb-0.5">
             Alertas de data ({alertas.length})
           </div>
           <ul className="text-[10px] text-[var(--t-text)] space-y-0.5">
@@ -93,7 +93,7 @@ export function CarteraResponse({
           <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide mb-1">
             Cartera ({cartera.length} instrumentos)
             {!pesos_ok && (
-              <span className="ml-2 text-[#ff9900]">⚠ pesos suman {pesos_suma}%</span>
+              <span className="ml-2 text-[var(--t-accent)]">⚠ pesos suman {pesos_suma}%</span>
             )}
           </div>
           <table className="w-full text-[11px]">
@@ -128,7 +128,7 @@ export function CarteraResponse({
           {onModificar && (
             <button
               onClick={onModificar}
-              className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:border-[#ff9900] uppercase tracking-wide"
+              className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] uppercase tracking-wide"
             >
               Modificar parámetros
             </button>
@@ -164,7 +164,7 @@ function CarteraRow({ inst }: { inst: CarteraInstrumento }) {
         onClick={() => setOpen((o) => !o)}
         className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[#1a1a1a]/40"
       >
-        <td className="px-1 py-1 text-[#ff9900] font-semibold">{inst.ticker}</td>
+        <td className="px-1 py-1 text-[var(--t-accent)] font-semibold">{inst.ticker}</td>
         <td className="px-1 py-1 text-right text-[var(--t-text)] font-mono">
           {inst.peso_pct.toFixed(0)}%
         </td>

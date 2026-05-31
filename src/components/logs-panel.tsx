@@ -128,12 +128,12 @@ export function LogsPanel() {
     <div className="h-full flex flex-col min-h-0 bg-[var(--t-panel)]">
       {/* Controles */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[#0c0c0c] shrink-0">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">LOGS</span>
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">LOGS</span>
 
         <select
           value={servicio}
           onChange={(e) => setServicio(e.target.value)}
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[#ff9900]"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[var(--t-accent)]"
         >
           {SERVICES.map((s) => (
             <option key={s.id} value={s.id}>{s.label}</option>
@@ -143,7 +143,7 @@ export function LogsPanel() {
         <select
           value={lines}
           onChange={(e) => setLines(parseInt(e.target.value, 10))}
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[#ff9900]"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[var(--t-accent)]"
         >
           {LINE_OPTIONS.map((n) => (
             <option key={n} value={n}>{n} líneas</option>
@@ -157,8 +157,8 @@ export function LogsPanel() {
               onClick={() => setFilter(f)}
               className={`px-2 py-1 text-[10px] font-semibold tracking-wide border ${
                 filter === f
-                  ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
               }`}
             >
               {f.toUpperCase()}
@@ -181,7 +181,7 @@ export function LogsPanel() {
         <button
           onClick={refresh}
           disabled={loading}
-          className="px-2 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[#999999] hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-50"
+          className="px-2 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[#999999] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:opacity-50"
         >
           REFRESH
         </button>

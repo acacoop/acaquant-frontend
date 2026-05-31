@@ -189,8 +189,8 @@ export function SensibilidadTable() {
                 onClick={() => setModo(m)}
                 className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                   modo === m
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                 }`}
               >
                 {m === "absoluta" ? "TIR ABSOLUTA" : "TIR RELATIVA"}
@@ -211,7 +211,7 @@ export function SensibilidadTable() {
                 : setTirsRel(e.target.value)
             }
             placeholder={modo === "absoluta" ? "4,5,6,7,8,9,10,11" : "-4,-3,-2,-1,0,1,2,3,4"}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none w-56"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -238,7 +238,7 @@ export function SensibilidadTable() {
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none w-20"
             title="0 = upside instantáneo. >0 = proyecta el precio. Enter o click fuera para aplicar."
           />
         </div>
@@ -255,8 +255,8 @@ export function SensibilidadTable() {
                   onClick={() => toggleTipo(t)}
                   className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                     active
-                      ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                   }`}
                   title={
                     active && tipos.length === 1
@@ -286,7 +286,7 @@ export function SensibilidadTable() {
       <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
         <table className="w-full text-[11px] font-mono border-collapse">
           <thead className="sticky top-0 bg-[#0c0c0c] z-10">
-            <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[#ff9900]">
+            <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[var(--t-accent)]">
               <th className="!px-2 !py-1.5 text-left">Ticker</th>
               <th className="!px-2 !py-1.5 text-right">Vto</th>
               <th className="!px-2 !py-1.5 text-right">Precio</th>
@@ -307,9 +307,9 @@ export function SensibilidadTable() {
             {data.map((b, bonoIdx) => (
               <tr
                 key={b.ticker_completo}
-                className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
+                className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
               >
-                <td className="!px-2 !py-1 text-[#ff9900] font-semibold">
+                <td className="!px-2 !py-1 text-[var(--t-accent)] font-semibold">
                   {b.ticker}
                 </td>
                 <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
@@ -338,7 +338,7 @@ export function SensibilidadTable() {
                       key={i}
                       onClick={() => setSelIdx({ bono: bonoIdx, esc: i })}
                       className={`!px-2 !py-1 text-right border-l border-[var(--t-border)] font-semibold cursor-pointer ${
-                        isSelected ? "outline outline-2 outline-[#ff9900] outline-offset-[-2px]" : ""
+                        isSelected ? "outline outline-2 outline-[var(--t-accent)] outline-offset-[-2px]" : ""
                       }`}
                       style={{ background: c.bg, color: c.fg }}
                       title={tip}
@@ -373,12 +373,12 @@ export function SensibilidadTable() {
         {!debugOpen ? (
           <button
             onClick={() => setDebugOpen(true)}
-            className="flex-1 flex flex-col items-center justify-center gap-2 text-[#ff9900] hover:bg-[#ff9900]/10 cursor-pointer"
+            className="flex-1 flex flex-col items-center justify-center gap-2 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 cursor-pointer"
             title="Expandir panel de debug"
           >
             <span className="text-[11px]">◀</span>
             <span
-              className="text-[10px] uppercase tracking-[0.2em] text-[#ff9900]"
+              className="text-[10px] uppercase tracking-[0.2em] text-[var(--t-accent)]"
               style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
             >
               DEBUG
@@ -387,12 +387,12 @@ export function SensibilidadTable() {
         ) : (
         <div className="p-3 overflow-y-auto flex-1">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[9px] uppercase tracking-widest text-[#ff9900]">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
             DEBUG · celda seleccionada
           </span>
           <button
             onClick={() => setDebugOpen(false)}
-            className="text-[var(--t-text-muted)] hover:text-[#ff9900] text-[14px] leading-none cursor-pointer"
+            className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[14px] leading-none cursor-pointer"
             title="Minimizar panel"
           >
             ▶
@@ -406,7 +406,7 @@ export function SensibilidadTable() {
           <div className="flex flex-col gap-3">
             <div>
               <div className="flex items-baseline justify-between">
-                <span className="text-[#ff9900] font-semibold text-[13px]">
+                <span className="text-[var(--t-accent)] font-semibold text-[13px]">
                   {debug.bono.ticker}
                 </span>
                 <span className="text-[var(--t-text-dim)]">
@@ -530,7 +530,7 @@ export function SensibilidadTable() {
            interpretación del modo activo. */}
       <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
+          <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
             Cálculo — retorno total
           </div>
           <div className="text-[var(--t-text)]">
@@ -551,7 +551,7 @@ export function SensibilidadTable() {
           </div>
         </div>
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
+          <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
             Modo activo: {modo === "absoluta" ? "TIR ABSOLUTA" : "TIR RELATIVA"}
           </div>
           <div className="text-[var(--t-text-dim)] leading-relaxed">

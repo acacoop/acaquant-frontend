@@ -112,7 +112,7 @@ export function ManagerDebugSegmentoPanel() {
           onChange={(e) => setPick(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onConsultar(); }}
           placeholder="ID o denominación…"
-          className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none w-[420px]"
+          className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[420px]"
         />
         <datalist id="cuentas-list">
           {cuentas.map((c) => (
@@ -122,7 +122,7 @@ export function ManagerDebugSegmentoPanel() {
         <button
           onClick={onConsultar}
           disabled={loading || !pick}
-          className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
         >
           {loading ? "Consultando…" : "Consultar"}
         </button>
@@ -157,7 +157,7 @@ export function ManagerDebugSegmentoPanel() {
           </Section>
 
           <Section title="CUPO (CRUDO desde Mongo)">
-            <Row k="transaccional ARS" v={<span className="text-[#ff9900] font-semibold">{fmtArs(data.cupo.transaccional_ars)}</span>} />
+            <Row k="transaccional ARS" v={<span className="text-[var(--t-accent)] font-semibold">{fmtArs(data.cupo.transaccional_ars)}</span>} />
             <Row k="usado ARS" v={fmtArs(data.cupo.usado_ars)} />
             <Row k="cargado_en" v={fmtFecha(data.cupo.cargado_en)} />
             <Row k="fuente" v={data.cupo.fuente ?? "—"} />
@@ -181,7 +181,7 @@ export function ManagerDebugSegmentoPanel() {
                   </span>
                 } />
                 <Row k="resultado" v={
-                  <span className="text-[#ff9900] font-semibold">
+                  <span className="text-[var(--t-accent)] font-semibold">
                     {fmt2(data.cupo_convertido, ` ${data.tc.unidad ?? ""}`)}
                   </span>
                 } />
@@ -242,7 +242,7 @@ export function ManagerDebugSegmentoPanel() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 text-[10px] font-semibold text-[#ff9900] tracking-wider uppercase">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 text-[10px] font-semibold text-[var(--t-accent)] tracking-wider uppercase">
         {title}
       </div>
       <div className="p-3">{children}</div>

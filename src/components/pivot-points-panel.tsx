@@ -126,8 +126,8 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
             onClick={() => setMainTab(key)}
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
               mainTab === key
-                ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
           >
             {label}
@@ -143,8 +143,8 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
                 onClick={() => setSubTab(key)}
                 className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
                   subTab === key
-                    ? "text-[#ff9900] border-[#ff9900]/40"
-                    : "text-[var(--t-text-muted)] border-transparent hover:text-[#ff9900]"
+                    ? "text-[var(--t-accent)] border-[var(--t-accent)]/40"
+                    : "text-[var(--t-text-muted)] border-transparent hover:text-[var(--t-accent)]"
                 }`}
               >
                 {label}
@@ -302,7 +302,7 @@ function ZRow({ label, v }: { label: string; v: number | null }) {
   if (v != null) {
     const abs = Math.abs(v);
     if (abs >= 3)      color = "text-[#ff3333]";
-    else if (abs >= 2) color = "text-[#ff9900]";
+    else if (abs >= 2) color = "text-[var(--t-accent)]";
     else               color = "text-[#00cc66]";
   }
   return (
@@ -335,7 +335,7 @@ function Row({
       ? "text-[#ff3333]"
       : color === "support"
       ? "text-[#00cc66]"
-      : "text-[#ff9900]";
+      : "text-[var(--t-accent)]";
   return (
     <tr>
       <td className={`!px-1 font-semibold text-center ${labelColor}`}>{label}</td>

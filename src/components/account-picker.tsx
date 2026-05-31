@@ -113,7 +113,7 @@ export function AccountPicker({
               onMouseDown={(e) => e.preventDefault()} // que no robe el blur al input antes del click
               onClick={() => commit(c.account_id)}
               className={`w-full text-left px-2 py-1 text-[11px] font-mono hover:bg-[#1a1a1a] flex items-center justify-between ${
-                c.account_id === value ? "bg-[#1a1a1a] text-[#ff9900]" : "text-[var(--t-text)]"
+                c.account_id === value ? "bg-[#1a1a1a] text-[var(--t-accent)]" : "text-[var(--t-text)]"
               }`}
             >
               <span>{c.account_id}</span>

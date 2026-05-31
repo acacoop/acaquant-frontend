@@ -78,7 +78,7 @@ export function AunesaPosicionPanel() {
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[var(--t-accent)] focus:outline-none"
         />
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">FECHA</span>
         <input
@@ -87,12 +87,12 @@ export function AunesaPosicionPanel() {
           onChange={(e) => setFecha(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
           title="Fecha de liquidación. Vacío = T+2 hábil (default del job)."
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         />
         {fecha && (
           <button
             onClick={() => setFecha("")}
-            className="text-[10px] text-[var(--t-text-muted)] hover:text-[#ff9900]"
+            className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]"
             title="Volver a T+2 default"
           >
             × T+2
@@ -101,7 +101,7 @@ export function AunesaPosicionPanel() {
         <button
           onClick={consultar}
           disabled={loading}
-          className="text-[10px] tracking-widest px-3 py-1 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900]/10 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="text-[10px] tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? "CONSULTANDO AUNESA…" : "CONSULTAR AUNESA"}
         </button>

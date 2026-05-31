@@ -124,8 +124,8 @@ export function CanjeTab() {
                 onClick={() => setPar(p)}
                 className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                   par === p
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                 }`}
               >
                 {p}
@@ -220,7 +220,7 @@ export function CanjeTab() {
 
       {/* Leyenda */}
       <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 shrink-0 text-[10px] font-mono">
-        <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
+        <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
           Cálculo
         </div>
         <div className="text-[var(--t-text)]">
@@ -255,7 +255,7 @@ function Kpi({
       : tone === "down"
         ? "text-[#ff3333]"
         : highlight
-          ? "text-[#ff9900]"
+          ? "text-[var(--t-accent)]"
           : "text-[var(--t-text)]";
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2">

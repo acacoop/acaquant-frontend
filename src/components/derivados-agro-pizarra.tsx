@@ -212,7 +212,7 @@ export function DerivadosAgroPizarra({
         </span>
         <span
           className={`font-mono text-[11px] ${
-            oficialStale ? "text-[#f87171]" : "text-[#ff9900]"
+            oficialStale ? "text-[#f87171]" : "text-[var(--t-accent)]"
           }`}
         >
           {oficial ? fmtArs(oficial) : "—"}
@@ -323,8 +323,8 @@ function VistaBtn({
       onClick={onClick}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
-          ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
       }`}
     >
       {children}
@@ -561,7 +561,7 @@ function PizarraRow({
       <td className="px-1.5 py-1 text-[#e0c890]">
         {fmtFechaVtoFuturo(row.vencimiento)}
       </td>
-      <td className="px-1.5 py-1 text-[#ff9900] font-semibold tracking-wide">
+      <td className="px-1.5 py-1 text-[var(--t-accent)] font-semibold tracking-wide">
         {row.posicion}
       </td>
       <td

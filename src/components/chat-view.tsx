@@ -173,7 +173,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
             href={href}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="text-[#ff9900] underline decoration-dotted underline-offset-2 hover:text-[#ffb84d]"
+            className="text-[var(--t-accent)] underline decoration-dotted underline-offset-2 hover:text-[#ffb84d]"
           >
             {label}
           </a>,
@@ -187,7 +187,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       );
     } else if (match[4]) {
       nodes.push(
-        <code key={key++} className="bg-[#1a1a1a] px-1 text-[#ff9900]">
+        <code key={key++} className="bg-[#1a1a1a] px-1 text-[var(--t-accent)]">
           {match[4]}
         </code>,
       );
@@ -553,10 +553,10 @@ export function ChatView() {
       <div className="flex-1 min-w-0 flex flex-col">
       <div className="border-b border-[var(--t-border)] px-3 py-1.5 flex items-center gap-3 shrink-0">
         <span className="text-[10px] tracking-wide text-[var(--t-text-muted)] uppercase">Asistente</span>
-        <span className="text-[10px] text-[#ff9900]">Claude · haiku/sonnet auto</span>
+        <span className="text-[10px] text-[var(--t-accent)]">Claude · haiku/sonnet auto</span>
         <button
           onClick={resetear}
-          className="ml-auto text-[10px] text-[var(--t-text-muted)] hover:text-[#ff9900] uppercase tracking-wide"
+          className="ml-auto text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] uppercase tracking-wide"
           disabled={turns.length === 0}
         >
           Nueva conversación
@@ -605,7 +605,7 @@ export function ChatView() {
                     {renderMarkdown(t.text)}
                     {t.toolCalls && t.toolCalls.length > 0 && (
                       <details className="mt-2 text-[10px] text-[var(--t-text-muted)]">
-                        <summary className="cursor-pointer hover:text-[#ff9900] uppercase tracking-wide">
+                        <summary className="cursor-pointer hover:text-[var(--t-accent)] uppercase tracking-wide">
                           Fuentes ({t.toolCalls.length})
                         </summary>
                         <div className="mt-1 space-y-0.5 font-mono">
@@ -654,10 +654,10 @@ export function ChatView() {
         )}
 
         {error && (
-          <div className="flex border border-[#ff9900]/50 bg-[#ff9900]/5 px-3 py-2.5 font-mono">
-            <div className="text-[#ff9900] text-lg leading-none mt-0.5 mr-3">!</div>
+          <div className="flex border border-[var(--t-accent)]/50 bg-[var(--t-accent)]/5 px-3 py-2.5 font-mono">
+            <div className="text-[var(--t-accent)] text-lg leading-none mt-0.5 mr-3">!</div>
             <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-semibold text-[#ff9900] uppercase tracking-wide">
+              <div className="text-[11px] font-semibold text-[var(--t-accent)] uppercase tracking-wide">
                 {error.title}
               </div>
               <div className="text-[11px] text-[var(--t-text)] mt-1 leading-relaxed">
@@ -672,7 +672,7 @@ export function ChatView() {
                 <button
                   onClick={reintentar}
                   disabled={loading}
-                  className="mt-2 text-[10px] px-2.5 py-1 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black uppercase tracking-wide disabled:opacity-40"
+                  className="mt-2 text-[10px] px-2.5 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide disabled:opacity-40"
                 >
                   Reintentar
                 </button>
@@ -697,7 +697,7 @@ export function ChatView() {
           <button
             onClick={() => abrirFormCartera()}
             disabled={loading || carteraFormOpen}
-            className="text-[10px] px-2 py-0.5 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black uppercase tracking-wide disabled:opacity-40 disabled:cursor-not-allowed"
           >
             + Recomendar cartera
           </button>
@@ -723,7 +723,7 @@ export function ChatView() {
           onKeyDown={onKeyDown}
           placeholder="Escribí tu consulta…  (Enter para enviar, Shift+Enter para salto de línea)"
           rows={2}
-          className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[12px] px-2 py-1.5 font-mono focus:border-[#ff9900] outline-none resize-none"
+          className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[12px] px-2 py-1.5 font-mono focus:border-[var(--t-accent)] outline-none resize-none"
           disabled={loading}
         />
         <div className="flex items-center mt-1">
@@ -763,14 +763,14 @@ function ConversationsSidebar({
         <button
           onClick={onToggle}
           title="Expandir conversaciones"
-          className="w-6 h-6 flex items-center justify-center text-[var(--t-text-dim)] hover:text-[#ff9900]"
+          className="w-6 h-6 flex items-center justify-center text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           ▶
         </button>
         <button
           onClick={onNueva}
           title="Nueva conversación"
-          className="w-6 h-6 flex items-center justify-center text-[14px] font-bold bg-[#ff9900] text-black hover:bg-[#ffaa22]"
+          className="w-6 h-6 flex items-center justify-center text-[14px] font-bold bg-[var(--t-accent)] text-black hover:bg-[#ffaa22]"
         >
           +
         </button>
@@ -786,14 +786,14 @@ function ConversationsSidebar({
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
         <button
           onClick={onNueva}
-          className="flex-1 px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[#ff9900] text-black hover:bg-[#ffaa22]"
+          className="flex-1 px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[var(--t-accent)] text-black hover:bg-[#ffaa22]"
         >
           + NUEVA CONVERSACIÓN
         </button>
         <button
           onClick={onToggle}
           title="Colapsar"
-          className="w-6 h-6 flex items-center justify-center text-[var(--t-text-dim)] hover:text-[#ff9900] border border-[var(--t-border-2)]"
+          className="w-6 h-6 flex items-center justify-center text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)]"
         >
           ◀
         </button>

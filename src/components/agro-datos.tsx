@@ -177,7 +177,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
 
   return (
     <tr className="border-b border-[#101010] hover:bg-[#0d0d0d]">
-      <td className="px-2 py-1.5 text-[#ff9900] font-semibold tracking-wide">
+      <td className="px-2 py-1.5 text-[var(--t-accent)] font-semibold tracking-wide">
         {row.cereal}
       </td>
       <td className="px-2 py-1.5 text-right">
@@ -189,7 +189,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
             value={ars}
             onChange={(e) => onArsChange(e.target.value)}
             placeholder="—"
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-28 text-right"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-28 text-right"
           />
         </div>
       </td>
@@ -202,7 +202,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
             value={usd}
             onChange={(e) => onUsdChange(e.target.value)}
             placeholder="—"
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-24 text-right"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-24 text-right"
           />
           {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
           {savedOk === true && (

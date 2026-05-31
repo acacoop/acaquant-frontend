@@ -97,7 +97,7 @@ function ProcessRow({ p, maxRss }: { p: ProcessInfo; maxRss: number }) {
     >
       <div className="text-white/80 font-mono">{p.label}</div>
       <div className="h-1 bg-[#1f1f1f] relative overflow-hidden">
-        <div className="h-full bg-[#ff9900]" style={{ width: `${barPct}%` }} />
+        <div className="h-full bg-[var(--t-accent)]" style={{ width: `${barPct}%` }} />
       </div>
       <div className="text-right text-white/70 tabular-nums">
         {alive ? `${p.rss_mb.toFixed(0)} MB` : "—"}
@@ -209,8 +209,8 @@ export function RecursosPanel() {
 
       {/* Procesos */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
-        <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10">
-          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+        <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
+          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
             PROCESOS
           </span>
         </div>
@@ -228,7 +228,7 @@ export function RecursosPanel() {
       {/* Histórico */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
             HISTÓRICO ({history.length} muestras · 1/min)
           </span>
           <span className="text-[10px] text-white/40">% uso</span>
@@ -288,7 +288,7 @@ export function RecursosPanel() {
       </div>
 
       {err && (
-        <div className="text-[10px] text-[#ff9900]">
+        <div className="text-[10px] text-[var(--t-accent)]">
           Última actualización falló: {err}
         </div>
       )}

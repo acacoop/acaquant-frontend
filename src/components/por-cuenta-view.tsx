@@ -130,12 +130,12 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
       <div className="flex gap-1 px-2 pt-2 shrink-0">
         <button
           onClick={onVolver}
-          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900]"
+          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           POR TÍTULO
         </button>
         <button
-          className="px-3 py-1 text-[10px] tracking-widest border border-[#ff9900] bg-[#ff9900]/10 text-[#ff9900]"
+          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-accent)]"
         >
           POR CUENTA
         </button>
@@ -146,7 +146,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as FiltroCuenta)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           {FILTRO_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -157,14 +157,14 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
           value={searchCta}
           onChange={(e) => setSearchCta(e.target.value)}
           placeholder="Filtrar cuenta…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none w-48"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-48"
         />
         <label className="flex items-center gap-1 text-[10px] text-[var(--t-text-dim)] font-mono cursor-pointer select-none">
           <input
             type="checkbox"
             checked={ocultarMuerto}
             onChange={(e) => setOcultarMuerto(e.target.checked)}
-            className="accent-[#ff9900]"
+            className="accent-[var(--t-accent)]"
           />
           Ocultar saldo muerto (&lt;$100k)
         </label>
@@ -205,7 +205,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
                 {filas.map((r) => {
                   const cuentaShort = r.cuenta.replace(/^\[\d+\]\s*/, "");
                   return (
-                    <tr key={r.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5">
+                    <tr key={r.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5">
                       <td className="px-2 py-1.5 text-[var(--t-text-dim)] truncate max-w-[220px]" title={r.cuenta}>
                         <span className="text-[var(--t-text-muted)] mr-1">[{r.id_cuenta}]</span>
                         {cuentaShort}
@@ -245,7 +245,7 @@ function Th({
     <th
       onClick={onClick}
       className={
-        "px-2 py-2 cursor-pointer hover:text-[#ff9900] select-none " +
+        "px-2 py-2 cursor-pointer hover:text-[var(--t-accent)] select-none " +
         (left ? "text-left" : "text-right")
       }
     >

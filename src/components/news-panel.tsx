@@ -25,7 +25,7 @@ const FUENTE_COLOR: Record<string, string> = {
 };
 
 const FUENTE_BG: Record<string, string> = {
-  "Ámbito":       "bg-[#ff9900]/10",
+  "Ámbito":       "bg-[var(--t-accent)]/10",
   "Cronista":     "bg-[#4a9eff]/10",
   "Infobae":      "bg-[#bb66ff]/10",
   "iProfesional": "bg-[#00cc66]/10",
@@ -132,8 +132,8 @@ export function NewsPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)]">
       {/* Header */}
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
-        <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           Noticias
         </span>
         <span
@@ -159,8 +159,8 @@ export function NewsPanel() {
             onClick={() => setCategoria(c.v)}
             className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
               categoria === c.v
-                ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
             }`}
           >
             {c.label}
@@ -207,7 +207,7 @@ export function NewsPanel() {
               <li
                 key={h.url}
                 className={`border-b border-[var(--t-border)] transition-colors hover:bg-[var(--t-surface)] ${
-                  flash ? "bg-[#ff9900]/15 animate-pulse" : ""
+                  flash ? "bg-[var(--t-accent)]/15 animate-pulse" : ""
                 }`}
               >
                 <button

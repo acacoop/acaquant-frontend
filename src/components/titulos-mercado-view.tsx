@@ -336,7 +336,7 @@ function Header({
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex items-center gap-3 flex-wrap shrink-0">
       <div className="flex items-center gap-2">
         <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">LIQUIDA</span>
-        <span className="text-[#ff9900] font-mono text-[12px] font-semibold">
+        <span className="text-[var(--t-accent)] font-mono text-[12px] font-semibold">
           {fmtFecha(fecha) || "—"}
         </span>
         {!mercadoCerrado && diaAnterior && (
@@ -366,7 +366,7 @@ function Header({
       <div className="ml-auto flex items-center gap-3">
         {plazosDesconocidos.length > 0 && (
           <span
-            className="text-[9px] text-[#ff9900]"
+            className="text-[9px] text-[var(--t-accent)]"
             title={`Plazos no clasificados: ${plazosDesconocidos.join(", ")}`}
           >
             ⚠ {plazosDesconocidos.length} plazo(s) sin clasificar
@@ -393,8 +393,8 @@ function FiltroBtns({
           onClick={() => setFiltro(f)}
           className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
             filtro === f
-              ? "bg-[#ff9900] text-black border-[#ff9900]"
-              : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+              ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
+              : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
           }`}
         >
           {f.toUpperCase()}
@@ -523,7 +523,7 @@ function TablaTickers({
                   : "más a recibir arriba"
             }`}
             className={`text-right px-2 py-1.5 border-b border-[var(--t-border)] cursor-pointer select-none ${
-              netoSort ? "text-[#ff9900]" : "hover:text-[var(--t-text)]"
+              netoSort ? "text-[var(--t-accent)]" : "hover:text-[var(--t-text)]"
             }`}
           >
             Neto{" "}
@@ -563,7 +563,7 @@ function TablaTickers({
                 <td className="px-2 py-1 text-[var(--t-text-muted)] text-[10px]">
                   {isOpen ? "▼" : "▶"}
                 </td>
-                <td className="px-2 py-1 text-[#ff9900] font-semibold">
+                <td className="px-2 py-1 text-[var(--t-accent)] font-semibold">
                   {t.ticker}
                 </td>
                 <td className="px-2 py-1 text-right text-[#f87171] font-semibold">
@@ -720,7 +720,7 @@ function TablaTickerComitente({
             >
               <td
                 className={`px-2 py-1 font-semibold ${
-                  isFirst ? "text-[#ff9900]" : "text-[#ff9900]/40"
+                  isFirst ? "text-[var(--t-accent)]" : "text-[var(--t-accent)]/40"
                 }`}
               >
                 {f.ticker}

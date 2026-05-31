@@ -73,7 +73,7 @@ export interface CuentaDescubierta {
 }
 
 export const inputCls =
-  "bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] w-full focus:border-[#ff9900] outline-none";
+  "bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] w-full focus:border-[var(--t-accent)] outline-none";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Componentes UI compartidos
@@ -152,7 +152,7 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
 function _colorDisp(value: number | null, opts?: { ref?: number }): string {
   if (value === null) return "text-[var(--t-text-dim)]";
   if (value < 0) return "text-[#ff7f7f]";
-  if (opts?.ref !== undefined && opts.ref > 0 && value < opts.ref) return "text-[#ff9900]";
+  if (opts?.ref !== undefined && opts.ref > 0 && value < opts.ref) return "text-[var(--t-accent)]";
   return "text-[#7fff7f]";
 }
 
@@ -182,7 +182,7 @@ export function SaldoBox({
           <button
             onClick={onRefresh}
             title="Refrescar saldo"
-            className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[11px] leading-none"
+            className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[11px] leading-none"
           >
             ↻
           </button>

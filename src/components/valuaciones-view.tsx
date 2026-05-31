@@ -558,8 +558,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
         {/* Chart panel — izquierda */}
         <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
+            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Evolución mensual · [{idCuenta}]
             </span>
             {chartDataVisible.length > 0 && (
@@ -573,7 +573,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => o + 1)}
                 disabled={!chartPuedeAtras}
                 title="Período anterior"
-                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >◀</button>
               <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
                 {(["3M", "6M", "1A", "ALL"] as const).map((k) => (
@@ -583,8 +583,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     className={
                       "px-2 py-0 text-[9px] uppercase tracking-wider " +
                       (chartRango === k
-                        ? "bg-[#ff9900] text-black"
-                        : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                        ? "bg-[var(--t-accent)] text-black"
+                        : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >{k}</button>
                 ))}
@@ -593,7 +593,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => Math.max(0, o - 1))}
                 disabled={!chartPuedeAdelante}
                 title="Período siguiente"
-                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >▶</button>
             </div>
             {chartData.length > 0 && (
@@ -624,7 +624,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       backgroundRepeat: "repeat-x",
                     }}
                   />
-                  <span className="text-[#ff9900]">PnL</span>
+                  <span className="text-[var(--t-accent)]">PnL</span>
                 </div>
               </div>
             )}
@@ -731,8 +731,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
         {/* Tabla mensual compacta — derecha (con flujos inline al seleccionar un mes) */}
         <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2">
-            <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
+            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Mensual
             </span>
             {/* ARS/USD toggle — afecta chart + tabla mensual + label de valor */}
@@ -744,8 +744,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                   className={
                     "px-2 py-0 text-[9px] uppercase tracking-wider " +
                     (moneda === m
-                      ? "bg-[#ff9900] text-black"
-                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                      ? "bg-[var(--t-accent)] text-black"
+                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                   title={
                     m === "USD"
@@ -860,7 +860,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         className={
                           "cursor-pointer border-t border-[var(--t-border)] transition-colors " +
                           (active
-                            ? "bg-[#ff9900]/15"
+                            ? "bg-[var(--t-accent)]/15"
                             : "hover:bg-[var(--t-surface-2)]")
                         }
                         title={
@@ -872,7 +872,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       >
                         <td className={
                           "px-2 py-1 font-semibold " +
-                          (active ? "text-[#ff9900]" : "text-[#ff9900]")
+                          (active ? "text-[var(--t-accent)]" : "text-[var(--t-accent)]")
                         }>
                           {active && "▶ "}{fmtMesCorto(m.mes)}
                         </td>
@@ -918,7 +918,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                           <td colSpan={7} className="p-0 border-t border-[var(--t-border)]">
                             <div className="px-2 py-1.5">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[9px] uppercase tracking-widest text-[#ff9900]">Flujo del mes</span>
+                                <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">Flujo del mes</span>
                                 {movResp && <span className="text-[9px] text-[var(--t-text-muted)] font-mono">{fmtMesAnio(movResp.mes)}</span>}
                                 {movLoading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
                                 {movResp && (
@@ -947,8 +947,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
       {/* FILA INFERIOR: PORTFOLIO a todo el ancho, con tabs Posiciones / Variación */}
       <div className="flex-1 min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
-          <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2 flex-wrap">
+          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
             Portfolio
           </span>
           <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
@@ -968,8 +968,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 className={
                   "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                   (portfolioTab === t
-                    ? "bg-[#ff9900] text-black"
-                    : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                    ? "bg-[var(--t-accent)] text-black"
+                    : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                 }
                 title={t === "variacion" ? "Variación vs mes anterior (requiere mes seleccionado)" : "Posiciones del portfolio"}
               >
@@ -984,7 +984,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           {selectedFecha && (
             <button
               onClick={() => setSelectedFecha(null)}
-              className="text-[9px] uppercase tracking-wider px-2 py-0.5 border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900]/10"
+              className="text-[9px] uppercase tracking-wider px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10"
               title="Volver al snapshot más reciente"
             >
               Hoy ×
@@ -1147,7 +1147,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         _posOperable(p).operable ? "cursor-context-menu" : ""
                       }`}
                     >
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900] font-semibold">{p.ticker}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-accent)] font-semibold">{p.ticker}</td>
                       <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text)]">{p.emisor || "—"}</td>
                       <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">{p.clase_activo || "—"}</td>
                       <td className="px-2 py-1 align-top">
@@ -1196,7 +1196,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         >
           <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[var(--t-text-dim)] flex items-center gap-1">
             <span
-              className="text-[#ff9900] font-semibold truncate max-w-[150px]"
+              className="text-[var(--t-accent)] font-semibold truncate max-w-[150px]"
               title={ctxMenu.pos.ticker}
             >
               {ctxMenu.pos.ticker}
@@ -1341,7 +1341,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
       <tbody>
         {varResp.filas.map((f) => (
           <tr key={f.unidad} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
-            <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900]" title={f.unidad}>
+            <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-accent)]" title={f.unidad}>
               {f.unidad}
               {f.estado !== "ambos" && (
                 <span className="text-[var(--t-text-muted)] ml-1">
@@ -1383,7 +1383,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
           </tr>
         )}
         <tr className="border-t-2 border-[#333] bg-[var(--t-surface-2)] font-semibold">
-          <td className="px-2 py-1 align-top text-[#ff9900]" colSpan={2}>TOTAL</td>
+          <td className="px-2 py-1 align-top text-[var(--t-accent)]" colSpan={2}>TOTAL</td>
           <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtCompact(varResp.totales.val_anterior)}</td>
           <td className="px-2 py-1 align-top text-right text-[var(--t-text)]">{fmtCompact(varResp.totales.val_actual)}</td>
           <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.totales.delta_mercado) }}>

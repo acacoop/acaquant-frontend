@@ -100,7 +100,7 @@ export function AgroOpcionesChain({
                 value={vto ?? ""}
                 onChange={(e) => setVtoSel(e.target.value || null)}
                 disabled={data.vencimientos.length === 0}
-                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
               >
                 {data.vencimientos.length === 0 && (
                   <option value="">sin vtos</option>
@@ -117,7 +117,7 @@ export function AgroOpcionesChain({
                 </span>
               )}
               <span className="text-[9px] text-[var(--t-text-dim)] uppercase">fut</span>
-              <span className="text-[#ff9900] font-mono text-[10px]">
+              <span className="text-[var(--t-accent)] font-mono text-[10px]">
                 {fmtPx(futuro)}
               </span>
               <button
@@ -193,7 +193,7 @@ function ChainTable({
             <tr
               key={s.strike}
               className={`border-b border-[#101010] ${
-                isAtm ? "bg-[#ff9900]/10" : "hover:bg-[#0d0d0d]"
+                isAtm ? "bg-[var(--t-accent)]/10" : "hover:bg-[#0d0d0d]"
               }`}
             >
               <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
@@ -207,7 +207,7 @@ function ChainTable({
               </td>
               <td
                 className={`px-2 py-0.5 text-center font-semibold ${
-                  isAtm ? "text-[#ff9900]" : "text-[var(--t-text)]"
+                  isAtm ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
                 }`}
               >
                 {fmtPx(s.strike, 0)}

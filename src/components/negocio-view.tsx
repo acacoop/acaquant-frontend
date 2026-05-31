@@ -617,7 +617,7 @@ export function NegocioView() {
           <button
             onClick={goPrev}
             disabled={!hayPrev}
-            className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:text-[#333]"
+            className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:text-[#333]"
             title="Día anterior con data"
           >‹</button>
           {/* Calendario nativo: el browser muestra picker de mes. Constrained
@@ -649,13 +649,13 @@ export function NegocioView() {
           <button
             onClick={goNext}
             disabled={!hayNext}
-            className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:text-[#333]"
+            className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:text-[#333]"
             title="Día siguiente con data"
           >›</button>
           <button
             onClick={goLatest}
             disabled={isLatest || !ultimaFecha}
-            className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:text-[var(--t-text-muted)]"
+            className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:text-[var(--t-text-muted)]"
             title="Última fecha con data"
           >Última</button>
         </div>
@@ -669,8 +669,8 @@ export function NegocioView() {
               className={
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (vistaMode === m
-                  ? "bg-[#ff9900] text-black"
-                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                  ? "bg-[var(--t-accent)] text-black"
+                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
               }
               title={m === "DIA"
                 ? "Vista del día seleccionado"
@@ -682,7 +682,7 @@ export function NegocioView() {
         </div>
 
         <div className={
-          "text-[14px] font-mono " + (vistaMode === "DIA" ? "text-[#ff9900]" : "text-[var(--t-text-dim)]")
+          "text-[14px] font-mono " + (vistaMode === "DIA" ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]")
         }>
           {vistaMode === "DIA"
             ? (fecha ? fmtFechaDisplay(fecha) : "—")
@@ -722,7 +722,7 @@ export function NegocioView() {
           placeholder="Buscar cuenta…"
           className={
             "ml-auto bg-black border px-2 py-1 text-[11px] font-mono outline-none w-[200px] " +
-            (cuentaExacta ? "border-[#ff9900] text-[#ff9900]" : "border-[#333] text-[var(--t-text)]")
+            (cuentaExacta ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[#333] text-[var(--t-text)]")
           }
           title="Escribí parte del nombre de cuenta. Las sugerencias filtran live; al elegir una, todos los paneles muestran solo esa cuenta."
         />
@@ -734,7 +734,7 @@ export function NegocioView() {
         {cuentaSearch && (
           <button
             onClick={() => setCuentaSearch("")}
-            className="text-[10px] text-[var(--t-text-dim)] hover:text-[#ff9900]"
+            className="text-[10px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
             title="Limpiar búsqueda de cuenta"
           >×</button>
         )}
@@ -748,7 +748,7 @@ export function NegocioView() {
             "bg-black border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider outline-none " +
             (cuentaExacta
               ? "text-[var(--t-text-muted)] cursor-not-allowed"
-              : "text-[var(--t-text)] hover:text-[#ff9900]")
+              : "text-[var(--t-text)] hover:text-[var(--t-accent)]")
           }
           title={cuentaExacta
             ? "Deshabilitado: hay una cuenta específica seleccionada"
@@ -769,8 +769,8 @@ export function NegocioView() {
               className={
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (moneda === m
-                  ? "bg-[#ff9900] text-black"
-                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                  ? "bg-[var(--t-accent)] text-black"
+                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
               }
             >
               {m}
@@ -780,7 +780,7 @@ export function NegocioView() {
 
         <button
           onClick={() => fecha && void fetchData(fecha)}
-          className="bg-[var(--t-surface-2)] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--t-text-dim)] hover:text-[#ff9900]"
+          className="bg-[var(--t-surface-2)] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           ↻ Refresh
         </button>
@@ -807,7 +807,7 @@ export function NegocioView() {
             {/* CHART panel (queda como flex-1 para ocupar el resto del alto) */}
             <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden order-2">
               <div className="flex items-center px-3 py-2 border-b border-[var(--t-border)] shrink-0 flex-wrap gap-2">
-                <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
+                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
                   Volumen operado · {moneda}
                 </span>
                 {chartData.length > 0 && (
@@ -818,7 +818,7 @@ export function NegocioView() {
                 {totalPeriodo > 0 && (
                   <span className="text-[10px] font-mono">
                     <span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span>
-                    <span className="text-[#ff9900] font-semibold">{fmtCompact(totalPeriodo)}</span>
+                    <span className="text-[var(--t-accent)] font-semibold">{fmtCompact(totalPeriodo)}</span>
                   </span>
                 )}
                 {/* Aggregation toggle */}
@@ -830,8 +830,8 @@ export function NegocioView() {
                       className={
                         "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                         (agg === k
-                          ? "bg-[#ff9900] text-black"
-                          : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                          ? "bg-[var(--t-accent)] text-black"
+                          : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                       }
                     >
                       {k}
@@ -844,7 +844,7 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => o + 1)}
                     disabled={!puedeIrAtras}
                     title="Período anterior"
-                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >◀</button>
                   <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
                     {(["1W", "1M", "3M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
@@ -854,8 +854,8 @@ export function NegocioView() {
                         className={
                           "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                           (rango === k
-                            ? "bg-[#ff9900] text-black"
-                            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                            ? "bg-[var(--t-accent)] text-black"
+                            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                         }
                       >
                         {k}
@@ -866,7 +866,7 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
                     disabled={!puedeIrAdelante}
                     title="Período siguiente"
-                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >▶</button>
                 </div>
                 {/* Foco día: ON = highlight selected day, OFF = todas las
@@ -876,8 +876,8 @@ export function NegocioView() {
                   className={
                     "px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[#333] " +
                     (focoDia
-                      ? "bg-[#ff9900] text-black"
-                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
+                      ? "bg-[var(--t-accent)] text-black"
+                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                   title={focoDia
                     ? "Foco día activo: el día elegido resalta. Apagá para imprimir / report."
@@ -989,8 +989,8 @@ export function NegocioView() {
 
             {/* POR CATEGORÍA leaderboard (order-1 → arriba) */}
             <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden shrink-0 order-1">
-              <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
-                <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+              <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+                <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
                   Por categoría · {vistaMode === "DIA"
                     ? (fecha ? fmtFechaCorta(fecha) : "—")
                     : "Período"}
@@ -1019,8 +1019,8 @@ export function NegocioView() {
                         className={
                           "cursor-pointer border-t border-[var(--t-border)] transition-colors " +
                           (active
-                            ? "bg-[#ff9900]/10 text-[#ff9900]"
-                            : "hover:bg-[#ff9900]/5")
+                            ? "bg-[var(--t-accent)]/10 text-[var(--t-accent)]"
+                            : "hover:bg-[var(--t-accent)]/5")
                         }
                       >
                         <td className="px-3 py-1.5">
@@ -1045,8 +1045,8 @@ export function NegocioView() {
 
           {/* COLUMNA DERECHA · DETALLE (scope global vía vistaMode) */}
           <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
+            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
                 Detalle {vistaMode === "DIA" ? "día" : "período"}
                 {catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
               </span>
@@ -1067,7 +1067,7 @@ export function NegocioView() {
                   )}
                   <button
                     onClick={() => setCatSel(null)}
-                    className="ml-2 text-[var(--t-text-dim)] hover:text-[#ff9900] text-[14px] leading-none"
+                    className="ml-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[14px] leading-none"
                     title="Volver al matrix consolidado"
                   >×</button>
                 </>
@@ -1118,7 +1118,7 @@ export function NegocioView() {
                             className={
                               "border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)] " +
                               (canExpand ? "cursor-pointer" : "cursor-default") +
-                              (expanded ? " bg-[#ff9900]/5" : "")
+                              (expanded ? " bg-[var(--t-accent)]/5" : "")
                             }
                             title={canExpand
                               ? "Click: ver boletos del día para esta cuenta"
@@ -1185,7 +1185,7 @@ export function NegocioView() {
                                               </span>
                                             </td>
                                             <td className="px-2 py-0.5 text-[var(--t-text)]">{b.op ?? "—"}</td>
-                                            <td className="px-2 py-0.5 text-[#ff9900]">{b.ticker ?? "—"}</td>
+                                            <td className="px-2 py-0.5 text-[var(--t-accent)]">{b.ticker ?? "—"}</td>
                                             <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                                               {b.cantidad != null
                                                 ? b.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 })

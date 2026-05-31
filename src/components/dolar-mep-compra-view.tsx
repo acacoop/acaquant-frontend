@@ -171,7 +171,7 @@ export function DolarMepCompraView({
                 }}
                 className={`flex-1 px-2 py-0.5 text-[11px] font-bold border ${
                   inputMode === m
-                    ? "bg-[#ff9900] text-black border-[#ff9900]"
+                    ? "bg-[var(--t-accent)] text-black border-[var(--t-accent)]"
                     : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-text)]"
                 }`}
                 title={m === "USD" ? "Ingresar cantidad de USD a comprar" : "Ingresar monto ARS a invertir"}
@@ -229,7 +229,7 @@ export function DolarMepCompraView({
         <button
           onClick={handleEjecutar}
           disabled={submitting}
-          className="bg-[#ff9900] text-black font-bold tracking-wide px-5 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
+          className="bg-[var(--t-accent)] text-black font-bold tracking-wide px-5 py-1 text-[11px] hover:bg-[#ffaa22] disabled:opacity-40"
         >
           {submitting ? "EJECUTANDO…" : "EJECUTAR"}
         </button>
@@ -238,7 +238,7 @@ export function DolarMepCompraView({
           {inputMode === "USD" && (
             <span>
               ARS necesarios:{" "}
-              <span className="text-[#ff9900]">
+              <span className="text-[var(--t-accent)]">
                 ${montoNum.toLocaleString("es-AR")}
               </span>
             </span>
@@ -303,7 +303,7 @@ export function DolarMepCompraView({
                 <PataCell pata={op.buy} />
                 <PataCell pata={op.sell} />
                 <Td right>{op.usd_efectivo ? `US$${op.usd_efectivo.toFixed(2)}` : "—"}</Td>
-                <Td right className="text-[#ff9900]">{op.mep_efectivo ?? "—"}</Td>
+                <Td right className="text-[var(--t-accent)]">{op.mep_efectivo ?? "—"}</Td>
                 <Td className={estadoColor(op.estado)}>{op.estado ?? ""}</Td>
                 <Td className="text-[var(--t-text-dim)]">{op.actor_email ?? ""}</Td>
               </tr>
