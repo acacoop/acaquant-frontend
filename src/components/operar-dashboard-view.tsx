@@ -361,13 +361,13 @@ export function PortfolioPanel({
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
       <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--t-border)] shrink-0">
-        <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold truncate">
+        <span className="text-[11px] tracking-wide text-[var(--t-text)] font-semibold truncate">
           PORTFOLIO{" "}
           {account && (
             <>
               · <span className="text-[#ff9900]">{account}</span>
               {accountNombre && (
-                <span className="text-[#aaa] font-normal ml-1">
+                <span className="text-[var(--t-text-dim)] font-normal ml-1">
                   — {accountNombre}
                 </span>
               )}
@@ -376,7 +376,7 @@ export function PortfolioPanel({
         </span>
         <button
           onClick={refresh}
-          className="text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
+          className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
           title="Refrescar"
         >
           ↻
@@ -384,7 +384,7 @@ export function PortfolioPanel({
       </div>
 
       {!account ? (
-        <div className="px-2 py-3 text-[10px] text-[#555] text-center">
+        <div className="px-2 py-3 text-[10px] text-[var(--t-text-muted)] text-center">
           Elegí una cuenta arriba.
         </div>
       ) : (
@@ -400,12 +400,12 @@ export function PortfolioPanel({
           {/* Tenencias */}
           <div className="flex-1 min-h-0 overflow-y-auto">
             {tenencias.length === 0 ? (
-              <div className="px-2 py-3 text-[10px] text-[#555] text-center">
+              <div className="px-2 py-3 text-[10px] text-[var(--t-text-muted)] text-center">
                 {detailed === null ? "Cargando…" : "Sin tenencias"}
               </div>
             ) : (
               <table className="w-full text-[10px] font-mono tabular-nums">
-                <thead className="text-[9px] text-[#666] tracking-wider bg-[#0a0a0a] sticky top-0">
+                <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider bg-[#0a0a0a] sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1">TICKER</th>
                     <th className="text-left px-2 py-1">TIPO</th>
@@ -420,12 +420,12 @@ export function PortfolioPanel({
                       key={`${t.ticker}-${i}`}
                       className="border-t border-[#101010] hover:bg-[#0d0d0d]"
                     >
-                      <td className="px-2 py-0.5 text-[#d0d0d0]">{t.ticker}</td>
-                      <td className="px-2 py-0.5 text-[#888]">{t.tipo}</td>
-                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                      <td className="px-2 py-0.5 text-[var(--t-text)]">{t.ticker}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{t.tipo}</td>
+                      <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                         {t.size.toLocaleString("es-AR")}
                       </td>
-                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                      <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                         {t.price != null ? t.price.toFixed(2) : "—"}
                       </td>
                       <td className="px-2 py-0.5 text-right text-[#ff9900]">
@@ -439,7 +439,7 @@ export function PortfolioPanel({
                 {totalMarketValue != null && (
                   <tfoot>
                     <tr className="border-t border-[var(--t-border-2)] bg-[#0a0a0a]">
-                      <td colSpan={4} className="px-2 py-1 text-right text-[10px] text-[#888]">
+                      <td colSpan={4} className="px-2 py-1 text-right text-[10px] text-[var(--t-text-dim)]">
                         TOTAL
                       </td>
                       <td className="px-2 py-1 text-right text-[#ff9900] font-bold">
@@ -482,15 +482,15 @@ function SaldoCell({
 }) {
   const color =
     value == null
-      ? "text-[#888]"
+      ? "text-[var(--t-text-dim)]"
       : value < 0
         ? "text-[#ff7f7f]"
         : dim
-          ? "text-[#aaa]"
+          ? "text-[var(--t-text-dim)]"
           : "text-[#7fff7f]";
   return (
     <div className="flex flex-col gap-0.5 leading-tight">
-      <span className="text-[8px] tracking-wider text-[#666]">{label}</span>
+      <span className="text-[8px] tracking-wider text-[var(--t-text-muted)]">{label}</span>
       <span className={`text-[11px] font-semibold tabular-nums ${color}`}>
         {fmt(value)}
       </span>
@@ -575,11 +575,11 @@ export function AccountSearch({
               <span className="text-[#ff9900] font-mono tabular-nums min-w-[60px]">
                 {c.account_id}
               </span>
-              <span className="text-[#d0d0d0] flex-1 truncate">
+              <span className="text-[var(--t-text)] flex-1 truncate">
                 {c.nombre || "—"}
               </span>
               {!c.activa && (
-                <span className="text-[8px] text-[#555] uppercase">inactiva</span>
+                <span className="text-[8px] text-[var(--t-text-muted)] uppercase">inactiva</span>
               )}
             </div>
           ))}
@@ -653,8 +653,8 @@ function TickerSearch({
                 onMouseDown={() => onPick(corto, h.ticker)}
                 className="px-2 py-0.5 hover:bg-[#1a1a1a] cursor-pointer font-mono"
               >
-                <span className="text-[#d0d0d0]">{corto}</span>
-                <span className="text-[#666] ml-2">{h.ticker}</span>
+                <span className="text-[var(--t-text)]">{corto}</span>
+                <span className="text-[var(--t-text-muted)] ml-2">{h.ticker}</span>
               </div>
             );
           })}
@@ -840,19 +840,19 @@ function OperarCard({
           <option value="48hs">48hs</option>
         </select>
         <div className="flex items-baseline gap-2 ml-1 flex-1 justify-end">
-          <span className="text-[9px] text-[#666]">last</span>
+          <span className="text-[9px] text-[var(--t-text-muted)]">last</span>
           <span className="text-[#ff9900] font-bold tabular-nums text-[13px]">
             {last !== null ? last.toFixed(2) : "—"}
           </span>
           {close !== null && (
-            <span className="text-[9px] text-[#555]">
+            <span className="text-[9px] text-[var(--t-text-muted)]">
               prev {close.toFixed(2)}
             </span>
           )}
         </div>
         <button
           onClick={onRemove}
-          className="ml-1 text-[#555] hover:text-[#f87171] text-[14px] leading-none"
+          className="ml-1 text-[var(--t-text-muted)] hover:text-[#f87171] text-[14px] leading-none"
           title="Cerrar panel"
         >
           ×
@@ -874,14 +874,14 @@ function OperarCard({
           Si el book no aparece tras 5s puede ser que Manager.PyRofexInstruments
           no tenga la caución cargada (correr scripts/discovery_pyrofex). */}
       <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--t-border)] bg-[#0a0a0a]">
-        <span className="text-[8px] text-[#555] tracking-widest mr-1">CAUCIÓN</span>
+        <span className="text-[8px] text-[var(--t-text-muted)] tracking-widest mr-1">CAUCIÓN</span>
         {[1, 7, 14, 30].map((d) => (
           <button
             key={`p${d}`}
             onClick={() =>
               onChangeTicker(`PESOS - ${d}D`, `MERV - XMEV - PESOS - ${d}D`)
             }
-            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
             title={`Caución pesos a ${d} día(s)`}
           >
             ${d}D
@@ -894,7 +894,7 @@ function OperarCard({
             onClick={() =>
               onChangeTicker(`DOLAR - ${d}D`, `MERV - XMEV - DOLAR - ${d}D`)
             }
-            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
             title={`Caución dólares a ${d} día(s)`}
           >
             U${d}D
@@ -904,7 +904,7 @@ function OperarCard({
 
       {/* Book */}
       <table className="w-full text-[11px] font-mono tabular-nums">
-        <thead className="text-[9px] text-[#666] tracking-wider">
+        <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider">
           <tr>
             <th className="text-left px-1 py-0.5">BID SZ</th>
             <th className="text-right px-1 py-0.5">BID</th>
@@ -918,14 +918,14 @@ function OperarCard({
             const a = offers[i];
             return (
               <tr key={i} className="border-t border-[#101010]">
-                <td className="px-1 py-0.5 text-[#888]">
+                <td className="px-1 py-0.5 text-[var(--t-text-dim)]">
                   {b?.size != null ? b.size.toLocaleString("es-AR") : "—"}
                 </td>
                 <td
                   className={`px-1 py-0.5 text-right ${
                     b
                       ? "text-[#7fff7f] cursor-pointer hover:bg-[#0d2d0d]"
-                      : "text-[#555]"
+                      : "text-[var(--t-text-muted)]"
                   }`}
                   onClick={() => b && pickFromBook("SELL", b.price, b.size)}
                   title={b ? "Click: vender al bid" : ""}
@@ -936,14 +936,14 @@ function OperarCard({
                   className={`px-1 py-0.5 ${
                     a
                       ? "text-[#ff7f7f] cursor-pointer hover:bg-[#2d0d0d]"
-                      : "text-[#555]"
+                      : "text-[var(--t-text-muted)]"
                   }`}
                   onClick={() => a && pickFromBook("BUY", a.price, a.size)}
                   title={a ? "Click: comprar al ask" : ""}
                 >
                   {a ? a.price.toFixed(2) : "—"}
                 </td>
-                <td className="px-1 py-0.5 text-right text-[#888]">
+                <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
                   {a?.size != null ? a.size.toLocaleString("es-AR") : "—"}
                 </td>
               </tr>
@@ -964,7 +964,7 @@ function OperarCard({
                   ? s === "BUY"
                     ? "bg-[#4ade80] text-black border-[#4ade80]"
                     : "bg-[#f87171] text-black border-[#f87171]"
-                  : "bg-transparent text-[#888] border-[var(--t-border-2)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)]"
               }`}
             >
               {s}
@@ -1058,7 +1058,7 @@ function OperarCard({
           </div>
         )}
 
-        <div className="mt-1 text-[8px] text-[#555]">
+        <div className="mt-1 text-[8px] text-[var(--t-text-muted)]">
           {book?.updated_at ? `book ${fmtTime(book.updated_at)}` : "—"}
         </div>
       </div>
@@ -1095,16 +1095,16 @@ export function OrderManagement({
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
       <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--t-border)] shrink-0">
-        <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
+        <span className="text-[11px] tracking-wide text-[var(--t-text)] font-semibold">
           ÓRDENES DEL DÍA
         </span>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-[#888]">
+          <span className="text-[10px] text-[var(--t-text-dim)]">
             {activas.length} activas · {restantes.length} cerradas
           </span>
           <button
             onClick={refresh}
-            className="text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
+            className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
             title="Refrescar"
           >
             ↻
@@ -1114,12 +1114,12 @@ export function OrderManagement({
 
       <div className="flex-1 min-h-0 overflow-y-auto">
       {orders.length === 0 ? (
-        <div className="px-2 py-3 text-[10px] text-[#555] text-center">
+        <div className="px-2 py-3 text-[10px] text-[var(--t-text-muted)] text-center">
           Sin órdenes hoy
         </div>
       ) : (
         <table className="w-full text-[10px] font-mono tabular-nums">
-          <thead className="text-[9px] text-[#666] tracking-wider bg-[#0a0a0a] sticky top-0">
+          <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider bg-[#0a0a0a] sticky top-0">
             <tr>
               <th className="text-left px-2 py-1">HORA</th>
               <th className="text-left px-2 py-1">TICKER</th>
@@ -1143,14 +1143,14 @@ export function OrderManagement({
                   key={o.cl_ord_id ?? `ord-${i}`}
                   className="border-t border-[#101010] hover:bg-[#0d0d0d]"
                 >
-                  <td className="px-2 py-0.5 text-[#888]">
+                  <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {o.created_at ? fmtTime(o.created_at) : "—"}
                   </td>
-                  <td className="px-2 py-0.5 text-[#d0d0d0]">
+                  <td className="px-2 py-0.5 text-[var(--t-text)]">
                     <span>{corto}</span>
                     {o.external && (
                       <span
-                        className="ml-1.5 px-1 text-[8px] text-[#888] border border-[var(--t-border-2)] rounded align-middle"
+                        className="ml-1.5 px-1 text-[8px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] rounded align-middle"
                         title="Operada desde otra plataforma (web del broker, etc)"
                       >
                         EXT
@@ -1164,30 +1164,30 @@ export function OrderManagement({
                   >
                     {o.side ?? "—"}
                   </td>
-                  <td className="px-2 py-0.5 text-[#aaa]">
+                  <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {o.order_type ?? "—"}
                   </td>
-                  <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                  <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                     {o.price != null ? o.price.toFixed(2) : "—"}
                   </td>
-                  <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                  <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                     {o.size?.toLocaleString("es-AR") ?? "—"}
                   </td>
-                  <td className="px-2 py-0.5 text-right text-[#888]">
+                  <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                     {o.cum_qty?.toLocaleString("es-AR") ?? "—"}
                   </td>
                   <td className={`px-2 py-0.5 ${statusColor(o.status)}`}>
                     {o.status ?? "—"}
                     {o.reject_reason && (
                       <span
-                        className="text-[#888] ml-1 truncate inline-block max-w-[140px]"
+                        className="text-[var(--t-text-dim)] ml-1 truncate inline-block max-w-[140px]"
                         title={o.reject_reason}
                       >
                         ({o.reject_reason})
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-0.5 text-[#888]">
+                  <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {o.account ?? "—"}
                   </td>
                   <td className="px-2 py-0.5">
@@ -1212,7 +1212,7 @@ export function OrderManagement({
 }
 
 function statusColor(s?: string): string {
-  if (!s) return "text-[#888]";
+  if (!s) return "text-[var(--t-text-dim)]";
   if (s === "FILLED") return "text-[#7fff7f]";
   if (s === "REJECTED" || s === "CANCELLED" || s === "EXPIRED")
     return "text-[#ff7f7f]";
@@ -1363,7 +1363,7 @@ export function OperarDashboardView() {
     <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-2 py-1 border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
+        <span className="text-[10px] tracking-wider text-[var(--t-text-dim)]">CUENTA</span>
         <AccountSearch
           value={account}
           cuentas={cuentas}
@@ -1398,7 +1398,7 @@ export function OperarDashboardView() {
             </span>
             <button
               onClick={() => setDerivedAccount(null)}
-              className="ml-auto text-[#888] hover:text-white leading-none"
+              className="ml-auto text-[var(--t-text-dim)] hover:text-white leading-none"
               title="Ocultar"
             >
               ✕

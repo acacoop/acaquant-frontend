@@ -62,11 +62,11 @@ export function AunesaBoletosPanel() {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
-        <span className="text-[9px] font-semibold text-[#666] tracking-widest mr-2">BOLETOS</span>
+        <span className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2">BOLETOS</span>
         <button
           onClick={() => setSub("faltantes")}
           className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${
-            sub === "faltantes" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[#666] hover:text-[#aaa]"
+            sub === "faltantes" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"
           }`}
         >
           FALTANTES
@@ -74,7 +74,7 @@ export function AunesaBoletosPanel() {
         <button
           onClick={() => setSub("backfill")}
           className={`px-3 py-1 text-[10px] font-semibold tracking-widest transition-colors ${
-            sub === "backfill" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[#666] hover:text-[#aaa]"
+            sub === "backfill" ? "text-[#ff9900] border-b border-[#ff9900]" : "text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)]"
           }`}
         >
           BACKFILL
@@ -168,7 +168,7 @@ function Faltantes() {
           {loading ? "BUSCANDO…" : "BUSCAR"}
         </button>
         {data && (
-          <div className="ml-auto flex items-center gap-4 text-[10px] text-[#888]">
+          <div className="ml-auto flex items-center gap-4 text-[10px] text-[var(--t-text-dim)]">
             <span>
               Boletos sin arancel:{" "}
               <span className="text-[#ff9900] font-bold">{data.n_total.toLocaleString("es-AR")}</span>
@@ -176,7 +176,7 @@ function Faltantes() {
             <span>Cuentas (máx): {cuentasMax}</span>
             <span>
               Importe abs:{" "}
-              <span className="text-[#d0d0d0]">
+              <span className="text-[var(--t-text)]">
                 ${importeTotal.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
               </span>
             </span>
@@ -193,7 +193,7 @@ function Faltantes() {
       {/* Resumen por (cuenta, fecha) */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {!data ? (
-          <div className="p-6 text-[11px] text-[#555] text-center">
+          <div className="p-6 text-[11px] text-[var(--t-text-muted)] text-center">
             {loading ? "Cargando…" : "Sin datos"}
           </div>
         ) : data.resumen.length === 0 ? (
@@ -205,7 +205,7 @@ function Faltantes() {
             {/* Resumen agrupado por (categoría, op) — dice qué tipos de
                 movimiento están rebotando el match. n_cuentas = ámbito. */}
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="text-[9px] text-[#666] tracking-widest bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">CATEGORÍA</th>
                   <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">OP</th>
@@ -221,14 +221,14 @@ function Faltantes() {
                     className="border-b border-[#101010] hover:bg-[#0d0d0d]"
                   >
                     <td className="px-2 py-0.5 text-[#ff9900]">{r.categoria ?? "—"}</td>
-                    <td className="px-2 py-0.5 text-[#d0d0d0]">{r.op ?? "—"}</td>
-                    <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                    <td className="px-2 py-0.5 text-[var(--t-text)]">{r.op ?? "—"}</td>
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                       {r.n.toLocaleString("es-AR")}
                     </td>
-                    <td className="px-2 py-0.5 text-right text-[#aaa]">
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                       {r.n_cuentas.toLocaleString("es-AR")}
                     </td>
-                    <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                       ${r.importe_abs.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                     </td>
                   </tr>
@@ -241,14 +241,14 @@ function Faltantes() {
             <div className="border-t border-[var(--t-border)] mt-2 px-3 py-2">
               <button
                 onClick={() => setShowDetalle((v) => !v)}
-                className="text-[10px] text-[#888] hover:text-[#ff9900] tracking-wide"
+                className="text-[10px] text-[var(--t-text-dim)] hover:text-[#ff9900] tracking-wide"
               >
                 {showDetalle ? "▾" : "▸"} DETALLE POR BOLETO ({data.boletos.length}
                 {data.truncado ? ` de ${data.n_total} — truncado a ${data.limit}` : ""})
               </button>
               {showDetalle && (
                 <table className="w-full text-[10px] font-mono tabular-nums mt-2">
-                  <thead className="text-[9px] text-[#666] tracking-widest">
+                  <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest">
                     <tr>
                       <th className="text-left px-2 py-1">FECHA</th>
                       <th className="text-left px-2 py-1">CUENTA</th>
@@ -266,19 +266,19 @@ function Faltantes() {
                         key={`${b.comprobante}-${i}`}
                         className="border-t border-[#101010] hover:bg-[#0d0d0d]"
                       >
-                        <td className="px-2 py-0.5 text-[#888]">{b.fecha ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.fecha ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[#ff9900]">{b.id_cuenta ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[#d0d0d0]">{b.ticker ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[#aaa]">{b.categoria ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[#aaa]">{b.op ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[#888]">{b.moneda ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+                        <td className="px-2 py-0.5 text-[var(--t-text)]">{b.ticker ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.categoria ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.op ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.moneda ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                           {b.importe != null
                             ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 })
                             : "—"}
                         </td>
                         <td
-                          className="px-2 py-0.5 text-[#666] max-w-[280px] truncate"
+                          className="px-2 py-0.5 text-[var(--t-text-muted)] max-w-[280px] truncate"
                           title={b.informacion ?? undefined}
                         >
                           {b.informacion ?? "—"}
@@ -297,12 +297,12 @@ function Faltantes() {
 }
 
 const inputCls =
-  "bg-black border border-[var(--t-border-2)] text-[#d0d0d0] px-2 py-1 text-[11px] tabular-nums focus:border-[#ff9900] outline-none";
+  "bg-black border border-[var(--t-border-2)] text-[var(--t-text)] px-2 py-1 text-[11px] tabular-nums focus:border-[#ff9900] outline-none";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[9px] text-[#666] tracking-widest">{label}</span>
+      <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">{label}</span>
       {children}
     </div>
   );
@@ -475,7 +475,7 @@ function Backfill() {
             className={inputCls + " w-[60px]"}
           />
         </Field>
-        <label className="flex items-center gap-1.5 text-[10px] text-[#aaa] mb-1">
+        <label className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-dim)] mb-1">
           <input
             type="checkbox"
             checked={apply}
@@ -526,11 +526,11 @@ function Backfill() {
             >
               {job.status.toUpperCase()}
             </span>
-            <span className="text-[10px] text-[#888]">
+            <span className="text-[10px] text-[var(--t-text-dim)]">
               {job.cuentas_done.toLocaleString("es-AR")} /{" "}
               {job.cuentas_total.toLocaleString("es-AR")} cuentas ({progressPct}%)
             </span>
-            <span className="text-[10px] text-[#666] ml-auto">
+            <span className="text-[10px] text-[var(--t-text-muted)] ml-auto">
               {job.apply ? "APPLY" : "DRY-RUN"} · workers={job.workers} · actor={job.actor ?? "—"}
             </span>
           </div>
@@ -563,7 +563,7 @@ function Backfill() {
           {job.errores.length > 0 && (
             <div className="mt-2 text-[10px] text-[#ffaa44]">
               {job.errores.length} cuenta(s) con error tras reintento:{" "}
-              <span className="text-[#888]">
+              <span className="text-[var(--t-text-dim)]">
                 {job.errores.slice(0, 5).map((e) => e.cuenta).join(", ")}
                 {job.errores.length > 5 ? ` … +${job.errores.length - 5}` : ""}
               </span>
@@ -571,8 +571,8 @@ function Backfill() {
           )}
 
           {!job.apply && job.ejemplos.length > 0 && (
-            <div className="mt-2 text-[9px] text-[#666]">
-              <div className="font-bold text-[#888] mb-0.5">Ejemplos (dry-run):</div>
+            <div className="mt-2 text-[9px] text-[var(--t-text-muted)]">
+              <div className="font-bold text-[var(--t-text-dim)] mb-0.5">Ejemplos (dry-run):</div>
               {job.ejemplos.map((ej, i) => (
                 <div key={i} className="font-mono">{ej}</div>
               ))}
@@ -590,16 +590,16 @@ function Backfill() {
 
       {/* Historial */}
       <div className="flex-1 min-h-0">
-        <div className="px-3 py-1.5 text-[9px] text-[#666] tracking-widest border-b border-[var(--t-border)]">
+        <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)] tracking-widest border-b border-[var(--t-border)]">
           HISTORIAL (últimos 10)
         </div>
         {historial.length === 0 ? (
-          <div className="p-6 text-[11px] text-[#555] text-center">
+          <div className="p-6 text-[11px] text-[var(--t-text-muted)] text-center">
             Sin corridas previas
           </div>
         ) : (
           <table className="w-full text-[10px] font-mono tabular-nums">
-            <thead className="text-[9px] text-[#666] tracking-widest bg-[#0a0a0a]">
+            <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest bg-[#0a0a0a]">
               <tr>
                 <th className="text-left px-2 py-1">START</th>
                 <th className="text-left px-2 py-1">ACTOR</th>
@@ -614,14 +614,14 @@ function Backfill() {
             <tbody>
               {historial.map((h, i) => (
                 <tr key={i} className="border-t border-[#101010] hover:bg-[#0d0d0d]">
-                  <td className="px-2 py-0.5 text-[#888]">
+                  <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {h.started_at?.replace("T", " ").slice(0, 19) ?? "—"}
                   </td>
-                  <td className="px-2 py-0.5 text-[#aaa]">{h.actor ?? "—"}</td>
-                  <td className="px-2 py-0.5 text-[#d0d0d0]">
+                  <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{h.actor ?? "—"}</td>
+                  <td className="px-2 py-0.5 text-[var(--t-text)]">
                     {h.desde} → {h.hasta}
                   </td>
-                  <td className="px-2 py-0.5 text-[#888]">
+                  <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {h.apply ? "APPLY" : "DRY"}
                   </td>
                   <td
@@ -637,7 +637,7 @@ function Backfill() {
                   >
                     {h.status}
                   </td>
-                  <td className="px-2 py-0.5 text-right text-[#aaa]">
+                  <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                     {h.cuentas_done}/{h.cuentas_total}
                   </td>
                   <td className="px-2 py-0.5 text-right text-[#7fff7f]">
@@ -659,7 +659,7 @@ function Backfill() {
 function Kpi({ label, v, color }: { label: string; v: number; color?: string }) {
   return (
     <div className="bg-[var(--t-panel)] border border-[var(--t-border)] px-2 py-1">
-      <div className="text-[9px] text-[#666] tracking-widest">{label}</div>
+      <div className="text-[9px] text-[var(--t-text-muted)] tracking-widest">{label}</div>
       <div
         className="text-[14px] font-bold tabular-nums"
         style={{ color: color ?? "#d0d0d0" }}

@@ -190,7 +190,7 @@ export function CostoHistoricoChart({
 
   if (loading) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Cargando costo histórico…
       </p>
     );
@@ -204,7 +204,7 @@ export function CostoHistoricoChart({
   }
   if (!serie.length) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin histórico disponible para esta estrategia en el OPEX en curso.
       </p>
     );
@@ -237,16 +237,16 @@ export function CostoHistoricoChart({
   return (
     <div className="h-full min-h-0 flex flex-col">
       {stats && (
-        <div className="flex items-center gap-3 px-2 pb-1 text-[9px] text-[#808080] shrink-0">
+        <div className="flex items-center gap-3 px-2 pb-1 text-[9px] text-[var(--t-text-dim)] shrink-0">
           <span>
             MIN{" "}
-            <span className="text-[#d0d0d0] font-semibold">
+            <span className="text-[var(--t-text)] font-semibold">
               ${fmtCosto(stats.min)}
             </span>
           </span>
           <span>
             MAX{" "}
-            <span className="text-[#d0d0d0] font-semibold">
+            <span className="text-[var(--t-text)] font-semibold">
               ${fmtCosto(stats.max)}
             </span>
           </span>
@@ -268,7 +268,7 @@ export function CostoHistoricoChart({
           </span>
           {haySpot2 && (
             <span className="ml-auto flex items-center gap-1">
-              <span className="text-[#555]">SPOT</span>
+              <span className="text-[var(--t-text-muted)]">SPOT</span>
               {(["ARS", "ADR"] as const).map((m) => (
                 <button
                   key={m}
@@ -277,7 +277,7 @@ export function CostoHistoricoChart({
                     "px-1.5 py-0 text-[9px] uppercase tracking-wider border " +
                     (spotMoneda === m
                       ? "bg-[#4a9eff] text-black border-[#4a9eff]"
-                      : "bg-[#0a0a0a] text-[#808080] border-[var(--t-border-2)] hover:text-[#4a9eff]")
+                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#4a9eff]")
                   }
                 >
                   {m}
@@ -285,7 +285,7 @@ export function CostoHistoricoChart({
               ))}
             </span>
           )}
-          <span className={(haySpot2 ? "" : "ml-auto ") + "text-[#555]"}>
+          <span className={(haySpot2 ? "" : "ml-auto ") + "text-[var(--t-text-muted)]"}>
             {serie.length} puntos
           </span>
         </div>

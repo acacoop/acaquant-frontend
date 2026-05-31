@@ -193,7 +193,7 @@ export function AunesaExplorarPanel() {
   }, [data, capFilter, catFilter, search]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0a] text-[#d0d0d0]">
+    <div className="h-full flex flex-col bg-[#0a0a0a] text-[var(--t-text)]">
       {/* HEADER */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[var(--t-border)] px-3 py-2 shrink-0 bg-[var(--t-panel)]">
         <DatePickerCompact value={fecha} onChange={setFecha} />
@@ -234,7 +234,7 @@ export function AunesaExplorarPanel() {
                 "px-3 py-0.5 text-[10px] uppercase tracking-wider " +
                 (vista === v
                   ? "bg-[#ff9900] text-black"
-                  : "bg-[var(--t-surface-2)] text-[#888] hover:text-[#ddd]")
+                  : "bg-[var(--t-surface-2)] text-[var(--t-text-dim)] hover:text-[#ddd]")
               }
             >
               {v}
@@ -250,7 +250,7 @@ export function AunesaExplorarPanel() {
       )}
 
       {!data && !loading && !error && (
-        <div className="flex-1 flex items-center justify-center text-[12px] text-[#555]">
+        <div className="flex-1 flex items-center justify-center text-[12px] text-[var(--t-text-muted)]">
           Elegí fecha y hacé click en EXPLORAR.
         </div>
       )}
@@ -259,12 +259,12 @@ export function AunesaExplorarPanel() {
         <div className="flex-1 grid grid-cols-[260px_1fr] min-h-0">
           {/* SIDEBAR — categorías */}
           <div className="border-r border-[var(--t-border)] flex flex-col min-h-0">
-            <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#666] border-b border-[var(--t-border)] flex items-center justify-between">
+            <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] border-b border-[var(--t-border)] flex items-center justify-between">
               <span>Categorías ({data.categorias.length})</span>
               {catFilter && (
                 <button
                   onClick={() => setCatFilter("")}
-                  className="text-[#888] hover:text-[#ff9900]"
+                  className="text-[var(--t-text-dim)] hover:text-[#ff9900]"
                 >
                   × clear
                 </button>
@@ -287,8 +287,8 @@ export function AunesaExplorarPanel() {
                     }
                   >
                     <span className="w-2 h-2 inline-block" style={{ background: color }} />
-                    <span className="w-10 text-right text-[#d0d0d0]">{c.count}</span>
-                    <span className="text-[#d0d0d0] flex-1">{label}</span>
+                    <span className="w-10 text-right text-[var(--t-text)]">{c.count}</span>
+                    <span className="text-[var(--t-text)] flex-1">{label}</span>
                   </button>
                 );
               })}
@@ -308,7 +308,7 @@ export function AunesaExplorarPanel() {
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                       (capFilter === f
                         ? "bg-[#ff9900] text-black"
-                        : "bg-[var(--t-surface-2)] text-[#888] hover:text-[#ddd]")
+                        : "bg-[var(--t-surface-2)] text-[var(--t-text-dim)] hover:text-[#ddd]")
                     }
                   >
                     {f === "all" ? "todos" : f}
@@ -320,9 +320,9 @@ export function AunesaExplorarPanel() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="buscar…"
-                className="flex-1 min-w-[150px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[#d0d0d0]"
+                className="flex-1 min-w-[150px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)]"
               />
-              <span className="text-[9px] text-[#888]">
+              <span className="text-[9px] text-[var(--t-text-dim)]">
                 {vista === "consolidado"
                   ? `${filteredBoletos.length} / ${data.boletos.length} boletos`
                   : `${filteredMovs.length} / ${data.movimientos.length} mov`}
@@ -362,7 +362,7 @@ function BoletoTable({
 }) {
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[#666] z-10">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] z-10">
         <tr>
           <th className="px-2 py-1 text-left w-24">Categoría</th>
           <th className="px-2 py-1 text-left">Comprobante</th>
@@ -410,8 +410,8 @@ function FragBoleto({
   open: boolean;
   onToggle: () => void;
 }) {
-  const cantClr = (b.cantidad ?? 0) > 0 ? "text-[#3fbf6f]" : (b.cantidad ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
-  const impClr  = (b.importe ?? 0) > 0 ? "text-[#3fbf6f]" : (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
+  const cantClr = (b.cantidad ?? 0) > 0 ? "text-[#3fbf6f]" : (b.cantidad ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]";
+  const impClr  = (b.importe ?? 0) > 0 ? "text-[#3fbf6f]" : (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]";
   return (
     <>
       <tr
@@ -424,27 +424,27 @@ function FragBoleto({
             <span style={{ color }}>{label}</span>
           </span>
         </td>
-        <td className="px-2 py-1 text-[#888]">{b.comprobante ?? "—"}</td>
-        <td className="px-2 py-1 text-[#888] truncate max-w-[180px]" title={b.cuenta ?? ""}>
+        <td className="px-2 py-1 text-[var(--t-text-dim)]">{b.comprobante ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-text-dim)] truncate max-w-[180px]" title={b.cuenta ?? ""}>
           {b.cuenta ?? "—"}
         </td>
-        <td className="px-2 py-1 text-[#d0d0d0]">{b.op ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-text)]">{b.op ?? "—"}</td>
         <td className="px-2 py-1 text-[#ff9900]">{b.ticker ?? "—"}</td>
         <td className={`px-2 py-1 text-right ${cantClr}`}>{fmtNum(b.cantidad, 2)}</td>
-        <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(b.precio, 2)}</td>
+        <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(b.precio, 2)}</td>
         <td className={`px-2 py-1 text-right ${impClr}`}>{fmtNum(b.importe, 2)}</td>
-        <td className="px-2 py-1 text-[#888]">{b.moneda ?? "—"}</td>
-        <td className="px-2 py-1 text-[#888]">{b.plazo ?? "—"}</td>
-        <td className="px-2 py-1 text-[#888]">{b.lugar ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-text-dim)]">{b.moneda ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-text-dim)]">{b.plazo ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-text-dim)]">{b.lugar ?? "—"}</td>
       </tr>
       {open && (
         <tr className="bg-[var(--t-panel)]">
           <td colSpan={11} className="px-4 py-3">
-            <div className="text-[10px] text-[#666] mb-2">
+            <div className="text-[10px] text-[var(--t-text-muted)] mb-2">
               <strong className="text-[#ff9900]">{b.informacion}</strong> · {b.n_lineas} líneas raw
             </div>
             <table className="w-full text-[10px] font-mono">
-              <thead className="text-[9px] uppercase text-[#666]">
+              <thead className="text-[9px] uppercase text-[var(--t-text-muted)]">
                 <tr>
                   <th className="px-2 py-0.5 text-left">unidad</th>
                   <th className="px-2 py-0.5 text-right">total raw</th>
@@ -457,12 +457,12 @@ function FragBoleto({
               <tbody>
                 {b.lineas.map((l, i) => (
                   <tr key={i} className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-0.5 text-[#d0d0d0] truncate max-w-[300px]" title={String(l.unidad)}>{String(l.unidad)}</td>
-                    <td className="px-2 py-0.5 text-right text-[#888]">{fmtNum(l.total, 2)}</td>
-                    <td className="px-2 py-0.5 text-right text-[#d0d0d0]">{fmtNum(l._total_cliente, 2)}</td>
-                    <td className="px-2 py-0.5 text-[#888]">{String(l.uso ?? "")}</td>
-                    <td className="px-2 py-0.5 text-[#888]">{String(l.lugar ?? "")}</td>
-                    <td className="px-2 py-0.5 text-[#888]">{String(l.estado ?? "")}</td>
+                    <td className="px-2 py-0.5 text-[var(--t-text)] truncate max-w-[300px]" title={String(l.unidad)}>{String(l.unidad)}</td>
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">{fmtNum(l.total, 2)}</td>
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text)]">{fmtNum(l._total_cliente, 2)}</td>
+                    <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{String(l.uso ?? "")}</td>
+                    <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{String(l.lugar ?? "")}</td>
+                    <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{String(l.estado ?? "")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -485,7 +485,7 @@ function RawTable({
 }) {
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[#666] z-10">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] z-10">
         <tr>
           <th className="px-2 py-1 text-left w-24">Categoría</th>
           <th className="px-2 py-1 text-left">Comprobante</th>
@@ -530,7 +530,7 @@ function FragMov({
   open: boolean;
   onToggle: () => void;
 }) {
-  const tcClr = (m._total_cliente ?? 0) > 0 ? "text-[#3fbf6f]" : (m._total_cliente ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]";
+  const tcClr = (m._total_cliente ?? 0) > 0 ? "text-[#3fbf6f]" : (m._total_cliente ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]";
   return (
     <>
       <tr
@@ -543,19 +543,19 @@ function FragMov({
             <span style={{ color }}>{label}</span>
           </span>
         </td>
-        <td className="px-2 py-1 text-[#888]">{m.comprobante ?? "—"}</td>
-        <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[400px]" title={m.informacion ?? ""}>
+        <td className="px-2 py-1 text-[var(--t-text-dim)]">{m.comprobante ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-text)] truncate max-w-[400px]" title={m.informacion ?? ""}>
           {m.informacion ?? "—"}
         </td>
-        <td className="px-2 py-1 text-[#888] truncate max-w-[180px]" title={m.cuenta ?? ""}>
+        <td className="px-2 py-1 text-[var(--t-text-dim)] truncate max-w-[180px]" title={m.cuenta ?? ""}>
           {m.cuenta ?? "—"}
         </td>
-        <td className="px-2 py-1 text-right text-[#888]">{fmtNum(m.total, 2)}</td>
+        <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtNum(m.total, 2)}</td>
         <td className={`px-2 py-1 text-right ${tcClr}`}>{fmtNum(m._total_cliente, 2)}</td>
-        <td className="px-2 py-1 text-[#888] truncate max-w-[200px]" title={m.unidad ?? ""}>
+        <td className="px-2 py-1 text-[var(--t-text-dim)] truncate max-w-[200px]" title={m.unidad ?? ""}>
           {m.unidad ?? "—"}
         </td>
-        <td className="px-2 py-1 text-[#888]">{m.uso ?? "—"}</td>
+        <td className="px-2 py-1 text-[var(--t-text-dim)]">{m.uso ?? "—"}</td>
       </tr>
       {open && (
         <tr className="bg-[var(--t-panel)]">
@@ -567,8 +567,8 @@ function FragMov({
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([k, v]) => (
                     <tr key={k} className="border-b border-[var(--t-border)]">
-                      <td className="px-2 py-0.5 text-[#666] w-40">{k}</td>
-                      <td className="px-2 py-0.5 text-[#d0d0d0]">
+                      <td className="px-2 py-0.5 text-[var(--t-text-muted)] w-40">{k}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text)]">
                         {typeof v === "object" ? JSON.stringify(v) : String(v ?? "")}
                       </td>
                     </tr>
@@ -589,7 +589,7 @@ function Inline({
 }) {
   return (
     <span className="text-[10px]">
-      <span className="text-[#666] uppercase tracking-wider">{label}: </span>
+      <span className="text-[var(--t-text-muted)] uppercase tracking-wider">{label}: </span>
       <span style={{ color }} className="font-mono">{value}</span>
     </span>
   );
@@ -664,7 +664,7 @@ function DatePickerCompact({
     <div ref={wrapperRef} className="relative inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
       <button
         onClick={() => onChange(addDays(value, -1))}
-        className="px-2 text-[#888] hover:text-[#ff9900] hover:bg-[#1a1a1a]"
+        className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] hover:bg-[#1a1a1a]"
         title="Día anterior"
       >
         ‹
@@ -673,7 +673,7 @@ function DatePickerCompact({
         onClick={() => setOpen((p) => !p)}
         className={
           "px-3 py-1 text-[11px] font-mono min-w-[170px] text-center " +
-          (open ? "bg-[#1a1a1a] text-[#ff9900]" : "bg-black text-[#d0d0d0] hover:bg-[var(--t-surface-2)]")
+          (open ? "bg-[#1a1a1a] text-[#ff9900]" : "bg-black text-[var(--t-text)] hover:bg-[var(--t-surface-2)]")
         }
       >
         {fmtDisplay(value)}
@@ -681,7 +681,7 @@ function DatePickerCompact({
       <button
         onClick={() => onChange(addDays(value, 1))}
         disabled={isFuture}
-        className="px-2 text-[#888] hover:text-[#ff9900] hover:bg-[#1a1a1a] disabled:text-[#333] disabled:hover:bg-transparent"
+        className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] hover:bg-[#1a1a1a] disabled:text-[#333] disabled:hover:bg-transparent"
         title="Día siguiente"
       >
         ›
@@ -692,8 +692,8 @@ function DatePickerCompact({
         className={
           "px-2 text-[10px] uppercase tracking-wider " +
           (isToday
-            ? "bg-[#0a0a0a] text-[#444]"
-            : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900] hover:bg-[#1a1a1a]")
+            ? "bg-[#0a0a0a] text-[var(--t-text-muted)]"
+            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:bg-[#1a1a1a]")
         }
       >
         Hoy
@@ -745,7 +745,7 @@ function CalendarPopup({
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={() => setViewDate(new Date(year, month - 1, 1))}
-          className="px-2 text-[#888] hover:text-[#ff9900]"
+          className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900]"
         >
           ‹
         </button>
@@ -754,14 +754,14 @@ function CalendarPopup({
         </div>
         <button
           onClick={() => setViewDate(new Date(year, month + 1, 1))}
-          className="px-2 text-[#888] hover:text-[#ff9900]"
+          className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900]"
         >
           ›
         </button>
       </div>
 
       {/* Header días */}
-      <div className="grid grid-cols-7 gap-0.5 mb-1 text-[9px] uppercase text-[#666] text-center">
+      <div className="grid grid-cols-7 gap-0.5 mb-1 text-[9px] uppercase text-[var(--t-text-muted)] text-center">
         {DIAS_AR.map((d) => (
           <div key={d} className="py-0.5">{d}</div>
         ))}
@@ -786,9 +786,9 @@ function CalendarPopup({
           } else if (isFuture) {
             cls = "text-[#333] cursor-not-allowed";
           } else if (isWeekend) {
-            cls = "text-[#555] hover:bg-[#1a1a1a] hover:text-[#888]";
+            cls = "text-[var(--t-text-muted)] hover:bg-[#1a1a1a] hover:text-[var(--t-text-dim)]";
           } else {
-            cls = "text-[#d0d0d0] hover:bg-[#1a1a1a] hover:text-[#ff9900]";
+            cls = "text-[var(--t-text)] hover:bg-[#1a1a1a] hover:text-[#ff9900]";
           }
           return (
             <button
@@ -807,11 +807,11 @@ function CalendarPopup({
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--t-border)] text-[9px] uppercase tracking-wider">
         <button
           onClick={() => onPick(today)}
-          className="text-[#888] hover:text-[#ff9900]"
+          className="text-[var(--t-text-dim)] hover:text-[#ff9900]"
         >
           → Hoy
         </button>
-        <span className="text-[#444]">
+        <span className="text-[var(--t-text-muted)]">
           Día seleccionado: {valD.getDate()}/{valD.getMonth() + 1}/{valD.getFullYear()}
         </span>
       </div>

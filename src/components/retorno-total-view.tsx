@@ -133,7 +133,7 @@ function TabPill({
       className={`px-3 py-1 text-[11px] font-semibold tracking-wide border ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {label}
@@ -425,7 +425,7 @@ function HistoricoTab() {
         {esPesos && (
           <>
             <div className="flex items-center gap-1 border-l border-[var(--t-border-2)] pl-3">
-              <span className="text-[9px] uppercase tracking-wide text-[#555] mr-1">Chart</span>
+              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] mr-1">Chart</span>
               <FilterBtn active={monedaChart === "ARS"} onClick={() => setMonedaChart("ARS")}>
                 ARS
               </FilterBtn>
@@ -434,7 +434,7 @@ function HistoricoTab() {
               </FilterBtn>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] uppercase tracking-wide text-[#555] mr-1">Dólar</span>
+              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] mr-1">Dólar</span>
               <FilterBtn active={dolarTipo === "mep"} onClick={() => setDolarTipo("mep")}>
                 MEP
               </FilterBtn>
@@ -445,16 +445,16 @@ function HistoricoTab() {
           </>
         )}
 
-        <span className="text-[10px] text-[#555] font-mono px-1">
+        <span className="text-[10px] text-[var(--t-text-muted)] font-mono px-1">
           Chart en {monedaLabel}
         </span>
 
         {loading ? (
-          <span className="text-[10px] text-[#555]">cargando…</span>
+          <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>
         ) : error ? (
           <span className="text-[10px] text-[#ff3333]">error: {error}</span>
         ) : fechas.length < 2 ? (
-          <span className="text-[10px] text-[#555]">sin datos</span>
+          <span className="text-[10px] text-[var(--t-text-muted)]">sin datos</span>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-[260px]">
             <span className="text-[10px] text-[#ff9900] font-mono min-w-[36px]">
@@ -478,7 +478,7 @@ function HistoricoTab() {
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-3">
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 min-h-0">
           {chartData.length < 2 ? (
-            <p className="text-[#555] text-xs py-4 text-center">Sin datos suficientes.</p>
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Sin datos suficientes.</p>
           ) : (
             <ResponsiveContainer key={vpKey} width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 28, left: 4 }}>
@@ -532,12 +532,12 @@ function HistoricoTab() {
         </div>
 
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
-          <div className="text-[10px] text-[#555] tracking-wide mb-1">
+          <div className="text-[10px] text-[var(--t-text-muted)] tracking-wide mb-1">
             {fechaDesde && fechaHasta ? `${fmtFechaCorta(fechaDesde)} → ${fmtFechaCorta(fechaHasta)}` : ""}
           </div>
           <table className="w-full text-[10px]">
             <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-              <tr className="text-[#707070]">
+              <tr className="text-[var(--t-text-muted)]">
                 <th className="!px-1 text-left">TICKER</th>
                 <th className="!px-1 text-right">BASE</th>
                 <th className="!px-1 text-right">FINAL</th>
@@ -571,11 +571,11 @@ function HistoricoTab() {
                     <td className="!px-1 text-[#ff9900] whitespace-nowrap">
                       {r.ticker}
                       {baseDesalineada && (
-                        <span className="text-[#666] ml-1">›{fmtFechaCorta(r.fechaBase)}</span>
+                        <span className="text-[var(--t-text-muted)] ml-1">›{fmtFechaCorta(r.fechaBase)}</span>
                       )}
                     </td>
-                    <td className="!px-1 text-right text-[#808080]">{r.base.toFixed(2)}</td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">{r.final.toFixed(2)}</td>
+                    <td className="!px-1 text-right text-[var(--t-text-dim)]">{r.base.toFixed(2)}</td>
+                    <td className="!px-1 text-right text-[var(--t-text)]">{r.final.toFixed(2)}</td>
                     {esPesos ? (
                       <>
                         <td
@@ -589,7 +589,7 @@ function HistoricoTab() {
                         <td
                           className={`!px-1 text-right font-semibold ${
                             r.retUsd == null
-                              ? "text-[#555]"
+                              ? "text-[var(--t-text-muted)]"
                               : r.retUsd >= 0
                                 ? "text-[#00cc66]"
                                 : "text-[#ff3333]"
@@ -636,7 +636,7 @@ function FilterBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

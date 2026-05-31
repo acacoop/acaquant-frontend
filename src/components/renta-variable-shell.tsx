@@ -40,7 +40,7 @@ export function RentaVariableShell({
             className={`px-3 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
               tab === key
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {label}

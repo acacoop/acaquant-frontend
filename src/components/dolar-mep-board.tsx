@@ -16,7 +16,7 @@ export function DolarMepBoard({
   return (
     <div className="flex-1 min-h-0 flex gap-3">
       <div className="w-1/2 bg-[var(--t-panel)] border border-[var(--t-border)] p-2 flex flex-col">
-        <div className="text-[9px] tracking-wider text-[#888] mb-1 px-1">
+        <div className="text-[9px] tracking-wider text-[var(--t-text-dim)] mb-1 px-1">
           MEP {rueda} · MINUTO CLOSE · HOY
         </div>
         <div className="flex-1 min-h-0">

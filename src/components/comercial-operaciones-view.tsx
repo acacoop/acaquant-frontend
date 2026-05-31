@@ -392,7 +392,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
   });
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[#d0d0d0] overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[var(--t-text)] overflow-hidden">
 
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
@@ -404,7 +404,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 onClick={() => setSubview(v)}
                 className={
                   "px-3 py-1 text-[11px] font-semibold tracking-wide " +
-                  (subview === v ? "bg-[#ff9900] text-black" : "bg-transparent text-[#888] hover:text-[#ff9900]")
+                  (subview === v ? "bg-[#ff9900] text-black" : "bg-transparent text-[var(--t-text-dim)] hover:text-[#ff9900]")
                 }
               >
                 {label}
@@ -412,7 +412,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
             ),
           )}
         </div>
-        {loading && <span className="text-[9px] text-[#888]">cargando…</span>}
+        {loading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
         {subview !== "informe" && (
           <div className="ml-auto flex items-center gap-3">
@@ -440,29 +440,29 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 {metric === "aum" ? "AUM" : "Volumen operado"} · ARS
               </span>
               {visDesde && visHasta && (
-                <span className="text-[9px] text-[#555] font-mono">
+                <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
                   {fmtFechaCorta(visDesde)} → {fmtFechaCorta(visHasta)}
                 </span>
               )}
               {serieRango.length > 0 && (
                 <span className="text-[10px] font-mono">
-                  <span className="text-[#666] uppercase tracking-wider">
+                  <span className="text-[var(--t-text-muted)] uppercase tracking-wider">
                     {metric === "aum" ? "Último: " : "Total período: "}
                   </span>
                   <span className="text-[#ff9900] font-semibold">{fmtAum(resumenSerie)}</span>
                 </span>
               )}
               {cliente && (
-                <span className="text-[10px] text-[#888] font-mono truncate max-w-[35%]">
+                <span className="text-[10px] text-[var(--t-text-dim)] font-mono truncate max-w-[35%]">
                   · {cliente.denominacion}
                   <button
                     onClick={() => setSelCuenta(null)}
-                    className="ml-1 text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
+                    className="ml-1 text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
                     title="Volver a la cartera del operador"
                   >×</button>
                 </span>
               )}
-              {loadingSerie && <span className="text-[9px] text-[#888]">cargando…</span>}
+              {loadingSerie && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
 
               {/* Volumen / AuM */}
               <div className="ml-auto inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
@@ -472,7 +472,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setMetric(m)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (metric === m ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      (metric === m ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                     }
                   >
                     {m === "volumen" ? "Volumen" : "AuM"}
@@ -487,7 +487,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setAgg(k)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (agg === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      (agg === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                     }
                   >
                     {k}
@@ -500,7 +500,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   onClick={() => setRangoOffset((o) => o + 1)}
                   disabled={!puedeAtras}
                   title="Período anterior"
-                  className="px-1 py-0.5 text-[10px] text-[#888] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                  className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                 >◀</button>
                 <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
                   {(["1W", "1M", "3M", "6M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
@@ -509,7 +509,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                       onClick={() => { setRango(k); setRangoOffset(0); }}
                       className={
                         "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                        (rango === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                        (rango === k ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                       }
                     >
                       {k}
@@ -520,13 +520,13 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
                   disabled={!puedeAdelante}
                   title="Período siguiente"
-                  className="px-1 py-0.5 text-[10px] text-[#888] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                  className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                 >▶</button>
               </div>
             </div>
             <div className="flex-1 min-h-0 p-2">
               {chartData.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                   Sin datos de {metric === "aum" ? "AuM" : "volumen"} en este rango.
                 </div>
               ) : (
@@ -615,7 +615,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Ficha</span>
               {cliente && (
-                <span className="text-[10px] text-[#888] font-mono truncate">
+                <span className="text-[10px] text-[var(--t-text-dim)] font-mono truncate">
                   [{cliente.id_cuenta}] {cliente.ficha.denominacion || cliente.denominacion}
                 </span>
               )}
@@ -626,7 +626,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setFichaTab(t)}
                     className={
                       "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
-                      (fichaTab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      (fichaTab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                     }
                   >
                     {t === "datos" ? "Datos" : t}
@@ -636,7 +636,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
             </div>
             <div className="flex-1 min-h-0 overflow-auto p-3">
               {!cliente ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center">
+                <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] text-center">
                   Seleccioná un cliente para ver su ficha.
                 </div>
               ) : (
@@ -661,14 +661,14 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 value={qCuenta}
                 onChange={(e) => setQCuenta(e.target.value)}
                 placeholder="buscar cuenta o nombre…"
-                className="ml-2 flex-1 max-w-[220px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                className="ml-2 flex-1 max-w-[220px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
               />
-              <span className="ml-auto text-[10px] text-[#888] font-mono">{clientesFiltrados.length}</span>
+              <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">{clientesFiltrados.length}</span>
               <DownloadBtn onClick={dlClientes} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cuenta</th>
                     <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]">AuM</th>
@@ -677,7 +677,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 </thead>
                 <tbody>
                   {clientesFiltrados.length === 0 && !loading && (
-                    <tr><td colSpan={3} className="text-center text-[#555] py-6">Sin clientes.</td></tr>
+                    <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-6">Sin clientes.</td></tr>
                   )}
                   {clientesFiltrados.map((c) => {
                     const active = c.id_cuenta === selCuenta;
@@ -691,11 +691,11 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         }
                         title="Click: ficha + tenencia + gráfico de este cliente"
                       >
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[260px]" title={c.denominacion}>
-                          <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
+                        <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[260px]" title={c.denominacion}>
+                          <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
                         </td>
                         <td className="px-2 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
-                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">{fmtAum(c.volumen_ytd)}</td>
+                        <td className="px-3 py-1.5 text-right text-[var(--t-text)]">{fmtAum(c.volumen_ytd)}</td>
                       </tr>
                     );
                   })}
@@ -709,14 +709,14 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Portafolio</span>
               {portTab === "tenencia" && portafolio?.fecha_snapshot && (
-                <span className="text-[9px] text-[#555] font-mono">{portafolio.fecha_snapshot}</span>
+                <span className="text-[9px] text-[var(--t-text-muted)] font-mono">{portafolio.fecha_snapshot}</span>
               )}
-              {(loadingPort || loadingOps) && <span className="text-[9px] text-[#888]">cargando…</span>}
+              {(loadingPort || loadingOps) && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
               {portTab === "tenencia" && portafolio && portafolio.posiciones.length > 0 && (
-                <span className="text-[10px] text-[#888] font-mono">Total {fmtAum(portafolio.total)}</span>
+                <span className="text-[10px] text-[var(--t-text-dim)] font-mono">Total {fmtAum(portafolio.total)}</span>
               )}
               {portTab === "operaciones" && cliente && operaciones.length > 0 && (
-                <span className="text-[10px] text-[#888] font-mono">{operaciones.length} ops</span>
+                <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{operaciones.length} ops</span>
               )}
               <div className="ml-auto inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
                 {(["tenencia", "operaciones"] as PortTab[]).map((t) => (
@@ -725,7 +725,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setPortTab(t)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (portTab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      (portTab === t ? "bg-[#ff9900] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                     }
                   >
                     {t === "tenencia" ? "Tenencia" : "Operaciones"}
@@ -736,17 +736,17 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {!cliente ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#555] text-center">
+                <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] text-center">
                   Seleccioná un cliente para ver su {portTab === "operaciones" ? "actividad" : "tenencia"}.
                 </div>
               ) : portTab === "tenencia" ? (
                 !portafolio || portafolio.posiciones.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                  <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                     {loadingPort ? "cargando…" : "Sin posiciones."}
                   </div>
                 ) : (
                   <table className="w-full text-[11px] font-mono tabular-nums">
-                    <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                    <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                       <tr>
                         <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Unidad</th>
                         <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]">Valuación</th>
@@ -756,21 +756,21 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     <tbody>
                       {portafolio.posiciones.map((p) => (
                         <tr key={p.unidad} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                          <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[280px]" title={p.unidad}>{p.unidad}</td>
+                          <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[280px]" title={p.unidad}>{p.unidad}</td>
                           <td className="px-2 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(p.valuacion)}</td>
-                          <td className="px-3 py-1.5 text-right text-[#888]">{p.pct.toFixed(1)}%</td>
+                          <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)]">{p.pct.toFixed(1)}%</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )
               ) : operaciones.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                   {loadingOps ? "cargando…" : "Sin operaciones."}
                 </div>
               ) : (
                 <table className="w-full text-[10px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                     <tr>
                       <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Fecha</th>
                       <th className="px-2 py-1.5 text-left border-b border-[var(--t-border)]">Categ</th>
@@ -786,23 +786,23 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                       const imp = o.importe ?? 0;
                       return (
                         <tr key={o.comprobante} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                          <td className="px-3 py-1 text-[#888] whitespace-nowrap">{fmtFechaCorta(o.fecha.slice(0, 10))}</td>
+                          <td className="px-3 py-1 text-[var(--t-text-dim)] whitespace-nowrap">{fmtFechaCorta(o.fecha.slice(0, 10))}</td>
                           <td className="px-2 py-1">
                             <span className="inline-flex items-center gap-1">
                               <span className="w-1.5 h-1.5 inline-block shrink-0" style={{ background: color }} />
-                              <span className="text-[#888] whitespace-nowrap">{OP_CAT_LABEL[o.categoria] ?? o.categoria}</span>
+                              <span className="text-[var(--t-text-dim)] whitespace-nowrap">{OP_CAT_LABEL[o.categoria] ?? o.categoria}</span>
                             </span>
                           </td>
                           <td className="px-2 py-1 text-[#ff9900] truncate max-w-[90px]" title={o.ticker ?? ""}>{o.ticker ?? "—"}</td>
-                          <td className="px-2 py-1 text-right text-[#d0d0d0]">
+                          <td className="px-2 py-1 text-right text-[var(--t-text)]">
                             {o.cantidad != null ? o.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
                           </td>
-                          <td className="px-2 py-1 text-right text-[#d0d0d0]">
+                          <td className="px-2 py-1 text-right text-[var(--t-text)]">
                             {o.precio != null ? o.precio.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
                           </td>
-                          <td className={"px-3 py-1 text-right whitespace-nowrap " + (imp > 0 ? "text-[#3fbf6f]" : imp < 0 ? "text-[#ff5d6c]" : "text-[#888]")}>
+                          <td className={"px-3 py-1 text-right whitespace-nowrap " + (imp > 0 ? "text-[#3fbf6f]" : imp < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]")}>
                             {o.importe != null ? fmtAum(o.importe) : "—"}
-                            {o.moneda === "USD" && <span className="text-[#555] ml-0.5">u$s</span>}
+                            {o.moneda === "USD" && <span className="text-[var(--t-text-muted)] ml-0.5">u$s</span>}
                           </td>
                         </tr>
                       );
@@ -824,7 +824,7 @@ function DownloadBtn({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       title="Descargar a Excel"
-      className="text-[9px] tracking-wider text-[#888] hover:text-[#ff9900] border border-[var(--t-border-2)] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
+      className="text-[9px] tracking-wider text-[var(--t-text-dim)] hover:text-[#ff9900] border border-[var(--t-border-2)] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
     >
       ⬇ xls
     </button>
@@ -834,8 +834,8 @@ function DownloadBtn({ onClick }: { onClick: () => void }) {
 function KpiChip({ label, value }: { label: string; value: string }) {
   return (
     <span className="text-[11px] font-mono">
-      <span className="text-[#666] tracking-wider">{label} </span>
-      <span className="text-[#d0d0d0] font-semibold">{value}</span>
+      <span className="text-[var(--t-text-muted)] tracking-wider">{label} </span>
+      <span className="text-[var(--t-text)] font-semibold">{value}</span>
     </span>
   );
 }
@@ -843,8 +843,8 @@ function KpiChip({ label, value }: { label: string; value: string }) {
 function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[9px] text-[#666] tracking-wide">{label}</span>
-      <span className="text-[11px] font-mono text-[#d0d0d0] truncate" title={value ?? "—"}>
+      <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide">{label}</span>
+      <span className="text-[11px] font-mono text-[var(--t-text)] truncate" title={value ?? "—"}>
         {value ?? "—"}
       </span>
     </div>
@@ -1083,8 +1083,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             }
           >
             <span className="w-2 h-2 inline-block" style={{ background: ESTADO_COLOR[e] }} />
-            <span className="text-[#888]">{ESTADO_LABEL[e]}</span>
-            <span className="font-semibold tabular-nums text-[#d0d0d0]">{counts[e] ?? 0}</span>
+            <span className="text-[var(--t-text-dim)]">{ESTADO_LABEL[e]}</span>
+            <span className="font-semibold tabular-nums text-[var(--t-text)]">{counts[e] ?? 0}</span>
           </button>
         ))}
         <button
@@ -1095,8 +1095,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             (estadoSel === "SIN_AUM" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
           }
         >
-          <span className="text-[#888]">Sin AuM</span>
-          <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinAum}</span>
+          <span className="text-[var(--t-text-dim)]">Sin AuM</span>
+          <span className="font-semibold tabular-nums text-[var(--t-text)]">{sinAum}</span>
         </button>
         <button
           onClick={() => setEstadoSel((s) => (s === "SIN_OP_YTD" ? null : "SIN_OP_YTD"))}
@@ -1106,45 +1106,45 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             (estadoSel === "SIN_OP_YTD" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[var(--t-border)] bg-[var(--t-panel)] hover:border-[var(--t-border-2)]")
           }
         >
-          <span className="text-[#888]">Sin operar (año)</span>
-          <span className="font-semibold tabular-nums text-[#d0d0d0]">{sinOperarYtd}</span>
+          <span className="text-[var(--t-text-dim)]">Sin operar (año)</span>
+          <span className="font-semibold tabular-nums text-[var(--t-text)]">{sinOperarYtd}</span>
         </button>
 
         {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. */}
         <div className="ml-auto flex items-center gap-2">
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo transaccional asignado por el custodio (suma USD).">
-            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo trans.</span>
-            <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtUsd(cupoTotales.trans)}</span>
+            <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">Cupo trans.</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[var(--t-text)] leading-tight">{fmtUsd(cupoTotales.trans)}</span>
           </div>
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo usado (suma USD).">
-            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo usado</span>
-            <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtUsd(cupoTotales.usado)}</span>
+            <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">Cupo usado</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[var(--t-text)] leading-tight">{fmtUsd(cupoTotales.usado)}</span>
           </div>
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="% utilización = usado / transaccional.">
-            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">% util.</span>
-            <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">
+            <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">% util.</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[var(--t-text)] leading-tight">
               {cupoTotales.pct != null ? `${cupoTotales.pct.toFixed(1)}%` : "—"}
             </span>
           </div>
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo libre = transaccional − usado.">
-            <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo libre</span>
+            <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">Cupo libre</span>
             <span className="text-[15px] font-semibold tabular-nums text-[#5dd6a0] leading-tight">{fmtUsd(cupoTotales.libre)}</span>
           </div>
 
           {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
           <div className="relative group">
-          <span className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[var(--t-border-2)] text-[#888] text-[10px] cursor-help group-hover:border-[#ff9900] group-hover:text-[#ff9900]">
+          <span className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[var(--t-border-2)] text-[var(--t-text-dim)] text-[10px] cursor-help group-hover:border-[#ff9900] group-hover:text-[#ff9900]">
             ?
           </span>
           <div className="hidden group-hover:block absolute right-0 top-5 z-50 w-[320px] border border-[var(--t-border-2)] bg-[var(--t-surface)] p-3 text-[10px] leading-relaxed shadow-lg">
             <div className="text-[#ff9900] uppercase tracking-widest text-[9px] mb-1.5">Cómo se calcula</div>
-            <p><span style={{ color: ESTADO_COLOR.ACTIVA }}>● Activa</span><span className="text-[#888]">: operó hace ≤ {umbral.activa} días.</span></p>
-            <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[#888]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
-            <p><span style={{ color: ESTADO_COLOR.DORMIDA }}>● Dormida</span><span className="text-[#888]">: operó alguna vez, pero hace más de {umbral.dormida} días.</span></p>
-            <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Sin Operaciones</span><span className="text-[#888]">: nunca operó.</span></p>
-            <p className="mt-1.5 text-[#888]"><span className="text-[#d0d0d0]">Sin AuM</span>: cuenta con AuM = $0 en el último snapshot.</p>
-            <p className="text-[#888]"><span className="text-[#d0d0d0]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
-            <p className="mt-1.5 text-[#666]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
+            <p><span style={{ color: ESTADO_COLOR.ACTIVA }}>● Activa</span><span className="text-[var(--t-text-dim)]">: operó hace ≤ {umbral.activa} días.</span></p>
+            <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[var(--t-text-dim)]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
+            <p><span style={{ color: ESTADO_COLOR.DORMIDA }}>● Dormida</span><span className="text-[var(--t-text-dim)]">: operó alguna vez, pero hace más de {umbral.dormida} días.</span></p>
+            <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Sin Operaciones</span><span className="text-[var(--t-text-dim)]">: nunca operó.</span></p>
+            <p className="mt-1.5 text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin AuM</span>: cuenta con AuM = $0 en el último snapshot.</p>
+            <p className="text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
+            <p className="mt-1.5 text-[var(--t-text-muted)]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
           </div>
           </div>
         </div>
@@ -1158,16 +1158,16 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             {nivelSel && (
               <span className="text-[10px] text-[#ff9900] font-mono inline-flex items-center gap-1">
                 · {nivelSel}
-                <button onClick={() => { setNivelSel(null); setNivel3Sel(null); }} className="text-[#888] hover:text-[#ff9900]" title="Quitar filtro de nivel">×</button>
+                <button onClick={() => { setNivelSel(null); setNivel3Sel(null); }} className="text-[var(--t-text-dim)] hover:text-[#ff9900]" title="Quitar filtro de nivel">×</button>
               </span>
             )}
-            <span className="text-[10px] text-[#888] font-mono">{ordenados.length}</span>
-            <span className="ml-auto text-[9px] text-[#666]">click en cualquier header para ordenar</span>
+            <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{ordenados.length}</span>
+            <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">click en cualquier header para ordenar</span>
             <DownloadBtn onClick={dlEstado} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                 <tr>
                   <th onClick={() => onSortClick("cuenta")}     className="px-3 py-1.5 text-left border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]">Cuenta{sortArrow("cuenta")}</th>
                   <th onClick={() => onSortClick("estado")}     className="px-2 py-1.5 text-left border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[#ff9900]">Estado{sortArrow("estado")}</th>
@@ -1180,14 +1180,14 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
               <tbody>
                 {ordenados.map((c) => (
                   <tr key={c.id_cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                    <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[220px]" title={c.denominacion}>
-                      <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
+                    <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[220px]" title={c.denominacion}>
+                      <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
                     </td>
                     <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
-                    <td className="px-2 py-1.5 text-right text-[#888]">{c.dias_sin_operar ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{c.dias_sin_operar ?? "—"}</td>
                     <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(c.aum)}</td>
-                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_transaccional_usd != null ? fmtUsd(c.cupo_transaccional_usd) : "—"}</td>
-                    <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{c.cupo_usado_usd != null ? fmtUsd(c.cupo_usado_usd) : "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{c.cupo_transaccional_usd != null ? fmtUsd(c.cupo_transaccional_usd) : "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{c.cupo_usado_usd != null ? fmtUsd(c.cupo_usado_usd) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1200,13 +1200,13 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Distribución por nivel 1</span>
-              <span className="text-[10px] text-[#888] font-mono">{porNivel.length}</span>
-              <span className="ml-auto text-[9px] text-[#666]">click = filtra clientes</span>
+              <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{porNivel.length}</span>
+              <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">click = filtra clientes</span>
               <DownloadBtn onClick={dlPorNivel} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Nivel 1</th>
                     <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]" title="Cuentas totales asignadas al segmento">Ctas. Tot.</th>
@@ -1233,10 +1233,10 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                         }
                         title="Click: filtrar la tabla de Estado comercial por este nivel"
                       >
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
-                        <td className="px-2 py-1.5 text-right text-[#888]">{n.n}</td>
+                        <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
+                        <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.n}</td>
                         <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{n.activas}</td>
-                        <td className="px-2 py-1.5 text-right text-[#888]">{n.pctActivas.toFixed(0)}%</td>
+                        <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.pctActivas.toFixed(0)}%</td>
                         <td className="px-3 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(n.aum)}</td>
                       </tr>
                     );
@@ -1253,18 +1253,18 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
               {nivel3Sel && (
                 <span className="text-[10px] text-[#ff9900] font-mono inline-flex items-center gap-1">
                   · {nivel3Sel}
-                  <button onClick={() => setNivel3Sel(null)} className="text-[#888] hover:text-[#ff9900]" title="Quitar filtro de nivel 3">×</button>
+                  <button onClick={() => setNivel3Sel(null)} className="text-[var(--t-text-dim)] hover:text-[#ff9900]" title="Quitar filtro de nivel 3">×</button>
                 </span>
               )}
-              <span className="ml-auto text-[9px] text-[#666]">{nivel3Det.length} valores{nivelSel ? "" : " · todos"}</span>
+              <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{nivel3Det.length} valores{nivelSel ? "" : " · todos"}</span>
               <DownloadBtn onClick={dlNivel3} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {nivel3Det.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#555]">Sin datos.</div>
+                <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">Sin datos.</div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                     <tr>
                       <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Nivel 3</th>
                       <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]" title="Suma del cupo transaccional (USD al MEP) del segmento.">Cupo Trans. (USD)</th>
@@ -1287,8 +1287,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                           }
                           title="Click: filtrar la tabla de Estado comercial por este nivel 3"
                         >
-                          <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={r.n3}>{r.n3}</td>
-                          <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtUsd(r.cupo_trans_usd)}</td>
+                          <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={r.n3}>{r.n3}</td>
+                          <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtUsd(r.cupo_trans_usd)}</td>
                           <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{fmtUsd(r.cupo_libre_usd)}</td>
                           <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{r.n_activas}</td>
                           <td className="px-2 py-1.5 text-right text-[#ff9900]">{r.n_enfriandose}</td>
@@ -1318,5 +1318,5 @@ function EstadoBadge({ estado }: { estado: string }) {
 }
 
 function Empty({ msg }: { msg: string }) {
-  return <div className="flex-1 min-h-0 flex items-center justify-center text-[11px] text-[#555]">{msg}</div>;
+  return <div className="flex-1 min-h-0 flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">{msg}</div>;
 }

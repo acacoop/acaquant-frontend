@@ -552,11 +552,11 @@ export function ChatView() {
       />
       <div className="flex-1 min-w-0 flex flex-col">
       <div className="border-b border-[var(--t-border)] px-3 py-1.5 flex items-center gap-3 shrink-0">
-        <span className="text-[10px] tracking-wide text-[#555555] uppercase">Asistente</span>
+        <span className="text-[10px] tracking-wide text-[var(--t-text-muted)] uppercase">Asistente</span>
         <span className="text-[10px] text-[#ff9900]">Claude · haiku/sonnet auto</span>
         <button
           onClick={resetear}
-          className="ml-auto text-[10px] text-[#555555] hover:text-[#ff9900] uppercase tracking-wide"
+          className="ml-auto text-[10px] text-[var(--t-text-muted)] hover:text-[#ff9900] uppercase tracking-wide"
           disabled={turns.length === 0}
         >
           Nueva conversación
@@ -565,7 +565,7 @@ export function ChatView() {
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
         {turns.length === 0 && (
-          <div className="text-[#555555] text-sm">Preguntale a ACAQuant.</div>
+          <div className="text-[var(--t-text-muted)] text-sm">Preguntale a ACAQuant.</div>
         )}
 
         {turns.map((t, i) => {
@@ -581,7 +581,7 @@ export function ChatView() {
             <div key={i}>
               {t.role === "user" ? (
                 <div className="flex justify-end">
-                  <div className="max-w-[80%] bg-[#094293]/20 border border-[#094293]/40 px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
+                  <div className="max-w-[80%] bg-[#094293]/20 border border-[#094293]/40 px-3 py-2 text-sm text-[var(--t-text)] font-mono whitespace-pre-wrap">
                     {t.text}
                   </div>
                 </div>
@@ -601,10 +601,10 @@ export function ChatView() {
                 </div>
               ) : (
                 <div className="flex">
-                  <div className="max-w-[90%] bg-[var(--t-surface)] border border-[var(--t-border)] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
+                  <div className="max-w-[90%] bg-[var(--t-surface)] border border-[var(--t-border)] px-3 py-2 text-sm text-[var(--t-text)] font-mono whitespace-pre-wrap">
                     {renderMarkdown(t.text)}
                     {t.toolCalls && t.toolCalls.length > 0 && (
-                      <details className="mt-2 text-[10px] text-[#555555]">
+                      <details className="mt-2 text-[10px] text-[var(--t-text-muted)]">
                         <summary className="cursor-pointer hover:text-[#ff9900] uppercase tracking-wide">
                           Fuentes ({t.toolCalls.length})
                         </summary>
@@ -618,7 +618,7 @@ export function ChatView() {
                       </details>
                     )}
                     {t.meta && (
-                      <div className="mt-1 text-[9px] text-[#555555] tracking-wide uppercase">
+                      <div className="mt-1 text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">
                         {t.meta.steps} step{t.meta.steps !== 1 ? "s" : ""} · {t.meta.elapsed_s}s
                         {t.meta.tokens ? ` · ${t.meta.tokens} tok` : ""}
                         {t.meta.model ? ` · ${t.meta.model}` : ""}
@@ -647,7 +647,7 @@ export function ChatView() {
 
         {loading && (
           <div className="flex">
-            <div className="bg-[var(--t-surface)] border border-[var(--t-border)] px-3 py-2 text-sm text-[#555555] font-mono">
+            <div className="bg-[var(--t-surface)] border border-[var(--t-border)] px-3 py-2 text-sm text-[var(--t-text-muted)] font-mono">
               pensando…
             </div>
           </div>
@@ -660,11 +660,11 @@ export function ChatView() {
               <div className="text-[11px] font-semibold text-[#ff9900] uppercase tracking-wide">
                 {error.title}
               </div>
-              <div className="text-[11px] text-[#d0d0d0] mt-1 leading-relaxed">
+              <div className="text-[11px] text-[var(--t-text)] mt-1 leading-relaxed">
                 {error.message}
               </div>
               {error.hint && (
-                <div className="text-[10px] text-[#888888] mt-1 italic leading-relaxed">
+                <div className="text-[10px] text-[var(--t-text-dim)] mt-1 italic leading-relaxed">
                   {error.hint}
                 </div>
               )}
@@ -680,7 +680,7 @@ export function ChatView() {
             </div>
             <button
               onClick={() => setError(null)}
-              className="text-[#555555] hover:text-[#d0d0d0] text-sm leading-none ml-2"
+              className="text-[var(--t-text-muted)] hover:text-[var(--t-text)] text-sm leading-none ml-2"
               title="Cerrar"
             >
               ×
@@ -704,14 +704,14 @@ export function ChatView() {
           <button
             disabled
             title="Próximamente"
-            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#555555] uppercase tracking-wide cursor-not-allowed"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)] uppercase tracking-wide cursor-not-allowed"
           >
             + Análisis bono
           </button>
           <button
             disabled
             title="Próximamente"
-            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#555555] uppercase tracking-wide cursor-not-allowed"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)] uppercase tracking-wide cursor-not-allowed"
           >
             + Comparar curvas
           </button>
@@ -723,17 +723,17 @@ export function ChatView() {
           onKeyDown={onKeyDown}
           placeholder="Escribí tu consulta…  (Enter para enviar, Shift+Enter para salto de línea)"
           rows={2}
-          className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[12px] px-2 py-1.5 font-mono focus:border-[#ff9900] outline-none resize-none"
+          className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[12px] px-2 py-1.5 font-mono focus:border-[#ff9900] outline-none resize-none"
           disabled={loading}
         />
         <div className="flex items-center mt-1">
-          <span className="text-[9px] text-[#555555] tracking-wide uppercase">
+          <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">
             Solo-lectura · las respuestas salen de tu propia API · logs en Manager.AsistenteLogs
           </span>
           <button
             onClick={() => enviar(input)}
             disabled={loading || !input.trim()}
-            className="ml-auto text-[10px] px-3 py-1 bg-[#094293] text-white hover:bg-[#0a52b5] disabled:bg-[#1a1a1a] disabled:text-[#555555] uppercase tracking-wide"
+            className="ml-auto text-[10px] px-3 py-1 bg-[#094293] text-white hover:bg-[#0a52b5] disabled:bg-[#1a1a1a] disabled:text-[var(--t-text-muted)] uppercase tracking-wide"
           >
             Enviar
           </button>
@@ -763,7 +763,7 @@ function ConversationsSidebar({
         <button
           onClick={onToggle}
           title="Expandir conversaciones"
-          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900]"
+          className="w-6 h-6 flex items-center justify-center text-[var(--t-text-dim)] hover:text-[#ff9900]"
         >
           ▶
         </button>
@@ -775,7 +775,7 @@ function ConversationsSidebar({
           +
         </button>
         {conversations.length > 0 && (
-          <div className="text-[9px] text-[#666] mt-1">{conversations.length}</div>
+          <div className="text-[9px] text-[var(--t-text-muted)] mt-1">{conversations.length}</div>
         )}
       </aside>
     );
@@ -793,14 +793,14 @@ function ConversationsSidebar({
         <button
           onClick={onToggle}
           title="Colapsar"
-          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900] border border-[var(--t-border-2)]"
+          className="w-6 h-6 flex items-center justify-center text-[var(--t-text-dim)] hover:text-[#ff9900] border border-[var(--t-border-2)]"
         >
           ◀
         </button>
       </div>
       <div className="flex-1 overflow-auto">
         {conversations.length === 0 && (
-          <div className="px-3 py-4 text-[11px] text-[#555]">
+          <div className="px-3 py-4 text-[11px] text-[var(--t-text-muted)]">
             Sin conversaciones guardadas.
           </div>
         )}
@@ -816,14 +816,14 @@ function ConversationsSidebar({
               <div className="text-[11px] font-semibold text-[#ddd] truncate">
                 {previewConv(c)}
               </div>
-              <div className="text-[10px] text-[#666]">
+              <div className="text-[10px] text-[var(--t-text-muted)]">
                 {c.turns.length} turn{c.turns.length === 1 ? "" : "s"} ·{" "}
                 {new Date(c.lastUpdated).toLocaleDateString("es-AR")}
               </div>
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); onEliminar(c.id); }}
-              className="opacity-0 group-hover:opacity-100 px-1.5 text-[12px] text-[#888] hover:text-[#ff6666]"
+              className="opacity-0 group-hover:opacity-100 px-1.5 text-[12px] text-[var(--t-text-dim)] hover:text-[#ff6666]"
               title="Eliminar"
             >
               ×

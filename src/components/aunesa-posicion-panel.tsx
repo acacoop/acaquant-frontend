@@ -72,27 +72,27 @@ export function AunesaPosicionPanel() {
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a]">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[10px] tracking-widest text-[#888]">POSICIÓN AUNESA · CUENTA</span>
+        <span className="text-[10px] tracking-widest text-[var(--t-text-dim)]">POSICIÓN AUNESA · CUENTA</span>
         <input
           value={idCuenta}
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
         />
-        <span className="text-[9px] tracking-widest text-[#666]">FECHA</span>
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">FECHA</span>
         <input
           type="date"
           value={fecha}
           onChange={(e) => setFecha(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
           title="Fecha de liquidación. Vacío = T+2 hábil (default del job)."
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
         />
         {fecha && (
           <button
             onClick={() => setFecha("")}
-            className="text-[10px] text-[#666] hover:text-[#ff9900]"
+            className="text-[10px] text-[var(--t-text-muted)] hover:text-[#ff9900]"
             title="Volver a T+2 default"
           >
             × T+2
@@ -107,9 +107,9 @@ export function AunesaPosicionPanel() {
         </button>
         {data && (
           <div className="ml-auto flex items-center gap-4 text-[10px] font-mono">
-            <span><span className="text-[#888]">DESDE: </span><span className="text-[#d0d0d0]">{data.desde}</span></span>
-            <span><span className="text-[#888]">ACUMULADO: </span><span className="text-[#d0d0d0]">{data.n_acumulado}</span></span>
-            <span><span className="text-[#888]">RAW: </span><span className="text-[#d0d0d0]">{data.n_total}</span></span>
+            <span><span className="text-[var(--t-text-dim)]">DESDE: </span><span className="text-[var(--t-text)]">{data.desde}</span></span>
+            <span><span className="text-[var(--t-text-dim)]">ACUMULADO: </span><span className="text-[var(--t-text)]">{data.n_acumulado}</span></span>
+            <span><span className="text-[var(--t-text-dim)]">RAW: </span><span className="text-[var(--t-text)]">{data.n_total}</span></span>
           </div>
         )}
       </div>
@@ -121,7 +121,7 @@ export function AunesaPosicionPanel() {
         )}
 
         {!data && !loading && !error && (
-          <div className="p-4 text-[11px] text-[#666] font-mono">
+          <div className="p-4 text-[11px] text-[var(--t-text-muted)] font-mono">
             Ingresá una cuenta y dale CONSULTAR. Pega EN VIVO a Aunesa
             (posicionValuada) y muestra la posición cruda — sin pasar por la
             base. Útil para comparar precio/cantidad de Aunesa contra lo que
@@ -132,7 +132,7 @@ export function AunesaPosicionPanel() {
         )}
 
         {data && data.posiciones.length === 0 && (
-          <div className="p-4 text-[11px] text-[#666] font-mono">
+          <div className="p-4 text-[11px] text-[var(--t-text-muted)] font-mono">
             Aunesa no devolvió posiciones &quot;Acumulado&quot; para esta cuenta.
           </div>
         )}
@@ -140,7 +140,7 @@ export function AunesaPosicionPanel() {
         {data && data.posiciones.length > 0 && (
           <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
-              <tr className="text-[#666] tracking-widest">
+              <tr className="text-[var(--t-text-muted)] tracking-widest">
                 <th className="text-left px-2 py-1">UNIDAD</th>
                 <th className="text-left px-2 py-1">TIPO TÍTULO</th>
                 <th className="text-right px-2 py-1">CANTIDAD</th>
@@ -155,13 +155,13 @@ export function AunesaPosicionPanel() {
                 const prod = cant != null && precio != null ? cant * precio : null;
                 return (
                   <tr key={i} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                    <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[340px]" title={p.unidad ?? ""}>
+                    <td className="px-2 py-1 text-[var(--t-text)] truncate max-w-[340px]" title={p.unidad ?? ""}>
                       {p.unidad ?? "—"}
                     </td>
-                    <td className="px-2 py-1 text-[#888]">{p.tipoTitulo ?? "—"}</td>
-                    <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(cant, 4)}</td>
-                    <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(precio, 4)}</td>
-                    <td className="px-2 py-1 text-right text-[#666]">{fmtNum(prod)}</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)]">{p.tipoTitulo ?? "—"}</td>
+                    <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(cant, 4)}</td>
+                    <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(precio, 4)}</td>
+                    <td className="px-2 py-1 text-right text-[var(--t-text-muted)]">{fmtNum(prod)}</td>
                   </tr>
                 );
               })}

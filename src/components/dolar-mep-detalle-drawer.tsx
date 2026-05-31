@@ -116,7 +116,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
           </span>
           <button
             onClick={onClose}
-            className="ml-auto text-[#888] hover:text-[#ff3333] text-[18px] leading-none"
+            className="ml-auto text-[var(--t-text-dim)] hover:text-[#ff3333] text-[18px] leading-none"
             title="Cerrar (Esc)"
           >
             ×
@@ -126,7 +126,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {loading && (
-            <div className="text-[#888] text-[11px]">Cargando…</div>
+            <div className="text-[var(--t-text-dim)] text-[11px]">Cargando…</div>
           )}
           {error && (
             <div className="text-[#ff3333] text-[11px] font-mono">
@@ -137,12 +137,12 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
             <>
               {/* Mini-header */}
               <div className="flex items-baseline gap-2 text-[11px] font-mono">
-                <span className="text-[#d0d0d0]">{fmtTime(op.created_at)}</span>
-                <span className="text-[#666]">·</span>
-                <span className="text-[#888]">cuenta {op.account}</span>
-                <span className="text-[#666]">·</span>
-                <span className="text-[#888]">{op.rueda}</span>
-                <span className="text-[#888]">· {op.nominales} VN</span>
+                <span className="text-[var(--t-text)]">{fmtTime(op.created_at)}</span>
+                <span className="text-[var(--t-text-muted)]">·</span>
+                <span className="text-[var(--t-text-dim)]">cuenta {op.account}</span>
+                <span className="text-[var(--t-text-muted)]">·</span>
+                <span className="text-[var(--t-text-dim)]">{op.rueda}</span>
+                <span className="text-[var(--t-text-dim)]">· {op.nominales} VN</span>
                 <span
                   className="ml-auto text-[10px] font-semibold"
                   style={{ color: statusColor(op.status) }}
@@ -166,7 +166,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
 
               {/* Slippage discreto */}
               {m.slippage_pct !== undefined && op.mep_inicial && (
-                <div className="text-[10px] text-[#666] font-mono px-1">
+                <div className="text-[10px] text-[var(--t-text-muted)] font-mono px-1">
                   MEP inicial $ {fmtArs(op.mep_inicial)} · slippage{" "}
                   <span style={{ color: m.slippage_pct >= 0 ? "#ff3333" : "#00cc66" }}>
                     {m.slippage_pct >= 0 ? "+" : ""}
@@ -177,9 +177,9 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
 
               {/* Costo cliente final (con comisión) — opcional, abajo */}
               {m.mep_costo_cliente !== undefined && op.monto_ars && (
-                <div className="text-[10px] text-[#666] font-mono px-1 leading-relaxed">
+                <div className="text-[10px] text-[var(--t-text-muted)] font-mono px-1 leading-relaxed">
                   Cliente pagó ${fmtArs(op.monto_ars)} brutos →{" "}
-                  TC con comisión <span className="text-[#888]">${fmtArs(m.mep_costo_cliente)}</span>
+                  TC con comisión <span className="text-[var(--t-text-dim)]">${fmtArs(m.mep_costo_cliente)}</span>
                 </div>
               )}
             </>
@@ -203,7 +203,7 @@ function Linea({
 }) {
   return (
     <div className="flex items-baseline justify-between px-3 py-2 border-b border-[var(--t-border)] last:border-b-0">
-      <span className="text-[11px] tracking-wide text-[#888] uppercase">
+      <span className="text-[11px] tracking-wide text-[var(--t-text-dim)] uppercase">
         {label}
       </span>
       <span

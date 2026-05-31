@@ -44,7 +44,7 @@ function TabBtn({
       className={`px-3 py-1 text-[11px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

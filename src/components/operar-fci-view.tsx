@@ -98,9 +98,9 @@ function FciSearch({
       {open && q.trim().length >= 2 && (
         <div className="absolute top-full left-0 right-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[320px] overflow-y-auto text-[11px]">
           {loading && hits.length === 0 ? (
-            <div className="px-2 py-2 text-[#666]">buscando…</div>
+            <div className="px-2 py-2 text-[var(--t-text-muted)]">buscando…</div>
           ) : hits.length === 0 ? (
-            <div className="px-2 py-2 text-[#666]">sin resultados</div>
+            <div className="px-2 py-2 text-[var(--t-text-muted)]">sin resultados</div>
           ) : (
             hits.map((h) => (
               <div
@@ -112,16 +112,16 @@ function FciSearch({
                 }}
                 className="px-2 py-1 hover:bg-[#1a1a1a] cursor-pointer flex items-center gap-2"
               >
-                <span className="text-[#d0d0d0] flex-1 truncate" title={h.ticker}>
+                <span className="text-[var(--t-text)] flex-1 truncate" title={h.ticker}>
                   {h.ticker}
                 </span>
                 {h.underlying && (
-                  <span className="text-[8px] text-[#666] uppercase">{h.underlying}</span>
+                  <span className="text-[8px] text-[var(--t-text-muted)] uppercase">{h.underlying}</span>
                 )}
                 <span className="text-[9px] text-[#ff9900] w-9 text-right">
                   {h.currency ?? ""}
                 </span>
-                <span className="text-[9px] text-[#888] w-10 text-right">{h.plazo ?? ""}</span>
+                <span className="text-[9px] text-[var(--t-text-dim)] w-10 text-right">{h.plazo ?? ""}</span>
               </div>
             ))
           )}
@@ -237,13 +237,13 @@ function FciOperatePanel({
 
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
-      <div className="px-2 py-1 border-b border-[var(--t-border)] text-[11px] tracking-wide text-[#d0d0d0] font-semibold shrink-0">
+      <div className="px-2 py-1 border-b border-[var(--t-border)] text-[11px] tracking-wide text-[var(--t-text)] font-semibold shrink-0">
         OPERAR FCI
       </div>
       <div className="p-3 flex flex-col gap-3">
         {/* Buscador */}
         <div>
-          <span className="text-[9px] tracking-wider text-[#888]">FONDO</span>
+          <span className="text-[9px] tracking-wider text-[var(--t-text-dim)]">FONDO</span>
           <div className="mt-1">
             <FciSearch
               initialQuery={initialFundQuery}
@@ -275,7 +275,7 @@ function FciOperatePanel({
               </span>
               <button
                 onClick={() => fci && fetchQuote(fci.ticker)}
-                className="text-[#888] hover:text-[#ff9900] text-[12px] leading-none"
+                className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[12px] leading-none"
                 title="Refrescar cuota"
               >
                 ↻
@@ -305,7 +305,7 @@ function FciOperatePanel({
                   ? s === "BUY"
                     ? "bg-[#4ade80] text-black border-[#4ade80]"
                     : "bg-[#f87171] text-black border-[#f87171]"
-                  : "bg-transparent text-[#888] border-[var(--t-border-2)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)]"
               }`}
             >
               {s === "BUY" ? "SUSCRIBIR" : "RESCATAR"}
@@ -316,7 +316,7 @@ function FciOperatePanel({
         {/* Monto */}
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[9px] tracking-wider text-[#888]">MONTO</span>
+            <span className="text-[9px] tracking-wider text-[var(--t-text-dim)]">MONTO</span>
             <div className="flex gap-0.5 ml-auto">
               {(["importe", "cuotapartes"] as const).map((m) => (
                 <button
@@ -325,7 +325,7 @@ function FciOperatePanel({
                   className={`px-2 py-0.5 text-[9px] font-semibold border ${
                     m === amountMode
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#888] border-[var(--t-border-2)]"
+                      : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)]"
                   }`}
                 >
                   {m === "importe" ? `$ ${ccy || "IMPORTE"}` : "CUOTAPARTES"}
@@ -340,12 +340,12 @@ function FciOperatePanel({
             inputMode="decimal"
             className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[#ff9900] outline-none"
           />
-          <div className="mt-1 text-[10px] text-[#888] min-h-[14px]">
+          <div className="mt-1 text-[10px] text-[var(--t-text-dim)] min-h-[14px]">
             {conversion ? (
               amountMode === "importe" ? (
                 <>
                   ≈{" "}
-                  <span className="text-[#d0d0d0] tabular-nums">
+                  <span className="text-[var(--t-text)] tabular-nums">
                     {fmtNum(conversion.cuotapartes, sizePrecision ?? 4)}
                   </span>{" "}
                   cuotapartes
@@ -353,7 +353,7 @@ function FciOperatePanel({
               ) : (
                 <>
                   ≈{" "}
-                  <span className="text-[#d0d0d0] tabular-nums">
+                  <span className="text-[var(--t-text)] tabular-nums">
                     {ccy} {fmtNum(conversion.importe, 2)}
                   </span>{" "}
                   importe
@@ -392,10 +392,10 @@ function FciOperatePanel({
 function Meta({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex flex-col gap-0.5 leading-tight">
-      <span className="text-[8px] tracking-wider text-[#666]">{label}</span>
+      <span className="text-[8px] tracking-wider text-[var(--t-text-muted)]">{label}</span>
       <span
         className={`text-[11px] font-semibold tabular-nums ${
-          accent ? "text-[#ff9900]" : "text-[#d0d0d0]"
+          accent ? "text-[#ff9900]" : "text-[var(--t-text)]"
         }`}
       >
         {value}
@@ -479,9 +479,9 @@ export function OperarFciView() {
     <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
       {/* Toolbar — mismo que el dashboard */}
       <div className="flex items-center gap-2 px-2 py-1 border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
+        <span className="text-[10px] tracking-wider text-[var(--t-text-dim)]">CUENTA</span>
         <AccountSearch value={account} cuentas={cuentas} onPick={(id) => setAccount(id)} />
-        <span className="ml-auto text-[9px] text-[#555] tracking-wide">
+        <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tracking-wide">
           FCI · suscripción / rescate · orden = cuotapartes @ cuota del día
         </span>
       </div>
@@ -507,7 +507,7 @@ export function OperarFciView() {
             </span>
             <button
               onClick={() => setDerivedAccount(null)}
-              className="ml-auto text-[#888] hover:text-white leading-none"
+              className="ml-auto text-[var(--t-text-dim)] hover:text-white leading-none"
               title="Ocultar"
             >
               ✕

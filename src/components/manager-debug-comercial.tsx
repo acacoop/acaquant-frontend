@@ -54,8 +54,8 @@ export function ManagerDebugComercialPanel() {
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--t-surface)] transition-colors"
       >
-        <span className="text-[10px] text-[#555555]">{open ? "▾" : "▸"}</span>
-        <span className="text-[11px] font-semibold text-[#d0d0d0]">
+        <span className="text-[10px] text-[var(--t-text-muted)]">{open ? "▾" : "▸"}</span>
+        <span className="text-[11px] font-semibold text-[var(--t-text)]">
           Debug Comercial — # operaciones y volúmenes por operador / segmento
         </span>
       </button>
@@ -65,7 +65,7 @@ export function ManagerDebugComercialPanel() {
             <select
               value={operador}
               onChange={(e) => setOperador(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               <option value="">— operador —</option>
               {operadores.map((o) => (
@@ -78,22 +78,22 @@ export function ManagerDebugComercialPanel() {
               value={segmento}
               onChange={(e) => setSegmento(e.target.value)}
               placeholder="segmento (nivel_1)"
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
             <button
               onClick={run}
               disabled={loading || (!operador && !segmento.trim())}
-              className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+              className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
             >
               {loading ? "Ejecutando…" : "▶ Ejecutar"}
             </button>
-            <span className="text-[9px] text-[#555]">elegí operador y/o segmento</span>
+            <span className="text-[9px] text-[var(--t-text-muted)]">elegí operador y/o segmento</span>
           </div>
 
           {data && (
             <>
-              <div className="text-[11px] text-[#d0d0d0] flex flex-wrap gap-x-4 gap-y-1 font-mono">
-                <span className="text-[#888]">cuentas: {data.n_cuentas_con_actividad}/{data.n_cuentas_filtradas}</span>
+              <div className="text-[11px] text-[var(--t-text)] flex flex-wrap gap-x-4 gap-y-1 font-mono">
+                <span className="text-[var(--t-text-dim)]">cuentas: {data.n_cuentas_con_actividad}/{data.n_cuentas_filtradas}</span>
                 <span># ops: <b className="text-[#ff9900]">{fmt(data.totales.n_ops)}</b></span>
                 <span>vol total: ${fmt(data.totales.vol_total)}</span>
                 <span>vol mes: ${fmt(data.totales.vol_mes)}</span>
@@ -102,7 +102,7 @@ export function ManagerDebugComercialPanel() {
               </div>
               <div className="max-h-[320px] overflow-auto border border-[var(--t-border)]">
                 <table className="w-full text-[10px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[#0a0a0a] text-[9px] text-[#666] uppercase">
+                  <thead className="sticky top-0 bg-[#0a0a0a] text-[9px] text-[var(--t-text-muted)] uppercase">
                     <tr>
                       <th className="text-left px-2 py-1">Cuenta</th>
                       <th className="text-right px-2"># ops</th>
@@ -113,16 +113,16 @@ export function ManagerDebugComercialPanel() {
                   </thead>
                   <tbody>
                     {data.cuentas.length === 0 && (
-                      <tr><td colSpan={5} className="text-center text-[#555] py-3">Sin actividad.</td></tr>
+                      <tr><td colSpan={5} className="text-center text-[var(--t-text-muted)] py-3">Sin actividad.</td></tr>
                     )}
                     {data.cuentas.map((f) => (
                       <tr key={f.id_cuenta} className="border-t border-[var(--t-border)]">
-                        <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[240px]" title={f.denominacion}>
-                          <span className="text-[#666]">[{f.id_cuenta}]</span> {f.denominacion}
+                        <td className="px-2 py-1 text-[var(--t-text)] truncate max-w-[240px]" title={f.denominacion}>
+                          <span className="text-[var(--t-text-muted)]">[{f.id_cuenta}]</span> {f.denominacion}
                         </td>
                         <td className="px-2 py-1 text-right">{f.n_ops}</td>
                         <td className="px-2 py-1 text-right">${fmt(f.vol_total)}</td>
-                        <td className="px-2 py-1 text-right text-[#888]">${fmt(f.vol_mes)}</td>
+                        <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">${fmt(f.vol_mes)}</td>
                         <td className="px-2 py-1 text-right text-[#9fb8d0]">${fmt(f.ar_total)}</td>
                       </tr>
                     ))}

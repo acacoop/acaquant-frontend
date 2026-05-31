@@ -65,8 +65,8 @@ function TabTasaFija({ operador }: { operador: string }) {
       .finally(() => setLoading(false));
   }, [operador]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Cargando…</div>;
-  if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Sin posiciones de Tasa Fija.</div>;
+  if (loading) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Cargando…</div>;
+  if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Sin posiciones de Tasa Fija.</div>;
 
   const tickers = data.tickers;
   const tickerSel = selTicker ? tickers.find((t) => t.ticker === selTicker) ?? null : null;
@@ -89,7 +89,7 @@ function TabTasaFija({ operador }: { operador: string }) {
         <Kpi label="COBRO PROYECTADO" value={fmtCompact(data.total_cobro)} accent="#00cc66" />
         <Kpi label="FECHA SNAPSHOT"   value={fmtVto(data.fecha)} />
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] text-[#555555]">VALOR NOMINAL</span>
+          <span className="text-[10px] text-[var(--t-text-muted)]">VALOR NOMINAL</span>
           <button
             onClick={() => setVerVN((v) => !v)}
             className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[#ff9900]" : "bg-[#2a2a2a]"}`}
@@ -115,7 +115,7 @@ function TabTasaFija({ operador }: { operador: string }) {
                     className={`cursor-pointer ${selTicker === t.ticker ? "bg-[#ff9900]/10" : ""}`}
                   >
                     <td className="text-[#ff9900] font-semibold">{t.ticker}</td>
-                    <td className="text-[#808080]">{fmtVto(t.fecha_vencimiento)}</td>
+                    <td className="text-[var(--t-text-dim)]">{fmtVto(t.fecha_vencimiento)}</td>
                     <td className="text-right font-mono">{fmtCol(t[colSrc])}</td>
                     <td className="text-right font-mono text-[#00cc66]">{t.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                   </tr>
@@ -135,7 +135,7 @@ function TabTasaFija({ operador }: { operador: string }) {
                 <tbody>
                   {tickerSel.cuentas.sort((a, b) => b.valuacion - a.valuacion).map((c, i) => (
                     <tr key={i}>
-                      <td className="text-[#d0d0d0]">{c.cuenta}</td>
+                      <td className="text-[var(--t-text)]">{c.cuenta}</td>
                       <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
                       <td className="text-right font-mono text-[#00cc66]">{c.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                     </tr>
@@ -143,7 +143,7 @@ function TabTasaFija({ operador }: { operador: string }) {
                 </tbody>
               </table>
             ) : (
-              <p className="text-[#555555] text-xs py-4 text-center">Clickeá un ticker para ver detalle por cuenta.</p>
+              <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Clickeá un ticker para ver detalle por cuenta.</p>
             )}
           </div>
         </div>
@@ -251,8 +251,8 @@ function TabCer({ operador }: { operador: string }) {
       .finally(() => setLoading(false));
   }, [operador]);
 
-  if (loading) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Cargando…</div>;
-  if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[#555555] text-sm">Sin posiciones CER.</div>;
+  if (loading) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Cargando…</div>;
+  if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Sin posiciones CER.</div>;
 
   const tickers = data.tickers;
   const tickerSel = selTicker ? tickers.find((t) => t.ticker === selTicker) ?? null : null;
@@ -275,7 +275,7 @@ function TabCer({ operador }: { operador: string }) {
         <Kpi label="TICKERS"          value={String(tickers.length)} />
         <Kpi label="FECHA SNAPSHOT"   value={fmtVto(data.fecha)} />
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] text-[#555555]">VALOR NOMINAL</span>
+          <span className="text-[10px] text-[var(--t-text-muted)]">VALOR NOMINAL</span>
           <button
             onClick={() => setVerVN((v) => !v)}
             className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[#ff9900]" : "bg-[#2a2a2a]"}`}
@@ -309,12 +309,12 @@ function TabCer({ operador }: { operador: string }) {
                     className={`cursor-pointer ${selTicker === t.ticker ? "bg-[#ff9900]/10" : ""}`}
                   >
                     <td className="text-[#ff9900] font-semibold">{t.ticker}</td>
-                    <td className="text-[#808080]">{fmtVto(t.fecha_vencimiento)}</td>
+                    <td className="text-[var(--t-text-dim)]">{fmtVto(t.fecha_vencimiento)}</td>
                     <td className="text-right font-mono">{fmtCol(t[colSrc])}</td>
-                    <td className="text-right font-mono text-[#888888]">
+                    <td className="text-right font-mono text-[var(--t-text-dim)]">
                       {t.tea != null ? `${(t.tea * 100).toFixed(1)}%` : "—"}
                     </td>
-                    <td className="text-right font-mono text-[#888888]">
+                    <td className="text-right font-mono text-[var(--t-text-dim)]">
                       {t.paridad != null ? fmtPct(t.paridad, 1) : "—"}
                     </td>
                   </tr>
@@ -334,14 +334,14 @@ function TabCer({ operador }: { operador: string }) {
                 <tbody>
                   {tickerSel.cuentas.sort((a, b) => b.valuacion - a.valuacion).map((c, i) => (
                     <tr key={i}>
-                      <td className="text-[#d0d0d0]">{c.cuenta}</td>
+                      <td className="text-[var(--t-text)]">{c.cuenta}</td>
                       <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             ) : (
-              <p className="text-[#555555] text-xs py-4 text-center">Clickeá un ticker para ver detalle por cuenta.</p>
+              <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Clickeá un ticker para ver detalle por cuenta.</p>
             )}
           </div>
         </div>
@@ -718,7 +718,7 @@ export function AumView() {
       {(["total", "fci", "tasa_fija", "cer", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
-            tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+            tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
           }`}>
           {t === "fci" ? "FCI"
            : t === "total" ? "TOTAL"
@@ -730,12 +730,12 @@ export function AumView() {
       {/* OPERADOR — filtro MADRE: scopea TODA la vista (todas las tabs) a las
           cuentas del operador. Afuera del condicional fci/total → siempre visible. */}
       <div className="ml-auto flex items-center gap-2">
-        <span className="text-[9px] tracking-widest text-[#666]">OPERADOR</span>
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">OPERADOR</span>
         <select
           value={operador}
           onChange={(e) => setOperador(e.target.value)}
           className={`bg-black border text-[10px] px-2 py-0.5 font-mono focus:outline-none ${
-            operador ? "border-[#ff9900] text-[#ff9900]" : "border-[var(--t-border-2)] text-[#d0d0d0] focus:border-[#ff9900]"
+            operador ? "border-[#ff9900] text-[#ff9900]" : "border-[var(--t-border-2)] text-[var(--t-text)] focus:border-[#ff9900]"
           }`}
           title="Filtra toda la vista AUM a las cuentas de un operador"
         >
@@ -755,11 +755,11 @@ export function AumView() {
                   vertical y no haya bounce al cargar (los KPIs y el card
                   SNAPSHOT salen del grid principal). */}
               <div className="flex items-center gap-2">
-                <span className="text-[9px] tracking-widest text-[#666]">FECHA</span>
+                <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">FECHA</span>
                 <select
                   value={fechaSel}
                   onChange={(e) => setFechaSel(e.target.value)}
-                  className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+                  className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
                 >
                   {fechasAll.length === 0 && <option value="">—</option>}
                   {fechasAll.slice().reverse().map((f) => (
@@ -768,7 +768,7 @@ export function AumView() {
                 </select>
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-[9px] tracking-widest text-[#666]">TOTAL</span>
+                <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">TOTAL</span>
                 <span className="text-[12px] font-semibold font-mono" style={{ color: BRAND_BLUE }}>
                   {fmtCompact(snapshotTotal || 0)}
                 </span>
@@ -779,7 +779,7 @@ export function AumView() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
+                <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">MONEDA</span>
                 {(["ARS", "USD"] as Moneda[]).map((m) => (
                   <button
                     key={m}
@@ -787,7 +787,7 @@ export function AumView() {
                     className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
                       moneda === m
                         ? "bg-[#ff9900] text-black border-[#ff9900]"
-                        : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                        : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                     }`}
                   >
                     {m}
@@ -797,11 +797,11 @@ export function AumView() {
             </>
           )}
           <div className="flex items-center gap-2">
-            <span className="text-[9px] tracking-widest text-[#666]">CUENTAS</span>
+            <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CUENTAS</span>
             <select
               value={cuentaFilter}
               onChange={(e) => setCuentaFilter(e.target.value as CuentaFilter)}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
             >
               {CUENTA_FILTER_OPTS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -846,7 +846,7 @@ export function AumView() {
     return (
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
-        <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">Cargando…</div>
+        <div className="flex-1 flex items-center justify-center text-[var(--t-text-muted)] text-sm">Cargando…</div>
       </div>
     );
   }
@@ -862,7 +862,7 @@ export function AumView() {
     return (
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
-        <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">Sin datos FCI.</div>
+        <div className="flex-1 flex items-center justify-center text-[var(--t-text-muted)] text-sm">Sin datos FCI.</div>
       </div>
     );
   }
@@ -985,7 +985,7 @@ export function AumView() {
                       className={`px-2 h-[22px] text-[10px] font-semibold tracking-wide border transition-colors ${
                         rangoKey === k
                           ? "bg-[#ff9900] text-black border-[#ff9900]"
-                          : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                       }`}
                     >
                       {k}
@@ -1011,11 +1011,11 @@ export function AumView() {
                   carga el nuevo snapshot — evita el "bounce" del chart al
                   colapsar la tabla al text "Cargando…" y volver a expandirla. */}
               {snapshot.length === 0 && loadingSnap ? (
-                <div className="py-6 text-center text-[#555555] text-[11px]">
+                <div className="py-6 text-center text-[var(--t-text-muted)] text-[11px]">
                   Cargando snapshot…
                 </div>
               ) : snapshot.length === 0 ? (
-                <div className="py-6 text-center text-[#555555] text-[11px]">
+                <div className="py-6 text-center text-[var(--t-text-muted)] text-[11px]">
                   Sin datos para esta fecha.
                 </div>
               ) : (
@@ -1042,13 +1042,13 @@ export function AumView() {
                               : "hover:bg-[#ff9900]/5"
                           }`}
                         >
-                          <td className="!px-2 !py-1 text-[#d0d0d0]">
+                          <td className="!px-2 !py-1 text-[var(--t-text)]">
                             {r.emisor}
                           </td>
                           <td className="!px-2 !py-1 text-right">
                             {fmtCompact(r.valuacion)}
                           </td>
-                          <td className="!px-2 !py-1 text-right text-[#888888]">
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
                             {r.share.toFixed(1)}%
                           </td>
                         </tr>
@@ -1113,19 +1113,19 @@ export function AumView() {
               <div className="flex-1 min-h-0 overflow-y-auto p-2 grid grid-rows-2 gap-2">
                 {/* POR CUENTA */}
                 <div className="border border-[var(--t-border)] bg-[#0a0a0a] flex flex-col min-h-0">
-                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[var(--t-border)]">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[var(--t-text-dim)] flex items-center gap-2 border-b border-[var(--t-border)]">
                     <span>POR CUENTA</span>
-                    <span className="text-[#555]">{porCuenta.length}</span>
+                    <span className="text-[var(--t-text-muted)]">{porCuenta.length}</span>
                     <input
                       value={cuentaQuery}
                       onChange={(e) => setCuentaQuery(e.target.value)}
                       placeholder="buscar cuenta…"
-                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
+                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[var(--t-text)] placeholder:text-[var(--t-text-muted)] focus:border-[#ff9900] outline-none"
                     />
                     {(cuentaSel || unidadSel || cuentaQuery || unidadQuery) && (
                       <button
                         onClick={() => { setCuentaSel(null); setUnidadSel(null); setCuentaQuery(""); setUnidadQuery(""); }}
-                        className="text-[#666] hover:text-[#ff9900] text-[12px] leading-none"
+                        className="text-[var(--t-text-muted)] hover:text-[#ff9900] text-[12px] leading-none"
                         title="Limpiar selección y búsqueda"
                       >
                         ↺
@@ -1134,7 +1134,7 @@ export function AumView() {
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     {porCuenta.length === 0 ? (
-                      <div className="py-6 text-center text-[#555] text-[10px]">Sin datos.</div>
+                      <div className="py-6 text-center text-[var(--t-text-muted)] text-[10px]">Sin datos.</div>
                     ) : (
                       porCuenta.map((c) => {
                         const sel = cuentaSel === c.cuenta;
@@ -1143,12 +1143,12 @@ export function AumView() {
                             key={c.cuenta}
                             onClick={() => setCuentaSel(sel ? null : c.cuenta)}
                             className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[var(--t-border)] last:border-b-0 transition-colors ${
-                              sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
+                              sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[var(--t-text)] hover:bg-[#ff9900]/5"
                             }`}
                           >
                             <span className="text-left truncate" title={c.cuenta}>{c.cuenta}</span>
                             <span className="font-mono">{fmtCompact(c.valuacion)}</span>
-                            <span className="text-[9px] text-[#666] w-10 text-right">{c.share.toFixed(1)}%</span>
+                            <span className="text-[9px] text-[var(--t-text-muted)] w-10 text-right">{c.share.toFixed(1)}%</span>
                           </button>
                         );
                       })
@@ -1157,19 +1157,19 @@ export function AumView() {
                 </div>
                 {/* POR ASSET */}
                 <div className="border border-[var(--t-border)] bg-[#0a0a0a] flex flex-col min-h-0">
-                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[var(--t-border)]">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[var(--t-text-dim)] flex items-center gap-2 border-b border-[var(--t-border)]">
                     <span>POR ASSET</span>
-                    <span className="text-[#555]">{porUnidad.length}</span>
+                    <span className="text-[var(--t-text-muted)]">{porUnidad.length}</span>
                     <input
                       value={unidadQuery}
                       onChange={(e) => setUnidadQuery(e.target.value)}
                       placeholder="buscar asset…"
-                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
+                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[var(--t-text)] placeholder:text-[var(--t-text-muted)] focus:border-[#ff9900] outline-none"
                     />
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
                     {porUnidad.length === 0 ? (
-                      <div className="py-6 text-center text-[#555] text-[10px]">Sin datos.</div>
+                      <div className="py-6 text-center text-[var(--t-text-muted)] text-[10px]">Sin datos.</div>
                     ) : (
                       porUnidad.map((u) => {
                         const sel = unidadSel === u.ticker;
@@ -1178,12 +1178,12 @@ export function AumView() {
                             key={u.ticker}
                             onClick={() => setUnidadSel(sel ? null : u.ticker)}
                             className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[var(--t-border)] last:border-b-0 transition-colors ${
-                              sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
+                              sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[var(--t-text)] hover:bg-[#ff9900]/5"
                             }`}
                           >
                             <span className="text-left truncate" title={u.ticker}>{u.ticker}</span>
                             <span className="font-mono">{fmtCompact(u.valuacion)}</span>
-                            <span className="text-[9px] text-[#666] w-10 text-right">{u.share.toFixed(1)}%</span>
+                            <span className="text-[9px] text-[var(--t-text-muted)] w-10 text-right">{u.share.toFixed(1)}%</span>
                           </button>
                         );
                       })
@@ -1212,11 +1212,11 @@ export function AumView() {
                     Error: {snapErr}
                   </div>
                 ) : !emisorSel ? (
-                  <div className="py-6 text-center text-[#555555] text-[11px]">
+                  <div className="py-6 text-center text-[var(--t-text-muted)] text-[11px]">
                     Seleccioná una sociedad gerente para ver sus fondos y cuentas.
                   </div>
                 ) : detalleEmisor.length === 0 ? (
-                  <div className="py-6 text-center text-[#555555] text-[11px]">
+                  <div className="py-6 text-center text-[var(--t-text-muted)] text-[11px]">
                     Sin detalle.
                   </div>
                 ) : (
@@ -1369,13 +1369,13 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
     <div className="h-full grid grid-cols-[200px_1fr] gap-3 p-3 overflow-hidden">
       {/* Sidebar */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col gap-1.5 min-h-0 overflow-auto">
-        <div className="text-[9px] text-[#666] uppercase tracking-widest mb-1">Plazo</div>
+        <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-widest mb-1">Plazo</div>
         {(["previo", "semana", "mes", "mtd", "ytd", "custom"] as DiffPlazo[]).map(p => (
           <button key={p} onClick={() => setPlazo(p)}
             className={`text-left px-2 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
               plazo === p
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}>
             {p === "previo" ? "DÍA ANTERIOR"
              : p === "semana" ? "−7 DÍAS"
@@ -1388,45 +1388,45 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
 
         {plazo === "custom" && (
           <>
-            <div className="text-[9px] text-[#666] uppercase tracking-widest mt-3 mb-1">Fecha actual</div>
+            <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-widest mt-3 mb-1">Fecha actual</div>
             <select value={customActual} onChange={e => setCustomActual(e.target.value)}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none">
               <option value="">—</option>
               {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
             </select>
-            <div className="text-[9px] text-[#666] uppercase tracking-widest mb-1">Fecha anterior</div>
+            <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-widest mb-1">Fecha anterior</div>
             <select value={customAnterior} onChange={e => setCustomAnterior(e.target.value)}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none">
               <option value="">—</option>
               {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </>
         )}
 
-        <div className="text-[9px] text-[#666] uppercase tracking-widest mt-3 mb-1">Moneda</div>
+        <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-widest mt-3 mb-1">Moneda</div>
         <div className="flex gap-1">
           {(["ARS", "USD"] as DiffMoneda[]).map(m => (
             <button key={m} onClick={() => setMoneda(m)}
               className={`flex-1 px-2 py-1 text-[10px] font-semibold border transition-colors ${
                 moneda === m
                   ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
               }`}>
               {m}
             </button>
           ))}
         </div>
 
-        <div className="mt-4 pt-3 border-t border-[var(--t-border)] text-[9px] text-[#666] font-mono leading-tight">
+        <div className="mt-4 pt-3 border-t border-[var(--t-border)] text-[9px] text-[var(--t-text-muted)] font-mono leading-tight">
           {data ? (
             <>
-              <div>actual: <span className="text-[#888]">{data.fecha_actual_resuelta}</span></div>
-              <div>anterior: <span className="text-[#888]">{data.fecha_anterior_resuelta}</span></div>
+              <div>actual: <span className="text-[var(--t-text-dim)]">{data.fecha_actual_resuelta}</span></div>
+              <div>anterior: <span className="text-[var(--t-text-dim)]">{data.fecha_anterior_resuelta}</span></div>
               {(data.mep_missing_actual || data.mep_missing_anterior) && (
                 <div className="mt-1 text-[#ff9900]">⚠ MEP missing en una fecha</div>
               )}
             </>
-          ) : <span className="text-[#444]">—</span>}
+          ) : <span className="text-[var(--t-text-muted)]">—</span>}
         </div>
       </div>
 
@@ -1449,14 +1449,14 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
           {err ? (
             <div className="p-3 text-[#ff4d4d] text-[11px]">Error: {err}</div>
           ) : loading && !data ? (
-            <div className="p-6 text-center text-[#555] text-[11px]">Cargando…</div>
+            <div className="p-6 text-center text-[var(--t-text-muted)] text-[11px]">Cargando…</div>
           ) : data && data.filas.length === 0 ? (
-            <div className="p-6 text-center text-[#555] text-[11px]">Sin diferencias.</div>
+            <div className="p-6 text-center text-[var(--t-text-muted)] text-[11px]">Sin diferencias.</div>
           ) : data ? (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
                 <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
-                  <tr className="text-[9px] tracking-widest text-[#888]">
+                  <tr className="text-[9px] tracking-widest text-[var(--t-text-dim)]">
                     <th onClick={() => toggleSort("cuenta")}
                         className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
                       CUENTA {arrow("cuenta")}
@@ -1481,8 +1481,8 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
                     const tagCerrada = r.es_cerrada;
                     return (
                       <tr key={r.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5">
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[480px]" title={r.cuenta}>
-                          <span className="text-[#666] mr-1">[{r.id_cuenta}]</span>
+                        <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[480px]" title={r.cuenta}>
+                          <span className="text-[var(--t-text-muted)] mr-1">[{r.id_cuenta}]</span>
                           {r.cuenta.replace(/^\[\d+\]\s*/, "")}
                           {tagNueva && (
                             <span className="ml-2 px-1 py-0.5 text-[9px] bg-[#00cc66]/15 text-[#00cc66] tracking-widest">
@@ -1495,14 +1495,14 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                        <td className="px-3 py-1.5 text-right text-[var(--t-text)]">
                           {r.saldo_actual !== null ? fmtCompact(r.saldo_actual) : "—"}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#d0d0d0]">
+                        <td className="px-3 py-1.5 text-right text-[var(--t-text)]">
                           {r.saldo_anterior !== null ? fmtCompact(r.saldo_anterior) : "—"}
                         </td>
                         <td className={`px-3 py-1.5 text-right font-semibold ${
-                          r.diff > 0 ? "text-[#00cc66]" : r.diff < 0 ? "text-[#ff4d4d]" : "text-[#888]"
+                          r.diff > 0 ? "text-[#00cc66]" : r.diff < 0 ? "text-[#ff4d4d]" : "text-[var(--t-text-dim)]"
                         }`}>
                           {r.diff > 0 ? "+" : ""}{fmtCompact(r.diff)}
                         </td>
@@ -1513,7 +1513,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
               </table>
             </div>
           ) : (
-            <div className="p-6 text-center text-[#555] text-[11px]">Esperando fechas…</div>
+            <div className="p-6 text-center text-[var(--t-text-muted)] text-[11px]">Esperando fechas…</div>
           )}
         </div>
       </div>
@@ -1629,7 +1629,7 @@ export function CuentaCombobox({
               ? "Tipeá para filtrar o scrolleá la lista…"
               : "Seleccionar cuenta"
         }
-        className="w-full bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+        className="w-full bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
       />
       {open && filtered.length > 0 && (
         <ul
@@ -1649,11 +1649,11 @@ export function CuentaCombobox({
                   isSel
                     ? "text-[#ff9900] bg-[#ff9900]/10"
                     : isHi
-                      ? "bg-[#ff9900]/10 text-[#d0d0d0]"
-                      : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
+                      ? "bg-[#ff9900]/10 text-[var(--t-text)]"
+                      : "text-[var(--t-text)] hover:bg-[#ff9900]/5"
                 }`}
               >
-                <span className="text-[#888]">[{c.id_cuenta}]</span>{" "}
+                <span className="text-[var(--t-text-dim)]">[{c.id_cuenta}]</span>{" "}
                 {c.cuenta.replace(/^\[\d+\]\s*/, "")}
               </li>
             );
@@ -1661,7 +1661,7 @@ export function CuentaCombobox({
         </ul>
       )}
       {open && filtered.length === 0 && (
-        <div className="absolute left-0 right-0 top-full mt-0.5 z-50 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-2 text-[10px] text-[#666]">
+        <div className="absolute left-0 right-0 top-full mt-0.5 z-50 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-2 text-[10px] text-[var(--t-text-muted)]">
           Sin resultados
         </div>
       )}
@@ -1685,7 +1685,7 @@ function TickerCard({
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center px-3 py-2 hover:bg-[#ff9900]/5 transition-colors"
       >
-        <span className="text-[11px] font-semibold text-[#d0d0d0] tracking-wide">
+        <span className="text-[11px] font-semibold text-[var(--t-text)] tracking-wide">
           {ticker}
         </span>
         <span
@@ -1694,7 +1694,7 @@ function TickerCard({
         >
           {fmtFull(valuacion)}
         </span>
-        <span className="ml-3 text-[10px] text-[#555555]">
+        <span className="ml-3 text-[10px] text-[var(--t-text-muted)]">
           {open ? "▼" : "▶"}
         </span>
       </button>
@@ -1705,8 +1705,8 @@ function TickerCard({
               key={c.cuenta}
               className="flex items-center px-3 py-1 text-[11px] border-b border-[var(--t-border)] last:border-b-0"
             >
-              <span className="text-[#888888] truncate">{c.cuenta}</span>
-              <span className="ml-auto font-semibold text-[#d0d0d0]">
+              <span className="text-[var(--t-text-dim)] truncate">{c.cuenta}</span>
+              <span className="ml-auto font-semibold text-[var(--t-text)]">
                 {fmtFull(c.valuacion)}
               </span>
             </div>
@@ -1730,7 +1730,7 @@ function Kpi({
 }) {
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
-      <div className="text-[10px] text-[#555555] uppercase tracking-wide">
+      <div className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-wide">
         {label}
       </div>
       <div
@@ -1739,7 +1739,7 @@ function Kpi({
       >
         {value}
       </div>
-      {sub && <div className="text-[10px] text-[#666666]">{sub}</div>}
+      {sub && <div className="text-[10px] text-[var(--t-text-muted)]">{sub}</div>}
     </div>
   );
 }
@@ -1759,7 +1759,7 @@ function PanelHeader({
         {title}
       </span>
       {sub && (
-        <span className="ml-auto text-[10px] text-[#888888] truncate max-w-[60%]">
+        <span className="ml-auto text-[10px] text-[var(--t-text-dim)] truncate max-w-[60%]">
           {sub}
         </span>
       )}
@@ -1789,12 +1789,12 @@ function DateStepper({
     if (ni >= 0 && ni < fechas.length) onChange(fechas[ni]);
   };
   const btn =
-    "px-1.5 h-[20px] text-[11px] leading-none border border-[var(--t-border-2)] text-[#888888] " +
+    "px-1.5 h-[20px] text-[11px] leading-none border border-[var(--t-border-2)] text-[var(--t-text-dim)] " +
     "hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-30 disabled:cursor-not-allowed";
   return (
     <span className="inline-flex items-center gap-1 font-mono">
       <button type="button" onClick={() => go(-1)} disabled={idx <= 0} className={btn} title="Fecha anterior">◀</button>
-      <span className="text-[11px] text-[#d0d0d0] min-w-[58px] text-center tabular-nums">
+      <span className="text-[11px] text-[var(--t-text)] min-w-[58px] text-center tabular-nums">
         {value ? fmtFecha(value) : "—"}
       </span>
       <button type="button" onClick={() => go(1)} disabled={idx < 0 || idx >= fechas.length - 1} className={btn} title="Fecha siguiente">▶</button>

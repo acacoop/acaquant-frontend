@@ -89,10 +89,10 @@ function fmtNum(v: number | null | undefined, decimals = 4): string {
 }
 
 function pctColor(v: number | null): string {
-  if (v === null) return "text-[#888]";
+  if (v === null) return "text-[var(--t-text-dim)]";
   if (v > 0) return "text-[#4ade80]";    // verde
   if (v < 0) return "text-[#f87171]";    // rojo
-  return "text-[#d0d0d0]";
+  return "text-[var(--t-text)]";
 }
 
 // ─── Componente ────────────────────────────────────────────────────────
@@ -137,13 +137,13 @@ export function ManagerDebugXirrPanel() {
     <div className="h-full flex flex-col min-h-0">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[10px] tracking-widest text-[#888]">DEBUG XIRR · CUENTA</span>
+        <span className="text-[10px] tracking-widest text-[var(--t-text-dim)]">DEBUG XIRR · CUENTA</span>
         <input
           value={idCuenta}
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") cargar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
         />
         <button
           onClick={cargar}
@@ -159,7 +159,7 @@ export function ManagerDebugXirrPanel() {
             className={`text-[10px] tracking-widest px-2 py-1 border ${
               moneda === "ARS"
                 ? "border-[#4ade80] text-[#4ade80] bg-[#4ade80]/10"
-                : "border-[#666] text-[#888] hover:border-[#888]"
+                : "border-[#666] text-[var(--t-text-dim)] hover:border-[#888]"
             }`}
           >
             ARS
@@ -169,7 +169,7 @@ export function ManagerDebugXirrPanel() {
             className={`text-[10px] tracking-widest px-2 py-1 border ${
               moneda === "USD"
                 ? "border-[#4ade80] text-[#4ade80] bg-[#4ade80]/10"
-                : "border-[#666] text-[#888] hover:border-[#888]"
+                : "border-[#666] text-[var(--t-text-dim)] hover:border-[#888]"
             }`}
           >
             USD
@@ -177,20 +177,20 @@ export function ManagerDebugXirrPanel() {
         </div>
         {data?.resumen && (
           <div className="flex items-center gap-4 ml-auto text-[10px] font-mono">
-            <span className="text-[#888]">
+            <span className="text-[var(--t-text-dim)]">
               {data.resumen.primer_mes} → {data.resumen.ultimo_mes}
             </span>
-            <span className="text-[#888]">
+            <span className="text-[var(--t-text-dim)]">
               {data.resumen.n_meses} meses
             </span>
             <span>
-              <span className="text-[#888]">TWR FINAL: </span>
-              <span className="text-[#d0d0d0]">
+              <span className="text-[var(--t-text-dim)]">TWR FINAL: </span>
+              <span className="text-[var(--t-text)]">
                 {moneda === "ARS" ? fmtNum(data.resumen.twr_final, 2) : fmtNum(data.resumen.twr_final_usd, 2)}
               </span>
             </span>
             <span>
-              <span className="text-[#888]">GANANCIA: </span>
+              <span className="text-[var(--t-text-dim)]">GANANCIA: </span>
               <span className={pctColor((moneda === "ARS" ? data.resumen.ganancia_pct : data.resumen.ganancia_pct_usd) ?? 0)}>
                 {moneda === "ARS"
                   ? (data.resumen.ganancia_pct !== null ? data.resumen.ganancia_pct.toFixed(2) + "%" : "—")
@@ -208,14 +208,14 @@ export function ManagerDebugXirrPanel() {
         )}
 
         {!data && !loading && !error && (
-          <div className="p-4 text-[11px] text-[#666] font-mono">
+          <div className="p-4 text-[11px] text-[var(--t-text-muted)] font-mono">
             Ingresá una cuenta y dale CARGAR. Vas a ver mes a mes el cashflow exacto
             que recibe la función XIRR + la TEA resultante, sin caching.
           </div>
         )}
 
         {data && data.meses.length === 0 && (
-          <div className="p-4 text-[11px] text-[#666] font-mono">
+          <div className="p-4 text-[11px] text-[var(--t-text-muted)] font-mono">
             Sin datos para esta cuenta.
           </div>
         )}
@@ -223,7 +223,7 @@ export function ManagerDebugXirrPanel() {
         {data && data.meses.length > 0 && (
           <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
-              <tr className="text-[#666] tracking-widest">
+              <tr className="text-[var(--t-text-muted)] tracking-widest">
                 <th className="text-left px-2 py-1 w-[28px]"></th>
                 <th className="text-left px-2 py-1">MES</th>
                 <th className="text-left px-2 py-1">PERÍODO</th>
@@ -265,12 +265,12 @@ export function ManagerDebugXirrPanel() {
                       onClick={() => toggle(m.mes)}
                       className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer"
                     >
-                      <td className="px-2 py-1 text-[#666]">{isOpen ? "▼" : "▶"}</td>
-                      <td className="px-2 py-1 text-[#d0d0d0]">{m.mes}</td>
-                      <td className="px-2 py-1 text-[#888]">
+                      <td className="px-2 py-1 text-[var(--t-text-muted)]">{isOpen ? "▼" : "▶"}</td>
+                      <td className="px-2 py-1 text-[var(--t-text)]">{m.mes}</td>
+                      <td className="px-2 py-1 text-[var(--t-text-dim)]">
                         {m.fecha_inicio ?? "—"} → {m.fecha_cierre ?? "—"}
                       </td>
-                      <td className="px-2 py-1 text-right text-[#888]">{m.dias_periodo ?? "—"}</td>
+                      <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{m.dias_periodo ?? "—"}</td>
                       <td className="px-2 py-1 text-right">{fmtMoney(v_inicio)}</td>
                       <td className="px-2 py-1 text-right">{fmtMoney(v_cierre)}</td>
                       <td className="px-2 py-1 text-right text-[#4ade80]">{fmtMoney(depositos)}</td>
@@ -278,7 +278,7 @@ export function ManagerDebugXirrPanel() {
                       <td className={`px-2 py-1 text-right ${pctColor(flujo_neto)}`}>{fmtMoney(flujo_neto)}</td>
                       <td className={`px-2 py-1 text-right ${pctColor(delta_bruto)}`}>{fmtMoney(delta_bruto)}</td>
                       <td className={`px-2 py-1 text-right ${pctColor(delta_real)}`}>{fmtMoney(delta_real)}</td>
-                      <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(twr_base100, 2)}</td>
+                      <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(twr_base100, 2)}</td>
                       <td className={`px-2 py-1 text-right ${pctColor(tem_periodo)}`}>{fmtPct(tem_periodo, 4)}</td>
                       <td className={`px-2 py-1 text-right font-semibold ${pctColor(tea_mensual)}`}>{fmtPct(tea_mensual, 2)}</td>
                       {moneda === "USD" && <td className="px-2 py-1 text-right text-[#ff9900]">{fmtNum(m.mep_cierre, 2)}</td>}
@@ -295,7 +295,7 @@ export function ManagerDebugXirrPanel() {
                               </div>
                               <table className="w-full text-[10px]">
                                 <thead>
-                                  <tr className="text-[#666] tracking-widest border-b border-[var(--t-border)]">
+                                  <tr className="text-[var(--t-text-muted)] tracking-widest border-b border-[var(--t-border)]">
                                     <th className="text-left py-0.5">FECHA</th>
                                     <th className="text-right py-0.5">MONTO</th>
                                     <th className="text-left py-0.5 pl-3">TIPO</th>
@@ -303,15 +303,15 @@ export function ManagerDebugXirrPanel() {
                                 </thead>
                                 <tbody>
                                   {cf.length === 0 && (
-                                    <tr><td colSpan={3} className="py-1 text-[#666]">
+                                    <tr><td colSpan={3} className="py-1 text-[var(--t-text-muted)]">
                                       Sin cashflow — TEA no se calcula (primer mes o capital cero).
                                     </td></tr>
                                   )}
                                   {cf.map((c, i) => (
                                     <tr key={i} className="border-b border-[#0a0a0a]">
-                                      <td className="py-0.5 text-[#d0d0d0]">{c.fecha}</td>
+                                      <td className="py-0.5 text-[var(--t-text)]">{c.fecha}</td>
                                       <td className={`py-0.5 text-right ${pctColor(c.monto)}`}>{fmtMoney(c.monto)}</td>
-                                      <td className="py-0.5 pl-3 text-[#888]">{c.tipo}</td>
+                                      <td className="py-0.5 pl-3 text-[var(--t-text-dim)]">{c.tipo}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -325,7 +325,7 @@ export function ManagerDebugXirrPanel() {
                               </div>
                               <table className="w-full text-[10px]">
                                 <thead>
-                                  <tr className="text-[#666] tracking-widest border-b border-[var(--t-border)]">
+                                  <tr className="text-[var(--t-text-muted)] tracking-widest border-b border-[var(--t-border)]">
                                     <th className="text-left py-0.5">FECHA</th>
                                     <th className="text-left py-0.5">CAT</th>
                                     <th className="text-right py-0.5">ORIG</th>
@@ -336,19 +336,19 @@ export function ManagerDebugXirrPanel() {
                                 </thead>
                                 <tbody>
                                   {flujos.length === 0 && (
-                                    <tr><td colSpan={6} className="py-1 text-[#666]">
+                                    <tr><td colSpan={6} className="py-1 text-[var(--t-text-muted)]">
                                       Sin flujos externos en el mes.
                                     </td></tr>
                                   )}
                                   {flujos.map((f, i) => (
                                     <tr key={i} className="border-b border-[#0a0a0a]" title={f.informacion ?? ""}>
-                                      <td className="py-0.5 text-[#d0d0d0]">{f.fecha}</td>
-                                      <td className="py-0.5 text-[#888]">{f.categoria}</td>
+                                      <td className="py-0.5 text-[var(--t-text)]">{f.fecha}</td>
+                                      <td className="py-0.5 text-[var(--t-text-dim)]">{f.categoria}</td>
                                       <td className={`py-0.5 text-right ${pctColor(f.importe_original)}`}>
                                         {fmtMoney(f.importe_original)}
                                       </td>
-                                      <td className="py-0.5 pl-1 text-[#888]">{f.moneda}</td>
-                                      <td className="py-0.5 text-right text-[#888]">
+                                      <td className="py-0.5 pl-1 text-[var(--t-text-dim)]">{f.moneda}</td>
+                                      <td className="py-0.5 text-right text-[var(--t-text-dim)]">
                                         {f.mep_aplicado !== null ? fmtNum(f.mep_aplicado, 2) : "—"}
                                       </td>
                                       <td className={`py-0.5 text-right ${pctColor(f.importe_ars)}`}>

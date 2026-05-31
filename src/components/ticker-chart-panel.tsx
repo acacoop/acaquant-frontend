@@ -53,7 +53,7 @@ export function TickerChartPanel({ ticker }: { ticker: string | null }) {
 
   if (!ticker) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Seleccioná un ticker en la tabla
       </p>
     );
@@ -70,14 +70,14 @@ export function TickerChartPanel({ ticker }: { ticker: string | null }) {
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
               tab === key
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {label}
           </button>
         ))}
         <TableHelp entries={GLOSSARY} />
-        <span className="ml-auto text-[10px] text-[#808080]">{ticker}</span>
+        <span className="ml-auto text-[10px] text-[var(--t-text-dim)]">{ticker}</span>
       </div>
 
       {/* Contenido */}
@@ -160,13 +160,13 @@ function ReturnsHistogram({ data }: { data: TickerReturns | null }) {
   }, [data]);
 
   if (!data) {
-    return <p className="text-[#555555] text-xs py-4 text-center">Cargando…</p>;
+    return <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Cargando…</p>;
   }
   if (data.returns.length === 0) {
-    return <p className="text-[#555555] text-xs py-4 text-center">Sin data histórica</p>;
+    return <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Sin data histórica</p>;
   }
   if (!bins) {
-    return <p className="text-[#555555] text-xs py-4 text-center">No se pudo binnear</p>;
+    return <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">No se pudo binnear</p>;
   }
 
   const W = 480;
@@ -374,10 +374,10 @@ function Stat({
       ? "text-[#ff3333]"
       : accent === "green"
       ? "text-[#00cc66]"
-      : "text-[#d0d0d0]";
+      : "text-[var(--t-text)]";
   return (
     <div className="flex flex-col">
-      <span className="text-[#555555] text-[9px] uppercase tracking-wide">
+      <span className="text-[var(--t-text-muted)] text-[9px] uppercase tracking-wide">
         {label}
       </span>
       <span className={`tabular-nums font-semibold ${color}`}>{value}</span>

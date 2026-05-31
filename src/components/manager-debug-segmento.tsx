@@ -105,14 +105,14 @@ export function ManagerDebugSegmentoPanel() {
   return (
     <div className="h-full overflow-y-auto p-3 font-mono text-[11px]">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] text-[#666] uppercase tracking-widest">Cuenta:</span>
+        <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest">Cuenta:</span>
         <input
           list="cuentas-list"
           value={pick}
           onChange={(e) => setPick(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onConsultar(); }}
           placeholder="ID o denominación…"
-          className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-[420px]"
+          className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] focus:border-[#ff9900] focus:outline-none w-[420px]"
         />
         <datalist id="cuentas-list">
           {cuentas.map((c) => (
@@ -122,11 +122,11 @@ export function ManagerDebugSegmentoPanel() {
         <button
           onClick={onConsultar}
           disabled={loading || !pick}
-          className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border border-[var(--t-border-2)] text-[#888] hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-40"
         >
           {loading ? "Consultando…" : "Consultar"}
         </button>
-        <span className="text-[10px] text-[#555]">{cuentas.length} cuentas cargadas</span>
+        <span className="text-[10px] text-[var(--t-text-muted)]">{cuentas.length} cuentas cargadas</span>
       </div>
 
       {error && (
@@ -136,7 +136,7 @@ export function ManagerDebugSegmentoPanel() {
       )}
 
       {!data && !error && !loading && (
-        <div className="text-[#555] text-[11px]">
+        <div className="text-[var(--t-text-muted)] text-[11px]">
           Elegí una cuenta y dale Consultar para ver cómo se calcula su nivel_3 (segmento patrimonial).
         </div>
       )}
@@ -149,7 +149,7 @@ export function ManagerDebugSegmentoPanel() {
             <Row k="denominación" v={data.denominacion ?? "—"} />
             <Row k="tipo_cliente" v={data.tipo_cliente ?? "—"} />
             <Row k="clasificación" v={
-              <span className={data.clasificacion === "PH" ? "text-[#5fa8d0]" : data.clasificacion === "PJ" ? "text-[#5dd6a0]" : "text-[#888]"}>
+              <span className={data.clasificacion === "PH" ? "text-[#5fa8d0]" : data.clasificacion === "PJ" ? "text-[#5dd6a0]" : "text-[var(--t-text-dim)]"}>
                 {data.clasificacion ?? "(sin clasificar)"}
               </span>
             } />
@@ -166,7 +166,7 @@ export function ManagerDebugSegmentoPanel() {
           {/* DERECHA — TC + cálculo + resultado */}
           <Section title={`TIPO DE CAMBIO USADO (${data.tc.unidad ?? "—"})`}>
             <Row k="factor" v={
-              <span className="text-[#d0d0d0]">{fmt2(data.tc.factor)} <span className="text-[#666] ml-1">({data.tc.unidad ?? "—"} / ARS)</span></span>
+              <span className="text-[var(--t-text)]">{fmt2(data.tc.factor)} <span className="text-[var(--t-text-muted)] ml-1">({data.tc.unidad ?? "—"} / ARS)</span></span>
             } />
             <Row k="fuente" v={data.tc.fuente ?? "—"} />
             {data.tc.mep_timestamp && <Row k="mep timestamp" v={fmtFecha(data.tc.mep_timestamp)} />}
@@ -176,8 +176,8 @@ export function ManagerDebugSegmentoPanel() {
             {data.cupo.transaccional_ars != null && data.tc.factor != null ? (
               <>
                 <Row k="paso 1" v={
-                  <span className="text-[#888]">
-                    {fmtArs(data.cupo.transaccional_ars)} <span className="text-[#666]">/</span> {fmt2(data.tc.factor)}
+                  <span className="text-[var(--t-text-dim)]">
+                    {fmtArs(data.cupo.transaccional_ars)} <span className="text-[var(--t-text-muted)]">/</span> {fmt2(data.tc.factor)}
                   </span>
                 } />
                 <Row k="resultado" v={
@@ -187,7 +187,7 @@ export function ManagerDebugSegmentoPanel() {
                 } />
               </>
             ) : (
-              <div className="text-[#888] text-[10px]">
+              <div className="text-[var(--t-text-dim)] text-[10px]">
                 No se puede calcular: falta cupo cargado o factor de conversión (MEP/UVA).
               </div>
             )}
@@ -196,8 +196,8 @@ export function ManagerDebugSegmentoPanel() {
           {/* RESULTADO + chequeo de sincronización */}
           <div className="col-span-2">
             <Section title="RESULTADO — NIVEL_3">
-              <Row k="actual (en Mongo)" v={<span className="text-[#d0d0d0]">{data.nivel_3_actual ?? "—"}</span>} />
-              <Row k="recalculado AHORA" v={<span className="text-[#d0d0d0]">{data.nivel_3_recalculado ?? "—"}</span>} />
+              <Row k="actual (en Mongo)" v={<span className="text-[var(--t-text)]">{data.nivel_3_actual ?? "—"}</span>} />
+              <Row k="recalculado AHORA" v={<span className="text-[var(--t-text)]">{data.nivel_3_recalculado ?? "—"}</span>} />
               <Row k="¿sincronizado?" v={
                 data.sincronizado ? (
                   <span className="text-[#5dd6a0] font-semibold">✓ SÍ (la base está al día)</span>
@@ -216,8 +216,8 @@ export function ManagerDebugSegmentoPanel() {
                   <div className="text-[10px] text-[#5fa8d0] mb-1">PH (USD vía MEP)</div>
                   {Object.entries(data.umbrales.PH_USD).map(([k, v]) => (
                     <div key={k} className="flex justify-between border-b border-[var(--t-border)] py-0.5">
-                      <span className="text-[#d0d0d0]">{k}</span>
-                      <span className="text-[#888]">{v}</span>
+                      <span className="text-[var(--t-text)]">{k}</span>
+                      <span className="text-[var(--t-text-dim)]">{v}</span>
                     </div>
                   ))}
                 </div>
@@ -225,8 +225,8 @@ export function ManagerDebugSegmentoPanel() {
                   <div className="text-[10px] text-[#5dd6a0] mb-1">PJ (UVAs)</div>
                   {Object.entries(data.umbrales.PJ_UVA).map(([k, v]) => (
                     <div key={k} className="flex justify-between border-b border-[var(--t-border)] py-0.5">
-                      <span className="text-[#d0d0d0]">{k}</span>
-                      <span className="text-[#888]">{v}</span>
+                      <span className="text-[var(--t-text)]">{k}</span>
+                      <span className="text-[var(--t-text-dim)]">{v}</span>
                     </div>
                   ))}
                 </div>
@@ -253,7 +253,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between border-b border-[var(--t-border)] py-1">
-      <span className="text-[10px] text-[#666] uppercase tracking-widest">{k}</span>
+      <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest">{k}</span>
       <span className="text-[11px]">{v}</span>
     </div>
   );

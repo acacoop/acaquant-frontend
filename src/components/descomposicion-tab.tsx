@@ -127,7 +127,7 @@ function num(n: number | undefined | null, decimals = 4): string {
 function colorRet(n: number): string {
   if (n > 0) return "text-[#00cc66]";
   if (n < 0) return "text-[#ff3333]";
-  return "text-[#808080]";
+  return "text-[var(--t-text-dim)]";
 }
 
 function fmtFechaCorta(s: string): string {
@@ -160,7 +160,7 @@ export function DescomposicionTab() {
             CER
           </FilterBtn>
         </div>
-        <span className="text-[10px] text-[#555] tracking-wider">VISTA</span>
+        <span className="text-[10px] text-[var(--t-text-muted)] tracking-wider">VISTA</span>
         <div className="flex items-center gap-1 mr-3">
           <FilterBtn active={sub === "realizado"} onClick={() => setSub("realizado")}>
             REALIZADO
@@ -169,7 +169,7 @@ export function DescomposicionTab() {
             ESPERADO
           </FilterBtn>
         </div>
-        <span className="text-[10px] text-[#555] tracking-wider">MÉTODO</span>
+        <span className="text-[10px] text-[var(--t-text-muted)] tracking-wider">MÉTODO</span>
         <div className="flex items-center gap-1">
           <FilterBtn active={metodo === "lineal"} onClick={() => setMetodo("lineal")}>
             LINEAL
@@ -178,7 +178,7 @@ export function DescomposicionTab() {
             CUADRÁTICA
           </FilterBtn>
         </div>
-        <span className="text-[10px] text-[#555] ml-auto">
+        <span className="text-[10px] text-[var(--t-text-muted)] ml-auto">
           {curva === "tasa_fija"
             ? "Lecap / Boncap (cupón cero, pesos)"
             : "Lecers (zero coupon) + Boncers cupón. Curva ref = solo Lecers."}
@@ -306,7 +306,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
     <div className="h-full flex flex-col min-h-0 gap-3">
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
         {fechas.length < 2 ? (
-          <span className="text-[10px] text-[#555]">cargando fechas…</span>
+          <span className="text-[10px] text-[var(--t-text-muted)]">cargando fechas…</span>
         ) : (
           <div className="flex items-center gap-2 flex-1 min-w-[300px]">
             <span className="text-[10px] text-[#ff9900] font-mono min-w-[42px]">
@@ -326,7 +326,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
           </div>
         )}
         {data?.dias != null && (
-          <span className="text-[10px] text-[#808080] font-mono">
+          <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
             {data.dias} días · {data.bonos?.length || 0} bonos
           </span>
         )}
@@ -336,7 +336,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
           </span>
         )}
         {data?.promedio_simple && (
-          <span className="text-[10px] text-[#808080] font-mono ml-auto">
+          <span className="text-[10px] text-[var(--t-text-dim)] font-mono ml-auto">
             promedio:{" "}
             <span className={colorRet(data.promedio_simple.r_total)}>
               {pctSigned(data.promedio_simple.r_total)}
@@ -351,7 +351,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
             )}
           </span>
         )}
-        {loading && <span className="text-[10px] text-[#555]">cargando…</span>}
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>}
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px_auto] gap-3">
@@ -360,7 +360,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
           {error ? (
             <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
-            <p className="text-[#555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               {loading ? "cargando…" : "sin datos en el período"}
             </p>
           ) : (
@@ -408,11 +408,11 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         {/* Tabla */}
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
           {!data?.bonos?.length ? (
-            <p className="text-[#555] text-[10px] py-4 text-center">--</p>
+            <p className="text-[var(--t-text-muted)] text-[10px] py-4 text-center">--</p>
           ) : (
             <table className="w-full text-[10px]">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                <tr className="text-[#707070]">
+                <tr className="text-[var(--t-text-muted)]">
                   <th className="!px-1 text-left">TICKER</th>
                   <th className="!px-1 text-right">CARRY</th>
                   <th className="!px-1 text-right">ROLL</th>
@@ -465,7 +465,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
           {bonoSeleccionado ? (
             <AuditRealizado bono={bonoSeleccionado} curva={curva} dias={data?.dias || 0} />
           ) : (
-            <p className="text-[10px] text-[#555] p-3">
+            <p className="text-[10px] text-[var(--t-text-muted)] p-3">
               Click en una fila de la tabla para auditar el cálculo de ese bono.
             </p>
           )}
@@ -541,7 +541,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
   return (
     <div className="h-full flex flex-col min-h-0 gap-3">
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
-        <span className="text-[10px] text-[#555] tracking-wider">HORIZONTE</span>
+        <span className="text-[10px] text-[var(--t-text-muted)] tracking-wider">HORIZONTE</span>
         <div className="flex items-center gap-1">
           {HORIZONTES.map((h) => (
             <FilterBtn key={h} active={horizonte === h} onClick={() => setHorizonte(h)}>
@@ -550,7 +550,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
           ))}
         </div>
         {data?.bonos && (
-          <span className="text-[10px] text-[#808080] font-mono">
+          <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
             {data.bonos.length} bonos · curva al {data.fecha}
           </span>
         )}
@@ -559,7 +559,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
             CER esp ({data.cer_debug?.n_meses_compoundeados || 0}m REM): {pctSigned(data.cer_accrual_esperado)}
           </span>
         )}
-        {loading && <span className="text-[10px] text-[#555]">cargando…</span>}
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>}
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px_auto] gap-3">
@@ -568,7 +568,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
           {error ? (
             <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
-            <p className="text-[#555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               {loading ? "cargando…" : "sin datos"}
             </p>
           ) : (
@@ -615,11 +615,11 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         {/* Tabla */}
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
           {!data?.bonos?.length ? (
-            <p className="text-[#555] text-[10px] py-4 text-center">--</p>
+            <p className="text-[var(--t-text-muted)] text-[10px] py-4 text-center">--</p>
           ) : (
             <table className="w-full text-[10px]">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                <tr className="text-[#707070]">
+                <tr className="text-[var(--t-text-muted)]">
                   <th className="!px-1 text-left">TICKER</th>
                   <th className="!px-1 text-right">{curva === "cer" ? "TEA" : "TEM"}</th>
                   <th className="!px-1 text-right">CARRY</th>
@@ -643,7 +643,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                       } hover:bg-[#1a1a1a]`}
                     >
                       <td className="!px-1 text-[#ff9900]">{b.ticker_corto || b.ticker}</td>
-                      <td className="!px-1 text-right text-[#d0d0d0]">{pct(b.tasa)}</td>
+                      <td className="!px-1 text-right text-[var(--t-text)]">{pct(b.tasa)}</td>
                       <td className="!px-1 text-right text-[#4a9eff]">{pct(b.carry_esperado)}</td>
                       <td className="!px-1 text-right text-[#ff9900]">{pct(b.rolldown_esperado)}</td>
                       <td className="!px-1 text-right font-semibold text-[#00cc66]">
@@ -672,7 +672,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
               cerAccrualEsp={data?.cer_accrual_esperado ?? null}
             />
           ) : (
-            <p className="text-[10px] text-[#555] p-3">
+            <p className="text-[10px] text-[var(--t-text-muted)] p-3">
               Click en una fila de la tabla para auditar el cálculo de ese bono.
             </p>
           )}
@@ -701,7 +701,7 @@ function AuditDrawer({
     >
       <button
         onClick={onToggle}
-        className="w-8 flex flex-col items-center justify-start py-2 text-[#555] hover:text-[#ff9900] border-r border-[var(--t-border)] shrink-0"
+        className="w-8 flex flex-col items-center justify-start py-2 text-[var(--t-text-muted)] hover:text-[#ff9900] border-r border-[var(--t-border)] shrink-0"
         title={open ? "Cerrar audit" : "Abrir audit"}
       >
         <span className="text-[14px] leading-none mb-1">{open ? "›" : "‹"}</span>
@@ -749,7 +749,7 @@ function AuditRealizado({
         <div className="text-[#ff9900] text-[11px] font-semibold tracking-wide">
           {bono.ticker_corto || bono.ticker}
         </div>
-        <div className="text-[#555] text-[9px]">
+        <div className="text-[var(--t-text-muted)] text-[9px]">
           {curva.toUpperCase()} · {dias} días · vto {bono.fecha_vencimiento}
         </div>
         {bono.is_zero_coupon === false && (
@@ -778,7 +778,7 @@ function AuditRealizado({
       </Section>
 
       <Section title="FÓRMULA">
-        <pre className="text-[#888] text-[9px] leading-relaxed whitespace-pre-wrap">
+        <pre className="text-[var(--t-text-dim)] text-[9px] leading-relaxed whitespace-pre-wrap">
 {`R_total = ${valorLabel}_fin / ${valorLabel}_ini − 1
 Carry = (1 + ${tasaLabel})^(${dias}/${freq}) − 1
 Flujo = ${valorLabel}_ini × (1 + ${tasaLabel})^(${bono.vto_dias_ini}/${freq})
@@ -799,7 +799,7 @@ Roll = (P_quieto/${valorLabel}_ini) − 1 − Carry
       </Section>
 
       <Section title="SANITY CHECK FABOZZI">
-        <div className="text-[#888] text-[9px] mb-1">
+        <div className="text-[var(--t-text-dim)] text-[9px] mb-1">
           Aproximación lineal: R ≈ −Dur × ΔTasa_anual + Carry
         </div>
         <Row label="Dur aprox" value={num(durAprox, 3)} />
@@ -809,7 +809,7 @@ Roll = (P_quieto/${valorLabel}_ini) − 1 − Carry
         )}
         <Row label="Fabozzi (lineal)" value={pctSigned(fabozzi)} />
         <Row label="Exacto vs Fabozzi" value={pctSigned(diff, 3)} />
-        <div className="text-[#555] text-[9px] mt-1">
+        <div className="text-[var(--t-text-muted)] text-[9px] mt-1">
           La diferencia entre exacto y lineal viene de convexidad (cuadrático en Δtasa).
         </div>
       </Section>
@@ -836,7 +836,7 @@ function AuditEsperado({
         <div className="text-[#ff9900] text-[11px] font-semibold tracking-wide">
           {bono.ticker_corto || bono.ticker}
         </div>
-        <div className="text-[#555] text-[9px]">
+        <div className="text-[var(--t-text-muted)] text-[9px]">
           {curva.toUpperCase()} · horizonte {horizonte}d · vto {bono.fecha_vencimiento}
         </div>
       </div>
@@ -859,7 +859,7 @@ function AuditEsperado({
       </Section>
 
       <Section title="FÓRMULA">
-        <pre className="text-[#888] text-[9px] leading-relaxed whitespace-pre-wrap">
+        <pre className="text-[var(--t-text-dim)] text-[9px] leading-relaxed whitespace-pre-wrap">
 {`Carry = (1 + ${tasaLabel})^(${horizonte}/${freq}) − 1
 Flujo = ${valorLabel} × (1 + ${tasaLabel})^(${bono.vto_dias}/${freq})
 P_esp = Flujo / (1 + curva_horizonte)^(${bono.vto_dias_horizonte}/${freq})
@@ -908,7 +908,7 @@ function Row({
 }) {
   return (
     <div className="flex justify-between gap-2">
-      <span className="text-[#888] truncate">{label}</span>
+      <span className="text-[var(--t-text-dim)] truncate">{label}</span>
       <span
         className={`tabular-nums ${highlight ? "font-semibold" : ""}`}
         style={{ color: color || "#d0d0d0" }}
@@ -938,7 +938,7 @@ function FilterBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

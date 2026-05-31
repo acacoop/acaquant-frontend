@@ -150,7 +150,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="text-[10px] text-[#555555] tracking-wide">TICKER</span>
+        <span className="text-[10px] text-[var(--t-text-muted)] tracking-wide">TICKER</span>
         <div className="relative">
           <input
             ref={inputRef}
@@ -175,7 +175,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
                   key={t}
                   onMouseDown={() => pickTicker(t)}
                   className={`px-2 py-0.5 text-[11px] font-mono cursor-pointer hover:bg-[#ff9900]/10 ${
-                    t === effectiveSelected ? "text-[#ff9900]" : "text-[#d0d0d0]"
+                    t === effectiveSelected ? "text-[#ff9900]" : "text-[var(--t-text)]"
                   }`}
                 >
                   {shortTicker(t)}
@@ -185,9 +185,9 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
           )}
         </div>
         {loading && (
-          <span className="text-[10px] text-[#555555]">cargando…</span>
+          <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>
         )}
-        <span className="ml-auto text-[10px] text-[#555555]">
+        <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">
           {todayTrades.length} trades {sessionLabel.toLowerCase()}
         </span>
       </div>
@@ -201,7 +201,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
             TIME &amp; SALES
           </span>
           {sessionLabel && sessionLabel !== "HOY" && (
-            <span className="ml-auto text-[9px] text-[#808080]">
+            <span className="ml-auto text-[9px] text-[var(--t-text-dim)]">
               {sessionLabel}
             </span>
           )}
@@ -221,7 +221,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
 function TimeSalesTape({ trades }: { trades: Trade[] }) {
   if (trades.length === 0) {
     return (
-      <div className="px-2 py-4 text-center text-[#555555] text-[10px]">
+      <div className="px-2 py-4 text-center text-[var(--t-text-muted)] text-[10px]">
         SIN TRADES HOY
       </div>
     );
@@ -231,13 +231,13 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
     <table className="w-full text-[10px] font-mono">
       <thead className="sticky top-0 bg-[#0a0a0a] z-10">
         <tr className="border-b border-[var(--t-border)]">
-          <th className="text-left px-1.5 py-0.5 text-[#555555] font-normal">
+          <th className="text-left px-1.5 py-0.5 text-[var(--t-text-muted)] font-normal">
             HORA
           </th>
-          <th className="text-right px-1.5 py-0.5 text-[#555555] font-normal">
+          <th className="text-right px-1.5 py-0.5 text-[var(--t-text-muted)] font-normal">
             PRECIO
           </th>
-          <th className="text-right px-1.5 py-0.5 text-[#555555] font-normal">
+          <th className="text-right px-1.5 py-0.5 text-[var(--t-text-muted)] font-normal">
             VN
           </th>
         </tr>
@@ -250,7 +250,7 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
               ? "text-[#00cc66]"
               : side === "SELL"
               ? "text-[#ff3333]"
-              : "text-[#d0d0d0]";
+              : "text-[var(--t-text)]";
           const d = new Date(t.timestamp);
           const hora = `${String(d.getHours()).padStart(2, "0")}:${String(
             d.getMinutes()
@@ -260,11 +260,11 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
               key={`${t.timestamp}-${i}`}
               className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
             >
-              <td className="px-1.5 py-0.5 text-[#808080]">{hora}</td>
+              <td className="px-1.5 py-0.5 text-[var(--t-text-dim)]">{hora}</td>
               <td className={`px-1.5 py-0.5 text-right font-semibold ${color}`}>
                 {fmtNum(t.price)}
               </td>
-              <td className="px-1.5 py-0.5 text-right text-[#808080]">
+              <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtNum(t.size)}
               </td>
             </tr>

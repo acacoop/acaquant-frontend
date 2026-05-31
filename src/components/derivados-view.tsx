@@ -179,7 +179,7 @@ export function DerivadosView({
           value={meta.vr_adr ? `${(meta.vr_adr * 100).toFixed(1)}%` : "—"}
         />
         <div className="flex items-center gap-1">
-          <span className="text-[10px] text-[#808080] tracking-wide">
+          <span className="text-[10px] text-[var(--t-text-dim)] tracking-wide">
             TASA R
           </span>
           {isAdmin ? (
@@ -191,7 +191,7 @@ export function DerivadosView({
                 max="3"
                 value={tasaInput}
                 onChange={(e) => setTasaInput(e.target.value)}
-                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-16"
+                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-16"
               />
               <button
                 onClick={guardarTasa}
@@ -200,7 +200,7 @@ export function DerivadosView({
               >
                 {savingTasa ? "..." : "OK"}
               </button>
-              <span className="text-[9px] text-[#555]">
+              <span className="text-[9px] text-[var(--t-text-muted)]">
                 ({(meta.tasa * 100).toFixed(1)}%)
               </span>
             </>
@@ -212,7 +212,7 @@ export function DerivadosView({
             </span>
           )}
         </div>
-        <span className="ml-auto text-[10px] text-[#555]">
+        <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">
           ÚLT. ACT {ultimoDisplay}
         </span>
       </div>
@@ -280,7 +280,7 @@ export function DerivadosView({
                 costoLive={(selCosto || 0) - selComision}
               />
             ) : (
-              <p className="text-[#555555] text-xs py-4 text-center">
+              <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                 Elegí una estrategia (filtro ESTRAT.) o un contrato (CALL/PUT) para ver el costo histórico.
               </p>
             )}
@@ -343,7 +343,7 @@ export function DerivadosView({
               }
             >
               {!selRow || !selLegs.length ? (
-                <p className="text-[#555555] text-xs py-4 text-center">
+                <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                   Seleccioná una estrategia con liquidez (filtro ESTRAT.).
                 </p>
               ) : detalleTab === "payoff" ? (
@@ -379,7 +379,7 @@ export function DerivadosView({
             {selectedOpcion ? (
               <GriegasHistoricoChart instrumento={selectedOpcion.instrumento} />
             ) : (
-              <p className="text-[#555555] text-xs py-4 text-center">
+              <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                 Clickeá un contrato en OPCIONES GGAL (CALL/PUT) para ver la variación de sus griegas.
               </p>
             )}
@@ -431,12 +431,12 @@ function Kpi({
 }) {
   return (
     <div className="flex flex-col leading-tight">
-      <span className="text-[9px] text-[#808080] tracking-wide uppercase">
+      <span className="text-[9px] text-[var(--t-text-dim)] tracking-wide uppercase">
         {label}
       </span>
       <span
         className={`text-[13px] font-semibold ${
-          accent ? "text-[#ff9900]" : "text-[#d0d0d0]"
+          accent ? "text-[#ff9900]" : "text-[var(--t-text)]"
         }`}
       >
         {value}
@@ -460,7 +460,7 @@ function TabBtn({
       className={`text-[9px] px-1.5 py-0.5 border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#808080] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

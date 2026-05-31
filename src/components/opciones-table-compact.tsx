@@ -64,20 +64,20 @@ export function OpcionesTableCompact({
           </>
         )}
         <TableHelp entries={OPCIONES_GLOSSARY} />
-        <span className="ml-auto text-[10px] text-[#555555]">
+        <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">
           {filtered.length} · ordenado por VOL ↓
         </span>
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-[#555555] text-xs py-4 text-center">
+        <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
           SIN DATOS — MERCADO CERRADO
         </p>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto">
           <table className="w-full text-[10px]">
             <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-              <tr className="text-[#707070]">
+              <tr className="text-[var(--t-text-muted)]">
                 <th className="!px-1 text-right">STRIKE</th>
                 <th className="!px-1 text-right">LAST</th>
                 <th className="!px-1 text-right">INTRA</th>
@@ -160,7 +160,7 @@ export function OpcionesTableCompact({
                     <td
                       className={`!px-1 text-right ${
                         intraday === null
-                          ? "text-[#555555]"
+                          ? "text-[var(--t-text-muted)]"
                           : intraday >= 0
                           ? "text-[#00cc66]"
                           : "text-[#ff3333]"
@@ -173,7 +173,7 @@ export function OpcionesTableCompact({
                     <td
                       className={`!px-1 text-right ${
                         vs1d === null
-                          ? "text-[#555555]"
+                          ? "text-[var(--t-text-muted)]"
                           : vs1d >= 0
                           ? "text-[#00cc66]"
                           : "text-[#ff3333]"
@@ -183,22 +183,22 @@ export function OpcionesTableCompact({
                         ? `${vs1d >= 0 ? "+" : ""}${vs1d.toFixed(2)}%`
                         : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">
+                    <td className="!px-1 text-right text-[var(--t-text)]">
                       {spreadPct !== null ? `${spreadPct.toFixed(1)}%` : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">
+                    <td className="!px-1 text-right text-[var(--t-text)]">
                       {r.iv !== undefined ? `${(r.iv * 100).toFixed(1)}%` : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#808080]">
+                    <td className="!px-1 text-right text-[var(--t-text-dim)]">
                       {r.delta !== undefined ? r.delta.toFixed(3) : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#808080]">
+                    <td className="!px-1 text-right text-[var(--t-text-dim)]">
                       {r.gamma !== undefined ? r.gamma.toFixed(4) : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#808080]">
+                    <td className="!px-1 text-right text-[var(--t-text-dim)]">
                       {r.theta !== undefined ? r.theta.toFixed(2) : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#808080]">
+                    <td className="!px-1 text-right text-[var(--t-text-dim)]">
                       {r.vega !== undefined ? r.vega.toFixed(2) : "--"}
                     </td>
                     <td className="!px-1 text-right text-[#ffaa00]">
@@ -230,7 +230,7 @@ function FilterBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

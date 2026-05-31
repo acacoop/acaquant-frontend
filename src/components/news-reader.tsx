@@ -73,13 +73,13 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Lectura
         </span>
-        <span className="text-[10px] text-[#888888] font-mono">{fuente}</span>
+        <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{fuente}</span>
         {article?.hostname && (
-          <span className="text-[9px] text-[#555555] font-mono">· {article.hostname}</span>
+          <span className="text-[9px] text-[var(--t-text-muted)] font-mono">· {article.hostname}</span>
         )}
         <button
           onClick={onClose}
-          className="ml-auto text-[#555555] hover:text-white text-lg leading-none px-2"
+          className="ml-auto text-[var(--t-text-muted)] hover:text-white text-lg leading-none px-2"
           title="Cerrar"
         >
           ×
@@ -88,10 +88,10 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
 
       {/* Título + metadata */}
       <div className="px-4 pt-3 pb-2 border-b border-[var(--t-border)] shrink-0">
-        <h1 className="text-[15px] font-semibold text-[#d0d0d0] leading-tight">
+        <h1 className="text-[15px] font-semibold text-[var(--t-text)] leading-tight">
           {titulo}
         </h1>
-        <div className="mt-1 flex items-center gap-2 text-[10px] text-[#666666] font-mono">
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-[var(--t-text-muted)] font-mono">
           {article?.author && <span>{article.author}</span>}
           {article?.author && fechaFormatted && <span>·</span>}
           {fechaFormatted && <span>{fechaFormatted}</span>}
@@ -114,10 +114,10 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
       {/* Cuerpo */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3">
         {loading && (
-          <div className="text-[11px] text-[#555555] font-mono">Cargando lectura…</div>
+          <div className="text-[11px] text-[var(--t-text-muted)] font-mono">Cargando lectura…</div>
         )}
         {!loading && article?.ok && article.text && (
-          <article className="text-[12px] text-[#d0d0d0] leading-relaxed whitespace-pre-wrap font-sans">
+          <article className="text-[12px] text-[var(--t-text)] leading-relaxed whitespace-pre-wrap font-sans">
             {article.text}
           </article>
         )}
@@ -126,7 +126,7 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
             <div>
               No pude extraer la nota limpia{article?.error ? `: ${article.error}` : ""}.
             </div>
-            <div className="text-[#888888]">
+            <div className="text-[var(--t-text-dim)]">
               Puede ser paywall o el medio bloquea scraping. Abrila en el original:
             </div>
             <a

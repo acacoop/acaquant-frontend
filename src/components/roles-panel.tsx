@@ -121,7 +121,7 @@ export function RolesPanel() {
 
   if (loading || !data) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555] text-xs">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-xs">
         Cargando matriz…
       </div>
     );
@@ -137,7 +137,7 @@ export function RolesPanel() {
 
       {/* Header con save button */}
       <div className="flex items-center gap-3 shrink-0">
-        <div className="text-[10px] text-[#808080] tracking-wide">
+        <div className="text-[10px] text-[var(--t-text-dim)] tracking-wide">
           {data.roles.length} roles × {data.modules.length} módulos
         </div>
         {dirtyRoles.size > 0 && (
@@ -159,14 +159,14 @@ export function RolesPanel() {
         <table className="w-full text-xs font-mono">
           <thead>
             <tr className="border-b border-[var(--t-border)]">
-              <th className="px-3 py-2 text-left text-[10px] text-[#808080] font-semibold tracking-wide">
+              <th className="px-3 py-2 text-left text-[10px] text-[var(--t-text-dim)] font-semibold tracking-wide">
                 MÓDULO
               </th>
               {data.roles.map((r) => (
                 <th
                   key={r}
                   className={`px-3 py-2 text-center text-[10px] font-semibold tracking-wide ${
-                    dirtyRoles.has(r) ? "text-[#ff9900]" : "text-[#808080]"
+                    dirtyRoles.has(r) ? "text-[#ff9900]" : "text-[var(--t-text-dim)]"
                   }`}
                 >
                   {r}
@@ -181,7 +181,7 @@ export function RolesPanel() {
                 key={m}
                 className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
               >
-                <td className="px-3 py-1.5 text-[#d0d0d0]">{m}</td>
+                <td className="px-3 py-1.5 text-[var(--t-text)]">{m}</td>
                 {data.roles.map((r) => {
                   const checked = working[r]?.has(m) ?? false;
                   return (
@@ -208,17 +208,17 @@ export function RolesPanel() {
         </div>
         <div className="flex-1 overflow-y-auto font-mono text-[11px]">
           {audit.length === 0 ? (
-            <div className="text-[#555] text-xs py-4 text-center">Sin eventos.</div>
+            <div className="text-[var(--t-text-muted)] text-xs py-4 text-center">Sin eventos.</div>
           ) : (
             audit.map((ev, i) => (
               <div
                 key={`${ev.ts}-${i}`}
                 className="grid grid-cols-[140px_1fr_180px_1fr] gap-2 px-3 py-1 border-b border-[var(--t-border)]"
               >
-                <div className="text-[#555]">{fmtDate(ev.ts)}</div>
+                <div className="text-[var(--t-text-muted)]">{fmtDate(ev.ts)}</div>
                 <div className="text-[#ff9900] truncate">{ev.actor}</div>
-                <div className="text-[#d0d0d0]">{ev.action}</div>
-                <div className="text-[#808080] truncate">{ev.target}</div>
+                <div className="text-[var(--t-text)]">{ev.action}</div>
+                <div className="text-[var(--t-text-dim)] truncate">{ev.target}</div>
               </div>
             ))
           )}

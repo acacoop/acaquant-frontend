@@ -35,7 +35,7 @@ export function PayoffChart({
 
   if (!curve.length) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin datos para el payoff.
       </p>
     );

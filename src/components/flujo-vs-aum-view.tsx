@@ -165,7 +165,7 @@ export function FlujoVsAumView() {
 
   if (loadingFondos) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Cargando fondos…
       </div>
     );
@@ -179,7 +179,7 @@ export function FlujoVsAumView() {
   }
   if (fondos.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         No hay fondos con FCI asociados.
       </div>
     );
@@ -189,13 +189,13 @@ export function FlujoVsAumView() {
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] tracking-wide text-[#555555] uppercase">
+          <span className="text-[10px] tracking-wide text-[var(--t-text-muted)] uppercase">
             Fondo
           </span>
           <select
             value={sel ?? ""}
             onChange={(e) => setSel(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none min-w-[240px]"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none min-w-[240px]"
           >
             {fondos.map((f) => (
               <option key={f} value={f}>
@@ -204,7 +204,7 @@ export function FlujoVsAumView() {
             ))}
           </select>
           {serie && (
-            <span className="ml-auto text-[10px] text-[#888888]">
+            <span className="ml-auto text-[10px] text-[var(--t-text-dim)]">
               {serie.unidades.length} FCI asociados · moneda {serie.moneda}
             </span>
           )}
@@ -232,11 +232,11 @@ export function FlujoVsAumView() {
 
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] p-2 overflow-hidden flex flex-col">
         {loadingSerie ? (
-          <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">
+          <div className="flex-1 flex items-center justify-center text-[var(--t-text-muted)] text-sm">
             Cargando…
           </div>
         ) : chartData.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">
+          <div className="flex-1 flex items-center justify-center text-[var(--t-text-muted)] text-sm">
             Sin datos para este fondo.
           </div>
         ) : (

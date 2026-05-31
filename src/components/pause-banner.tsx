@@ -67,14 +67,14 @@ export function PauseBanner() {
     <div className="bg-[#ff9900]/15 border-b border-[#ff9900]/40 px-3 py-2 text-center shrink-0">
       <span className="text-[11px] font-mono text-[#ff9900] tracking-wide">
         ● <span className="font-semibold">Sistema en pausa nocturna</span> ·
-        <span className="text-[#d0d0d0] mx-1">
+        <span className="text-[var(--t-text)] mx-1">
           cluster Atlas + crons detenidos para ahorro
         </span>
         ·
         <span className="ml-1 font-semibold">
           Vuelve a las {fmtArtHHMM(resume)} ART
         </span>
-        <span className="text-[#888888] ml-1">(en {countdown})</span>
+        <span className="text-[var(--t-text-dim)] ml-1">(en {countdown})</span>
       </span>
     </div>
   );

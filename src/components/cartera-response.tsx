@@ -43,7 +43,7 @@ export function CarteraResponse({
         <div className="text-[10px] text-[#ff3333] uppercase tracking-wide mb-1">
           No se pudo generar cartera
         </div>
-        <div className="text-[11px] text-[#d0d0d0]">
+        <div className="text-[11px] text-[var(--t-text)]">
           {error ?? "Sin output estructurado del modelo."}
         </div>
         {onModificar && (
@@ -65,8 +65,8 @@ export function CarteraResponse({
     <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-3 font-mono space-y-3">
       {/* Tesis arriba destacada */}
       <div className="border-l-2 border-[#ff9900] pl-2">
-        <div className="text-[9px] text-[#555555] uppercase tracking-wide mb-0.5">Tesis</div>
-        <div className="text-[12px] text-[#d0d0d0] leading-snug">{data.tesis}</div>
+        <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide mb-0.5">Tesis</div>
+        <div className="text-[12px] text-[var(--t-text)] leading-snug">{data.tesis}</div>
       </div>
 
       {/* Alertas (si hay) */}
@@ -75,7 +75,7 @@ export function CarteraResponse({
           <div className="text-[9px] text-[#ff9900] uppercase tracking-wide mb-0.5">
             Alertas de data ({alertas.length})
           </div>
-          <ul className="text-[10px] text-[#d0d0d0] space-y-0.5">
+          <ul className="text-[10px] text-[var(--t-text)] space-y-0.5">
             {alertas.map((a, i) => (
               <li key={i}>· {a}</li>
             ))}
@@ -85,12 +85,12 @@ export function CarteraResponse({
 
       {/* Tabla de instrumentos con expand */}
       {cartera.length === 0 ? (
-        <div className="text-[11px] text-[#888888] italic">
+        <div className="text-[11px] text-[var(--t-text-dim)] italic">
           (Sin instrumentos — el modelo no pudo armar la cartera con los datos disponibles)
         </div>
       ) : (
         <div>
-          <div className="text-[9px] text-[#555555] uppercase tracking-wide mb-1">
+          <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide mb-1">
             Cartera ({cartera.length} instrumentos)
             {!pesos_ok && (
               <span className="ml-2 text-[#ff9900]">⚠ pesos suman {pesos_suma}%</span>
@@ -98,7 +98,7 @@ export function CarteraResponse({
           </div>
           <table className="w-full text-[11px]">
             <thead>
-              <tr className="text-[#555555] border-b border-[var(--t-border)]">
+              <tr className="text-[var(--t-text-muted)] border-b border-[var(--t-border)]">
                 <th className="text-left px-1 py-0.5 w-[60px]">Ticker</th>
                 <th className="text-right px-1 py-0.5 w-[50px]">Peso</th>
                 <th className="text-left px-1 py-0.5">Métrica clave</th>
@@ -116,10 +116,10 @@ export function CarteraResponse({
 
       {/* Qué invalida */}
       <div className="border-t border-[var(--t-border)] pt-2">
-        <div className="text-[9px] text-[#555555] uppercase tracking-wide mb-0.5">
+        <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide mb-0.5">
           Qué invalida la tesis
         </div>
-        <div className="text-[11px] text-[#d0d0d0] leading-snug">{data.que_invalida}</div>
+        <div className="text-[11px] text-[var(--t-text)] leading-snug">{data.que_invalida}</div>
       </div>
 
       {/* Footer: meta + acciones */}
@@ -128,7 +128,7 @@ export function CarteraResponse({
           {onModificar && (
             <button
               onClick={onModificar}
-              className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#888888] hover:text-[#ff9900] hover:border-[#ff9900] uppercase tracking-wide"
+              className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900] hover:border-[#ff9900] uppercase tracking-wide"
             >
               Modificar parámetros
             </button>
@@ -139,13 +139,13 @@ export function CarteraResponse({
               console.log("[cartera] export to Excel:", data);
               alert("Exportar a Excel: pendiente de implementar.");
             }}
-            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#555555] hover:text-[#888888] uppercase tracking-wide"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-text-dim)] uppercase tracking-wide"
           >
             Exportar Excel
           </button>
         </div>
         {meta && (
-          <div className="text-[9px] text-[#555555] tracking-wide uppercase">
+          <div className="text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">
             {meta.steps} step{meta.steps !== 1 ? "s" : ""} · {meta.elapsed_s}s
             {meta.tokens ? ` · ${meta.tokens} tok` : ""}
             {meta.model ? ` · ${meta.model}` : ""}
@@ -165,15 +165,15 @@ function CarteraRow({ inst }: { inst: CarteraInstrumento }) {
         className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[#1a1a1a]/40"
       >
         <td className="px-1 py-1 text-[#ff9900] font-semibold">{inst.ticker}</td>
-        <td className="px-1 py-1 text-right text-[#d0d0d0] font-mono">
+        <td className="px-1 py-1 text-right text-[var(--t-text)] font-mono">
           {inst.peso_pct.toFixed(0)}%
         </td>
-        <td className="px-1 py-1 text-[#a0a0a0]">{inst.metrica_clave}</td>
-        <td className="px-1 py-1 text-right text-[#555555]">{open ? "▾" : "▸"}</td>
+        <td className="px-1 py-1 text-[var(--t-text-dim)]">{inst.metrica_clave}</td>
+        <td className="px-1 py-1 text-right text-[var(--t-text-muted)]">{open ? "▾" : "▸"}</td>
       </tr>
       {open && (
         <tr>
-          <td colSpan={4} className="bg-[#0a0a0a] px-2 py-1.5 text-[10px] text-[#888888] leading-relaxed">
+          <td colSpan={4} className="bg-[#0a0a0a] px-2 py-1.5 text-[10px] text-[var(--t-text-dim)] leading-relaxed">
             {inst.justificacion}
           </td>
         </tr>

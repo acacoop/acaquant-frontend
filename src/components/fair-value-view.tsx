@@ -121,7 +121,7 @@ function FairValueHelp() {
           algo barato.
         </li>
         <li>
-          <strong className="text-[#888]">±0.5</strong> · gris: neutral, dentro
+          <strong className="text-[var(--t-text-dim)]">±0.5</strong> · gris: neutral, dentro
           de rango.
         </li>
         <li>
@@ -217,7 +217,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
   return (
     <div className="h-full overflow-y-auto flex flex-col gap-2">
       {/* Header con métricas del fit */}
-      <div className="flex items-center gap-3 text-[10px] text-[#808080] shrink-0 flex-wrap">
+      <div className="flex items-center gap-3 text-[10px] text-[var(--t-text-dim)] shrink-0 flex-wrap">
         <span>
           β cierre <span className="text-[#ff9900]">{doc.ts_cierre_beta ?? doc.ts_cierre ?? "—"}</span>
         </span>
@@ -226,7 +226,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
         <span>universo <span className="text-[#ff9900]">{doc.n_bonos_universo}</span></span>
         {doc.error && <span className="text-[#c0271a]">⚠ {doc.error}</span>}
         <span className="ml-auto flex items-center gap-1">
-          <span className="text-[9px] text-[#666]">qué mira esta tabla</span>
+          <span className="text-[9px] text-[var(--t-text-muted)]">qué mira esta tabla</span>
           <InfoIcon width="380px" align="right" tip={<FairValueHelp />} />
         </span>
       </div>
@@ -235,7 +235,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
          el scatter + cuadrática quedó deshabilitado. Si querés volverlo,
          está en el commit anterior (git log -- fair-value-view.tsx). */}
       {!hayDatos && (
-        <p className="text-[#555555] text-xs py-4 text-center">
+        <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
           {doc.error ? doc.error : "SIN DATOS — corré jobs.snapshot_cierre + jobs.fair_value"}
         </p>
       )}
@@ -245,7 +245,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
         <div className="border-t border-[var(--t-border-2)] shrink-0">
           <table className="w-full text-[11px]">
             <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
-              <tr className="text-[#808080]">
+              <tr className="text-[var(--t-text-dim)]">
                 {renderHeader("TICKER", "ticker", "left")}
                 {renderHeader("DUR", "duration")}
                 {renderHeader("TEA", "tea_obs")}
@@ -268,18 +268,18 @@ export function FairValueView({ curva, initialDoc }: Props) {
                     className="cursor-pointer hover:bg-[#181818]"
                   >
                     <td className="!px-2 !py-0.5 text-[#ff9900]">{tk}</td>
-                    <td className="!px-2 !py-0.5 text-right text-[#d0d0d0]">{b.duration.toFixed(2)}</td>
-                    <td className="!px-2 !py-0.5 text-right text-[#d0d0d0]">{(b.tea_obs * 100).toFixed(2)}%</td>
-                    <td className="!px-2 !py-0.5 text-right text-[#888888]">{(b.tea_teorica * 100).toFixed(2)}%</td>
-                    <td className="!px-2 !py-0.5 text-right text-[#d0d0d0]">{fmtBps(b.residuo_bps)}</td>
-                    <td className="!px-2 !py-0.5 text-right text-[#d0d0d0]">{fmtZ(b.z_estatico)}</td>
+                    <td className="!px-2 !py-0.5 text-right text-[var(--t-text)]">{b.duration.toFixed(2)}</td>
+                    <td className="!px-2 !py-0.5 text-right text-[var(--t-text)]">{(b.tea_obs * 100).toFixed(2)}%</td>
+                    <td className="!px-2 !py-0.5 text-right text-[var(--t-text-dim)]">{(b.tea_teorica * 100).toFixed(2)}%</td>
+                    <td className="!px-2 !py-0.5 text-right text-[var(--t-text)]">{fmtBps(b.residuo_bps)}</td>
+                    <td className="!px-2 !py-0.5 text-right text-[var(--t-text)]">{fmtZ(b.z_estatico)}</td>
                     <td
                       className="!px-2 !py-0.5 text-center font-semibold"
                       style={color ? { backgroundColor: color.bg, color: color.fg } : undefined}
                     >
                       {fmtZ(z)}
                     </td>
-                    <td className="!px-2 !py-0.5 text-right text-[#666666]">{b.n_obs ?? "—"}</td>
+                    <td className="!px-2 !py-0.5 text-right text-[var(--t-text-muted)]">{b.n_obs ?? "—"}</td>
                   </tr>
                 );
               })}

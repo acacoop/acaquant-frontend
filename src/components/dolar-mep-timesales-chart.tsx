@@ -68,14 +68,14 @@ export function DolarMepTimeSalesChart({ rueda }: { rueda: Rueda }) {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center text-[10px] text-[#666]">
+      <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
         cargando…
       </div>
     );
   }
   if (data.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[10px] text-[#666]">
+      <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
         sin datos para MEP {rueda}
       </div>
     );

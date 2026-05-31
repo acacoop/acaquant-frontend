@@ -52,18 +52,18 @@ export function HomeView() {
       <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
         Chart
       </span>
-      <span className="ml-2 text-[10px] text-[#d0d0d0] font-mono">
+      <span className="ml-2 text-[10px] text-[var(--t-text)] font-mono">
         {isArgy ? DEFAULT_TICKER : selectedTicker}
       </span>
       <span className="ml-auto flex items-center gap-2">
-        <span className="text-[9px] text-[#555555]">
+        <span className="text-[9px] text-[var(--t-text-muted)]">
           {isDlr ? "Curva DLR" : "TradingView"}
         </span>
         <button
           onClick={() => setMaximized((m) => !m)}
           aria-label={maximized ? "Minimizar" : "Maximizar"}
           title={maximized ? "Minimizar (Esc)" : "Maximizar"}
-          className="text-[#555555] hover:text-[#ff9900] transition-colors text-[14px] leading-none px-1"
+          className="text-[var(--t-text-muted)] hover:text-[#ff9900] transition-colors text-[14px] leading-none px-1"
         >
           {maximized ? "⊡" : "⛶"}
         </button>

@@ -32,7 +32,7 @@ export function DerivadosAgroView({
     <div className="h-full min-h-0 flex flex-col">
       {/* Barra slim — info global de la pizarra (dólar oficial + frescura). */}
       <div className="border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
-        <span className="text-[10px] text-[#808080] uppercase tracking-wide">
+        <span className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide">
           Pase Agro
         </span>
         <div className="flex items-center gap-2 ml-auto">{headerExtras}</div>
@@ -110,7 +110,7 @@ function SimuladorModal({
         <div className="flex items-center gap-2 ml-auto">{extras}</div>
         <button
           onClick={onClose}
-          className="text-[#808080] hover:text-[#ff9900] transition-colors text-[13px] px-1 ml-2"
+          className="text-[var(--t-text-dim)] hover:text-[#ff9900] transition-colors text-[13px] px-1 ml-2"
           title="Cerrar (Esc)"
         >
           ✕

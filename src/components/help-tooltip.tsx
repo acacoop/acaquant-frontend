@@ -26,10 +26,10 @@ export function HelpTooltip({
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
-      <sup className="text-[#555555] cursor-help select-none text-[9px]">?</sup>
+      <sup className="text-[var(--t-text-muted)] cursor-help select-none text-[9px]">?</sup>
       {show && (
         <span
-          className={`absolute z-50 ${verticalClass} left-1/2 -translate-x-1/2 px-2 py-1 bg-[#1a1a1a] border border-[var(--t-border-2)] text-[10px] text-[#d0d0d0] whitespace-normal max-w-[280px] w-max pointer-events-none normal-case tracking-normal text-left font-normal leading-tight`}
+          className={`absolute z-50 ${verticalClass} left-1/2 -translate-x-1/2 px-2 py-1 bg-[#1a1a1a] border border-[var(--t-border-2)] text-[10px] text-[var(--t-text)] whitespace-normal max-w-[280px] w-max pointer-events-none normal-case tracking-normal text-left font-normal leading-tight`}
         >
           {text}
         </span>
@@ -73,7 +73,7 @@ export function TableHelp({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-[#888888] hover:text-[#ff9900] cursor-help select-none text-[11px] border border-[var(--t-border-2)] rounded-full w-4 h-4 inline-flex items-center justify-center font-semibold transition-colors"
+        className="text-[var(--t-text-dim)] hover:text-[#ff9900] cursor-help select-none text-[11px] border border-[var(--t-border-2)] rounded-full w-4 h-4 inline-flex items-center justify-center font-semibold transition-colors"
         title="Ver referencia"
         type="button"
       >
@@ -95,7 +95,7 @@ export function TableHelp({
               </span>
               <button
                 onClick={() => setOpen(false)}
-                className="text-[#888888] hover:text-[#ffffff] text-[14px] leading-none px-1 transition-colors"
+                className="text-[var(--t-text-dim)] hover:text-[#ffffff] text-[14px] leading-none px-1 transition-colors"
                 aria-label="Cerrar"
                 type="button"
               >
@@ -103,7 +103,7 @@ export function TableHelp({
               </button>
             </div>
             {/* Tabla del glosario */}
-            <table className="w-full table-fixed text-[11px] text-[#d0d0d0] leading-relaxed">
+            <table className="w-full table-fixed text-[11px] text-[var(--t-text)] leading-relaxed">
               <tbody>
                 {entries.map((e) => (
                   <tr

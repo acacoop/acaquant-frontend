@@ -30,7 +30,7 @@ function fmtZ(z: number): string {
 
 export function ForwardMatrixZscore({ tickers, matrix, stats }: Props) {
   if (tickers.length < 2) {
-    return <p className="text-[#555555] text-xs py-4 text-center">Mínimo 2 instrumentos</p>;
+    return <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Mínimo 2 instrumentos</p>;
   }
   const short = tickers.map(shortTicker);
 
@@ -74,7 +74,7 @@ export function ForwardMatrixZscore({ tickers, matrix, stats }: Props) {
                   return (
                     <td
                       key={tCorto}
-                      className="!px-2 !py-1 text-center text-[#555555] bg-[var(--t-surface)]"
+                      className="!px-2 !py-1 text-center text-[var(--t-text-muted)] bg-[var(--t-surface)]"
                     >
                       n/d
                     </td>

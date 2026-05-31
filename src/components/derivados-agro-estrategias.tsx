@@ -294,12 +294,12 @@ export function DerivadosAgroEstrategias({
   useEffect(() => {
     setHeaderExtras(
       <>
-        <span className="text-[10px] text-[#808080] tracking-wide">VTO</span>
+        <span className="text-[10px] text-[var(--t-text-dim)] tracking-wide">VTO</span>
         <select
           value={vencimiento ?? ""}
           onChange={(e) => setVencimiento(e.target.value || null)}
           disabled={!panel || panel.vencimientos.length === 0}
-          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
         >
           {panel?.vencimientos.map((v) => (
             <option key={v.vencimiento} value={v.vencimiento}>
@@ -307,12 +307,12 @@ export function DerivadosAgroEstrategias({
             </option>
           ))}
         </select>
-        <span className="text-[10px] text-[#808080] tracking-wide ml-2">FUT</span>
+        <span className="text-[10px] text-[var(--t-text-dim)] tracking-wide ml-2">FUT</span>
         <span className="text-[#ff9900] font-mono text-[11px]">{fmtPx(futuro)}</span>
         {vtoBlock?.dias_a_vto != null && (
-          <span className="text-[9px] text-[#555]">({vtoBlock.dias_a_vto}d)</span>
+          <span className="text-[9px] text-[var(--t-text-muted)]">({vtoBlock.dias_a_vto}d)</span>
         )}
-        <span className="text-[10px] text-[#555] ml-3">
+        <span className="text-[10px] text-[var(--t-text-muted)] ml-3">
           {loadingPanel ? "CARGANDO…" : `ÚLT ${ultimoDisplay}`}
         </span>
       </>,
@@ -505,7 +505,7 @@ function ChartToggleBtn({
       className={`text-[9px] tracking-wide uppercase px-1.5 py-0.5 border ${
         active
           ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
-          : "text-[#808080] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
+          : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-text)]"
       }`}
     >
       {children}
@@ -522,14 +522,14 @@ function PanelOpciones({
 }) {
   if (!block || block.strikes.length === 0) {
     return (
-      <div className="px-3 py-4 text-center text-[#666] text-[11px]">
+      <div className="px-3 py-4 text-center text-[var(--t-text-muted)] text-[11px]">
         Sin opciones cargadas para este vencimiento
       </div>
     );
   }
   return (
     <table className="w-full text-[10px] font-mono">
-      <thead className="text-[9px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
           <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#4ade80]">
             CALL
@@ -566,29 +566,29 @@ function PanelOpciones({
                 isAtm ? "bg-[#ff9900]/10" : "hover:bg-[#0d0d0d]"
               }`}
             >
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.call?.bid)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.call?.offer)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#d0d0d0] font-semibold">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text)] font-semibold">
                 {fmtPx(s.call?.last)}
               </td>
               <td
                 className={`px-2 py-0.5 text-center font-semibold ${
-                  isAtm ? "text-[#ff9900]" : "text-[#d0d0d0]"
+                  isAtm ? "text-[#ff9900]" : "text-[var(--t-text)]"
                 }`}
               >
                 {fmtPx(s.strike, 0)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.put?.bid)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.put?.offer)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#d0d0d0] font-semibold">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text)] font-semibold">
                 {fmtPx(s.put?.last)}
               </td>
             </tr>
@@ -634,7 +634,7 @@ function SimuladorForm({
             className={`text-[10px] tracking-wide uppercase px-2 py-1 border ${
               tipo === "put_sintetico"
                 ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
-                : "text-[#808080] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
+                : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-text)]"
             }`}
             title="Vender futuro + Comprar call"
           >
@@ -645,7 +645,7 @@ function SimuladorForm({
             className={`text-[10px] tracking-wide uppercase px-2 py-1 border ${
               tipo === "long_put"
                 ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
-                : "text-[#808080] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
+                : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-text)]"
             }`}
             title="Comprar put"
           >
@@ -654,14 +654,14 @@ function SimuladorForm({
         </div>
 
         <div className="flex items-center gap-1">
-          <span className="text-[9px] text-[#808080] uppercase">K</span>
+          <span className="text-[9px] text-[var(--t-text-dim)] uppercase">K</span>
           <select
             value={strike ?? ""}
             onChange={(e) =>
               setStrike(e.target.value ? Number(e.target.value) : null)
             }
             disabled={strikes.length === 0}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
           >
             {strikes.map((s) => (
               <option key={s.strike} value={s.strike}>
@@ -672,7 +672,7 @@ function SimuladorForm({
         </div>
 
         <div className="flex items-center gap-1">
-          <span className="text-[9px] text-[#808080] uppercase">Prima</span>
+          <span className="text-[9px] text-[var(--t-text-dim)] uppercase">Prima</span>
           <input
             type="number"
             step="0.01"
@@ -690,9 +690,9 @@ function SimuladorForm({
               !strikeTieneLast && !primaOverride
                 ? "border-[#ff9900]/60"
                 : "border-[var(--t-border-2)]"
-            } text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-20`}
+            } text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-20`}
           />
-          <span className="text-[9px] text-[#555]">USD</span>
+          <span className="text-[9px] text-[var(--t-text-muted)]">USD</span>
         </div>
       </div>
 
@@ -708,7 +708,7 @@ function SimuladorForm({
           Strike sin último operado — ingresá prima manual (bid/offer del panel).
         </div>
       ) : (
-        <div className="text-[10px] text-[#666] italic">Seleccioná un strike…</div>
+        <div className="text-[10px] text-[var(--t-text-muted)] italic">Seleccioná un strike…</div>
       )}
     </div>
   );
@@ -759,13 +759,13 @@ function KpiInline({
 }) {
   return (
     <div className="flex items-baseline gap-1">
-      <span className="text-[9px] text-[#808080] uppercase tracking-wide">
+      <span className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide">
         {label}
       </span>
       <span className="font-semibold" style={{ color }}>
         {value}
       </span>
-      {sub && <span className="text-[8px] text-[#555]">({sub})</span>}
+      {sub && <span className="text-[8px] text-[var(--t-text-muted)]">({sub})</span>}
     </div>
   );
 }

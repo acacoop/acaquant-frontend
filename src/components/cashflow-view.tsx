@@ -285,7 +285,7 @@ export function CashFlowView() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Cargando…
       </div>
     );
@@ -299,7 +299,7 @@ export function CashFlowView() {
   }
   if (flujos.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Sin datos.
       </div>
     );
@@ -351,7 +351,7 @@ export function CashFlowView() {
             <select
               value={filtroAcc}
               onChange={(e) => setFiltroAcc(e.target.value as FiltroAcc)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               <option>Todas</option>
               <option>Sin accionistas</option>
@@ -363,7 +363,7 @@ export function CashFlowView() {
             <select
               value={seleccion}
               onChange={(e) => setSeleccion(e.target.value)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               <option value="__TODAS__">Todas</option>
               {opciones.map((o) => (
@@ -378,7 +378,7 @@ export function CashFlowView() {
 
       <div className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 gap-3 auto-rows-min">
         {monedasSel.length === 0 && (
-          <div className="text-center text-[#555555] text-xs py-8">
+          <div className="text-center text-[var(--t-text-muted)] text-xs py-8">
             Seleccioná al menos una moneda.
           </div>
         )}
@@ -510,7 +510,7 @@ function MonedaChart({
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="py-8 text-center text-[#555555] text-xs">
+          <div className="py-8 text-center text-[var(--t-text-muted)] text-xs">
             Sin datos para {moneda}.
           </div>
         )}
@@ -530,7 +530,7 @@ function LegendStat({
 }) {
   return (
     <span>
-      <span className="text-[#888888]">{label}: </span>
+      <span className="text-[var(--t-text-dim)]">{label}: </span>
       <span style={{ color }} className="font-semibold">
         {value}
       </span>
@@ -547,7 +547,7 @@ function LabeledInput({
 }) {
   return (
     <div className="flex flex-col gap-1 min-w-0">
-      <span className="text-[10px] tracking-wide text-[#555555] uppercase">
+      <span className="text-[10px] tracking-wide text-[var(--t-text-muted)] uppercase">
         {label}
       </span>
       {children}
@@ -570,7 +570,7 @@ function Toggle({
       className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

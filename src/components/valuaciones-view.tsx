@@ -497,7 +497,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Cargando valuaciones…
       </div>
     );
@@ -537,10 +537,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
   if (chartData.length === 0 && meses.length === 0 && posiciones.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555] text-sm p-6 text-center">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm p-6 text-center">
         Sin datos de valuación para cuenta [{idCuenta}].
         <br />
-        <span className="text-[#444] text-xs">
+        <span className="text-[var(--t-text-muted)] text-xs">
           Asegurate que jobs/aum.py haya generado snapshots en Valuaciones.AuM.
         </span>
       </div>
@@ -563,7 +563,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               Evolución mensual · [{idCuenta}]
             </span>
             {chartDataVisible.length > 0 && (
-              <span className="text-[9px] text-[#555] font-mono">
+              <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
                 {fmtMesCorto(chartDataVisible[0].mes)} → {fmtMesCorto(chartDataVisible[chartDataVisible.length - 1].mes)}
               </span>
             )}
@@ -573,7 +573,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => o + 1)}
                 disabled={!chartPuedeAtras}
                 title="Período anterior"
-                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >◀</button>
               <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
                 {(["3M", "6M", "1A", "ALL"] as const).map((k) => (
@@ -584,7 +584,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       "px-2 py-0 text-[9px] uppercase tracking-wider " +
                       (chartRango === k
                         ? "bg-[#ff9900] text-black"
-                        : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                        : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                     }
                   >{k}</button>
                 ))}
@@ -593,15 +593,15 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => Math.max(0, o - 1))}
                 disabled={!chartPuedeAdelante}
                 title="Período siguiente"
-                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >▶</button>
             </div>
             {chartData.length > 0 && (
-              <span className="text-[10px] text-[#888] font-mono">
+              <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
                 Último: <span className="text-[#4a9eff] font-semibold">
                   {fmtCompact(chartData[chartData.length - 1].valuacion)}
                 </span>
-                <span className="text-[#555] ml-1">{esUSD ? "USD" : "ARS"}</span>
+                <span className="text-[var(--t-text-muted)] ml-1">{esUSD ? "USD" : "ARS"}</span>
               </span>
             )}
           </div>
@@ -629,7 +629,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               </div>
             )}
             {chartDataVisible.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+              <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                 Sin meses con data en este rango.
               </div>
             ) : (
@@ -745,7 +745,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     "px-2 py-0 text-[9px] uppercase tracking-wider " +
                     (moneda === m
                       ? "bg-[#ff9900] text-black"
-                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                   }
                   title={
                     m === "USD"
@@ -755,7 +755,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 >{m}</button>
               ))}
             </div>
-            <span className="ml-auto text-[10px] text-[#888] font-mono">
+            <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">
               {meses.length} mes{meses.length !== 1 ? "es" : ""}
             </span>
             <DownloadButton
@@ -810,12 +810,12 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             {meses.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+              <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                 Sin datos mensuales.
               </div>
             ) : (
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                   <tr>
                     <th className="px-2 py-1 text-left border-b border-[var(--t-border)]">Mes</th>
                     <th
@@ -876,7 +876,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         }>
                           {active && "▶ "}{fmtMesCorto(m.mes)}
                         </td>
-                        <td className="px-2 py-1 text-right text-[#d0d0d0] font-semibold">
+                        <td className="px-2 py-1 text-right text-[var(--t-text)] font-semibold">
                           {fmtCompact(cierre)}
                         </td>
                         <td
@@ -919,10 +919,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                             <div className="px-2 py-1.5">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-[9px] uppercase tracking-widest text-[#ff9900]">Flujo del mes</span>
-                                {movResp && <span className="text-[9px] text-[#555] font-mono">{fmtMesAnio(movResp.mes)}</span>}
-                                {movLoading && <span className="text-[9px] text-[#888]">cargando…</span>}
+                                {movResp && <span className="text-[9px] text-[var(--t-text-muted)] font-mono">{fmtMesAnio(movResp.mes)}</span>}
+                                {movLoading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
                                 {movResp && (
-                                  <span className="ml-auto text-[9px] text-[#888] font-mono">
+                                  <span className="ml-auto text-[9px] text-[var(--t-text-dim)] font-mono">
                                     {movResp.n} · <span className="text-[#4a9eff] font-semibold">neto {fmtSigned(movResp.total_neto)}</span>
                                   </span>
                                 )}
@@ -951,11 +951,11 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             Portfolio
           </span>
-          <span className="text-[9px] text-[#555] font-mono uppercase">
+          <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
             {!selectedFecha ? "actual" : "histórica"}
           </span>
           {ultimoSnap && (
-            <span className="text-[9px] text-[#555] font-mono">
+            <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
               {fmtFechaCorta(ultimoSnap)}
             </span>
           )}
@@ -969,7 +969,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                   "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                   (portfolioTab === t
                     ? "bg-[#ff9900] text-black"
-                    : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                    : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                 }
                 title={t === "variacion" ? "Variación vs mes anterior (requiere mes seleccionado)" : "Posiciones del portfolio"}
               >
@@ -978,7 +978,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             ))}
           </div>
           {portfolioTab === "variacion" && varLoading && (
-            <span className="text-[9px] text-[#888]">cargando…</span>
+            <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>
           )}
 
           {selectedFecha && (
@@ -992,7 +992,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           )}
 
           {posLoading && (
-            <span className="text-[9px] text-[#888]">cargando…</span>
+            <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>
           )}
 
           {/* Download button — exporta posición + flujos (si hay fecha) en hojas */}
@@ -1084,7 +1084,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           />
 
           {/* Header right: posiciones + total, o Δ total en la tab variación */}
-          <span className="text-[10px] text-[#888] font-mono">
+          <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
             {portfolioTab === "posiciones"
               ? <>{posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span></>
               : varResp?.totales && (
@@ -1096,14 +1096,14 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         <div className="flex-1 min-h-0 overflow-auto">
           {portfolioTab === "variacion" ? (
             !selectedFecha ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+              <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] p-4 text-center">
                 Seleccioná un mes en la tabla mensual para ver la variación vs el mes anterior.
               </div>
             ) : (
               <VariacionTabla varResp={varResp} />
             )
           ) : posiciones.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+              <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                 Sin posiciones activas.
               </div>
             ) : (
@@ -1120,7 +1120,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                   <col className="w-[11%]" />
                   <col className="w-[5%]" />
                 </colgroup>
-                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                   <tr>
                     <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Ticker</th>
                     <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Emisor</th>
@@ -1148,8 +1148,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       }`}
                     >
                       <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900] font-semibold">{p.ticker}</td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#d0d0d0]">{p.emisor || "—"}</td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">{p.clase_activo || "—"}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text)]">{p.emisor || "—"}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">{p.clase_activo || "—"}</td>
                       <td className="px-2 py-1 align-top">
                         <span className="inline-flex items-center gap-1">
                           <span
@@ -1161,19 +1161,19 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                           </span>
                         </span>
                       </td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">{p.calificacion || "—"}</td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">{p.calificacion || "—"}</td>
+                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">
                         {p.vencimiento ? fmtFechaCorta(p.vencimiento) : "—"}
                       </td>
-                      <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtQty(p.cantidad)}</td>
-                      <td className="px-2 py-1 align-top text-right text-[#888]">{fmtPrice(p.precio)}</td>
+                      <td className="px-2 py-1 align-top text-right text-[var(--t-text)]">{fmtQty(p.cantidad)}</td>
+                      <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtPrice(p.precio)}</td>
                       <td
                         className="px-2 py-1 align-top text-right font-semibold"
                         style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "#ff3333" }}
                       >
                         {fmtCompact(p.valuacion)}
                       </td>
-                      <td className="px-2 py-1 align-top text-right text-[#888]">
+                      <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">
                         {p.share != null ? p.share.toFixed(1) + "%" : "—"}
                       </td>
                     </tr>
@@ -1194,7 +1194,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[#888] flex items-center gap-1">
+          <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[var(--t-text-dim)] flex items-center gap-1">
             <span
               className="text-[#ff9900] font-semibold truncate max-w-[150px]"
               title={ctxMenu.pos.ticker}
@@ -1214,7 +1214,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             <span>▸</span>
             <span>
               OPERAR{_posOperable(ctxMenu.pos).isFci ? " (FCI)" : ""} ·{" "}
-              <span className="text-[#888]">cuenta {idCuenta}</span>
+              <span className="text-[var(--t-text-dim)]">cuenta {idCuenta}</span>
             </span>
           </button>
         </div>
@@ -1232,7 +1232,7 @@ function colorDeltaMod(n: number | null | undefined): string {
 function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
   if (!movResp || movResp.movimientos.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+      <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] p-4 text-center">
         Sin depósitos / extracciones / transferencias en el mes.
       </div>
     );
@@ -1247,7 +1247,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
         <col className="w-[15%]" />
         <col className="w-[34%]" />
       </colgroup>
-      <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
         <tr>
           <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Fecha</th>
           <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Tipo</th>
@@ -1265,7 +1265,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
           const isDep = m.categoria === "deposito" || m.categoria === "transferencia";
           return (
             <tr key={m.comprobante ?? m.fecha} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
-              <td className="px-2 py-1 align-top text-[#888]">{fmtFechaCorta(m.fecha)}</td>
+              <td className="px-2 py-1 align-top text-[var(--t-text-dim)]">{fmtFechaCorta(m.fecha)}</td>
               <td className="px-2 py-1 align-top whitespace-normal break-words">
                 <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
                   {m.categoria === "deposito"
@@ -1278,19 +1278,19 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
                 </span>
               </td>
               <td
-                className="px-2 py-1 align-top text-right text-[#888]"
+                className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]"
                 title={m.mep_rate ? `MEP usado: ${m.mep_rate.toLocaleString("es-AR")}` : ""}
               >
                 {fmtSigned(m.importe)}
               </td>
-              <td className="px-2 py-1 align-top text-[#888]">{m.moneda ?? "—"}</td>
+              <td className="px-2 py-1 align-top text-[var(--t-text-dim)]">{m.moneda ?? "—"}</td>
               <td
                 className="px-2 py-1 align-top text-right font-semibold"
                 style={{ color: (m.importe_ars ?? 0) >= 0 ? "#00cc66" : "#ff5d6c" }}
               >
                 {fmtSigned(m.importe_ars)}
               </td>
-              <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]" title={m.informacion ?? ""}>
+              <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]" title={m.informacion ?? ""}>
                 {m.informacion ?? "—"}
               </td>
             </tr>
@@ -1305,7 +1305,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
 function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
   if (!varResp || varResp.error || !varResp.totales) {
     return (
-      <div className="h-full flex items-center justify-center text-[11px] text-[#555] p-4 text-center">
+      <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] p-4 text-center">
         {varResp?.error ?? "Sin datos de variación."}
       </div>
     );
@@ -1321,7 +1321,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
         <col className="w-[12%]" />
         <col className="w-[13%]" />
       </colgroup>
-      <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
         <tr>
           <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Título</th>
           <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Tipo</th>
@@ -1344,14 +1344,14 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
             <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900]" title={f.unidad}>
               {f.unidad}
               {f.estado !== "ambos" && (
-                <span className="text-[#666] ml-1">
+                <span className="text-[var(--t-text-muted)] ml-1">
                   {f.estado === "nuevo" ? "(nuevo)" : "(cerrado)"}
                 </span>
               )}
             </td>
-            <td className="px-2 py-1 align-top whitespace-normal break-words text-[#888]">{f.tipo ?? "—"}</td>
-            <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(f.val_anterior)}</td>
-            <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(f.val_actual)}</td>
+            <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">{f.tipo ?? "—"}</td>
+            <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtCompact(f.val_anterior)}</td>
+            <td className="px-2 py-1 align-top text-right text-[var(--t-text)]">{fmtCompact(f.val_actual)}</td>
             <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(f.delta_mercado) }}>
               {fmtSigned(f.delta_mercado)}
             </td>
@@ -1365,12 +1365,12 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
         ))}
         {varResp.otros && varResp.otros.delta_total !== 0 && (
           <tr className="border-t border-[#222] bg-[#0c0c0c]">
-            <td className="px-2 py-1 align-top text-[#888] italic">
+            <td className="px-2 py-1 align-top text-[var(--t-text-dim)] italic">
               OTROS · efectivo ({varResp.otros.n ?? 0})
             </td>
-            <td className="px-2 py-1 align-top text-[#888]">—</td>
-            <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(varResp.otros.val_anterior)}</td>
-            <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(varResp.otros.val_actual)}</td>
+            <td className="px-2 py-1 align-top text-[var(--t-text-dim)]">—</td>
+            <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtCompact(varResp.otros.val_anterior)}</td>
+            <td className="px-2 py-1 align-top text-right text-[var(--t-text)]">{fmtCompact(varResp.otros.val_actual)}</td>
             <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.otros.delta_mercado) }}>
               {fmtSigned(varResp.otros.delta_mercado)}
             </td>
@@ -1384,8 +1384,8 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
         )}
         <tr className="border-t-2 border-[#333] bg-[var(--t-surface-2)] font-semibold">
           <td className="px-2 py-1 align-top text-[#ff9900]" colSpan={2}>TOTAL</td>
-          <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(varResp.totales.val_anterior)}</td>
-          <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(varResp.totales.val_actual)}</td>
+          <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtCompact(varResp.totales.val_anterior)}</td>
+          <td className="px-2 py-1 align-top text-right text-[var(--t-text)]">{fmtCompact(varResp.totales.val_actual)}</td>
           <td className="px-2 py-1 align-top text-right" style={{ color: colorDeltaMod(varResp.totales.delta_mercado) }}>
             {fmtSigned(varResp.totales.delta_mercado)}
           </td>

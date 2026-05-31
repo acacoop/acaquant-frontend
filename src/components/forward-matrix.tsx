@@ -35,7 +35,7 @@ function textColor(bg: string): string {
 }
 
 export function ForwardMatrix({ tickers, matrix }: ForwardMatrixProps) {
-  if (tickers.length < 2) return <p className="text-[#555555] text-xs py-4 text-center">Mínimo 2 instrumentos</p>;
+  if (tickers.length < 2) return <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Mínimo 2 instrumentos</p>;
 
   const short = tickers.map(shortTicker);
 
@@ -76,7 +76,7 @@ export function ForwardMatrix({ tickers, matrix }: ForwardMatrixProps) {
                 }
                 const val = matrix[tLargo]?.[tCorto];
                 if (val === null || val === undefined) {
-                  return <td key={tCorto} className="!px-2 !py-1 text-center text-[#555555]">--</td>;
+                  return <td key={tCorto} className="!px-2 !py-1 text-center text-[var(--t-text-muted)]">--</td>;
                 }
                 const bg = heatmapColor(val, vMin, vMedian, vMax);
                 const fg = textColor(bg);

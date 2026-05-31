@@ -51,16 +51,16 @@ export function Panel({
         {title}
       </span>
       {count !== undefined && (
-        <span className="ml-2 text-[10px] text-[#555555]">({count})</span>
+        <span className="ml-2 text-[10px] text-[var(--t-text-muted)]">({count})</span>
       )}
       {actions && <div className="ml-3 flex items-center gap-1">{actions}</div>}
       {sub && (
-        <span className="ml-auto text-[10px] text-[#555555]">{sub}</span>
+        <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">{sub}</span>
       )}
       {expandable && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="ml-auto text-[#555555] hover:text-[#ff9900] transition-colors p-0.5"
+          className="ml-auto text-[var(--t-text-muted)] hover:text-[#ff9900] transition-colors p-0.5"
           title={expanded ? "Minimizar" : "Maximizar"}
         >
           {expanded ? <CollapseIcon /> : <ExpandIcon />}

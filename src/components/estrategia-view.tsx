@@ -52,9 +52,9 @@ function Metric({ label, value, hint }: {
 }) {
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-1.5">
-      <div className="text-[8px] text-[#555555] uppercase tracking-wide">{label}</div>
-      <div className="text-[13px] font-mono text-[#d0d0d0]">{value}</div>
-      {hint && <div className="text-[8px] text-[#555555]">{hint}</div>}
+      <div className="text-[8px] text-[var(--t-text-muted)] uppercase tracking-wide">{label}</div>
+      <div className="text-[13px] font-mono text-[var(--t-text)]">{value}</div>
+      {hint && <div className="text-[8px] text-[var(--t-text-muted)]">{hint}</div>}
     </div>
   );
 }
@@ -90,22 +90,22 @@ export function EstrategiaView() {
       {/* Form */}
       <div className="flex items-end gap-2 flex-wrap">
         <div>
-          <div className="text-[8px] text-[#555555] uppercase mb-0.5">Ticker</div>
+          <div className="text-[8px] text-[var(--t-text-muted)] uppercase mb-0.5">Ticker</div>
           <input
             value={ticker}
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
             placeholder="IBIT"
-            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
           />
         </div>
         <div>
-          <div className="text-[8px] text-[#555555] uppercase mb-0.5">Monto USD</div>
+          <div className="text-[8px] text-[var(--t-text-muted)] uppercase mb-0.5">Monto USD</div>
           <input
             value={monto}
             onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
-            className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
           />
         </div>
         <div className="flex gap-1">
@@ -118,7 +118,7 @@ export function EstrategiaView() {
                   ? d === "long"
                     ? "bg-[#00cc66] text-black border-[#00cc66]"
                     : "bg-[#ff3333] text-black border-[#ff3333]"
-                  : "bg-transparent text-[#555555] border-[var(--t-border-2)]"
+                  : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)]"
               }`}
             >
               {d.toUpperCase()}
@@ -128,7 +128,7 @@ export function EstrategiaView() {
         <button
           onClick={analizar}
           disabled={loading || !ticker.trim()}
-          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
         >
           {loading ? "Analizando…" : "▶ Analizar"}
         </button>
@@ -136,7 +136,7 @@ export function EstrategiaView() {
 
       {error && <div className="text-[#ff7f7f] italic">{error}</div>}
       {!data && !error && (
-        <p className="text-[#555555] py-4">Meté un ticker y el monto del trade.</p>
+        <p className="text-[var(--t-text-muted)] py-4">Meté un ticker y el monto del trade.</p>
       )}
 
       {data && c && (
@@ -174,14 +174,14 @@ export function EstrategiaView() {
               <div className="flex gap-2 flex-wrap font-mono">
                 {data.hedge_beta.map((h) => (
                   <div key={h.benchmark} className="border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-1.5">
-                    <span className="text-[#d0d0d0] font-semibold">
+                    <span className="text-[var(--t-text)] font-semibold">
                       {h.accion.toUpperCase()} {fmtUsd(h.notional)} {h.benchmark}
                     </span>
-                    <span className="text-[#555555]"> · β {h.beta}</span>
+                    <span className="text-[var(--t-text-muted)]"> · β {h.beta}</span>
                   </div>
                 ))}
               </div>
-              <div className="text-[8px] text-[#555555] mt-0.5">
+              <div className="text-[8px] text-[var(--t-text-muted)] mt-0.5">
                 Saca el riesgo de mercado; queda la apuesta idiosincrática (el residual).
               </div>
             </div>
@@ -194,7 +194,7 @@ export function EstrategiaView() {
                 HEDGE-FINDER — universo rankeado por correlación
               </div>
               <table className="w-full font-mono">
-                <thead className="text-[#555555] text-[8px]">
+                <thead className="text-[var(--t-text-muted)] text-[8px]">
                   <tr>
                     <th className="text-left px-1">TICKER</th>
                     <th className="text-right px-1">CORRELACIÓN</th>
@@ -208,7 +208,7 @@ export function EstrategiaView() {
                   {data.hedge_finder.slice(0, 15).map((h) => (
                     <tr key={h.ticker} className="border-b border-[var(--t-border)]">
                       <td className="text-[#ff9900] px-1">{h.ticker}</td>
-                      <td className={`text-right px-1 ${h.correlacion < 0 ? "text-[#3fbf6f]" : "text-[#d0d0d0]"}`}>
+                      <td className={`text-right px-1 ${h.correlacion < 0 ? "text-[#3fbf6f]" : "text-[var(--t-text)]"}`}>
                         {h.correlacion.toFixed(2)}
                       </td>
                       <td className="text-center px-1">
@@ -216,21 +216,21 @@ export function EstrategiaView() {
                           {h.accion.toUpperCase()}
                         </span>
                       </td>
-                      <td className="text-right px-1 text-[#d0d0d0]">{h.hedge_ratio ?? "—"}</td>
-                      <td className="text-right px-1 text-[#d0d0d0]">{fmtUsd(h.notional_hedge)}</td>
-                      <td className="text-right px-1 text-[#d0d0d0]">{h.reduccion_vol_pct}%</td>
+                      <td className="text-right px-1 text-[var(--t-text)]">{h.hedge_ratio ?? "—"}</td>
+                      <td className="text-right px-1 text-[var(--t-text)]">{fmtUsd(h.notional_hedge)}</td>
+                      <td className="text-right px-1 text-[var(--t-text)]">{h.reduccion_vol_pct}%</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <div className="text-[8px] text-[#555555] mt-1">
+              <div className="text-[8px] text-[var(--t-text-muted)] mt-1">
                 Correlación negativa (verde) = cubrís longueando ese activo. Positiva = cubrís
                 shorteando. Hedge ratio = ratio de mínima varianza.
               </div>
             </div>
           )}
 
-          <div className="text-[8px] text-[#555555] italic">{data.nota}</div>
+          <div className="text-[8px] text-[var(--t-text-muted)] italic">{data.nota}</div>
         </>
       )}
     </div>

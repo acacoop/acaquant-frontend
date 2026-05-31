@@ -21,7 +21,7 @@ export function EscenariosTabla({
 
   if (!legs.length || spot <= 0) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin patas para calcular escenarios.
       </p>
     );
@@ -33,11 +33,11 @@ export function EscenariosTabla({
       maximumFractionDigits: 0,
     });
   const plColor = (v: number) =>
-    v > 0 ? "text-[#00cc66]" : v < 0 ? "text-[#ff4444]" : "text-[#808080]";
+    v > 0 ? "text-[#00cc66]" : v < 0 ? "text-[#ff4444]" : "text-[var(--t-text-dim)]";
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="text-[9px] text-[#555555] pb-1 shrink-0">
+      <div className="text-[9px] text-[var(--t-text-muted)] pb-1 shrink-0">
         ±2%/paso · r={(tasa * 100).toFixed(1)}%
         {T
           ? ` · T≈${Math.round(T * 365)}d`
@@ -46,7 +46,7 @@ export function EscenariosTabla({
       <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-[10px]">
           <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-            <tr className="text-[#707070]">
+            <tr className="text-[var(--t-text-muted)]">
               <th className="!px-1 text-right">PRECIO</th>
               <th className="!px-1 text-right">VAR</th>
               <th className="!px-1 text-right">FINISH</th>
@@ -56,10 +56,10 @@ export function EscenariosTabla({
           <tbody>
             {rows.map((r) => (
               <tr key={r.varPct}>
-                <td className="!px-1 text-right text-[#d0d0d0]">
+                <td className="!px-1 text-right text-[var(--t-text)]">
                   ${fmtMoney(r.precio)}
                 </td>
-                <td className="!px-1 text-right text-[#808080]">
+                <td className="!px-1 text-right text-[var(--t-text-dim)]">
                   {(r.varPct * 100).toFixed(0)}%
                 </td>
                 <td

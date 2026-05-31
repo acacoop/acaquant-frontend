@@ -93,11 +93,11 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--t-border-2)]">
           <div className="flex items-baseline gap-3">
             <span className="text-[#ff9900] font-semibold tracking-wide">{tickerCorto}</span>
-            <span className="text-[10px] text-[#666666]">RESIDUO 60 DÍAS</span>
+            <span className="text-[10px] text-[var(--t-text-muted)]">RESIDUO 60 DÍAS</span>
           </div>
           <button
             onClick={onClose}
-            className="text-[#888888] hover:text-[#ff9900] text-sm px-2"
+            className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-sm px-2"
           >
             ✕
           </button>
@@ -105,11 +105,11 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
 
         <div className="flex-1 min-h-0 p-3">
           {loading ? (
-            <p className="text-[#555555] text-xs text-center py-8">cargando…</p>
+            <p className="text-[var(--t-text-muted)] text-xs text-center py-8">cargando…</p>
           ) : error ? (
             <p className="text-[#c0271a] text-xs text-center py-8">error: {error}</p>
           ) : !chartData.length ? (
-            <p className="text-[#555555] text-xs text-center py-8">SIN HISTÓRICO</p>
+            <p className="text-[var(--t-text-muted)] text-xs text-center py-8">SIN HISTÓRICO</p>
           ) : (
             <div className="h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -174,7 +174,7 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
           )}
 
           {stats && (
-            <div className="mt-2 text-[10px] text-[#888888] flex gap-4 flex-wrap">
+            <div className="mt-2 text-[10px] text-[var(--t-text-dim)] flex gap-4 flex-wrap">
               <span>Hoy <span className="text-[#ff9900]">{stats.last.residuo_bps.toFixed(1)}bps</span></span>
               <span>Media 30d {stats.media.toFixed(1)}bps</span>
               <span>σ 30d {stats.desvio.toFixed(1)}bps</span>

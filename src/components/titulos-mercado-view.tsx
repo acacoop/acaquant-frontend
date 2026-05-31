@@ -287,15 +287,15 @@ export function TitulosMercadoView() {
         >
           {data.mercado_cerrado ? (
             <div className="py-8 text-center">
-              <div className="text-[#888] text-sm font-semibold tracking-wide">
+              <div className="text-[var(--t-text-dim)] text-sm font-semibold tracking-wide">
                 MERCADO CERRADO
               </div>
-              <div className="text-[10px] text-[#555] mt-1">
+              <div className="text-[10px] text-[var(--t-text-muted)] mt-1">
                 Fin de semana o feriado argentino — no hay liquidación hoy.
               </div>
             </div>
           ) : tickersFiltrados.length === 0 ? (
-            <p className="text-[#555] text-xs py-6 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
               {data.tickers.length === 0
                 ? "Sin operaciones que liquiden hoy"
                 : "Sin tickers que matcheen el filtro"}
@@ -335,12 +335,12 @@ function Header({
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex items-center gap-3 flex-wrap shrink-0">
       <div className="flex items-center gap-2">
-        <span className="text-[9px] text-[#666] tracking-widest">LIQUIDA</span>
+        <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">LIQUIDA</span>
         <span className="text-[#ff9900] font-mono text-[12px] font-semibold">
           {fmtFecha(fecha) || "—"}
         </span>
         {!mercadoCerrado && diaAnterior && (
-          <span className="text-[9px] text-[#666]">
+          <span className="text-[9px] text-[var(--t-text-muted)]">
             (CI/Inm de hoy + 24hs de {fmtFecha(diaAnterior)})
           </span>
         )}
@@ -349,14 +349,14 @@ function Header({
         <>
           <div className="h-4 w-px bg-[#1a1a1a]" />
           <div className="flex items-center gap-2">
-            <span className="text-[9px] text-[#666] tracking-widest">ENVIAR</span>
+            <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">ENVIAR</span>
             <span className="text-[#f87171] font-mono text-[12px] font-semibold">
               {fmt(enviarVal)}
             </span>
           </div>
           <div className="h-4 w-px bg-[#1a1a1a]" />
           <div className="flex items-center gap-2">
-            <span className="text-[9px] text-[#666] tracking-widest">RECIBIR</span>
+            <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">RECIBIR</span>
             <span className="text-[#4ade80] font-mono text-[12px] font-semibold">
               {fmt(recibirVal)}
             </span>
@@ -372,7 +372,7 @@ function Header({
             ⚠ {plazosDesconocidos.length} plazo(s) sin clasificar
           </span>
         )}
-        <span className="text-[9px] text-[#555]">ÚLT {ultimoDisplay}</span>
+        <span className="text-[9px] text-[var(--t-text-muted)]">ÚLT {ultimoDisplay}</span>
       </div>
     </div>
   );
@@ -394,7 +394,7 @@ function FiltroBtns({
           className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
             filtro === f
               ? "bg-[#ff9900] text-black border-[#ff9900]"
-              : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+              : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
           }`}
         >
           {f.toUpperCase()}
@@ -423,7 +423,7 @@ function VistaToggle({
           className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
             vista === v
               ? "bg-[#e0c890] text-black border-[#e0c890]"
-              : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#e0c890] hover:border-[#e0c890]"
+              : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#e0c890] hover:border-[#e0c890]"
           }`}
         >
           {label}
@@ -449,7 +449,7 @@ function UnidadToggle({
           className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
             unidad === u
               ? "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]"
-              : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#3b82f6] hover:border-[#3b82f6]"
+              : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#3b82f6] hover:border-[#3b82f6]"
           }`}
         >
           {u === "nominales" ? "NOM" : "$"}
@@ -501,7 +501,7 @@ function TablaTickers({
 
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)] w-6" />
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">
@@ -523,7 +523,7 @@ function TablaTickers({
                   : "más a recibir arriba"
             }`}
             className={`text-right px-2 py-1.5 border-b border-[var(--t-border)] cursor-pointer select-none ${
-              netoSort ? "text-[#ff9900]" : "hover:text-[#d0d0d0]"
+              netoSort ? "text-[#ff9900]" : "hover:text-[var(--t-text)]"
             }`}
           >
             Neto{" "}
@@ -553,14 +553,14 @@ function TablaTickers({
               ? "text-[#f87171]"
               : netoVal < 0
                 ? "text-[#4ade80]"
-                : "text-[#666]";
+                : "text-[var(--t-text-muted)]";
           return (
             <Fragment key={t.ticker}>
               <tr
                 onClick={() => toggle(t.ticker)}
                 className="border-b border-[#101010] hover:bg-[#0d0d0d] cursor-pointer"
               >
-                <td className="px-2 py-1 text-[#666] text-[10px]">
+                <td className="px-2 py-1 text-[var(--t-text-muted)] text-[10px]">
                   {isOpen ? "▼" : "▶"}
                 </td>
                 <td className="px-2 py-1 text-[#ff9900] font-semibold">
@@ -576,7 +576,7 @@ function TablaTickers({
                   {fmt(Math.abs(netoVal))}
                   {netoVal > 0 ? " ↑" : netoVal < 0 ? " ↓" : ""}
                 </td>
-                <td className="px-2 py-1 text-right text-[#808080]">
+                <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
                   {t.n_ops}
                 </td>
               </tr>
@@ -605,7 +605,7 @@ function CuentasDetail({
 }) {
   return (
     <table className="w-full text-[10px] font-mono tabular-nums">
-      <thead className="text-[9px] text-[#666] uppercase tracking-wide">
+      <thead className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide">
         <tr>
           <th className="text-left px-1.5 py-0.5">Cuenta</th>
           <th className="text-left px-1.5 py-0.5">Op</th>
@@ -628,7 +628,7 @@ function CuentasDetail({
               key={`${c.comprobante ?? i}-${c.op}`}
               className="border-b border-[#101010]"
             >
-              <td className="px-1.5 py-0.5 text-[#d0d0d0]">{c.cuenta}</td>
+              <td className="px-1.5 py-0.5 text-[var(--t-text)]">{c.cuenta}</td>
               <td
                 className={`px-1.5 py-0.5 font-semibold ${
                   isVenta ? "text-[#f87171]" : "text-[#4ade80]"
@@ -636,17 +636,17 @@ function CuentasDetail({
               >
                 {c.op}
               </td>
-              <td className="px-1.5 py-0.5 text-[#808080]">{c.plazo ?? "—"}</td>
-              <td className="px-1.5 py-0.5 text-center text-[#808080]">
+              <td className="px-1.5 py-0.5 text-[var(--t-text-dim)]">{c.plazo ?? "—"}</td>
+              <td className="px-1.5 py-0.5 text-center text-[var(--t-text-dim)]">
                 {fmtFecha(c.fecha)}
               </td>
-              <td className="px-1.5 py-0.5 text-right text-[#d0d0d0]">
+              <td className="px-1.5 py-0.5 text-right text-[var(--t-text)]">
                 {fmtVal(valor)}
               </td>
-              <td className="px-1.5 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPrice(c.precio)}
               </td>
-              <td className="px-1.5 py-0.5 text-[#666] text-[9px]">
+              <td className="px-1.5 py-0.5 text-[var(--t-text-muted)] text-[9px]">
                 {c.comprobante ?? "—"}
               </td>
             </tr>
@@ -681,7 +681,7 @@ function TablaTickerComitente({
 
   if (filas.length === 0) {
     return (
-      <p className="text-[#555] text-xs py-6 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
         Sin pares ticker/comitente con el filtro actual
       </p>
     );
@@ -689,7 +689,7 @@ function TablaTickerComitente({
 
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">Ticker</th>
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">Comitente</th>
@@ -709,7 +709,7 @@ function TablaTickerComitente({
               ? "text-[#f87171]"
               : netoVal < 0
                 ? "text-[#4ade80]"
-                : "text-[#666]";
+                : "text-[var(--t-text-muted)]";
           const isFirst = firstOf[i];
           return (
             <tr
@@ -725,10 +725,10 @@ function TablaTickerComitente({
               >
                 {f.ticker}
               </td>
-              <td className="px-2 py-1 text-[#d0d0d0]">
+              <td className="px-2 py-1 text-[var(--t-text)]">
                 {f.cuenta}
                 {f.id_cuenta && (
-                  <span className="ml-1 text-[9px] text-[#555]">
+                  <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">
                     [{f.id_cuenta}]
                   </span>
                 )}
@@ -743,7 +743,7 @@ function TablaTickerComitente({
                 {fmt(Math.abs(netoVal))}
                 {netoVal > 0 ? " ↑" : netoVal < 0 ? " ↓" : ""}
               </td>
-              <td className="px-2 py-1 text-right text-[#808080]">{f.n_ops}</td>
+              <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{f.n_ops}</td>
             </tr>
           );
         })}

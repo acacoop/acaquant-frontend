@@ -116,19 +116,19 @@ export function DolarMepShell() {
           </SubTabBtn>
         </div>
         <div className="flex items-baseline gap-2">
-          <span className="text-[9px] tracking-wider text-[#888]">MEP {rueda}</span>
+          <span className="text-[9px] tracking-wider text-[var(--t-text-dim)]">MEP {rueda}</span>
           <span className="text-[20px] font-bold tracking-wide text-[#ff9900] tabular-nums leading-none">
             {mep !== null ? `$${mep.toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className="flex items-baseline gap-3 text-[10px] text-[#888]">
+        <div className="flex items-baseline gap-3 text-[10px] text-[var(--t-text-dim)]">
           <span>AL30: {precioAl30 !== null ? `$${precioAl30.toFixed(2)}` : "—"}</span>
           <span>AL30D: {precioAl30d !== null ? `US$${precioAl30d.toFixed(2)}` : "—"}</span>
           {cot?.al30?.ts && (
-            <span className="text-[#666]">last {fmtTime(cot.al30.ts)}</span>
+            <span className="text-[var(--t-text-muted)]">last {fmtTime(cot.al30.ts)}</span>
           )}
         </div>
-        <div className="ml-auto text-[10px] text-[#666]">refresca cada 2s</div>
+        <div className="ml-auto text-[10px] text-[var(--t-text-muted)]">refresca cada 2s</div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -183,7 +183,7 @@ function SubTabBtn({
       className={`px-3 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

@@ -116,7 +116,7 @@ export function CanjeTab() {
       {/* Controles */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-[#555]">Par</span>
+          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">Par</span>
           <div className="flex items-center gap-1 h-[26px]">
             {PARES.map((p) => (
               <button
@@ -125,7 +125,7 @@ export function CanjeTab() {
                 className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                   par === p
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
                 {p}
@@ -133,7 +133,7 @@ export function CanjeTab() {
             ))}
           </div>
         </div>
-        <div className="ml-auto text-[10px] text-[#555] font-mono">
+        <div className="ml-auto text-[10px] text-[var(--t-text-muted)] font-mono">
           {loading
             ? "actualizando…"
             : data
@@ -168,7 +168,7 @@ export function CanjeTab() {
       {/* Chart */}
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] p-2">
         {chartData.length < 2 ? (
-          <p className="text-[#555] text-xs py-4 text-center">
+          <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
             {loading ? "Cargando…" : "Sin datos suficientes."}
           </p>
         ) : (
@@ -223,15 +223,15 @@ export function CanjeTab() {
         <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
           Cálculo
         </div>
-        <div className="text-[#d0d0d0]">
+        <div className="text-[var(--t-text)]">
           Canje = Precio<sub>C</sub> / Precio<sub>D</sub> − 1
         </div>
-        <div className="text-[#888] mt-1 leading-relaxed">
+        <div className="text-[var(--t-text-dim)] mt-1 leading-relaxed">
           Spread implícito de cable: cuánto más caro está el bono en CCL (USD
           afuera) que en MEP (USD acá). Un canje en alza señala fuga de USD
           hacia el exterior; comprime cuando hay confianza local.
           <br />
-          <span className="text-[#555]">Solo se grafican días con ambos precios disponibles.</span>
+          <span className="text-[var(--t-text-muted)]">Solo se grafican días con ambos precios disponibles.</span>
         </div>
       </div>
     </div>
@@ -256,10 +256,10 @@ function Kpi({
         ? "text-[#ff3333]"
         : highlight
           ? "text-[#ff9900]"
-          : "text-[#d0d0d0]";
+          : "text-[var(--t-text)]";
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2">
-      <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1">{label}</div>
+      <div className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] mb-1">{label}</div>
       <div className={`text-[14px] font-mono font-semibold ${color}`}>{value}</div>
     </div>
   );

@@ -70,12 +70,12 @@ export function ValuacionesShell() {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
+          <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CUENTA</span>
           <button
             onClick={() => prev && setValCuenta(prev)}
             disabled={!prev}
             title="Cuenta anterior"
-            className="px-1 py-0.5 text-[10px] text-[#888] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+            className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
           >
             ◀
           </button>
@@ -88,7 +88,7 @@ export function ValuacionesShell() {
             onClick={() => next && setValCuenta(next)}
             disabled={!next}
             title="Cuenta siguiente"
-            className="px-1 py-0.5 text-[10px] text-[#888] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+            className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
           >
             ▶
           </button>
@@ -101,7 +101,7 @@ export function ValuacionesShell() {
               className={`px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
                 valSubtab === s
                   ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
               }`}
             >
               {s === "portafolio"
@@ -130,7 +130,7 @@ export function ValuacionesShell() {
             <PnLTitulosView idCuenta={valCuenta} />
           )
         ) : (
-          <div className="h-full flex items-center justify-center text-[#555] text-sm">
+          <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
             Cargando cuentas…
           </div>
         )}

@@ -45,7 +45,7 @@ function fmtTna(v: number | null | undefined): string {
 
 function PctCell({ v }: { v: number | null | undefined }) {
   if (v === null || v === undefined) {
-    return <td className="px-2 py-0.5 text-right text-[#555555] tabular-nums">—</td>;
+    return <td className="px-2 py-0.5 text-right text-[var(--t-text-muted)] tabular-nums">—</td>;
   }
   const color = v >= 0 ? "#00cc66" : "#ff3333";
   return (
@@ -247,15 +247,15 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
           className="w-1.5 h-1.5 rounded-full"
           style={{ background: loading ? "#ff9900" : "#00cc66" }}
         />
-        <span className="text-[9px] text-[#555555] tracking-wide uppercase">
+        <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">
           {lastFetch
             ? `${lastFetch.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
             : "—"}
         </span>
-        <span className="text-[9px] text-[#555555]">
+        <span className="text-[9px] text-[var(--t-text-muted)]">
           · poll {filtro === "FUTUROS ROFEX" || filtro === "ARGY" ? "5s" : "30s"}
         </span>
-        <span className="ml-auto text-[9px] text-[#555555]">{totalVisibles}</span>
+        <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{totalVisibles}</span>
       </div>
 
       {/* Chips de filtro */}
@@ -267,7 +267,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
             className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
               filtro === g
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {g}
@@ -281,7 +281,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         )}
 
         {!loading && totalVisibles === 0 && !error && (
-          <div className="px-3 py-6 text-[11px] text-[#555555] text-center font-mono">
+          <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center font-mono">
             Sin tickers en este filtro.
           </div>
         )}
@@ -290,7 +290,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         {visiblesGlobales.length > 0 && (
           <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-[var(--t-panel)] z-10 border-b border-[var(--t-border)]">
-              <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
+              <tr className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Símbolo</th>
                 <th className="px-2 py-1 text-right">Último</th>
                 <th className="px-2 py-1 text-right">%Día</th>
@@ -315,8 +315,8 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                         : "hover:bg-[var(--t-surface)]"
                     }`}
                   >
-                    <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{q.symbol}</td>
-                    <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
+                    <td className="px-2 py-0.5 text-[var(--t-text)] font-semibold">{q.symbol}</td>
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text)] tabular-nums">
                       {fmtPrice(q.last)}
                     </td>
                     <PctCell v={q.pct_day} />
@@ -334,7 +334,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         {visiblesFuturosDlr.length > 0 && (
           <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-[var(--t-panel)] z-10 border-b border-[var(--t-border)]">
-              <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
+              <tr className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Ticker</th>
                 <th className="px-2 py-1 text-right">Días</th>
                 <th className="px-2 py-1 text-right">Último</th>
@@ -378,14 +378,14 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                         : "hover:bg-[var(--t-surface)]"
                     }`}
                   >
-                    <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{f.ticker}</td>
-                    <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
+                    <td className="px-2 py-0.5 text-[var(--t-text)] font-semibold">{f.ticker}</td>
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)] tabular-nums">
                       {f.dias_a_vto}
                     </td>
-                    <td className="px-2 py-0.5 text-right text-[#d0d0d0] tabular-nums">
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text)] tabular-nums">
                       {fmtPriceDlr(f.last_price)}
                     </td>
-                    <td className="px-2 py-0.5 text-right text-[#888888] tabular-nums">
+                    <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)] tabular-nums">
                       {fmtPriceDlr(f.spot_referencia)}
                     </td>
                     <PctCell v={directo} />
@@ -413,7 +413,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         {visiblesArgy.length > 0 && (
           <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-[var(--t-panel)] z-10 border-b border-[var(--t-border)]">
-              <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
+              <tr className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Concepto</th>
                 <th className="px-2 py-1 text-right">Valor</th>
                 <th className="px-2 py-1 text-right">%Día</th>
@@ -438,10 +438,10 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     key={r.label}
                     className="border-b border-[#0e0e0e] hover:bg-[var(--t-surface)]"
                   >
-                    <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">
+                    <td className="px-2 py-0.5 text-[var(--t-text)] font-semibold">
                       {r.label}
                       {labelExtra && (
-                        <span className="text-[#555555] font-normal">{labelExtra}</span>
+                        <span className="text-[var(--t-text-muted)] font-normal">{labelExtra}</span>
                       )}
                     </td>
                     <td

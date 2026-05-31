@@ -104,10 +104,10 @@ export function fmtSigned(n: number): string {
 }
 
 export function pnlClass(n: number | null | undefined): string {
-  if (n == null) return "text-[#888]";
+  if (n == null) return "text-[var(--t-text-dim)]";
   if (n > 0) return "text-[#00cc66]";
   if (n < 0) return "text-[#ff4d4d]";
-  return "text-[#888]";
+  return "text-[var(--t-text-dim)]";
 }
 
 // Valor / costo de una fila según moneda. En USD el costo va al MEP
@@ -241,13 +241,13 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
     sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "";
 
   if (!idCuenta) {
-    return <div className="h-full flex items-center justify-center text-[#555] text-[11px]">Elegí una cuenta.</div>;
+    return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">Elegí una cuenta.</div>;
   }
   if (err) {
     return <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>;
   }
   if (loading && !data) {
-    return <div className="h-full flex items-center justify-center text-[#555] text-[11px]">Cargando…</div>;
+    return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">Cargando…</div>;
   }
   if (!data) return null;
 
@@ -277,7 +277,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-2">
         <div className="flex items-center gap-2">
-          <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
+          <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">MONEDA</span>
           {(["ARS", "USD"] as Moneda[]).map((m) => {
             const disabled = m === "USD" && !usdDisponible;
             return (
@@ -290,8 +290,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                   moneda === m
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
                     : disabled
-                      ? "bg-transparent text-[#444] border-[var(--t-border)] cursor-not-allowed"
-                      : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      ? "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border)] cursor-not-allowed"
+                      : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
                 {m}
@@ -299,7 +299,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
             );
           })}
         </div>
-        <span className="text-[9px] text-[#555] ml-auto font-mono">
+        <span className="text-[9px] text-[var(--t-text-muted)] ml-auto font-mono">
           {filasOrdenadas.length} tickers
           {data.fecha_actual ? ` · al ${data.fecha_actual}` : ""}
         </span>
@@ -310,12 +310,12 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
         {/* ── Panel izquierdo: POSICIONES ─────────────────────────── */}
         <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
           {filasOrdenadas.length === 0 ? (
-            <div className="p-6 text-center text-[#555] text-[11px]">Sin tickers para mostrar.</div>
+            <div className="p-6 text-center text-[var(--t-text-muted)] text-[11px]">Sin tickers para mostrar.</div>
           ) : (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
                 <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
-                  <tr className="text-[9px] tracking-widest text-[#888]">
+                  <tr className="text-[9px] tracking-widest text-[var(--t-text-dim)]">
                     <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
                       TICKER {arrow("ticker")}
                     </th>
@@ -351,10 +351,10 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                           (isSel ? "bg-[#ff9900]/10" : "hover:bg-[#ff9900]/5")
                         }
                       >
-                        <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[180px]" title={r.display_name || r.ticker}>
+                        <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={r.display_name || r.ticker}>
                           {r.display_name || r.ticker}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-[#d0d0d0]">
+                        <td className="px-2 py-1.5 text-right text-[var(--t-text)]">
                           {r.qty_aum.toLocaleString("es-AR")}
                           {r.qty_calc !== r.qty_aum && (
                             <span className="ml-1 text-[#ff9900] text-[9px]" title={`Boletos: ${r.qty_calc}`}>
@@ -362,19 +362,19 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-[#888]">
+                        <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">
                           {costoRow > 0 ? fmtMon(costoRow, esUSD) : "—"}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-[#d0d0d0]">
+                        <td className="px-2 py-1.5 text-right text-[var(--t-text)]">
                           {fmtMon(valorRow, esUSD)}
                           {r.valor_actual_source === "live" && (
                             <span className="ml-1 text-[7px] text-[#00cc66] tracking-widest">LIVE</span>
                           )}
                           {r.valor_actual_source === "cierre" && (
-                            <span className="ml-1 text-[7px] text-[#888] tracking-widest">CIE</span>
+                            <span className="ml-1 text-[7px] text-[var(--t-text-dim)] tracking-widest">CIE</span>
                           )}
                           {r.valor_actual_source === "aum" && (
-                            <span className="ml-1 text-[7px] text-[#666] tracking-widest">AUM</span>
+                            <span className="ml-1 text-[7px] text-[var(--t-text-muted)] tracking-widest">AUM</span>
                           )}
                         </td>
                         <td className={`px-2 py-1.5 text-right ${pnlClass(ganPct)}`}>
@@ -411,7 +411,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
               esUSD={esUSD}
             />
           ) : (
-            <div className="h-full flex items-center justify-center text-[#555] text-[11px] tracking-widest">
+            <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px] tracking-widest">
               Seleccioná una posición a la izquierda
             </div>
           )}
@@ -437,11 +437,11 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
   const ganPct = costo > 0 ? (pnlTot / costo) * 100 : null;
 
   return (
-    <div className="p-3 text-[10px] text-[#888]">
+    <div className="p-3 text-[10px] text-[var(--t-text-dim)]">
       {/* Header del ticker */}
       <div className="border-b border-[var(--t-border)] pb-2 mb-3">
-        <div className="text-[12px] text-[#d0d0d0] font-mono mb-0.5">{row.display_name || row.ticker}</div>
-        <div className="text-[9px] text-[#555]">
+        <div className="text-[12px] text-[var(--t-text)] font-mono mb-0.5">{row.display_name || row.ticker}</div>
+        <div className="text-[9px] text-[var(--t-text-muted)]">
           {row.ticker !== (row.display_name || row.ticker) && <span>{row.ticker} · </span>}
           {row.unidad}
         </div>
@@ -465,7 +465,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
       {/* Realizado intraday — solo si hubo day-trades cerrados */}
       {realDia !== 0 && (
         <div className="mb-3 px-2 py-1 border border-[#4a9eff]/30 bg-[#4a9eff]/5 text-[10px]">
-          <span className="text-[#666] tracking-widest mr-2">REALIZADO HOY:</span>
+          <span className="text-[var(--t-text-muted)] tracking-widest mr-2">REALIZADO HOY:</span>
           <span className={pnlClass(realDia) + " font-semibold"}>
             {fmtMonSigned(realDia, esUSD)}
           </span>
@@ -475,23 +475,23 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
 
       {/* Flujo del stock actual */}
       <div className="mb-2">
-        <span className="text-[#666] tracking-widest">FLUJO (STOCK ACTUAL):</span>{" "}
+        <span className="text-[var(--t-text-muted)] tracking-widest">FLUJO (STOCK ACTUAL):</span>{" "}
         {stats.compras > 0 && <span>compras: {stats.compras.toLocaleString("es-AR")} · </span>}
         {stats.ventas > 0 && <span>ventas: {stats.ventas.toLocaleString("es-AR")} · </span>}
         <span>neto: {stats.neto.toLocaleString("es-AR")}</span>
         {row.qty_calc !== row.qty_aum && (
           <span className="text-[#ff9900]"> · AuM: {row.qty_aum.toLocaleString("es-AR")} (Δ {(row.qty_aum - row.qty_calc).toLocaleString("es-AR")})</span>
         )}
-        <span className="text-[#444]"> · {boletosPeriodo.length}/{row.boletos.length} movs</span>
+        <span className="text-[var(--t-text-muted)]"> · {boletosPeriodo.length}/{row.boletos.length} movs</span>
       </div>
 
       {/* Cobros pasivos del período */}
       {tieneBreakdown && (
         <div className="mb-2">
-          <span className="text-[#666] tracking-widest">COBROS PASIVOS (PERÍODO):</span>{" "}
+          <span className="text-[var(--t-text-muted)] tracking-widest">COBROS PASIVOS (PERÍODO):</span>{" "}
           {Object.entries(stats.breakdownPasivo).map(([op, val]) => (
             <span key={op}>
-              <span className="text-[#666]">{op}:</span> <span className="text-[#d0d0d0]">{fmtCompact(val)}</span>
+              <span className="text-[var(--t-text-muted)]">{op}:</span> <span className="text-[var(--t-text)]">{fmtCompact(val)}</span>
               {" · "}
             </span>
           ))}
@@ -507,16 +507,16 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
       {/* Tabla de boletos del período activo */}
       {boletosPeriodo.length > 0 && (
         <div className="mt-3 border-t border-[var(--t-border)] pt-2">
-          <div className="text-[#666] tracking-widest mb-1">
+          <div className="text-[var(--t-text-muted)] tracking-widest mb-1">
             BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
             {row.boletos.length > boletosPeriodo.length && (
-              <span className="text-[#444]"> · {row.boletos.length - boletosPeriodo.length} históricos ocultos</span>
+              <span className="text-[var(--t-text-muted)]"> · {row.boletos.length - boletosPeriodo.length} históricos ocultos</span>
             )}
             ):
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[10px] font-mono">
-              <thead className="text-[9px] text-[#555] tracking-widest">
+              <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest">
                 <tr>
                   <th className="px-2 py-1 text-left">FECHA</th>
                   <th className="px-2 py-1 text-left">OP</th>
@@ -533,22 +533,22 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
                   const colorImporte =
                     b.importe > 0 ? "text-[#00cc66]"
                     : b.importe < 0 ? "text-[#ff4d4d]"
-                    : "text-[#888]";
+                    : "text-[var(--t-text-dim)]";
                   return (
                     <tr key={i} className="border-t border-[var(--t-border)] hover:bg-[#0d0d0d]">
-                      <td className="px-2 py-0.5 text-[#d0d0d0]">{b.fecha}</td>
-                      <td className="px-2 py-0.5 text-[#888]">{b.op || b.categoria}</td>
-                      <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                      <td className="px-2 py-0.5 text-[var(--t-text)]">{b.fecha}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.op || b.categoria}</td>
+                      <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                         {b.cantidad ? b.cantidad.toLocaleString("es-AR") : "—"}
                       </td>
-                      <td className="px-2 py-0.5 text-right text-[#888]">
+                      <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                         {b.precio ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 4 }) : "—"}
                       </td>
                       <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
                         {b.importe ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
                       </td>
-                      <td className="px-2 py-0.5 text-[#888]">{b.moneda}</td>
-                      <td className="px-2 py-0.5 text-right text-[#666]">
+                      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.moneda}</td>
+                      <td className="px-2 py-0.5 text-right text-[var(--t-text-muted)]">
                         {b.mep ? b.mep.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
                       </td>
                       <td className={`px-2 py-0.5 text-right ${colorImporte}`}>
@@ -569,7 +569,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
 function DetKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div className="border border-[var(--t-border)] bg-[#0a0a0a] px-2 py-1">
-      <div className="text-[8px] text-[#555] uppercase tracking-wider">{label}</div>
+      <div className="text-[8px] text-[var(--t-text-muted)] uppercase tracking-wider">{label}</div>
       <div className="text-[12px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
     </div>
   );
@@ -578,9 +578,9 @@ function DetKpi({ label, value, accent }: { label: string; value: string; accent
 function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
-      <div className="text-[10px] text-[#555] uppercase tracking-wide">{label}</div>
+      <div className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-wide">{label}</div>
       <div className="text-[18px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
-      {sub && <div className="text-[10px] text-[#666]">{sub}</div>}
+      {sub && <div className="text-[10px] text-[var(--t-text-muted)]">{sub}</div>}
     </div>
   );
 }

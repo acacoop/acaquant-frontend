@@ -50,7 +50,7 @@ function fmtFechaCorta(s: string | null | undefined): string {
 function VarCell({ pct }: { pct: number | null }) {
   const color =
     pct === null
-      ? "text-[#555555]"
+      ? "text-[var(--t-text-muted)]"
       : pct >= 0
         ? "text-[#00cc66]"
         : "text-[#ff3333]";
@@ -100,12 +100,12 @@ export function AgroFuturos({
           }
         >
           {futuros.length === 0 ? (
-            <p className="text-[#555555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               SIN FUTUROS — MERCADO CERRADO
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono">
-              <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">
                     Ticker
@@ -152,18 +152,18 @@ export function AgroFuturos({
                       <td className="px-2 py-1 text-[#ff9900]">
                         {r.ticker ?? "—"}
                       </td>
-                      <td className="px-2 py-1 text-center text-[#808080]">
+                      <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">
                         {fmtFechaCorta(r.vencimiento)}
                       </td>
-                      <td className="px-2 py-1 text-right text-[#d0d0d0] font-semibold">
+                      <td className="px-2 py-1 text-right text-[var(--t-text)] font-semibold">
                         {fmtPx(last)}
                       </td>
                       <VarCell pct={intra} />
                       <VarCell pct={d1} />
-                      <td className="px-2 py-1 text-right text-[#a0a0a0]">
+                      <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
                         {fmtPx(r.bid)}
                       </td>
-                      <td className="px-2 py-1 text-right text-[#a0a0a0]">
+                      <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
                         {fmtPx(r.offer)}
                       </td>
                       <td className="px-2 py-1 text-right text-[#ffaa00]">
@@ -196,7 +196,7 @@ function CommodityTab({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

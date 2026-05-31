@@ -609,7 +609,7 @@ export function NegocioView() {
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full overflow-hidden bg-[#0a0a0a] text-[#d0d0d0] flex flex-col">
+    <div className="h-full overflow-hidden bg-[#0a0a0a] text-[var(--t-text)] flex flex-col">
 
       {/* HEADER */}
       <div className="px-4 py-3 border-b border-[var(--t-border)] flex flex-wrap items-center gap-3 shrink-0">
@@ -617,7 +617,7 @@ export function NegocioView() {
           <button
             onClick={goPrev}
             disabled={!hayPrev}
-            className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333]"
+            className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:text-[#333]"
             title="Día anterior con data"
           >‹</button>
           {/* Calendario nativo: el browser muestra picker de mes. Constrained
@@ -644,18 +644,18 @@ export function NegocioView() {
                 fechasOrdenadasAsc[fechasOrdenadasAsc.length - 1];
               if (nextAvail) setFecha(nextAvail);
             }}
-            className="bg-black px-2 py-1 text-[12px] font-mono text-[#d0d0d0] outline-none disabled:opacity-50 [color-scheme:dark]"
+            className="bg-black px-2 py-1 text-[12px] font-mono text-[var(--t-text)] outline-none disabled:opacity-50 [color-scheme:dark]"
           />
           <button
             onClick={goNext}
             disabled={!hayNext}
-            className="px-2 text-[#888] hover:text-[#ff9900] disabled:text-[#333]"
+            className="px-2 text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:text-[#333]"
             title="Día siguiente con data"
           >›</button>
           <button
             onClick={goLatest}
             disabled={isLatest || !ultimaFecha}
-            className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[#888] hover:text-[#ff9900] disabled:text-[#444]"
+            className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900] disabled:text-[var(--t-text-muted)]"
             title="Última fecha con data"
           >Última</button>
         </div>
@@ -670,7 +670,7 @@ export function NegocioView() {
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (vistaMode === m
                   ? "bg-[#ff9900] text-black"
-                  : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
               }
               title={m === "DIA"
                 ? "Vista del día seleccionado"
@@ -682,7 +682,7 @@ export function NegocioView() {
         </div>
 
         <div className={
-          "text-[14px] font-mono " + (vistaMode === "DIA" ? "text-[#ff9900]" : "text-[#888]")
+          "text-[14px] font-mono " + (vistaMode === "DIA" ? "text-[#ff9900]" : "text-[var(--t-text-dim)]")
         }>
           {vistaMode === "DIA"
             ? (fecha ? fmtFechaDisplay(fecha) : "—")
@@ -695,12 +695,12 @@ export function NegocioView() {
           <>
             <span className="text-[#333]">│</span>
             <div className="text-[10px]">
-              <span className="text-[#666] uppercase tracking-wider">Boletos: </span>
-              <span className="text-[#d0d0d0] font-mono">{data.meta.n_boletos}</span>
+              <span className="text-[var(--t-text-muted)] uppercase tracking-wider">Boletos: </span>
+              <span className="text-[var(--t-text)] font-mono">{data.meta.n_boletos}</span>
             </div>
             <div className="text-[10px]">
-              <span className="text-[#666] uppercase tracking-wider">Última ingesta: </span>
-              <span className="text-[#d0d0d0] font-mono">
+              <span className="text-[var(--t-text-muted)] uppercase tracking-wider">Última ingesta: </span>
+              <span className="text-[var(--t-text)] font-mono">
                 {formatTime(data.meta.ultima_ingesta)}
               </span>
             </div>
@@ -708,7 +708,7 @@ export function NegocioView() {
         )}
 
         {(loading || loadingSerie) && (
-          <span className="text-[10px] text-[#888]">cargando…</span>
+          <span className="text-[10px] text-[var(--t-text-dim)]">cargando…</span>
         )}
 
         {/* Búsqueda de cuenta — autocomplete via datalist nativo. Si el
@@ -722,7 +722,7 @@ export function NegocioView() {
           placeholder="Buscar cuenta…"
           className={
             "ml-auto bg-black border px-2 py-1 text-[11px] font-mono outline-none w-[200px] " +
-            (cuentaExacta ? "border-[#ff9900] text-[#ff9900]" : "border-[#333] text-[#d0d0d0]")
+            (cuentaExacta ? "border-[#ff9900] text-[#ff9900]" : "border-[#333] text-[var(--t-text)]")
           }
           title="Escribí parte del nombre de cuenta. Las sugerencias filtran live; al elegir una, todos los paneles muestran solo esa cuenta."
         />
@@ -734,7 +734,7 @@ export function NegocioView() {
         {cuentaSearch && (
           <button
             onClick={() => setCuentaSearch("")}
-            className="text-[10px] text-[#888] hover:text-[#ff9900]"
+            className="text-[10px] text-[var(--t-text-dim)] hover:text-[#ff9900]"
             title="Limpiar búsqueda de cuenta"
           >×</button>
         )}
@@ -747,8 +747,8 @@ export function NegocioView() {
           className={
             "bg-black border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider outline-none " +
             (cuentaExacta
-              ? "text-[#444] cursor-not-allowed"
-              : "text-[#d0d0d0] hover:text-[#ff9900]")
+              ? "text-[var(--t-text-muted)] cursor-not-allowed"
+              : "text-[var(--t-text)] hover:text-[#ff9900]")
           }
           title={cuentaExacta
             ? "Deshabilitado: hay una cuenta específica seleccionada"
@@ -770,7 +770,7 @@ export function NegocioView() {
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (moneda === m
                   ? "bg-[#ff9900] text-black"
-                  : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
               }
             >
               {m}
@@ -780,7 +780,7 @@ export function NegocioView() {
 
         <button
           onClick={() => fecha && void fetchData(fecha)}
-          className="bg-[var(--t-surface-2)] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[#888] hover:text-[#ff9900]"
+          className="bg-[var(--t-surface-2)] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--t-text-dim)] hover:text-[#ff9900]"
         >
           ↻ Refresh
         </button>
@@ -793,7 +793,7 @@ export function NegocioView() {
       )}
 
       {fechasLoaded && fechasDisp.length === 0 && !loading && (
-        <div className="m-4 border border-[var(--t-border)] p-8 text-center text-[12px] text-[#666]">
+        <div className="m-4 border border-[var(--t-border)] p-8 text-center text-[12px] text-[var(--t-text-muted)]">
           Aún no hay datos persistidos en CashFlow.NegocioMovimientos.
         </div>
       )}
@@ -811,13 +811,13 @@ export function NegocioView() {
                   Volumen operado · {moneda}
                 </span>
                 {chartData.length > 0 && (
-                  <span className="text-[9px] text-[#555] font-mono">
+                  <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
                     {fmtBucket(chartData[0].fecha, agg)} → {fmtBucket(chartData[chartData.length - 1].fecha, agg)}
                   </span>
                 )}
                 {totalPeriodo > 0 && (
                   <span className="text-[10px] font-mono">
-                    <span className="text-[#666] uppercase tracking-wider">Total período: </span>
+                    <span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span>
                     <span className="text-[#ff9900] font-semibold">{fmtCompact(totalPeriodo)}</span>
                   </span>
                 )}
@@ -831,7 +831,7 @@ export function NegocioView() {
                         "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                         (agg === k
                           ? "bg-[#ff9900] text-black"
-                          : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                          : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                       }
                     >
                       {k}
@@ -844,7 +844,7 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => o + 1)}
                     disabled={!puedeIrAtras}
                     title="Período anterior"
-                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >◀</button>
                   <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
                     {(["1W", "1M", "3M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
@@ -855,7 +855,7 @@ export function NegocioView() {
                           "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                           (rango === k
                             ? "bg-[#ff9900] text-black"
-                            : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                         }
                       >
                         {k}
@@ -866,7 +866,7 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
                     disabled={!puedeIrAdelante}
                     title="Período siguiente"
-                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >▶</button>
                 </div>
                 {/* Foco día: ON = highlight selected day, OFF = todas las
@@ -877,7 +877,7 @@ export function NegocioView() {
                     "px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[#333] " +
                     (focoDia
                       ? "bg-[#ff9900] text-black"
-                      : "bg-[#0a0a0a] text-[#888] hover:text-[#ff9900]")
+                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[#ff9900]")
                   }
                   title={focoDia
                     ? "Foco día activo: el día elegido resalta. Apagá para imprimir / report."
@@ -889,7 +889,7 @@ export function NegocioView() {
 
               <div className="flex-1 min-h-0 p-2">
                 {chartData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-[11px] text-[#555]">
+                  <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                     Sin datos para {moneda} en este rango.
                   </div>
                 ) : (
@@ -981,7 +981,7 @@ export function NegocioView() {
                 {NEGOCIO_CATS.map((cat) => (
                   <div key={cat} className="flex items-center gap-1.5">
                     <span className="w-2 h-2 inline-block" style={{ background: CAT_COLOR[cat] }} />
-                    <span className="text-[#888]">{CAT_LABEL[cat]}</span>
+                    <span className="text-[var(--t-text-dim)]">{CAT_LABEL[cat]}</span>
                   </div>
                 ))}
               </div>
@@ -995,12 +995,12 @@ export function NegocioView() {
                     ? (fecha ? fmtFechaCorta(fecha) : "—")
                     : "Período"}
                 </span>
-                <span className="ml-auto text-[10px] text-[#888] font-mono">
+                <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">
                   Total {fmtCompact(totalActual)} {moneda}
                 </span>
               </div>
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                   <tr>
                     <th className="px-3 py-1 text-left">Categoría</th>
                     <th className="px-3 py-1 text-right">Importe</th>
@@ -1026,13 +1026,13 @@ export function NegocioView() {
                         <td className="px-3 py-1.5">
                           <span className="inline-flex items-center gap-1.5">
                             <span className="w-2 h-2 inline-block" style={{ background: CAT_COLOR[cat] }} />
-                            <span className={active ? "" : "text-[#d0d0d0]"}>{CAT_LABEL[cat]}</span>
+                            <span className={active ? "" : "text-[var(--t-text)]"}>{CAT_LABEL[cat]}</span>
                           </span>
                         </td>
                         <td className="px-3 py-1.5 text-right font-semibold">
                           {fmtCompact(v)}
                         </td>
-                        <td className="px-3 py-1.5 text-right text-[#888]">
+                        <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)]">
                           {pct.toFixed(1)}%
                         </td>
                       </tr>
@@ -1051,7 +1051,7 @@ export function NegocioView() {
                 {catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
               </span>
               {catSel && detalleDesde && detalleHasta && (
-                <span className="text-[9px] text-[#555] font-mono">
+                <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
                   {vistaMode === "DIA"
                     ? fmtFechaCorta(detalleDesde)
                     : `${fmtFechaCorta(detalleDesde)} → ${fmtFechaCorta(detalleHasta)}`}
@@ -1059,25 +1059,25 @@ export function NegocioView() {
               )}
               {catSel ? (
                 <>
-                  <span className="ml-auto text-[10px] text-[#888] font-mono">
+                  <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">
                     {cuentasDetalle.length} cuentas · {fmtCompact(totalCatSel)} {moneda}
                   </span>
                   {loadingCuentas && (
-                    <span className="ml-2 text-[9px] text-[#888]">cargando…</span>
+                    <span className="ml-2 text-[9px] text-[var(--t-text-dim)]">cargando…</span>
                   )}
                   <button
                     onClick={() => setCatSel(null)}
-                    className="ml-2 text-[#888] hover:text-[#ff9900] text-[14px] leading-none"
+                    className="ml-2 text-[var(--t-text-dim)] hover:text-[#ff9900] text-[14px] leading-none"
                     title="Volver al matrix consolidado"
                   >×</button>
                 </>
               ) : (
                 <>
-                  <span className="ml-auto text-[10px] text-[#888] font-mono">
+                  <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">
                     {matrix.length} cuentas · {fmtCompact(matrixTotal)} {moneda}
                   </span>
                   {loadingMatrix && (
-                    <span className="ml-2 text-[9px] text-[#888]">cargando…</span>
+                    <span className="ml-2 text-[9px] text-[var(--t-text-dim)]">cargando…</span>
                   )}
                 </>
               )}
@@ -1085,7 +1085,7 @@ export function NegocioView() {
 
             <div className="flex-1 min-h-0 overflow-auto">
               {tableRows.length === 0 && !loadingMatrix && !loadingCuentas ? (
-                <div className="h-full flex items-center justify-center text-[11px] text-[#666] p-6 text-center">
+                <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] p-6 text-center">
                   {catSel
                     ? `Sin boletos en ${CAT_LABEL[catSel]} para `
                     : "Sin boletos para "}
@@ -1093,7 +1093,7 @@ export function NegocioView() {
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                     <tr>
                       <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cuenta</th>
                       <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Importe</th>
@@ -1124,23 +1124,23 @@ export function NegocioView() {
                               ? "Click: ver boletos del día para esta cuenta"
                               : "Cambiá a vista DÍA para ver boletos individuales"}
                           >
-                            <td className="px-3 py-1 text-[#d0d0d0] truncate max-w-[280px]" title={r.cuenta}>
+                            <td className="px-3 py-1 text-[var(--t-text)] truncate max-w-[280px]" title={r.cuenta}>
                               <span className="inline-flex items-center gap-1.5">
                                 {canExpand && (
-                                  <span className="text-[10px] text-[#666] w-2 inline-block">
+                                  <span className="text-[10px] text-[var(--t-text-muted)] w-2 inline-block">
                                     {expanded ? "▾" : "▸"}
                                   </span>
                                 )}
                                 {r.cuenta}
                               </span>
                             </td>
-                            <td className="px-3 py-1 text-right text-[#d0d0d0] font-semibold">
+                            <td className="px-3 py-1 text-right text-[var(--t-text)] font-semibold">
                               {fmtCompact(r.importe)}
                             </td>
-                            <td className="px-3 py-1 text-right text-[#888]">
+                            <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">
                               {pct.toFixed(1)}%
                             </td>
-                            <td className="px-3 py-1 text-right text-[#888]">
+                            <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">
                               {r.n}
                             </td>
                           </tr>
@@ -1148,16 +1148,16 @@ export function NegocioView() {
                             <tr className="bg-[#060606]">
                               <td colSpan={4} className="p-0 border-t border-[var(--t-border)]">
                                 {!boletosForRow ? (
-                                  <div className="px-3 py-2 text-[10px] text-[#666]">
+                                  <div className="px-3 py-2 text-[10px] text-[var(--t-text-muted)]">
                                     {loadingBoletos ? "cargando boletos…" : "—"}
                                   </div>
                                 ) : boletosForRow.length === 0 ? (
-                                  <div className="px-3 py-2 text-[10px] text-[#666]">
+                                  <div className="px-3 py-2 text-[10px] text-[var(--t-text-muted)]">
                                     Sin boletos individuales.
                                   </div>
                                 ) : (
                                   <table className="w-full text-[10px] font-mono tabular-nums">
-                                    <thead className="text-[8px] uppercase tracking-widest text-[#555]">
+                                    <thead className="text-[8px] uppercase tracking-widest text-[var(--t-text-muted)]">
                                       <tr>
                                         <th className="px-3 py-1 text-left">Comprobante</th>
                                         <th className="px-2 py-1 text-left">Categ</th>
@@ -1177,21 +1177,21 @@ export function NegocioView() {
                                             key={b.comprobante}
                                             className="border-t border-[var(--t-border)]"
                                           >
-                                            <td className="px-3 py-0.5 text-[#888]">{b.comprobante}</td>
+                                            <td className="px-3 py-0.5 text-[var(--t-text-dim)]">{b.comprobante}</td>
                                             <td className="px-2 py-0.5">
                                               <span className="inline-flex items-center gap-1">
                                                 <span className="w-1.5 h-1.5 inline-block" style={{ background: catColor }} />
-                                                <span className="text-[#888]">{b.categoria}</span>
+                                                <span className="text-[var(--t-text-dim)]">{b.categoria}</span>
                                               </span>
                                             </td>
-                                            <td className="px-2 py-0.5 text-[#d0d0d0]">{b.op ?? "—"}</td>
+                                            <td className="px-2 py-0.5 text-[var(--t-text)]">{b.op ?? "—"}</td>
                                             <td className="px-2 py-0.5 text-[#ff9900]">{b.ticker ?? "—"}</td>
-                                            <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                                            <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                                               {b.cantidad != null
                                                 ? b.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 })
                                                 : "—"}
                                             </td>
-                                            <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
+                                            <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                                               {b.precio != null
                                                 ? b.precio.toLocaleString("es-AR", { maximumFractionDigits: 2 })
                                                 : "—"}
@@ -1199,13 +1199,13 @@ export function NegocioView() {
                                             <td className={
                                               "px-2 py-0.5 text-right " +
                                               ((b.importe ?? 0) > 0 ? "text-[#3fbf6f]" :
-                                               (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[#888]")
+                                               (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]")
                                             }>
                                               {b.importe != null
                                                 ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 })
                                                 : "—"}
                                             </td>
-                                            <td className="px-2 py-0.5 text-[#888]">{b.plazo ?? "—"}</td>
+                                            <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.plazo ?? "—"}</td>
                                           </tr>
                                         );
                                       })}

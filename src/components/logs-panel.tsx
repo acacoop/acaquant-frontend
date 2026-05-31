@@ -158,7 +158,7 @@ export function LogsPanel() {
               className={`px-2 py-1 text-[10px] font-semibold tracking-wide border ${
                 filter === f
                   ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
               }`}
             >
               {f.toUpperCase()}
@@ -171,7 +171,7 @@ export function LogsPanel() {
           className={`px-2 py-1 text-[10px] font-semibold tracking-wide border ml-1 ${
             autoRefresh
               ? "bg-[#00cc66]/20 text-[#00cc66] border-[#00cc66]/40"
-              : "bg-transparent text-[#555555] border-[var(--t-border-2)]"
+              : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)]"
           }`}
           title="Auto-refresh cada 3 s"
         >
@@ -186,7 +186,7 @@ export function LogsPanel() {
           REFRESH
         </button>
 
-        <div className="ml-auto flex items-center gap-3 text-[10px] text-[#555555] font-mono">
+        <div className="ml-auto flex items-center gap-3 text-[10px] text-[var(--t-text-muted)] font-mono">
           {lastCheck && <span>últ. {lastCheck}</span>}
           <span>{visible.length} / {logs.length}</span>
         </div>
@@ -202,20 +202,20 @@ export function LogsPanel() {
       {/* Stream */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto font-mono text-[11px] leading-5 p-3">
         {visible.length === 0 && !loading && !error && (
-          <div className="text-[#555555] text-center pt-6">Sin logs para mostrar</div>
+          <div className="text-[var(--t-text-muted)] text-center pt-6">Sin logs para mostrar</div>
         )}
         {visible.map((l, i) => {
           const color = PRIORITY_COLOR[l.priority] ?? "#999999";
           return (
             <div key={i} className="flex gap-2 hover:bg-[#ffffff04] px-1 -mx-1">
-              <span className="text-[#555555] shrink-0 w-24">{fmtTime(l.ts_epoch)}</span>
+              <span className="text-[var(--t-text-muted)] shrink-0 w-24">{fmtTime(l.ts_epoch)}</span>
               <span
                 className="shrink-0 w-12 uppercase font-semibold"
                 style={{ color }}
               >
                 {l.priority}
               </span>
-              <span className="text-[#d0d0d0] whitespace-pre-wrap break-all">
+              <span className="text-[var(--t-text)] whitespace-pre-wrap break-all">
                 {l.message}
               </span>
             </div>

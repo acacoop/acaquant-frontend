@@ -33,7 +33,7 @@ export function ThemeToggle() {
       onClick={toggle}
       title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
       aria-label="Cambiar tema"
-      className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] text-[#555555] hover:text-[#ff9900] transition-colors"
+      className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] text-[var(--t-text-muted)] hover:text-[#ff9900] transition-colors"
     >
       <span>{theme === "dark" ? "☀" : "☾"}</span>
       <span className="tracking-widest">{theme === "dark" ? "CLARO" : "OSCURO"}</span>

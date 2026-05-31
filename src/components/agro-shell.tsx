@@ -34,7 +34,7 @@ export function AgroShell({ agroInitial }: { agroInitial: AgroResp | null }) {
             // canEdit en true porque la pizarra ahora abre a los 3 roles.
             <DerivadosAgroView initial={agroInitial} canEdit />
           ) : (
-            <div className="p-6 text-center text-[#555] text-xs">
+            <div className="p-6 text-center text-[var(--t-text-muted)] text-xs">
               Sin data del mercado — backend no responde
             </div>
           )
@@ -63,7 +63,7 @@ function TabBtn({
       className={`text-[11px] tracking-wide uppercase px-3 py-2 border-b-2 ${
         active
           ? "text-[#ff9900] border-[#ff9900]"
-          : "text-[#808080] border-transparent hover:text-[#d0d0d0]"
+          : "text-[var(--t-text-dim)] border-transparent hover:text-[var(--t-text)]"
       }`}
     >
       {children}

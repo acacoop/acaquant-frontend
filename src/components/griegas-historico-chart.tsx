@@ -137,7 +137,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
 
   if (loading) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Cargando griegas de {instrumento}…
       </p>
     );
@@ -147,7 +147,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
   }
   if (!serie.length) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin histórico diario para {instrumento}.
       </p>
     );
@@ -164,19 +164,19 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
             className={`text-[9px] px-1.5 py-0.5 border transition-colors ${
               griega === g.key
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#808080] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {g.label}
           </button>
         ))}
         {stats && (
-          <span className="ml-auto text-[9px] text-[#808080] flex items-center gap-2">
+          <span className="ml-auto text-[9px] text-[var(--t-text-dim)] flex items-center gap-2">
             <span>
-              MÍN <span className="text-[#d0d0d0] font-semibold">{fmtVal(stats.min)}</span>
+              MÍN <span className="text-[var(--t-text)] font-semibold">{fmtVal(stats.min)}</span>
             </span>
             <span>
-              MÁX <span className="text-[#d0d0d0] font-semibold">{fmtVal(stats.max)}</span>
+              MÁX <span className="text-[var(--t-text)] font-semibold">{fmtVal(stats.max)}</span>
             </span>
             <span>
               ÚLT <span className="text-[#ff9900] font-semibold">{fmtVal(stats.ultimo)}</span>

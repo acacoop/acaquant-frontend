@@ -195,7 +195,7 @@ export function DolarMepVentaView({
           {submitting ? "EJECUTANDO…" : "EJECUTAR VENTA"}
         </button>
 
-        <div className="flex items-center gap-4 text-[10px] text-[#888]">
+        <div className="flex items-center gap-4 text-[10px] text-[var(--t-text-dim)]">
           <span>USD neto: US${usdNeto.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</span>
           <span>Nominales estim.: {nominalesEstim ?? "—"}</span>
           <span>
@@ -240,7 +240,7 @@ export function DolarMepVentaView({
           <tbody>
             {operativas.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-4 text-center text-[#666]">
+                <td colSpan={10} className="px-3 py-4 text-center text-[var(--t-text-muted)]">
                   Sin operativas hoy
                 </td>
               </tr>
@@ -274,7 +274,7 @@ export function DolarMepVentaView({
                     {op.mep_efectivo ?? "—"}
                   </Td>
                   <Td className={estadoColor(op.estado)}>{op.estado ?? ""}</Td>
-                  <Td className="text-[#888]">{op.actor_email ?? ""}</Td>
+                  <Td className="text-[var(--t-text-dim)]">{op.actor_email ?? ""}</Td>
                 </tr>
               );
             })}

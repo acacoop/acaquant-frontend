@@ -34,8 +34,8 @@ const fmtAum = (n: number) =>
 function Kpi({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex flex-col">
-      <span className="text-[9px] text-[#666] tracking-widest">{label}</span>
-      <span className={`text-[15px] font-semibold tabular-nums ${warn ? "text-[#ff6666]" : "text-[#d0d0d0]"}`}>
+      <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">{label}</span>
+      <span className={`text-[15px] font-semibold tabular-nums ${warn ? "text-[#ff6666]" : "text-[var(--t-text)]"}`}>
         {value}
       </span>
     </div>
@@ -75,7 +75,7 @@ export function ComercialPanel() {
         <Kpi label="SIN SEGMENTAR" value={fmtN(sinSegmentar)} warn={sinSegmentar > 0} />
       </div>
 
-      <div className="text-[10px] text-[#666] shrink-0">
+      <div className="text-[10px] text-[var(--t-text-muted)] shrink-0">
         Estado comercial: ACTIVA ≤{data?.dias_activa ?? 30}d · ENFRIÁNDOSE {data?.dias_activa ?? 30}–{data?.dias_dormida ?? 90}d · DORMIDA &gt;{data?.dias_dormida ?? 90}d ·
         AuM al {data?.snapshot_aum ?? "—"}
       </div>
@@ -84,27 +84,27 @@ export function ComercialPanel() {
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto">
         <table className="w-full text-[11px]">
           <thead className="sticky top-0 bg-[#0a0a0a]">
-            <tr className="text-[9px] text-[#666] tracking-wide">
+            <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-3 py-2">OPERADOR</th>
               <th className="text-right px-2">CUENTAS</th>
               <th className="text-right px-2 text-[#00cc66]">ACTIVAS</th>
               <th className="text-right px-2 text-[#ff9900]">ENFRIÁND.</th>
               <th className="text-right px-2 text-[#ff6666]">DORMIDAS</th>
-              <th className="text-right px-2 text-[#888]">NUEVAS</th>
+              <th className="text-right px-2 text-[var(--t-text-dim)]">NUEVAS</th>
               <th className="text-right px-2">SIN SEG.</th>
               <th className="text-right px-3">AUM</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={8} className="text-center text-[#555] py-4">Cargando…</td></tr>
+              <tr><td colSpan={8} className="text-center text-[var(--t-text-muted)] py-4">Cargando…</td></tr>
             )}
             {!loading && data?.operadores.length === 0 && (
-              <tr><td colSpan={8} className="text-center text-[#555] py-4">Sin datos.</td></tr>
+              <tr><td colSpan={8} className="text-center text-[var(--t-text-muted)] py-4">Sin datos.</td></tr>
             )}
             {data?.operadores.map((o, i) => (
               <tr key={o.operador_email ?? `sin-${i}`} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                <td className="px-3 py-1.5 text-[#d0d0d0] truncate">
+                <td className="px-3 py-1.5 text-[var(--t-text)] truncate">
                   {o.operador_nombre || o.operador_email || "— sin operador —"}
                   {o.huerfana && (
                     <span title="El email del operador ya no es usuario de la página — reasignar"
@@ -115,8 +115,8 @@ export function ComercialPanel() {
                 <td className="text-right px-2 tabular-nums text-[#00cc66]">{fmtN(o.n_activas)}</td>
                 <td className="text-right px-2 tabular-nums text-[#ff9900]">{fmtN(o.n_enfriandose)}</td>
                 <td className="text-right px-2 tabular-nums text-[#ff6666]">{fmtN(o.n_dormidas)}</td>
-                <td className="text-right px-2 tabular-nums text-[#888]">{fmtN(o.n_nuevas)}</td>
-                <td className="text-right px-2 tabular-nums text-[#888]">{fmtN(o.n_sin_segmentar)}</td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-text-dim)]">{fmtN(o.n_nuevas)}</td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-text-dim)]">{fmtN(o.n_sin_segmentar)}</td>
                 <td className="text-right px-3 tabular-nums font-semibold text-[#ff9900]">{fmtAum(o.aum_total)}</td>
               </tr>
             ))}

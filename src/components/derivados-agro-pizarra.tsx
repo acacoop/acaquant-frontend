@@ -94,11 +94,11 @@ function mercadoAbiertoUTC(d: Date = new Date()): boolean {
 }
 
 function pasecolor(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "text-[#666]";
+  if (n === null || n === undefined) return "text-[var(--t-text-muted)]";
   return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
 }
 function tnavColor(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "text-[#666]";
+  if (n === null || n === undefined) return "text-[var(--t-text-muted)]";
   return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
 }
 
@@ -159,7 +159,7 @@ function FreshnessPill({ estado }: { estado: EstadoFeed }) {
     estado === "live"
       ? { dot: "bg-[#4ade80] animate-pulse", txt: "text-[#4ade80]", label: "LIVE" }
       : estado === "cerrado"
-        ? { dot: "bg-[#666]", txt: "text-[#888]", label: "MERCADO CERRADO" }
+        ? { dot: "bg-[#666]", txt: "text-[var(--t-text-dim)]", label: "MERCADO CERRADO" }
         : { dot: "bg-[#f87171]", txt: "text-[#f87171]", label: "DESACTUALIZADO" };
   return (
     <span className="inline-flex items-center gap-1 text-[10px] tracking-wide">
@@ -207,7 +207,7 @@ export function DerivadosAgroPizarra({
     setHeaderExtras(
       <>
         <FreshnessPill estado={estado} />
-        <span className="text-[10px] text-[#808080] tracking-wide ml-2">
+        <span className="text-[10px] text-[var(--t-text-dim)] tracking-wide ml-2">
           DÓLAR OF
         </span>
         <span
@@ -217,8 +217,8 @@ export function DerivadosAgroPizarra({
         >
           {oficial ? fmtArs(oficial) : "—"}
         </span>
-        <span className="text-[9px] text-[#555]">({oficialSource})</span>
-        <span className="text-[10px] text-[#555] ml-3">
+        <span className="text-[9px] text-[var(--t-text-muted)]">({oficialSource})</span>
+        <span className="text-[10px] text-[var(--t-text-muted)] ml-3">
           ÚLT {ultimoDisplay}
         </span>
       </>,
@@ -258,7 +258,7 @@ export function DerivadosAgroPizarra({
         >
           {vista === "agro" ? (
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Vto
@@ -283,7 +283,7 @@ export function DerivadosAgroPizarra({
               <tbody>
                 {data.bloques.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-2 py-3 text-center text-[#666]">
+                    <td colSpan={6} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
                       Sin data
                     </td>
                   </tr>
@@ -324,7 +324,7 @@ function VistaBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}
@@ -383,7 +383,7 @@ function PaseConCoberturaTable({
 
   if (filas.length === 0) {
     return (
-      <p className="text-[#555] text-xs py-3 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-3 text-center">
         Sin futuros con precio
       </p>
     );
@@ -391,7 +391,7 @@ function PaseConCoberturaTable({
 
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
           <th
             rowSpan={2}
@@ -407,7 +407,7 @@ function PaseConCoberturaTable({
           </th>
           <th
             colSpan={3}
-            className="text-center px-1.5 py-1 border-b border-[var(--t-border)] text-[9px] text-[#666]"
+            className="text-center px-1.5 py-1 border-b border-[var(--t-border)] text-[9px] text-[var(--t-text-muted)]"
           >
             Resultado en US$ × Tn
           </th>
@@ -430,26 +430,26 @@ function PaseConCoberturaTable({
             key={`${f.commodity}-${f.ticker ?? f.vto}`}
             className="border-b border-[#101010] hover:bg-[#0d0d0d]"
           >
-            <td className="px-1.5 py-0.5 text-[#d0d0d0] font-semibold">
+            <td className="px-1.5 py-0.5 text-[var(--t-text)] font-semibold">
               {posicionFromVto(f.commodity, f.vto)}
             </td>
             <td className={`px-1.5 py-0.5 text-right ${pasecolor(f.pase)}`}>
               {fmtPx(f.pase)}
             </td>
             <td
-              className="px-1.5 py-0.5 text-right text-[#555]"
+              className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]"
               title="Pendiente — fórmula a definir"
             >
               —
             </td>
             <td
-              className="px-1.5 py-0.5 text-right text-[#555]"
+              className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]"
               title="Pendiente — fórmula a definir"
             >
               —
             </td>
             <td
-              className="px-1.5 py-0.5 text-right text-[#555]"
+              className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]"
               title="Pendiente — fórmula a definir"
             >
               —
@@ -496,14 +496,14 @@ function BloqueRows({
               key={`${bloque.commodity}-dispo`}
               className="border-b border-[#101010]"
             >
-              <td className="px-1.5 py-0.5 text-[#666]">
+              <td className="px-1.5 py-0.5 text-[var(--t-text-muted)]">
                 {r.vencimiento ? fmtFechaVtoFuturo(r.vencimiento) : "—"}
               </td>
-              <td className="px-1.5 py-0.5 text-[#888]">{r.posicion}</td>
-              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
-              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
-              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
-              <td className="px-1.5 py-0.5 text-right text-[#555]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-[var(--t-text-dim)]">{r.posicion}</td>
+              <td className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]">#N/A</td>
+              <td className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]">#N/A</td>
             </tr>
           );
         }
@@ -512,16 +512,16 @@ function BloqueRows({
             key={`${bloque.commodity}-${r.ticker ?? i}`}
             className="border-b border-[#101010] hover:bg-[#0d0d0d]"
           >
-            <td className={`px-1.5 py-0.5 text-[#a0a0a0] ${dim}`}>
+            <td className={`px-1.5 py-0.5 text-[var(--t-text-dim)] ${dim}`}>
               {fmtFechaVtoFuturo(r.vencimiento)}
             </td>
-            <td className={`px-1.5 py-0.5 text-[#d0d0d0] ${dim}`}>
+            <td className={`px-1.5 py-0.5 text-[var(--t-text)] ${dim}`}>
               {r.posicion}
             </td>
             <FlashCell
               value={r.us}
               text={fmtPx(r.us)}
-              className={`px-1.5 py-0.5 text-right text-[#d0d0d0] ${dim}`}
+              className={`px-1.5 py-0.5 text-right text-[var(--t-text)] ${dim}`}
             />
             <FlashCell
               value={r.pase}
@@ -531,7 +531,7 @@ function BloqueRows({
             <FlashCell
               value={r.ars}
               text={fmtArs(r.ars)}
-              className={`px-1.5 py-0.5 text-right text-[#a0a0a0] ${dim}`}
+              className={`px-1.5 py-0.5 text-right text-[var(--t-text-dim)] ${dim}`}
             />
             <FlashCell
               value={r.tnav_us}
@@ -570,7 +570,7 @@ function PizarraRow({
       >
         {fmtPx(row.us)}
       </td>
-      <td className="px-1.5 py-1 text-right text-[#666]">—</td>
+      <td className="px-1.5 py-1 text-right text-[var(--t-text-muted)]">—</td>
       <td
         className="px-1.5 py-1 text-right text-[#e0c890] font-semibold"
         style={{
@@ -580,7 +580,7 @@ function PizarraRow({
       >
         {fmtArs(row.ars)}
       </td>
-      <td className="px-1.5 py-1 text-right text-[#666]">—</td>
+      <td className="px-1.5 py-1 text-right text-[var(--t-text-muted)]">—</td>
     </tr>
   );
 }

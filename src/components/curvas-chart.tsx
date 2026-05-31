@@ -441,7 +441,7 @@ export function CurvasChart({
                     className="inline-block w-2 h-2 rounded-full"
                     style={{ background: c.scatter }}
                   />
-                  <span className="text-[#aaaaaa] tracking-wide">
+                  <span className="text-[var(--t-text-dim)] tracking-wide">
                     {c.label || t.toUpperCase()}
                   </span>
                 </div>
@@ -453,13 +453,13 @@ export function CurvasChart({
 
       {modo === "hist" && (
         <div className="flex items-center gap-2 mb-2 shrink-0">
-          <span className="text-[10px] text-[#555555] tracking-wide">FECHA</span>
+          <span className="text-[10px] text-[var(--t-text-muted)] tracking-wide">FECHA</span>
           {histLoading && !hayHist ? (
-            <span className="text-[10px] text-[#555555]">cargando…</span>
+            <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>
           ) : histError ? (
             <span className="text-[10px] text-[#ff3333]">error: {histError}</span>
           ) : !hayHist ? (
-            <span className="text-[10px] text-[#555555]">sin histórico</span>
+            <span className="text-[10px] text-[var(--t-text-muted)]">sin histórico</span>
           ) : (
             <>
               <input
@@ -564,7 +564,7 @@ export function CurvasChart({
           </ResponsiveContainer>
         </div>
       ) : (
-        <p className="text-[#555555] text-xs py-4 text-center">
+        <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
           {modo === "hist" && histLoading ? "Cargando…" : "SIN DATOS — MERCADO CERRADO"}
         </p>
       )}
@@ -587,7 +587,7 @@ function FilterBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

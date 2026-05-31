@@ -140,15 +140,15 @@ export function NewsPanel() {
           className="w-1.5 h-1.5 rounded-full"
           style={{ background: loading ? "#ff9900" : "#00cc66" }}
         />
-        <span className="text-[9px] text-[#555555] tracking-wide uppercase">
+        <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">
           {loading
             ? "cargando…"
             : lastFetch
             ? `live · ${lastFetch.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
             : "—"}
         </span>
-        <span className="text-[9px] text-[#555555]">· poll 60s</span>
-        <span className="ml-auto text-[9px] text-[#555555]">{visibles.length} notas</span>
+        <span className="text-[9px] text-[var(--t-text-muted)]">· poll 60s</span>
+        <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{visibles.length} notas</span>
       </div>
 
       {/* Filtros por categoría */}
@@ -160,7 +160,7 @@ export function NewsPanel() {
             className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
               categoria === c.v
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {c.label}
@@ -194,7 +194,7 @@ export function NewsPanel() {
           <div className="px-3 py-2 text-[10px] text-[#ff3333] font-mono">Error: {error}</div>
         )}
         {!loading && visibles.length === 0 && (
-          <div className="px-3 py-6 text-[11px] text-[#555555] text-center font-mono">
+          <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center font-mono">
             Sin noticias todavía. El cron las ingesta cada 15 min.
           </div>
         )}
@@ -215,7 +215,7 @@ export function NewsPanel() {
                   className="block w-full text-left px-3 py-1.5 group cursor-pointer"
                 >
                   <div className="flex items-start gap-2 text-[10px]">
-                    <span className="text-[#555555] shrink-0 w-[44px] tabular-nums">
+                    <span className="text-[var(--t-text-muted)] shrink-0 w-[44px] tabular-nums">
                       {fmtHora(h.fecha_publicacion)}
                     </span>
                     <span
@@ -224,12 +224,12 @@ export function NewsPanel() {
                     >
                       {h.fuente.replace("Ámbito", "AMB").slice(0, 7)}
                     </span>
-                    <span className="text-[11px] text-[#d0d0d0] group-hover:text-white leading-tight">
+                    <span className="text-[11px] text-[var(--t-text)] group-hover:text-white leading-tight">
                       {h.titulo}
                     </span>
                   </div>
                   {h.excerpt && (
-                    <div className="pl-[52px] mt-0.5 text-[10px] text-[#666666] leading-snug line-clamp-2 group-hover:text-[#888888]">
+                    <div className="pl-[52px] mt-0.5 text-[10px] text-[var(--t-text-muted)] leading-snug line-clamp-2 group-hover:text-[var(--t-text-dim)]">
                       {h.excerpt}
                     </div>
                   )}

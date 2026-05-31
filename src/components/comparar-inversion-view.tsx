@@ -177,12 +177,12 @@ function BonoSelector({
             if (e.key === "Enter" && filtered.length > 0) pick(filtered[0]);
             else if (e.key === "Escape") setOpen(false);
           }}
-          className="w-full bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="w-full bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
         />
         {open && (
           <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-64 overflow-y-auto bg-black border border-[var(--t-border-2)] shadow-lg">
             {filtered.length === 0 ? (
-              <div className="px-2 py-1 text-[10px] text-[#555555] italic">sin resultados</div>
+              <div className="px-2 py-1 text-[10px] text-[var(--t-text-muted)] italic">sin resultados</div>
             ) : (
               filtered.map((b) => (
                 <button
@@ -190,7 +190,7 @@ function BonoSelector({
                   type="button"
                   onClick={() => pick(b)}
                   className={`block w-full text-left px-2 py-0.5 text-[10px] font-mono hover:bg-[#ff9900]/10 ${
-                    b.id === selected ? "text-[#ff9900]" : "text-[#d0d0d0]"
+                    b.id === selected ? "text-[#ff9900]" : "text-[var(--t-text)]"
                   }`}
                 >
                   {bonoOptionLabel(b)}
@@ -217,9 +217,9 @@ function MetricRow({
 }) {
   return (
     <tr className={highlight ? "bg-[var(--t-surface)]" : ""}>
-      <td className="text-right px-2 py-0.5 font-mono text-[#d0d0d0] whitespace-nowrap">{a}</td>
-      <td className="text-center px-2 py-0.5 text-[8px] text-[#555555] uppercase tracking-wide whitespace-nowrap">{label}</td>
-      <td className="text-left px-2 py-0.5 font-mono text-[#d0d0d0] whitespace-nowrap">{b}</td>
+      <td className="text-right px-2 py-0.5 font-mono text-[var(--t-text)] whitespace-nowrap">{a}</td>
+      <td className="text-center px-2 py-0.5 text-[8px] text-[var(--t-text-muted)] uppercase tracking-wide whitespace-nowrap">{label}</td>
+      <td className="text-left px-2 py-0.5 font-mono text-[var(--t-text)] whitespace-nowrap">{b}</td>
     </tr>
   );
 }
@@ -328,12 +328,12 @@ export function CompararInversionView() {
       {/* Toolbar: monto + moneda + selectores */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-end gap-3 flex-wrap">
         <div>
-          <div className="text-[8px] text-[#555555] uppercase mb-0.5">Monto a invertir</div>
+          <div className="text-[8px] text-[var(--t-text-muted)] uppercase mb-0.5">Monto a invertir</div>
           <div className="flex items-stretch">
             <input
               value={monto}
               onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
-              className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
             />
             <div className="flex">
               {(["ARS", "USD"] as const).map((m) => (
@@ -343,7 +343,7 @@ export function CompararInversionView() {
                   className={`px-2 py-0.5 text-[10px] font-semibold border-y border-r transition-colors ${
                     moneda === m
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900]"
+                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900]"
                   }`}
                 >
                   {m}
@@ -356,7 +356,7 @@ export function CompararInversionView() {
           <BonoSelector label="A" bonos={bonos} selected={aId} onChange={setAId} color={COLOR_A} />
           <BonoSelector label="B" bonos={bonos} selected={bId} onChange={setBId} color={COLOR_B} />
         </div>
-        {loading && <span className="text-[10px] text-[#555555] italic">cargando…</span>}
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)] italic">cargando…</span>}
         {error && <span className="text-[10px] text-[#ff7f7f] italic">{error}</span>}
       </div>
 
@@ -371,7 +371,7 @@ export function CompararInversionView() {
                   <th className="text-right px-2 py-1 font-semibold text-[11px]" style={{ color: COLOR_A }}>
                     {data.a.label}
                   </th>
-                  <th className="text-center px-2 py-1 text-[8px] uppercase text-[#555555]">métrica</th>
+                  <th className="text-center px-2 py-1 text-[8px] uppercase text-[var(--t-text-muted)]">métrica</th>
                   <th className="text-left px-2 py-1 font-semibold text-[11px]" style={{ color: COLOR_B }}>
                     {data.b.label}
                   </th>
@@ -452,7 +452,7 @@ export function CompararInversionView() {
               </tbody>
             </table>
           ) : (
-            <div className="h-full flex items-center justify-center text-[#555555] text-[11px]">
+            <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
               Elegí 2 bonos para comparar
             </div>
           )}
@@ -470,7 +470,7 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "renta"
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900]"
                 }`}
               >
                 RENTA
@@ -480,7 +480,7 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "total"
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900]"
                 }`}
               >
                 TOTAL
@@ -492,7 +492,7 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   vista === "mes"
                     ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
-                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
                 }`}
               >
                 POR MES
@@ -502,13 +502,13 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   vista === "acum"
                     ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
-                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
                 }`}
               >
                 ACUMULADO
               </button>
             </div>
-            <span className="text-[8px] text-[#555555]">
+            <span className="text-[8px] text-[var(--t-text-muted)]">
               {modoChart === "renta" ? "solo cupones" : "cupón + amortización"}
               {vista === "acum" ? " · acum." : ""} · {data?.meta.moneda_input ?? moneda}
             </span>
@@ -587,7 +587,7 @@ export function CompararInversionView() {
                 )}
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-[#555555] text-[11px]">
+              <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
                 El gráfico aparece cuando elegís los dos bonos.
               </div>
             )}
@@ -604,7 +604,7 @@ export function CompararInversionView() {
             </span>
           ))}
           {data.meta.mep_aplicado != null && (
-            <span className="text-[9px] text-[#555555]">
+            <span className="text-[9px] text-[var(--t-text-muted)]">
               MEP aplicado: {fmt(data.meta.mep_aplicado, 2)}
             </span>
           )}

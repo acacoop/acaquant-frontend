@@ -188,12 +188,12 @@ export function DerivadosOperar({
     <div className="h-full min-h-0 flex flex-col">
       {/* Last / prev */}
       <div className="flex items-baseline gap-2 px-2 py-1 border-b border-[var(--t-border)] shrink-0">
-        <span className="text-[9px] text-[#666]">last</span>
+        <span className="text-[9px] text-[var(--t-text-muted)]">last</span>
         <span className="text-[#ff9900] font-bold tabular-nums text-[13px]">
           {last !== null ? last.toFixed(2) : "—"}
         </span>
-        {close !== null && <span className="text-[9px] text-[#555]">prev {close.toFixed(2)}</span>}
-        <span className="ml-auto text-[8px] text-[#555]">{plazoDe(instrumento)}</span>
+        {close !== null && <span className="text-[9px] text-[var(--t-text-muted)]">prev {close.toFixed(2)}</span>}
+        <span className="ml-auto text-[8px] text-[var(--t-text-muted)]">{plazoDe(instrumento)}</span>
       </div>
 
       {status === "subscribing" && (
@@ -211,7 +211,7 @@ export function DerivadosOperar({
       {/* Book L2 */}
       <div className="overflow-y-auto shrink-0">
         <table className="w-full text-[11px] font-mono tabular-nums">
-          <thead className="text-[9px] text-[#666] tracking-wider">
+          <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider">
             <tr>
               <th className="text-left px-1 py-0.5">BID SZ</th>
               <th className="text-right px-1 py-0.5">BID</th>
@@ -225,12 +225,12 @@ export function DerivadosOperar({
               const a = offers[i];
               return (
                 <tr key={i} className="border-t border-[#101010]">
-                  <td className="px-1 py-0.5 text-[#888]">
+                  <td className="px-1 py-0.5 text-[var(--t-text-dim)]">
                     {b?.size != null ? b.size.toLocaleString("es-AR") : "—"}
                   </td>
                   <td
                     className={`px-1 py-0.5 text-right ${
-                      b ? "text-[#7fff7f] cursor-pointer hover:bg-[#0d2d0d]" : "text-[#555]"
+                      b ? "text-[#7fff7f] cursor-pointer hover:bg-[#0d2d0d]" : "text-[var(--t-text-muted)]"
                     }`}
                     onClick={() => b && pickFromBook("SELL", b.price, b.size)}
                     title={b ? "Click: vender al bid" : ""}
@@ -239,14 +239,14 @@ export function DerivadosOperar({
                   </td>
                   <td
                     className={`px-1 py-0.5 ${
-                      a ? "text-[#ff7f7f] cursor-pointer hover:bg-[#2d0d0d]" : "text-[#555]"
+                      a ? "text-[#ff7f7f] cursor-pointer hover:bg-[#2d0d0d]" : "text-[var(--t-text-muted)]"
                     }`}
                     onClick={() => a && pickFromBook("BUY", a.price, a.size)}
                     title={a ? "Click: comprar al ask" : ""}
                   >
                     {a ? a.price.toFixed(2) : "—"}
                   </td>
-                  <td className="px-1 py-0.5 text-right text-[#888]">
+                  <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
                     {a?.size != null ? a.size.toLocaleString("es-AR") : "—"}
                   </td>
                 </tr>
@@ -268,7 +268,7 @@ export function DerivadosOperar({
                   ? s === "BUY"
                     ? "bg-[#4ade80] text-black border-[#4ade80]"
                     : "bg-[#f87171] text-black border-[#f87171]"
-                  : "bg-transparent text-[#888] border-[var(--t-border-2)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)]"
               }`}
             >
               {s}

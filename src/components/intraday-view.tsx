@@ -325,7 +325,7 @@ export function IntradayView() {
             onChange={onFileChange}
           />
         </label>
-        <span className="text-[11px] text-[#888] font-mono truncate max-w-[280px]">
+        <span className="text-[11px] text-[var(--t-text-dim)] font-mono truncate max-w-[280px]">
           {resultado?.archivo || "Ningún archivo seleccionado"}
         </span>
 
@@ -334,7 +334,7 @@ export function IntradayView() {
             <div className="h-5 w-px bg-[#222]" />
 
             <div className="flex items-center gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-[#555] mr-1">
+              <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)] mr-1">
                 Plazo:
               </span>
               {(["todos", "CI", "24hs"] as FiltroPlazo[]).map((p) => (
@@ -344,7 +344,7 @@ export function IntradayView() {
                   className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                     filtro === p
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                   }`}
                 >
                   {p === "todos" ? "AMBOS" : p.toUpperCase()}
@@ -354,13 +354,13 @@ export function IntradayView() {
 
             <button
               onClick={limpiar}
-              className="text-[10px] text-[#555] hover:text-[#ff3333] underline"
+              className="text-[10px] text-[var(--t-text-muted)] hover:text-[#ff3333] underline"
               title="Borra el consolidado de la sesión"
             >
               limpiar
             </button>
 
-            <div className="ml-auto flex items-center gap-3 text-[10px] text-[#888] font-mono">
+            <div className="ml-auto flex items-center gap-3 text-[10px] text-[var(--t-text-dim)] font-mono">
               <span>{resultado.filasCrudas} filas totales</span>
               <span className="text-[#ff9900]">
                 {resultado.filasFiltradas} con Client ID {CLIENT_ID_FILTRO}
@@ -377,14 +377,14 @@ export function IntradayView() {
       )}
 
       {!resultado && !error && (
-        <div className="flex-1 flex items-center justify-center text-[#555] text-[12px] text-center px-6">
+        <div className="flex-1 flex items-center justify-center text-[var(--t-text-muted)] text-[12px] text-center px-6">
           Cargá un CSV con las columnas: Client ID, Symbol/Símbolo, Side/Punta,
           Executed Size/Cantidad Ejecutada, Turnover.
         </div>
       )}
 
       {resultado && resultado.filasFiltradas === 0 && (
-        <div className="flex-1 flex items-center justify-center text-[#888] text-[12px]">
+        <div className="flex-1 flex items-center justify-center text-[var(--t-text-dim)] text-[12px]">
           Sin operaciones con Client ID = {CLIENT_ID_FILTRO} en este archivo.
         </div>
       )}
@@ -415,18 +415,18 @@ export function IntradayView() {
                         divisor ? "border-t-2 border-t-[var(--t-border)]" : ""
                       }`}
                     >
-                      <td className="!px-2 !py-1 text-[#d0d0d0]">{r.simbolo}</td>
+                      <td className="!px-2 !py-1 text-[var(--t-text)]">{r.simbolo}</td>
                       <td
                         className="!px-2 !py-1 text-center font-semibold"
                         style={{ color: monedaColor(r.moneda) }}
                       >
                         {r.moneda}
                       </td>
-                      <td className="!px-2 !py-1 text-center text-[#888]">{r.plazo}</td>
-                      <td className="!px-2 !py-1 text-right text-[#888]">
+                      <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{r.plazo}</td>
+                      <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
                         {r.operaciones}
                       </td>
-                      <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
+                      <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
                         {fmtNum(r.cantidad_neta, 0)}
                       </td>
                       <td
@@ -474,7 +474,7 @@ export function IntradayView() {
               <div className="flex-1 overflow-y-auto">
                 <table className="w-full text-[10px] font-mono">
                   <thead className="sticky top-0 bg-[#0a0a0a]">
-                    <tr className="text-[9px] uppercase tracking-wide text-[#555]">
+                    <tr className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
                       <th className="!py-1 text-left">Especie</th>
                       <th className="!py-1 text-right">Neto</th>
                     </tr>
@@ -482,7 +482,7 @@ export function IntradayView() {
                   <tbody>
                     {consolidadoPorEspecie.map((e) => (
                       <tr key={e.especie} className="border-t border-[var(--t-border)]">
-                        <td className="!py-1 text-[#d0d0d0]">{e.especie}</td>
+                        <td className="!py-1 text-[var(--t-text)]">{e.especie}</td>
                         <td
                           className="!py-1 text-right font-semibold"
                           style={{
@@ -501,7 +501,7 @@ export function IntradayView() {
                   </tbody>
                 </table>
               </div>
-              <div className="mt-2 pt-2 border-t border-[var(--t-border)] text-[9px] text-[#555] leading-relaxed shrink-0">
+              <div className="mt-2 pt-2 border-t border-[var(--t-border)] text-[9px] text-[var(--t-text-muted)] leading-relaxed shrink-0">
                 Agrupa AL30/AL30D/AL30C como AL30. Si el neto es 0, estás
                 flat en títulos más allá de la moneda.
               </div>

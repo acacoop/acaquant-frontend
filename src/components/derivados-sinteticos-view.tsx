@@ -85,7 +85,7 @@ function fmtFechaIso(s: string | null | undefined): string {
 }
 
 function pctColor(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "text-[#666]";
+  if (n === null || n === undefined) return "text-[var(--t-text-muted)]";
   return n >= 0 ? "text-[#00cc66]" : "text-[#ff3333]";
 }
 
@@ -114,16 +114,16 @@ export function DerivadosSinteticosView() {
     <div className="h-full min-h-0 flex flex-col">
       {/* Barra slim — SPOT + última actualización. */}
       <div className="border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
-        <span className="text-[10px] text-[#808080] uppercase tracking-wide">
+        <span className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide">
           Sintéticos
         </span>
         <div className="flex items-center gap-2 ml-auto">
-          <span className="text-[10px] text-[#808080] tracking-wide">SPOT</span>
+          <span className="text-[10px] text-[var(--t-text-dim)] tracking-wide">SPOT</span>
           <span className="text-[#ff9900] font-mono text-[11px]">
             {data.spot ? fmtPx(data.spot) : "—"}
           </span>
-          <span className="text-[9px] text-[#555]">({data.spot_source})</span>
-          <span className="text-[10px] text-[#555] ml-3">
+          <span className="text-[9px] text-[var(--t-text-muted)]">({data.spot_source})</span>
+          <span className="text-[10px] text-[var(--t-text-muted)] ml-3">
             ÚLT {ultimoDisplay}
           </span>
         </div>
@@ -216,7 +216,7 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
       <div className="flex-1 min-h-0">
         <Panel title={titulo.toUpperCase()}>
           {data.length === 0 ? (
-            <p className="text-[#555] text-xs py-6 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
               Sin datos válidos para graficar
             </p>
           ) : (
@@ -298,14 +298,14 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
       <div>
         <Panel title="SINTÉTICO · LONG ROFEX − LONG LECAP" expandable>
           {visibles.length === 0 ? (
-            <p className="text-[#555555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               {rows.length === 0
                 ? "SIN MATCHES — esperando precios del motor"
                 : "Sin pares con descalce = 0"}
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Ticker
@@ -354,31 +354,31 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
                     <td className="px-1.5 py-0.5 text-[#ff9900] font-semibold">
                       {r.ticker ?? "—"}
                     </td>
-                    <td className="px-1.5 py-0.5 text-[#d0d0d0]">
+                    <td className="px-1.5 py-0.5 text-[var(--t-text)]">
                       {r.futuro_ticker ?? "—"}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#d0d0d0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text)]">
                       {fmtPx(r.px_tf)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#d0d0d0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text)]">
                       {fmtPx(r.px_futuro, 1)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-center text-[#808080]">
+                    <td className="px-1.5 py-0.5 text-center text-[var(--t-text-dim)]">
                       {fmtFechaIso(r.vto_fecha)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#a0a0a0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                       {fmtPx(r.cobro, 3)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#808080]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                       {r.plazo_normal}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#666]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]">
                       {r.descalce ?? 0}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#a0a0a0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                       {fmtRatio(r.t0)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#a0a0a0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                       {fmtRatio(r.tn)}
                     </td>
                     <td className={`px-1.5 py-0.5 text-right ${pctColor(r.te)}`}>
@@ -412,14 +412,14 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
       <div>
         <Panel title="SINTÉTICO · SHORT ROFEX − LONG DLK" expandable>
           {visibles.length === 0 ? (
-            <p className="text-[#555555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               {rows.length === 0
                 ? "SIN MATCHES — esperando precios del motor"
                 : "Sin pares con descalce = 0"}
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Ticker
@@ -465,28 +465,28 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
                     <td className="px-1.5 py-0.5 text-[#ff9900] font-semibold">
                       {r.ticker ?? "—"}
                     </td>
-                    <td className="px-1.5 py-0.5 text-[#d0d0d0]">
+                    <td className="px-1.5 py-0.5 text-[var(--t-text)]">
                       {r.futuro_ticker ?? "—"}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#d0d0d0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text)]">
                       {fmtPx(r.px_dlk, 3)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#d0d0d0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text)]">
                       {fmtPx(r.px_futuro, 1)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#a0a0a0]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                       {fmtPx(r.dlr_ajuste)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-center text-[#808080]">
+                    <td className="px-1.5 py-0.5 text-center text-[var(--t-text-dim)]">
                       {fmtFechaIso(r.vto_dlk)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-center text-[#808080]">
+                    <td className="px-1.5 py-0.5 text-center text-[var(--t-text-dim)]">
                       {fmtFechaIso(r.vto_futuro)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#808080]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-dim)]">
                       {r.plazo_normal}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-[#666]">
+                    <td className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]">
                       {r.descalce ?? 0}
                     </td>
                     <td className={`px-1.5 py-0.5 text-right ${pctColor(r.te)}`}>

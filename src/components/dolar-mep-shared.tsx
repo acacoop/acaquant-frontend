@@ -90,7 +90,7 @@ export function Field({
 }) {
   return (
     <div className={`flex flex-col gap-1 ${className ?? ""}`}>
-      <span className="text-[9px] tracking-wider text-[#888]">{label}</span>
+      <span className="text-[9px] tracking-wider text-[var(--t-text-dim)]">{label}</span>
       {children}
     </div>
   );
@@ -99,7 +99,7 @@ export function Field({
 export function Th({ children, right }: { children?: React.ReactNode; right?: boolean }) {
   return (
     <th
-      className={`px-2 py-1 text-[10px] tracking-wider text-[#888] font-semibold ${
+      className={`px-2 py-1 text-[10px] tracking-wider text-[var(--t-text-dim)] font-semibold ${
         right ? "text-right" : "text-left"
       }`}
     >
@@ -133,7 +133,7 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
         <span>{status ?? "—"}</span>
         {reason && (
           <span
-            className="text-[9px] text-[#888] mt-0.5 max-w-[200px] truncate"
+            className="text-[9px] text-[var(--t-text-dim)] mt-0.5 max-w-[200px] truncate"
             title={reason}
           >
             {reason}
@@ -150,7 +150,7 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
 // no se muestra acá; si alguna vez son relevantes, se inspeccionan vía
 // /api/risk/account/report.
 function _colorDisp(value: number | null, opts?: { ref?: number }): string {
-  if (value === null) return "text-[#888]";
+  if (value === null) return "text-[var(--t-text-dim)]";
   if (value < 0) return "text-[#ff7f7f]";
   if (opts?.ref !== undefined && opts.ref > 0 && value < opts.ref) return "text-[#ff9900]";
   return "text-[#7fff7f]";
@@ -177,12 +177,12 @@ export function SaldoBox({
   return (
     <div className="flex items-center gap-6 px-3 py-2 bg-[var(--t-panel)] border border-[var(--t-border)]">
       <div className="flex items-center gap-2 min-w-[110px]">
-        <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
+        <span className="text-[9px] tracking-wider text-[var(--t-text-dim)]">SALDO {saldo?.rueda ?? ""}</span>
         {onRefresh && (
           <button
             onClick={onRefresh}
             title="Refrescar saldo"
-            className="text-[#888] hover:text-[#ff9900] text-[11px] leading-none"
+            className="text-[var(--t-text-dim)] hover:text-[#ff9900] text-[11px] leading-none"
           >
             ↻
           </button>
@@ -202,7 +202,7 @@ export function SaldoBox({
         // direccionales. El signo del broker indica dirección, pero acá
         // mostramos magnitud (lo que se operó).
         fmt={(n) => fmtSignedAr(Math.abs(n))}
-        color="text-[#aaa]"
+        color="text-[var(--t-text-dim)]"
         zeroAsDash
       />
       <Cell
@@ -215,13 +215,13 @@ export function SaldoBox({
         label="USD D MOVIM."
         value={usd.consumed}
         fmt={(n) => fmtSignedUsd(Math.abs(n))}
-        color="text-[#aaa]"
+        color="text-[var(--t-text-dim)]"
         zeroAsDash
       />
 
       {saldo?.last_calc && (
         <span
-          className="ml-auto text-[9px] text-[#666] tabular-nums"
+          className="ml-auto text-[9px] text-[var(--t-text-muted)] tabular-nums"
           title={saldo.last_calc}
         >
           last {fmtTime(saldo.last_calc)}
@@ -249,7 +249,7 @@ function Cell({
     v === null || (zeroAsDash && v === 0) ? "—" : fmt(v);
   return (
     <div className="flex flex-col gap-0.5 leading-tight">
-      <span className="text-[8px] tracking-wider text-[#666]">{label}</span>
+      <span className="text-[8px] tracking-wider text-[var(--t-text-muted)]">{label}</span>
       <span className={`text-[12px] font-semibold tabular-nums ${color}`}>{txt}</span>
     </div>
   );
@@ -310,7 +310,7 @@ export function estadoColor(s?: string): string {
   if (s === "FILLED" || s === "OK" || s === "EXECUTED") return "text-[#7fff7f]";
   if (s === "FAIL") return "text-[#ff7f7f]";
   if (s === "OK_PARCIAL" || s === "PENDING" || s === "FIRING" || s === "ACTIVE") return "text-[#ffe066]";
-  if (s === "CANCELLED" || s === "CANCELLED_EOD" || s === "STALE_BUY") return "text-[#888]";
+  if (s === "CANCELLED" || s === "CANCELLED_EOD" || s === "STALE_BUY") return "text-[var(--t-text-dim)]";
   return "text-white";
 }
 

@@ -113,12 +113,12 @@ export function AccountPicker({
               onMouseDown={(e) => e.preventDefault()} // que no robe el blur al input antes del click
               onClick={() => commit(c.account_id)}
               className={`w-full text-left px-2 py-1 text-[11px] font-mono hover:bg-[#1a1a1a] flex items-center justify-between ${
-                c.account_id === value ? "bg-[#1a1a1a] text-[#ff9900]" : "text-[#d0d0d0]"
+                c.account_id === value ? "bg-[#1a1a1a] text-[#ff9900]" : "text-[var(--t-text)]"
               }`}
             >
               <span>{c.account_id}</span>
               {c.activa && (
-                <span className="text-[8px] text-[#666]">
+                <span className="text-[8px] text-[var(--t-text-muted)]">
                   {c.ars_disponible !== null
                     ? `$${c.ars_disponible.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
                     : ""}
@@ -129,7 +129,7 @@ export function AccountPicker({
         </div>
       )}
       {open && filtradas.length === 0 && query.trim() && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[10px] text-[#666]">
+        <div className="absolute z-20 left-0 right-0 mt-1 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[10px] text-[var(--t-text-muted)]">
           ninguna empieza con &ldquo;{query}&rdquo;
         </div>
       )}

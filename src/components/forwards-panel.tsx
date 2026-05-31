@@ -204,7 +204,7 @@ export function ForwardsPanel({
                 }
               }}
               placeholder="agregar par…"
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[130px]"
+              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[130px]"
             />
             {dropOpen && filteredPares.length > 0 && (
               <div
@@ -218,7 +218,7 @@ export function ForwardsPanel({
                     <div
                       key={par}
                       onMouseDown={() => { togglePar(par); setParSearch(""); setDropOpen(false); }}
-                      className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${activo ? "text-[#ff9900]" : "text-[#d0d0d0]"}`}
+                      className={`px-2 py-0.5 text-[10px] font-mono cursor-pointer hover:bg-[#ff9900]/10 flex items-center gap-1.5 ${activo ? "text-[#ff9900]" : "text-[var(--t-text)]"}`}
                     >
                       <span className="w-3 text-center">{activo ? "✓" : ""}</span>
                       {shortTicker(tLargo)}→{shortTicker(tCorto)}
@@ -230,17 +230,17 @@ export function ForwardsPanel({
           </div>
         )}
         {fw?.updated_at && modo === "live" && (
-          <span className="ml-auto text-[10px] text-[#555555]">
+          <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">
             {fmtTs(fw.updated_at)}
           </span>
         )}
         {modo === "grafico" && histCurva.length > 0 && (
-          <span className="ml-auto text-[10px] text-[#555555]">
+          <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">
             {histCurva.length} días
           </span>
         )}
         {modo === "zscore" && fw?.updated_at && (
-          <span className="ml-auto flex items-center gap-1 text-[10px] text-[#555555]">
+          <span className="ml-auto flex items-center gap-1 text-[10px] text-[var(--t-text-muted)]">
             {fmtTs(fw.updated_at)} · 30d
             <InfoIcon width="380px" align="right" tip={<ForwardsZScoreHelp />} />
           </span>
@@ -252,7 +252,7 @@ export function ForwardsPanel({
           {hasData ? (
             <ForwardMatrix tickers={fw!.tickers!} matrix={fw!.matrix!} />
           ) : (
-            <p className="text-[#555555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               SIN DATOS — MERCADO CERRADO
             </p>
           )}
@@ -266,11 +266,11 @@ export function ForwardsPanel({
               stats={zStats}
             />
           ) : !hasData ? (
-            <p className="text-[#555555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               SIN DATOS LIVE — MERCADO CERRADO
             </p>
           ) : (
-            <p className="text-[#555555] text-xs py-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               SIN DATOS DE Z-SCORE — ESPERAR CIERRE
             </p>
           )}
@@ -279,7 +279,7 @@ export function ForwardsPanel({
         <div className="h-[380px] min-h-0">
           <div className="h-full min-h-0 min-w-0">
             {paresEfectivos.length === 0 || chartData.length === 0 ? (
-              <p className="text-[#555555] text-xs py-4 text-center">
+              <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                 Seleccioná al menos un par.
               </p>
             ) : (
@@ -399,7 +399,7 @@ function ForwardsZScoreHelp() {
           un poco más ancho.
         </li>
         <li>
-          <strong className="text-[#888]">±0.5</strong> · gris: neutral.
+          <strong className="text-[var(--t-text-dim)]">±0.5</strong> · gris: neutral.
         </li>
         <li>
           <strong className="text-[#d97706]">−0.5 a −1.5</strong> · naranja: un
@@ -444,7 +444,7 @@ function FilterBtn({
           ? "bg-transparent text-[#333333] border-[var(--t-border)] cursor-not-allowed"
           : active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

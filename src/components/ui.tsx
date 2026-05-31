@@ -2,7 +2,7 @@ export { Panel } from "./panel";
 
 export function Empty() {
   return (
-    <p className="text-[#555555] text-xs py-4 text-center">
+    <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
       SIN DATOS — MERCADO CERRADO
     </p>
   );

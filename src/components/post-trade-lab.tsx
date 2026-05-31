@@ -134,7 +134,7 @@ export function PostTradeLab({
 
   if (!Tmax || !legs.length) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin datos suficientes (falta tiempo a vencimiento o IV) para el laboratorio.
       </p>
     );
@@ -144,21 +144,21 @@ export function PostTradeLab({
     <div className="h-full min-h-0 flex flex-col overflow-y-auto text-[10px]">
       {/* Controles: entrada + unidades (+ lado si es 1 contrato) */}
       <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
-        <label className="flex items-center gap-1 text-[#808080]">
+        <label className="flex items-center gap-1 text-[var(--t-text-dim)]">
           ENTRADA
           <input
             value={entry}
             onChange={(e) => setEntry(e.target.value)}
             placeholder="prima"
-            className="w-16 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[#d0d0d0] focus:border-[#ff9900] outline-none"
+            className="w-16 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[var(--t-text)] focus:border-[#ff9900] outline-none"
           />
         </label>
-        <label className="flex items-center gap-1 text-[#808080]">
+        <label className="flex items-center gap-1 text-[var(--t-text-dim)]">
           ×
           <input
             value={nUnidades}
             onChange={(e) => setNUnidades(e.target.value.replace(/[^0-9]/g, ""))}
-            className="w-12 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[#d0d0d0] focus:border-[#ff9900] outline-none"
+            className="w-12 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[var(--t-text)] focus:border-[#ff9900] outline-none"
           />
         </label>
         {singleLeg && (
@@ -172,7 +172,7 @@ export function PostTradeLab({
                     ? s === "buy"
                       ? "bg-[#4ade80] text-black border-[#4ade80]"
                       : "bg-[#f87171] text-black border-[#f87171]"
-                    : "bg-transparent text-[#888] border-[var(--t-border-2)]"
+                    : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)]"
                 }`}
               >
                 {s === "buy" ? "LONG" : "SHORT"}
@@ -180,7 +180,7 @@ export function PostTradeLab({
             ))}
           </div>
         )}
-        <span className="text-[#555] ml-auto">
+        <span className="text-[var(--t-text-muted)] ml-auto">
           costo {fmtMoney(entryCost)} · {daysRem}d al vto
         </span>
       </div>
@@ -211,7 +211,7 @@ export function PostTradeLab({
       {/* Matriz P&L precio × tiempo */}
       <div className="flex-1 min-h-0 overflow-auto p-1">
         <table className="w-full text-[9px] font-mono tabular-nums border-collapse">
-          <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[#666]">
+          <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[var(--t-text-muted)]">
             <tr>
               <th className="px-1 py-0.5 text-left">SPOT</th>
               {cols.map((d) => (
@@ -224,12 +224,12 @@ export function PostTradeLab({
           <tbody>
             {matriz.map((row) => (
               <tr key={row.pct} className="border-t border-[#101010]">
-                <td className="px-1 py-0.5 text-[#888] whitespace-nowrap">
+                <td className="px-1 py-0.5 text-[var(--t-text-dim)] whitespace-nowrap">
                   <span className={row.pct === 0 ? "text-[#ffcc00]" : ""}>
                     {row.pct >= 0 ? "+" : ""}
                     {(row.pct * 100).toFixed(0)}%
                   </span>{" "}
-                  <span className="text-[#555]">{row.S.toFixed(0)}</span>
+                  <span className="text-[var(--t-text-muted)]">{row.S.toFixed(0)}</span>
                 </td>
                 {row.cells.map((pl, i) => (
                   <td
@@ -263,14 +263,14 @@ function Metric({
 }) {
   return (
     <div className="bg-[var(--t-panel)] px-2 py-1">
-      <div className="text-[8px] text-[#666] tracking-wide">{label}</div>
+      <div className="text-[8px] text-[var(--t-text-muted)] tracking-wide">{label}</div>
       <div
         className="text-[12px] font-semibold tabular-nums"
         style={pos === undefined ? { color: "#d0d0d0" } : { color: pos ? "#00cc66" : "#ff4444" }}
       >
         {value}
       </div>
-      {hint && <div className="text-[8px] text-[#555]">{hint}</div>}
+      {hint && <div className="text-[8px] text-[var(--t-text-muted)]">{hint}</div>}
     </div>
   );
 }

@@ -172,7 +172,7 @@ export function DolarMepCompraView({
                 className={`flex-1 px-2 py-0.5 text-[11px] font-bold border ${
                   inputMode === m
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
+                    : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-text)]"
                 }`}
                 title={m === "USD" ? "Ingresar cantidad de USD a comprar" : "Ingresar monto ARS a invertir"}
               >
@@ -234,7 +234,7 @@ export function DolarMepCompraView({
           {submitting ? "EJECUTANDO…" : "EJECUTAR"}
         </button>
 
-        <div className="flex items-center gap-4 text-[10px] text-[#888]">
+        <div className="flex items-center gap-4 text-[10px] text-[var(--t-text-dim)]">
           {inputMode === "USD" && (
             <span>
               ARS necesarios:{" "}
@@ -284,7 +284,7 @@ export function DolarMepCompraView({
           <tbody>
             {operativas.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-4 text-center text-[#666]">
+                <td colSpan={10} className="px-3 py-4 text-center text-[var(--t-text-muted)]">
                   Sin operativas hoy
                 </td>
               </tr>
@@ -305,7 +305,7 @@ export function DolarMepCompraView({
                 <Td right>{op.usd_efectivo ? `US$${op.usd_efectivo.toFixed(2)}` : "—"}</Td>
                 <Td right className="text-[#ff9900]">{op.mep_efectivo ?? "—"}</Td>
                 <Td className={estadoColor(op.estado)}>{op.estado ?? ""}</Td>
-                <Td className="text-[#888]">{op.actor_email ?? ""}</Td>
+                <Td className="text-[var(--t-text-dim)]">{op.actor_email ?? ""}</Td>
               </tr>
             ))}
           </tbody>

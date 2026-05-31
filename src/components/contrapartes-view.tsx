@@ -300,7 +300,7 @@ export function ContrapartesView() {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Cargando…
       </div>
     );
@@ -314,7 +314,7 @@ export function ContrapartesView() {
   }
   if (flujos.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#555555] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Sin datos.
       </div>
     );
@@ -352,7 +352,7 @@ export function ContrapartesView() {
               <select
                 value={dia}
                 onChange={(e) => setDia(e.target.value)}
-                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
               >
                 <option value="">(rango completo)</option>
                 {[...diasAll].reverse().map((d) => (
@@ -365,7 +365,7 @@ export function ContrapartesView() {
                 <button
                   onClick={() => setDia("")}
                   title="Limpiar día"
-                  className="h-[26px] px-2 text-[10px] border border-[var(--t-border-2)] text-[#555555] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  className="h-[26px] px-2 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 >
                   ✕
                 </button>
@@ -430,7 +430,7 @@ export function ContrapartesView() {
             </div>
           </Labeled>
           <Labeled label="Total filtrado">
-            <div className="h-[26px] flex items-center text-[11px] font-mono text-[#d0d0d0]">
+            <div className="h-[26px] flex items-center text-[11px] font-mono text-[var(--t-text)]">
               {filtered.length} ops
             </div>
           </Labeled>
@@ -444,10 +444,10 @@ export function ContrapartesView() {
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               OPERACIONES · {dia}
             </span>
-            <span className="ml-2 text-[10px] text-[#555555]">
+            <span className="ml-2 text-[10px] text-[var(--t-text-muted)]">
               ({opsDelDia.length} ops, orden |bruto| ↓)
             </span>
-            <span className="ml-auto text-[10px] text-[#888888]">
+            <span className="ml-auto text-[10px] text-[var(--t-text-dim)]">
               Total bruto:{" "}
               <span className="text-[#ff9900] font-semibold">
                 {fmtFull(opsDelDia.reduce((s, o) => s + (o.bruto || 0), 0))}
@@ -474,25 +474,25 @@ export function ContrapartesView() {
                     key={`${o.boleto ?? ""}-${i}`}
                     className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
                   >
-                    <td className="!px-2 !py-1 text-[#888888]">
+                    <td className="!px-2 !py-1 text-[var(--t-text-dim)]">
                       {o.boleto ?? "—"}
                     </td>
-                    <td className="!px-2 !py-1 text-[#d0d0d0]">
+                    <td className="!px-2 !py-1 text-[var(--t-text)]">
                       {o.tipoOperacion ?? "—"}
                     </td>
-                    <td className="!px-2 !py-1 text-[#d0d0d0] truncate max-w-[180px]">
+                    <td className="!px-2 !py-1 text-[var(--t-text)] truncate max-w-[180px]">
                       {o.cuenta ?? "—"}
                     </td>
-                    <td className="!px-2 !py-1 text-[#d0d0d0]">
+                    <td className="!px-2 !py-1 text-[var(--t-text)]">
                       {o.contraparte ?? "—"}
                     </td>
-                    <td className="!px-2 !py-1 text-[#888888]">
+                    <td className="!px-2 !py-1 text-[var(--t-text-dim)]">
                       {o.segmento ?? "—"}
                     </td>
-                    <td className="!px-2 !py-1 text-[#888888] truncate max-w-[260px]">
+                    <td className="!px-2 !py-1 text-[var(--t-text-dim)] truncate max-w-[260px]">
                       {o.unidad ?? "—"}
                     </td>
-                    <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
+                    <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
                       {fmtFull(o.bruto ?? 0)}
                     </td>
                     <td className="!px-2 !py-1 text-[#ff9900]">
@@ -502,7 +502,7 @@ export function ContrapartesView() {
                 ))}
                 {opsDelDia.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="text-center text-[#555555] py-4">
+                    <td colSpan={8} className="text-center text-[var(--t-text-muted)] py-4">
                       Sin operaciones en este día.
                     </td>
                   </tr>
@@ -522,7 +522,7 @@ export function ContrapartesView() {
                 <tr className="border-b border-[var(--t-border)]">
                   <th className="!px-2 !py-1 text-left text-[#ff9900] font-semibold tracking-wide uppercase">
                     CONTRAPARTE
-                    <span className="ml-1 text-[10px] text-[#555555] font-normal normal-case">
+                    <span className="ml-1 text-[10px] text-[var(--t-text-muted)] font-normal normal-case">
                       ({contrapartesTabla.length})
                     </span>
                   </th>
@@ -560,11 +560,11 @@ export function ContrapartesView() {
                           : "hover:bg-[#ff9900]/5"
                       }`}
                     >
-                      <td className="!px-2 !py-1 text-[#d0d0d0]">{r.cp}</td>
+                      <td className="!px-2 !py-1 text-[var(--t-text)]">{r.cp}</td>
                       <td className="!px-2 !py-1 text-right">
                         {fmtFull(r.bruto)}
                       </td>
-                      <td className="!px-2 !py-1 text-right text-[#888888]">
+                      <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
                         {r.share.toFixed(1)}%
                       </td>
                     </tr>
@@ -574,7 +574,7 @@ export function ContrapartesView() {
                   <tr>
                     <td
                       colSpan={3}
-                      className="text-center text-[#555555] py-4"
+                      className="text-center text-[var(--t-text-muted)] py-4"
                     >
                       Sin datos
                     </td>
@@ -591,7 +591,7 @@ export function ContrapartesView() {
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               MESES
             </span>
-            <span className="ml-auto text-[10px] text-[#888888] truncate max-w-[60%]">
+            <span className="ml-auto text-[10px] text-[var(--t-text-dim)] truncate max-w-[60%]">
               {cpSel ? cpSel : "Consolidado"}
             </span>
           </div>
@@ -609,7 +609,7 @@ export function ContrapartesView() {
                     key={r.key}
                     className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
                   >
-                    <td className="!px-2 !py-1 text-[#d0d0d0]">{r.label}</td>
+                    <td className="!px-2 !py-1 text-[var(--t-text)]">{r.label}</td>
                     <td className="!px-2 !py-1 text-right">
                       {fmtFull(r.bruto)}
                     </td>
@@ -619,7 +619,7 @@ export function ContrapartesView() {
                   <tr>
                     <td
                       colSpan={2}
-                      className="text-center text-[#555555] py-4"
+                      className="text-center text-[var(--t-text-muted)] py-4"
                     >
                       Sin meses
                     </td>
@@ -647,7 +647,7 @@ export function ContrapartesView() {
           }`}
         >
           {monSel.length === 0 && (
-            <div className="h-[180px] flex items-center justify-center text-[#555555] text-[11px]">
+            <div className="h-[180px] flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
               Seleccioná al menos una moneda.
             </div>
           )}
@@ -665,7 +665,7 @@ export function ContrapartesView() {
                   <span style={{ color }} className="font-semibold">
                     {moneda}
                   </span>
-                  <span className="ml-auto text-[#888888]">
+                  <span className="ml-auto text-[var(--t-text-dim)]">
                     Acum:{" "}
                     <span style={{ color }} className="font-semibold">
                       {data.length
@@ -745,7 +745,7 @@ export function ContrapartesView() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-[180px] flex items-center justify-center text-[#555555] text-[10px]">
+                  <div className="h-[180px] flex items-center justify-center text-[var(--t-text-muted)] text-[10px]">
                     Sin datos en {moneda}
                   </div>
                 )}
@@ -768,7 +768,7 @@ function Labeled({
 }) {
   return (
     <div className="flex flex-col gap-1 min-w-0">
-      <span className="text-[10px] tracking-wide text-[#555555] uppercase">
+      <span className="text-[10px] tracking-wide text-[var(--t-text-muted)] uppercase">
         {label}
       </span>
       {children}
@@ -791,7 +791,7 @@ function Chip({
       className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}
@@ -814,7 +814,7 @@ function MiniChip({
       className={`px-1.5 h-[18px] text-[9px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

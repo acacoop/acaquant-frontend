@@ -108,7 +108,7 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
 
   if (puntos.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#888888] font-mono text-xs">
+      <div className="h-full flex items-center justify-center text-[var(--t-text-dim)] font-mono text-xs">
         Esperando datos de la curva DLR…
       </div>
     );
@@ -118,12 +118,12 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
     <div className="h-full w-full flex flex-col bg-[var(--t-panel)]">
       {/* Header con el TC vivo */}
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-baseline gap-3 font-mono text-[11px]">
-        <span className="text-[#d0d0d0] font-semibold">CURVA DLR (FUTUROS ROFEX)</span>
+        <span className="text-[var(--t-text)] font-semibold">CURVA DLR (FUTUROS ROFEX)</span>
         {spot !== null && (
-          <span className="text-[#888888]">
+          <span className="text-[var(--t-text-dim)]">
             TC ref:{" "}
-            <span className="text-[#d0d0d0] tabular-nums">{fmtPrice(spot)}</span>
-            {fuente && <span className="text-[#555555]"> · {fuente}</span>}
+            <span className="text-[var(--t-text)] tabular-nums">{fmtPrice(spot)}</span>
+            {fuente && <span className="text-[var(--t-text-muted)]"> · {fuente}</span>}
           </span>
         )}
       </div>

@@ -124,7 +124,7 @@ export function GruposPanel() {
         </div>
       )}
 
-      <div className="text-[10px] text-[#666] leading-relaxed shrink-0">
+      <div className="text-[10px] text-[var(--t-text-muted)] leading-relaxed shrink-0">
         Un usuario que pertenece a uno o más grupos solo ve/opera las cuentas de
         sus grupos. Un usuario que no está en ningún grupo ve TODO. El admin ve
         todo siempre.
@@ -137,13 +137,13 @@ export function GruposPanel() {
         </div>
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <div className="text-[9px] text-[#808080] mb-0.5">NOMBRE</div>
+            <div className="text-[9px] text-[var(--t-text-dim)] mb-0.5">NOMBRE</div>
             <input
               type="text"
               value={newNombre}
               onChange={(e) => setNewNombre(e.target.value)}
               placeholder="ej. Mesa Rosario"
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </div>
           <button
@@ -154,7 +154,7 @@ export function GruposPanel() {
             {busy === "__new__" ? "..." : "AGREGAR"}
           </button>
         </div>
-        <div className="text-[9px] text-[#555] mt-1.5">
+        <div className="text-[9px] text-[var(--t-text-muted)] mt-1.5">
           Se crea vacío — después le asignás usuarios y cuentas abajo.
         </div>
       </div>
@@ -162,9 +162,9 @@ export function GruposPanel() {
       {/* Lista de grupos */}
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-3">
         {loading ? (
-          <div className="text-[#555] text-xs py-4 text-center">Cargando…</div>
+          <div className="text-[var(--t-text-muted)] text-xs py-4 text-center">Cargando…</div>
         ) : grupos.length === 0 ? (
-          <div className="text-[#555] text-xs py-4 text-center">
+          <div className="text-[var(--t-text-muted)] text-xs py-4 text-center">
             Sin grupos. Agregá uno arriba.
           </div>
         ) : (
@@ -243,7 +243,7 @@ function GrupoCard({
           type="text"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
-          className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+          className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
         />
         <button
           onClick={() =>
@@ -266,17 +266,17 @@ function GrupoCard({
       <div className="grid grid-cols-2 gap-4">
         {/* Usuarios */}
         <div>
-          <div className="text-[9px] text-[#808080] tracking-wide mb-1">
+          <div className="text-[9px] text-[var(--t-text-dim)] tracking-wide mb-1">
             USUARIOS ({emails.length})
           </div>
           <div className="flex flex-wrap gap-1 mb-1.5 min-h-[22px]">
             {emails.length === 0 && (
-              <span className="text-[10px] text-[#555]">sin usuarios</span>
+              <span className="text-[10px] text-[var(--t-text-muted)]">sin usuarios</span>
             )}
             {emails.map((em) => (
               <span
                 key={em}
-                className="flex items-center gap-1 text-[10px] font-mono text-[#d0d0d0] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
+                className="flex items-center gap-1 text-[10px] font-mono text-[var(--t-text)] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
               >
                 {em}
                 <button
@@ -293,7 +293,7 @@ function GrupoCard({
             onChange={(e) => {
               if (e.target.value) setEmails([...emails, e.target.value]);
             }}
-            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none"
+            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none"
           >
             <option value="">+ agregar usuario…</option>
             {usersDisponibles.map((u) => (
@@ -306,21 +306,21 @@ function GrupoCard({
 
         {/* Cuentas */}
         <div>
-          <div className="text-[9px] text-[#808080] tracking-wide mb-1">
+          <div className="text-[9px] text-[var(--t-text-dim)] tracking-wide mb-1">
             CUENTAS ({idCuentas.length})
           </div>
           <div className="flex flex-wrap gap-1 mb-1.5 min-h-[22px]">
             {idCuentas.length === 0 && (
-              <span className="text-[10px] text-[#555]">sin cuentas</span>
+              <span className="text-[10px] text-[var(--t-text-muted)]">sin cuentas</span>
             )}
             {idCuentas.map((id) => (
               <span
                 key={id}
                 title={cuentaLabel(id)}
-                className="flex items-center gap-1 text-[10px] font-mono text-[#d0d0d0] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
+                className="flex items-center gap-1 text-[10px] font-mono text-[var(--t-text)] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
               >
                 <span className="text-[#ff9900]">{id}</span>
-                <span className="text-[#808080] max-w-[120px] truncate">
+                <span className="text-[var(--t-text-dim)] max-w-[120px] truncate">
                   {cuentaLabel(id)}
                 </span>
                 <button
@@ -339,12 +339,12 @@ function GrupoCard({
             value={filtroCuenta}
             onChange={(e) => setFiltroCuenta(e.target.value)}
             placeholder="buscar cuenta por id o nombre…"
-            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none mb-1"
+            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none mb-1"
           />
           {filtroCuenta.trim() && (
             <div className="max-h-[140px] overflow-y-auto border border-[var(--t-border)]">
               {cuentasDisponibles.length === 0 ? (
-                <div className="text-[10px] text-[#555] px-1.5 py-1">
+                <div className="text-[10px] text-[var(--t-text-muted)] px-1.5 py-1">
                   sin coincidencias
                 </div>
               ) : (
@@ -360,7 +360,7 @@ function GrupoCard({
                     <span className="text-[#ff9900] w-12 shrink-0">
                       {c.id_cuenta}
                     </span>
-                    <span className="text-[#d0d0d0] truncate">{c.cuenta}</span>
+                    <span className="text-[var(--t-text)] truncate">{c.cuenta}</span>
                   </button>
                 ))
               )}

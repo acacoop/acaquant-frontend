@@ -157,7 +157,7 @@ export function RentaFijaTable({
                         </span>
                       )}
                     </td>
-                    <td className="!px-1 text-center text-[#808080] tabular-nums">
+                    <td className="!px-1 text-center text-[var(--t-text-dim)] tabular-nums">
                       {fmtMatur(tickerVtoMap[short])}
                     </td>
                     <td className="!px-1 text-right font-semibold">
@@ -166,7 +166,7 @@ export function RentaFijaTable({
                     <td
                       className={`!px-1 text-right ${
                         intraday === null
-                          ? "text-[#555555]"
+                          ? "text-[var(--t-text-muted)]"
                           : intraday >= 0
                           ? "text-[#00cc66]"
                           : "text-[#ff3333]"
@@ -179,7 +179,7 @@ export function RentaFijaTable({
                     <td
                       className={`!px-1 text-right ${
                         vs1d === null
-                          ? "text-[#555555]"
+                          ? "text-[var(--t-text-muted)]"
                           : vs1d >= 0
                           ? "text-[#00cc66]"
                           : "text-[#ff3333]"
@@ -189,31 +189,31 @@ export function RentaFijaTable({
                         ? `${vs1d >= 0 ? "+" : ""}${vs1d.toFixed(2)}%`
                         : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#808080]">
+                    <td className="!px-1 text-right text-[var(--t-text-dim)]">
                       {fmtPrice(r.metrics?.vwap)}
                     </td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">
+                    <td className="!px-1 text-right text-[var(--t-text)]">
                       {tna !== null ? `${tna.toFixed(1)}%` : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">
+                    <td className="!px-1 text-right text-[var(--t-text)]">
                       {tea !== undefined ? `${(tea * 100).toFixed(1)}%` : "--"}
                     </td>
                     {curva === "tasa_fija" && (
-                      <td className="!px-1 text-right text-[#d0d0d0]">
+                      <td className="!px-1 text-right text-[var(--t-text)]">
                         {tem !== null ? `${tem.toFixed(2)}%` : "--"}
                       </td>
                     )}
-                    <td className="!px-1 text-right text-[#d0d0d0]">
+                    <td className="!px-1 text-right text-[var(--t-text)]">
                       {r.metrics?.duration !== undefined
                         ? r.metrics.duration.toFixed(2)
                         : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">
+                    <td className="!px-1 text-right text-[var(--t-text)]">
                       {r.metrics?.mod_duration !== undefined
                         ? r.metrics.mod_duration.toFixed(2)
                         : "--"}
                     </td>
-                    <td className="!px-1 text-right text-[#d0d0d0]">
+                    <td className="!px-1 text-right text-[var(--t-text)]">
                       {r.metrics?.convexity !== undefined
                         ? r.metrics.convexity.toFixed(2)
                         : "--"}
@@ -235,13 +235,13 @@ export function RentaFijaTable({
           </table>
         </div>
       ) : (
-        <p className="text-[#555555] text-xs py-4 text-center">
+        <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
           SIN DATOS — MERCADO CERRADO
         </p>
       )}
 
       {vista !== "libro" && (
-        <div className="mt-1 text-[10px] text-[#555555] text-right">
+        <div className="mt-1 text-[10px] text-[var(--t-text-muted)] text-right">
           {sorted.length} instrumento{sorted.length !== 1 ? "s" : ""} ·{" "}
           VOL TOTAL {fmtVol(sorted.reduce((s, r) => s + (r.metrics?.total_nominals || 0), 0))} VN
         </div>
@@ -265,7 +265,7 @@ function FilterBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

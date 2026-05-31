@@ -110,7 +110,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
 
   if (!ticker) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Seleccioná un ticker en la tabla
       </p>
     );
@@ -127,7 +127,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
               mainTab === key
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {label}
@@ -144,7 +144,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
                 className={`px-1.5 py-0.5 text-[9px] tracking-wide border transition-colors ${
                   subTab === key
                     ? "text-[#ff9900] border-[#ff9900]/40"
-                    : "text-[#555555] border-transparent hover:text-[#ff9900]"
+                    : "text-[var(--t-text-muted)] border-transparent hover:text-[#ff9900]"
                 }`}
               >
                 {label}
@@ -154,23 +154,23 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
         )}
 
         <TableHelp entries={METRICAS_GLOSSARY} />
-        <span className="ml-auto text-[#808080]">
+        <span className="ml-auto text-[var(--t-text-dim)]">
           {ticker} · last{" "}
-          <span className="text-[#d0d0d0] font-mono">
+          <span className="text-[var(--t-text)] font-mono">
             {pivot?.last != null ? `$${pivot.last.toFixed(2)}` : "--"}
           </span>
           {pivot?.last_source === "live" && (
             <span className="ml-1 text-[8px] text-[#00cc66] tracking-widest align-middle">LIVE</span>
           )}
           {pivot?.last_source === "eod" && (
-            <span className="ml-1 text-[8px] text-[#666] tracking-widest align-middle">EOD</span>
+            <span className="ml-1 text-[8px] text-[var(--t-text-muted)] tracking-widest align-middle">EOD</span>
           )}
         </span>
       </div>
 
       {/* Contenido */}
       {loading && mainTab === "zonas" ? (
-        <p className="text-[#555555] text-xs py-4 text-center">Cargando…</p>
+        <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Cargando…</p>
       ) : mainTab === "stats" ? (
         <StatsView stats={stats} />
       ) : (
@@ -199,7 +199,7 @@ function PivotView({
 }) {
   if (!frame) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         Sin data para {tabLabel.toUpperCase()} (probable: ticker arrancó después del rango)
       </p>
     );
@@ -213,7 +213,7 @@ function PivotView({
           <col className="w-1/3" />
         </colgroup>
         <thead>
-          <tr className="text-[#707070]">
+          <tr className="text-[var(--t-text-muted)]">
             <th className="!px-1 text-center">NIVEL</th>
             <th className="!px-1 text-center">PRECIO</th>
             <th className="!px-1 text-center">vs LAST</th>
@@ -235,16 +235,16 @@ function PivotView({
 
 function StatsView({ stats }: { stats: QuantStats | null }) {
   if (!stats) {
-    return <p className="text-[#555555] text-xs py-4 text-center">Cargando stats…</p>;
+    return <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Cargando stats…</p>;
   }
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="text-[#555555] text-[9px] mb-1">
+      <div className="text-[var(--t-text-muted)] text-[9px] mb-1">
         Window: 60 ruedas hábiles · n={stats.n_observations}
       </div>
       <table className="w-full mb-3">
         <thead>
-          <tr className="text-[#707070]">
+          <tr className="text-[var(--t-text-muted)]">
             <th className="!px-1 text-left">MÉTRICA</th>
             <th className="!px-1 text-right">vs SPY</th>
             <th className="!px-1 text-right">vs QQQ</th>
@@ -258,21 +258,21 @@ function StatsView({ stats }: { stats: QuantStats | null }) {
       </table>
       <table className="w-full mb-3">
         <thead>
-          <tr className="text-[#707070]">
+          <tr className="text-[var(--t-text-muted)]">
             <th className="!px-1 text-left">VOL REALIZADA (anual)</th>
             <th className="!px-1 text-right">VALOR</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td className="!px-1 text-[#808080]">30 días</td>
-            <td className="!px-1 text-right text-[#d0d0d0] tabular-nums font-semibold">
+            <td className="!px-1 text-[var(--t-text-dim)]">30 días</td>
+            <td className="!px-1 text-right text-[var(--t-text)] tabular-nums font-semibold">
               {stats.vol.d30 != null ? `${(stats.vol.d30 * 100).toFixed(1)}%` : "--"}
             </td>
           </tr>
           <tr>
-            <td className="!px-1 text-[#808080]">60 días</td>
-            <td className="!px-1 text-right text-[#d0d0d0] tabular-nums font-semibold">
+            <td className="!px-1 text-[var(--t-text-dim)]">60 días</td>
+            <td className="!px-1 text-right text-[var(--t-text)] tabular-nums font-semibold">
               {stats.vol.d60 != null ? `${(stats.vol.d60 * 100).toFixed(1)}%` : "--"}
             </td>
           </tr>
@@ -280,7 +280,7 @@ function StatsView({ stats }: { stats: QuantStats | null }) {
       </table>
       <table className="w-full">
         <thead>
-          <tr className="text-[#707070]">
+          <tr className="text-[var(--t-text-muted)]">
             <th className="!px-1 text-left">Z-SCORE RETORNO HOY</th>
             <th className="!px-1 text-right">VALOR</th>
           </tr>
@@ -298,7 +298,7 @@ function ZRow({ label, v }: { label: string; v: number | null }) {
   // Coloreado por magnitud: |z|>2 atípico (naranja), |z|>3 extremo (rojo).
   // Verde si |z|<2 (movimiento normal). Color absoluto, no por signo —
   // un -3σ es tan extremo como un +3σ.
-  let color = "text-[#d0d0d0]";
+  let color = "text-[var(--t-text)]";
   if (v != null) {
     const abs = Math.abs(v);
     if (abs >= 3)      color = "text-[#ff3333]";
@@ -307,7 +307,7 @@ function ZRow({ label, v }: { label: string; v: number | null }) {
   }
   return (
     <tr>
-      <td className="!px-1 text-[#808080]">{label}</td>
+      <td className="!px-1 text-[var(--t-text-dim)]">{label}</td>
       <td className={`!px-1 text-right tabular-nums font-semibold ${color}`}>
         {v != null ? `${v >= 0 ? "+" : ""}${v.toFixed(2)} σ` : "--"}
       </td>
@@ -345,7 +345,7 @@ function Row({
       <td
         className={`!px-1 text-center tabular-nums ${
           dist === null
-            ? "text-[#555555]"
+            ? "text-[var(--t-text-muted)]"
             : dist >= 0
             ? "text-[#00cc66]"
             : "text-[#ff3333]"
@@ -374,13 +374,13 @@ function StatRow({
     return v.toFixed(2);
   };
   const colorFor = (v: number | null) => {
-    if (v == null) return "text-[#555555]";
+    if (v == null) return "text-[var(--t-text-muted)]";
     if (fmt === "pct") return v >= 0 ? "text-[#00cc66]" : "text-[#ff3333]";
-    return "text-[#d0d0d0]";
+    return "text-[var(--t-text)]";
   };
   return (
     <tr>
-      <td className="!px-1 text-[#808080]">{label}</td>
+      <td className="!px-1 text-[var(--t-text-dim)]">{label}</td>
       <td className={`!px-1 text-right tabular-nums font-semibold ${colorFor(spy)}`}>
         {format(spy)}
       </td>

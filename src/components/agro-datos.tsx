@@ -54,13 +54,13 @@ export function AgroDatos() {
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
       <div className="max-w-2xl">
         <Panel title="CÁMARA ARBITRAL DE CEREALES — ROSARIO" expandable>
-          <div className="px-2 pt-1 pb-2 text-[10px] text-[#666] leading-snug">
+          <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
             Inputs manuales del trader. Ambas columnas (ARS y USD) se cargan
             por separado — no hay fórmula entre ellas. Estos valores se
             reutilizan en otras vistas (Mejoras Precio Dispo, etc.).
           </div>
           <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a]">
+            <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a]">
               <tr>
                 <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">
                   Cereal
@@ -182,29 +182,29 @@ function CerealRow({ row }: { row: CamaraRow }) {
       </td>
       <td className="px-2 py-1.5 text-right">
         <div className="inline-flex items-center gap-1 justify-end">
-          <span className="text-[#666] text-[10px]">$</span>
+          <span className="text-[var(--t-text-muted)] text-[10px]">$</span>
           <input
             type="text"
             inputMode="decimal"
             value={ars}
             onChange={(e) => onArsChange(e.target.value)}
             placeholder="—"
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-28 text-right"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-28 text-right"
           />
         </div>
       </td>
       <td className="px-2 py-1.5 text-right">
         <div className="inline-flex items-center gap-1 justify-end">
-          <span className="text-[#666] text-[10px]">US$</span>
+          <span className="text-[var(--t-text-muted)] text-[10px]">US$</span>
           <input
             type="text"
             inputMode="decimal"
             value={usd}
             onChange={(e) => onUsdChange(e.target.value)}
             placeholder="—"
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-24 text-right"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-24 text-right"
           />
-          {saving && <span className="text-[9px] text-[#888]">…</span>}
+          {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
           {savedOk === true && (
             <span className="text-[9px] text-[#4ade80]">✓</span>
           )}
@@ -213,7 +213,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
           )}
         </div>
       </td>
-      <td className="px-2 py-1.5 text-right text-[9px] text-[#555]">
+      <td className="px-2 py-1.5 text-right text-[9px] text-[var(--t-text-muted)]">
         {editHint}
       </td>
     </tr>

@@ -39,7 +39,7 @@ type SortKey =
   | "pnl_acum_ars" | "pnl_acum_usd" | "base100_ars" | "base100_usd";
 
 const base100Class = (v: number | null) =>
-  v == null ? "text-[#666]" : v >= 100 ? "text-[#00cc66]" : "text-[#ff4d4d]";
+  v == null ? "text-[var(--t-text-muted)]" : v >= 100 ? "text-[#00cc66]" : "text-[#ff4d4d]";
 const pnlCls = (v: number) => (v >= 0 ? "text-[#00cc66]" : "text-[#ff4d4d]");
 
 // Cuentas con |valor ARS| por debajo de esto se consideran "saldo muerto"
@@ -130,7 +130,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
       <div className="flex gap-1 px-2 pt-2 shrink-0">
         <button
           onClick={onVolver}
-          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[#888] hover:text-[#ff9900]"
+          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[#ff9900]"
         >
           POR TÍTULO
         </button>
@@ -146,7 +146,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as FiltroCuenta)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
         >
           {FILTRO_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -157,9 +157,9 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
           value={searchCta}
           onChange={(e) => setSearchCta(e.target.value)}
           placeholder="Filtrar cuenta…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-48"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none w-48"
         />
-        <label className="flex items-center gap-1 text-[10px] text-[#888] font-mono cursor-pointer select-none">
+        <label className="flex items-center gap-1 text-[10px] text-[var(--t-text-dim)] font-mono cursor-pointer select-none">
           <input
             type="checkbox"
             checked={ocultarMuerto}
@@ -169,7 +169,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
           Ocultar saldo muerto (&lt;$100k)
         </label>
         {data && (
-          <span className="text-[10px] text-[#666] font-mono">
+          <span className="text-[10px] text-[var(--t-text-muted)] font-mono">
             {filas.length} cuentas
           </span>
         )}
@@ -180,18 +180,18 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
         {err ? (
           <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>
         ) : loading && !data ? (
-          <div className="h-full flex items-center justify-center text-[#555] text-[11px]">
+          <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
             Cargando…
           </div>
         ) : !data || filas.length === 0 ? (
-          <div className="p-6 text-center text-[#555] text-[11px]">
+          <div className="p-6 text-center text-[var(--t-text-muted)] text-[11px]">
             Sin cuentas para mostrar.
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
               <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
-                <tr className="text-[9px] tracking-widest text-[#888]">
+                <tr className="text-[9px] tracking-widest text-[var(--t-text-dim)]">
                   <Th onClick={() => toggleSort("cuenta")} left>CUENTA{arrow("cuenta")}</Th>
                   <Th onClick={() => toggleSort("valor_ars")}>VALOR ARS{arrow("valor_ars")}</Th>
                   <Th onClick={() => toggleSort("valor_usd")}>VALOR USD{arrow("valor_usd")}</Th>
@@ -206,12 +206,12 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
                   const cuentaShort = r.cuenta.replace(/^\[\d+\]\s*/, "");
                   return (
                     <tr key={r.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5">
-                      <td className="px-2 py-1.5 text-[#888] truncate max-w-[220px]" title={r.cuenta}>
-                        <span className="text-[#555] mr-1">[{r.id_cuenta}]</span>
+                      <td className="px-2 py-1.5 text-[var(--t-text-dim)] truncate max-w-[220px]" title={r.cuenta}>
+                        <span className="text-[var(--t-text-muted)] mr-1">[{r.id_cuenta}]</span>
                         {cuentaShort}
                       </td>
-                      <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtCompact(r.valor_ars)}</td>
-                      <td className="px-2 py-1.5 text-right text-[#d0d0d0]">{fmtCompact(r.valor_usd)}</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtCompact(r.valor_ars)}</td>
+                      <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtCompact(r.valor_usd)}</td>
                       <td className={`px-2 py-1.5 text-right ${pnlCls(r.pnl_acum_ars)}`}>{fmtSigned(r.pnl_acum_ars)}</td>
                       <td className={`px-2 py-1.5 text-right ${pnlCls(r.pnl_acum_usd)}`}>{fmtSigned(r.pnl_acum_usd)}</td>
                       <td className={`px-2 py-1.5 text-right font-semibold ${base100Class(r.base100_ars)}`}>

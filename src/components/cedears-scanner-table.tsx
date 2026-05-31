@@ -94,8 +94,8 @@ export function CedearsScannerTable({
             className="ml-auto flex items-center gap-2 pr-1 text-[10px] tabular-nums"
             title="CCL live (DolarSnapshot._id=current) + variación vs cierre día previo"
           >
-            <span className="text-[#808080] tracking-wide uppercase">CCL</span>
-            <span className="text-[#d0d0d0] font-mono">
+            <span className="text-[var(--t-text-dim)] tracking-wide uppercase">CCL</span>
+            <span className="text-[var(--t-text)] font-mono">
               {ccl.value !== null
                 ? `$${ccl.value.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`
                 : "--"}
@@ -103,7 +103,7 @@ export function CedearsScannerTable({
             <span
               className={
                 ccl.vs_1d_pct === null
-                  ? "text-[#555555]"
+                  ? "text-[var(--t-text-muted)]"
                   : ccl.vs_1d_pct >= 0
                   ? "text-[#00cc66]"
                   : "text-[#ff3333]"
@@ -121,7 +121,7 @@ export function CedearsScannerTable({
         <table className="w-full text-[10px]">
           <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
             {view === "cedear" ? (
-              <tr className="text-[#707070]">
+              <tr className="text-[var(--t-text-muted)]">
                 <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                 <SortableTh label="NOMBRE" col="nombre"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                 <SortableTh label="SECTOR" col="sector"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
@@ -146,7 +146,7 @@ export function CedearsScannerTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-[#555555] text-xs py-4 text-center">
+                <td colSpan={8} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                   SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
                 </td>
               </tr>
@@ -168,10 +168,10 @@ export function CedearsScannerTable({
                     <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[#ff9900]"}`}>
                       {r.ticker_corto}
                     </td>
-                    <td className="!px-1 text-[#d0d0d0] truncate max-w-[180px]" title={r.nombre ?? ""}>
+                    <td className="!px-1 text-[var(--t-text)] truncate max-w-[180px]" title={r.nombre ?? ""}>
                       {r.nombre || "--"}
                     </td>
-                    <td className="!px-1 text-[#808080]">
+                    <td className="!px-1 text-[var(--t-text-dim)]">
                       {r.sector || "--"}
                     </td>
 
@@ -187,7 +187,7 @@ export function CedearsScannerTable({
                     ) : (
                       <>
                         <td className="!px-1 text-right font-semibold tabular-nums">
-                          <span className={r.adr_intraday === false ? "text-[#808080]" : "text-[#d0d0d0]"}>
+                          <span className={r.adr_intraday === false ? "text-[var(--t-text-dim)]" : "text-[var(--t-text)]"}>
                             {r.adr_last != null ? `$${r.adr_last.toFixed(2)}` : "--"}
                           </span>
                           {r.adr_intraday === false && (
@@ -221,7 +221,7 @@ function PctCell({ v }: { v: number | null | undefined }) {
     <td
       className={`!px-1 text-right tabular-nums ${
         v === null || v === undefined
-          ? "text-[#555555]"
+          ? "text-[var(--t-text-muted)]"
           : v >= 0
           ? "text-[#00cc66]"
           : "text-[#ff3333]"
@@ -252,8 +252,8 @@ function ViewBtn({
       : "bg-[#5fb3d4] text-black border-[#5fb3d4]";
   const inactiveColor =
     tone === "orange"
-      ? "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
-      : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#5fb3d4] hover:border-[#5fb3d4]";
+      ? "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#5fb3d4] hover:border-[#5fb3d4]";
   return (
     <button
       onClick={onClick}

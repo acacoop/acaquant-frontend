@@ -98,7 +98,7 @@ export function JobsRunsPanel() {
           </span>
         </div>
         {stats.length === 0 ? (
-          <div className="text-[#555555] text-xs p-3 text-center">
+          <div className="text-[var(--t-text-muted)] text-xs p-3 text-center">
             Sin runs registrados. (Los jobs instrumentados con JobRunLogger van apareciendo acá)
           </div>
         ) : (
@@ -112,17 +112,17 @@ export function JobsRunsPanel() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-[#d0d0d0] uppercase">{s.tipo}</span>
+                  <span className="text-[11px] font-semibold text-[var(--t-text)] uppercase">{s.tipo}</span>
                   {s.last_status && <StatusBadge status={s.last_status} />}
                 </div>
-                <div className="text-[10px] text-[#555555] mt-1 font-mono">
+                <div className="text-[10px] text-[var(--t-text-muted)] mt-1 font-mono">
                   <span className="text-[#00cc66]">{s.ok} ok</span>
                   {s.partial > 0 && <> · <span className="text-[#ff9900]">{s.partial} partial</span></>}
                   {s.error > 0 && <> · <span className="text-[#ff3333]">{s.error} err</span></>}
                   <> · {s.total} total</>
                 </div>
                 {s.last_run && (
-                  <div className="text-[10px] text-[#555555] mt-0.5 font-mono">últ: {s.last_run}</div>
+                  <div className="text-[10px] text-[var(--t-text-muted)] mt-0.5 font-mono">últ: {s.last_run}</div>
                 )}
               </button>
             ))}
@@ -140,7 +140,7 @@ export function JobsRunsPanel() {
             <select
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
             >
               <option value="">todos los tipos</option>
               {tipos.map((t) => (
@@ -150,7 +150,7 @@ export function JobsRunsPanel() {
             <select
               value={filtroStatus}
               onChange={(e) => setFiltroStatus(e.target.value)}
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
             >
               <option value="">todos</option>
               <option value="ok">ok</option>
@@ -159,7 +159,7 @@ export function JobsRunsPanel() {
             </select>
             <button
               onClick={fetchData}
-              className="text-[10px] font-semibold px-2 py-0.5 border border-[var(--t-border-2)] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors"
+              className="text-[10px] font-semibold px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors"
             >
               ↻
             </button>
@@ -168,9 +168,9 @@ export function JobsRunsPanel() {
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <p className="text-[#555555] text-xs p-4 text-center">Cargando…</p>
+            <p className="text-[var(--t-text-muted)] text-xs p-4 text-center">Cargando…</p>
           ) : runs.length === 0 ? (
-            <p className="text-[#555555] text-xs p-4 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs p-4 text-center">
               Sin registros. Si los jobs corrieron pero no aparecen, revisar que estén instrumentados con JobRunLogger.
             </p>
           ) : (
@@ -191,11 +191,11 @@ export function JobsRunsPanel() {
                     onClick={() => setSelected(r)}
                     className="border-b border-[var(--t-border)] hover:bg-[#141414] cursor-pointer"
                   >
-                    <td className="px-2 py-1 text-[#d0d0d0]">{r.tipo}</td>
-                    <td className="px-2 py-1 text-[#808080] whitespace-nowrap">{r.started_at}</td>
-                    <td className="px-2 py-1 text-[#808080]">{fmtDuration(r.elapsed_s)}</td>
+                    <td className="px-2 py-1 text-[var(--t-text)]">{r.tipo}</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] whitespace-nowrap">{r.started_at}</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)]">{fmtDuration(r.elapsed_s)}</td>
                     <td className="px-2 py-1"><StatusBadge status={r.status} /></td>
-                    <td className="px-2 py-1 text-[#808080] truncate max-w-[400px]">
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] truncate max-w-[400px]">
                       {r.errors.length > 0
                         ? <span className="text-[#ff9900]">{r.errors[0]}</span>
                         : resumenStats(r.stats)}
@@ -224,13 +224,13 @@ export function JobsRunsPanel() {
               </span>
               <button
                 onClick={() => setSelected(null)}
-                className="text-[#555555] hover:text-[#ff9900] text-lg leading-none px-2"
+                className="text-[var(--t-text-muted)] hover:text-[#ff9900] text-lg leading-none px-2"
               >
                 ×
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[11px] font-mono">
-              <div className="text-[#808080]">
+              <div className="text-[var(--t-text-dim)]">
                 Duración: {fmtDuration(selected.elapsed_s)} · Terminó: {selected.finished_at}
               </div>
 
@@ -246,7 +246,7 @@ export function JobsRunsPanel() {
               {Object.keys(selected.stats || {}).length > 0 && (
                 <div>
                   <div className="text-[#ff9900] uppercase text-[10px] mb-1">Stats</div>
-                  <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[#d0d0d0] overflow-x-auto whitespace-pre-wrap">
+                  <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[var(--t-text)] overflow-x-auto whitespace-pre-wrap">
                     {JSON.stringify(selected.stats, null, 2)}
                   </pre>
                 </div>
@@ -255,7 +255,7 @@ export function JobsRunsPanel() {
               {selected.log && selected.log.length > 0 && (
                 <div>
                   <div className="text-[#ff9900] uppercase text-[10px] mb-1">Log ({selected.log.length} líneas)</div>
-                  <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[#808080] overflow-x-auto whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                  <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[var(--t-text-dim)] overflow-x-auto whitespace-pre-wrap max-h-[400px] overflow-y-auto">
                     {selected.log.join("\n")}
                   </pre>
                 </div>

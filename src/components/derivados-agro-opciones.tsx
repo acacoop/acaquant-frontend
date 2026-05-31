@@ -100,7 +100,7 @@ export function AgroOpcionesChain({
                 value={vto ?? ""}
                 onChange={(e) => setVtoSel(e.target.value || null)}
                 disabled={data.vencimientos.length === 0}
-                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
               >
                 {data.vencimientos.length === 0 && (
                   <option value="">sin vtos</option>
@@ -112,11 +112,11 @@ export function AgroOpcionesChain({
                 ))}
               </select>
               {block?.dias_a_vto != null && (
-                <span className="text-[9px] text-[#555]">
+                <span className="text-[9px] text-[var(--t-text-muted)]">
                   {block.dias_a_vto}d
                 </span>
               )}
-              <span className="text-[9px] text-[#808080] uppercase">fut</span>
+              <span className="text-[9px] text-[var(--t-text-dim)] uppercase">fut</span>
               <span className="text-[#ff9900] font-mono text-[10px]">
                 {fmtPx(futuro)}
               </span>
@@ -146,7 +146,7 @@ function ChainTable({
 }) {
   if (!block || block.strikes.length === 0) {
     return (
-      <div className="px-3 py-4 text-center text-[#666] text-[11px]">
+      <div className="px-3 py-4 text-center text-[var(--t-text-muted)] text-[11px]">
         Sin opciones cargadas para este vencimiento
       </div>
     );
@@ -158,7 +158,7 @@ function ChainTable({
 
   return (
     <table className="w-full text-[10px] font-mono">
-      <thead className="text-[9px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
           <th
             colSpan={3}
@@ -196,29 +196,29 @@ function ChainTable({
                 isAtm ? "bg-[#ff9900]/10" : "hover:bg-[#0d0d0d]"
               }`}
             >
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.call?.bid)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.call?.offer)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#d0d0d0] font-semibold">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text)] font-semibold">
                 {fmtPx(s.call?.last)}
               </td>
               <td
                 className={`px-2 py-0.5 text-center font-semibold ${
-                  isAtm ? "text-[#ff9900]" : "text-[#d0d0d0]"
+                  isAtm ? "text-[#ff9900]" : "text-[var(--t-text)]"
                 }`}
               >
                 {fmtPx(s.strike, 0)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.put?.bid)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#a0a0a0]">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                 {fmtPx(s.put?.offer)}
               </td>
-              <td className="px-2 py-0.5 text-right text-[#d0d0d0] font-semibold">
+              <td className="px-2 py-0.5 text-right text-[var(--t-text)] font-semibold">
                 {fmtPx(s.put?.last)}
               </td>
             </tr>

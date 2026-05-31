@@ -186,7 +186,7 @@ export function BreakevensBlock({
 
       {modo === "hist" && hayHistorico && (
         <div className="flex items-center gap-2 mb-2 shrink-0">
-          <span className="text-[10px] text-[#555555] tracking-wide">FECHA</span>
+          <span className="text-[10px] text-[var(--t-text-muted)] tracking-wide">FECHA</span>
           <input
             type="range"
             min={0}
@@ -235,9 +235,9 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
             return (
               <tr key={p.n}>
                 <td className="text-[#ff9900]">{shortTicker(p.lecap)}</td>
-                <td className="text-[#808080]">{shortTicker(p.cer)}</td>
-                <td className="text-right text-[#d0d0d0] font-mono">{mesLabel}</td>
-                <td className="text-right text-[#808080]">{p.dias}</td>
+                <td className="text-[var(--t-text-dim)]">{shortTicker(p.cer)}</td>
+                <td className="text-right text-[var(--t-text)] font-mono">{mesLabel}</td>
+                <td className="text-right text-[var(--t-text-dim)]">{p.dias}</td>
                 <td className={`text-right font-bold ${be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"}`}>
                   {be.toFixed(2)}%
                 </td>
@@ -344,7 +344,7 @@ function BreakevensGrafico({
 
   if (data.length === 0) {
     return (
-      <p className="text-[#555555] text-xs py-4 text-center">
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
         SIN DATOS — MERCADO CERRADO
       </p>
     );
@@ -464,7 +464,7 @@ function FilterBtn({
           ? "bg-transparent text-[#333333] border-[var(--t-border)] cursor-not-allowed"
           : active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

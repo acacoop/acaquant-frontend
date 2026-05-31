@@ -179,7 +179,7 @@ export function SensibilidadTable() {
       {/* Controles */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-[#555]">
+          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
             Modo
           </span>
           <div className="flex items-center gap-1 h-[26px]">
@@ -190,7 +190,7 @@ export function SensibilidadTable() {
                 className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                   modo === m
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
                 {m === "absoluta" ? "TIR ABSOLUTA" : "TIR RELATIVA"}
@@ -199,7 +199,7 @@ export function SensibilidadTable() {
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-[#555]">
+          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
             {modo === "absoluta" ? "TIRs (%)" : "Shocks de TIR (%) centrados en TEA"}
           </span>
           <input
@@ -211,11 +211,11 @@ export function SensibilidadTable() {
                 : setTirsRel(e.target.value)
             }
             placeholder={modo === "absoluta" ? "4,5,6,7,8,9,10,11" : "-4,-3,-2,-1,0,1,2,3,4"}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
           />
         </div>
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-[#555]">
+          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
             Horizonte (días)
           </span>
           <input
@@ -238,12 +238,12 @@ export function SensibilidadTable() {
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
             title="0 = upside instantáneo. >0 = proyecta el precio. Enter o click fuera para aplicar."
           />
         </div>
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-[#555]">
+          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
             Tipos
           </span>
           <div className="flex items-center gap-1 h-[26px]">
@@ -256,7 +256,7 @@ export function SensibilidadTable() {
                   className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                     active
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                   }`}
                   title={
                     active && tipos.length === 1
@@ -270,7 +270,7 @@ export function SensibilidadTable() {
             })}
           </div>
         </div>
-        <div className="ml-auto text-[10px] text-[#555] font-mono">
+        <div className="ml-auto text-[10px] text-[var(--t-text-muted)] font-mono">
           {loading ? "actualizando…" : lastFetch ? `últ. ${lastFetch}` : ""}
         </div>
       </div>
@@ -312,19 +312,19 @@ export function SensibilidadTable() {
                 <td className="!px-2 !py-1 text-[#ff9900] font-semibold">
                   {b.ticker}
                 </td>
-                <td className="!px-2 !py-1 text-right text-[#888]">
+                <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
                   {b.fecha_vencimiento || "—"}
                 </td>
-                <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
+                <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
                   {b.precio_actual.toFixed(2)}
                 </td>
-                <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
+                <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
                   {fmtPctAbs(b.tea_actual)}
                 </td>
-                <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
+                <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
                   {b.duration?.toFixed(2) ?? "—"}
                 </td>
-                <td className="!px-2 !py-1 text-right text-[#d0d0d0]">
+                <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
                   {b.paridad ? `${b.paridad.toFixed(1)}%` : "—"}
                 </td>
                 {b.escenarios.map((e, i) => {
@@ -353,7 +353,7 @@ export function SensibilidadTable() {
               <tr>
                 <td
                   colSpan={6 + colHeaders.length}
-                  className="text-center text-[#555] py-6"
+                  className="text-center text-[var(--t-text-muted)] py-6"
                 >
                   Sin bonos con precio actual + flujos válidos.
                 </td>
@@ -392,14 +392,14 @@ export function SensibilidadTable() {
           </span>
           <button
             onClick={() => setDebugOpen(false)}
-            className="text-[#555] hover:text-[#ff9900] text-[14px] leading-none cursor-pointer"
+            className="text-[var(--t-text-muted)] hover:text-[#ff9900] text-[14px] leading-none cursor-pointer"
             title="Minimizar panel"
           >
             ▶
           </button>
         </div>
         {!debug ? (
-          <div className="text-[#555] text-[11px]">
+          <div className="text-[var(--t-text-muted)] text-[11px]">
             Click en una celda de retorno para ver el desglose del cálculo.
           </div>
         ) : (
@@ -409,41 +409,41 @@ export function SensibilidadTable() {
                 <span className="text-[#ff9900] font-semibold text-[13px]">
                   {debug.bono.ticker}
                 </span>
-                <span className="text-[#888]">
+                <span className="text-[var(--t-text-dim)]">
                   {modo === "relativa" && debug.esc.shock_pp != null
                     ? `shock ${(debug.esc.shock_pp * 100).toFixed(2)} pp`
                     : `TIR ${(debug.esc.tir * 100).toFixed(2)}%`}
                 </span>
               </div>
-              <div className="text-[#555] text-[9px] mt-0.5">
+              <div className="text-[var(--t-text-muted)] text-[9px] mt-0.5">
                 Vto {debug.bono.fecha_vencimiento} · {debug.bono.tipo}
               </div>
             </div>
 
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+              <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] mb-1">
                 Inputs
               </div>
-              <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[#d0d0d0]">
-                <span className="text-[#888]">Precio actual</span>
+              <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[var(--t-text)]">
+                <span className="text-[var(--t-text-dim)]">Precio actual</span>
                 <span className="text-right">{debug.bono.precio_actual.toFixed(4)}</span>
-                <span className="text-[#888]">TEA actual</span>
+                <span className="text-[var(--t-text-dim)]">TEA actual</span>
                 <span className="text-right">{fmtPctAbs(debug.bono.tea_actual)}</span>
-                <span className="text-[#888]">Duration</span>
+                <span className="text-[var(--t-text-dim)]">Duration</span>
                 <span className="text-right">{debug.bono.duration?.toFixed(3) ?? "—"}</span>
-                <span className="text-[#888]">Paridad</span>
+                <span className="text-[var(--t-text-dim)]">Paridad</span>
                 <span className="text-right">
                   {debug.bono.paridad != null ? `${debug.bono.paridad.toFixed(2)}%` : "—"}
                 </span>
-                <span className="text-[#888]">Horizonte</span>
+                <span className="text-[var(--t-text-dim)]">Horizonte</span>
                 <span className="text-right">
                   {horizonteDias === 0 ? "HOY" : `${horizonteDias} días`}
                 </span>
                 {horizonteDias > 0 && (
                   <>
-                    <span className="text-[#888]">Flujos en horiz.</span>
+                    <span className="text-[var(--t-text-dim)]">Flujos en horiz.</span>
                     <span className="text-right">{debug.bono.n_flujos_horizonte ?? "—"}</span>
-                    <span className="text-[#888]">Carry cobrado</span>
+                    <span className="text-[var(--t-text-dim)]">Carry cobrado</span>
                     <span className="text-right">{debug.bono.cobrado_horizonte?.toFixed(4) ?? "—"}</span>
                   </>
                 )}
@@ -451,34 +451,34 @@ export function SensibilidadTable() {
             </div>
 
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+              <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] mb-1">
                 Escenario
               </div>
-              <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[#d0d0d0]">
-                <span className="text-[#888]">TIR objetivo</span>
+              <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[var(--t-text)]">
+                <span className="text-[var(--t-text-dim)]">TIR objetivo</span>
                 <span className="text-right">{(debug.esc.tir * 100).toFixed(2)}%</span>
-                <span className="text-[#888]">ΔTIR vs actual</span>
+                <span className="text-[var(--t-text-dim)]">ΔTIR vs actual</span>
                 <span className="text-right">
                   {debug.dTir != null
                     ? `${debug.dTir >= 0 ? "+" : ""}${(debug.dTir * 100).toFixed(2)} pp`
                     : "—"}
                 </span>
-                <span className="text-[#888]">Precio objetivo</span>
+                <span className="text-[var(--t-text-dim)]">Precio objetivo</span>
                 <span className="text-right">{debug.esc.precio_objetivo.toFixed(4)}</span>
               </div>
             </div>
 
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+              <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] mb-1">
                 Cálculo (exacto)
               </div>
-              <div className="text-[#d0d0d0] leading-[1.5]">
+              <div className="text-[var(--t-text)] leading-[1.5]">
                 Retorno = (P<sub>obj</sub> + Carry) / P<sub>actual</sub> − 1
               </div>
-              <div className="text-[#888] mt-1 leading-[1.5]">
+              <div className="text-[var(--t-text-dim)] mt-1 leading-[1.5]">
                 = ({debug.esc.precio_objetivo.toFixed(4)} + {(debug.bono.cobrado_horizonte ?? 0).toFixed(4)}) / {debug.bono.precio_actual.toFixed(4)} − 1
               </div>
-              <div className="text-[#888] leading-[1.5]">
+              <div className="text-[var(--t-text-dim)] leading-[1.5]">
                 = {(debug.esc.precio_objetivo + (debug.bono.cobrado_horizonte ?? 0)).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)} − 1
               </div>
               <div
@@ -487,34 +487,34 @@ export function SensibilidadTable() {
               >
                 = {fmtPct(debug.esc.upside ?? 0, 2)}
               </div>
-              <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
+              <div className="text-[var(--t-text-muted)] text-[9px] mt-1 leading-[1.4]">
                 P<sub>objetivo</sub> = PV de los flujos {horizonteDias > 0 ? "post-horizonte" : "futuros"} descontados a la TIR objetivo desde {horizonteDias > 0 ? "la fecha horizonte" : "HOY"}. Carry = cupones + amortizaciones cobradas en el horizonte.
               </div>
             </div>
 
             {debug.upsideLinear != null && debug.durRes != null && debug.dTir != null && debug.bono.duration != null && (
               <div>
-                <div className="text-[9px] uppercase tracking-wide text-[#555] mb-1">
+                <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] mb-1">
                   Sanity check (lineal, Fabozzi)
                 </div>
-                <div className="text-[#d0d0d0] leading-[1.5]">
+                <div className="text-[var(--t-text)] leading-[1.5]">
                   ≈ −Dur<sub>res</sub> × ΔTIR{horizonteDias > 0 ? " + Carry/P" : ""}
                 </div>
                 {horizonteDias > 0 && (
-                  <div className="text-[#888] mt-1 leading-[1.5]">
+                  <div className="text-[var(--t-text-dim)] mt-1 leading-[1.5]">
                     Dur<sub>res</sub> = {debug.bono.duration.toFixed(3)} − {(horizonteDias / 365).toFixed(3)} = {debug.durRes.toFixed(3)}
                   </div>
                 )}
-                <div className="text-[#888] mt-1 leading-[1.5]">
+                <div className="text-[var(--t-text-dim)] mt-1 leading-[1.5]">
                   ≈ −{debug.durRes.toFixed(3)} × {(debug.dTir * 100).toFixed(2)} pp
                   {horizonteDias > 0 && (
                     <> + {(debug.bono.cobrado_horizonte ?? 0).toFixed(4)} / {debug.bono.precio_actual.toFixed(4)}</>
                   )}
                 </div>
-                <div className="text-[#888] leading-[1.5]">
+                <div className="text-[var(--t-text-dim)] leading-[1.5]">
                   ≈ {fmtPct(debug.upsideLinear, 2)}
                 </div>
-                <div className="text-[#555] text-[9px] mt-1 leading-[1.4]">
+                <div className="text-[var(--t-text-muted)] text-[9px] mt-1 leading-[1.4]">
                   Diferencia vs exacto: {fmtPct((debug.esc.upside ?? 0) - debug.upsideLinear, 2)} — explicada por convexidad (siempre positiva, por eso el exacto es mejor que el lineal cuando la TIR baja y peor cuando sube).
                 </div>
               </div>
@@ -533,19 +533,19 @@ export function SensibilidadTable() {
           <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
             Cálculo — retorno total
           </div>
-          <div className="text-[#d0d0d0]">
+          <div className="text-[var(--t-text)]">
             Retorno = (P<sub>objetivo</sub> + Carry) / P<sub>actual</sub> − 1
           </div>
-          <div className="text-[#888] mt-1 leading-relaxed">
-            <b className="text-[#d0d0d0]">P<sub>objetivo</sub></b>: PV de los
+          <div className="text-[var(--t-text-dim)] mt-1 leading-relaxed">
+            <b className="text-[var(--t-text)]">P<sub>objetivo</sub></b>: PV de los
             flujos descontados a la TIR del escenario {horizonteDias > 0
               ? `desde la fecha horizonte (${horizonteDias} días). Solo flujos posteriores al horizonte.`
               : "desde HOY. Todos los flujos futuros."}
             <br />
-            <b className="text-[#d0d0d0]">P<sub>actual</sub></b>: último precio
+            <b className="text-[var(--t-text)]">P<sub>actual</sub></b>: último precio
             del MarketSnapshot (USD para tickers .D / .C).
             <br />
-            <b className="text-[#d0d0d0]">Carry</b>: cupones + amortizaciones
+            <b className="text-[var(--t-text)]">Carry</b>: cupones + amortizaciones
             cobradas dentro del horizonte. Con horizonte=0 el carry es 0 y el
             cálculo colapsa al upside de precio puro.
           </div>
@@ -554,7 +554,7 @@ export function SensibilidadTable() {
           <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
             Modo activo: {modo === "absoluta" ? "TIR ABSOLUTA" : "TIR RELATIVA"}
           </div>
-          <div className="text-[#888] leading-relaxed">
+          <div className="text-[var(--t-text-dim)] leading-relaxed">
             {modo === "absoluta" ? (
               <>
                 Las columnas son TIRs finales fijas, iguales para todos los
@@ -563,15 +563,15 @@ export function SensibilidadTable() {
               </>
             ) : (
               <>
-                Cada bono se evalúa con shifts centrados en su <b className="text-[#d0d0d0]">TEA actual</b>.
-                Columna <b className="text-[#d0d0d0]">TIR actual</b> = upside 0
-                (sin cambio). <b className="text-[#d0d0d0]">TIR +2%</b> = TEA
+                Cada bono se evalúa con shifts centrados en su <b className="text-[var(--t-text)]">TEA actual</b>.
+                Columna <b className="text-[var(--t-text)]">TIR actual</b> = upside 0
+                (sin cambio). <b className="text-[var(--t-text)]">TIR +2%</b> = TEA
                 actual + 2 puntos. Permite comparar sensibilidad apples-to-apples
                 entre bonos con TEAs distintas.
               </>
             )}
             <br />
-            <span className="text-[#555]">Hover sobre cualquier celda muestra TIR real + precio objetivo.</span>
+            <span className="text-[var(--t-text-muted)]">Hover sobre cualquier celda muestra TIR real + precio objetivo.</span>
           </div>
         </div>
       </div>

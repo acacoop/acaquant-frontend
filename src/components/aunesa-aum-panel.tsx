@@ -71,21 +71,21 @@ export function AunesaAumPanel() {
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a]">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[10px] tracking-widest text-[#888]">AUM · CUENTA</span>
+        <span className="text-[10px] tracking-widest text-[var(--t-text-dim)]">AUM · CUENTA</span>
         <input
           value={idCuenta}
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
         />
         {data && data.fechas_disponibles.length > 0 && (
           <>
-            <span className="text-[9px] tracking-widest text-[#666]">FECHA</span>
+            <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">FECHA</span>
             <select
               value={fecha}
               onChange={(e) => { setFecha(e.target.value); consultar(e.target.value); }}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[#ff9900] focus:outline-none"
             >
               {data.fechas_disponibles.slice().reverse().map((f) => (
                 <option key={f} value={f}>{f}</option>
@@ -103,12 +103,12 @@ export function AunesaAumPanel() {
         {data && (
           <div className="ml-auto flex items-center gap-4 text-[10px] font-mono">
             <span>
-              <span className="text-[#888]">POSICIONES: </span>
-              <span className="text-[#d0d0d0]">{data.n}</span>
+              <span className="text-[var(--t-text-dim)]">POSICIONES: </span>
+              <span className="text-[var(--t-text)]">{data.n}</span>
             </span>
             <span>
-              <span className="text-[#888]">TOTAL AuM: </span>
-              <span className="text-[#d0d0d0]">{fmtNum(data.total)}</span>
+              <span className="text-[var(--t-text-dim)]">TOTAL AuM: </span>
+              <span className="text-[var(--t-text)]">{fmtNum(data.total)}</span>
             </span>
           </div>
         )}
@@ -121,7 +121,7 @@ export function AunesaAumPanel() {
         )}
 
         {!data && !loading && !error && (
-          <div className="p-4 text-[11px] text-[#666] font-mono">
+          <div className="p-4 text-[11px] text-[var(--t-text-muted)] font-mono">
             Ingresá una cuenta y dale CONSULTAR. Vas a ver los docs crudos de
             Valuaciones.AuM — unidad, cantidad, precio, valuación — para validar
             que los precios estén bien. La columna CANT×PRECIO es la referencia:
@@ -131,7 +131,7 @@ export function AunesaAumPanel() {
         )}
 
         {data && data.posiciones.length === 0 && (
-          <div className="p-4 text-[11px] text-[#666] font-mono">
+          <div className="p-4 text-[11px] text-[var(--t-text-muted)] font-mono">
             Sin posiciones para esta cuenta / fecha.
           </div>
         )}
@@ -139,7 +139,7 @@ export function AunesaAumPanel() {
         {data && data.posiciones.length > 0 && (
           <table className="w-full text-[10px] font-mono">
             <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
-              <tr className="text-[#666] tracking-widest">
+              <tr className="text-[var(--t-text-muted)] tracking-widest">
                 <th className="text-left px-2 py-1">UNIDAD</th>
                 <th className="text-left px-2 py-1">TIPO</th>
                 <th className="text-left px-2 py-1">MON</th>
@@ -152,15 +152,15 @@ export function AunesaAumPanel() {
             <tbody>
               {data.posiciones.map((p, i) => (
                 <tr key={i} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                  <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[340px]" title={p.unidad ?? ""}>
+                  <td className="px-2 py-1 text-[var(--t-text)] truncate max-w-[340px]" title={p.unidad ?? ""}>
                     {p.unidad ?? "—"}
                   </td>
-                  <td className="px-2 py-1 text-[#888]">{p.tipo ?? "—"}</td>
-                  <td className="px-2 py-1 text-[#888]">{p.moneda ?? "—"}</td>
-                  <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(p.cantidad, 4)}</td>
-                  <td className="px-2 py-1 text-right text-[#d0d0d0]">{fmtNum(p.precio, 4)}</td>
-                  <td className="px-2 py-1 text-right text-[#d0d0d0] font-semibold">{fmtNum(p.valuacion)}</td>
-                  <td className="px-2 py-1 text-right text-[#666]">{fmtNum(p.valuacion_esperada)}</td>
+                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{p.tipo ?? "—"}</td>
+                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{p.moneda ?? "—"}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(p.cantidad, 4)}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtNum(p.precio, 4)}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text)] font-semibold">{fmtNum(p.valuacion)}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text-muted)]">{fmtNum(p.valuacion_esperada)}</td>
                 </tr>
               ))}
             </tbody>

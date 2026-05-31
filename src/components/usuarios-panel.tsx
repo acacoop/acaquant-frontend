@@ -139,21 +139,21 @@ export function UsuariosPanel() {
         </div>
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <div className="text-[9px] text-[#808080] mb-0.5">EMAIL</div>
+            <div className="text-[9px] text-[var(--t-text-dim)] mb-0.5">EMAIL</div>
             <input
               type="email"
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="usuario@dominio.com"
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </div>
           <div>
-            <div className="text-[9px] text-[#808080] mb-0.5">ROLE</div>
+            <div className="text-[9px] text-[var(--t-text-dim)] mb-0.5">ROLE</div>
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               {roles.map((r) => (
                 <option key={r} value={r}>
@@ -163,12 +163,12 @@ export function UsuariosPanel() {
             </select>
           </div>
           <div className="flex-1">
-            <div className="text-[9px] text-[#808080] mb-0.5">NOTAS (opcional)</div>
+            <div className="text-[9px] text-[var(--t-text-dim)] mb-0.5">NOTAS (opcional)</div>
             <input
               type="text"
               value={newNotes}
               onChange={(e) => setNewNotes(e.target.value)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </div>
           <button
@@ -183,7 +183,7 @@ export function UsuariosPanel() {
 
       {/* Tabla */}
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-2 border-b border-[var(--t-border)] text-[9px] text-[#808080] tracking-wide shrink-0">
+        <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-2 border-b border-[var(--t-border)] text-[9px] text-[var(--t-text-dim)] tracking-wide shrink-0">
           <div>EMAIL</div>
           <div>ROLE</div>
           <div>ENABLED</div>
@@ -193,9 +193,9 @@ export function UsuariosPanel() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="text-[#555] text-xs py-4 text-center">Cargando…</div>
+            <div className="text-[var(--t-text-muted)] text-xs py-4 text-center">Cargando…</div>
           ) : users.length === 0 ? (
-            <div className="text-[#555] text-xs py-4 text-center">
+            <div className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               Sin usuarios. Agregá uno arriba.
             </div>
           ) : (
@@ -231,7 +231,7 @@ function UserRow({
 }) {
   return (
     <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-1.5 border-b border-[var(--t-border)] text-xs items-center hover:bg-[var(--t-surface)]">
-      <div className="text-[#d0d0d0] font-mono truncate flex items-center gap-1.5">
+      <div className="text-[var(--t-text)] font-mono truncate flex items-center gap-1.5">
         <span className="truncate">{user.email}</span>
         {user.auto_registered && (
           <span
@@ -246,7 +246,7 @@ function UserRow({
         value={user.role}
         disabled={busy}
         onChange={(e) => onPatch({ role: e.target.value })}
-        className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none disabled:opacity-40"
+        className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none disabled:opacity-40"
       >
         {roles.map((r) => (
           <option key={r} value={r}>
@@ -263,12 +263,12 @@ function UserRow({
           className="accent-[#ff9900]"
         />
         <span
-          className={`text-[10px] ${user.enabled ? "text-[#00cc66]" : "text-[#555]"}`}
+          className={`text-[10px] ${user.enabled ? "text-[#00cc66]" : "text-[var(--t-text-muted)]"}`}
         >
           {user.enabled ? "ON" : "OFF"}
         </span>
       </label>
-      <div className="text-[#808080] text-[11px] truncate">{user.notes || "—"}</div>
+      <div className="text-[var(--t-text-dim)] text-[11px] truncate">{user.notes || "—"}</div>
       <LastSeenCell lastSeen={user.last_seen_at} />
 
       <button
@@ -300,8 +300,8 @@ function LastSeenCell({ lastSeen }: { lastSeen?: string }) {
   const inactivo = dias >= INACTIVE_DAYS;
   return (
     <div className="flex items-center gap-1.5 text-[10px]">
-      <span className="text-[#888]">{fecha}</span>
-      <span className={inactivo ? "text-[#ff6666]" : "text-[#555]"}>
+      <span className="text-[var(--t-text-dim)]">{fecha}</span>
+      <span className={inactivo ? "text-[#ff6666]" : "text-[var(--t-text-muted)]"}>
         ·{" "}
         {dias === 0 ? "hoy" : `hace ${dias}d`}
       </span>

@@ -115,14 +115,14 @@ export function AgroMejorasDispo() {
       <div className="flex-1 min-h-0">
         <Panel title="MEJORAS PRECIO DISPONIBLE — Soja · Maíz · Trigo" expandable>
           {base.length === 0 ? (
-            <p className="text-[#555] text-xs py-6 text-center">
+            <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
               {data.bloques.length === 0
                 ? "Sin data — backend no responde o falta cargar la Cámara"
                 : "Sin LECAPs vigentes con TNA"}
             </p>
           ) : (
             <table className="w-full text-[10px] font-mono tabular-nums">
-              <thead className="text-[9px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
                   <th rowSpan={2} className="text-left px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     Ticker
@@ -150,7 +150,7 @@ export function AgroMejorasDispo() {
                         key={c.id}
                         colSpan={2}
                         className={`text-center px-1 py-1 border-b border-[var(--t-border)] border-l border-l-[var(--t-border)] ${
-                          hasPx ? "text-[#ff9900]" : "text-[#666]"
+                          hasPx ? "text-[#ff9900]" : "text-[var(--t-text-muted)]"
                         }`}
                       >
                         {c.short}
@@ -178,19 +178,19 @@ export function AgroMejorasDispo() {
                       <td className="px-1 py-0.5 text-[#ff9900] font-semibold">
                         {r.ticker ?? "—"}
                       </td>
-                      <td className="px-1 py-0.5 text-center text-[#808080]">
+                      <td className="px-1 py-0.5 text-center text-[var(--t-text-dim)]">
                         {fmtFechaCorta(r.vencimiento)}
                       </td>
-                      <td className="px-1 py-0.5 text-right text-[#808080]">
+                      <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
                         {r.dias}
                       </td>
-                      <td className="px-1 py-0.5 text-right text-[#d0d0d0]">
+                      <td className="px-1 py-0.5 text-right text-[var(--t-text)]">
                         {fmtPct(r.tna)}
                       </td>
-                      <td className="px-1 py-0.5 text-right text-[#a0a0a0]">
+                      <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
                         {fmtPctMini(r.tasa_diaria)}
                       </td>
-                      <td className="px-1 py-0.5 text-right text-[#a0a0a0]">
+                      <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
                         {fmtPct(r.tasa_directa)}
                       </td>
                       {COMMODITIES.map((c) => {
@@ -237,12 +237,12 @@ function CommodityCells({
 }) {
   return (
     <>
-      <td className="px-1 py-0.5 text-right text-[#d0d0d0] border-l border-l-[var(--t-border)]">
+      <td className="px-1 py-0.5 text-right text-[var(--t-text)] border-l border-l-[var(--t-border)]">
         {fmtArs(valorFinal)}
       </td>
       <td
         className={`px-1 py-0.5 text-right font-semibold ${
-          valorUsd === null ? "text-[#555]" : "text-[#ff9900]"
+          valorUsd === null ? "text-[var(--t-text-muted)]" : "text-[#ff9900]"
         }`}
       >
         {fmtUsd(valorUsd)}
