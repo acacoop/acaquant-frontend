@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { headers } from "next/headers";
+import { trustedEmail } from "./cf-access";
 
 export type Me = {
   email: string;
@@ -27,7 +28,8 @@ export const getMe = cache(async function getMe(): Promise<Me | null> {
   const CF_SECRET = process.env.CF_ACCESS_CLIENT_SECRET || "";
 
   const hdrs = await headers();
-  const email = hdrs.get("cf-access-authenticated-user-email") ?? "";
+  // Email de confianza desde el sello firmado de CF (no spoofeable). Ver cf-access.ts.
+  const email = await trustedEmail((n) => hdrs.get(n));
 
   const authHeaders: Record<string, string> = {};
   // CF Access estripa cf-access-authenticated-user-email cuando el origin

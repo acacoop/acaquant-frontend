@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { trustedEmail } from "./lib/cf-access";
 
 /**
  * Proxy (Next.js 16+) — antes se llamaba middleware.
