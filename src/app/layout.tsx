@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { Header } from "@/components/header";
 import { PauseBanner } from "@/components/pause-banner";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { getMe } from "@/lib/me";
 import "./globals.css";
 
@@ -42,11 +43,22 @@ export default async function RootLayout({
   const modules = me?.modules ?? (isProd ? [] : null);
   return (
     <html lang="es" className={`h-full ${jbMono.variable}`}>
+      <head>
+        {/* Anti-parpadeo: aplica el tema guardado ANTES del primer paint, así
+            no se ve un flash de oscuro→claro al recargar en modo claro. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('aca-theme')==='light')document.documentElement.classList.add('light')}catch(e){}",
+          }}
+        />
+      </head>
       <body className="h-full flex flex-col">
         <Header modules={modules} />
         <PauseBanner />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-        <footer className="flex items-center h-5 px-3 bg-[#080808] border-t border-[#1a1a1a] text-[10px] text-[#555555]">
+        <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">
+          <ThemeToggle />
           <span>ACA VALORES &middot; MERCADO DE CAPITALES</span>
           <span className="ml-auto">MERVAL / ROFEX</span>
         </footer>
