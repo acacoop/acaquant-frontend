@@ -315,7 +315,7 @@ export function IntradayView() {
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3 overflow-hidden">
       {/* Upload + filtros */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
         <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black cursor-pointer transition-colors">
           EXAMINAR ARCHIVO
           <input
@@ -344,7 +344,7 @@ export function IntradayView() {
                   className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                     filtro === p
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                   }`}
                 >
                   {p === "todos" ? "AMBOS" : p.toUpperCase()}
@@ -392,10 +392,10 @@ export function IntradayView() {
       {hayDatos && (
         <div className="flex-1 min-h-0 grid grid-cols-[1fr_auto] gap-3 overflow-hidden">
           {/* Tabla consolidada (agrupada visualmente por moneda). */}
-          <div className="overflow-y-auto border border-[#1a1a1a] bg-[var(--t-panel)]">
+          <div className="overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
             <table className="w-full text-[11px] font-mono border-collapse">
               <thead className="sticky top-0 bg-[#0c0c0c] z-10">
-                <tr className="border-b border-[#1a1a1a] text-[10px] uppercase tracking-wide text-[#ff9900]">
+                <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[#ff9900]">
                   <th className="!px-2 !py-1.5 text-left">Símbolo</th>
                   <th className="!px-2 !py-1.5 text-center">Moneda</th>
                   <th className="!px-2 !py-1.5 text-center">Plazo</th>
@@ -411,8 +411,8 @@ export function IntradayView() {
                   return (
                     <tr
                       key={r.simbolo}
-                      className={`border-b border-[#111] hover:bg-[#ff9900]/5 ${
-                        divisor ? "border-t-2 border-t-[#1a1a1a]" : ""
+                      className={`border-b border-[var(--t-border)] hover:bg-[#ff9900]/5 ${
+                        divisor ? "border-t-2 border-t-[var(--t-border)]" : ""
                       }`}
                     >
                       <td className="!px-2 !py-1 text-[#d0d0d0]">{r.simbolo}</td>
@@ -444,7 +444,7 @@ export function IntradayView() {
 
           {/* Sidebar derecho: totales + consolidado por especie */}
           <div className="shrink-0 w-96 flex flex-col gap-3 overflow-hidden">
-            <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 flex flex-col gap-2 shrink-0">
+            <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 flex flex-col gap-2 shrink-0">
               <div className="text-[9px] uppercase tracking-widest text-[#ff9900]">
                 Totales por moneda
               </div>
@@ -467,7 +467,7 @@ export function IntradayView() {
             </div>
 
             {/* Consolidado por especie (descalce de títulos) */}
-            <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 flex flex-col overflow-hidden flex-1 min-h-0">
+            <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 flex flex-col overflow-hidden flex-1 min-h-0">
               <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-2 shrink-0">
                 Consolidado por especie
               </div>
@@ -481,7 +481,7 @@ export function IntradayView() {
                   </thead>
                   <tbody>
                     {consolidadoPorEspecie.map((e) => (
-                      <tr key={e.especie} className="border-t border-[#1a1a1a]">
+                      <tr key={e.especie} className="border-t border-[var(--t-border)]">
                         <td className="!py-1 text-[#d0d0d0]">{e.especie}</td>
                         <td
                           className="!py-1 text-right font-semibold"
@@ -501,7 +501,7 @@ export function IntradayView() {
                   </tbody>
                 </table>
               </div>
-              <div className="mt-2 pt-2 border-t border-[#1a1a1a] text-[9px] text-[#555] leading-relaxed shrink-0">
+              <div className="mt-2 pt-2 border-t border-[var(--t-border)] text-[9px] text-[#555] leading-relaxed shrink-0">
                 Agrupa AL30/AL30D/AL30C como AL30. Si el neto es 0, estás
                 flat en títulos más allá de la moneda.
               </div>

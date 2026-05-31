@@ -163,12 +163,12 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
               if (e.key === "Escape") setOpen(false);
               if (e.key === "Enter" && filtered.length > 0) pickTicker(filtered[0]);
             }}
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#ff9900] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[140px]"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#ff9900] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[140px]"
           />
           {open && filtered.length > 0 && (
             <div
               ref={dropRef}
-              className="absolute top-full left-0 mt-px z-50 bg-[var(--t-surface)] border border-[#2a2a2a] max-h-[200px] overflow-y-auto min-w-full"
+              className="absolute top-full left-0 mt-px z-50 bg-[var(--t-surface)] border border-[var(--t-border-2)] max-h-[200px] overflow-y-auto min-w-full"
             >
               {filtered.map((t) => (
                 <div
@@ -195,8 +195,8 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
       {/* El chart fue removido por pedido de la mesa — ocupaba mucho
           espacio en un panel chico (~50%×50% de pantalla) y el eje X no
           se entendía. Time & Sales solo, full width. */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden flex flex-col">
-        <div className="flex items-center px-2 py-1 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[#0a0a0a] overflow-hidden flex flex-col">
+        <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[#ff9900]/10">
           <span className="text-[10px] text-[#ff9900] tracking-wide font-semibold">
             TIME &amp; SALES
           </span>
@@ -230,7 +230,7 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
   return (
     <table className="w-full text-[10px] font-mono">
       <thead className="sticky top-0 bg-[#0a0a0a] z-10">
-        <tr className="border-b border-[#1a1a1a]">
+        <tr className="border-b border-[var(--t-border)]">
           <th className="text-left px-1.5 py-0.5 text-[#555555] font-normal">
             HORA
           </th>
@@ -258,7 +258,7 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
           return (
             <tr
               key={`${t.timestamp}-${i}`}
-              className="border-b border-[#111111] hover:bg-[#ff9900]/5"
+              className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
             >
               <td className="px-1.5 py-0.5 text-[#808080]">{hora}</td>
               <td className={`px-1.5 py-0.5 text-right font-semibold ${color}`}>

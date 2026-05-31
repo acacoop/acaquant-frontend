@@ -51,7 +51,7 @@ function Metric({ label, value, hint }: {
   hint?: string;
 }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-1.5">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-1.5">
       <div className="text-[8px] text-[#555555] uppercase tracking-wide">{label}</div>
       <div className="text-[13px] font-mono text-[#d0d0d0]">{value}</div>
       {hint && <div className="text-[8px] text-[#555555]">{hint}</div>}
@@ -96,7 +96,7 @@ export function EstrategiaView() {
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
             placeholder="IBIT"
-            className="w-28 bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
           />
         </div>
         <div>
@@ -105,7 +105,7 @@ export function EstrategiaView() {
             value={monto}
             onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
-            className="w-32 bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
           />
         </div>
         <div className="flex gap-1">
@@ -118,7 +118,7 @@ export function EstrategiaView() {
                   ? d === "long"
                     ? "bg-[#00cc66] text-black border-[#00cc66]"
                     : "bg-[#ff3333] text-black border-[#ff3333]"
-                  : "bg-transparent text-[#555555] border-[#2a2a2a]"
+                  : "bg-transparent text-[#555555] border-[var(--t-border-2)]"
               }`}
             >
               {d.toUpperCase()}
@@ -128,7 +128,7 @@ export function EstrategiaView() {
         <button
           onClick={analizar}
           disabled={loading || !ticker.trim()}
-          className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
         >
           {loading ? "Analizando…" : "▶ Analizar"}
         </button>
@@ -173,7 +173,7 @@ export function EstrategiaView() {
               </div>
               <div className="flex gap-2 flex-wrap font-mono">
                 {data.hedge_beta.map((h) => (
-                  <div key={h.benchmark} className="border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-1.5">
+                  <div key={h.benchmark} className="border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-1.5">
                     <span className="text-[#d0d0d0] font-semibold">
                       {h.accion.toUpperCase()} {fmtUsd(h.notional)} {h.benchmark}
                     </span>
@@ -206,7 +206,7 @@ export function EstrategiaView() {
                 </thead>
                 <tbody>
                   {data.hedge_finder.slice(0, 15).map((h) => (
-                    <tr key={h.ticker} className="border-b border-[#141414]">
+                    <tr key={h.ticker} className="border-b border-[var(--t-border)]">
                       <td className="text-[#ff9900] px-1">{h.ticker}</td>
                       <td className={`text-right px-1 ${h.correlacion < 0 ? "text-[#3fbf6f]" : "text-[#d0d0d0]"}`}>
                         {h.correlacion.toFixed(2)}

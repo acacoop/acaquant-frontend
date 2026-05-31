@@ -260,22 +260,22 @@ export function DerivadosAgroPizarra({
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Vto
                   </th>
-                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Posición
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     US$
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Pase Lleno
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Valor $
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     TNAV
                   </th>
                 </tr>
@@ -324,7 +324,7 @@ function VistaBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}
@@ -395,31 +395,31 @@ function PaseConCoberturaTable({
         <tr>
           <th
             rowSpan={2}
-            className="text-left px-1.5 py-1 border-b border-[#1a1a1a] align-bottom"
+            className="text-left px-1.5 py-1 border-b border-[var(--t-border)] align-bottom"
           >
             Posición
           </th>
           <th
             rowSpan={2}
-            className="text-right px-1.5 py-1 border-b border-[#1a1a1a] align-bottom"
+            className="text-right px-1.5 py-1 border-b border-[var(--t-border)] align-bottom"
           >
             Pase Lleno
           </th>
           <th
             colSpan={3}
-            className="text-center px-1.5 py-1 border-b border-[#1a1a1a] text-[9px] text-[#666]"
+            className="text-center px-1.5 py-1 border-b border-[var(--t-border)] text-[9px] text-[#666]"
           >
             Resultado en US$ × Tn
           </th>
         </tr>
         <tr>
-          <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+          <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
             Pagaré
           </th>
-          <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+          <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
             ON
           </th>
-          <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+          <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
             Sintético
           </th>
         </tr>

@@ -70,7 +70,7 @@ export function TickerChartPanel({ ticker }: { ticker: string | null }) {
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
               tab === key
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {label}

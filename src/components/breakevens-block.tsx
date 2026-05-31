@@ -461,10 +461,10 @@ function FilterBtn({
       disabled={disabled}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         disabled
-          ? "bg-transparent text-[#333333] border-[#1a1a1a] cursor-not-allowed"
+          ? "bg-transparent text-[#333333] border-[var(--t-border)] cursor-not-allowed"
           : active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

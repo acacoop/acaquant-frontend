@@ -108,9 +108,9 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[420px] max-w-[95vw] bg-[var(--t-panel)] border-l border-[#1a1a1a] z-50 flex flex-col">
+      <div className="fixed right-0 top-0 h-full w-[420px] max-w-[95vw] bg-[var(--t-panel)] border-l border-[var(--t-border)] z-50 flex flex-col">
         {/* Header */}
-        <div className="flex items-center px-4 py-3 border-b border-[#1a1a1a] shrink-0">
+        <div className="flex items-center px-4 py-3 border-b border-[var(--t-border)] shrink-0">
           <span className="text-[12px] tracking-wider text-[#ff9900] font-semibold uppercase">
             Detalle operativa
           </span>
@@ -152,7 +152,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
               </div>
 
               {/* Lo justo y necesario */}
-              <div className="border border-[#1a1a1a]">
+              <div className="border border-[var(--t-border)]">
                 <Linea label="Compra AL30" value={`$${fmtArs(m.precio_compra_al30)}`} color="#00cc66" />
                 <Linea label="Venta AL30D" value={`US$${fmtArs(m.precio_venta_al30d)}`} color="#4488ff" />
                 <Linea label="USD obtenidos" value={m.usd_efectivo !== undefined ? `US$${fmtArs(m.usd_efectivo)}` : "—"} color="#d0d0d0" />
@@ -202,7 +202,7 @@ function Linea({
   bold?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between px-3 py-2 border-b border-[#1a1a1a] last:border-b-0">
+    <div className="flex items-baseline justify-between px-3 py-2 border-b border-[var(--t-border)] last:border-b-0">
       <span className="text-[11px] tracking-wide text-[#888] uppercase">
         {label}
       </span>

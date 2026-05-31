@@ -61,7 +61,7 @@ export function AunesaBoletosPanel() {
   const [sub, setSub] = useState<Sub>("faltantes");
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
         <span className="text-[9px] font-semibold text-[#666] tracking-widest mr-2">BOLETOS</span>
         <button
           onClick={() => setSub("faltantes")}
@@ -134,7 +134,7 @@ function Faltantes() {
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Form */}
-      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex items-end gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <Field label="DESDE">
           <input
             type="date"
@@ -207,11 +207,11 @@ function Faltantes() {
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead className="text-[9px] text-[#666] tracking-widest bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">CATEGORÍA</th>
-                  <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">OP</th>
-                  <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">N</th>
-                  <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">CUENTAS</th>
-                  <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">IMPORTE ABS</th>
+                  <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">CATEGORÍA</th>
+                  <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">OP</th>
+                  <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">N</th>
+                  <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">CUENTAS</th>
+                  <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">IMPORTE ABS</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,7 +238,7 @@ function Faltantes() {
 
             {/* Detalle plegable — boletos individuales con columnas útiles
                 para el control (informacion truncada al final). */}
-            <div className="border-t border-[#1a1a1a] mt-2 px-3 py-2">
+            <div className="border-t border-[var(--t-border)] mt-2 px-3 py-2">
               <button
                 onClick={() => setShowDetalle((v) => !v)}
                 className="text-[10px] text-[#888] hover:text-[#ff9900] tracking-wide"
@@ -297,7 +297,7 @@ function Faltantes() {
 }
 
 const inputCls =
-  "bg-black border border-[#2a2a2a] text-[#d0d0d0] px-2 py-1 text-[11px] tabular-nums focus:border-[#ff9900] outline-none";
+  "bg-black border border-[var(--t-border-2)] text-[#d0d0d0] px-2 py-1 text-[11px] tabular-nums focus:border-[#ff9900] outline-none";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -439,7 +439,7 @@ function Backfill() {
   return (
     <div className="h-full flex flex-col min-h-0 overflow-y-auto">
       {/* Form */}
-      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0 flex-wrap">
+      <div className="flex items-end gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <Field label="DESDE">
           <input
             type="date"
@@ -511,7 +511,7 @@ function Backfill() {
 
       {/* Job en curso / último resultado */}
       {job && (
-        <div className="px-3 py-3 border-b border-[#1a1a1a] bg-[#0a0a0a] shrink-0">
+        <div className="px-3 py-3 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
           <div className="flex items-center gap-3 mb-2">
             <span
               className={`text-[10px] font-bold tracking-widest px-2 py-0.5 ${
@@ -590,7 +590,7 @@ function Backfill() {
 
       {/* Historial */}
       <div className="flex-1 min-h-0">
-        <div className="px-3 py-1.5 text-[9px] text-[#666] tracking-widest border-b border-[#1a1a1a]">
+        <div className="px-3 py-1.5 text-[9px] text-[#666] tracking-widest border-b border-[var(--t-border)]">
           HISTORIAL (últimos 10)
         </div>
         {historial.length === 0 ? (
@@ -658,7 +658,7 @@ function Backfill() {
 
 function Kpi({ label, v, color }: { label: string; v: number; color?: string }) {
   return (
-    <div className="bg-[var(--t-panel)] border border-[#1a1a1a] px-2 py-1">
+    <div className="bg-[var(--t-panel)] border border-[var(--t-border)] px-2 py-1">
       <div className="text-[9px] text-[#666] tracking-widest">{label}</div>
       <div
         className="text-[14px] font-bold tabular-nums"

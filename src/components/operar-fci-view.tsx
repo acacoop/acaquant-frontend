@@ -93,10 +93,10 @@ function FciSearch({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
         placeholder="buscar FCI por nombre…"
-        className="bg-black border border-[#2a2a2a] px-2 py-1 text-[12px] w-full focus:border-[#ff9900] outline-none"
+        className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full focus:border-[#ff9900] outline-none"
       />
       {open && q.trim().length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-0.5 bg-[#0d0d0d] border border-[#2a2a2a] z-20 max-h-[320px] overflow-y-auto text-[11px]">
+        <div className="absolute top-full left-0 right-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[320px] overflow-y-auto text-[11px]">
           {loading && hits.length === 0 ? (
             <div className="px-2 py-2 text-[#666]">buscando…</div>
           ) : hits.length === 0 ? (
@@ -236,8 +236,8 @@ function FciOperatePanel({
   const isBuy = side === "BUY";
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
-      <div className="px-2 py-1 border-b border-[#1a1a1a] text-[11px] tracking-wide text-[#d0d0d0] font-semibold shrink-0">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
+      <div className="px-2 py-1 border-b border-[var(--t-border)] text-[11px] tracking-wide text-[#d0d0d0] font-semibold shrink-0">
         OPERAR FCI
       </div>
       <div className="p-3 flex flex-col gap-3">
@@ -265,7 +265,7 @@ function FciOperatePanel({
 
         {/* Fondo seleccionado */}
         {fci && (
-          <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-2 flex flex-col gap-1">
+          <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-2 flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <span
                 className="text-[#ff9900] font-semibold text-[12px] flex-1 truncate"
@@ -305,7 +305,7 @@ function FciOperatePanel({
                   ? s === "BUY"
                     ? "bg-[#4ade80] text-black border-[#4ade80]"
                     : "bg-[#f87171] text-black border-[#f87171]"
-                  : "bg-transparent text-[#888] border-[#2a2a2a]"
+                  : "bg-transparent text-[#888] border-[var(--t-border-2)]"
               }`}
             >
               {s === "BUY" ? "SUSCRIBIR" : "RESCATAR"}
@@ -325,7 +325,7 @@ function FciOperatePanel({
                   className={`px-2 py-0.5 text-[9px] font-semibold border ${
                     m === amountMode
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#888] border-[#2a2a2a]"
+                      : "bg-transparent text-[#888] border-[var(--t-border-2)]"
                   }`}
                 >
                   {m === "importe" ? `$ ${ccy || "IMPORTE"}` : "CUOTAPARTES"}
@@ -338,7 +338,7 @@ function FciOperatePanel({
             onChange={(e) => setAmount(e.target.value)}
             placeholder={amountMode === "importe" ? `importe en ${ccy || "$"}` : "cuotapartes"}
             inputMode="decimal"
-            className="bg-black border border-[#2a2a2a] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[#ff9900] outline-none"
           />
           <div className="mt-1 text-[10px] text-[#888] min-h-[14px]">
             {conversion ? (
@@ -478,7 +478,7 @@ export function OperarFciView() {
   return (
     <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
       {/* Toolbar — mismo que el dashboard */}
-      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex items-center gap-2 px-2 py-1 border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
         <AccountSearch value={account} cuentas={cuentas} onPick={(id) => setAccount(id)} />
         <span className="ml-auto text-[9px] text-[#555] tracking-wide">

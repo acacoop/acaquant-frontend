@@ -117,7 +117,7 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
   return (
     <div className="h-full w-full flex flex-col bg-[var(--t-panel)]">
       {/* Header con el TC vivo */}
-      <div className="px-3 py-2 border-b border-[#1a1a1a] flex items-baseline gap-3 font-mono text-[11px]">
+      <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-baseline gap-3 font-mono text-[11px]">
         <span className="text-[#d0d0d0] font-semibold">CURVA DLR (FUTUROS ROFEX)</span>
         {spot !== null && (
           <span className="text-[#888888]">

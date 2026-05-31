@@ -107,28 +107,28 @@ export function AgroFuturos({
             <table className="w-full text-[11px] font-mono">
               <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">
                     Ticker
                   </th>
-                  <th className="text-center px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-center px-2 py-1.5 border-b border-[var(--t-border)]">
                     Vto
                   </th>
-                  <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
                     Last
                   </th>
-                  <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
                     Intra
                   </th>
-                  <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
                     1D
                   </th>
-                  <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
                     Bid
                   </th>
-                  <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
                     Offer
                   </th>
-                  <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+                  <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
                     Vol
                   </th>
                 </tr>
@@ -196,7 +196,7 @@ function CommodityTab({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

@@ -204,12 +204,12 @@ export function ForwardsPanel({
                 }
               }}
               placeholder="agregar par…"
-              className="bg-[#0a0a0a] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[130px]"
+              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[130px]"
             />
             {dropOpen && filteredPares.length > 0 && (
               <div
                 ref={dropRef}
-                className="absolute top-full left-0 mt-px z-50 bg-[var(--t-surface)] border border-[#2a2a2a] max-h-[200px] overflow-y-auto w-[160px]"
+                className="absolute top-full left-0 mt-px z-50 bg-[var(--t-surface)] border border-[var(--t-border-2)] max-h-[200px] overflow-y-auto w-[160px]"
               >
                 {filteredPares.map((par) => {
                   const activo = paresEfectivos.includes(par);
@@ -441,10 +441,10 @@ function FilterBtn({
       disabled={disabled}
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         disabled
-          ? "bg-transparent text-[#333333] border-[#1a1a1a] cursor-not-allowed"
+          ? "bg-transparent text-[#333333] border-[var(--t-border)] cursor-not-allowed"
           : active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

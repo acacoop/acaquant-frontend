@@ -153,7 +153,7 @@ export function DolarMepCompraView({
   return (
     <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
       {/* Form: inputs + EJECUTAR + cálculos horizontales pegados al botón */}
-      <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[#1a1a1a] flex-wrap">
+      <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[var(--t-border)] flex-wrap">
         {/* Toggle ARS / USD: cuando el user pone monto en USD, el ARS equivalente
             se calcula con la cotización viva del par AL30/AL30D y se manda al
             backend (que sólo conoce ARS). */}
@@ -172,7 +172,7 @@ export function DolarMepCompraView({
                 className={`flex-1 px-2 py-0.5 text-[11px] font-bold border ${
                   inputMode === m
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#d0d0d0]"
+                    : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
                 }`}
                 title={m === "USD" ? "Ingresar cantidad de USD a comprar" : "Ingresar monto ARS a invertir"}
               >
@@ -292,7 +292,7 @@ export function DolarMepCompraView({
             {operativas.map((op) => (
               <tr
                 key={op.operativa_id}
-                className="border-b border-[#1a1a1a] hover:bg-[var(--t-surface)] cursor-pointer"
+                className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer"
                 onClick={() => setDetalleId(op.operativa_id)}
                 title="Click para ver detalle de la operativa"
               >

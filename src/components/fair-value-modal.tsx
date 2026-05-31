@@ -88,9 +88,9 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[#0a0a0a] border border-[#2a2a2a] w-full max-w-3xl max-h-[85vh] flex flex-col"
+        className="bg-[#0a0a0a] border border-[var(--t-border-2)] w-full max-w-3xl max-h-[85vh] flex flex-col"
       >
-        <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a2a2a]">
+        <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--t-border-2)]">
           <div className="flex items-baseline gap-3">
             <span className="text-[#ff9900] font-semibold tracking-wide">{tickerCorto}</span>
             <span className="text-[10px] text-[#666666]">RESIDUO 60 DÍAS</span>

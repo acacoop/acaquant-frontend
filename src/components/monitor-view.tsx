@@ -47,7 +47,7 @@ const fmtUsd = (n: number | null | undefined): string =>
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-1.5">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-1.5">
       <div className="text-[8px] text-[#555555] uppercase tracking-wide">{label}</div>
       <div className="text-[13px] font-mono text-[#d0d0d0]">{value}</div>
       {hint && <div className="text-[8px] text-[#555555]">{hint}</div>}
@@ -70,7 +70,7 @@ function ExposicionTabla({ titulo, filas }: { titulo: string; filas: Grupo[] }) 
         </thead>
         <tbody>
           {filas.map((f) => (
-            <tr key={f.grupo} className="border-b border-[#141414]">
+            <tr key={f.grupo} className="border-b border-[var(--t-border)]">
               <td className="text-[#d0d0d0] px-1">{f.grupo}</td>
               <td className="text-right px-1 text-[#888888]">{fmtUsd(f.neto)}</td>
               <td className="text-right px-1 text-[#d0d0d0]">{fmtUsd(f.bruto)}</td>
@@ -131,7 +131,7 @@ export function MonitorView() {
             onChange={(e) => setTk(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
             placeholder="NVDA"
-            className="w-24 bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-24 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
           />
         </div>
         <div>
@@ -140,7 +140,7 @@ export function MonitorView() {
             value={monto}
             onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
-            className="w-28 bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
           />
         </div>
         <div className="flex gap-1">
@@ -153,7 +153,7 @@ export function MonitorView() {
                   ? d === "long"
                     ? "bg-[#00cc66] text-black border-[#00cc66]"
                     : "bg-[#ff3333] text-black border-[#ff3333]"
-                  : "bg-transparent text-[#555555] border-[#2a2a2a]"
+                  : "bg-transparent text-[#555555] border-[var(--t-border-2)]"
               }`}
             >
               {d.toUpperCase()}
@@ -162,7 +162,7 @@ export function MonitorView() {
         </div>
         <button
           onClick={agregar}
-          className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors"
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors"
         >
           + Agregar
         </button>
@@ -181,7 +181,7 @@ export function MonitorView() {
           {posiciones.map((p) => (
             <span
               key={p.ticker}
-              className="inline-flex items-center gap-1 border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-0.5 font-mono"
+              className="inline-flex items-center gap-1 border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-0.5 font-mono"
             >
               <span className={p.notional >= 0 ? "text-[#3fbf6f]" : "text-[#ff7f7f]"}>
                 {p.notional >= 0 ? "L" : "S"}
@@ -252,7 +252,7 @@ export function MonitorView() {
                 </thead>
                 <tbody>
                   {data.contribucion_riesgo.map((c) => (
-                    <tr key={c.ticker} className="border-b border-[#141414]">
+                    <tr key={c.ticker} className="border-b border-[var(--t-border)]">
                       <td className="text-[#ff9900] px-1">{c.ticker}</td>
                       <td className="text-right px-1 text-[#888888]">{fmtUsd(c.notional)}</td>
                       <td className={`text-right px-1 ${c.contrib_pct < 0 ? "text-[#3fbf6f]" : "text-[#d0d0d0]"}`}>

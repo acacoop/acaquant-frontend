@@ -50,7 +50,7 @@ function DownloadBtn({ onClick }: { onClick: () => void }) {
     <button
       onClick={onClick}
       title="Descargar a Excel"
-      className="text-[9px] tracking-wider text-[#888] hover:text-[#ff9900] border border-[#2a2a2a] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
+      className="text-[9px] tracking-wider text-[#888] hover:text-[#ff9900] border border-[var(--t-border-2)] hover:border-[#ff9900] px-1.5 py-0.5 uppercase"
     >
       ⬇ xls
     </button>
@@ -80,8 +80,8 @@ async function getJson<T>(url: string, fallback: T): Promise<T> {
 
 function Panel({ title, extra, children }: { title: string; extra?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] shrink-0">
+    <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
         <span className="text-[9px] text-[#888] tracking-widest uppercase mr-auto">{title}</span>
         {extra}
       </div>
@@ -295,7 +295,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 }}
                 title="Filtrar gráfico y tablas por este comercial"
                 className={
-                  "border-t border-[#141414] cursor-pointer " +
+                  "border-t border-[var(--t-border)] cursor-pointer " +
                   (selComercial === c.operador_email ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
                 }
               >
@@ -313,7 +313,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
           </tbody>
           {informe && informe.comerciales.length > 0 && (
             <tfoot className="sticky bottom-0 bg-[var(--t-surface)]">
-              <tr className="border-t-2 border-[#2a2a2a] font-semibold text-[#d0d0d0]">
+              <tr className="border-t-2 border-[var(--t-border-2)] font-semibold text-[#d0d0d0]">
                 <td className="px-2 py-1.5" colSpan={2}>TOTAL</td>
                 <td className="text-right px-2 text-[#666]">—</td>
                 <td className="text-right px-2 text-[#ff9900]" title={fmtMoneyFull(totRanking.vol_total)}>{fmtMoney(totRanking.vol_total)}</td>
@@ -350,7 +350,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 onClick={() => setSelSeg(s.segmento)}
                 title="Ver clientes y operaciones de este segmento"
                 className={
-                  "border-t border-[#141414] cursor-pointer " +
+                  "border-t border-[var(--t-border)] cursor-pointer " +
                   (selSeg === s.segmento ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
                 }
               >
@@ -376,7 +376,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 className="text-[10px] text-[#ff9900] hover:text-[#ffb84d]"
               >✕ todos</button>
             )}
-            <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["clientes", "operaciones"] as const).map((t) => (
                 <button
                   key={t}
@@ -410,7 +410,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 <tr><td colSpan={3} className="text-center text-[#555] py-4">Sin aranceles.</td></tr>
               )}
               {detalle.clientes.map((c) => (
-                <tr key={c.id_cuenta} className="border-t border-[#141414] hover:bg-[var(--t-surface)]">
+                <tr key={c.id_cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                   <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={c.denominacion}>
                     <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
                   </td>
@@ -436,7 +436,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 <tr><td colSpan={5} className="text-center text-[#555] py-4">Sin operaciones.</td></tr>
               )}
               {detalle.operaciones.map((o, i) => (
-                <tr key={o.comprobante + i} className="border-t border-[#141414] hover:bg-[var(--t-surface)]">
+                <tr key={o.comprobante + i} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                   <td className="px-3 py-1.5 text-[#888] whitespace-nowrap">{o.fecha}</td>
                   <td className="px-1 py-1.5 text-[#d0d0d0] truncate max-w-[120px]" title={o.denominacion}>{o.denominacion}</td>
                   <td className="px-1 py-1.5 text-[#aaa]">{o.ticker ?? o.categoria}</td>

@@ -277,7 +277,7 @@ export function CostoHistoricoChart({
                     "px-1.5 py-0 text-[9px] uppercase tracking-wider border " +
                     (spotMoneda === m
                       ? "bg-[#4a9eff] text-black border-[#4a9eff]"
-                      : "bg-[#0a0a0a] text-[#808080] border-[#2a2a2a] hover:text-[#4a9eff]")
+                      : "bg-[#0a0a0a] text-[#808080] border-[var(--t-border-2)] hover:text-[#4a9eff]")
                   }
                 >
                   {m}

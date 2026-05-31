@@ -102,7 +102,7 @@ function TabTasaFija({ operador }: { operador: string }) {
       {/* Tabla tickers + detalle cuentas */}
       <div className="grid grid-cols-[35%_65%] gap-3 min-h-0" style={{ height: "38%" }}>
         {/* Tickers */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="POSICIONES POR TICKER" />
           <div className="flex-1 overflow-y-auto">
             <table>
@@ -126,7 +126,7 @@ function TabTasaFija({ operador }: { operador: string }) {
         </div>
 
         {/* Cuentas */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title={tickerSel ? `CUENTAS — ${tickerSel.ticker}` : "CUENTAS (seleccioná un ticker)"} />
           <div className="flex-1 overflow-y-auto">
             {tickerSel ? (
@@ -151,7 +151,7 @@ function TabTasaFija({ operador }: { operador: string }) {
 
       {/* Gráfico amortizaciones */}
       {chartData.length > 0 && (
-        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="COBRO PROYECTADO POR VENCIMIENTO" />
           <div className="flex-1 min-h-0 p-2">
             <ResponsiveContainer width="100%" height="100%">
@@ -288,7 +288,7 @@ function TabCer({ operador }: { operador: string }) {
       {/* Tabla tickers + detalle cuentas */}
       <div className="grid grid-cols-[45%_55%] gap-3 min-h-0" style={{ height: "38%" }}>
         {/* Tickers */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="POSICIONES POR TICKER" />
           <div className="flex-1 overflow-y-auto">
             <table>
@@ -325,7 +325,7 @@ function TabCer({ operador }: { operador: string }) {
         </div>
 
         {/* Cuentas */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title={tickerSel ? `CUENTAS — ${tickerSel.ticker}` : "CUENTAS (seleccioná un ticker)"} />
           <div className="flex-1 overflow-y-auto">
             {tickerSel ? (
@@ -349,7 +349,7 @@ function TabCer({ operador }: { operador: string }) {
 
       {/* Gráfico valuación por vencimiento */}
       {chartData.length > 0 && (
-        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="VALUACIÓN POR VENCIMIENTO" />
           <div className="flex-1 min-h-0 p-2">
             <ResponsiveContainer width="100%" height="100%">
@@ -714,11 +714,11 @@ export function AumView() {
   }, [snapshot, emisorSel]);
 
   const tabBar = (
-    <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+    <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
       {(["total", "fci", "tasa_fija", "cer", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
-            tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+            tab === t ? "bg-[#ff9900] text-black border-[#ff9900]" : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
           }`}>
           {t === "fci" ? "FCI"
            : t === "total" ? "TOTAL"
@@ -735,7 +735,7 @@ export function AumView() {
           value={operador}
           onChange={(e) => setOperador(e.target.value)}
           className={`bg-black border text-[10px] px-2 py-0.5 font-mono focus:outline-none ${
-            operador ? "border-[#ff9900] text-[#ff9900]" : "border-[#2a2a2a] text-[#d0d0d0] focus:border-[#ff9900]"
+            operador ? "border-[#ff9900] text-[#ff9900]" : "border-[var(--t-border-2)] text-[#d0d0d0] focus:border-[#ff9900]"
           }`}
           title="Filtra toda la vista AUM a las cuentas de un operador"
         >
@@ -759,7 +759,7 @@ export function AumView() {
                 <select
                   value={fechaSel}
                   onChange={(e) => setFechaSel(e.target.value)}
-                  className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+                  className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
                 >
                   {fechasAll.length === 0 && <option value="">—</option>}
                   {fechasAll.slice().reverse().map((f) => (
@@ -787,7 +787,7 @@ export function AumView() {
                     className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
                       moneda === m
                         ? "bg-[#ff9900] text-black border-[#ff9900]"
-                        : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                        : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                     }`}
                   >
                     {m}
@@ -801,7 +801,7 @@ export function AumView() {
             <select
               value={cuentaFilter}
               onChange={(e) => setCuentaFilter(e.target.value as CuentaFilter)}
-              className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
             >
               {CUENTA_FILTER_OPTS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -893,7 +893,7 @@ export function AumView() {
           tab === "total" ? "grid-rows-[1fr_28vh]" : "grid-rows-[auto_1fr]"
         }`}>
           {/* Chart evolución */}
-          <div className={`border border-[#1a1a1a] bg-[var(--t-panel)] ${
+          <div className={`border border-[var(--t-border)] bg-[var(--t-panel)] ${
             tab === "total" ? "flex flex-col min-h-0" : ""
           }`}>
             <PanelHeader
@@ -985,7 +985,7 @@ export function AumView() {
                       className={`px-2 h-[22px] text-[10px] font-semibold tracking-wide border transition-colors ${
                         rangoKey === k
                           ? "bg-[#ff9900] text-black border-[#ff9900]"
-                          : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                          : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                       }`}
                     >
                       {k}
@@ -1001,7 +1001,7 @@ export function AumView() {
               el chart no rebote al cargar el snapshot (antes arrancaba
               "auto" y el chart agarraba todo el espacio mientras llegaba
               la data, después se comprimía cuando aparecía la tabla). */}
-          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
             <PanelHeader
               title={`${tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"} · ${fmtFecha(fechaSel)}`}
               sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}${loadingSnap && snapshot.length > 0 ? " · actualizando…" : ""}`}
@@ -1036,7 +1036,7 @@ export function AumView() {
                           onClick={() =>
                             setEmisorSel(active ? null : r.emisor)
                           }
-                          className={`cursor-pointer border-b border-[#111111] transition-colors ${
+                          className={`cursor-pointer border-b border-[var(--t-border)] transition-colors ${
                             active
                               ? "bg-[#ff9900]/10 text-[#ff9900]"
                               : "hover:bg-[#ff9900]/5"
@@ -1069,7 +1069,7 @@ export function AumView() {
           {tab === "total" ? (
             // ── DETALLE TOTAL: dos sub-tablas (CUENTA + ASSET) con
             //     filtro cruzado y reactivo a la cartera del leaderboard.
-            <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
+            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
               <PanelHeader
                 title="DETALLE"
                 sub={(() => {
@@ -1112,15 +1112,15 @@ export function AumView() {
               />
               <div className="flex-1 min-h-0 overflow-y-auto p-2 grid grid-rows-2 gap-2">
                 {/* POR CUENTA */}
-                <div className="border border-[#1a1a1a] bg-[#0a0a0a] flex flex-col min-h-0">
-                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[#1a1a1a]">
+                <div className="border border-[var(--t-border)] bg-[#0a0a0a] flex flex-col min-h-0">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[var(--t-border)]">
                     <span>POR CUENTA</span>
                     <span className="text-[#555]">{porCuenta.length}</span>
                     <input
                       value={cuentaQuery}
                       onChange={(e) => setCuentaQuery(e.target.value)}
                       placeholder="buscar cuenta…"
-                      className="ml-auto bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
+                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
                     />
                     {(cuentaSel || unidadSel || cuentaQuery || unidadQuery) && (
                       <button
@@ -1142,7 +1142,7 @@ export function AumView() {
                           <button
                             key={c.cuenta}
                             onClick={() => setCuentaSel(sel ? null : c.cuenta)}
-                            className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[#111] last:border-b-0 transition-colors ${
+                            className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[var(--t-border)] last:border-b-0 transition-colors ${
                               sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
                             }`}
                           >
@@ -1156,15 +1156,15 @@ export function AumView() {
                   </div>
                 </div>
                 {/* POR ASSET */}
-                <div className="border border-[#1a1a1a] bg-[#0a0a0a] flex flex-col min-h-0">
-                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[#1a1a1a]">
+                <div className="border border-[var(--t-border)] bg-[#0a0a0a] flex flex-col min-h-0">
+                  <div className="px-3 py-1.5 text-[10px] tracking-widest text-[#888] flex items-center gap-2 border-b border-[var(--t-border)]">
                     <span>POR ASSET</span>
                     <span className="text-[#555]">{porUnidad.length}</span>
                     <input
                       value={unidadQuery}
                       onChange={(e) => setUnidadQuery(e.target.value)}
                       placeholder="buscar asset…"
-                      className="ml-auto bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
+                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[#d0d0d0] placeholder:text-[#555] focus:border-[#ff9900] outline-none"
                     />
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1177,7 +1177,7 @@ export function AumView() {
                           <button
                             key={u.ticker}
                             onClick={() => setUnidadSel(sel ? null : u.ticker)}
-                            className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[#111] last:border-b-0 transition-colors ${
+                            className={`w-full grid grid-cols-[1fr_auto_auto] items-center gap-3 px-3 py-1 text-[11px] border-b border-[var(--t-border)] last:border-b-0 transition-colors ${
                               sel ? "bg-[#ff9900]/10 text-[#ff9900]" : "text-[#d0d0d0] hover:bg-[#ff9900]/5"
                             }`}
                           >
@@ -1193,7 +1193,7 @@ export function AumView() {
               </div>
             </div>
           ) : (
-            <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
+            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
               <PanelHeader
                 title={`DETALLE · ${fmtFull(snapshotTotal)}`}
                 sub={
@@ -1368,14 +1368,14 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
   return (
     <div className="h-full grid grid-cols-[200px_1fr] gap-3 p-3 overflow-hidden">
       {/* Sidebar */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex flex-col gap-1.5 min-h-0 overflow-auto">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col gap-1.5 min-h-0 overflow-auto">
         <div className="text-[9px] text-[#666] uppercase tracking-widest mb-1">Plazo</div>
         {(["previo", "semana", "mes", "mtd", "ytd", "custom"] as DiffPlazo[]).map(p => (
           <button key={p} onClick={() => setPlazo(p)}
             className={`text-left px-2 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
               plazo === p
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}>
             {p === "previo" ? "DÍA ANTERIOR"
              : p === "semana" ? "−7 DÍAS"
@@ -1390,13 +1390,13 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
           <>
             <div className="text-[9px] text-[#666] uppercase tracking-widest mt-3 mb-1">Fecha actual</div>
             <select value={customActual} onChange={e => setCustomActual(e.target.value)}
-              className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
               <option value="">—</option>
               {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             <div className="text-[9px] text-[#666] uppercase tracking-widest mb-1">Fecha anterior</div>
             <select value={customAnterior} onChange={e => setCustomAnterior(e.target.value)}
-              className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none">
               <option value="">—</option>
               {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
             </select>
@@ -1410,14 +1410,14 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
               className={`flex-1 px-2 py-1 text-[10px] font-semibold border transition-colors ${
                 moneda === m
                   ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
               }`}>
               {m}
             </button>
           ))}
         </div>
 
-        <div className="mt-4 pt-3 border-t border-[#1a1a1a] text-[9px] text-[#666] font-mono leading-tight">
+        <div className="mt-4 pt-3 border-t border-[var(--t-border)] text-[9px] text-[#666] font-mono leading-tight">
           {data ? (
             <>
               <div>actual: <span className="text-[#888]">{data.fecha_actual_resuelta}</span></div>
@@ -1445,7 +1445,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
         </div>
 
         {/* Tabla */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex-1 min-h-0 flex flex-col overflow-hidden">
           {err ? (
             <div className="p-3 text-[#ff4d4d] text-[11px]">Error: {err}</div>
           ) : loading && !data ? (
@@ -1455,7 +1455,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
           ) : data ? (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
-                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a] z-10">
+                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
                   <tr className="text-[9px] tracking-widest text-[#888]">
                     <th onClick={() => toggleSort("cuenta")}
                         className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
@@ -1480,7 +1480,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
                     const tagNueva   = r.es_nueva && !r.es_cerrada;
                     const tagCerrada = r.es_cerrada;
                     return (
-                      <tr key={r.id_cuenta} className="border-b border-[#111] hover:bg-[#ff9900]/5">
+                      <tr key={r.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5">
                         <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[480px]" title={r.cuenta}>
                           <span className="text-[#666] mr-1">[{r.id_cuenta}]</span>
                           {r.cuenta.replace(/^\[\d+\]\s*/, "")}
@@ -1629,12 +1629,12 @@ export function CuentaCombobox({
               ? "Tipeá para filtrar o scrolleá la lista…"
               : "Seleccionar cuenta"
         }
-        className="w-full bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+        className="w-full bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
       />
       {open && filtered.length > 0 && (
         <ul
           ref={listRef}
-          className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-[280px] overflow-auto bg-[var(--t-panel)] border border-[#2a2a2a] shadow-lg"
+          className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-[280px] overflow-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-lg"
         >
           {filtered.map((c, i) => {
             const isSel = c.id_cuenta === value;
@@ -1661,7 +1661,7 @@ export function CuentaCombobox({
         </ul>
       )}
       {open && filtered.length === 0 && (
-        <div className="absolute left-0 right-0 top-full mt-0.5 z-50 bg-[var(--t-panel)] border border-[#2a2a2a] px-2 py-2 text-[10px] text-[#666]">
+        <div className="absolute left-0 right-0 top-full mt-0.5 z-50 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-2 text-[10px] text-[#666]">
           Sin resultados
         </div>
       )}
@@ -1680,7 +1680,7 @@ function TickerCard({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-[#1a1a1a] bg-[#0a0a0a]">
+    <div className="border border-[var(--t-border)] bg-[#0a0a0a]">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center px-3 py-2 hover:bg-[#ff9900]/5 transition-colors"
@@ -1699,11 +1699,11 @@ function TickerCard({
         </span>
       </button>
       {open && (
-        <div className="border-t border-[#1a1a1a] bg-[#060606]">
+        <div className="border-t border-[var(--t-border)] bg-[#060606]">
           {cuentas.map((c) => (
             <div
               key={c.cuenta}
-              className="flex items-center px-3 py-1 text-[11px] border-b border-[#111111] last:border-b-0"
+              className="flex items-center px-3 py-1 text-[11px] border-b border-[var(--t-border)] last:border-b-0"
             >
               <span className="text-[#888888] truncate">{c.cuenta}</span>
               <span className="ml-auto font-semibold text-[#d0d0d0]">
@@ -1729,7 +1729,7 @@ function Kpi({
   accent?: string;
 }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
       <div className="text-[10px] text-[#555555] uppercase tracking-wide">
         {label}
       </div>
@@ -1754,7 +1754,7 @@ function PanelHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+    <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
       <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
         {title}
       </span>
@@ -1789,7 +1789,7 @@ function DateStepper({
     if (ni >= 0 && ni < fechas.length) onChange(fechas[ni]);
   };
   const btn =
-    "px-1.5 h-[20px] text-[11px] leading-none border border-[#2a2a2a] text-[#888888] " +
+    "px-1.5 h-[20px] text-[11px] leading-none border border-[var(--t-border-2)] text-[#888888] " +
     "hover:text-[#ff9900] hover:border-[#ff9900] disabled:opacity-30 disabled:cursor-not-allowed";
   return (
     <span className="inline-flex items-center gap-1 font-mono">

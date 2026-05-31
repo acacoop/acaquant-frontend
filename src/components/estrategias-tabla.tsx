@@ -42,7 +42,7 @@ export function EstrategiasTabla({
           <select
             value={strike ?? atmStrike ?? ""}
             onChange={(e) => setStrike(Number(e.target.value))}
-            className="ml-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="ml-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
           >
             {liquidStrikes.map((k) => (
               <option key={k} value={k}>
@@ -57,7 +57,7 @@ export function EstrategiasTabla({
           <select
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
-            className="ml-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="ml-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
           >
             {CATEGORIAS.map((c) => (
               <option key={c} value={c}>

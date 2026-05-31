@@ -73,7 +73,7 @@ export interface CuentaDescubierta {
 }
 
 export const inputCls =
-  "bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] w-full focus:border-[#ff9900] outline-none";
+  "bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] w-full focus:border-[#ff9900] outline-none";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Componentes UI compartidos
@@ -175,7 +175,7 @@ export function SaldoBox({
   };
 
   return (
-    <div className="flex items-center gap-6 px-3 py-2 bg-[var(--t-panel)] border border-[#1a1a1a]">
+    <div className="flex items-center gap-6 px-3 py-2 bg-[var(--t-panel)] border border-[var(--t-border)]">
       <div className="flex items-center gap-2 min-w-[110px]">
         <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
         {onRefresh && (

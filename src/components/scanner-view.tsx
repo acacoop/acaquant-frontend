@@ -50,7 +50,7 @@ export function ScannerView({
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
         {/* IZQUIERDA: tabla CEDEARs sin Panel wrapper.
             La tabla ya tiene header integrado (switch + CCL). */}
-        <div className="min-w-0 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <CedearsScannerTable
             data={rows}
             selectedTicker={selectedTicker}

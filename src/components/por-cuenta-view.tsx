@@ -130,7 +130,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
       <div className="flex gap-1 px-2 pt-2 shrink-0">
         <button
           onClick={onVolver}
-          className="px-3 py-1 text-[10px] tracking-widest border border-[#2a2a2a] text-[#888] hover:text-[#ff9900]"
+          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[#888] hover:text-[#ff9900]"
         >
           POR TÍTULO
         </button>
@@ -146,7 +146,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as FiltroCuenta)}
-          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
         >
           {FILTRO_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -157,7 +157,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
           value={searchCta}
           onChange={(e) => setSearchCta(e.target.value)}
           placeholder="Filtrar cuenta…"
-          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-48"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-48"
         />
         <label className="flex items-center gap-1 text-[10px] text-[#888] font-mono cursor-pointer select-none">
           <input
@@ -176,7 +176,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
       </div>
 
       {/* Tabla */}
-      <div className="flex-1 min-h-0 mx-2 mb-2 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 mx-2 mb-2 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col">
         {err ? (
           <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>
         ) : loading && !data ? (
@@ -190,7 +190,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a] z-10">
+              <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
                 <tr className="text-[9px] tracking-widest text-[#888]">
                   <Th onClick={() => toggleSort("cuenta")} left>CUENTA{arrow("cuenta")}</Th>
                   <Th onClick={() => toggleSort("valor_ars")}>VALOR ARS{arrow("valor_ars")}</Th>
@@ -205,7 +205,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
                 {filas.map((r) => {
                   const cuentaShort = r.cuenta.replace(/^\[\d+\]\s*/, "");
                   return (
-                    <tr key={r.id_cuenta} className="border-b border-[#111] hover:bg-[#ff9900]/5">
+                    <tr key={r.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5">
                       <td className="px-2 py-1.5 text-[#888] truncate max-w-[220px]" title={r.cuenta}>
                         <span className="text-[#555] mr-1">[{r.id_cuenta}]</span>
                         {cuentaShort}

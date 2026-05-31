@@ -100,7 +100,7 @@ export function AgroOpcionesChain({
                 value={vto ?? ""}
                 onChange={(e) => setVtoSel(e.target.value || null)}
                 disabled={data.vencimientos.length === 0}
-                className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[10px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
               >
                 {data.vencimientos.length === 0 && (
                   <option value="">sin vtos</option>
@@ -162,28 +162,28 @@ function ChainTable({
         <tr>
           <th
             colSpan={3}
-            className="text-center px-2 py-1 border-b border-[#1a1a1a] text-[#4ade80]"
+            className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#4ade80]"
           >
             CALL
           </th>
-          <th className="text-center px-2 py-1 border-b border-[#1a1a1a]">
+          <th className="text-center px-2 py-1 border-b border-[var(--t-border)]">
             STRIKE
           </th>
           <th
             colSpan={3}
-            className="text-center px-2 py-1 border-b border-[#1a1a1a] text-[#f87171]"
+            className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#f87171]"
           >
             PUT
           </th>
         </tr>
         <tr>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Bid</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Ofer</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Últ</th>
-          <th className="text-center px-2 py-1 border-b border-[#1a1a1a]">—</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Bid</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Ofer</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Últ</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Bid</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Ofer</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Últ</th>
+          <th className="text-center px-2 py-1 border-b border-[var(--t-border)]">—</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Bid</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Ofer</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Últ</th>
         </tr>
       </thead>
       <tbody>

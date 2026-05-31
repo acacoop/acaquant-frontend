@@ -187,7 +187,7 @@ export function FlujoVsAumView() {
 
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 shrink-0">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0">
         <div className="flex items-center gap-3">
           <span className="text-[10px] tracking-wide text-[#555555] uppercase">
             Fondo
@@ -195,7 +195,7 @@ export function FlujoVsAumView() {
           <select
             value={sel ?? ""}
             onChange={(e) => setSel(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none min-w-[240px]"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none min-w-[240px]"
           >
             {fondos.map((f) => (
               <option key={f} value={f}>
@@ -212,7 +212,7 @@ export function FlujoVsAumView() {
       </div>
 
       {chartData.length >= 2 && (
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-1.5 shrink-0 flex items-center gap-2">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-1.5 shrink-0 flex items-center gap-2">
           <span className="text-[10px] text-[#ff9900] font-mono min-w-[40px]">
             {chartData[efectivoRango[0]]?.label}
           </span>
@@ -230,7 +230,7 @@ export function FlujoVsAumView() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] p-2 overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] p-2 overflow-hidden flex flex-col">
         {loadingSerie ? (
           <div className="flex-1 flex items-center justify-center text-[#555555] text-sm">
             Cargando…

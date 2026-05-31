@@ -144,7 +144,7 @@ function MetricCard({
   const color =
     accent === "ok" ? "#00cc66" : accent === "warn" ? "#ff9900" : accent === "err" ? "#ff3333" : "#d0d0d0";
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-surface)] px-3 py-2 font-mono">
+    <div className="border border-[var(--t-border)] bg-[var(--t-surface)] px-3 py-2 font-mono">
       <div className="text-[9px] text-[#555555] uppercase tracking-wide">{label}</div>
       <div className="text-[18px] font-semibold mt-0.5 leading-none" style={{ color }}>
         {value}
@@ -191,7 +191,7 @@ function ToolsRanking({ data }: { data: ToolRank[] }) {
 
 function ExpandedRow({ log }: { log: LogEntry }) {
   return (
-    <div className="bg-[#050505] border-t border-[#1a1a1a] p-3 text-[11px] font-mono space-y-2">
+    <div className="bg-[#050505] border-t border-[var(--t-border)] p-3 text-[11px] font-mono space-y-2">
       <div>
         <div className="text-[9px] text-[#555555] uppercase tracking-wide">Pregunta completa</div>
         <div className="text-[#d0d0d0] mt-0.5 whitespace-pre-wrap">{log.message}</div>
@@ -228,7 +228,7 @@ function ExpandedRow({ log }: { log: LogEntry }) {
           </div>
         </div>
       )}
-      <div className="flex gap-4 text-[9px] text-[#555555] pt-1 border-t border-[#1a1a1a]">
+      <div className="flex gap-4 text-[9px] text-[#555555] pt-1 border-t border-[var(--t-border)]">
         <span>Steps: {log.steps ?? "—"}</span>
         <span>Elapsed: {log.elapsed_s ?? "—"}s</span>
         <span>Usuario: {log.user ?? "—"}</span>
@@ -336,7 +336,7 @@ export function AsistenteDashboard() {
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
       {/* Filtros + última actualización */}
-      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] text-[#555555] uppercase tracking-wide">Período</span>
         <div className="flex gap-1">
           {HORAS_OPTS.map((o) => (
@@ -346,7 +346,7 @@ export function AsistenteDashboard() {
               className={`px-2 py-0.5 text-[10px] font-mono border ${
                 horas === o.h
                   ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
               }`}
             >
               {o.label}
@@ -362,7 +362,7 @@ export function AsistenteDashboard() {
               className={`px-2 py-0.5 text-[10px] font-mono border ${
                 estadoFiltro === o.v
                   ? "bg-[#ff9900] text-black border-[#ff9900]"
-                  : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
               }`}
             >
               {o.label}
@@ -436,7 +436,7 @@ export function AsistenteDashboard() {
 
         {/* Charts + Tools Ranking */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 lg:col-span-1">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 lg:col-span-1">
             <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
               Conversaciones por hora
             </div>
@@ -472,7 +472,7 @@ export function AsistenteDashboard() {
             </div>
           </div>
 
-          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 lg:col-span-1">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 lg:col-span-1">
             <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
               Tokens por hora
             </div>
@@ -512,7 +512,7 @@ export function AsistenteDashboard() {
             </div>
           </div>
 
-          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 lg:col-span-1 overflow-hidden flex flex-col">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 lg:col-span-1 overflow-hidden flex flex-col">
             <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
               Tools usadas
             </div>
@@ -523,15 +523,15 @@ export function AsistenteDashboard() {
         </div>
 
         {/* Tabla de conversaciones (agrupadas por conversation_id) */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
-          <div className="px-3 py-1.5 border-b border-[#1a1a1a] flex items-center">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
+          <div className="px-3 py-1.5 border-b border-[var(--t-border)] flex items-center">
             <span className="text-[10px] text-[#555555] uppercase tracking-wide">
               Conversaciones ({conversations.length})
             </span>
           </div>
           <table className="w-full text-[10px] font-mono">
             <thead>
-              <tr className="text-[#555555] border-b border-[#1a1a1a]">
+              <tr className="text-[#555555] border-b border-[var(--t-border)]">
                 <th className="px-2 py-1 text-left w-[90px]">Inicio</th>
                 <th className="px-2 py-1 text-left w-[140px]">Usuario</th>
                 <th className="px-2 py-1 text-left">Primer mensaje</th>
@@ -551,7 +551,7 @@ export function AsistenteDashboard() {
                   <Fragment key={c.conversation_id}>
                     <tr
                       onClick={() => expandConversation(c.conversation_id)}
-                      className={`border-b border-[#1a1a1a] cursor-pointer hover:bg-[var(--t-surface)] ${
+                      className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface)] ${
                         isExp ? "bg-[var(--t-surface)]" : ""
                       }`}
                     >
@@ -586,17 +586,17 @@ export function AsistenteDashboard() {
                       <tr>
                         <td colSpan={6} className="p-0">
                           {turns === undefined ? (
-                            <div className="bg-[#050505] border-t border-[#1a1a1a] p-3 text-[10px] text-[#555555] font-mono">
+                            <div className="bg-[#050505] border-t border-[var(--t-border)] p-3 text-[10px] text-[#555555] font-mono">
                               cargando turns…
                             </div>
                           ) : turns.length === 0 ? (
-                            <div className="bg-[#050505] border-t border-[#1a1a1a] p-3 text-[10px] text-[#555555] font-mono">
+                            <div className="bg-[#050505] border-t border-[var(--t-border)] p-3 text-[10px] text-[#555555] font-mono">
                               (sin turns)
                             </div>
                           ) : (
-                            <div className="bg-[#050505] border-t border-[#1a1a1a]">
+                            <div className="bg-[#050505] border-t border-[var(--t-border)]">
                               {turns.map((t, i) => (
-                                <div key={i} className="border-b border-[#1a1a1a] last:border-b-0">
+                                <div key={i} className="border-b border-[var(--t-border)] last:border-b-0">
                                   <div className="px-3 py-1 text-[9px] text-[#555555] uppercase tracking-wide bg-[#0a0a0a]">
                                     Turn {i + 1} · {fmtTime(t.ts)}
                                   </div>

@@ -113,7 +113,7 @@ export function DerivadosSinteticosView() {
   return (
     <div className="h-full min-h-0 flex flex-col">
       {/* Barra slim — SPOT + última actualización. */}
-      <div className="border-b border-[#1a1a1a] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
+      <div className="border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
         <span className="text-[10px] text-[#808080] uppercase tracking-wide">
           Sintéticos
         </span>
@@ -135,8 +135,8 @@ export function DerivadosSinteticosView() {
             una tabla tiene muchas filas, scrollea internamente (panel.tsx ya
             hace overflow-y-auto). Antes la fila ocupaba 70/30 con flex-grow
             → el Long-LECAP con 7 filas quedaba con espacio vacío gigante. */}
-        <div className="shrink-0 max-h-[50%] flex items-start border-b border-[#1a1a1a]">
-          <div className="w-1/2 min-w-0 border-r border-[#1a1a1a]">
+        <div className="shrink-0 max-h-[50%] flex items-start border-b border-[var(--t-border)]">
+          <div className="w-1/2 min-w-0 border-r border-[var(--t-border)]">
             <LongLecapPanel rows={data.long_rofex_long_lecap} />
           </div>
           <div className="w-1/2 min-w-0">
@@ -145,7 +145,7 @@ export function DerivadosSinteticosView() {
         </div>
         {/* Fila 2 — Charts lado a lado. flex-1 → llenan el resto vertical. */}
         <div className="flex-1 min-h-0 flex">
-          <div className="w-1/2 min-w-0 border-r border-[#1a1a1a]">
+          <div className="w-1/2 min-w-0 border-r border-[var(--t-border)]">
             <CurvaTnaChart
               titulo="Curva TNA · Long Rofex − Long Lecap"
               rows={data.long_rofex_long_lecap}
@@ -307,40 +307,40 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Ticker
                   </th>
-                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Futuro
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Px TF
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Px Fut
                   </th>
-                  <th className="text-center px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-center px-1.5 py-1 border-b border-[var(--t-border)]">
                     Vto
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Cobro
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Plazo
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Desc.
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     T+0
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     T+n
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     TE
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     TNA
                   </th>
                 </tr>
@@ -421,37 +421,37 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
             <table className="w-full text-[11px] font-mono tabular-nums">
               <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Ticker
                   </th>
-                  <th className="text-left px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Futuro
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Px DLK
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Px Fut
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     DLR Aj.
                   </th>
-                  <th className="text-center px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-center px-1.5 py-1 border-b border-[var(--t-border)]">
                     Vto DLK
                   </th>
-                  <th className="text-center px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-center px-1.5 py-1 border-b border-[var(--t-border)]">
                     Vto Fut
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Plazo
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     Desc.
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     TE
                   </th>
-                  <th className="text-right px-1.5 py-1 border-b border-[#1a1a1a]">
+                  <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
                     TNA
                   </th>
                 </tr>

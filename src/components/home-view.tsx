@@ -48,7 +48,7 @@ export function HomeView() {
   );
 
   const chartHeader = (
-    <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center">
+    <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 flex items-center">
       <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
         Chart
       </span>
@@ -83,7 +83,7 @@ export function HomeView() {
             />
           </div>
           <div className="min-h-0">
-            <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden">
+            <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
               {chartHeader}
               <div className="flex-1 min-h-0">
                 {!maximized && chartContent}

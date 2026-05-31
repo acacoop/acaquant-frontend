@@ -46,7 +46,7 @@ export function Panel({
   }, [expanded]);
 
   const header = (
-    <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+    <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
       <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
         {title}
       </span>
@@ -80,7 +80,7 @@ export function Panel({
   const overlay = expanded && typeof document !== "undefined"
     ? createPortal(
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-[var(--t-panel)] border border-[#2a2a2a]"
+          className="fixed inset-0 z-50 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)]"
           style={{ margin: "12px" }}
         >
           {header}
@@ -92,7 +92,7 @@ export function Panel({
 
   return (
     <>
-      <div className="h-full flex flex-col border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden">
+      <div className="h-full flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
         {header}
         {!expanded && content}
       </div>

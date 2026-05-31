@@ -333,7 +333,7 @@ function Header({
   const fmt = unidad === "nominales" ? fmtQty : (n: number) => fmtArs(n);
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 flex items-center gap-3 flex-wrap shrink-0">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex items-center gap-3 flex-wrap shrink-0">
       <div className="flex items-center gap-2">
         <span className="text-[9px] text-[#666] tracking-widest">LIQUIDA</span>
         <span className="text-[#ff9900] font-mono text-[12px] font-semibold">
@@ -394,7 +394,7 @@ function FiltroBtns({
           className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
             filtro === f
               ? "bg-[#ff9900] text-black border-[#ff9900]"
-              : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+              : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
           }`}
         >
           {f.toUpperCase()}
@@ -423,7 +423,7 @@ function VistaToggle({
           className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
             vista === v
               ? "bg-[#e0c890] text-black border-[#e0c890]"
-              : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#e0c890] hover:border-[#e0c890]"
+              : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#e0c890] hover:border-[#e0c890]"
           }`}
         >
           {label}
@@ -449,7 +449,7 @@ function UnidadToggle({
           className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
             unidad === u
               ? "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]"
-              : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#3b82f6] hover:border-[#3b82f6]"
+              : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#3b82f6] hover:border-[#3b82f6]"
           }`}
         >
           {u === "nominales" ? "NOM" : "$"}
@@ -503,14 +503,14 @@ function TablaTickers({
     <table className="w-full text-[11px] font-mono tabular-nums">
       <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
-          <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a] w-6" />
-          <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">
+          <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)] w-6" />
+          <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">
             Ticker
           </th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+          <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
             Enviar
           </th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+          <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
             Recibir
           </th>
           <th
@@ -522,7 +522,7 @@ function TablaTickers({
                   ? "más a enviar arriba"
                   : "más a recibir arriba"
             }`}
-            className={`text-right px-2 py-1.5 border-b border-[#1a1a1a] cursor-pointer select-none ${
+            className={`text-right px-2 py-1.5 border-b border-[var(--t-border)] cursor-pointer select-none ${
               netoSort ? "text-[#ff9900]" : "hover:text-[#d0d0d0]"
             }`}
           >
@@ -531,7 +531,7 @@ function TablaTickers({
               {netoSort === "desc" ? "▼" : netoSort === "asc" ? "▲" : "↕"}
             </span>
           </th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">
+          <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">
             Movimientos
           </th>
         </tr>
@@ -691,12 +691,12 @@ function TablaTickerComitente({
     <table className="w-full text-[11px] font-mono tabular-nums">
       <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
-          <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">Ticker</th>
-          <th className="text-left px-2 py-1.5 border-b border-[#1a1a1a]">Comitente</th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Enviar</th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Recibir</th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Neto</th>
-          <th className="text-right px-2 py-1.5 border-b border-[#1a1a1a]">Mov.</th>
+          <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">Ticker</th>
+          <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">Comitente</th>
+          <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">Enviar</th>
+          <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">Recibir</th>
+          <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">Neto</th>
+          <th className="text-right px-2 py-1.5 border-b border-[var(--t-border)]">Mov.</th>
         </tr>
       </thead>
       <tbody>
@@ -715,7 +715,7 @@ function TablaTickerComitente({
             <tr
               key={`${f.ticker}-${f.cuenta}-${i}`}
               className={`border-b border-[#101010] hover:bg-[#0d0d0d] ${
-                isFirst ? "border-t border-[#1a1a1a]" : ""
+                isFirst ? "border-t border-[var(--t-border)]" : ""
               }`}
             >
               <td

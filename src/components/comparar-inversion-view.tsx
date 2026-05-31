@@ -177,10 +177,10 @@ function BonoSelector({
             if (e.key === "Enter" && filtered.length > 0) pick(filtered[0]);
             else if (e.key === "Escape") setOpen(false);
           }}
-          className="w-full bg-black border border-[#2a2a2a] px-2 py-0.5 text-[10px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="w-full bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
         />
         {open && (
-          <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-64 overflow-y-auto bg-black border border-[#2a2a2a] shadow-lg">
+          <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-64 overflow-y-auto bg-black border border-[var(--t-border-2)] shadow-lg">
             {filtered.length === 0 ? (
               <div className="px-2 py-1 text-[10px] text-[#555555] italic">sin resultados</div>
             ) : (
@@ -326,14 +326,14 @@ export function CompararInversionView() {
   return (
     <div className="h-full min-h-0 flex flex-col p-2 gap-2">
       {/* Toolbar: monto + moneda + selectores */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-end gap-3 flex-wrap">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-end gap-3 flex-wrap">
         <div>
           <div className="text-[8px] text-[#555555] uppercase mb-0.5">Monto a invertir</div>
           <div className="flex items-stretch">
             <input
               value={monto}
               onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
-              className="w-32 bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
             />
             <div className="flex">
               {(["ARS", "USD"] as const).map((m) => (
@@ -343,7 +343,7 @@ export function CompararInversionView() {
                   className={`px-2 py-0.5 text-[10px] font-semibold border-y border-r transition-colors ${
                     moneda === m
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900]"
+                      : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900]"
                   }`}
                 >
                   {m}
@@ -363,7 +363,7 @@ export function CompararInversionView() {
       {/* Cuerpo: tabla izq + gráfico der */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-2">
         {/* Tabla de métricas */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
           {data ? (
             <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
@@ -459,7 +459,7 @@ export function CompararInversionView() {
         </div>
 
         {/* Gráfico */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] min-h-0 flex flex-col">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-2 pt-1.5 shrink-0">
             <span className="text-[9px] text-[#ff9900] tracking-widest">
               FLUJOS
@@ -470,7 +470,7 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "renta"
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900]"
+                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900]"
                 }`}
               >
                 RENTA
@@ -480,19 +480,19 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   modoChart === "total"
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900]"
+                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900]"
                 }`}
               >
                 TOTAL
               </button>
             </div>
-            <div className="flex gap-1 pl-1.5 border-l border-[#1a1a1a]">
+            <div className="flex gap-1 pl-1.5 border-l border-[var(--t-border)]">
               <button
                 onClick={() => setVista("mes")}
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   vista === "mes"
                     ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
-                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#3fbf6f]"
+                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
                 }`}
               >
                 POR MES
@@ -502,7 +502,7 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   vista === "acum"
                     ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
-                    : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#3fbf6f]"
+                    : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
                 }`}
               >
                 ACUMULADO

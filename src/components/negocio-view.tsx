@@ -612,7 +612,7 @@ export function NegocioView() {
     <div className="h-full overflow-hidden bg-[#0a0a0a] text-[#d0d0d0] flex flex-col">
 
       {/* HEADER */}
-      <div className="px-4 py-3 border-b border-[#1a1a1a] flex flex-wrap items-center gap-3 shrink-0">
+      <div className="px-4 py-3 border-b border-[var(--t-border)] flex flex-wrap items-center gap-3 shrink-0">
         <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
           <button
             onClick={goPrev}
@@ -793,7 +793,7 @@ export function NegocioView() {
       )}
 
       {fechasLoaded && fechasDisp.length === 0 && !loading && (
-        <div className="m-4 border border-[#1a1a1a] p-8 text-center text-[12px] text-[#666]">
+        <div className="m-4 border border-[var(--t-border)] p-8 text-center text-[12px] text-[#666]">
           Aún no hay datos persistidos en CashFlow.NegocioMovimientos.
         </div>
       )}
@@ -805,8 +805,8 @@ export function NegocioView() {
           <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
             {/* CHART panel (queda como flex-1 para ocupar el resto del alto) */}
-            <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden order-2">
-              <div className="flex items-center px-3 py-2 border-b border-[#1a1a1a] shrink-0 flex-wrap gap-2">
+            <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden order-2">
+              <div className="flex items-center px-3 py-2 border-b border-[var(--t-border)] shrink-0 flex-wrap gap-2">
                 <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
                   Volumen operado · {moneda}
                 </span>
@@ -844,7 +844,7 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => o + 1)}
                     disabled={!puedeIrAtras}
                     title="Período anterior"
-                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >◀</button>
                   <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
                     {(["1W", "1M", "3M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
@@ -866,7 +866,7 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
                     disabled={!puedeIrAdelante}
                     title="Período siguiente"
-                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >▶</button>
                 </div>
                 {/* Foco día: ON = highlight selected day, OFF = todas las
@@ -988,8 +988,8 @@ export function NegocioView() {
             </div>
 
             {/* POR CATEGORÍA leaderboard (order-1 → arriba) */}
-            <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden shrink-0 order-1">
-              <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden shrink-0 order-1">
+              <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
                 <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
                   Por categoría · {vistaMode === "DIA"
                     ? (fecha ? fmtFechaCorta(fecha) : "—")
@@ -1017,7 +1017,7 @@ export function NegocioView() {
                         key={cat}
                         onClick={() => setCatSel(active ? null : cat)}
                         className={
-                          "cursor-pointer border-t border-[#1a1a1a] transition-colors " +
+                          "cursor-pointer border-t border-[var(--t-border)] transition-colors " +
                           (active
                             ? "bg-[#ff9900]/10 text-[#ff9900]"
                             : "hover:bg-[#ff9900]/5")
@@ -1044,8 +1044,8 @@ export function NegocioView() {
           </div>
 
           {/* COLUMNA DERECHA · DETALLE (scope global vía vistaMode) */}
-          <div className="min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
+          <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
                 Detalle {vistaMode === "DIA" ? "día" : "período"}
                 {catSel ? ` · ${CAT_LABEL[catSel]}` : ""}
@@ -1095,10 +1095,10 @@ export function NegocioView() {
                 <table className="w-full text-[11px] font-mono tabular-nums">
                   <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                     <tr>
-                      <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
-                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Importe</th>
-                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">%</th>
-                      <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">N</th>
+                      <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cuenta</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Importe</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
+                      <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1116,7 +1116,7 @@ export function NegocioView() {
                               setExpandedCuenta(expanded ? null : r.cuenta);
                             }}
                             className={
-                              "border-t border-[#111] hover:bg-[var(--t-surface-2)] " +
+                              "border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)] " +
                               (canExpand ? "cursor-pointer" : "cursor-default") +
                               (expanded ? " bg-[#ff9900]/5" : "")
                             }
@@ -1146,7 +1146,7 @@ export function NegocioView() {
                           </tr>
                           {expanded && (
                             <tr className="bg-[#060606]">
-                              <td colSpan={4} className="p-0 border-t border-[#1a1a1a]">
+                              <td colSpan={4} className="p-0 border-t border-[var(--t-border)]">
                                 {!boletosForRow ? (
                                   <div className="px-3 py-2 text-[10px] text-[#666]">
                                     {loadingBoletos ? "cargando boletos…" : "—"}
@@ -1175,7 +1175,7 @@ export function NegocioView() {
                                         return (
                                           <tr
                                             key={b.comprobante}
-                                            className="border-t border-[#111]"
+                                            className="border-t border-[var(--t-border)]"
                                           >
                                             <td className="px-3 py-0.5 text-[#888]">{b.comprobante}</td>
                                             <td className="px-2 py-0.5">

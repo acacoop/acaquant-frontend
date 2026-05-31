@@ -70,14 +70,14 @@ export function AunesaAumPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a]">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-widest text-[#888]">AUM · CUENTA</span>
         <input
           value={idCuenta}
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") consultar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
         />
         {data && data.fechas_disponibles.length > 0 && (
           <>
@@ -85,7 +85,7 @@ export function AunesaAumPanel() {
             <select
               value={fecha}
               onChange={(e) => { setFecha(e.target.value); consultar(e.target.value); }}
-              className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-1 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
             >
               {data.fechas_disponibles.slice().reverse().map((f) => (
                 <option key={f} value={f}>{f}</option>
@@ -138,7 +138,7 @@ export function AunesaAumPanel() {
 
         {data && data.posiciones.length > 0 && (
           <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[#2a2a2a]">
+            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
               <tr className="text-[#666] tracking-widest">
                 <th className="text-left px-2 py-1">UNIDAD</th>
                 <th className="text-left px-2 py-1">TIPO</th>
@@ -151,7 +151,7 @@ export function AunesaAumPanel() {
             </thead>
             <tbody>
               {data.posiciones.map((p, i) => (
-                <tr key={i} className="border-b border-[#141414] hover:bg-[var(--t-surface)]">
+                <tr key={i} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                   <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[340px]" title={p.unidad ?? ""}>
                     {p.unidad ?? "—"}
                   </td>

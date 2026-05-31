@@ -12,7 +12,7 @@ export function BackOfficeShell() {
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="border-b border-[#1a1a1a] bg-[var(--t-panel)] px-3 flex items-center gap-1 shrink-0">
+      <div className="border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-1 shrink-0">
         <TabBtn
           active={tab === "titulos_mercado"}
           onClick={() => setTab("titulos_mercado")}

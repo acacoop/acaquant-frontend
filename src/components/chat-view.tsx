@@ -551,7 +551,7 @@ export function ChatView() {
         onToggle={() => setSidebarOpen((v) => !v)}
       />
       <div className="flex-1 min-w-0 flex flex-col">
-      <div className="border-b border-[#1a1a1a] px-3 py-1.5 flex items-center gap-3 shrink-0">
+      <div className="border-b border-[var(--t-border)] px-3 py-1.5 flex items-center gap-3 shrink-0">
         <span className="text-[10px] tracking-wide text-[#555555] uppercase">Asistente</span>
         <span className="text-[10px] text-[#ff9900]">Claude · haiku/sonnet auto</span>
         <button
@@ -601,7 +601,7 @@ export function ChatView() {
                 </div>
               ) : (
                 <div className="flex">
-                  <div className="max-w-[90%] bg-[var(--t-surface)] border border-[#1a1a1a] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
+                  <div className="max-w-[90%] bg-[var(--t-surface)] border border-[var(--t-border)] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
                     {renderMarkdown(t.text)}
                     {t.toolCalls && t.toolCalls.length > 0 && (
                       <details className="mt-2 text-[10px] text-[#555555]">
@@ -647,7 +647,7 @@ export function ChatView() {
 
         {loading && (
           <div className="flex">
-            <div className="bg-[var(--t-surface)] border border-[#1a1a1a] px-3 py-2 text-sm text-[#555555] font-mono">
+            <div className="bg-[var(--t-surface)] border border-[var(--t-border)] px-3 py-2 text-sm text-[#555555] font-mono">
               pensando…
             </div>
           </div>
@@ -689,7 +689,7 @@ export function ChatView() {
         )}
       </div>
 
-      <div className="border-t border-[#1a1a1a] px-3 py-2 shrink-0">
+      <div className="border-t border-[var(--t-border)] px-3 py-2 shrink-0">
         {/* Chips de acciones rápidas. Por ahora solo "Recomendar cartera"
             está habilitado; los otros van como placeholders disabled para
             mostrar la dirección. */}
@@ -704,14 +704,14 @@ export function ChatView() {
           <button
             disabled
             title="Próximamente"
-            className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#555555] uppercase tracking-wide cursor-not-allowed"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#555555] uppercase tracking-wide cursor-not-allowed"
           >
             + Análisis bono
           </button>
           <button
             disabled
             title="Próximamente"
-            className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#555555] uppercase tracking-wide cursor-not-allowed"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#555555] uppercase tracking-wide cursor-not-allowed"
           >
             + Comparar curvas
           </button>
@@ -723,7 +723,7 @@ export function ChatView() {
           onKeyDown={onKeyDown}
           placeholder="Escribí tu consulta…  (Enter para enviar, Shift+Enter para salto de línea)"
           rows={2}
-          className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[12px] px-2 py-1.5 font-mono focus:border-[#ff9900] outline-none resize-none"
+          className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[12px] px-2 py-1.5 font-mono focus:border-[#ff9900] outline-none resize-none"
           disabled={loading}
         />
         <div className="flex items-center mt-1">
@@ -759,7 +759,7 @@ function ConversationsSidebar({
   // Versión colapsada: barra delgada con toggle + nueva + conteo.
   if (!open) {
     return (
-      <aside className="w-8 shrink-0 border-r border-[#1a1a1a] flex flex-col items-center bg-[#0a0a0a] py-2 gap-1">
+      <aside className="w-8 shrink-0 border-r border-[var(--t-border)] flex flex-col items-center bg-[#0a0a0a] py-2 gap-1">
         <button
           onClick={onToggle}
           title="Expandir conversaciones"
@@ -782,8 +782,8 @@ function ConversationsSidebar({
   }
 
   return (
-    <aside className="w-64 shrink-0 border-r border-[#1a1a1a] flex flex-col bg-[#0a0a0a]">
-      <div className="px-3 py-2 border-b border-[#1a1a1a] flex items-center gap-2">
+    <aside className="w-64 shrink-0 border-r border-[var(--t-border)] flex flex-col bg-[#0a0a0a]">
+      <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
         <button
           onClick={onNueva}
           className="flex-1 px-3 py-1.5 text-[11px] font-semibold tracking-wide bg-[#ff9900] text-black hover:bg-[#ffaa22]"
@@ -793,7 +793,7 @@ function ConversationsSidebar({
         <button
           onClick={onToggle}
           title="Colapsar"
-          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900] border border-[#2a2a2a]"
+          className="w-6 h-6 flex items-center justify-center text-[#888] hover:text-[#ff9900] border border-[var(--t-border-2)]"
         >
           ◀
         </button>
@@ -807,7 +807,7 @@ function ConversationsSidebar({
         {conversations.map((c) => (
           <div
             key={c.id}
-            className={`group flex items-center px-3 py-2 border-b border-[#1a1a1a] cursor-pointer ${
+            className={`group flex items-center px-3 py-2 border-b border-[var(--t-border)] cursor-pointer ${
               activeId === c.id ? "bg-[#1a1a1a]" : "hover:bg-[#121212]"
             }`}
             onClick={() => onSelect(c.id)}

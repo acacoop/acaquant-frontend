@@ -151,7 +151,7 @@ export function DescomposicionTab() {
 
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-2 flex-wrap">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 mr-3">
           <FilterBtn active={curva === "tasa_fija"} onClick={() => setCurva("tasa_fija")}>
             TASA FIJA
@@ -304,7 +304,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
   return (
     <div className="h-full flex flex-col min-h-0 gap-3">
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
         {fechas.length < 2 ? (
           <span className="text-[10px] text-[#555]">cargando fechas…</span>
         ) : (
@@ -356,7 +356,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px_auto] gap-3">
         {/* Chart */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 min-h-0">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 min-h-0">
           {error ? (
             <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
@@ -406,7 +406,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         </div>
 
         {/* Tabla */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
           {!data?.bonos?.length ? (
             <p className="text-[#555] text-[10px] py-4 text-center">--</p>
           ) : (
@@ -540,7 +540,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
   return (
     <div className="h-full flex flex-col min-h-0 gap-3">
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
         <span className="text-[10px] text-[#555] tracking-wider">HORIZONTE</span>
         <div className="flex items-center gap-1">
           {HORIZONTES.map((h) => (
@@ -564,7 +564,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px_auto] gap-3">
         {/* Chart */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 min-h-0">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 min-h-0">
           {error ? (
             <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
@@ -613,7 +613,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         </div>
 
         {/* Tabla */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
           {!data?.bonos?.length ? (
             <p className="text-[#555] text-[10px] py-4 text-center">--</p>
           ) : (
@@ -695,13 +695,13 @@ function AuditDrawer({
 }) {
   return (
     <div
-      className={`border border-[#1a1a1a] bg-[var(--t-panel)] flex min-h-0 transition-[width] duration-150 ${
+      className={`border border-[var(--t-border)] bg-[var(--t-panel)] flex min-h-0 transition-[width] duration-150 ${
         open ? "w-[300px]" : "w-8"
       }`}
     >
       <button
         onClick={onToggle}
-        className="w-8 flex flex-col items-center justify-start py-2 text-[#555] hover:text-[#ff9900] border-r border-[#1a1a1a] shrink-0"
+        className="w-8 flex flex-col items-center justify-start py-2 text-[#555] hover:text-[#ff9900] border-r border-[var(--t-border)] shrink-0"
         title={open ? "Cerrar audit" : "Abrir audit"}
       >
         <span className="text-[14px] leading-none mb-1">{open ? "›" : "‹"}</span>
@@ -891,7 +891,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <div className="text-[9px] tracking-widest text-[#ff9900] font-semibold mb-1">
         {title}
       </div>
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-2 space-y-0.5">
+      <div className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 space-y-0.5">
         {children}
       </div>
     </div>
@@ -938,7 +938,7 @@ function FilterBtn({
       className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

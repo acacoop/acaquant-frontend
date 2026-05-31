@@ -124,22 +124,22 @@ export function AgroMejorasDispo() {
             <table className="w-full text-[10px] font-mono tabular-nums">
               <thead className="text-[9px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
                 <tr>
-                  <th rowSpan={2} className="text-left px-1 py-1 border-b border-[#1a1a1a] align-bottom">
+                  <th rowSpan={2} className="text-left px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     Ticker
                   </th>
-                  <th rowSpan={2} className="text-center px-1 py-1 border-b border-[#1a1a1a] align-bottom">
+                  <th rowSpan={2} className="text-center px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     Vto
                   </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[#1a1a1a] align-bottom">
+                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     d
                   </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[#1a1a1a] align-bottom">
+                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     TNA
                   </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[#1a1a1a] align-bottom">
+                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     Diaria
                   </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[#1a1a1a] align-bottom">
+                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     Directa
                   </th>
                   {COMMODITIES.map((c) => {
@@ -149,7 +149,7 @@ export function AgroMejorasDispo() {
                       <th
                         key={c.id}
                         colSpan={2}
-                        className={`text-center px-1 py-1 border-b border-[#1a1a1a] border-l border-l-[#1a1a1a] ${
+                        className={`text-center px-1 py-1 border-b border-[var(--t-border)] border-l border-l-[var(--t-border)] ${
                           hasPx ? "text-[#ff9900]" : "text-[#666]"
                         }`}
                       >
@@ -218,10 +218,10 @@ export function AgroMejorasDispo() {
 function CommodityHeader() {
   return (
     <>
-      <th className="text-right px-1 py-1 border-b border-[#1a1a1a] border-l border-l-[#1a1a1a]">
+      <th className="text-right px-1 py-1 border-b border-[var(--t-border)] border-l border-l-[var(--t-border)]">
         Final
       </th>
-      <th className="text-right px-1 py-1 border-b border-[#1a1a1a]">
+      <th className="text-right px-1 py-1 border-b border-[var(--t-border)]">
         US$
       </th>
     </>
@@ -237,7 +237,7 @@ function CommodityCells({
 }) {
   return (
     <>
-      <td className="px-1 py-0.5 text-right text-[#d0d0d0] border-l border-l-[#1a1a1a]">
+      <td className="px-1 py-0.5 text-right text-[#d0d0d0] border-l border-l-[var(--t-border)]">
         {fmtArs(valorFinal)}
       </td>
       <td

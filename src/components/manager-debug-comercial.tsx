@@ -49,7 +49,7 @@ export function ManagerDebugComercialPanel() {
   };
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--t-surface)] transition-colors"
@@ -60,12 +60,12 @@ export function ManagerDebugComercialPanel() {
         </span>
       </button>
       {open && (
-        <div className="border-t border-[#1a1a1a] p-3 space-y-2">
+        <div className="border-t border-[var(--t-border)] p-3 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={operador}
               onChange={(e) => setOperador(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               <option value="">— operador —</option>
               {operadores.map((o) => (
@@ -78,12 +78,12 @@ export function ManagerDebugComercialPanel() {
               value={segmento}
               onChange={(e) => setSegmento(e.target.value)}
               placeholder="segmento (nivel_1)"
-              className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
             <button
               onClick={run}
               disabled={loading || (!operador && !segmento.trim())}
-              className="px-3 py-1 text-[10px] font-semibold border border-[#2a2a2a] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
+              className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[#555555] hover:border-[#ff9900] hover:text-[#ff9900] transition-colors disabled:opacity-40"
             >
               {loading ? "Ejecutando…" : "▶ Ejecutar"}
             </button>
@@ -100,7 +100,7 @@ export function ManagerDebugComercialPanel() {
                 <span>aranceles: ${fmt(data.totales.ar_total)}</span>
                 <span>ticket prom: <b className="text-[#ff9900]">${fmt(data.totales.ticket_promedio)}</b></span>
               </div>
-              <div className="max-h-[320px] overflow-auto border border-[#1a1a1a]">
+              <div className="max-h-[320px] overflow-auto border border-[var(--t-border)]">
                 <table className="w-full text-[10px] font-mono tabular-nums">
                   <thead className="sticky top-0 bg-[#0a0a0a] text-[9px] text-[#666] uppercase">
                     <tr>
@@ -116,7 +116,7 @@ export function ManagerDebugComercialPanel() {
                       <tr><td colSpan={5} className="text-center text-[#555] py-3">Sin actividad.</td></tr>
                     )}
                     {data.cuentas.map((f) => (
-                      <tr key={f.id_cuenta} className="border-t border-[#111]">
+                      <tr key={f.id_cuenta} className="border-t border-[var(--t-border)]">
                         <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[240px]" title={f.denominacion}>
                           <span className="text-[#666]">[{f.id_cuenta}]</span> {f.denominacion}
                         </td>

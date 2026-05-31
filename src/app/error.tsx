@@ -21,7 +21,7 @@ export default function GlobalError({
           Algo rompió al renderizar. Si persiste, revisá logs de la API o del
           motor correspondiente.
         </div>
-        <pre className="text-[10px] text-[#808080] whitespace-pre-wrap bg-[var(--t-panel)] border border-[#1a1a1a] p-2 overflow-x-auto">
+        <pre className="text-[10px] text-[#808080] whitespace-pre-wrap bg-[var(--t-panel)] border border-[var(--t-border)] p-2 overflow-x-auto">
           {error.message}
           {error.digest ? `\n\ndigest: ${error.digest}` : ""}
         </pre>
@@ -34,7 +34,7 @@ export default function GlobalError({
           </button>
           <a
             href="/"
-            className="px-3 py-1 text-[11px] font-semibold border border-[#2a2a2a] text-[#808080] hover:text-[#ff9900] hover:border-[#ff9900] transition-colors"
+            className="px-3 py-1 text-[11px] font-semibold border border-[var(--t-border-2)] text-[#808080] hover:text-[#ff9900] hover:border-[#ff9900] transition-colors"
           >
             Ir al inicio
           </a>

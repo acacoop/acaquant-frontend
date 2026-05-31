@@ -299,7 +299,7 @@ export function DerivadosAgroEstrategias({
           value={vencimiento ?? ""}
           onChange={(e) => setVencimiento(e.target.value || null)}
           disabled={!panel || panel.vencimientos.length === 0}
-          className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
         >
           {panel?.vencimientos.map((v) => (
             <option key={v.vencimiento} value={v.vencimiento}>
@@ -337,7 +337,7 @@ export function DerivadosAgroEstrategias({
         {/* Simulador + gráficos */}
         <div className="min-h-0 flex flex-col gap-3">
           {/* Tira compacta: form + KPIs inline */}
-          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 flex flex-col gap-1.5 shrink-0">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 flex flex-col gap-1.5 shrink-0">
             <SimuladorForm
               tipo={tipo}
               setTipo={setTipo}
@@ -505,7 +505,7 @@ function ChartToggleBtn({
       className={`text-[9px] tracking-wide uppercase px-1.5 py-0.5 border ${
         active
           ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
-          : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0]"
+          : "text-[#808080] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
       }`}
     >
       {children}
@@ -531,24 +531,24 @@ function PanelOpciones({
     <table className="w-full text-[10px] font-mono">
       <thead className="text-[9px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
         <tr>
-          <th colSpan={3} className="text-center px-2 py-1 border-b border-[#1a1a1a] text-[#4ade80]">
+          <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#4ade80]">
             CALL
           </th>
-          <th className="text-center px-2 py-1 border-b border-[#1a1a1a]">
+          <th className="text-center px-2 py-1 border-b border-[var(--t-border)]">
             STRIKE
           </th>
-          <th colSpan={3} className="text-center px-2 py-1 border-b border-[#1a1a1a] text-[#f87171]">
+          <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#f87171]">
             PUT
           </th>
         </tr>
         <tr>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Bid</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Ofer</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Últ</th>
-          <th className="text-center px-2 py-1 border-b border-[#1a1a1a]">—</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Bid</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Ofer</th>
-          <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">Últ</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Bid</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Ofer</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Últ</th>
+          <th className="text-center px-2 py-1 border-b border-[var(--t-border)]">—</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Bid</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Ofer</th>
+          <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">Últ</th>
         </tr>
       </thead>
       <tbody>
@@ -634,7 +634,7 @@ function SimuladorForm({
             className={`text-[10px] tracking-wide uppercase px-2 py-1 border ${
               tipo === "put_sintetico"
                 ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
-                : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0]"
+                : "text-[#808080] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
             }`}
             title="Vender futuro + Comprar call"
           >
@@ -645,7 +645,7 @@ function SimuladorForm({
             className={`text-[10px] tracking-wide uppercase px-2 py-1 border ${
               tipo === "long_put"
                 ? "bg-[#3b82f6]/10 text-[#3b82f6] border-[#3b82f6]"
-                : "text-[#808080] border-[#2a2a2a] hover:text-[#d0d0d0]"
+                : "text-[#808080] border-[var(--t-border-2)] hover:text-[#d0d0d0]"
             }`}
             title="Comprar put"
           >
@@ -661,7 +661,7 @@ function SimuladorForm({
               setStrike(e.target.value ? Number(e.target.value) : null)
             }
             disabled={strikes.length === 0}
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
           >
             {strikes.map((s) => (
               <option key={s.strike} value={s.strike}>
@@ -689,7 +689,7 @@ function SimuladorForm({
             className={`bg-[var(--t-surface)] border ${
               !strikeTieneLast && !primaOverride
                 ? "border-[#ff9900]/60"
-                : "border-[#2a2a2a]"
+                : "border-[var(--t-border-2)]"
             } text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-20`}
           />
           <span className="text-[9px] text-[#555]">USD</span>

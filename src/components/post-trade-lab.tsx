@@ -143,14 +143,14 @@ export function PostTradeLab({
   return (
     <div className="h-full min-h-0 flex flex-col overflow-y-auto text-[10px]">
       {/* Controles: entrada + unidades (+ lado si es 1 contrato) */}
-      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[#1a1a1a] shrink-0 flex-wrap">
+      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
         <label className="flex items-center gap-1 text-[#808080]">
           ENTRADA
           <input
             value={entry}
             onChange={(e) => setEntry(e.target.value)}
             placeholder="prima"
-            className="w-16 bg-black border border-[#2a2a2a] px-1 py-0.5 tabular-nums text-[#d0d0d0] focus:border-[#ff9900] outline-none"
+            className="w-16 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[#d0d0d0] focus:border-[#ff9900] outline-none"
           />
         </label>
         <label className="flex items-center gap-1 text-[#808080]">
@@ -158,7 +158,7 @@ export function PostTradeLab({
           <input
             value={nUnidades}
             onChange={(e) => setNUnidades(e.target.value.replace(/[^0-9]/g, ""))}
-            className="w-12 bg-black border border-[#2a2a2a] px-1 py-0.5 tabular-nums text-[#d0d0d0] focus:border-[#ff9900] outline-none"
+            className="w-12 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[#d0d0d0] focus:border-[#ff9900] outline-none"
           />
         </label>
         {singleLeg && (
@@ -172,7 +172,7 @@ export function PostTradeLab({
                     ? s === "buy"
                       ? "bg-[#4ade80] text-black border-[#4ade80]"
                       : "bg-[#f87171] text-black border-[#f87171]"
-                    : "bg-transparent text-[#888] border-[#2a2a2a]"
+                    : "bg-transparent text-[#888] border-[var(--t-border-2)]"
                 }`}
               >
                 {s === "buy" ? "LONG" : "SHORT"}

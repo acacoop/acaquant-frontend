@@ -67,9 +67,9 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
   const fechaFormatted = fmtFecha(article?.date || fechaFallback);
 
   return (
-    <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
       {/* Header */}
-      <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Lectura
         </span>
@@ -87,7 +87,7 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
       </div>
 
       {/* Título + metadata */}
-      <div className="px-4 pt-3 pb-2 border-b border-[#1a1a1a] shrink-0">
+      <div className="px-4 pt-3 pb-2 border-b border-[var(--t-border)] shrink-0">
         <h1 className="text-[15px] font-semibold text-[#d0d0d0] leading-tight">
           {titulo}
         </h1>

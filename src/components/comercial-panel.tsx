@@ -33,7 +33,7 @@ const fmtAum = (n: number) =>
 
 function Kpi({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 flex flex-col">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex flex-col">
       <span className="text-[9px] text-[#666] tracking-widest">{label}</span>
       <span className={`text-[15px] font-semibold tabular-nums ${warn ? "text-[#ff6666]" : "text-[#d0d0d0]"}`}>
         {value}
@@ -81,7 +81,7 @@ export function ComercialPanel() {
       </div>
 
       {/* Tabla por operador */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-auto">
+      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto">
         <table className="w-full text-[11px]">
           <thead className="sticky top-0 bg-[#0a0a0a]">
             <tr className="text-[9px] text-[#666] tracking-wide">
@@ -103,7 +103,7 @@ export function ComercialPanel() {
               <tr><td colSpan={8} className="text-center text-[#555] py-4">Sin datos.</td></tr>
             )}
             {data?.operadores.map((o, i) => (
-              <tr key={o.operador_email ?? `sin-${i}`} className="border-t border-[#141414] hover:bg-[var(--t-surface)]">
+              <tr key={o.operador_email ?? `sin-${i}`} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                 <td className="px-3 py-1.5 text-[#d0d0d0] truncate">
                   {o.operador_nombre || o.operador_email || "— sin operador —"}
                   {o.huerfana && (

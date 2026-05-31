@@ -290,8 +290,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                   moneda === m
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
                     : disabled
-                      ? "bg-transparent text-[#444] border-[#1a1a1a] cursor-not-allowed"
-                      : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      ? "bg-transparent text-[#444] border-[var(--t-border)] cursor-not-allowed"
+                      : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
                 {m}
@@ -308,13 +308,13 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
       {/* Split layout: posiciones (izq) + detalle de la seleccionada (der) */}
       <div className="flex-1 min-h-0 flex gap-3">
         {/* ── Panel izquierdo: POSICIONES ─────────────────────────── */}
-        <div className="w-1/2 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
+        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
           {filasOrdenadas.length === 0 ? (
             <div className="p-6 text-center text-[#555] text-[11px]">Sin tickers para mostrar.</div>
           ) : (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
-                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a] z-10">
+                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
                   <tr className="text-[9px] tracking-widest text-[#888]">
                     <th onClick={() => toggleSort("ticker")} className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
                       TICKER {arrow("ticker")}
@@ -347,7 +347,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                         key={r.ticker}
                         onClick={() => setSelectedTicker(isSel ? null : r.ticker)}
                         className={
-                          "border-b border-[#111] cursor-pointer " +
+                          "border-b border-[var(--t-border)] cursor-pointer " +
                           (isSel ? "bg-[#ff9900]/10" : "hover:bg-[#ff9900]/5")
                         }
                       >
@@ -404,7 +404,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
         </div>
 
         {/* ── Panel derecho: DETALLE de la posición seleccionada ──── */}
-        <div className="w-1/2 border border-[#1a1a1a] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
+        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
           {selectedTicker ? (
             <PosicionDetalle
               row={filasOrdenadas.find((r) => r.ticker === selectedTicker)!}
@@ -439,7 +439,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
   return (
     <div className="p-3 text-[10px] text-[#888]">
       {/* Header del ticker */}
-      <div className="border-b border-[#1a1a1a] pb-2 mb-3">
+      <div className="border-b border-[var(--t-border)] pb-2 mb-3">
         <div className="text-[12px] text-[#d0d0d0] font-mono mb-0.5">{row.display_name || row.ticker}</div>
         <div className="text-[9px] text-[#555]">
           {row.ticker !== (row.display_name || row.ticker) && <span>{row.ticker} · </span>}
@@ -506,7 +506,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
 
       {/* Tabla de boletos del período activo */}
       {boletosPeriodo.length > 0 && (
-        <div className="mt-3 border-t border-[#1a1a1a] pt-2">
+        <div className="mt-3 border-t border-[var(--t-border)] pt-2">
           <div className="text-[#666] tracking-widest mb-1">
             BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
             {row.boletos.length > boletosPeriodo.length && (
@@ -535,7 +535,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
                     : b.importe < 0 ? "text-[#ff4d4d]"
                     : "text-[#888]";
                   return (
-                    <tr key={i} className="border-t border-[#111] hover:bg-[#0d0d0d]">
+                    <tr key={i} className="border-t border-[var(--t-border)] hover:bg-[#0d0d0d]">
                       <td className="px-2 py-0.5 text-[#d0d0d0]">{b.fecha}</td>
                       <td className="px-2 py-0.5 text-[#888]">{b.op || b.categoria}</td>
                       <td className="px-2 py-0.5 text-right text-[#d0d0d0]">
@@ -568,7 +568,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
 
 function DetKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#0a0a0a] px-2 py-1">
+    <div className="border border-[var(--t-border)] bg-[#0a0a0a] px-2 py-1">
       <div className="text-[8px] text-[#555] uppercase tracking-wider">{label}</div>
       <div className="text-[12px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
     </div>
@@ -577,7 +577,7 @@ function DetKpi({ label, value, accent }: { label: string; value: string; accent
 
 function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
       <div className="text-[10px] text-[#555] uppercase tracking-wide">{label}</div>
       <div className="text-[18px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
       {sub && <div className="text-[10px] text-[#666]">{sub}</div>}

@@ -195,7 +195,7 @@ export function AunesaExplorarPanel() {
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a] text-[#d0d0d0]">
       {/* HEADER */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#1a1a1a] px-3 py-2 shrink-0 bg-[var(--t-panel)]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--t-border)] px-3 py-2 shrink-0 bg-[var(--t-panel)]">
         <DatePickerCompact value={fecha} onChange={setFecha} />
         <button
           onClick={explorar}
@@ -258,8 +258,8 @@ export function AunesaExplorarPanel() {
       {data && (
         <div className="flex-1 grid grid-cols-[260px_1fr] min-h-0">
           {/* SIDEBAR — categorías */}
-          <div className="border-r border-[#1a1a1a] flex flex-col min-h-0">
-            <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#666] border-b border-[#1a1a1a] flex items-center justify-between">
+          <div className="border-r border-[var(--t-border)] flex flex-col min-h-0">
+            <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#666] border-b border-[var(--t-border)] flex items-center justify-between">
               <span>Categorías ({data.categorias.length})</span>
               {catFilter && (
                 <button
@@ -298,7 +298,7 @@ export function AunesaExplorarPanel() {
           {/* MAIN */}
           <div className="flex flex-col min-h-0">
             {/* Filtros */}
-            <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] shrink-0">
+            <div className="flex flex-wrap items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
               <div className="flex items-center gap-0.5">
                 {(["all", "capturados", "descartados"] as CapFilter[]).map((f) => (
                   <button
@@ -416,7 +416,7 @@ function FragBoleto({
     <>
       <tr
         onClick={onToggle}
-        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[var(--t-surface-2)]"
+        className="border-t border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)]"
       >
         <td className="px-2 py-1">
           <span className="inline-flex items-center gap-1.5">
@@ -456,7 +456,7 @@ function FragBoleto({
               </thead>
               <tbody>
                 {b.lineas.map((l, i) => (
-                  <tr key={i} className="border-b border-[#111]">
+                  <tr key={i} className="border-b border-[var(--t-border)]">
                     <td className="px-2 py-0.5 text-[#d0d0d0] truncate max-w-[300px]" title={String(l.unidad)}>{String(l.unidad)}</td>
                     <td className="px-2 py-0.5 text-right text-[#888]">{fmtNum(l.total, 2)}</td>
                     <td className="px-2 py-0.5 text-right text-[#d0d0d0]">{fmtNum(l._total_cliente, 2)}</td>
@@ -535,7 +535,7 @@ function FragMov({
     <>
       <tr
         onClick={onToggle}
-        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[var(--t-surface-2)]"
+        className="border-t border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)]"
       >
         <td className="px-2 py-1">
           <span className="inline-flex items-center gap-1.5">
@@ -566,7 +566,7 @@ function FragMov({
                   .filter(([k]) => !k.startsWith("_") || k === "_categoria" || k === "_total_cliente" || k === "_capturado" || k === "_parsed")
                   .sort(([a], [b]) => a.localeCompare(b))
                   .map(([k, v]) => (
-                    <tr key={k} className="border-b border-[#111]">
+                    <tr key={k} className="border-b border-[var(--t-border)]">
                       <td className="px-2 py-0.5 text-[#666] w-40">{k}</td>
                       <td className="px-2 py-0.5 text-[#d0d0d0]">
                         {typeof v === "object" ? JSON.stringify(v) : String(v ?? "")}
@@ -804,7 +804,7 @@ function CalendarPopup({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#1a1a1a] text-[9px] uppercase tracking-wider">
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-[var(--t-border)] text-[9px] uppercase tracking-wider">
         <button
           onClick={() => onPick(today)}
           className="text-[#888] hover:text-[#ff9900]"

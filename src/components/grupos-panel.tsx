@@ -131,7 +131,7 @@ export function GruposPanel() {
       </div>
 
       {/* Crear grupo */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 shrink-0">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0">
         <div className="text-[10px] text-[#ff9900] tracking-widest font-semibold mb-2">
           AGREGAR GRUPO
         </div>
@@ -143,7 +143,7 @@ export function GruposPanel() {
               value={newNombre}
               onChange={(e) => setNewNombre(e.target.value)}
               placeholder="ej. Mesa Rosario"
-              className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </div>
           <button
@@ -236,14 +236,14 @@ function GrupoCard({
   }, [cuentas, idCuentas, filtroCuenta]);
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
       {/* Header: nombre + acciones */}
       <div className="flex items-center gap-2 mb-3">
         <input
           type="text"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
-          className="flex-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+          className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
         />
         <button
           onClick={() =>
@@ -257,7 +257,7 @@ function GrupoCard({
         <button
           onClick={onDelete}
           disabled={busy}
-          className="px-2 py-1 text-[10px] border border-[#2a2a2a] text-[#ff4444] hover:border-[#ff4444] disabled:opacity-40"
+          className="px-2 py-1 text-[10px] border border-[var(--t-border-2)] text-[#ff4444] hover:border-[#ff4444] disabled:opacity-40"
         >
           BORRAR
         </button>
@@ -276,7 +276,7 @@ function GrupoCard({
             {emails.map((em) => (
               <span
                 key={em}
-                className="flex items-center gap-1 text-[10px] font-mono text-[#d0d0d0] bg-[#141414] border border-[#2a2a2a] px-1.5 py-0.5"
+                className="flex items-center gap-1 text-[10px] font-mono text-[#d0d0d0] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
               >
                 {em}
                 <button
@@ -293,7 +293,7 @@ function GrupoCard({
             onChange={(e) => {
               if (e.target.value) setEmails([...emails, e.target.value]);
             }}
-            className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none"
+            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none"
           >
             <option value="">+ agregar usuario…</option>
             {usersDisponibles.map((u) => (
@@ -317,7 +317,7 @@ function GrupoCard({
               <span
                 key={id}
                 title={cuentaLabel(id)}
-                className="flex items-center gap-1 text-[10px] font-mono text-[#d0d0d0] bg-[#141414] border border-[#2a2a2a] px-1.5 py-0.5"
+                className="flex items-center gap-1 text-[10px] font-mono text-[#d0d0d0] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
               >
                 <span className="text-[#ff9900]">{id}</span>
                 <span className="text-[#808080] max-w-[120px] truncate">
@@ -339,10 +339,10 @@ function GrupoCard({
             value={filtroCuenta}
             onChange={(e) => setFiltroCuenta(e.target.value)}
             placeholder="buscar cuenta por id o nombre…"
-            className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none mb-1"
+            className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none mb-1"
           />
           {filtroCuenta.trim() && (
-            <div className="max-h-[140px] overflow-y-auto border border-[#1a1a1a]">
+            <div className="max-h-[140px] overflow-y-auto border border-[var(--t-border)]">
               {cuentasDisponibles.length === 0 ? (
                 <div className="text-[10px] text-[#555] px-1.5 py-1">
                   sin coincidencias

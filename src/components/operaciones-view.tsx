@@ -15,7 +15,7 @@ export function OperacionesView() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "movimientos"} onClick={() => setTab("movimientos")}>
           MOVIMIENTOS
         </TabBtn>
@@ -55,7 +55,7 @@ function TabBtn({
       className={`px-3 py-1 text-[11px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

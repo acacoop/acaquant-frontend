@@ -29,7 +29,7 @@ export function HelpTooltip({
       <sup className="text-[#555555] cursor-help select-none text-[9px]">?</sup>
       {show && (
         <span
-          className={`absolute z-50 ${verticalClass} left-1/2 -translate-x-1/2 px-2 py-1 bg-[#1a1a1a] border border-[#2a2a2a] text-[10px] text-[#d0d0d0] whitespace-normal max-w-[280px] w-max pointer-events-none normal-case tracking-normal text-left font-normal leading-tight`}
+          className={`absolute z-50 ${verticalClass} left-1/2 -translate-x-1/2 px-2 py-1 bg-[#1a1a1a] border border-[var(--t-border-2)] text-[10px] text-[#d0d0d0] whitespace-normal max-w-[280px] w-max pointer-events-none normal-case tracking-normal text-left font-normal leading-tight`}
         >
           {text}
         </span>
@@ -73,7 +73,7 @@ export function TableHelp({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-[#888888] hover:text-[#ff9900] cursor-help select-none text-[11px] border border-[#2a2a2a] rounded-full w-4 h-4 inline-flex items-center justify-center font-semibold transition-colors"
+        className="text-[#888888] hover:text-[#ff9900] cursor-help select-none text-[11px] border border-[var(--t-border-2)] rounded-full w-4 h-4 inline-flex items-center justify-center font-semibold transition-colors"
         title="Ver referencia"
         type="button"
       >
@@ -85,11 +85,11 @@ export function TableHelp({
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] max-w-[720px] w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] max-w-[720px] w-full max-h-[80vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header sticky con título + cerrar */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] sticky top-0 bg-[var(--t-surface)]">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--t-border)] sticky top-0 bg-[var(--t-surface)]">
               <span className="text-[11px] tracking-wide uppercase text-[#ff9900] font-semibold">
                 Referencia
               </span>
@@ -108,7 +108,7 @@ export function TableHelp({
                 {entries.map((e) => (
                   <tr
                     key={e.label}
-                    className="align-top border-b border-[#1a1a1a] last:border-b-0"
+                    className="align-top border-b border-[var(--t-border)] last:border-b-0"
                   >
                     <td className="text-[#ff9900] font-semibold pr-3 py-2 pl-4 w-[150px] align-top break-words">
                       {e.label}

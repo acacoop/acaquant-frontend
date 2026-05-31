@@ -242,9 +242,9 @@ export function FairValueView({ curva, initialDoc }: Props) {
 
       {/* Tabla rankeable */}
       {hayDatos && (
-        <div className="border-t border-[#2a2a2a] shrink-0">
+        <div className="border-t border-[var(--t-border-2)] shrink-0">
           <table className="w-full text-[11px]">
-            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[#2a2a2a]">
+            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
               <tr className="text-[#808080]">
                 {renderHeader("TICKER", "ticker", "left")}
                 {renderHeader("DUR", "duration")}

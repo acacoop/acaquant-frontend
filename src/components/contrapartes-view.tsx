@@ -323,7 +323,7 @@ export function ContrapartesView() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Filtros */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
         {/* Barrita de rango (deshabilitada si hay día específico) */}
         <div
           className={`flex items-center gap-2 ${
@@ -352,7 +352,7 @@ export function ContrapartesView() {
               <select
                 value={dia}
                 onChange={(e) => setDia(e.target.value)}
-                className="flex-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
               >
                 <option value="">(rango completo)</option>
                 {[...diasAll].reverse().map((d) => (
@@ -365,7 +365,7 @@ export function ContrapartesView() {
                 <button
                   onClick={() => setDia("")}
                   title="Limpiar día"
-                  className="h-[26px] px-2 text-[10px] border border-[#2a2a2a] text-[#555555] hover:text-[#ff9900] hover:border-[#ff9900]"
+                  className="h-[26px] px-2 text-[10px] border border-[var(--t-border-2)] text-[#555555] hover:text-[#ff9900] hover:border-[#ff9900]"
                 >
                   ✕
                 </button>
@@ -439,8 +439,8 @@ export function ContrapartesView() {
 
       {/* Si hay día específico: tabla de operaciones del día. Si no: contrapartes + meses. */}
       {dia ? (
-        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+        <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               OPERACIONES · {dia}
             </span>
@@ -457,7 +457,7 @@ export function ContrapartesView() {
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                <tr className="border-b border-[#1a1a1a] text-left text-[#ff9900] uppercase tracking-wide">
+                <tr className="border-b border-[var(--t-border)] text-left text-[#ff9900] uppercase tracking-wide">
                   <th className="!px-2 !py-1">Boleto</th>
                   <th className="!px-2 !py-1">Tipo</th>
                   <th className="!px-2 !py-1">Cuenta</th>
@@ -472,7 +472,7 @@ export function ContrapartesView() {
                 {opsDelDia.map((o, i) => (
                   <tr
                     key={`${o.boleto ?? ""}-${i}`}
-                    className="border-b border-[#111111] hover:bg-[#ff9900]/5"
+                    className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
                   >
                     <td className="!px-2 !py-1 text-[#888888]">
                       {o.boleto ?? "—"}
@@ -515,11 +515,11 @@ export function ContrapartesView() {
       /* Fila 1: Tabla contrapartes | Tabla meses (misma altura, flex-1) */
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
         {/* Contrapartes */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                <tr className="border-b border-[#1a1a1a]">
+                <tr className="border-b border-[var(--t-border)]">
                   <th className="!px-2 !py-1 text-left text-[#ff9900] font-semibold tracking-wide uppercase">
                     CONTRAPARTE
                     <span className="ml-1 text-[10px] text-[#555555] font-normal normal-case">
@@ -554,7 +554,7 @@ export function ContrapartesView() {
                     <tr
                       key={r.cp}
                       onClick={() => setCpSel(active ? null : r.cp)}
-                      className={`cursor-pointer border-b border-[#111111] transition-colors ${
+                      className={`cursor-pointer border-b border-[var(--t-border)] transition-colors ${
                         active
                           ? "bg-[#ff9900]/10 text-[#ff9900]"
                           : "hover:bg-[#ff9900]/5"
@@ -586,8 +586,8 @@ export function ContrapartesView() {
         </div>
 
         {/* Meses */}
-        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               MESES
             </span>
@@ -607,7 +607,7 @@ export function ContrapartesView() {
                 {mesesTabla.map((r) => (
                   <tr
                     key={r.key}
-                    className="border-b border-[#111111] hover:bg-[#ff9900]/5"
+                    className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
                   >
                     <td className="!px-2 !py-1 text-[#d0d0d0]">{r.label}</td>
                     <td className="!px-2 !py-1 text-right">
@@ -635,8 +635,8 @@ export function ContrapartesView() {
       {/* Fila 2: Charts acumulados — solo en modo rango. Con un día específico
            el chart muestra un solo punto y no aporta; la tabla alcanza. */}
       {!dia && (
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
-        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             FLUJO ACUMULADO
           </span>
@@ -791,7 +791,7 @@ function Chip({
       className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}
@@ -814,7 +814,7 @@ function MiniChip({
       className={`px-1.5 h-[18px] text-[9px] font-semibold tracking-wide border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

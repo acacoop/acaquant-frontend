@@ -151,7 +151,7 @@ export function DolarMepVentaView({
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
-      <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[#1a1a1a] flex-wrap">
+      <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[var(--t-border)] flex-wrap">
         <Field label="MONTO USD" className="w-[160px]">
           <input
             type="text"
@@ -253,7 +253,7 @@ export function DolarMepVentaView({
               return (
                 <tr
                   key={op.operativa_id}
-                  className="border-b border-[#1a1a1a] hover:bg-[var(--t-surface)] cursor-pointer"
+                  className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer"
                   onClick={() => setDetalleId(op.operativa_id)}
                   title="Click para ver detalle"
                 >

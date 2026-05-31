@@ -359,8 +359,8 @@ export function PortfolioPanel({
   };
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
-      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a] shrink-0">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
+      <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--t-border)] shrink-0">
         <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold truncate">
           PORTFOLIO{" "}
           {account && (
@@ -390,7 +390,7 @@ export function PortfolioPanel({
       ) : (
         <>
           {/* Saldos */}
-          <div className="grid grid-cols-4 gap-2 px-2 py-2 border-b border-[#1a1a1a] text-[10px]">
+          <div className="grid grid-cols-4 gap-2 px-2 py-2 border-b border-[var(--t-border)] text-[10px]">
             <SaldoCell label="ARS DISP" value={ars.available} fmt={fmtArs} />
             <SaldoCell label="ARS MOV" value={ars.consumed} fmt={fmtArs} dim />
             <SaldoCell label="USD D DISP" value={usd.available} fmt={fmtUsd} />
@@ -438,7 +438,7 @@ export function PortfolioPanel({
                 </tbody>
                 {totalMarketValue != null && (
                   <tfoot>
-                    <tr className="border-t border-[#2a2a2a] bg-[#0a0a0a]">
+                    <tr className="border-t border-[var(--t-border-2)] bg-[#0a0a0a]">
                       <td colSpan={4} className="px-2 py-1 text-right text-[10px] text-[#888]">
                         TOTAL
                       </td>
@@ -557,10 +557,10 @@ export function AccountSearch({
           setTimeout(() => setOpen(false), 200);
         }}
         placeholder="ID o nombre"
-        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] w-[260px] focus:border-[#ff9900] outline-none"
+        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[260px] focus:border-[#ff9900] outline-none"
       />
       {open && hits.length > 0 && (
-        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[#2a2a2a] z-20 max-h-[280px] overflow-y-auto w-[320px] text-[11px]">
+        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[280px] overflow-y-auto w-[320px] text-[11px]">
           {hits.map((c) => (
             <div
               key={c.account_id}
@@ -638,10 +638,10 @@ function TickerSearch({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
         placeholder="ticker"
-        className="bg-black border border-[#2a2a2a] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[#ff9900] outline-none"
+        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[#ff9900] outline-none"
       />
       {open && hits.length > 0 && (
-        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[#2a2a2a] z-20 max-h-[200px] overflow-y-auto min-w-[260px] text-[10px]">
+        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[200px] overflow-y-auto min-w-[260px] text-[10px]">
           {hits.map((h) => {
             const corto =
               h.ticker_corto ||
@@ -823,16 +823,16 @@ function OperarCard({
     form.side === "BUY" ? "bg-[#0d1d0d]" : "bg-[#1d0d0d]";
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-w-0 w-full">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-w-0 w-full">
       {/* Header */}
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-[#1a1a1a]">
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--t-border)]">
         <TickerSearch value={cfg.tickerCorto} onPick={onChangeTicker} />
         <select
           value={plazo}
           onChange={(e) =>
             onChangePlazo(e.target.value as "CI" | "24hs" | "48hs")
           }
-          className="bg-black border border-[#2a2a2a] px-1 py-0.5 text-[10px] focus:border-[#ff9900] outline-none"
+          className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] focus:border-[#ff9900] outline-none"
           title="Plazo de liquidación (ignorado si elegiste el ticker full del autocomplete)"
         >
           <option value="CI">CI</option>
@@ -859,13 +859,13 @@ function OperarCard({
         </button>
       </div>
       {status === "subscribing" && (
-        <div className="px-2 py-1 text-[9px] text-[#ffe066] border-b border-[#1a1a1a] bg-[#1a1608] flex items-center gap-2">
+        <div className="px-2 py-1 text-[9px] text-[#ffe066] border-b border-[var(--t-border)] bg-[#1a1608] flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-[#ffe066] animate-pulse" />
           suscribiendo… el motor lo levanta en ~5s
         </div>
       )}
       {status === "error" && error && (
-        <div className="px-2 py-1 text-[9px] text-[#f87171] border-b border-[#1a1a1a] bg-[#1a0d0d]">
+        <div className="px-2 py-1 text-[9px] text-[#f87171] border-b border-[var(--t-border)] bg-[#1a0d0d]">
           {error}
         </div>
       )}
@@ -873,7 +873,7 @@ function OperarCard({
       {/* Quick-pick cauciones — tickers fijos ROFEX, no pasan por el autocomplete.
           Si el book no aparece tras 5s puede ser que Manager.PyRofexInstruments
           no tenga la caución cargada (correr scripts/discovery_pyrofex). */}
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-[#1a1a1a] bg-[#0a0a0a]">
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--t-border)] bg-[#0a0a0a]">
         <span className="text-[8px] text-[#555] tracking-widest mr-1">CAUCIÓN</span>
         {[1, 7, 14, 30].map((d) => (
           <button
@@ -881,7 +881,7 @@ function OperarCard({
             onClick={() =>
               onChangeTicker(`PESOS - ${d}D`, `MERV - XMEV - PESOS - ${d}D`)
             }
-            className="px-1.5 py-0.5 text-[9px] border border-[#2a2a2a] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
             title={`Caución pesos a ${d} día(s)`}
           >
             ${d}D
@@ -894,7 +894,7 @@ function OperarCard({
             onClick={() =>
               onChangeTicker(`DOLAR - ${d}D`, `MERV - XMEV - DOLAR - ${d}D`)
             }
-            className="px-1.5 py-0.5 text-[9px] border border-[#2a2a2a] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
+            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[#888] hover:text-[#ff9900] hover:border-[#ff9900] font-mono"
             title={`Caución dólares a ${d} día(s)`}
           >
             U${d}D
@@ -953,7 +953,7 @@ function OperarCard({
       </table>
 
       {/* Form embedded */}
-      <div className={`mt-auto p-2 border-t border-[#1a1a1a] ${sideBg}`}>
+      <div className={`mt-auto p-2 border-t border-[var(--t-border)] ${sideBg}`}>
         <div className="flex gap-0.5 mb-1">
           {(["BUY", "SELL"] as const).map((s) => (
             <button
@@ -964,7 +964,7 @@ function OperarCard({
                   ? s === "BUY"
                     ? "bg-[#4ade80] text-black border-[#4ade80]"
                     : "bg-[#f87171] text-black border-[#f87171]"
-                  : "bg-transparent text-[#888] border-[#2a2a2a]"
+                  : "bg-transparent text-[#888] border-[var(--t-border-2)]"
               }`}
             >
               {s}
@@ -978,7 +978,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, order_type: e.target.value as OrderType }))
             }
-            className="bg-black border border-[#2a2a2a] px-1 py-0.5 focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[#ff9900] outline-none"
           >
             <option value="LIMIT">LIMIT</option>
             <option value="MARKET">MARKET</option>
@@ -988,7 +988,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, tif: e.target.value as Tif }))
             }
-            className="bg-black border border-[#2a2a2a] px-1 py-0.5 focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[#ff9900] outline-none"
           >
             <option value="DAY">DAY</option>
             <option value="IOC">IOC</option>
@@ -1008,7 +1008,7 @@ function OperarCard({
               // normalizamos al tipear (no al enviar) para que el user VEA el punto.
               setForm((f) => ({ ...f, price: e.target.value.replace(",", ".") }))
             }
-            className="bg-black border border-[#2a2a2a] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40"
           />
           <input
             value={form.size}
@@ -1016,7 +1016,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, size: e.target.value.replace(",", ".") }))
             }
-            className="bg-black border border-[#2a2a2a] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none"
+            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none"
           />
         </div>
 
@@ -1030,7 +1030,7 @@ function OperarCard({
             className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[#ff9900] outline-none disabled:opacity-40 ${
               priceExit.trim() !== ""
                 ? "border-[#ff9900] text-[#ff9900]"
-                : "border-[#2a2a2a]"
+                : "border-[var(--t-border-2)]"
             }`}
             title="Cuando la entrada se llene, manda automáticamente la salida LIMIT a este precio (side opuesto, mismo size)"
           />
@@ -1093,8 +1093,8 @@ export function OrderManagement({
   );
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
-      <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a] shrink-0">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
+      <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--t-border)] shrink-0">
         <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
           ÓRDENES DEL DÍA
         </span>
@@ -1150,7 +1150,7 @@ export function OrderManagement({
                     <span>{corto}</span>
                     {o.external && (
                       <span
-                        className="ml-1.5 px-1 text-[8px] text-[#888] border border-[#2a2a2a] rounded align-middle"
+                        className="ml-1.5 px-1 text-[8px] text-[#888] border border-[var(--t-border-2)] rounded align-middle"
                         title="Operada desde otra plataforma (web del broker, etc)"
                       >
                         EXT
@@ -1362,7 +1362,7 @@ export function OperarDashboardView() {
   return (
     <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex items-center gap-2 px-2 py-1 border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
         <AccountSearch
           value={account}

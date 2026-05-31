@@ -155,10 +155,10 @@ export function RolesPanel() {
       </div>
 
       {/* Matriz */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-auto shrink-0">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto shrink-0">
         <table className="w-full text-xs font-mono">
           <thead>
-            <tr className="border-b border-[#1a1a1a]">
+            <tr className="border-b border-[var(--t-border)]">
               <th className="px-3 py-2 text-left text-[10px] text-[#808080] font-semibold tracking-wide">
                 MÓDULO
               </th>
@@ -179,7 +179,7 @@ export function RolesPanel() {
             {data.modules.map((m) => (
               <tr
                 key={m}
-                className="border-b border-[#141414] hover:bg-[var(--t-surface)]"
+                className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
               >
                 <td className="px-3 py-1.5 text-[#d0d0d0]">{m}</td>
                 {data.roles.map((r) => {
@@ -202,8 +202,8 @@ export function RolesPanel() {
       </div>
 
       {/* Audit log */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="px-3 py-1.5 border-b border-[#1a1a1a] text-[10px] text-[#ff9900] tracking-widest font-semibold">
+      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] text-[#ff9900] tracking-widest font-semibold">
           AUDIT LOG — ÚLTIMOS {audit.length}
         </div>
         <div className="flex-1 overflow-y-auto font-mono text-[11px]">
@@ -213,7 +213,7 @@ export function RolesPanel() {
             audit.map((ev, i) => (
               <div
                 key={`${ev.ts}-${i}`}
-                className="grid grid-cols-[140px_1fr_180px_1fr] gap-2 px-3 py-1 border-b border-[#141414]"
+                className="grid grid-cols-[140px_1fr_180px_1fr] gap-2 px-3 py-1 border-b border-[var(--t-border)]"
               >
                 <div className="text-[#555]">{fmtDate(ev.ts)}</div>
                 <div className="text-[#ff9900] truncate">{ev.actor}</div>

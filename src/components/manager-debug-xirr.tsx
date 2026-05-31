@@ -136,14 +136,14 @@ export function ManagerDebugXirrPanel() {
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-widest text-[#888]">DEBUG XIRR · CUENTA</span>
         <input
           value={idCuenta}
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") cargar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[#2a2a2a] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[#d0d0d0] font-mono w-[120px] focus:border-[#ff9900] focus:outline-none"
         />
         <button
           onClick={cargar}
@@ -222,7 +222,7 @@ export function ManagerDebugXirrPanel() {
 
         {data && data.meses.length > 0 && (
           <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[#2a2a2a]">
+            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
               <tr className="text-[#666] tracking-widest">
                 <th className="text-left px-2 py-1 w-[28px]"></th>
                 <th className="text-left px-2 py-1">MES</th>
@@ -263,7 +263,7 @@ export function ManagerDebugXirrPanel() {
                   <Fragment key={m.mes}>
                     <tr
                       onClick={() => toggle(m.mes)}
-                      className="border-b border-[#1a1a1a] hover:bg-[var(--t-surface)] cursor-pointer"
+                      className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer"
                     >
                       <td className="px-2 py-1 text-[#666]">{isOpen ? "▼" : "▶"}</td>
                       <td className="px-2 py-1 text-[#d0d0d0]">{m.mes}</td>
@@ -285,7 +285,7 @@ export function ManagerDebugXirrPanel() {
                     </tr>
 
                     {isOpen && (
-                      <tr key={`${m.mes}-detail`} className="bg-[#050505] border-b border-[#1a1a1a]">
+                      <tr key={`${m.mes}-detail`} className="bg-[#050505] border-b border-[var(--t-border)]">
                         <td colSpan={moneda === "USD" ? 15 : 14} className="px-4 py-3">
                           <div className="grid grid-cols-2 gap-6">
                             {/* Cashflow XIRR */}
@@ -295,7 +295,7 @@ export function ManagerDebugXirrPanel() {
                               </div>
                               <table className="w-full text-[10px]">
                                 <thead>
-                                  <tr className="text-[#666] tracking-widest border-b border-[#1a1a1a]">
+                                  <tr className="text-[#666] tracking-widest border-b border-[var(--t-border)]">
                                     <th className="text-left py-0.5">FECHA</th>
                                     <th className="text-right py-0.5">MONTO</th>
                                     <th className="text-left py-0.5 pl-3">TIPO</th>
@@ -325,7 +325,7 @@ export function ManagerDebugXirrPanel() {
                               </div>
                               <table className="w-full text-[10px]">
                                 <thead>
-                                  <tr className="text-[#666] tracking-widest border-b border-[#1a1a1a]">
+                                  <tr className="text-[#666] tracking-widest border-b border-[var(--t-border)]">
                                     <th className="text-left py-0.5">FECHA</th>
                                     <th className="text-left py-0.5">CAT</th>
                                     <th className="text-right py-0.5">ORIG</th>

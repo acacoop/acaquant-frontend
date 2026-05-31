@@ -68,7 +68,7 @@ function Gauge({
   const clamped = Math.max(0, Math.min(100, percent));
   const color = colorFor(clamped);
   return (
-    <div className="bg-[#0a0a0a] border border-[#1a1a1a] p-3 flex flex-col gap-2">
+    <div className="bg-[#0a0a0a] border border-[var(--t-border)] p-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] tracking-[0.2em] text-white/50">{title}</span>
         <span className="text-[11px] font-bold" style={{ color }}>
@@ -208,8 +208,8 @@ export function RecursosPanel() {
       </div>
 
       {/* Procesos */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
-        <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
+        <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             PROCESOS
           </span>
@@ -226,7 +226,7 @@ export function RecursosPanel() {
       </div>
 
       {/* Histórico */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             HISTÓRICO ({history.length} muestras · 1/min)

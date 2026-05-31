@@ -127,7 +127,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
             className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
               mainTab === key
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {label}
@@ -136,7 +136,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
 
         {/* Sub-tabs ZONAS al mismo nivel que main tabs (solo si zonas activo) */}
         {mainTab === "zonas" && (
-          <span className="flex items-center gap-1 pl-2 border-l border-[#1a1a1a]">
+          <span className="flex items-center gap-1 pl-2 border-l border-[var(--t-border)]">
             {SUB_TABS.map(({ key, label }) => (
               <button
                 key={key}

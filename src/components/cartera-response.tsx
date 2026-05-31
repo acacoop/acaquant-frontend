@@ -62,7 +62,7 @@ export function CarteraResponse({
   const alertas = data.alertas_data ?? [];
 
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-surface)] p-3 font-mono space-y-3">
+    <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-3 font-mono space-y-3">
       {/* Tesis arriba destacada */}
       <div className="border-l-2 border-[#ff9900] pl-2">
         <div className="text-[9px] text-[#555555] uppercase tracking-wide mb-0.5">Tesis</div>
@@ -98,7 +98,7 @@ export function CarteraResponse({
           </div>
           <table className="w-full text-[11px]">
             <thead>
-              <tr className="text-[#555555] border-b border-[#1a1a1a]">
+              <tr className="text-[#555555] border-b border-[var(--t-border)]">
                 <th className="text-left px-1 py-0.5 w-[60px]">Ticker</th>
                 <th className="text-right px-1 py-0.5 w-[50px]">Peso</th>
                 <th className="text-left px-1 py-0.5">Métrica clave</th>
@@ -115,7 +115,7 @@ export function CarteraResponse({
       )}
 
       {/* Qué invalida */}
-      <div className="border-t border-[#1a1a1a] pt-2">
+      <div className="border-t border-[var(--t-border)] pt-2">
         <div className="text-[9px] text-[#555555] uppercase tracking-wide mb-0.5">
           Qué invalida la tesis
         </div>
@@ -123,12 +123,12 @@ export function CarteraResponse({
       </div>
 
       {/* Footer: meta + acciones */}
-      <div className="flex items-center justify-between border-t border-[#1a1a1a] pt-2">
+      <div className="flex items-center justify-between border-t border-[var(--t-border)] pt-2">
         <div className="flex items-center gap-3">
           {onModificar && (
             <button
               onClick={onModificar}
-              className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#888888] hover:text-[#ff9900] hover:border-[#ff9900] uppercase tracking-wide"
+              className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#888888] hover:text-[#ff9900] hover:border-[#ff9900] uppercase tracking-wide"
             >
               Modificar parámetros
             </button>
@@ -139,7 +139,7 @@ export function CarteraResponse({
               console.log("[cartera] export to Excel:", data);
               alert("Exportar a Excel: pendiente de implementar.");
             }}
-            className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#555555] hover:text-[#888888] uppercase tracking-wide"
+            className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#555555] hover:text-[#888888] uppercase tracking-wide"
           >
             Exportar Excel
           </button>
@@ -162,7 +162,7 @@ function CarteraRow({ inst }: { inst: CarteraInstrumento }) {
     <>
       <tr
         onClick={() => setOpen((o) => !o)}
-        className="border-b border-[#1a1a1a] cursor-pointer hover:bg-[#1a1a1a]/40"
+        className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[#1a1a1a]/40"
       >
         <td className="px-1 py-1 text-[#ff9900] font-semibold">{inst.ticker}</td>
         <td className="px-1 py-1 text-right text-[#d0d0d0] font-mono">

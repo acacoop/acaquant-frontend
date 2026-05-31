@@ -130,9 +130,9 @@ export function NewsPanel() {
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)]">
+    <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)]">
       {/* Header */}
-      <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Noticias
         </span>
@@ -152,7 +152,7 @@ export function NewsPanel() {
       </div>
 
       {/* Filtros por categoría */}
-      <div className="px-2 py-1.5 border-b border-[#1a1a1a] flex flex-wrap items-center gap-1 shrink-0">
+      <div className="px-2 py-1.5 border-b border-[var(--t-border)] flex flex-wrap items-center gap-1 shrink-0">
         {CATEGORIAS.map((c) => (
           <button
             key={c.v}
@@ -160,7 +160,7 @@ export function NewsPanel() {
             className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
               categoria === c.v
                 ? "bg-[#ff9900] text-black border-[#ff9900]"
-                : "bg-transparent text-[#888888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                : "bg-transparent text-[#888888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
             }`}
           >
             {c.label}
@@ -206,7 +206,7 @@ export function NewsPanel() {
             return (
               <li
                 key={h.url}
-                className={`border-b border-[#111111] transition-colors hover:bg-[var(--t-surface)] ${
+                className={`border-b border-[var(--t-border)] transition-colors hover:bg-[var(--t-surface)] ${
                   flash ? "bg-[#ff9900]/15 animate-pulse" : ""
                 }`}
               >

@@ -26,7 +26,7 @@ export function OperadoresView() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Operadores
         </span>
@@ -36,7 +36,7 @@ export function OperadoresView() {
             <select
               value={operador}
               onChange={(e) => setOperador(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none max-w-[280px]"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none max-w-[280px]"
             >
               <option value="__todos__">— Todos los operadores —</option>
               {operadores.map((o) => (
@@ -45,7 +45,7 @@ export function OperadoresView() {
                 </option>
               ))}
             </select>
-            <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["ARS", "USD"] as const).map((m) => (
                 <button
                   key={m}

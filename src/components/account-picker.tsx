@@ -105,7 +105,7 @@ export function AccountPicker({
         placeholder={cuentas.length === 0 ? "— sin cuentas —" : "buscar…"}
       />
       {open && filtradas.length > 0 && (
-        <div className="absolute z-20 left-0 right-0 mt-1 max-h-[300px] overflow-y-auto bg-black border border-[#2a2a2a] shadow-lg">
+        <div className="absolute z-20 left-0 right-0 mt-1 max-h-[300px] overflow-y-auto bg-black border border-[var(--t-border-2)] shadow-lg">
           {filtradas.map((c) => (
             <button
               key={c.account_id}
@@ -129,7 +129,7 @@ export function AccountPicker({
         </div>
       )}
       {open && filtradas.length === 0 && query.trim() && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-black border border-[#2a2a2a] px-2 py-1 text-[10px] text-[#666]">
+        <div className="absolute z-20 left-0 right-0 mt-1 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[10px] text-[#666]">
           ninguna empieza con &ldquo;{query}&rdquo;
         </div>
       )}

@@ -112,7 +112,7 @@ export function ManagerDebugSegmentoPanel() {
           onChange={(e) => setPick(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onConsultar(); }}
           placeholder="ID o denominación…"
-          className="bg-black border border-[#2a2a2a] px-2 py-1 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-[420px]"
+          className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[#d0d0d0] focus:border-[#ff9900] focus:outline-none w-[420px]"
         />
         <datalist id="cuentas-list">
           {cuentas.map((c) => (
@@ -122,7 +122,7 @@ export function ManagerDebugSegmentoPanel() {
         <button
           onClick={onConsultar}
           disabled={loading || !pick}
-          className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border border-[#2a2a2a] text-[#888] hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-40"
+          className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider border border-[var(--t-border-2)] text-[#888] hover:border-[#ff9900] hover:text-[#ff9900] disabled:opacity-40"
         >
           {loading ? "Consultando…" : "Consultar"}
         </button>
@@ -215,7 +215,7 @@ export function ManagerDebugSegmentoPanel() {
                 <div>
                   <div className="text-[10px] text-[#5fa8d0] mb-1">PH (USD vía MEP)</div>
                   {Object.entries(data.umbrales.PH_USD).map(([k, v]) => (
-                    <div key={k} className="flex justify-between border-b border-[#111] py-0.5">
+                    <div key={k} className="flex justify-between border-b border-[var(--t-border)] py-0.5">
                       <span className="text-[#d0d0d0]">{k}</span>
                       <span className="text-[#888]">{v}</span>
                     </div>
@@ -224,7 +224,7 @@ export function ManagerDebugSegmentoPanel() {
                 <div>
                   <div className="text-[10px] text-[#5dd6a0] mb-1">PJ (UVAs)</div>
                   {Object.entries(data.umbrales.PJ_UVA).map(([k, v]) => (
-                    <div key={k} className="flex justify-between border-b border-[#111] py-0.5">
+                    <div key={k} className="flex justify-between border-b border-[var(--t-border)] py-0.5">
                       <span className="text-[#d0d0d0]">{k}</span>
                       <span className="text-[#888]">{v}</span>
                     </div>
@@ -241,8 +241,8 @@ export function ManagerDebugSegmentoPanel() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
-      <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 text-[10px] font-semibold text-[#ff9900] tracking-wider uppercase">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 text-[10px] font-semibold text-[#ff9900] tracking-wider uppercase">
         {title}
       </div>
       <div className="p-3">{children}</div>
@@ -252,7 +252,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between border-b border-[#111] py-1">
+    <div className="flex items-center justify-between border-b border-[var(--t-border)] py-1">
       <span className="text-[10px] text-[#666] uppercase tracking-widest">{k}</span>
       <span className="text-[11px]">{v}</span>
     </div>

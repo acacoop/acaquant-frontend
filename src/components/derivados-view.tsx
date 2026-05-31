@@ -168,7 +168,7 @@ export function DerivadosView({
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
       {/* Header KPIs */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 flex flex-wrap items-center gap-4 shrink-0">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex flex-wrap items-center gap-4 shrink-0">
         <Kpi label="SPOT" value={spot ? `$${spot.toFixed(2)}` : "—"} accent />
         <Kpi
           label="VR GGAL (40r)"
@@ -191,12 +191,12 @@ export function DerivadosView({
                 max="3"
                 value={tasaInput}
                 onChange={(e) => setTasaInput(e.target.value)}
-                className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-16"
+                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none w-16"
               />
               <button
                 onClick={guardarTasa}
                 disabled={savingTasa || parseFloat(tasaInput) === meta.tasa}
-                className="text-[10px] px-2 py-0.5 border border-[#2a2a2a] text-[#ff9900] hover:border-[#ff9900] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="text-[10px] px-2 py-0.5 border border-[var(--t-border-2)] text-[#ff9900] hover:border-[#ff9900] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {savingTasa ? "..." : "OK"}
               </button>
@@ -460,7 +460,7 @@ function TabBtn({
       className={`text-[9px] px-1.5 py-0.5 border transition-colors ${
         active
           ? "bg-[#ff9900] text-black border-[#ff9900]"
-          : "bg-transparent text-[#808080] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+          : "bg-transparent text-[#808080] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
       }`}
     >
       {children}

@@ -31,7 +31,7 @@ export function DerivadosAgroView({
   return (
     <div className="h-full min-h-0 flex flex-col">
       {/* Barra slim — info global de la pizarra (dólar oficial + frescura). */}
-      <div className="border-b border-[#1a1a1a] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
+      <div className="border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
         <span className="text-[10px] text-[#808080] uppercase tracking-wide">
           Pase Agro
         </span>
@@ -40,8 +40,8 @@ export function DerivadosAgroView({
 
       <div className="flex-1 min-h-0 flex">
         {/* IZQUIERDA 50% — futuros (arriba) + cadena de opciones (abajo). */}
-        <div className="w-1/2 min-w-0 flex flex-col border-r border-[#1a1a1a]">
-          <div className="h-1/2 min-h-0 border-b border-[#1a1a1a]">
+        <div className="w-1/2 min-w-0 flex flex-col border-r border-[var(--t-border)]">
+          <div className="h-1/2 min-h-0 border-b border-[var(--t-border)]">
             <AgroFuturos
               initial={initial}
               commodity={commodity}
@@ -100,10 +100,10 @@ function SimuladorModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-[var(--t-panel)] border border-[#2a2a2a]"
+      className="fixed inset-0 z-50 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)]"
       style={{ margin: "12px" }}
     >
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Simulador de Estrategias — {commodity}
         </span>

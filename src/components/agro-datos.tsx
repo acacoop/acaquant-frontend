@@ -62,16 +62,16 @@ export function AgroDatos() {
           <table className="w-full text-[11px] font-mono tabular-nums">
             <thead className="text-[10px] text-[#808080] uppercase tracking-wide bg-[#0a0a0a]">
               <tr>
-                <th className="text-left px-2 py-1 border-b border-[#1a1a1a]">
+                <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">
                   Cereal
                 </th>
-                <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">
+                <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
                   Precio ARS
                 </th>
-                <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">
+                <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
                   Precio USD
                 </th>
-                <th className="text-right px-2 py-1 border-b border-[#1a1a1a]">
+                <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
                   Últ. edición
                 </th>
               </tr>
@@ -189,7 +189,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
             value={ars}
             onChange={(e) => onArsChange(e.target.value)}
             placeholder="—"
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-28 text-right"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-28 text-right"
           />
         </div>
       </td>
@@ -202,7 +202,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
             value={usd}
             onChange={(e) => onUsdChange(e.target.value)}
             placeholder="—"
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-24 text-right"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-24 text-right"
           />
           {saving && <span className="text-[9px] text-[#888]">…</span>}
           {savedOk === true && (

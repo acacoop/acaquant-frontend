@@ -177,7 +177,7 @@ export function SensibilidadTable() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Controles */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wide text-[#555]">
             Modo
@@ -190,7 +190,7 @@ export function SensibilidadTable() {
                 className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                   modo === m
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
                 {m === "absoluta" ? "TIR ABSOLUTA" : "TIR RELATIVA"}
@@ -211,7 +211,7 @@ export function SensibilidadTable() {
                 : setTirsRel(e.target.value)
             }
             placeholder={modo === "absoluta" ? "4,5,6,7,8,9,10,11" : "-4,-3,-2,-1,0,1,2,3,4"}
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -238,7 +238,7 @@ export function SensibilidadTable() {
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
-            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
             title="0 = upside instantáneo. >0 = proyecta el precio. Enter o click fuera para aplicar."
           />
         </div>
@@ -256,7 +256,7 @@ export function SensibilidadTable() {
                   className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                     active
                       ? "bg-[#ff9900] text-black border-[#ff9900]"
-                      : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                   }`}
                   title={
                     active && tipos.length === 1
@@ -283,10 +283,10 @@ export function SensibilidadTable() {
 
       {/* Tabla + panel de debug lateral */}
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-auto border border-[#1a1a1a] bg-[var(--t-panel)]">
+      <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
         <table className="w-full text-[11px] font-mono border-collapse">
           <thead className="sticky top-0 bg-[#0c0c0c] z-10">
-            <tr className="border-b border-[#1a1a1a] text-[10px] uppercase tracking-wide text-[#ff9900]">
+            <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[#ff9900]">
               <th className="!px-2 !py-1.5 text-left">Ticker</th>
               <th className="!px-2 !py-1.5 text-right">Vto</th>
               <th className="!px-2 !py-1.5 text-right">Precio</th>
@@ -296,7 +296,7 @@ export function SensibilidadTable() {
               {colHeaders.map((h) => (
                 <th
                   key={h.key}
-                  className="!px-2 !py-1.5 text-right border-l border-[#1a1a1a]"
+                  className="!px-2 !py-1.5 text-right border-l border-[var(--t-border)]"
                 >
                   {h.label}
                 </th>
@@ -307,7 +307,7 @@ export function SensibilidadTable() {
             {data.map((b, bonoIdx) => (
               <tr
                 key={b.ticker_completo}
-                className="border-b border-[#111] hover:bg-[#ff9900]/5"
+                className="border-b border-[var(--t-border)] hover:bg-[#ff9900]/5"
               >
                 <td className="!px-2 !py-1 text-[#ff9900] font-semibold">
                   {b.ticker}
@@ -337,7 +337,7 @@ export function SensibilidadTable() {
                     <td
                       key={i}
                       onClick={() => setSelIdx({ bono: bonoIdx, esc: i })}
-                      className={`!px-2 !py-1 text-right border-l border-[#1a1a1a] font-semibold cursor-pointer ${
+                      className={`!px-2 !py-1 text-right border-l border-[var(--t-border)] font-semibold cursor-pointer ${
                         isSelected ? "outline outline-2 outline-[#ff9900] outline-offset-[-2px]" : ""
                       }`}
                       style={{ background: c.bg, color: c.fg }}
@@ -366,7 +366,7 @@ export function SensibilidadTable() {
       {/* Panel de debug lateral — colapsable. Cerrado = rail con label
           vertical clickeable. Abierto = panel con detalle. */}
       <aside
-        className={`shrink-0 border border-[#1a1a1a] bg-[#0a0a0a] text-[10px] font-mono transition-[width] duration-150 flex flex-col ${
+        className={`shrink-0 border border-[var(--t-border)] bg-[#0a0a0a] text-[10px] font-mono transition-[width] duration-150 flex flex-col ${
           debugOpen ? "w-72" : "w-8"
         }`}
       >
@@ -528,7 +528,7 @@ export function SensibilidadTable() {
 
       {/* Leyenda compacta — siempre visible, explica la fórmula y la
            interpretación del modo activo. */}
-      <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
+      <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
             Cálculo — retorno total

@@ -205,7 +205,7 @@ export function PnLTotalesView() {
         </button>
         <button
           onClick={() => setModo("cuenta")}
-          className="px-3 py-1 text-[10px] tracking-widest border border-[#2a2a2a] text-[#888] hover:text-[#ff9900]"
+          className="px-3 py-1 text-[10px] tracking-widest border border-[var(--t-border-2)] text-[#888] hover:text-[#ff9900]"
         >
           POR CUENTA
         </button>
@@ -237,7 +237,7 @@ export function PnLTotalesView() {
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as FiltroCuenta)}
-          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none"
         >
           {FILTRO_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -248,14 +248,14 @@ export function PnLTotalesView() {
           value={searchCta}
           onChange={(e) => setSearchCta(e.target.value)}
           placeholder="Filtrar cuenta…"
-          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-44"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-44"
         />
         <input
           type="text"
           value={searchTk}
           onChange={(e) => setSearchTk(e.target.value)}
           placeholder="Filtrar ticker…"
-          className="bg-black border border-[#2a2a2a] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-44"
+          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[#d0d0d0] font-mono focus:border-[#ff9900] focus:outline-none w-44"
         />
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-[9px] tracking-widest text-[#666]">MONEDA</span>
@@ -271,8 +271,8 @@ export function PnLTotalesView() {
                   moneda === m
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
                     : disabled
-                      ? "bg-transparent text-[#444] border-[#1a1a1a] cursor-not-allowed"
-                      : "bg-transparent text-[#888] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                      ? "bg-transparent text-[#444] border-[var(--t-border)] cursor-not-allowed"
+                      : "bg-transparent text-[#888] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
                 {m}
@@ -284,13 +284,13 @@ export function PnLTotalesView() {
 
       {/* Split layout: tabla 60 / detalle 40 */}
       <div className="flex-1 min-h-0 flex gap-3">
-        <div className="basis-[60%] border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
+        <div className="basis-[60%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
           {filasOrdenadas.length === 0 ? (
             <div className="p-6 text-center text-[#555] text-[11px]">Sin posiciones para mostrar.</div>
           ) : (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
-                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a] z-10">
+                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
                   <tr className="text-[9px] tracking-widest text-[#888]">
                     <th onClick={() => toggleSort("cuenta")} className="px-2 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
                       CUENTA {arrow("cuenta")}
@@ -327,7 +327,7 @@ export function PnLTotalesView() {
                         key={`${r.id_cuenta}|${r.ticker}`}
                         onClick={() => setSelected(isSel ? null : { cuenta: r.id_cuenta, ticker: r.ticker })}
                         className={
-                          "border-b border-[#111] cursor-pointer " +
+                          "border-b border-[var(--t-border)] cursor-pointer " +
                           (isSel ? "bg-[#ff9900]/10" : "hover:bg-[#ff9900]/5")
                         }
                       >
@@ -374,10 +374,10 @@ export function PnLTotalesView() {
         </div>
 
         {/* Panel detalle 40% */}
-        <div className="basis-[40%] border border-[#1a1a1a] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
+        <div className="basis-[40%] border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
           {selectedRow ? (
             <>
-              <div className="px-3 py-1 bg-[var(--t-surface)] border-b border-[#1a1a1a] text-[9px] tracking-widest text-[#666]">
+              <div className="px-3 py-1 bg-[var(--t-surface)] border-b border-[var(--t-border)] text-[9px] tracking-widest text-[#666]">
                 <span className="text-[#888]">CUENTA</span> [{selectedRow.id_cuenta}] {selectedRow.cuenta.replace(/^\[\d+\]\s*/, "")}
               </div>
               <PosicionDetalle row={selectedRow} esUSD={esUSD} />
@@ -395,7 +395,7 @@ export function PnLTotalesView() {
 
 function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
       <div className="text-[10px] text-[#555] uppercase tracking-wide">{label}</div>
       <div className="text-[18px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
       {sub && <div className="text-[10px] text-[#666]">{sub}</div>}

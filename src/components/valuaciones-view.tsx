@@ -557,8 +557,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
 
         {/* Chart panel — izquierda */}
-        <div className="w-1/2 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
+        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               Evolución mensual · [{idCuenta}]
             </span>
@@ -573,7 +573,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => o + 1)}
                 disabled={!chartPuedeAtras}
                 title="Período anterior"
-                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >◀</button>
               <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
                 {(["3M", "6M", "1A", "ALL"] as const).map((k) => (
@@ -593,7 +593,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => Math.max(0, o - 1))}
                 disabled={!chartPuedeAdelante}
                 title="Período siguiente"
-                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[#1a1a1a] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[#888] border border-[#333] hover:text-[#ff9900] hover:border-[#ff9900] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >▶</button>
             </div>
             {chartData.length > 0 && (
@@ -730,8 +730,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         </div>
 
         {/* Tabla mensual compacta — derecha (con flujos inline al seleccionar un mes) */}
-        <div className="w-1/2 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
+        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               Mensual
             </span>
@@ -817,29 +817,29 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
-                    <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Mes</th>
+                    <th className="px-2 py-1 text-left border-b border-[var(--t-border)]">Mes</th>
                     <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      className="px-2 py-1 text-right border-b border-[var(--t-border)]"
                       title={esUSD ? "Cierre en USD (V_cierre_ARS / MEP_cierre)" : "Cierre en ARS"}
                     >Cierre</th>
                     <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      className="px-2 py-1 text-right border-b border-[var(--t-border)]"
                       title="Depósitos − extracciones del mes"
                     >Flujo neto</th>
                     <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      className="px-2 py-1 text-right border-b border-[var(--t-border)]"
                       title="Δ valor REAL = (cierre_t − cierre_t−1) − flujo_neto. Aísla performance de inversiones."
                     >Δ valor</th>
                     <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      className="px-2 py-1 text-right border-b border-[var(--t-border)]"
                       title="PnL acumulado — suma de Δ valor desde el primer mes. Sumatoria simple, no compone. Útil para ver ganancia/pérdida total en $."
                     >PnL acum.</th>
                     <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      className="px-2 py-1 text-right border-b border-[var(--t-border)]"
                       title="TEM del MES — Tasa Efectiva del período. TEA des-anualizada a los días reales del mes: (1 + TEA)^(días/365) − 1."
                     >TEM MES</th>
                     <th
-                      className="px-2 py-1 text-right border-b border-[#1a1a1a]"
+                      className="px-2 py-1 text-right border-b border-[var(--t-border)]"
                       title="TEA Cartera — rendimiento acumulado del TWR puro desde el primer mes. (base100/100 − 1). Sin depender de aportes/retiros."
                     >TEA CARTERA</th>
                   </tr>
@@ -858,7 +858,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       <tr
                         onClick={() => setSelectedFecha(active ? null : m.ultimo_dia)}
                         className={
-                          "cursor-pointer border-t border-[#111] transition-colors " +
+                          "cursor-pointer border-t border-[var(--t-border)] transition-colors " +
                           (active
                             ? "bg-[#ff9900]/15"
                             : "hover:bg-[var(--t-surface-2)]")
@@ -915,7 +915,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       {/* Flujos del mes — se despliegan inline debajo del mes seleccionado */}
                       {active && (
                         <tr className="bg-[#070707]">
-                          <td colSpan={7} className="p-0 border-t border-[#1a1a1a]">
+                          <td colSpan={7} className="p-0 border-t border-[var(--t-border)]">
                             <div className="px-2 py-1.5">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-[9px] uppercase tracking-widest text-[#ff9900]">Flujo del mes</span>
@@ -927,7 +927,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                                   </span>
                                 )}
                               </div>
-                              <div className="max-h-[220px] overflow-auto border border-[#141414]">
+                              <div className="max-h-[220px] overflow-auto border border-[var(--t-border)]">
                                 <FlujoTabla movResp={movResp} />
                               </div>
                             </div>
@@ -946,8 +946,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       </div>
 
       {/* FILA INFERIOR: PORTFOLIO a todo el ancho, con tabs Posiciones / Variación */}
-      <div className="flex-1 min-w-0 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
+      <div className="flex-1 min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             Portfolio
           </span>
@@ -1122,16 +1122,16 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 </colgroup>
                 <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
-                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Ticker</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Emisor</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Clase</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Cart.</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Calif.</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Vto.</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Cant.</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Precio</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Valuación</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">%</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Ticker</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Emisor</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Clase</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Cart.</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Calif.</th>
+                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Vto.</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Cant.</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Precio</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Valuación</th>
+                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1143,7 +1143,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         e.preventDefault();
                         setCtxMenu({ x: e.clientX, y: e.clientY, pos: p });
                       }}
-                      className={`border-t border-[#111] hover:bg-[var(--t-surface-2)] ${
+                      className={`border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)] ${
                         _posOperable(p).operable ? "cursor-context-menu" : ""
                       }`}
                     >
@@ -1187,14 +1187,14 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       {/* Menú contextual (click derecho en una posición) → operar en Trading. */}
       {ctxMenu && (
         <div
-          className="fixed z-50 min-w-[210px] bg-[#0d0d0d] border border-[#2a2a2a] shadow-xl text-[11px]"
+          className="fixed z-50 min-w-[210px] bg-[#0d0d0d] border border-[var(--t-border-2)] shadow-xl text-[11px]"
           style={{
             top: Math.min(ctxMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 120),
             left: Math.min(ctxMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 230),
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3 py-1.5 border-b border-[#1a1a1a] text-[#888] flex items-center gap-1">
+          <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[#888] flex items-center gap-1">
             <span
               className="text-[#ff9900] font-semibold truncate max-w-[150px]"
               title={ctxMenu.pos.ticker}
@@ -1249,22 +1249,22 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
       </colgroup>
       <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
         <tr>
-          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Fecha</th>
-          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Tipo</th>
-          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Importe orig</th>
-          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Mon</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Fecha</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Tipo</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Importe orig</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Mon</th>
           <th
-            className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]"
+            className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]"
             title="Importe convertido a ARS al MEP de la fecha del movimiento"
           >Importe ARS</th>
-          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Detalle</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Detalle</th>
         </tr>
       </thead>
       <tbody>
         {movResp.movimientos.map((m) => {
           const isDep = m.categoria === "deposito" || m.categoria === "transferencia";
           return (
-            <tr key={m.comprobante ?? m.fecha} className="border-t border-[#111] hover:bg-[var(--t-surface-2)]">
+            <tr key={m.comprobante ?? m.fecha} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
               <td className="px-2 py-1 align-top text-[#888]">{fmtFechaCorta(m.fecha)}</td>
               <td className="px-2 py-1 align-top whitespace-normal break-words">
                 <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
@@ -1323,24 +1323,24 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
       </colgroup>
       <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
         <tr>
-          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Título</th>
-          <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Tipo</th>
-          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Val. ant.</th>
-          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Val. actual</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Título</th>
+          <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Tipo</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Val. ant.</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Val. actual</th>
           <th
-            className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]"
+            className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]"
             title="Variación por movimiento de precio — el título rindió (a cantidad del mes anterior)."
           >Δ mercado</th>
           <th
-            className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]"
+            className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]"
             title="Variación por compra/venta — cambió la cantidad."
           >Δ operado</th>
-          <th className="px-2 py-1 text-right align-top border-b border-[#1a1a1a]">Δ total</th>
+          <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Δ total</th>
         </tr>
       </thead>
       <tbody>
         {varResp.filas.map((f) => (
-          <tr key={f.unidad} className="border-t border-[#111] hover:bg-[var(--t-surface-2)]">
+          <tr key={f.unidad} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
             <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900]" title={f.unidad}>
               {f.unidad}
               {f.estado !== "ambos" && (

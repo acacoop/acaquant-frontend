@@ -82,7 +82,7 @@ export function CedearsScannerTable({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[#1a1a1a]">
+      <div className="flex items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
         <ViewBtn active={view === "cedear"} onClick={() => changeView("cedear")} tone="orange">
           CEDEAR
         </ViewBtn>
@@ -252,8 +252,8 @@ function ViewBtn({
       : "bg-[#5fb3d4] text-black border-[#5fb3d4]";
   const inactiveColor =
     tone === "orange"
-      ? "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
-      : "bg-transparent text-[#555555] border-[#2a2a2a] hover:text-[#5fb3d4] hover:border-[#5fb3d4]";
+      ? "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
+      : "bg-transparent text-[#555555] border-[var(--t-border-2)] hover:text-[#5fb3d4] hover:border-[#5fb3d4]";
   return (
     <button
       onClick={onClick}

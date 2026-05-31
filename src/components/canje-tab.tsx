@@ -114,7 +114,7 @@ export function CanjeTab() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Controles */}
-      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wide text-[#555]">Par</span>
           <div className="flex items-center gap-1 h-[26px]">
@@ -125,7 +125,7 @@ export function CanjeTab() {
                 className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
                   par === p
                     ? "bg-[#ff9900] text-black border-[#ff9900]"
-                    : "bg-transparent text-[#555] border-[#2a2a2a] hover:text-[#ff9900] hover:border-[#ff9900]"
+                    : "bg-transparent text-[#555] border-[var(--t-border-2)] hover:text-[#ff9900] hover:border-[#ff9900]"
                 }`}
               >
                 {p}
@@ -166,7 +166,7 @@ export function CanjeTab() {
       )}
 
       {/* Chart */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] p-2">
+      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] p-2">
         {chartData.length < 2 ? (
           <p className="text-[#555] text-xs py-4 text-center">
             {loading ? "Cargando…" : "Sin datos suficientes."}
@@ -219,7 +219,7 @@ export function CanjeTab() {
       </div>
 
       {/* Leyenda */}
-      <div className="border border-[#1a1a1a] bg-[#0a0a0a] p-3 shrink-0 text-[10px] font-mono">
+      <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 shrink-0 text-[10px] font-mono">
         <div className="text-[9px] uppercase tracking-widest text-[#ff9900] mb-1">
           Cálculo
         </div>
@@ -258,7 +258,7 @@ function Kpi({
           ? "text-[#ff9900]"
           : "text-[#d0d0d0]";
   return (
-    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2">
       <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1">{label}</div>
       <div className={`text-[14px] font-mono font-semibold ${color}`}>{value}</div>
     </div>
