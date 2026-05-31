@@ -125,7 +125,7 @@ export function LogsPanel() {
   });
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-[#080808]">
+    <div className="h-full flex flex-col min-h-0 bg-[var(--t-panel)]">
       {/* Controles */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[#0c0c0c] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">LOGS</span>
@@ -133,7 +133,7 @@ export function LogsPanel() {
         <select
           value={servicio}
           onChange={(e) => setServicio(e.target.value)}
-          className="bg-[#080808] border border-[#2a2a2a] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[#ff9900]"
+          className="bg-[var(--t-panel)] border border-[#2a2a2a] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[#ff9900]"
         >
           {SERVICES.map((s) => (
             <option key={s.id} value={s.id}>{s.label}</option>
@@ -143,7 +143,7 @@ export function LogsPanel() {
         <select
           value={lines}
           onChange={(e) => setLines(parseInt(e.target.value, 10))}
-          className="bg-[#080808] border border-[#2a2a2a] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[#ff9900]"
+          className="bg-[var(--t-panel)] border border-[#2a2a2a] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[#ff9900]"
         >
           {LINE_OPTIONS.map((n) => (
             <option key={n} value={n}>{n} líneas</option>

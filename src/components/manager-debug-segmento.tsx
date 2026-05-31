@@ -241,7 +241,7 @@ export function ManagerDebugSegmentoPanel() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808]">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
       <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 text-[10px] font-semibold text-[#ff9900] tracking-wider uppercase">
         {title}
       </div>

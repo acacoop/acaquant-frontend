@@ -85,11 +85,11 @@ export function TableHelp({
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-[#0e0e0e] border border-[#2a2a2a] max-w-[720px] w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] max-w-[720px] w-full max-h-[80vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header sticky con título + cerrar */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] sticky top-0 bg-[#0e0e0e]">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-[#1a1a1a] sticky top-0 bg-[var(--t-surface)]">
               <span className="text-[11px] tracking-wide uppercase text-[#ff9900] font-semibold">
                 Referencia
               </span>

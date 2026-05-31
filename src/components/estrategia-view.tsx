@@ -51,7 +51,7 @@ function Metric({ label, value, hint }: {
   hint?: string;
 }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1.5">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-1.5">
       <div className="text-[8px] text-[#555555] uppercase tracking-wide">{label}</div>
       <div className="text-[13px] font-mono text-[#d0d0d0]">{value}</div>
       {hint && <div className="text-[8px] text-[#555555]">{hint}</div>}
@@ -173,7 +173,7 @@ export function EstrategiaView() {
               </div>
               <div className="flex gap-2 flex-wrap font-mono">
                 {data.hedge_beta.map((h) => (
-                  <div key={h.benchmark} className="border border-[#1a1a1a] bg-[#080808] px-2 py-1.5">
+                  <div key={h.benchmark} className="border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-1.5">
                     <span className="text-[#d0d0d0] font-semibold">
                       {h.accion.toUpperCase()} {fmtUsd(h.notional)} {h.benchmark}
                     </span>

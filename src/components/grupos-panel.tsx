@@ -131,7 +131,7 @@ export function GruposPanel() {
       </div>
 
       {/* Crear grupo */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 shrink-0">
         <div className="text-[10px] text-[#ff9900] tracking-widest font-semibold mb-2">
           AGREGAR GRUPO
         </div>
@@ -143,7 +143,7 @@ export function GruposPanel() {
               value={newNombre}
               onChange={(e) => setNewNombre(e.target.value)}
               placeholder="ej. Mesa Rosario"
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </div>
           <button
@@ -236,14 +236,14 @@ function GrupoCard({
   }, [cuentas, idCuentas, filtroCuenta]);
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] p-3">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3">
       {/* Header: nombre + acciones */}
       <div className="flex items-center gap-2 mb-3">
         <input
           type="text"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
-          className="flex-1 bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+          className="flex-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
         />
         <button
           onClick={() =>
@@ -293,7 +293,7 @@ function GrupoCard({
             onChange={(e) => {
               if (e.target.value) setEmails([...emails, e.target.value]);
             }}
-            className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none"
+            className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none"
           >
             <option value="">+ agregar usuario…</option>
             {usersDisponibles.map((u) => (
@@ -339,7 +339,7 @@ function GrupoCard({
             value={filtroCuenta}
             onChange={(e) => setFiltroCuenta(e.target.value)}
             placeholder="buscar cuenta por id o nombre…"
-            className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none mb-1"
+            className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-1 font-mono focus:border-[#ff9900] outline-none mb-1"
           />
           {filtroCuenta.trim() && (
             <div className="max-h-[140px] overflow-y-auto border border-[#1a1a1a]">

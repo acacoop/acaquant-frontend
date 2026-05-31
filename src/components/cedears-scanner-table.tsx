@@ -119,7 +119,7 @@ export function CedearsScannerTable({
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-[#080808] z-10">
+          <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
             {view === "cedear" ? (
               <tr className="text-[#707070]">
                 <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />

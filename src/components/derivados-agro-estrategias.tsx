@@ -299,7 +299,7 @@ export function DerivadosAgroEstrategias({
           value={vencimiento ?? ""}
           onChange={(e) => setVencimiento(e.target.value || null)}
           disabled={!panel || panel.vencimientos.length === 0}
-          className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+          className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
         >
           {panel?.vencimientos.map((v) => (
             <option key={v.vencimiento} value={v.vencimiento}>
@@ -337,7 +337,7 @@ export function DerivadosAgroEstrategias({
         {/* Simulador + gráficos */}
         <div className="min-h-0 flex flex-col gap-3">
           {/* Tira compacta: form + KPIs inline */}
-          <div className="border border-[#1a1a1a] bg-[#080808] p-2 flex flex-col gap-1.5 shrink-0">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 flex flex-col gap-1.5 shrink-0">
             <SimuladorForm
               tipo={tipo}
               setTipo={setTipo}
@@ -661,7 +661,7 @@ function SimuladorForm({
               setStrike(e.target.value ? Number(e.target.value) : null)
             }
             disabled={strikes.length === 0}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
           >
             {strikes.map((s) => (
               <option key={s.strike} value={s.strike}>
@@ -686,7 +686,7 @@ function SimuladorForm({
             }
             value={primaOverride}
             onChange={(e) => setPrimaOverride(e.target.value)}
-            className={`bg-[#0e0e0e] border ${
+            className={`bg-[var(--t-surface)] border ${
               !strikeTieneLast && !primaOverride
                 ? "border-[#ff9900]/60"
                 : "border-[#2a2a2a]"

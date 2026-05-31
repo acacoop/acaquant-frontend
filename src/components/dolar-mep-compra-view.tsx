@@ -153,7 +153,7 @@ export function DolarMepCompraView({
   return (
     <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
       {/* Form: inputs + EJECUTAR + cálculos horizontales pegados al botón */}
-      <div className="flex gap-2 items-end p-3 bg-[#080808] border border-[#1a1a1a] flex-wrap">
+      <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[#1a1a1a] flex-wrap">
         {/* Toggle ARS / USD: cuando el user pone monto en USD, el ARS equivalente
             se calcula con la cotización viva del par AL30/AL30D y se manda al
             backend (que sólo conoce ARS). */}
@@ -292,7 +292,7 @@ export function DolarMepCompraView({
             {operativas.map((op) => (
               <tr
                 key={op.operativa_id}
-                className="border-b border-[#1a1a1a] hover:bg-[#0e0e0e] cursor-pointer"
+                className="border-b border-[#1a1a1a] hover:bg-[var(--t-surface)] cursor-pointer"
                 onClick={() => setDetalleId(op.operativa_id)}
                 title="Click para ver detalle de la operativa"
               >

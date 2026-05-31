@@ -74,7 +74,7 @@ export function ForwardMatrixZscore({ tickers, matrix, stats }: Props) {
                   return (
                     <td
                       key={tCorto}
-                      className="!px-2 !py-1 text-center text-[#555555] bg-[#0e0e0e]"
+                      className="!px-2 !py-1 text-center text-[#555555] bg-[var(--t-surface)]"
                     >
                       n/d
                     </td>

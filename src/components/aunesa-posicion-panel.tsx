@@ -71,7 +71,7 @@ export function AunesaPosicionPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a]">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-widest text-[#888]">POSICIÓN AUNESA · CUENTA</span>
         <input
           value={idCuenta}
@@ -154,7 +154,7 @@ export function AunesaPosicionPanel() {
                 const precio = toNum(p.precio);
                 const prod = cant != null && precio != null ? cant * precio : null;
                 return (
-                  <tr key={i} className="border-b border-[#141414] hover:bg-[#0e0e0e]">
+                  <tr key={i} className="border-b border-[#141414] hover:bg-[var(--t-surface)]">
                     <td className="px-2 py-1 text-[#d0d0d0] truncate max-w-[340px]" title={p.unidad ?? ""}>
                       {p.unidad ?? "—"}
                     </td>

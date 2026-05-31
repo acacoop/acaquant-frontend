@@ -209,7 +209,7 @@ export function ForwardsPanel({
             {dropOpen && filteredPares.length > 0 && (
               <div
                 ref={dropRef}
-                className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[200px] overflow-y-auto w-[160px]"
+                className="absolute top-full left-0 mt-px z-50 bg-[var(--t-surface)] border border-[#2a2a2a] max-h-[200px] overflow-y-auto w-[160px]"
               >
                 {filteredPares.map((par) => {
                   const activo = paresEfectivos.includes(par);

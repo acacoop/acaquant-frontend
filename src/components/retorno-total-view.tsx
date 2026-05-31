@@ -83,7 +83,7 @@ export function RetornoTotalView() {
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest mr-3">
           ESTRATEGIA
         </span>
@@ -408,7 +408,7 @@ function HistoricoTab() {
 
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 shrink-0 flex items-center gap-3 flex-wrap">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 shrink-0 flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1">
           <FilterBtn active={curva === "tasa_fija"} onClick={() => { setCurva("tasa_fija"); setRangoIdx(null); }}>
             TASA FIJA
@@ -476,7 +476,7 @@ function HistoricoTab() {
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-3">
-        <div className="border border-[#1a1a1a] bg-[#080808] p-2 min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 min-h-0">
           {chartData.length < 2 ? (
             <p className="text-[#555] text-xs py-4 text-center">Sin datos suficientes.</p>
           ) : (
@@ -531,12 +531,12 @@ function HistoricoTab() {
           )}
         </div>
 
-        <div className="border border-[#1a1a1a] bg-[#080808] p-2 overflow-y-auto min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
           <div className="text-[10px] text-[#555] tracking-wide mb-1">
             {fechaDesde && fechaHasta ? `${fmtFechaCorta(fechaDesde)} → ${fmtFechaCorta(fechaHasta)}` : ""}
           </div>
           <table className="w-full text-[10px]">
-            <thead className="sticky top-0 bg-[#080808] z-10">
+            <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
               <tr className="text-[#707070]">
                 <th className="!px-1 text-left">TICKER</th>
                 <th className="!px-1 text-right">BASE</th>

@@ -80,7 +80,7 @@ async function getJson<T>(url: string, fallback: T): Promise<T> {
 
 function Panel({ title, extra, children }: { title: string; extra?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+    <div className="min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] shrink-0">
         <span className="text-[9px] text-[#888] tracking-widest uppercase mr-auto">{title}</span>
         {extra}
@@ -296,7 +296,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 title="Filtrar gráfico y tablas por este comercial"
                 className={
                   "border-t border-[#141414] cursor-pointer " +
-                  (selComercial === c.operador_email ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                  (selComercial === c.operador_email ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
                 }
               >
                 <td className="px-2 py-1.5 text-[#666]">{c.rank}</td>
@@ -312,7 +312,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
             ))}
           </tbody>
           {informe && informe.comerciales.length > 0 && (
-            <tfoot className="sticky bottom-0 bg-[#0e0e0e]">
+            <tfoot className="sticky bottom-0 bg-[var(--t-surface)]">
               <tr className="border-t-2 border-[#2a2a2a] font-semibold text-[#d0d0d0]">
                 <td className="px-2 py-1.5" colSpan={2}>TOTAL</td>
                 <td className="text-right px-2 text-[#666]">—</td>
@@ -351,7 +351,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 title="Ver clientes y operaciones de este segmento"
                 className={
                   "border-t border-[#141414] cursor-pointer " +
-                  (selSeg === s.segmento ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                  (selSeg === s.segmento ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
                 }
               >
                 <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
@@ -410,7 +410,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 <tr><td colSpan={3} className="text-center text-[#555] py-4">Sin aranceles.</td></tr>
               )}
               {detalle.clientes.map((c) => (
-                <tr key={c.id_cuenta} className="border-t border-[#141414] hover:bg-[#0e0e0e]">
+                <tr key={c.id_cuenta} className="border-t border-[#141414] hover:bg-[var(--t-surface)]">
                   <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[200px]" title={c.denominacion}>
                     <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
                   </td>
@@ -436,7 +436,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 <tr><td colSpan={5} className="text-center text-[#555] py-4">Sin operaciones.</td></tr>
               )}
               {detalle.operaciones.map((o, i) => (
-                <tr key={o.comprobante + i} className="border-t border-[#141414] hover:bg-[#0e0e0e]">
+                <tr key={o.comprobante + i} className="border-t border-[#141414] hover:bg-[var(--t-surface)]">
                   <td className="px-3 py-1.5 text-[#888] whitespace-nowrap">{o.fecha}</td>
                   <td className="px-1 py-1.5 text-[#d0d0d0] truncate max-w-[120px]" title={o.denominacion}>{o.denominacion}</td>
                   <td className="px-1 py-1.5 text-[#aaa]">{o.ticker ?? o.categoria}</td>

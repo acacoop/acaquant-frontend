@@ -113,7 +113,7 @@ export function DerivadosSinteticosView() {
   return (
     <div className="h-full min-h-0 flex flex-col">
       {/* Barra slim — SPOT + última actualización. */}
-      <div className="border-b border-[#1a1a1a] bg-[#080808] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
+      <div className="border-b border-[#1a1a1a] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
         <span className="text-[10px] text-[#808080] uppercase tracking-wide">
           Sintéticos
         </span>

@@ -108,7 +108,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[420px] max-w-[95vw] bg-[#080808] border-l border-[#1a1a1a] z-50 flex flex-col">
+      <div className="fixed right-0 top-0 h-full w-[420px] max-w-[95vw] bg-[var(--t-panel)] border-l border-[#1a1a1a] z-50 flex flex-col">
         {/* Header */}
         <div className="flex items-center px-4 py-3 border-b border-[#1a1a1a] shrink-0">
           <span className="text-[12px] tracking-wider text-[#ff9900] font-semibold uppercase">

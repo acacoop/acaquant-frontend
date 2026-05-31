@@ -238,7 +238,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     visiblesGlobales.length + visiblesFuturosDlr.length + visiblesArgy.length;
 
   return (
-    <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[#080808]">
+    <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)]">
       <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Watchlist
@@ -289,7 +289,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         {/* ── Tabla globales (Índices, Commodities, etc.) ── */}
         {visiblesGlobales.length > 0 && (
           <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-[#080808] z-10 border-b border-[#1a1a1a]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] z-10 border-b border-[#1a1a1a]">
               <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Símbolo</th>
                 <th className="px-2 py-1 text-right">Último</th>
@@ -311,8 +311,8 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                       isSel
                         ? "bg-[#ff9900]/15"
                         : clickable
-                        ? "hover:bg-[#0e0e0e] cursor-pointer"
-                        : "hover:bg-[#0e0e0e]"
+                        ? "hover:bg-[var(--t-surface)] cursor-pointer"
+                        : "hover:bg-[var(--t-surface)]"
                     }`}
                   >
                     <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{q.symbol}</td>
@@ -333,7 +333,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         {/* ── Tabla FUTUROS ROFEX (DLR outrights con tasa implícita) ── */}
         {visiblesFuturosDlr.length > 0 && (
           <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-[#080808] z-10 border-b border-[#1a1a1a]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] z-10 border-b border-[#1a1a1a]">
               <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Ticker</th>
                 <th className="px-2 py-1 text-right">Días</th>
@@ -374,8 +374,8 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                       isSel
                         ? "bg-[#ff9900]/15"
                         : clickable
-                        ? "hover:bg-[#0e0e0e] cursor-pointer"
-                        : "hover:bg-[#0e0e0e]"
+                        ? "hover:bg-[var(--t-surface)] cursor-pointer"
+                        : "hover:bg-[var(--t-surface)]"
                     }`}
                   >
                     <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">{f.ticker}</td>
@@ -412,7 +412,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         {/* ── Tabla ARGY (MEP, CCL, canje, cauciones) con returns ── */}
         {visiblesArgy.length > 0 && (
           <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-[#080808] z-10 border-b border-[#1a1a1a]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] z-10 border-b border-[#1a1a1a]">
               <tr className="text-[9px] text-[#555555] uppercase tracking-wide">
                 <th className="px-2 py-1 text-left">Concepto</th>
                 <th className="px-2 py-1 text-right">Valor</th>
@@ -436,7 +436,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                 return (
                   <tr
                     key={r.label}
-                    className="border-b border-[#0e0e0e] hover:bg-[#0e0e0e]"
+                    className="border-b border-[#0e0e0e] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-2 py-0.5 text-[#d0d0d0] font-semibold">
                       {r.label}

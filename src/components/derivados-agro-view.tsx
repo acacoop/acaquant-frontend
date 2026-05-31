@@ -31,7 +31,7 @@ export function DerivadosAgroView({
   return (
     <div className="h-full min-h-0 flex flex-col">
       {/* Barra slim — info global de la pizarra (dólar oficial + frescura). */}
-      <div className="border-b border-[#1a1a1a] bg-[#080808] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
+      <div className="border-b border-[#1a1a1a] bg-[var(--t-panel)] px-3 flex items-center gap-2 shrink-0 min-h-[33px]">
         <span className="text-[10px] text-[#808080] uppercase tracking-wide">
           Pase Agro
         </span>
@@ -100,7 +100,7 @@ function SimuladorModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-[#080808] border border-[#2a2a2a]"
+      className="fixed inset-0 z-50 flex flex-col bg-[var(--t-panel)] border border-[#2a2a2a]"
       style={{ margin: "12px" }}
     >
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">

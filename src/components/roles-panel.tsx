@@ -155,7 +155,7 @@ export function RolesPanel() {
       </div>
 
       {/* Matriz */}
-      <div className="border border-[#1a1a1a] bg-[#080808] overflow-auto shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-auto shrink-0">
         <table className="w-full text-xs font-mono">
           <thead>
             <tr className="border-b border-[#1a1a1a]">
@@ -179,7 +179,7 @@ export function RolesPanel() {
             {data.modules.map((m) => (
               <tr
                 key={m}
-                className="border-b border-[#141414] hover:bg-[#0e0e0e]"
+                className="border-b border-[#141414] hover:bg-[var(--t-surface)]"
               >
                 <td className="px-3 py-1.5 text-[#d0d0d0]">{m}</td>
                 {data.roles.map((r) => {
@@ -202,7 +202,7 @@ export function RolesPanel() {
       </div>
 
       {/* Audit log */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className="px-3 py-1.5 border-b border-[#1a1a1a] text-[10px] text-[#ff9900] tracking-widest font-semibold">
           AUDIT LOG — ÚLTIMOS {audit.length}
         </div>

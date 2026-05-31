@@ -144,7 +144,7 @@ function MetricCard({
   const color =
     accent === "ok" ? "#00cc66" : accent === "warn" ? "#ff9900" : accent === "err" ? "#ff3333" : "#d0d0d0";
   return (
-    <div className="border border-[#1a1a1a] bg-[#0e0e0e] px-3 py-2 font-mono">
+    <div className="border border-[#1a1a1a] bg-[var(--t-surface)] px-3 py-2 font-mono">
       <div className="text-[9px] text-[#555555] uppercase tracking-wide">{label}</div>
       <div className="text-[18px] font-semibold mt-0.5 leading-none" style={{ color }}>
         {value}
@@ -336,7 +336,7 @@ export function AsistenteDashboard() {
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
       {/* Filtros + última actualización */}
-      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] text-[#555555] uppercase tracking-wide">Período</span>
         <div className="flex gap-1">
           {HORAS_OPTS.map((o) => (
@@ -436,7 +436,7 @@ export function AsistenteDashboard() {
 
         {/* Charts + Tools Ranking */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-          <div className="border border-[#1a1a1a] bg-[#080808] p-2 lg:col-span-1">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 lg:col-span-1">
             <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
               Conversaciones por hora
             </div>
@@ -472,7 +472,7 @@ export function AsistenteDashboard() {
             </div>
           </div>
 
-          <div className="border border-[#1a1a1a] bg-[#080808] p-2 lg:col-span-1">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 lg:col-span-1">
             <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
               Tokens por hora
             </div>
@@ -512,7 +512,7 @@ export function AsistenteDashboard() {
             </div>
           </div>
 
-          <div className="border border-[#1a1a1a] bg-[#080808] p-2 lg:col-span-1 overflow-hidden flex flex-col">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 lg:col-span-1 overflow-hidden flex flex-col">
             <div className="text-[10px] text-[#555555] uppercase tracking-wide mb-1">
               Tools usadas
             </div>
@@ -523,7 +523,7 @@ export function AsistenteDashboard() {
         </div>
 
         {/* Tabla de conversaciones (agrupadas por conversation_id) */}
-        <div className="border border-[#1a1a1a] bg-[#080808]">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
           <div className="px-3 py-1.5 border-b border-[#1a1a1a] flex items-center">
             <span className="text-[10px] text-[#555555] uppercase tracking-wide">
               Conversaciones ({conversations.length})
@@ -551,8 +551,8 @@ export function AsistenteDashboard() {
                   <Fragment key={c.conversation_id}>
                     <tr
                       onClick={() => expandConversation(c.conversation_id)}
-                      className={`border-b border-[#1a1a1a] cursor-pointer hover:bg-[#0e0e0e] ${
-                        isExp ? "bg-[#0e0e0e]" : ""
+                      className={`border-b border-[#1a1a1a] cursor-pointer hover:bg-[var(--t-surface)] ${
+                        isExp ? "bg-[var(--t-surface)]" : ""
                       }`}
                     >
                       <td className="px-2 py-1 text-[#888888] whitespace-nowrap">{fmtTime(c.first_ts)}</td>

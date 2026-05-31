@@ -333,7 +333,7 @@ function Header({
   const fmt = unidad === "nominales" ? fmtQty : (n: number) => fmtArs(n);
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 flex items-center gap-3 flex-wrap shrink-0">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 flex items-center gap-3 flex-wrap shrink-0">
       <div className="flex items-center gap-2">
         <span className="text-[9px] text-[#666] tracking-widest">LIQUIDA</span>
         <span className="text-[#ff9900] font-mono text-[12px] font-semibold">

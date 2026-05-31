@@ -208,7 +208,7 @@ export function RecursosPanel() {
       </div>
 
       {/* Procesos */}
-      <div className="border border-[#1a1a1a] bg-[#080808]">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
         <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             PROCESOS
@@ -226,7 +226,7 @@ export function RecursosPanel() {
       </div>
 
       {/* Histórico */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             HISTÓRICO ({history.length} muestras · 1/min)

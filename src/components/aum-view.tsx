@@ -102,7 +102,7 @@ function TabTasaFija({ operador }: { operador: string }) {
       {/* Tabla tickers + detalle cuentas */}
       <div className="grid grid-cols-[35%_65%] gap-3 min-h-0" style={{ height: "38%" }}>
         {/* Tickers */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="POSICIONES POR TICKER" />
           <div className="flex-1 overflow-y-auto">
             <table>
@@ -126,7 +126,7 @@ function TabTasaFija({ operador }: { operador: string }) {
         </div>
 
         {/* Cuentas */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title={tickerSel ? `CUENTAS — ${tickerSel.ticker}` : "CUENTAS (seleccioná un ticker)"} />
           <div className="flex-1 overflow-y-auto">
             {tickerSel ? (
@@ -151,7 +151,7 @@ function TabTasaFija({ operador }: { operador: string }) {
 
       {/* Gráfico amortizaciones */}
       {chartData.length > 0 && (
-        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="COBRO PROYECTADO POR VENCIMIENTO" />
           <div className="flex-1 min-h-0 p-2">
             <ResponsiveContainer width="100%" height="100%">
@@ -288,7 +288,7 @@ function TabCer({ operador }: { operador: string }) {
       {/* Tabla tickers + detalle cuentas */}
       <div className="grid grid-cols-[45%_55%] gap-3 min-h-0" style={{ height: "38%" }}>
         {/* Tickers */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="POSICIONES POR TICKER" />
           <div className="flex-1 overflow-y-auto">
             <table>
@@ -325,7 +325,7 @@ function TabCer({ operador }: { operador: string }) {
         </div>
 
         {/* Cuentas */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title={tickerSel ? `CUENTAS — ${tickerSel.ticker}` : "CUENTAS (seleccioná un ticker)"} />
           <div className="flex-1 overflow-y-auto">
             {tickerSel ? (
@@ -349,7 +349,7 @@ function TabCer({ operador }: { operador: string }) {
 
       {/* Gráfico valuación por vencimiento */}
       {chartData.length > 0 && (
-        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <PanelHeader title="VALUACIÓN POR VENCIMIENTO" />
           <div className="flex-1 min-h-0 p-2">
             <ResponsiveContainer width="100%" height="100%">
@@ -714,7 +714,7 @@ export function AumView() {
   }, [snapshot, emisorSel]);
 
   const tabBar = (
-    <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+    <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
       {(["total", "fci", "tasa_fija", "cer", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
@@ -893,7 +893,7 @@ export function AumView() {
           tab === "total" ? "grid-rows-[1fr_28vh]" : "grid-rows-[auto_1fr]"
         }`}>
           {/* Chart evolución */}
-          <div className={`border border-[#1a1a1a] bg-[#080808] ${
+          <div className={`border border-[#1a1a1a] bg-[var(--t-panel)] ${
             tab === "total" ? "flex flex-col min-h-0" : ""
           }`}>
             <PanelHeader
@@ -1001,7 +1001,7 @@ export function AumView() {
               el chart no rebote al cargar el snapshot (antes arrancaba
               "auto" y el chart agarraba todo el espacio mientras llegaba
               la data, después se comprimía cuando aparecía la tabla). */}
-          <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
             <PanelHeader
               title={`${tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"} · ${fmtFecha(fechaSel)}`}
               sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}${loadingSnap && snapshot.length > 0 ? " · actualizando…" : ""}`}
@@ -1020,7 +1020,7 @@ export function AumView() {
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono">
-                  <thead className="sticky top-0 bg-[#080808] z-10">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                     <tr>
                       <th className="!px-2 !py-1 text-left">EMISOR</th>
                       <th className="!px-2 !py-1 text-right">VALUACIÓN</th>
@@ -1069,7 +1069,7 @@ export function AumView() {
           {tab === "total" ? (
             // ── DETALLE TOTAL: dos sub-tablas (CUENTA + ASSET) con
             //     filtro cruzado y reactivo a la cartera del leaderboard.
-            <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+            <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
               <PanelHeader
                 title="DETALLE"
                 sub={(() => {
@@ -1193,7 +1193,7 @@ export function AumView() {
               </div>
             </div>
           ) : (
-            <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+            <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
               <PanelHeader
                 title={`DETALLE · ${fmtFull(snapshotTotal)}`}
                 sub={
@@ -1368,7 +1368,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
   return (
     <div className="h-full grid grid-cols-[200px_1fr] gap-3 p-3 overflow-hidden">
       {/* Sidebar */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 flex flex-col gap-1.5 min-h-0 overflow-auto">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex flex-col gap-1.5 min-h-0 overflow-auto">
         <div className="text-[9px] text-[#666] uppercase tracking-widest mb-1">Plazo</div>
         {(["previo", "semana", "mes", "mtd", "ytd", "custom"] as DiffPlazo[]).map(p => (
           <button key={p} onClick={() => setPlazo(p)}
@@ -1445,7 +1445,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
         </div>
 
         {/* Tabla */}
-        <div className="border border-[#1a1a1a] bg-[#080808] flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex-1 min-h-0 flex flex-col overflow-hidden">
           {err ? (
             <div className="p-3 text-[#ff4d4d] text-[11px]">Error: {err}</div>
           ) : loading && !data ? (
@@ -1455,7 +1455,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
           ) : data ? (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
-                <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a] z-10">
+                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a] z-10">
                   <tr className="text-[9px] tracking-widest text-[#888]">
                     <th onClick={() => toggleSort("cuenta")}
                         className="px-3 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
@@ -1634,7 +1634,7 @@ export function CuentaCombobox({
       {open && filtered.length > 0 && (
         <ul
           ref={listRef}
-          className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-[280px] overflow-auto bg-[#080808] border border-[#2a2a2a] shadow-lg"
+          className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-[280px] overflow-auto bg-[var(--t-panel)] border border-[#2a2a2a] shadow-lg"
         >
           {filtered.map((c, i) => {
             const isSel = c.id_cuenta === value;
@@ -1661,7 +1661,7 @@ export function CuentaCombobox({
         </ul>
       )}
       {open && filtered.length === 0 && (
-        <div className="absolute left-0 right-0 top-full mt-0.5 z-50 bg-[#080808] border border-[#2a2a2a] px-2 py-2 text-[10px] text-[#666]">
+        <div className="absolute left-0 right-0 top-full mt-0.5 z-50 bg-[var(--t-panel)] border border-[#2a2a2a] px-2 py-2 text-[10px] text-[#666]">
           Sin resultados
         </div>
       )}
@@ -1729,7 +1729,7 @@ function Kpi({
   accent?: string;
 }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2">
       <div className="text-[10px] text-[#555555] uppercase tracking-wide">
         {label}
       </div>

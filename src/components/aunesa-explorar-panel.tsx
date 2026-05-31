@@ -195,7 +195,7 @@ export function AunesaExplorarPanel() {
   return (
     <div className="h-full flex flex-col bg-[#0a0a0a] text-[#d0d0d0]">
       {/* HEADER */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#1a1a1a] px-3 py-2 shrink-0 bg-[#080808]">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#1a1a1a] px-3 py-2 shrink-0 bg-[var(--t-panel)]">
         <DatePickerCompact value={fecha} onChange={setFecha} />
         <button
           onClick={explorar}
@@ -234,7 +234,7 @@ export function AunesaExplorarPanel() {
                 "px-3 py-0.5 text-[10px] uppercase tracking-wider " +
                 (vista === v
                   ? "bg-[#ff9900] text-black"
-                  : "bg-[#0f0f0f] text-[#888] hover:text-[#ddd]")
+                  : "bg-[var(--t-surface-2)] text-[#888] hover:text-[#ddd]")
               }
             >
               {v}
@@ -283,7 +283,7 @@ export function AunesaExplorarPanel() {
                       "w-full flex items-center gap-2 px-3 py-1 text-left text-[11px] font-mono " +
                       (active
                         ? "bg-[#1a1a1a] border-l-2 border-[#ff9900]"
-                        : "hover:bg-[#0f0f0f] border-l-2 border-transparent")
+                        : "hover:bg-[var(--t-surface-2)] border-l-2 border-transparent")
                     }
                   >
                     <span className="w-2 h-2 inline-block" style={{ background: color }} />
@@ -308,7 +308,7 @@ export function AunesaExplorarPanel() {
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                       (capFilter === f
                         ? "bg-[#ff9900] text-black"
-                        : "bg-[#0f0f0f] text-[#888] hover:text-[#ddd]")
+                        : "bg-[var(--t-surface-2)] text-[#888] hover:text-[#ddd]")
                     }
                   >
                     {f === "all" ? "todos" : f}
@@ -362,7 +362,7 @@ function BoletoTable({
 }) {
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="sticky top-0 bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666] z-10">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[#666] z-10">
         <tr>
           <th className="px-2 py-1 text-left w-24">Categoría</th>
           <th className="px-2 py-1 text-left">Comprobante</th>
@@ -416,7 +416,7 @@ function FragBoleto({
     <>
       <tr
         onClick={onToggle}
-        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[#0f0f0f]"
+        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[var(--t-surface-2)]"
       >
         <td className="px-2 py-1">
           <span className="inline-flex items-center gap-1.5">
@@ -438,7 +438,7 @@ function FragBoleto({
         <td className="px-2 py-1 text-[#888]">{b.lugar ?? "—"}</td>
       </tr>
       {open && (
-        <tr className="bg-[#080808]">
+        <tr className="bg-[var(--t-panel)]">
           <td colSpan={11} className="px-4 py-3">
             <div className="text-[10px] text-[#666] mb-2">
               <strong className="text-[#ff9900]">{b.informacion}</strong> · {b.n_lineas} líneas raw
@@ -485,7 +485,7 @@ function RawTable({
 }) {
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="sticky top-0 bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666] z-10">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[#666] z-10">
         <tr>
           <th className="px-2 py-1 text-left w-24">Categoría</th>
           <th className="px-2 py-1 text-left">Comprobante</th>
@@ -535,7 +535,7 @@ function FragMov({
     <>
       <tr
         onClick={onToggle}
-        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[#0f0f0f]"
+        className="border-t border-[#1a1a1a] cursor-pointer hover:bg-[var(--t-surface-2)]"
       >
         <td className="px-2 py-1">
           <span className="inline-flex items-center gap-1.5">
@@ -558,7 +558,7 @@ function FragMov({
         <td className="px-2 py-1 text-[#888]">{m.uso ?? "—"}</td>
       </tr>
       {open && (
-        <tr className="bg-[#080808]">
+        <tr className="bg-[var(--t-panel)]">
           <td colSpan={8} className="px-4 py-3">
             <table className="w-full text-[10px] font-mono">
               <tbody>
@@ -673,7 +673,7 @@ function DatePickerCompact({
         onClick={() => setOpen((p) => !p)}
         className={
           "px-3 py-1 text-[11px] font-mono min-w-[170px] text-center " +
-          (open ? "bg-[#1a1a1a] text-[#ff9900]" : "bg-black text-[#d0d0d0] hover:bg-[#0f0f0f]")
+          (open ? "bg-[#1a1a1a] text-[#ff9900]" : "bg-black text-[#d0d0d0] hover:bg-[var(--t-surface-2)]")
         }
       >
         {fmtDisplay(value)}

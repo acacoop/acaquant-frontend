@@ -395,7 +395,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
     <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[#d0d0d0] overflow-hidden">
 
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
-      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#080808] shrink-0 flex-wrap">
+      <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[#2a2a2a] divide-x divide-[#2a2a2a]">
           {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis"], ["informe", "Informe"]] as [SubView, string][]).map(
             ([v, label]) => (
@@ -434,7 +434,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
           {/* GRÁFICO DE EVOLUCIÓN */}
-          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] shrink-0 flex-wrap">
               <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
                 {metric === "aum" ? "AUM" : "Volumen operado"} · ARS
@@ -611,7 +611,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
           </div>
 
           {/* FICHA DEL CLIENTE (con tabs) — alineada con el portafolio (40%) */}
-          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Ficha</span>
               {cliente && (
@@ -654,21 +654,21 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
           {/* TABLA DE CLIENTES */}
-          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Clientes</span>
               <input
                 value={qCuenta}
                 onChange={(e) => setQCuenta(e.target.value)}
                 placeholder="buscar cuenta o nombre…"
-                className="ml-2 flex-1 max-w-[220px] bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                className="ml-2 flex-1 max-w-[220px] bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none"
               />
               <span className="ml-auto text-[10px] text-[#888] font-mono">{clientesFiltrados.length}</span>
               <DownloadBtn onClick={dlClientes} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
                     <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">AuM</th>
@@ -687,7 +687,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         onClick={() => setSelCuenta(active ? null : c.id_cuenta)}
                         className={
                           "border-t border-[#111] cursor-pointer transition-colors " +
-                          (active ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                          (active ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
                         }
                         title="Click: ficha + tenencia + gráfico de este cliente"
                       >
@@ -705,7 +705,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
           </div>
 
           {/* PORTAFOLIO — tabs Tenencia / Operaciones del cliente */}
-          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Portafolio</span>
               {portTab === "tenencia" && portafolio?.fecha_snapshot && (
@@ -746,7 +746,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   </div>
                 ) : (
                   <table className="w-full text-[11px] font-mono tabular-nums">
-                    <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                    <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                       <tr>
                         <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Unidad</th>
                         <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]">Valuación</th>
@@ -755,7 +755,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     </thead>
                     <tbody>
                       {portafolio.posiciones.map((p) => (
-                        <tr key={p.unidad} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                        <tr key={p.unidad} className="border-t border-[#111] hover:bg-[var(--t-surface)]">
                           <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[280px]" title={p.unidad}>{p.unidad}</td>
                           <td className="px-2 py-1.5 text-right font-semibold text-[#ff9900]">{fmtAum(p.valuacion)}</td>
                           <td className="px-3 py-1.5 text-right text-[#888]">{p.pct.toFixed(1)}%</td>
@@ -770,7 +770,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 </div>
               ) : (
                 <table className="w-full text-[10px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                     <tr>
                       <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Fecha</th>
                       <th className="px-2 py-1.5 text-left border-b border-[#1a1a1a]">Categ</th>
@@ -785,7 +785,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                       const color = OP_CAT_COLOR[o.categoria] ?? "#666";
                       const imp = o.importe ?? 0;
                       return (
-                        <tr key={o.comprobante} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                        <tr key={o.comprobante} className="border-t border-[#111] hover:bg-[var(--t-surface)]">
                           <td className="px-3 py-1 text-[#888] whitespace-nowrap">{fmtFechaCorta(o.fecha.slice(0, 10))}</td>
                           <td className="px-2 py-1">
                             <span className="inline-flex items-center gap-1">
@@ -1079,7 +1079,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             title="Filtrar la tabla por este estado"
             className={
               "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
-              (estadoSel === e ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[#080808] hover:border-[#2a2a2a]")
+              (estadoSel === e ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[var(--t-panel)] hover:border-[#2a2a2a]")
             }
           >
             <span className="w-2 h-2 inline-block" style={{ background: ESTADO_COLOR[e] }} />
@@ -1092,7 +1092,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           title="Filtrar: cuentas sin AuM"
           className={
             "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
-            (estadoSel === "SIN_AUM" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[#080808] hover:border-[#2a2a2a]")
+            (estadoSel === "SIN_AUM" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[var(--t-panel)] hover:border-[#2a2a2a]")
           }
         >
           <span className="text-[#888]">Sin AuM</span>
@@ -1103,7 +1103,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           title="Filtrar: sin operar en el año"
           className={
             "inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " +
-            (estadoSel === "SIN_OP_YTD" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[#080808] hover:border-[#2a2a2a]")
+            (estadoSel === "SIN_OP_YTD" ? "border-[#ff9900] bg-[#ff9900]/10" : "border-[#1a1a1a] bg-[var(--t-panel)] hover:border-[#2a2a2a]")
           }
         >
           <span className="text-[#888]">Sin operar (año)</span>
@@ -1112,21 +1112,21 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
 
         {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. */}
         <div className="ml-auto flex items-center gap-2">
-          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo transaccional asignado por el custodio (suma USD).">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo transaccional asignado por el custodio (suma USD).">
             <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo trans.</span>
             <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtUsd(cupoTotales.trans)}</span>
           </div>
-          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo usado (suma USD).">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo usado (suma USD).">
             <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo usado</span>
             <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">{fmtUsd(cupoTotales.usado)}</span>
           </div>
-          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="% utilización = usado / transaccional.">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="% utilización = usado / transaccional.">
             <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">% util.</span>
             <span className="text-[15px] font-semibold tabular-nums text-[#d0d0d0] leading-tight">
               {cupoTotales.pct != null ? `${cupoTotales.pct.toFixed(1)}%` : "—"}
             </span>
           </div>
-          <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo libre = transaccional − usado.">
+          <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo libre = transaccional − usado.">
             <span className="text-[10px] text-[#666] uppercase tracking-widest leading-none">Cupo libre</span>
             <span className="text-[15px] font-semibold tabular-nums text-[#5dd6a0] leading-tight">{fmtUsd(cupoTotales.libre)}</span>
           </div>
@@ -1136,7 +1136,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           <span className="w-4 h-4 inline-flex items-center justify-center rounded-full border border-[#2a2a2a] text-[#888] text-[10px] cursor-help group-hover:border-[#ff9900] group-hover:text-[#ff9900]">
             ?
           </span>
-          <div className="hidden group-hover:block absolute right-0 top-5 z-50 w-[320px] border border-[#2a2a2a] bg-[#0e0e0e] p-3 text-[10px] leading-relaxed shadow-lg">
+          <div className="hidden group-hover:block absolute right-0 top-5 z-50 w-[320px] border border-[#2a2a2a] bg-[var(--t-surface)] p-3 text-[10px] leading-relaxed shadow-lg">
             <div className="text-[#ff9900] uppercase tracking-widest text-[9px] mb-1.5">Cómo se calcula</div>
             <p><span style={{ color: ESTADO_COLOR.ACTIVA }}>● Activa</span><span className="text-[#888]">: operó hace ≤ {umbral.activa} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[#888]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
@@ -1152,7 +1152,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
 
       <div className="flex-1 min-h-0 grid grid-cols-[3fr_2fr] gap-3 overflow-hidden">
         {/* IZQ — Estado comercial (todos) */}
-        <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+        <div className="min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Estado comercial</span>
             {nivelSel && (
@@ -1167,7 +1167,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                 <tr>
                   <th onClick={() => onSortClick("cuenta")}     className="px-3 py-1.5 text-left border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]">Cuenta{sortArrow("cuenta")}</th>
                   <th onClick={() => onSortClick("estado")}     className="px-2 py-1.5 text-left border-b border-[#1a1a1a] cursor-pointer select-none hover:text-[#ff9900]">Estado{sortArrow("estado")}</th>
@@ -1179,7 +1179,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
               </thead>
               <tbody>
                 {ordenados.map((c) => (
-                  <tr key={c.id_cuenta} className="border-t border-[#111] hover:bg-[#0e0e0e]">
+                  <tr key={c.id_cuenta} className="border-t border-[#111] hover:bg-[var(--t-surface)]">
                     <td className="px-3 py-1.5 text-[#d0d0d0] truncate max-w-[220px]" title={c.denominacion}>
                       <span className="text-[#666]">[{c.id_cuenta}]</span> {c.denominacion}
                     </td>
@@ -1197,7 +1197,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
 
         {/* DER — Distribución por nivel (arriba, click = filtra clientes) + Riesgo de churn (abajo) */}
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
-          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex-[2_1_0%] min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Distribución por nivel 1</span>
               <span className="text-[10px] text-[#888] font-mono">{porNivel.length}</span>
@@ -1206,7 +1206,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 1</th>
                     <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Cuentas totales asignadas al segmento">Ctas. Tot.</th>
@@ -1229,7 +1229,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                         }}
                         className={
                           "border-t border-[#111] cursor-pointer transition-colors " +
-                          (active ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                          (active ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
                         }
                         title="Click: filtrar la tabla de Estado comercial por este nivel"
                       >
@@ -1246,7 +1246,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
             </div>
           </div>
 
-          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="flex-[3_1_0%] min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">Nivel 3</span>
               {nivelSel && <span className="text-[10px] text-[#ff9900] font-mono truncate max-w-[160px]">· {nivelSel}</span>}
@@ -1264,7 +1264,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                 <div className="h-full flex items-center justify-center text-[11px] text-[#555]">Sin datos.</div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                     <tr>
                       <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Nivel 3</th>
                       <th className="px-2 py-1.5 text-right border-b border-[#1a1a1a]" title="Suma del cupo transaccional (USD al MEP) del segmento.">Cupo Trans. (USD)</th>
@@ -1283,7 +1283,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                           onClick={() => setNivel3Sel(active ? null : r.n3)}
                           className={
                             "border-t border-[#111] cursor-pointer transition-colors " +
-                            (active ? "bg-[#ff9900]/10" : "hover:bg-[#0e0e0e]")
+                            (active ? "bg-[#ff9900]/10" : "hover:bg-[var(--t-surface)]")
                           }
                           title="Click: filtrar la tabla de Estado comercial por este nivel 3"
                         >

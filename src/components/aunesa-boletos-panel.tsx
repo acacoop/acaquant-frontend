@@ -134,7 +134,7 @@ function Faltantes() {
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Form */}
-      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <Field label="DESDE">
           <input
             type="date"
@@ -439,7 +439,7 @@ function Backfill() {
   return (
     <div className="h-full flex flex-col min-h-0 overflow-y-auto">
       {/* Form */}
-      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0 flex-wrap">
+      <div className="flex items-end gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <Field label="DESDE">
           <input
             type="date"
@@ -658,7 +658,7 @@ function Backfill() {
 
 function Kpi({ label, v, color }: { label: string; v: number; color?: string }) {
   return (
-    <div className="bg-[#080808] border border-[#1a1a1a] px-2 py-1">
+    <div className="bg-[var(--t-panel)] border border-[#1a1a1a] px-2 py-1">
       <div className="text-[9px] text-[#666] tracking-widest">{label}</div>
       <div
         className="text-[14px] font-bold tabular-nums"

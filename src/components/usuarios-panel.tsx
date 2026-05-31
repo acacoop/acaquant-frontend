@@ -133,7 +133,7 @@ export function UsuariosPanel() {
       )}
 
       {/* Crear usuario */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 shrink-0">
         <div className="text-[10px] text-[#ff9900] tracking-widest font-semibold mb-2">
           AGREGAR USUARIO
         </div>
@@ -145,7 +145,7 @@ export function UsuariosPanel() {
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="usuario@dominio.com"
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </div>
           <div>
@@ -153,7 +153,7 @@ export function UsuariosPanel() {
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               {roles.map((r) => (
                 <option key={r} value={r}>
@@ -168,7 +168,7 @@ export function UsuariosPanel() {
               type="text"
               value={newNotes}
               onChange={(e) => setNewNotes(e.target.value)}
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-xs px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
           </div>
           <button
@@ -182,7 +182,7 @@ export function UsuariosPanel() {
       </div>
 
       {/* Tabla */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-2 border-b border-[#1a1a1a] text-[9px] text-[#808080] tracking-wide shrink-0">
           <div>EMAIL</div>
           <div>ROLE</div>
@@ -230,7 +230,7 @@ function UserRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-1.5 border-b border-[#141414] text-xs items-center hover:bg-[#0e0e0e]">
+    <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-1.5 border-b border-[#141414] text-xs items-center hover:bg-[var(--t-surface)]">
       <div className="text-[#d0d0d0] font-mono truncate flex items-center gap-1.5">
         <span className="truncate">{user.email}</span>
         {user.auto_registered && (
@@ -246,7 +246,7 @@ function UserRow({
         value={user.role}
         disabled={busy}
         onChange={(e) => onPatch({ role: e.target.value })}
-        className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none disabled:opacity-40"
+        className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none disabled:opacity-40"
       >
         {roles.map((r) => (
           <option key={r} value={r}>

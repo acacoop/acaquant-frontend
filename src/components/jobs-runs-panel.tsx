@@ -91,7 +91,7 @@ export function JobsRunsPanel() {
   return (
     <div className="h-full flex flex-col overflow-hidden p-3 gap-3">
       {/* Stats por tipo (últimos 7 días) */}
-      <div className="border border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             Resumen 7 días
@@ -131,7 +131,7 @@ export function JobsRunsPanel() {
       </div>
 
       {/* Filtros + tabla */}
-      <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col flex-1 overflow-hidden">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col flex-1 overflow-hidden">
         <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 flex items-center justify-between gap-3">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             Historial de runs ({runs.length})
@@ -215,7 +215,7 @@ export function JobsRunsPanel() {
           onClick={() => setSelected(null)}
         >
           <div
-            className="bg-[#080808] border border-[#ff9900] max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col"
+            className="bg-[var(--t-panel)] border border-[#ff9900] max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 flex items-center justify-between">

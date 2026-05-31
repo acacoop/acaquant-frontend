@@ -62,7 +62,7 @@ export function CarteraResponse({
   const alertas = data.alertas_data ?? [];
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#0e0e0e] p-3 font-mono space-y-3">
+    <div className="border border-[#1a1a1a] bg-[var(--t-surface)] p-3 font-mono space-y-3">
       {/* Tesis arriba destacada */}
       <div className="border-l-2 border-[#ff9900] pl-2">
         <div className="text-[9px] text-[#555555] uppercase tracking-wide mb-0.5">Tesis</div>

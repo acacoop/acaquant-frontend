@@ -284,13 +284,13 @@ export function PnLTotalesView() {
 
       {/* Split layout: tabla 60 / detalle 40 */}
       <div className="flex-1 min-h-0 flex gap-3">
-        <div className="basis-[60%] border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 overflow-hidden">
+        <div className="basis-[60%] border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
           {filasOrdenadas.length === 0 ? (
             <div className="p-6 text-center text-[#555] text-[11px]">Sin posiciones para mostrar.</div>
           ) : (
             <div className="flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-[11px] font-mono">
-                <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a] z-10">
+                <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a] z-10">
                   <tr className="text-[9px] tracking-widest text-[#888]">
                     <th onClick={() => toggleSort("cuenta")} className="px-2 py-2 text-left cursor-pointer hover:text-[#ff9900] select-none">
                       CUENTA {arrow("cuenta")}
@@ -374,10 +374,10 @@ export function PnLTotalesView() {
         </div>
 
         {/* Panel detalle 40% */}
-        <div className="basis-[40%] border border-[#1a1a1a] bg-[#080808] min-h-0 overflow-y-auto">
+        <div className="basis-[40%] border border-[#1a1a1a] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
           {selectedRow ? (
             <>
-              <div className="px-3 py-1 bg-[#0e0e0e] border-b border-[#1a1a1a] text-[9px] tracking-widest text-[#666]">
+              <div className="px-3 py-1 bg-[var(--t-surface)] border-b border-[#1a1a1a] text-[9px] tracking-widest text-[#666]">
                 <span className="text-[#888]">CUENTA</span> [{selectedRow.id_cuenta}] {selectedRow.cuenta.replace(/^\[\d+\]\s*/, "")}
               </div>
               <PosicionDetalle row={selectedRow} esUSD={esUSD} />
@@ -395,7 +395,7 @@ export function PnLTotalesView() {
 
 function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] px-3 py-2">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-3 py-2">
       <div className="text-[10px] text-[#555] uppercase tracking-wide">{label}</div>
       <div className="text-[18px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
       {sub && <div className="text-[10px] text-[#666]">{sub}</div>}

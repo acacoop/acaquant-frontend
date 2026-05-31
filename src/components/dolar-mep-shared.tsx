@@ -175,7 +175,7 @@ export function SaldoBox({
   };
 
   return (
-    <div className="flex items-center gap-6 px-3 py-2 bg-[#080808] border border-[#1a1a1a]">
+    <div className="flex items-center gap-6 px-3 py-2 bg-[var(--t-panel)] border border-[#1a1a1a]">
       <div className="flex items-center gap-2 min-w-[110px]">
         <span className="text-[9px] tracking-wider text-[#888]">SALDO {saldo?.rueda ?? ""}</span>
         {onRefresh && (

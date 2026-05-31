@@ -236,7 +236,7 @@ function FciOperatePanel({
   const isBuy = side === "BUY";
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 overflow-y-auto">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
       <div className="px-2 py-1 border-b border-[#1a1a1a] text-[11px] tracking-wide text-[#d0d0d0] font-semibold shrink-0">
         OPERAR FCI
       </div>
@@ -478,7 +478,7 @@ export function OperarFciView() {
   return (
     <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
       {/* Toolbar — mismo que el dashboard */}
-      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
         <AccountSearch value={account} cuentas={cuentas} onPick={(id) => setAccount(id)} />
         <span className="ml-auto text-[9px] text-[#555] tracking-wide">

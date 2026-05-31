@@ -15,7 +15,7 @@ export function OperacionesView() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "movimientos"} onClick={() => setTab("movimientos")}>
           MOVIMIENTOS
         </TabBtn>

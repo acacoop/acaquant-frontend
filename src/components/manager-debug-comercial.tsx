@@ -49,10 +49,10 @@ export function ManagerDebugComercialPanel() {
   };
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808]">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#0e0e0e] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--t-surface)] transition-colors"
       >
         <span className="text-[10px] text-[#555555]">{open ? "▾" : "▸"}</span>
         <span className="text-[11px] font-semibold text-[#d0d0d0]">
@@ -65,7 +65,7 @@ export function ManagerDebugComercialPanel() {
             <select
               value={operador}
               onChange={(e) => setOperador(e.target.value)}
-              className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               <option value="">— operador —</option>
               {operadores.map((o) => (
@@ -78,7 +78,7 @@ export function ManagerDebugComercialPanel() {
               value={segmento}
               onChange={(e) => setSegmento(e.target.value)}
               placeholder="segmento (nivel_1)"
-              className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             />
             <button
               onClick={run}

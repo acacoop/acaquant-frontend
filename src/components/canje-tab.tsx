@@ -114,7 +114,7 @@ export function CanjeTab() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Controles */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 flex items-center gap-3 shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wide text-[#555]">Par</span>
           <div className="flex items-center gap-1 h-[26px]">
@@ -166,7 +166,7 @@ export function CanjeTab() {
       )}
 
       {/* Chart */}
-      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] p-2">
+      <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] p-2">
         {chartData.length < 2 ? (
           <p className="text-[#555] text-xs py-4 text-center">
             {loading ? "Cargando…" : "Sin datos suficientes."}
@@ -258,7 +258,7 @@ function Kpi({
           ? "text-[#ff9900]"
           : "text-[#d0d0d0]";
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] p-2">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2">
       <div className="text-[9px] uppercase tracking-widest text-[#555] mb-1">{label}</div>
       <div className={`text-[14px] font-mono font-semibold ${color}`}>{value}</div>
     </div>

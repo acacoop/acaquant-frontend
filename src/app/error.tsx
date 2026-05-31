@@ -12,7 +12,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   return (
-    <div className="h-full min-h-screen flex items-center justify-center bg-[#080808] p-6">
+    <div className="h-full min-h-screen flex items-center justify-center bg-[var(--t-panel)] p-6">
       <div className="max-w-xl border border-[#ff3333]/40 bg-[#0a0a0a] p-6 font-mono space-y-3">
         <div className="text-[#ff3333] text-xs uppercase tracking-wider">
           Error en la vista
@@ -21,7 +21,7 @@ export default function GlobalError({
           Algo rompió al renderizar. Si persiste, revisá logs de la API o del
           motor correspondiente.
         </div>
-        <pre className="text-[10px] text-[#808080] whitespace-pre-wrap bg-[#080808] border border-[#1a1a1a] p-2 overflow-x-auto">
+        <pre className="text-[10px] text-[#808080] whitespace-pre-wrap bg-[var(--t-panel)] border border-[#1a1a1a] p-2 overflow-x-auto">
           {error.message}
           {error.digest ? `\n\ndigest: ${error.digest}` : ""}
         </pre>

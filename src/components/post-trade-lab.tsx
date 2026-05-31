@@ -211,7 +211,7 @@ export function PostTradeLab({
       {/* Matriz P&L precio × tiempo */}
       <div className="flex-1 min-h-0 overflow-auto p-1">
         <table className="w-full text-[9px] font-mono tabular-nums border-collapse">
-          <thead className="sticky top-0 bg-[#080808] z-10 text-[#666]">
+          <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[#666]">
             <tr>
               <th className="px-1 py-0.5 text-left">SPOT</th>
               {cols.map((d) => (
@@ -262,7 +262,7 @@ function Metric({
   hint?: string;
 }) {
   return (
-    <div className="bg-[#080808] px-2 py-1">
+    <div className="bg-[var(--t-panel)] px-2 py-1">
       <div className="text-[8px] text-[#666] tracking-wide">{label}</div>
       <div
         className="text-[12px] font-semibold tabular-nums"

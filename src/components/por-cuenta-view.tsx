@@ -176,7 +176,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
       </div>
 
       {/* Tabla */}
-      <div className="flex-1 min-h-0 mx-2 mb-2 border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 mx-2 mb-2 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col">
         {err ? (
           <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>
         ) : loading && !data ? (
@@ -190,7 +190,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a] z-10">
+              <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a] z-10">
                 <tr className="text-[9px] tracking-widest text-[#888]">
                   <Th onClick={() => toggleSort("cuenta")} left>CUENTA{arrow("cuenta")}</Th>
                   <Th onClick={() => toggleSort("valor_ars")}>VALOR ARS{arrow("valor_ars")}</Th>

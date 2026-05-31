@@ -76,7 +76,7 @@ export function OpcionesTableCompact({
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto">
           <table className="w-full text-[10px]">
-            <thead className="sticky top-0 bg-[#080808] z-10">
+            <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
               <tr className="text-[#707070]">
                 <th className="!px-1 text-right">STRIKE</th>
                 <th className="!px-1 text-right">LAST</th>

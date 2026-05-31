@@ -177,7 +177,7 @@ export function SensibilidadTable() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Controles */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 flex items-center gap-3 shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-wide text-[#555]">
             Modo
@@ -211,7 +211,7 @@ export function SensibilidadTable() {
                 : setTirsRel(e.target.value)
             }
             placeholder={modo === "absoluta" ? "4,5,6,7,8,9,10,11" : "-4,-3,-2,-1,0,1,2,3,4"}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-56"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -238,7 +238,7 @@ export function SensibilidadTable() {
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
             }}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none w-20"
             title="0 = upside instantáneo. >0 = proyecta el precio. Enter o click fuera para aplicar."
           />
         </div>
@@ -283,7 +283,7 @@ export function SensibilidadTable() {
 
       {/* Tabla + panel de debug lateral */}
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
-      <div className="flex-1 min-h-0 overflow-auto border border-[#1a1a1a] bg-[#080808]">
+      <div className="flex-1 min-h-0 overflow-auto border border-[#1a1a1a] bg-[var(--t-panel)]">
         <table className="w-full text-[11px] font-mono border-collapse">
           <thead className="sticky top-0 bg-[#0c0c0c] z-10">
             <tr className="border-b border-[#1a1a1a] text-[10px] uppercase tracking-wide text-[#ff9900]">

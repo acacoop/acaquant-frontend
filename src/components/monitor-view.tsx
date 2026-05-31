@@ -47,7 +47,7 @@ const fmtUsd = (n: number | null | undefined): string =>
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] px-2 py-1.5">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-1.5">
       <div className="text-[8px] text-[#555555] uppercase tracking-wide">{label}</div>
       <div className="text-[13px] font-mono text-[#d0d0d0]">{value}</div>
       {hint && <div className="text-[8px] text-[#555555]">{hint}</div>}
@@ -181,7 +181,7 @@ export function MonitorView() {
           {posiciones.map((p) => (
             <span
               key={p.ticker}
-              className="inline-flex items-center gap-1 border border-[#1a1a1a] bg-[#080808] px-2 py-0.5 font-mono"
+              className="inline-flex items-center gap-1 border border-[#1a1a1a] bg-[var(--t-panel)] px-2 py-0.5 font-mono"
             >
               <span className={p.notional >= 0 ? "text-[#3fbf6f]" : "text-[#ff7f7f]"}>
                 {p.notional >= 0 ? "L" : "S"}

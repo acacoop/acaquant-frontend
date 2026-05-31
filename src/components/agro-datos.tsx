@@ -189,7 +189,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
             value={ars}
             onChange={(e) => onArsChange(e.target.value)}
             placeholder="—"
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-28 text-right"
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-28 text-right"
           />
         </div>
       </td>
@@ -202,7 +202,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
             value={usd}
             onChange={(e) => onUsdChange(e.target.value)}
             placeholder="—"
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-24 text-right"
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none w-24 text-right"
           />
           {saving && <span className="text-[9px] text-[#888]">…</span>}
           {savedOk === true && (

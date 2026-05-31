@@ -557,7 +557,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
 
         {/* Chart panel — izquierda */}
-        <div className="w-1/2 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden min-w-0 min-h-0">
+        <div className="w-1/2 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               Evolución mensual · [{idCuenta}]
@@ -730,7 +730,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         </div>
 
         {/* Tabla mensual compacta — derecha (con flujos inline al seleccionar un mes) */}
-        <div className="w-1/2 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden min-w-0 min-h-0">
+        <div className="w-1/2 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               Mensual
@@ -815,7 +815,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               </div>
             ) : (
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
                     <th className="px-2 py-1 text-left border-b border-[#1a1a1a]">Mes</th>
                     <th
@@ -861,7 +861,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                           "cursor-pointer border-t border-[#111] transition-colors " +
                           (active
                             ? "bg-[#ff9900]/15"
-                            : "hover:bg-[#0f0f0f]")
+                            : "hover:bg-[var(--t-surface-2)]")
                         }
                         title={
                           active
@@ -946,7 +946,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       </div>
 
       {/* FILA INFERIOR: PORTFOLIO a todo el ancho, con tabs Posiciones / Variación */}
-      <div className="flex-1 min-w-0 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             Portfolio
@@ -1120,7 +1120,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                   <col className="w-[11%]" />
                   <col className="w-[5%]" />
                 </colgroup>
-                <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
                     <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Ticker</th>
                     <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Emisor</th>
@@ -1143,7 +1143,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         e.preventDefault();
                         setCtxMenu({ x: e.clientX, y: e.clientY, pos: p });
                       }}
-                      className={`border-t border-[#111] hover:bg-[#0f0f0f] ${
+                      className={`border-t border-[#111] hover:bg-[var(--t-surface-2)] ${
                         _posOperable(p).operable ? "cursor-context-menu" : ""
                       }`}
                     >
@@ -1247,7 +1247,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
         <col className="w-[15%]" />
         <col className="w-[34%]" />
       </colgroup>
-      <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
         <tr>
           <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Fecha</th>
           <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Tipo</th>
@@ -1264,7 +1264,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
         {movResp.movimientos.map((m) => {
           const isDep = m.categoria === "deposito" || m.categoria === "transferencia";
           return (
-            <tr key={m.comprobante ?? m.fecha} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+            <tr key={m.comprobante ?? m.fecha} className="border-t border-[#111] hover:bg-[var(--t-surface-2)]">
               <td className="px-2 py-1 align-top text-[#888]">{fmtFechaCorta(m.fecha)}</td>
               <td className="px-2 py-1 align-top whitespace-normal break-words">
                 <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
@@ -1321,7 +1321,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
         <col className="w-[12%]" />
         <col className="w-[13%]" />
       </colgroup>
-      <thead className="sticky top-0 bg-[#0f0f0f] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+      <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
         <tr>
           <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Título</th>
           <th className="px-2 py-1 text-left align-top border-b border-[#1a1a1a]">Tipo</th>
@@ -1340,7 +1340,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
       </thead>
       <tbody>
         {varResp.filas.map((f) => (
-          <tr key={f.unidad} className="border-t border-[#111] hover:bg-[#0f0f0f]">
+          <tr key={f.unidad} className="border-t border-[#111] hover:bg-[var(--t-surface-2)]">
             <td className="px-2 py-1 align-top whitespace-normal break-words text-[#ff9900]" title={f.unidad}>
               {f.unidad}
               {f.estado !== "ambos" && (
@@ -1382,7 +1382,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
             </td>
           </tr>
         )}
-        <tr className="border-t-2 border-[#333] bg-[#0f0f0f] font-semibold">
+        <tr className="border-t-2 border-[#333] bg-[var(--t-surface-2)] font-semibold">
           <td className="px-2 py-1 align-top text-[#ff9900]" colSpan={2}>TOTAL</td>
           <td className="px-2 py-1 align-top text-right text-[#888]">{fmtCompact(varResp.totales.val_anterior)}</td>
           <td className="px-2 py-1 align-top text-right text-[#d0d0d0]">{fmtCompact(varResp.totales.val_actual)}</td>

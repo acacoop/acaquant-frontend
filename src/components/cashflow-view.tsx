@@ -307,7 +307,7 @@ export function CashFlowView() {
 
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 space-y-2 shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] text-[#ff9900] font-mono min-w-[54px]">{desde}</span>
           <DualRange
@@ -351,7 +351,7 @@ export function CashFlowView() {
             <select
               value={filtroAcc}
               onChange={(e) => setFiltroAcc(e.target.value as FiltroAcc)}
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               <option>Todas</option>
               <option>Sin accionistas</option>
@@ -363,7 +363,7 @@ export function CashFlowView() {
             <select
               value={seleccion}
               onChange={(e) => setSeleccion(e.target.value)}
-              className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
             >
               <option value="__TODAS__">Todas</option>
               {opciones.map((o) => (
@@ -437,7 +437,7 @@ function MonedaChart({
     granularity === "Mensual" ? 0 : Math.max(0, Math.floor(data.length / 10));
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808]">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
       <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
         <span
           className="text-[11px] font-semibold tracking-wide uppercase"

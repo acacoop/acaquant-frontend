@@ -323,7 +323,7 @@ export function ContrapartesView() {
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Filtros */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 space-y-2 shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
         {/* Barrita de rango (deshabilitada si hay día específico) */}
         <div
           className={`flex items-center gap-2 ${
@@ -352,7 +352,7 @@ export function ContrapartesView() {
               <select
                 value={dia}
                 onChange={(e) => setDia(e.target.value)}
-                className="flex-1 bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
+                className="flex-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none"
               >
                 <option value="">(rango completo)</option>
                 {[...diasAll].reverse().map((d) => (
@@ -439,7 +439,7 @@ export function ContrapartesView() {
 
       {/* Si hay día específico: tabla de operaciones del día. Si no: contrapartes + meses. */}
       {dia ? (
-        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               OPERACIONES · {dia}
@@ -456,7 +456,7 @@ export function ContrapartesView() {
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[#080808] z-10">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                 <tr className="border-b border-[#1a1a1a] text-left text-[#ff9900] uppercase tracking-wide">
                   <th className="!px-2 !py-1">Boleto</th>
                   <th className="!px-2 !py-1">Tipo</th>
@@ -515,10 +515,10 @@ export function ContrapartesView() {
       /* Fila 1: Tabla contrapartes | Tabla meses (misma altura, flex-1) */
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
         {/* Contrapartes */}
-        <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[#080808] z-10">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                 <tr className="border-b border-[#1a1a1a]">
                   <th className="!px-2 !py-1 text-left text-[#ff9900] font-semibold tracking-wide uppercase">
                     CONTRAPARTE
@@ -586,7 +586,7 @@ export function ContrapartesView() {
         </div>
 
         {/* Meses */}
-        <div className="border border-[#1a1a1a] bg-[#080808] overflow-hidden flex flex-col min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
               MESES
@@ -597,7 +597,7 @@ export function ContrapartesView() {
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[#080808] z-10">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                 <tr>
                   <th className="!px-2 !py-1 text-left">MES</th>
                   <th className="!px-2 !py-1 text-right">BRUTO</th>
@@ -635,7 +635,7 @@ export function ContrapartesView() {
       {/* Fila 2: Charts acumulados — solo en modo rango. Con un día específico
            el chart muestra un solo punto y no aporta; la tabla alcanza. */}
       {!dia && (
-      <div className="border border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10">
           <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
             FLUJO ACUMULADO

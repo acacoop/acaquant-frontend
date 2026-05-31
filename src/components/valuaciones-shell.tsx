@@ -68,7 +68,7 @@ export function ValuacionesShell() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-[9px] tracking-widest text-[#666]">CUENTA</span>
           <button

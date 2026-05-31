@@ -315,7 +315,7 @@ export function IntradayView() {
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3 overflow-hidden">
       {/* Upload + filtros */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3 flex items-center gap-3 shrink-0 flex-wrap">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
         <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[#ff9900] text-[#ff9900] hover:bg-[#ff9900] hover:text-black cursor-pointer transition-colors">
           EXAMINAR ARCHIVO
           <input
@@ -392,7 +392,7 @@ export function IntradayView() {
       {hayDatos && (
         <div className="flex-1 min-h-0 grid grid-cols-[1fr_auto] gap-3 overflow-hidden">
           {/* Tabla consolidada (agrupada visualmente por moneda). */}
-          <div className="overflow-y-auto border border-[#1a1a1a] bg-[#080808]">
+          <div className="overflow-y-auto border border-[#1a1a1a] bg-[var(--t-panel)]">
             <table className="w-full text-[11px] font-mono border-collapse">
               <thead className="sticky top-0 bg-[#0c0c0c] z-10">
                 <tr className="border-b border-[#1a1a1a] text-[10px] uppercase tracking-wide text-[#ff9900]">

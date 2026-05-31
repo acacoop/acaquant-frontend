@@ -83,7 +83,7 @@ export function HomeView() {
             />
           </div>
           <div className="min-h-0">
-            <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[#080808] overflow-hidden">
+            <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] overflow-hidden">
               {chartHeader}
               <div className="flex-1 min-h-0">
                 {!maximized && chartContent}
@@ -105,7 +105,7 @@ export function HomeView() {
           onClick={() => setMaximized(false)}
         >
           <div
-            className="bg-[#080808] border border-[#ff9900] w-[96vw] h-[92vh] flex flex-col overflow-hidden"
+            className="bg-[var(--t-panel)] border border-[#ff9900] w-[96vw] h-[92vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {chartHeader}

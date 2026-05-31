@@ -100,7 +100,7 @@ export function AgroOpcionesChain({
                 value={vto ?? ""}
                 onChange={(e) => setVtoSel(e.target.value || null)}
                 disabled={data.vencimientos.length === 0}
-                className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+                className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1.5 py-0.5 font-mono focus:border-[#ff9900] outline-none"
               >
                 {data.vencimientos.length === 0 && (
                   <option value="">sin vtos</option>

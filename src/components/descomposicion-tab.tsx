@@ -151,7 +151,7 @@ export function DescomposicionTab() {
 
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] p-2 shrink-0 flex items-center gap-2 flex-wrap">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1 mr-3">
           <FilterBtn active={curva === "tasa_fija"} onClick={() => setCurva("tasa_fija")}>
             TASA FIJA
@@ -304,7 +304,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
   return (
     <div className="h-full flex flex-col min-h-0 gap-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] p-2 shrink-0 flex items-center gap-3 flex-wrap">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
         {fechas.length < 2 ? (
           <span className="text-[10px] text-[#555]">cargando fechas…</span>
         ) : (
@@ -356,7 +356,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px_auto] gap-3">
         {/* Chart */}
-        <div className="border border-[#1a1a1a] bg-[#080808] p-2 min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 min-h-0">
           {error ? (
             <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
@@ -406,12 +406,12 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         </div>
 
         {/* Tabla */}
-        <div className="border border-[#1a1a1a] bg-[#080808] p-2 overflow-y-auto min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
           {!data?.bonos?.length ? (
             <p className="text-[#555] text-[10px] py-4 text-center">--</p>
           ) : (
             <table className="w-full text-[10px]">
-              <thead className="sticky top-0 bg-[#080808] z-10">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                 <tr className="text-[#707070]">
                   <th className="!px-1 text-left">TICKER</th>
                   <th className="!px-1 text-right">CARRY</th>
@@ -540,7 +540,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
   return (
     <div className="h-full flex flex-col min-h-0 gap-3">
-      <div className="border border-[#1a1a1a] bg-[#080808] p-2 shrink-0 flex items-center gap-3 flex-wrap">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-center gap-3 flex-wrap">
         <span className="text-[10px] text-[#555] tracking-wider">HORIZONTE</span>
         <div className="flex items-center gap-1">
           {HORIZONTES.map((h) => (
@@ -564,7 +564,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_360px_auto] gap-3">
         {/* Chart */}
-        <div className="border border-[#1a1a1a] bg-[#080808] p-2 min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 min-h-0">
           {error ? (
             <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
@@ -613,12 +613,12 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         </div>
 
         {/* Tabla */}
-        <div className="border border-[#1a1a1a] bg-[#080808] p-2 overflow-y-auto min-h-0">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 overflow-y-auto min-h-0">
           {!data?.bonos?.length ? (
             <p className="text-[#555] text-[10px] py-4 text-center">--</p>
           ) : (
             <table className="w-full text-[10px]">
-              <thead className="sticky top-0 bg-[#080808] z-10">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                 <tr className="text-[#707070]">
                   <th className="!px-1 text-left">TICKER</th>
                   <th className="!px-1 text-right">{curva === "cer" ? "TEA" : "TEM"}</th>
@@ -695,7 +695,7 @@ function AuditDrawer({
 }) {
   return (
     <div
-      className={`border border-[#1a1a1a] bg-[#080808] flex min-h-0 transition-[width] duration-150 ${
+      className={`border border-[#1a1a1a] bg-[var(--t-panel)] flex min-h-0 transition-[width] duration-150 ${
         open ? "w-[300px]" : "w-8"
       }`}
     >

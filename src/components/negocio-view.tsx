@@ -780,7 +780,7 @@ export function NegocioView() {
 
         <button
           onClick={() => fecha && void fetchData(fecha)}
-          className="bg-[#0f0f0f] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[#888] hover:text-[#ff9900]"
+          className="bg-[var(--t-surface-2)] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[#888] hover:text-[#ff9900]"
         >
           ↻ Refresh
         </button>
@@ -805,7 +805,7 @@ export function NegocioView() {
           <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
 
             {/* CHART panel (queda como flex-1 para ocupar el resto del alto) */}
-            <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden order-2">
+            <div className="flex-1 min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden order-2">
               <div className="flex items-center px-3 py-2 border-b border-[#1a1a1a] shrink-0 flex-wrap gap-2">
                 <span className="text-[10px] uppercase tracking-widest text-[#ff9900]">
                   Volumen operado · {moneda}
@@ -988,7 +988,7 @@ export function NegocioView() {
             </div>
 
             {/* POR CATEGORÍA leaderboard (order-1 → arriba) */}
-            <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden shrink-0 order-1">
+            <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden shrink-0 order-1">
               <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0">
                 <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
                   Por categoría · {vistaMode === "DIA"
@@ -1000,7 +1000,7 @@ export function NegocioView() {
                 </span>
               </div>
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="bg-[#0f0f0f] text-[9px] uppercase tracking-widest text-[#666]">
+                <thead className="bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[#666]">
                   <tr>
                     <th className="px-3 py-1 text-left">Categoría</th>
                     <th className="px-3 py-1 text-right">Importe</th>
@@ -1044,7 +1044,7 @@ export function NegocioView() {
           </div>
 
           {/* COLUMNA DERECHA · DETALLE (scope global vía vistaMode) */}
-          <div className="min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+          <div className="min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 gap-2 flex-wrap">
               <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
                 Detalle {vistaMode === "DIA" ? "día" : "período"}
@@ -1093,7 +1093,7 @@ export function NegocioView() {
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[#080808] z-10 text-[9px] uppercase tracking-widest text-[#666]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[#666]">
                     <tr>
                       <th className="px-3 py-1.5 text-left border-b border-[#1a1a1a]">Cuenta</th>
                       <th className="px-3 py-1.5 text-right border-b border-[#1a1a1a]">Importe</th>
@@ -1116,7 +1116,7 @@ export function NegocioView() {
                               setExpandedCuenta(expanded ? null : r.cuenta);
                             }}
                             className={
-                              "border-t border-[#111] hover:bg-[#0f0f0f] " +
+                              "border-t border-[#111] hover:bg-[var(--t-surface-2)] " +
                               (canExpand ? "cursor-pointer" : "cursor-default") +
                               (expanded ? " bg-[#ff9900]/5" : "")
                             }

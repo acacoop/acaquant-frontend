@@ -42,7 +42,7 @@ export function EstrategiasTabla({
           <select
             value={strike ?? atmStrike ?? ""}
             onChange={(e) => setStrike(Number(e.target.value))}
-            className="ml-1 bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="ml-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
           >
             {liquidStrikes.map((k) => (
               <option key={k} value={k}>
@@ -57,7 +57,7 @@ export function EstrategiasTabla({
           <select
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
-            className="ml-1 bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
+            className="ml-1 bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[10px] px-1 py-0.5 font-mono focus:border-[#ff9900] outline-none"
           >
             {CATEGORIAS.map((c) => (
               <option key={c} value={c}>
@@ -73,7 +73,7 @@ export function EstrategiasTabla({
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         <table className="w-full text-[10px]">
-          <thead className="sticky top-0 bg-[#080808] z-10">
+          <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
             <tr className="text-[#707070]">
               <th className="!px-1 text-left">ESTRATEGIA</th>
               <th className="!px-1 text-center">STRIKES</th>

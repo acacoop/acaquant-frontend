@@ -130,7 +130,7 @@ export function NewsPanel() {
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[#080808]">
+    <div className="h-full flex flex-col min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)]">
       {/* Header */}
       <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 shrink-0 flex items-center gap-2">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
@@ -206,7 +206,7 @@ export function NewsPanel() {
             return (
               <li
                 key={h.url}
-                className={`border-b border-[#111111] transition-colors hover:bg-[#0e0e0e] ${
+                className={`border-b border-[#111111] transition-colors hover:bg-[var(--t-surface)] ${
                   flash ? "bg-[#ff9900]/15 animate-pulse" : ""
                 }`}
               >

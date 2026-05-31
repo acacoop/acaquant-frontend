@@ -216,7 +216,7 @@ function MetricRow({
   highlight?: boolean;
 }) {
   return (
-    <tr className={highlight ? "bg-[#0e0e0e]" : ""}>
+    <tr className={highlight ? "bg-[var(--t-surface)]" : ""}>
       <td className="text-right px-2 py-0.5 font-mono text-[#d0d0d0] whitespace-nowrap">{a}</td>
       <td className="text-center px-2 py-0.5 text-[8px] text-[#555555] uppercase tracking-wide whitespace-nowrap">{label}</td>
       <td className="text-left px-2 py-0.5 font-mono text-[#d0d0d0] whitespace-nowrap">{b}</td>
@@ -326,7 +326,7 @@ export function CompararInversionView() {
   return (
     <div className="h-full min-h-0 flex flex-col p-2 gap-2">
       {/* Toolbar: monto + moneda + selectores */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-2 shrink-0 flex items-end gap-3 flex-wrap">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-2 shrink-0 flex items-end gap-3 flex-wrap">
         <div>
           <div className="text-[8px] text-[#555555] uppercase mb-0.5">Monto a invertir</div>
           <div className="flex items-stretch">
@@ -363,10 +363,10 @@ export function CompararInversionView() {
       {/* Cuerpo: tabla izq + gráfico der */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-2">
         {/* Tabla de métricas */}
-        <div className="border border-[#1a1a1a] bg-[#080808] min-h-0 overflow-y-auto">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
           {data ? (
             <table className="w-full text-[11px]">
-              <thead className="sticky top-0 bg-[#080808] z-10">
+              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
                 <tr>
                   <th className="text-right px-2 py-1 font-semibold text-[11px]" style={{ color: COLOR_A }}>
                     {data.a.label}
@@ -459,7 +459,7 @@ export function CompararInversionView() {
         </div>
 
         {/* Gráfico */}
-        <div className="border border-[#1a1a1a] bg-[#080808] min-h-0 flex flex-col">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)] min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-2 pt-1.5 shrink-0">
             <span className="text-[9px] text-[#ff9900] tracking-widest">
               FLUJOS

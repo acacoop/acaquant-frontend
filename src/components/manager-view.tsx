@@ -127,7 +127,7 @@ function SectionHeader({ title }: { title: string }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="h-full min-h-0 border border-[#1a1a1a] bg-[#080808] flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col overflow-hidden">
       <SectionHeader title={title} />
       <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
@@ -297,7 +297,7 @@ function OpcionesExpiriesPanel() {
   };
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808]">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
       <div className="px-3 py-1.5 border-b border-[#1a1a1a] bg-[#ff9900]/10 flex items-center gap-2">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Opciones — vencimientos a trackear
@@ -384,9 +384,9 @@ function OpcionesExpiriesPanel() {
 function CheckPanel({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808]">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#0e0e0e] transition-colors">
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--t-surface)] transition-colors">
         <span className="text-[10px] text-[#555555]">{open ? "▾" : "▸"}</span>
         <span className="text-[11px] font-semibold text-[#d0d0d0]">{title}</span>
       </button>
@@ -823,12 +823,12 @@ function TabValidaciones() {
       <CheckPanel title="Debug Forward — cálculo paso a paso entre dos instrumentos">
         <div className="flex items-center gap-2 mb-2">
           <select value={tcA} onChange={e => setTcA(e.target.value)}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
             {tickers.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <span className="text-[#555555] text-[10px]">→</span>
           <select value={tcB} onChange={e => setTcB(e.target.value)}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
             {tickers.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
           <button onClick={runDbf} disabled={dbfLoading || tcA === tcB}
@@ -872,7 +872,7 @@ function TabValidaciones() {
       <CheckPanel title="Debug Soberano — cálculo paso a paso del YTM (GD30D / GD35D / GD38D)">
         <div className="flex items-center gap-2 mb-2">
           <select value={tcSob} onChange={e => setTcSob(e.target.value)}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#ff9900] text-[10px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none">
             <option value="">— elegir ticker —</option>
             {tickers.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -1219,7 +1219,7 @@ function TabValidaciones() {
                     <div className="space-y-2">
                       <div className="max-h-[260px] overflow-y-auto border border-[#141414]">
                         <table className="w-full text-[10px] font-mono">
-                          <thead className="text-[#555] text-[9px] sticky top-0 bg-[#080808]">
+                          <thead className="text-[#555] text-[9px] sticky top-0 bg-[var(--t-panel)]">
                             <tr>
                               <th className="text-left px-1">FECHA</th>
                               <th className="text-right px-1">HIGH</th>
@@ -1493,7 +1493,7 @@ function TabAssets() {
           {(valueOpts[c] || []).map((v) => <option key={v} value={v} />)}
         </datalist>
       ))}
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">ASSETS</span>
         <span className="text-[10px] text-[#666]">{assets.length} resultados</span>
 
@@ -1547,7 +1547,7 @@ function TabAssets() {
         )}
         {assets.length > 0 && (
           <table className="w-full text-[11px] font-mono">
-            <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
+            <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a]">
               <tr className="text-left text-[#888] tracking-widest text-[9px]">
                 <th className="px-3 py-2">UNIDAD</th>
                 {ASSET_CAMPOS.map((c) => <th key={c} className="px-2 py-2">{c}</th>)}
@@ -1885,7 +1885,7 @@ function TabClientesSegmentacion() {
         </datalist>
       ))}
 
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">CLIENTES</span>
         <span className="text-[10px] text-[#666]">{rows.length} resultados</span>
 
@@ -1951,7 +1951,7 @@ function TabClientesSegmentacion() {
         {!error && !loading && rows.length === 0 && <div className="p-3 text-[11px] text-[#555]">Sin resultados para el filtro actual.</div>}
         {rows.length > 0 && (
           <table className="text-[11px] font-mono">
-            <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
+            <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a]">
               <tr className="text-left text-[#888] tracking-widest text-[9px]">
                 <th className="px-3 py-2">CUENTA</th>
                 <th className="px-2 py-2">DENOMINACIÓN</th>
@@ -2163,7 +2163,7 @@ function TabClientesFondeos() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest">FONDEOS</span>
         <span className="text-[10px] text-[#666]">{visibles.length} / {rows.length}</span>
 
@@ -2212,7 +2212,7 @@ function TabClientesFondeos() {
         {!error && !loading && visibles.length === 0 && <div className="p-3 text-[11px] text-[#555]">{soloCargados ? "Ninguna cuenta tiene cupo de fondeo cargado." : "Sin resultados."}</div>}
         {visibles.length > 0 && (
           <table className="text-[11px] font-mono w-full">
-            <thead className="sticky top-0 bg-[#0e0e0e] border-b border-[#1a1a1a]">
+            <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[#1a1a1a]">
               <tr className="text-left text-[#888] tracking-widest text-[9px]">
                 <th className="px-3 py-2">CUENTA</th>
                 <th className="px-2 py-2">DENOMINACIÓN</th>
@@ -2364,7 +2364,7 @@ function TabInstrumentos() {
   return (
     <div className="space-y-3">
       {/* Header con selector + refresh */}
-      <div className="border border-[#1a1a1a] bg-[#080808] p-3">
+      <div className="border border-[#1a1a1a] bg-[var(--t-panel)] p-3">
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={runDisc}
@@ -2442,7 +2442,7 @@ function TabInstrumentos() {
 
       {/* Tabla única de instruments */}
       {selectedCfi && (
-        <div className="border border-[#1a1a1a] bg-[#080808]">
+        <div className="border border-[#1a1a1a] bg-[var(--t-panel)]">
           <div className="px-3 py-2 border-b border-[#1a1a1a] flex items-center gap-2 text-[10px]">
             <span className="text-[9px] text-[#666] tracking-widest">INSTRUMENTS</span>
             <span className="font-mono text-[#d0d0d0]">{filteredInst.length}</span>
@@ -2453,7 +2453,7 @@ function TabInstrumentos() {
           </div>
           <div className="max-h-[600px] overflow-y-auto">
             <table className="w-full text-[10px] font-mono tabular-nums">
-              <thead className="text-[#666] text-[9px] tracking-widest sticky top-0 bg-[#080808] border-b border-[#1a1a1a]">
+              <thead className="text-[#666] text-[9px] tracking-widest sticky top-0 bg-[var(--t-panel)] border-b border-[#1a1a1a]">
                 <tr>
                   <th className="text-left px-3 py-2">TICKER</th>
                   <th className="text-left px-3 py-2">MATURITY</th>
@@ -2467,7 +2467,7 @@ function TabInstrumentos() {
               </thead>
               <tbody>
                 {filteredInst.map((inst, i) => (
-                  <tr key={`${inst.ticker}-${i}`} className="border-b border-[#1a1a1a] hover:bg-[#0e0e0e]">
+                  <tr key={`${inst.ticker}-${i}`} className="border-b border-[#1a1a1a] hover:bg-[var(--t-surface)]">
                     <td className="px-3 py-1 text-[#3fbf6f]">{inst.ticker}</td>
                     <td className="px-3 py-1 text-[#888]">{inst.maturity}</td>
                     <td className="px-3 py-1 text-[#d0d0d0]">{inst.underlying}</td>
@@ -2686,7 +2686,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-widest mr-3">MANAGER</span>
         {tabs.map((t) => (
           <Pill key={t.id} label={t.label} active={tab === t.id} onClick={() => setTab(t.id)} />

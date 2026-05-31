@@ -106,7 +106,7 @@ export function DolarMepShell() {
   return (
     <div className="h-full flex flex-col min-h-0 bg-black">
       {/* Sub-tabs + cotización en una sola fila compacta */}
-      <div className="flex items-center gap-4 px-3 py-1.5 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-4 px-3 py-1.5 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <div className="flex items-center gap-1">
           <SubTabBtn active={tab === "compra"} onClick={() => setTab("compra")}>
             COMPRA

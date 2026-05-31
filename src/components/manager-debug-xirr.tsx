@@ -136,7 +136,7 @@ export function ManagerDebugXirrPanel() {
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-widest text-[#888]">DEBUG XIRR · CUENTA</span>
         <input
           value={idCuenta}
@@ -263,7 +263,7 @@ export function ManagerDebugXirrPanel() {
                   <Fragment key={m.mes}>
                     <tr
                       onClick={() => toggle(m.mes)}
-                      className="border-b border-[#1a1a1a] hover:bg-[#0e0e0e] cursor-pointer"
+                      className="border-b border-[#1a1a1a] hover:bg-[var(--t-surface)] cursor-pointer"
                     >
                       <td className="px-2 py-1 text-[#666]">{isOpen ? "▼" : "▶"}</td>
                       <td className="px-2 py-1 text-[#d0d0d0]">{m.mes}</td>

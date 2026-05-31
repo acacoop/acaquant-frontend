@@ -540,7 +540,7 @@ export function ChatView() {
   );
 
   return (
-    <div className="h-full flex bg-[#080808]">
+    <div className="h-full flex bg-[var(--t-panel)]">
       <ConversationsSidebar
         conversations={convsList}
         activeId={conversationId}
@@ -601,7 +601,7 @@ export function ChatView() {
                 </div>
               ) : (
                 <div className="flex">
-                  <div className="max-w-[90%] bg-[#0e0e0e] border border-[#1a1a1a] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
+                  <div className="max-w-[90%] bg-[var(--t-surface)] border border-[#1a1a1a] px-3 py-2 text-sm text-[#d0d0d0] font-mono whitespace-pre-wrap">
                     {renderMarkdown(t.text)}
                     {t.toolCalls && t.toolCalls.length > 0 && (
                       <details className="mt-2 text-[10px] text-[#555555]">
@@ -647,7 +647,7 @@ export function ChatView() {
 
         {loading && (
           <div className="flex">
-            <div className="bg-[#0e0e0e] border border-[#1a1a1a] px-3 py-2 text-sm text-[#555555] font-mono">
+            <div className="bg-[var(--t-surface)] border border-[#1a1a1a] px-3 py-2 text-sm text-[#555555] font-mono">
               pensando…
             </div>
           </div>
@@ -723,7 +723,7 @@ export function ChatView() {
           onKeyDown={onKeyDown}
           placeholder="Escribí tu consulta…  (Enter para enviar, Shift+Enter para salto de línea)"
           rows={2}
-          className="w-full bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[12px] px-2 py-1.5 font-mono focus:border-[#ff9900] outline-none resize-none"
+          className="w-full bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[12px] px-2 py-1.5 font-mono focus:border-[#ff9900] outline-none resize-none"
           disabled={loading}
         />
         <div className="flex items-center mt-1">

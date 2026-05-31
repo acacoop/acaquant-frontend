@@ -26,7 +26,7 @@ export function OperadoresView() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[#ff9900] tracking-wide uppercase">
           Operadores
         </span>
@@ -36,7 +36,7 @@ export function OperadoresView() {
             <select
               value={operador}
               onChange={(e) => setOperador(e.target.value)}
-              className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none max-w-[280px]"
+              className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#d0d0d0] text-[11px] px-2 py-1 font-mono focus:border-[#ff9900] outline-none max-w-[280px]"
             >
               <option value="__todos__">— Todos los operadores —</option>
               {operadores.map((o) => (
@@ -52,7 +52,7 @@ export function OperadoresView() {
                   onClick={() => setMoneda(m)}
                   className={
                     "px-2 py-1 text-[10px] font-semibold " +
-                    (moneda === m ? "bg-[#ff9900] text-black" : "bg-[#0e0e0e] text-[#888] hover:text-[#ff9900]")
+                    (moneda === m ? "bg-[#ff9900] text-black" : "bg-[var(--t-surface)] text-[#888] hover:text-[#ff9900]")
                   }
                 >{m}</button>
               ))}

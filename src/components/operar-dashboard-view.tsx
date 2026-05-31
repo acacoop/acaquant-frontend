@@ -359,7 +359,7 @@ export function PortfolioPanel({
   };
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 h-full">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
       <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a] shrink-0">
         <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold truncate">
           PORTFOLIO{" "}
@@ -823,7 +823,7 @@ function OperarCard({
     form.side === "BUY" ? "bg-[#0d1d0d]" : "bg-[#1d0d0d]";
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-w-0 w-full">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-w-0 w-full">
       {/* Header */}
       <div className="flex items-center gap-1 px-2 py-1 border-b border-[#1a1a1a]">
         <TickerSearch value={cfg.tickerCorto} onPick={onChangeTicker} />
@@ -1093,7 +1093,7 @@ export function OrderManagement({
   );
 
   return (
-    <div className="border border-[#1a1a1a] bg-[#080808] flex flex-col min-h-0 h-full">
+    <div className="border border-[#1a1a1a] bg-[var(--t-panel)] flex flex-col min-h-0 h-full">
       <div className="flex items-center justify-between px-2 py-1 border-b border-[#1a1a1a] shrink-0">
         <span className="text-[11px] tracking-wide text-[#d0d0d0] font-semibold">
           ÓRDENES DEL DÍA
@@ -1362,7 +1362,7 @@ export function OperarDashboardView() {
   return (
     <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[#080808] shrink-0">
+      <div className="flex items-center gap-2 px-2 py-1 border border-[#1a1a1a] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-wider text-[#888]">CUENTA</span>
         <AccountSearch
           value={account}

@@ -163,12 +163,12 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
               if (e.key === "Escape") setOpen(false);
               if (e.key === "Enter" && filtered.length > 0) pickTicker(filtered[0]);
             }}
-            className="bg-[#0e0e0e] border border-[#2a2a2a] text-[#ff9900] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[140px]"
+            className="bg-[var(--t-surface)] border border-[#2a2a2a] text-[#ff9900] text-[11px] px-2 py-0.5 font-mono focus:border-[#ff9900] outline-none w-[140px]"
           />
           {open && filtered.length > 0 && (
             <div
               ref={dropRef}
-              className="absolute top-full left-0 mt-px z-50 bg-[#0e0e0e] border border-[#2a2a2a] max-h-[200px] overflow-y-auto min-w-full"
+              className="absolute top-full left-0 mt-px z-50 bg-[var(--t-surface)] border border-[#2a2a2a] max-h-[200px] overflow-y-auto min-w-full"
             >
               {filtered.map((t) => (
                 <div
