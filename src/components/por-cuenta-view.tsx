@@ -39,8 +39,8 @@ type SortKey =
   | "pnl_acum_ars" | "pnl_acum_usd" | "base100_ars" | "base100_usd";
 
 const base100Class = (v: number | null) =>
-  v == null ? "text-[var(--t-text-muted)]" : v >= 100 ? "text-[#00cc66]" : "text-[#ff4d4d]";
-const pnlCls = (v: number) => (v >= 0 ? "text-[#00cc66]" : "text-[#ff4d4d]");
+  v == null ? "text-[var(--t-text-muted)]" : v >= 100 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
+const pnlCls = (v: number) => (v >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]");
 
 // Cuentas con |valor ARS| por debajo de esto se consideran "saldo muerto"
 // (carteras casi vacías, ej. $2.000 / $30.000) y se ocultan por defecto.
@@ -178,7 +178,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
       {/* Tabla */}
       <div className="flex-1 min-h-0 mx-2 mb-2 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col">
         {err ? (
-          <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>
+          <div className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</div>
         ) : loading && !data ? (
           <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
             Cargando…

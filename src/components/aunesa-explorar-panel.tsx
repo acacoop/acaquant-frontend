@@ -244,7 +244,7 @@ export function AunesaExplorarPanel() {
       </div>
 
       {error && (
-        <div className="border-b border-[#aa3333] bg-[#1a0808] px-3 py-2 text-[11px] text-[#ff7777] shrink-0">
+        <div className="border-b border-[#aa3333] bg-[var(--t-tint-red)] px-3 py-2 text-[11px] text-[#ff7777] shrink-0">
           {error}
         </div>
       )}
@@ -410,8 +410,8 @@ function FragBoleto({
   open: boolean;
   onToggle: () => void;
 }) {
-  const cantClr = (b.cantidad ?? 0) > 0 ? "text-[#3fbf6f]" : (b.cantidad ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]";
-  const impClr  = (b.importe ?? 0) > 0 ? "text-[#3fbf6f]" : (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]";
+  const cantClr = (b.cantidad ?? 0) > 0 ? "text-[var(--t-pos)]" : (b.cantidad ?? 0) < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]";
+  const impClr  = (b.importe ?? 0) > 0 ? "text-[var(--t-pos)]" : (b.importe ?? 0) < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]";
   return (
     <>
       <tr
@@ -530,7 +530,7 @@ function FragMov({
   open: boolean;
   onToggle: () => void;
 }) {
-  const tcClr = (m._total_cliente ?? 0) > 0 ? "text-[#3fbf6f]" : (m._total_cliente ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]";
+  const tcClr = (m._total_cliente ?? 0) > 0 ? "text-[var(--t-pos)]" : (m._total_cliente ?? 0) < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]";
   return (
     <>
       <tr

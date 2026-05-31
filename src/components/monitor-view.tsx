@@ -183,14 +183,14 @@ export function MonitorView() {
               key={p.ticker}
               className="inline-flex items-center gap-1 border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-0.5 font-mono"
             >
-              <span className={p.notional >= 0 ? "text-[#3fbf6f]" : "text-[#ff7f7f]"}>
+              <span className={p.notional >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}>
                 {p.notional >= 0 ? "L" : "S"}
               </span>
               <span className="text-[var(--t-accent)]">{p.ticker}</span>
               <span className="text-[var(--t-text-dim)]">{fmtUsd(Math.abs(p.notional))}</span>
               <button
                 onClick={() => quitar(p.ticker)}
-                className="text-[var(--t-text-muted)] hover:text-[#ff3333]"
+                className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)]"
               >
                 ×
               </button>
@@ -199,7 +199,7 @@ export function MonitorView() {
         </div>
       )}
 
-      {error && <div className="text-[#ff7f7f] italic">{error}</div>}
+      {error && <div className="text-[var(--t-neg)] italic">{error}</div>}
       {!data && !error && (
         <p className="text-[var(--t-text-muted)] py-4">Agregá posiciones y analizá el book.</p>
       )}
@@ -255,7 +255,7 @@ export function MonitorView() {
                     <tr key={c.ticker} className="border-b border-[var(--t-border)]">
                       <td className="text-[var(--t-accent)] px-1">{c.ticker}</td>
                       <td className="text-right px-1 text-[var(--t-text-dim)]">{fmtUsd(c.notional)}</td>
-                      <td className={`text-right px-1 ${c.contrib_pct < 0 ? "text-[#3fbf6f]" : "text-[var(--t-text)]"}`}>
+                      <td className={`text-right px-1 ${c.contrib_pct < 0 ? "text-[var(--t-pos)]" : "text-[var(--t-text)]"}`}>
                         {c.contrib_pct}%
                       </td>
                     </tr>
@@ -263,13 +263,13 @@ export function MonitorView() {
                 </tbody>
               </table>
               <div className="text-[8px] text-[var(--t-text-muted)] mt-1">
-                Verde = la posición <span className="text-[#3fbf6f]">resta</span> riesgo (hedge natural del book).
+                Verde = la posición <span className="text-[var(--t-pos)]">resta</span> riesgo (hedge natural del book).
               </div>
             </div>
           )}
 
           {data.excluidos.length > 0 && (
-            <div className="text-[8px] text-[#ff7f7f]">
+            <div className="text-[8px] text-[var(--t-neg)]">
               Sin datos de precio: {data.excluidos.join(", ")} — quedan fuera del riesgo.
             </div>
           )}

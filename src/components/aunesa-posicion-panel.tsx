@@ -117,7 +117,7 @@ export function AunesaPosicionPanel() {
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-auto">
         {error && (
-          <div className="px-3 py-2 text-[11px] text-[#f87171] font-mono">{error}</div>
+          <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] font-mono">{error}</div>
         )}
 
         {!data && !loading && !error && (

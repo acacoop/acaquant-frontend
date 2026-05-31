@@ -119,7 +119,7 @@ export function GruposPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
       {error && (
-        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[#ff6666] text-xs">
+        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[var(--t-neg)] text-xs">
           {error}
         </div>
       )}
@@ -257,7 +257,7 @@ function GrupoCard({
         <button
           onClick={onDelete}
           disabled={busy}
-          className="px-2 py-1 text-[10px] border border-[var(--t-border-2)] text-[#ff4444] hover:border-[#ff4444] disabled:opacity-40"
+          className="px-2 py-1 text-[10px] border border-[var(--t-border-2)] text-[var(--t-neg)] hover:border-[#ff4444] disabled:opacity-40"
         >
           BORRAR
         </button>
@@ -281,7 +281,7 @@ function GrupoCard({
                 {em}
                 <button
                   onClick={() => setEmails(emails.filter((x) => x !== em))}
-                  className="text-[#ff4444] hover:text-[#ff6666]"
+                  className="text-[var(--t-neg)] hover:text-[var(--t-neg)]"
                 >
                   ×
                 </button>
@@ -327,7 +327,7 @@ function GrupoCard({
                   onClick={() =>
                     setIdCuentas(idCuentas.filter((x) => x !== id))
                   }
-                  className="text-[#ff4444] hover:text-[#ff6666]"
+                  className="text-[var(--t-neg)] hover:text-[var(--t-neg)]"
                 >
                   ×
                 </button>

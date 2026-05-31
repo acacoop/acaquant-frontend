@@ -85,6 +85,8 @@ export function TradingViewChart({ symbol, height = "100%" }: Props) {
     inner.style.width = "100%";
     containerRef.current.appendChild(inner);
 
+    // Tema del widget según el tema de la app (clase "light" en <html>).
+    const isLight = document.documentElement.classList.contains("light");
     loadTvScript()
       .then(() => {
         if (cancelled || !window.TradingView) return;
@@ -94,10 +96,10 @@ export function TradingViewChart({ symbol, height = "100%" }: Props) {
           symbol: mapSymbol(symbol),
           interval: "D",
           timezone: "America/Argentina/Buenos_Aires",
-          theme: "dark",
+          theme: isLight ? "light" : "dark",
           style: "1",
           locale: "es",
-          toolbar_bg: "#080808",
+          toolbar_bg: isLight ? "#ffffff" : "#080808",
           enable_publishing: false,
           hide_side_toolbar: false,
           hide_top_toolbar: false,
@@ -105,8 +107,8 @@ export function TradingViewChart({ symbol, height = "100%" }: Props) {
           allow_symbol_change: true,
           save_image: false,
           studies: [],
-          backgroundColor: "#080808",
-          gridColor: "#1a1a1a",
+          backgroundColor: isLight ? "#ffffff" : "#080808",
+          gridColor: isLight ? "#e0e0e0" : "#1a1a1a",
         });
       })
       .catch((e) => {

@@ -46,7 +46,7 @@ export function BreakevenChart({ pares }: { pares: BreakevenPar[] }) {
           tickLine={false}
           tickFormatter={(v: number) => `${v.toFixed(1)}%`}
         />
-        <ReferenceLine y={3} stroke="#ff3333" strokeDasharray="6 3" strokeOpacity={0.5} />
+        <ReferenceLine y={3} stroke="var(--t-neg)" strokeDasharray="6 3" strokeOpacity={0.5} />
         <Tooltip
           contentStyle={{
             background: "#0e0e0e",

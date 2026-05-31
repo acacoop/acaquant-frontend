@@ -40,7 +40,7 @@ export function CarteraResponse({
   if (error || !data) {
     return (
       <div className="border border-[#ff3333]/50 bg-[#ff3333]/5 p-3 font-mono">
-        <div className="text-[10px] text-[#ff3333] uppercase tracking-wide mb-1">
+        <div className="text-[10px] text-[var(--t-neg)] uppercase tracking-wide mb-1">
           No se pudo generar cartera
         </div>
         <div className="text-[11px] text-[var(--t-text)]">

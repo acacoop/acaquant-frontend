@@ -43,8 +43,8 @@ const POLL_ZSCORE_MS = 5 * 60 * 1000;
 const PALETA = [
   "#ff9900",
   "#4a9eff",
-  "#00cc66",
-  "#ff3333",
+  "var(--t-pos)",
+  "var(--t-neg)",
   "#bb66ff",
   "#00cccc",
   "#ffee44",
@@ -390,12 +390,12 @@ function ForwardsZScoreHelp() {
       <h4>CÓMO INTERPRETAR</h4>
       <ul>
         <li>
-          <strong className="text-[#7fff7f]">{">"} +1.5</strong> · verde fuerte:
+          <strong className="text-[var(--t-pos)]">{">"} +1.5</strong> · verde fuerte:
           forward HOY más ANCHO de lo normal. El mercado pricea más
           devaluación / inflación que en el último mes.
         </li>
         <li>
-          <strong className="text-[#3fbf6f]">+0.5 a +1.5</strong> · verde clara:
+          <strong className="text-[var(--t-pos)]">+0.5 a +1.5</strong> · verde clara:
           un poco más ancho.
         </li>
         <li>

@@ -91,8 +91,8 @@ export function EstrategiasTabla({
                 r.costo === null
                   ? "text-[var(--t-text-muted)]"
                   : r.costo > 0
-                  ? "text-[#ff4444] font-semibold"
-                  : "text-[#00cc66] font-semibold";
+                  ? "text-[var(--t-neg)] font-semibold"
+                  : "text-[var(--t-pos)] font-semibold";
               return (
                 <tr
                   key={r.nombre}

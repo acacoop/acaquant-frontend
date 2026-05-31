@@ -38,7 +38,7 @@ type Granularity = "Diario" | "Mensual";
 
 const COLOR_ARS = "#094293";
 const COLOR_ARS_NEG = "#3a6db5";
-const COLOR_USD = "#00cc66";
+const COLOR_USD = "var(--t-pos)";
 const COLOR_USD_NEG = "#5aa87f";
 const COOP_RE = /\bcoop/i;
 
@@ -292,7 +292,7 @@ export function CashFlowView() {
   }
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center text-[#ff3333] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-neg)] text-sm">
         Error: {error}
       </div>
     );
@@ -425,7 +425,7 @@ function MonedaChart({
   const vals = data.map((d) => (moneda === "ARS" ? d.ARS : d.USD));
   const hasData = vals.some((v) => v !== 0);
   const neto = total.entradas + total.salidas;
-  const netoColor = neto >= 0 ? "#00cc66" : "#ff4444";
+  const netoColor = neto >= 0 ? "var(--t-pos)" : "#ff4444";
 
   // Escala Y con ticks redondos
   const yScale = hasData
@@ -449,7 +449,7 @@ function MonedaChart({
           <LegendStat
             label="Entradas"
             value={fmtCompact(total.entradas)}
-            color="#00cc66"
+            color="var(--t-pos)"
           />
           <LegendStat
             label="Salidas"

@@ -150,7 +150,7 @@ export function RentaFijaTable({
                       {short}
                       {tickerFijadoSet.has(short) && (
                         <span
-                          className="ml-1 text-[8px] text-[#00cc66] font-semibold"
+                          className="ml-1 text-[8px] text-[var(--t-pos)] font-semibold"
                           title="CER de liquidación ya publicado por BCRA — se comporta como tasa fija"
                         >
                           FIJ
@@ -168,8 +168,8 @@ export function RentaFijaTable({
                         intraday === null
                           ? "text-[var(--t-text-muted)]"
                           : intraday >= 0
-                          ? "text-[#00cc66]"
-                          : "text-[#ff3333]"
+                          ? "text-[var(--t-pos)]"
+                          : "text-[var(--t-neg)]"
                       }`}
                     >
                       {intraday !== null
@@ -181,8 +181,8 @@ export function RentaFijaTable({
                         vs1d === null
                           ? "text-[var(--t-text-muted)]"
                           : vs1d >= 0
-                          ? "text-[#00cc66]"
-                          : "text-[#ff3333]"
+                          ? "text-[var(--t-pos)]"
+                          : "text-[var(--t-neg)]"
                       }`}
                     >
                       {vs1d !== null

@@ -113,11 +113,11 @@ function FairValueHelp() {
       </p>
       <ul>
         <li>
-          <strong className="text-[#7fff7f]">{">"} +1.5</strong> · verde fuerte:
+          <strong className="text-[var(--t-pos)]">{">"} +1.5</strong> · verde fuerte:
           BARATO vs su historia. Oportunidad de compra.
         </li>
         <li>
-          <strong className="text-[#3fbf6f]">+0.5 a +1.5</strong> · verde clara:
+          <strong className="text-[var(--t-pos)]">+0.5 a +1.5</strong> · verde clara:
           algo barato.
         </li>
         <li>

@@ -232,7 +232,7 @@ function ReturnsHistogram({ data }: { data: TickerReturns | null }) {
             const y = H - padding.bottom - h;
             // Color: rojo si bin es negativo, verde si positivo, gris si cruza 0.
             const color =
-              b.high <= 0 ? "#ff3333" : b.low >= 0 ? "#00cc66" : "#888888";
+              b.high <= 0 ? "var(--t-neg)" : b.low >= 0 ? "var(--t-pos)" : "#888888";
             return (
               <rect
                 key={i}
@@ -371,9 +371,9 @@ function Stat({
     accent === "orange"
       ? "text-[var(--t-accent)]"
       : accent === "red"
-      ? "text-[#ff3333]"
+      ? "text-[var(--t-neg)]"
       : accent === "green"
-      ? "text-[#00cc66]"
+      ? "text-[var(--t-pos)]"
       : "text-[var(--t-text)]";
   return (
     <div className="flex flex-col">

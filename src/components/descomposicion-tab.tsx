@@ -125,8 +125,8 @@ function num(n: number | undefined | null, decimals = 4): string {
 }
 
 function colorRet(n: number): string {
-  if (n > 0) return "text-[#00cc66]";
-  if (n < 0) return "text-[#ff3333]";
+  if (n > 0) return "text-[var(--t-pos)]";
+  if (n < 0) return "text-[var(--t-neg)]";
   return "text-[var(--t-text-dim)]";
 }
 
@@ -358,7 +358,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         {/* Chart */}
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 min-h-0">
           {error ? (
-            <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
+            <p className="text-[var(--t-neg)] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
             <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               {loading ? "cargando…" : "sin datos en el período"}
@@ -398,7 +398,7 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                 <Bar dataKey="rolldown" stackId="a" fill="#ff9900" name="Roll-down" />
                 <Bar dataKey="cambio_tasa" stackId="a" fill="#bb66ff" name="Δ Tasa" />
                 {curva === "cer" && (
-                  <Bar dataKey="cer_accrual" stackId="a" fill="#00cc66" name="CER" />
+                  <Bar dataKey="cer_accrual" stackId="a" fill="var(--t-pos)" name="CER" />
                 )}
               </BarChart>
             </ResponsiveContainer>
@@ -566,7 +566,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
         {/* Chart */}
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 min-h-0">
           {error ? (
-            <p className="text-[#ff3333] text-xs py-4 text-center">error: {error}</p>
+            <p className="text-[var(--t-neg)] text-xs py-4 text-center">error: {error}</p>
           ) : !chartData.length ? (
             <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
               {loading ? "cargando…" : "sin datos"}
@@ -605,7 +605,7 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                 <Bar dataKey="carry" stackId="a" fill="#4a9eff" name="Carry" />
                 <Bar dataKey="rolldown" stackId="a" fill="#ff9900" name="Roll-down" />
                 {curva === "cer" && (
-                  <Bar dataKey="cer_accrual" stackId="a" fill="#00cc66" name="CER esp" />
+                  <Bar dataKey="cer_accrual" stackId="a" fill="var(--t-pos)" name="CER esp" />
                 )}
               </BarChart>
             </ResponsiveContainer>
@@ -646,11 +646,11 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                       <td className="!px-1 text-right text-[var(--t-text)]">{pct(b.tasa)}</td>
                       <td className="!px-1 text-right text-[#4a9eff]">{pct(b.carry_esperado)}</td>
                       <td className="!px-1 text-right text-[var(--t-accent)]">{pct(b.rolldown_esperado)}</td>
-                      <td className="!px-1 text-right font-semibold text-[#00cc66]">
+                      <td className="!px-1 text-right font-semibold text-[var(--t-pos)]">
                         {pct(b.total_esperado)}
                       </td>
                       {curva === "cer" && (
-                        <td className="!px-1 text-right font-semibold text-[#00cc66]">
+                        <td className="!px-1 text-right font-semibold text-[var(--t-pos)]">
                           {pct(b.total_esperado_ars)}
                         </td>
                       )}
@@ -794,7 +794,7 @@ Roll = (P_quieto/${valorLabel}_ini) − 1 − Carry
         <Row label="Roll-down" value={pct(bono.rolldown)} color="#ff9900" />
         <Row label="Δ Tasa" value={pctSigned(bono.cambio_tasa)} color="#bb66ff" />
         {curva === "cer" && bono.r_total_ars != null && (
-          <Row label="R_total ARS" value={pctSigned(bono.r_total_ars)} highlight color="#00cc66" />
+          <Row label="R_total ARS" value={pctSigned(bono.r_total_ars)} highlight color="var(--t-pos)" />
         )}
       </Section>
 
@@ -877,7 +877,7 @@ Total = Carry + Roll${curva === "cer" ? "\nTotal_ARS = (1+Total)(1+CER_esp) − 
             label="Total ARS"
             value={pct(bono.total_esperado_ars)}
             highlight
-            color="#00cc66"
+            color="var(--t-pos)"
           />
         )}
       </Section>

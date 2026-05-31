@@ -276,7 +276,7 @@ export function SensibilidadTable() {
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-[11px] text-[#ff3333] bg-[#ff3333]/10 border border-[#ff3333]/30 font-mono shrink-0">
+        <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] bg-[#ff3333]/10 border border-[#ff3333]/30 font-mono shrink-0">
           {error}
         </div>
       )}

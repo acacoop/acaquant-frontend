@@ -130,7 +130,7 @@ export function RolesPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
       {error && (
-        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[#ff6666] text-xs">
+        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[var(--t-neg)] text-xs">
           {error}
         </div>
       )}

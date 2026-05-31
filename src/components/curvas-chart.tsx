@@ -59,9 +59,9 @@ type Modo = "live" | "hist" | "fair";
 // Para soberanos, dividimos los puntos en familias (globales / bonares).
 // Para las otras curvas, todo cae en "default" y se renderiza igual que antes.
 const COLORES: Record<string, { scatter: string; fit: string; label: string }> = {
-  globales: { scatter: "#00cc66", fit: "#4488ff", label: "GLOBALES" },
+  globales: { scatter: "var(--t-pos)", fit: "#4488ff", label: "GLOBALES" },
   bonares:  { scatter: "#ff9900", fit: "#ffaa66", label: "BONARES" },
-  default:  { scatter: "#00cc66", fit: "#4488ff", label: "" },
+  default:  { scatter: "var(--t-pos)", fit: "#4488ff", label: "" },
 };
 
 function fmtFechaCorta(s: string): string {
@@ -457,7 +457,7 @@ export function CurvasChart({
           {histLoading && !hayHist ? (
             <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>
           ) : histError ? (
-            <span className="text-[10px] text-[#ff3333]">error: {histError}</span>
+            <span className="text-[10px] text-[var(--t-neg)]">error: {histError}</span>
           ) : !hayHist ? (
             <span className="text-[10px] text-[var(--t-text-muted)]">sin histórico</span>
           ) : (

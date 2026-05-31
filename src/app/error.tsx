@@ -14,7 +14,7 @@ export default function GlobalError({
   return (
     <div className="h-full min-h-screen flex items-center justify-center bg-[var(--t-panel)] p-6">
       <div className="max-w-xl border border-[#ff3333]/40 bg-[var(--t-panel)] p-6 font-mono space-y-3">
-        <div className="text-[#ff3333] text-xs uppercase tracking-wider">
+        <div className="text-[var(--t-neg)] text-xs uppercase tracking-wider">
           Error en la vista
         </div>
         <div className="text-[var(--t-text)] text-sm">

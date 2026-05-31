@@ -130,7 +130,7 @@ export function ManagerDebugSegmentoPanel() {
       </div>
 
       {error && (
-        <div className="px-3 py-2 mb-3 text-[11px] bg-[#1a0c0c] text-red-400 border border-[#2a1010]">
+        <div className="px-3 py-2 mb-3 text-[11px] bg-[var(--t-tint-red)] text-red-400 border border-[#2a1010]">
           {error}
         </div>
       )}
@@ -149,7 +149,7 @@ export function ManagerDebugSegmentoPanel() {
             <Row k="denominación" v={data.denominacion ?? "—"} />
             <Row k="tipo_cliente" v={data.tipo_cliente ?? "—"} />
             <Row k="clasificación" v={
-              <span className={data.clasificacion === "PH" ? "text-[#5fa8d0]" : data.clasificacion === "PJ" ? "text-[#5dd6a0]" : "text-[var(--t-text-dim)]"}>
+              <span className={data.clasificacion === "PH" ? "text-[#5fa8d0]" : data.clasificacion === "PJ" ? "text-[var(--t-pos)]" : "text-[var(--t-text-dim)]"}>
                 {data.clasificacion ?? "(sin clasificar)"}
               </span>
             } />
@@ -200,9 +200,9 @@ export function ManagerDebugSegmentoPanel() {
               <Row k="recalculado AHORA" v={<span className="text-[var(--t-text)]">{data.nivel_3_recalculado ?? "—"}</span>} />
               <Row k="¿sincronizado?" v={
                 data.sincronizado ? (
-                  <span className="text-[#5dd6a0] font-semibold">✓ SÍ (la base está al día)</span>
+                  <span className="text-[var(--t-pos)] font-semibold">✓ SÍ (la base está al día)</span>
                 ) : (
-                  <span className="text-[#ff5d6c] font-semibold">✗ NO — correr `jobs.segmentar_patrimonial --apply` para alinear</span>
+                  <span className="text-[var(--t-neg)] font-semibold">✗ NO — correr `jobs.segmentar_patrimonial --apply` para alinear</span>
                 )
               } />
             </Section>
@@ -222,7 +222,7 @@ export function ManagerDebugSegmentoPanel() {
                   ))}
                 </div>
                 <div>
-                  <div className="text-[10px] text-[#5dd6a0] mb-1">PJ (UVAs)</div>
+                  <div className="text-[10px] text-[var(--t-pos)] mb-1">PJ (UVAs)</div>
                   {Object.entries(data.umbrales.PJ_UVA).map(([k, v]) => (
                     <div key={k} className="flex justify-between border-b border-[var(--t-border)] py-0.5">
                       <span className="text-[var(--t-text)]">{k}</span>

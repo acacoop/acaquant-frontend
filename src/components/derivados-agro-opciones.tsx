@@ -162,7 +162,7 @@ function ChainTable({
         <tr>
           <th
             colSpan={3}
-            className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#4ade80]"
+            className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[var(--t-pos)]"
           >
             CALL
           </th>
@@ -171,7 +171,7 @@ function ChainTable({
           </th>
           <th
             colSpan={3}
-            className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#f87171]"
+            className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[var(--t-neg)]"
           >
             PUT
           </th>

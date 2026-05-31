@@ -82,10 +82,10 @@ interface Job { status: "running" | "done" | "error"; tipo: string; result?: str
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const ESTADO_COLOR: Record<string, string> = {
-  ok:          "#00cc66",
+  ok:          "var(--t-pos)",
   lento:       "#ff9900",
   atrasado:    "#ff9900",
-  critico:     "#ff3333",
+  critico:     "var(--t-neg)",
   fuera_rueda: "#555555",
   sin_datos:   "#555555",
   error_parse: "#555555",
@@ -152,7 +152,7 @@ function TabDiagnostico() {
   return (
     <div className="h-full flex flex-col gap-3 p-3 min-h-0">
       <div className="flex items-center gap-3 shrink-0">
-        <span className={`text-[11px] font-semibold ${data?.en_rueda ? "text-[#00cc66]" : "text-[var(--t-text-muted)]"}`}>
+        <span className={`text-[11px] font-semibold ${data?.en_rueda ? "text-[var(--t-pos)]" : "text-[var(--t-text-muted)]"}`}>
           {data ? (data.en_rueda ? "● EN RUEDA" : "● FUERA DE RUEDA") : "—"}
         </span>
         <span className="text-[10px] text-[var(--t-text-muted)]">{data?.ahora_ar ?? ""}</span>
@@ -359,14 +359,14 @@ function OpcionesExpiriesPanel() {
               <span className="text-[10px] font-mono text-[var(--t-text-dim)]">
                 estado actual:{" "}
                 {data.auto_pick ? (
-                  <span className="text-[#00cc66]">AUTO (próximo &gt; hoy)</span>
+                  <span className="text-[var(--t-pos)]">AUTO (próximo &gt; hoy)</span>
                 ) : (
                   <span className="text-[var(--t-accent)]">
                     {data.activos.map(fmtExpiry).join(", ")}
                   </span>
                 )}
               </span>
-              {msg && <span className="text-[10px] font-mono text-[#00cc66] ml-auto">{msg}</span>}
+              {msg && <span className="text-[10px] font-mono text-[var(--t-pos)] ml-auto">{msg}</span>}
             </div>
           </>
         )}
@@ -407,7 +407,7 @@ function RunBtn({ onClick, loading }: { onClick: () => void; loading: boolean })
 function StatusBadge({ ok, label }: { ok: boolean; label?: string }) {
   return (
     <span className="text-[10px] font-semibold px-1.5 py-0.5"
-      style={{ color: ok ? "#00cc66" : "#ff3333", border: `1px solid ${ok ? "#00cc6640" : "#ff333340"}`, backgroundColor: ok ? "#00cc6612" : "#ff333312" }}>
+      style={{ color: ok ? "var(--t-pos)" : "var(--t-neg)", border: `1px solid ${ok ? "#00cc6640" : "#ff333340"}`, backgroundColor: ok ? "#00cc6612" : "#ff333312" }}>
       {label ?? (ok ? "OK" : "ERROR")}
     </span>
   );
@@ -749,7 +749,7 @@ function TabValidaciones() {
                                 </div>
                                 <div>
                                   BE = factor^(1/meses) − 1
-                                  <span className="text-[#00cc66] font-bold">
+                                  <span className="text-[var(--t-pos)] font-bold">
                                     {" = "}{bo != null ? `${(bo * 100).toFixed(3)}%` : "—"}
                                   </span>
                                 </div>
@@ -802,15 +802,15 @@ function TabValidaciones() {
           <>
             <div className="flex items-center gap-3 mb-2 text-[10px] font-mono">
               <span className="text-[var(--t-text-muted)]">Snapshot: {tfData.snapshot ?? "—"}</span>
-              <span style={{ color: "#00cc66" }}>✅ {tfData.ok}</span>
+              <span style={{ color: "var(--t-pos)" }}>✅ {tfData.ok}</span>
               <span style={{ color: "#ff9900" }}>⚠️ {tfData.sin_posicion}</span>
-              <span style={{ color: "#ff3333" }}>❌ {tfData.sin_assets}</span>
+              <span style={{ color: "var(--t-neg)" }}>❌ {tfData.sin_assets}</span>
             </div>
             <table><thead><tr><th>TICKER</th><th>ESTADO</th></tr></thead>
               <tbody>{tfData.instrumentos.map(r => (
                 <tr key={r.ticker}>
                   <td className="text-[var(--t-accent)]">{r.ticker}</td>
-                  <td className={r.estado === "ok" ? "text-[#00cc66]" : r.estado === "sin_posicion" ? "text-[var(--t-accent)]" : "text-[#ff3333]"}>
+                  <td className={r.estado === "ok" ? "text-[var(--t-pos)]" : r.estado === "sin_posicion" ? "text-[var(--t-accent)]" : "text-[var(--t-neg)]"}>
                     {ESTADO_LABEL[r.estado] ?? r.estado}
                   </td>
                 </tr>
@@ -839,7 +839,7 @@ function TabValidaciones() {
         {dbfData && (
           <>
             {dbfData.error ? (
-              <p className="text-[#ff3333] text-[10px]">{dbfData.error}</p>
+              <p className="text-[var(--t-neg)] text-[10px]">{dbfData.error}</p>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3 mb-2">
@@ -854,7 +854,7 @@ function TabValidaciones() {
                   ))}
                 </div>
                 {dbfData.forward != null && (
-                  <div className="text-[14px] font-semibold text-[#00cc66] font-mono mb-2">
+                  <div className="text-[14px] font-semibold text-[var(--t-pos)] font-mono mb-2">
                     Forward {dbfData.tc_a} → {dbfData.tc_b}: {dbfData.forward.toFixed(4)}%
                   </div>
                 )}
@@ -881,7 +881,7 @@ function TabValidaciones() {
             {sobLoading ? "Calculando…" : "Calcular"}
           </button>
         </div>
-        {sobError && <p className="text-[#ff3333] text-[10px] mb-2">{sobError}</p>}
+        {sobError && <p className="text-[var(--t-neg)] text-[10px] mb-2">{sobError}</p>}
         {sobData && (
           <>
             <div className="grid grid-cols-2 gap-3 mb-3">
@@ -898,7 +898,7 @@ function TabValidaciones() {
                 <div className="text-[10px] font-mono text-[var(--t-text)]">Último trade: {sobData.precio.ultimo_trade_ts ?? "—"}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text)]">Precio ROFEX: {sobData.precio.precio_rofex?.toFixed(4) ?? "—"}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text-dim)]">MEP: {sobData.precio.mep?.toFixed(2) ?? "—"}</div>
-                <div className="text-[10px] font-mono text-[#00cc66]">Precio USD: {sobData.precio.precio_usd?.toFixed(4) ?? "—"}</div>
+                <div className="text-[10px] font-mono text-[var(--t-pos)]">Precio USD: {sobData.precio.precio_usd?.toFixed(4) ?? "—"}</div>
                 <div className="text-[10px] font-mono text-[var(--t-text-dim)] mt-1">Settlement: {sobData.settlement}</div>
               </div>
             </div>
@@ -906,7 +906,7 @@ function TabValidaciones() {
             <div className="grid grid-cols-3 gap-3 mb-3">
               <div className="border border-[#00cc66]/30 bg-[#00cc66]/5 p-2 text-center">
                 <div className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide">TEA (YTM)</div>
-                <div className="text-[16px] font-semibold font-mono text-[#00cc66]">
+                <div className="text-[16px] font-semibold font-mono text-[var(--t-pos)]">
                   {sobData.resultado.tea_pct != null ? `${sobData.resultado.tea_pct.toFixed(2)}%` : "—"}
                 </div>
               </div>
@@ -940,7 +940,7 @@ function TabValidaciones() {
                   <td className="text-right font-mono">{f.amortizacion_pct.toFixed(2)}</td>
                   <td className="text-right font-mono">{f.cupon_sobre_residual.toFixed(4)}</td>
                   <td className="text-right font-mono">{f.residual_previo_pct.toFixed(2)}</td>
-                  <td className="text-right font-mono text-[#00cc66]">{f.monto_usd.toFixed(4)}</td>
+                  <td className="text-right font-mono text-[var(--t-pos)]">{f.monto_usd.toFixed(4)}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -968,7 +968,7 @@ function TabValidaciones() {
         </div>
 
         {curvaData && !curvaData.ok && (
-          <div className="text-[10px] text-[#ff7f7f] italic">{curvaData.message}</div>
+          <div className="text-[10px] text-[var(--t-neg)] italic">{curvaData.message}</div>
         )}
 
         {curvaData?.ok && curvaData.instrumento && curvaData.trade && (
@@ -1006,7 +1006,7 @@ function TabValidaciones() {
                   <div className="text-[9px] text-[var(--t-text-muted)] tracking-widest mb-1">SETTLEMENT</div>
                   <div className="font-mono space-y-0.5">
                     <div><span className="text-[var(--t-text-muted)]">fecha trade</span> {curvaData.settlement.fecha_trade}</div>
-                    <div><span className="text-[var(--t-text-muted)]">fecha settle</span> <span className="text-[#3fbf6f]">{curvaData.settlement.fecha_settlement}</span></div>
+                    <div><span className="text-[var(--t-text-muted)]">fecha settle</span> <span className="text-[var(--t-pos)]">{curvaData.settlement.fecha_settlement}</span></div>
                     <div><span className="text-[var(--t-text-muted)]">días al vto (trade)</span> {curvaData.settlement.dias_a_vto_trade}</div>
                     <div><span className="text-[var(--t-text-muted)]">días al vto (settle)</span> {curvaData.settlement.dias_a_vto_settle}</div>
                     <div className="text-[var(--t-text-muted)] text-[9px] italic mt-1">{curvaData.settlement.regla}</div>
@@ -1029,7 +1029,7 @@ function TabValidaciones() {
                   <div className="font-mono space-y-0.5">
                     <div><span className="text-[var(--t-text-muted)]">valor</span> {curvaData.tc_info.valor?.toFixed(4) ?? "—"}</div>
                     {curvaData.tc_info.precio_usd !== undefined && (
-                      <div><span className="text-[var(--t-text-muted)]">precio_usd</span> <span className="text-[#3fbf6f]">{curvaData.tc_info.precio_usd.toFixed(6)}</span></div>
+                      <div><span className="text-[var(--t-text-muted)]">precio_usd</span> <span className="text-[var(--t-pos)]">{curvaData.tc_info.precio_usd.toFixed(6)}</span></div>
                     )}
                   </div>
                 </div>
@@ -1049,7 +1049,7 @@ function TabValidaciones() {
                       <tr key={i}>
                         <td className="text-[var(--t-text-dim)]">{c.fecha}</td>
                         <td className="text-[var(--t-text-muted)]">{c.concepto}</td>
-                        <td className={`text-right ${c.monto < 0 ? "text-[#ff7f7f]" : "text-[#3fbf6f]"}`}>{c.monto.toFixed(4)}</td>
+                        <td className={`text-right ${c.monto < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"}`}>{c.monto.toFixed(4)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1061,7 +1061,7 @@ function TabValidaciones() {
             <div className="border border-[var(--t-accent)]/40 p-2">
               <div className="text-[9px] text-[var(--t-accent)] tracking-widest mb-1">RESULTADO CALCULADO vs PERSISTIDO</div>
               {curvaData.error_calc ? (
-                <div className="text-[10px] text-[#ff7f7f] italic">⚠ {curvaData.error_calc}</div>
+                <div className="text-[10px] text-[var(--t-neg)] italic">⚠ {curvaData.error_calc}</div>
               ) : (
                 <table className="w-full text-[10px] font-mono">
                   <thead className="text-[var(--t-text-muted)] text-[9px]">
@@ -1086,7 +1086,7 @@ function TabValidaciones() {
                       return (
                         <tr key={row.k} className="border-b border-[var(--t-border)]">
                           <td className="text-[var(--t-text)]">{row.k}</td>
-                          <td className="text-right text-[#3fbf6f]">
+                          <td className="text-right text-[var(--t-pos)]">
                             {row.c !== undefined && row.c !== null
                               ? (row.pct ? `${(row.c * 100).toFixed(4)}%` : `${row.c.toFixed(4)}${row.suffix ?? ""}`)
                               : "—"}
@@ -1096,7 +1096,7 @@ function TabValidaciones() {
                               ? (row.pct ? `${(row.p * 100).toFixed(4)}%` : `${row.p.toFixed(4)}${row.suffix ?? ""}`)
                               : "—"}
                           </td>
-                          <td className={`text-right ${diffOk ? "text-[#3fbf6f]" : diff === "—" ? "text-[var(--t-text-muted)]" : "text-[var(--t-accent)]"}`}>{diff ?? "—"}</td>
+                          <td className={`text-right ${diffOk ? "text-[var(--t-pos)]" : diff === "—" ? "text-[var(--t-text-muted)]" : "text-[var(--t-accent)]"}`}>{diff ?? "—"}</td>
                         </tr>
                       );
                     })}
@@ -1114,7 +1114,7 @@ function TabValidaciones() {
       <CheckPanel title="Debug TNA Futuros DLR (TNA lineal vs TEA compuesta)">
         <RunBtn onClick={runTna} loading={tnaLoading} />
         {tnaData && tnaData.total === 0 && (
-          <div className="text-[10px] text-[#ff7f7f] italic">
+          <div className="text-[10px] text-[var(--t-neg)] italic">
             {tnaData.nota || "Sin datos en FuturosDLRSnapshot."}
           </div>
         )}
@@ -1136,9 +1136,9 @@ function TabValidaciones() {
                   <th className="text-right">LAST</th>
                   <th className="text-right">MID BOOK</th>
                   <th className="text-right">DIRECTO%</th>
-                  <th className="text-right text-[#3fbf6f]">TNA LIN (last)</th>
+                  <th className="text-right text-[var(--t-pos)]">TNA LIN (last)</th>
                   <th className="text-right text-[var(--t-accent)]">TEA COMP (last)</th>
-                  <th className="text-right text-[#3fbf6f]">TNA LIN (mid)</th>
+                  <th className="text-right text-[var(--t-pos)]">TNA LIN (mid)</th>
                   <th className="text-right text-[var(--t-accent)]">TEA COMP (mid)</th>
                   <th className="text-right">PERSISTIDA</th>
                 </tr>
@@ -1151,13 +1151,13 @@ function TabValidaciones() {
                     <td className="text-right">{f.last?.toFixed(2) ?? "—"}</td>
                     <td className="text-right text-[var(--t-text-dim)]">{f.mid_book?.toFixed(2) ?? "—"}</td>
                     <td className="text-right">{f.directo_last?.toFixed(3) ?? "—"}%</td>
-                    <td className="text-right text-[#3fbf6f]">
+                    <td className="text-right text-[var(--t-pos)]">
                       {f.tna_lineal_last?.toFixed(2) ?? "—"}%
                     </td>
                     <td className="text-right text-[var(--t-accent)]">
                       {f.tea_compuesta_last?.toFixed(2) ?? "—"}%
                     </td>
-                    <td className="text-right text-[#3fbf6f]">
+                    <td className="text-right text-[var(--t-pos)]">
                       {f.tna_lineal_mid?.toFixed(2) ?? "—"}%
                     </td>
                     <td className="text-right text-[var(--t-accent)]">
@@ -1171,7 +1171,7 @@ function TabValidaciones() {
               </tbody>
             </table>
             <div className="text-[10px] text-[var(--t-text-muted)] mt-2">
-              <span className="text-[#3fbf6f]">TNA LIN</span> = directo × 365/días (lineal — terminal Rofex){" "}
+              <span className="text-[var(--t-pos)]">TNA LIN</span> = directo × 365/días (lineal — terminal Rofex){" "}
               · <span className="text-[var(--t-accent)]">TEA COMP</span> = (1+directo)^(365/días) − 1 (compuesta) ·{" "}
               <span className="text-[var(--t-text)]">PERSISTIDA</span> = lo que el motor escribe a Mongo (hoy = TEA COMP)
             </div>
@@ -1214,7 +1214,7 @@ function TabValidaciones() {
                     {fr.label.toUpperCase()} — VENTANA {d10(fr.rango_desde)} → {d10(fr.rango_hasta)} · {fr.n_velas} VELAS
                   </div>
                   {!fr.ok ? (
-                    <div className="text-[10px] text-[#ff7f7f] italic">{fr.motivo}</div>
+                    <div className="text-[10px] text-[var(--t-neg)] italic">{fr.motivo}</div>
                   ) : (
                     <div className="space-y-2">
                       <div className="max-h-[260px] overflow-y-auto border border-[var(--t-border)]">
@@ -1235,10 +1235,10 @@ function TabValidaciones() {
                               return (
                                 <tr key={i} className="border-b border-[var(--t-border)]">
                                   <td className="text-[var(--t-text-dim)] px-1">{d10(v.fecha)}</td>
-                                  <td className={`text-right px-1 ${esH ? "text-[#3fbf6f] font-bold" : "text-[var(--t-text)]"}`}>
+                                  <td className={`text-right px-1 ${esH ? "text-[var(--t-pos)] font-bold" : "text-[var(--t-text)]"}`}>
                                     {v.high != null ? v.high.toFixed(4) : "—"}{esH ? " ◄H" : ""}
                                   </td>
-                                  <td className={`text-right px-1 ${esL ? "text-[#ff7f7f] font-bold" : "text-[var(--t-text)]"}`}>
+                                  <td className={`text-right px-1 ${esL ? "text-[var(--t-neg)] font-bold" : "text-[var(--t-text)]"}`}>
                                     {v.low != null ? v.low.toFixed(4) : "—"}{esL ? " ◄L" : ""}
                                   </td>
                                   <td className={`text-right px-1 ${esC ? "text-[var(--t-accent)] font-bold" : "text-[var(--t-text)]"}`}>
@@ -1252,8 +1252,8 @@ function TabValidaciones() {
                       </div>
 
                       <div className="text-[10px] font-mono text-[var(--t-text-dim)]">
-                        H = <span className="text-[#3fbf6f]">{fr.h ? fr.h.valor.toFixed(4) : "—"}</span> ({d10(fr.h?.fecha)}) ·{" "}
-                        L = <span className="text-[#ff7f7f]">{fr.l ? fr.l.valor.toFixed(4) : "—"}</span> ({d10(fr.l?.fecha)}) ·{" "}
+                        H = <span className="text-[var(--t-pos)]">{fr.h ? fr.h.valor.toFixed(4) : "—"}</span> ({d10(fr.h?.fecha)}) ·{" "}
+                        L = <span className="text-[var(--t-neg)]">{fr.l ? fr.l.valor.toFixed(4) : "—"}</span> ({d10(fr.l?.fecha)}) ·{" "}
                         C = <span className="text-[var(--t-accent)]">{fr.c ? fr.c.valor.toFixed(4) : "—"}</span> ({d10(fr.c?.fecha)})
                       </div>
 
@@ -1939,7 +1939,7 @@ function TabClientesSegmentacion() {
       </div>
 
       {importMsg && (
-        <div className={`px-3 py-1.5 text-[10px] border-b border-[var(--t-border)] shrink-0 ${importMsg.ok ? "bg-[#0c1a0c] text-green-400" : "bg-[#1a0c0c] text-red-400"}`}>
+        <div className={`px-3 py-1.5 text-[10px] border-b border-[var(--t-border)] shrink-0 ${importMsg.ok ? "bg-[var(--t-tint-green)] text-green-400" : "bg-[var(--t-tint-red)] text-red-400"}`}>
           {importMsg.text}
           <button onClick={() => setImportMsg(null)} className="ml-2 text-[var(--t-text-dim)] hover:text-white">✕</button>
         </div>
@@ -2200,7 +2200,7 @@ function TabClientesFondeos() {
       </div>
 
       {importMsg && (
-        <div className={`px-3 py-1.5 text-[10px] border-b border-[var(--t-border)] shrink-0 ${importMsg.ok ? "bg-[#0c1a0c] text-green-400" : "bg-[#1a0c0c] text-red-400"}`}>
+        <div className={`px-3 py-1.5 text-[10px] border-b border-[var(--t-border)] shrink-0 ${importMsg.ok ? "bg-[var(--t-tint-green)] text-green-400" : "bg-[var(--t-tint-red)] text-red-400"}`}>
           {importMsg.text}
           <button onClick={() => setImportMsg(null)} className="ml-2 text-[var(--t-text-dim)] hover:text-white">✕</button>
         </div>
@@ -2428,14 +2428,14 @@ function TabInstrumentos() {
             Snapshot generado {new Date(discData.generated_at).toLocaleString("es-AR")}
             {discData.stale_h !== null && ` (hace ${discData.stale_h}h)`}
             {" — refresh: "}
-            <code className="text-[#3fbf6f]">python -m scripts.discovery_pyrofex</code> en el Droplet
+            <code className="text-[var(--t-pos)]">python -m scripts.discovery_pyrofex</code> en el Droplet
           </div>
         )}
       </div>
 
       {/* Banner si no hay data */}
       {discData && !discData.ok && (
-        <div className="border border-[#ff7f7f]/40 bg-[#1a0808] p-3 text-[10px] text-[#ff7f7f] italic">
+        <div className="border border-[#ff7f7f]/40 bg-[var(--t-tint-red)] p-3 text-[10px] text-[var(--t-neg)] italic">
           {discData.message}
         </div>
       )}
@@ -2468,7 +2468,7 @@ function TabInstrumentos() {
               <tbody>
                 {filteredInst.map((inst, i) => (
                   <tr key={`${inst.ticker}-${i}`} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                    <td className="px-3 py-1 text-[#3fbf6f]">{inst.ticker}</td>
+                    <td className="px-3 py-1 text-[var(--t-pos)]">{inst.ticker}</td>
                     <td className="px-3 py-1 text-[var(--t-text-dim)]">{inst.maturity}</td>
                     <td className="px-3 py-1 text-[var(--t-text)]">{inst.underlying}</td>
                     <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{inst.currency ?? "—"}</td>

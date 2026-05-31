@@ -217,7 +217,7 @@ function fmtNum(n: number, d = 2): string {
 
 function monedaColor(moneda: string): string {
   if (moneda === "ARS") return "#4fc3f7";
-  if (moneda === "USD") return "#00cc66";
+  if (moneda === "USD") return "var(--t-pos)";
   return "#888";
 }
 
@@ -354,7 +354,7 @@ export function IntradayView() {
 
             <button
               onClick={limpiar}
-              className="text-[10px] text-[var(--t-text-muted)] hover:text-[#ff3333] underline"
+              className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline"
               title="Borra el consolidado de la sesión"
             >
               limpiar
@@ -371,7 +371,7 @@ export function IntradayView() {
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-[11px] text-[#ff3333] bg-[#ff3333]/10 border border-[#ff3333]/30 font-mono shrink-0 whitespace-pre-wrap">
+        <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] bg-[#ff3333]/10 border border-[#ff3333]/30 font-mono shrink-0 whitespace-pre-wrap">
           {error}
         </div>
       )}
@@ -431,7 +431,7 @@ export function IntradayView() {
                       </td>
                       <td
                         className="!px-2 !py-1 text-right font-semibold"
-                        style={{ color: r.turnover_neto >= 0 ? "#00cc66" : "#ff3333" }}
+                        style={{ color: r.turnover_neto >= 0 ? "var(--t-pos)" : "var(--t-neg)" }}
                       >
                         {fmtNum(r.turnover_neto)}
                       </td>
@@ -458,7 +458,7 @@ export function IntradayView() {
                   </span>
                   <span
                     className="text-[13px] font-mono font-bold"
-                    style={{ color: t.turnoverTotal >= 0 ? "#00cc66" : "#ff3333" }}
+                    style={{ color: t.turnoverTotal >= 0 ? "var(--t-pos)" : "var(--t-neg)" }}
                   >
                     {fmtNum(t.turnoverTotal)}
                   </span>
@@ -490,8 +490,8 @@ export function IntradayView() {
                               e.cantidad_neta === 0
                                 ? "#888"
                                 : e.cantidad_neta > 0
-                                ? "#00cc66"
-                                : "#ff3333",
+                                ? "var(--t-pos)"
+                                : "var(--t-neg)",
                           }}
                         >
                           {fmtNum(e.cantidad_neta, 0)}

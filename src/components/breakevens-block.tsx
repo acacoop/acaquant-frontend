@@ -238,7 +238,7 @@ function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
                 <td className="text-[var(--t-text-dim)]">{shortTicker(p.cer)}</td>
                 <td className="text-right text-[var(--t-text)] font-mono">{mesLabel}</td>
                 <td className="text-right text-[var(--t-text-dim)]">{p.dias}</td>
-                <td className={`text-right font-bold ${be > 3 ? "text-[#ff3333]" : "text-[#00cc66]"}`}>
+                <td className={`text-right font-bold ${be > 3 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"}`}>
                   {be.toFixed(2)}%
                 </td>
               </tr>
@@ -390,7 +390,7 @@ function BreakevensGrafico({
             tickLine={false}
             tickFormatter={(v: number) => `${v.toFixed(1)}%`}
           />
-          <ReferenceLine y={3} stroke="#ff3333" strokeDasharray="6 3" strokeOpacity={0.5} />
+          <ReferenceLine y={3} stroke="var(--t-neg)" strokeDasharray="6 3" strokeOpacity={0.5} />
           <Tooltip
             contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
             labelStyle={{ color: "#808080" }}

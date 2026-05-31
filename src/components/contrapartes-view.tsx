@@ -32,7 +32,7 @@ interface ContraparteDoc {
 }
 
 const COLOR_ARS = "#094293";
-const COLOR_USD = "#00cc66";
+const COLOR_USD = "var(--t-pos)";
 const MESES = [
   "Ene",
   "Feb",
@@ -307,7 +307,7 @@ export function ContrapartesView() {
   }
   if (error) {
     return (
-      <div className="h-full flex items-center justify-center text-[#ff3333] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-neg)] text-sm">
         Error: {error}
       </div>
     );

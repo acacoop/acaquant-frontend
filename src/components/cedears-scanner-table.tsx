@@ -105,8 +105,8 @@ export function CedearsScannerTable({
                 ccl.vs_1d_pct === null
                   ? "text-[var(--t-text-muted)]"
                   : ccl.vs_1d_pct >= 0
-                  ? "text-[#00cc66]"
-                  : "text-[#ff3333]"
+                  ? "text-[var(--t-pos)]"
+                  : "text-[var(--t-neg)]"
               }
             >
               {ccl.vs_1d_pct !== null
@@ -223,8 +223,8 @@ function PctCell({ v }: { v: number | null | undefined }) {
         v === null || v === undefined
           ? "text-[var(--t-text-muted)]"
           : v >= 0
-          ? "text-[#00cc66]"
-          : "text-[#ff3333]"
+          ? "text-[var(--t-pos)]"
+          : "text-[var(--t-neg)]"
       }`}
     >
       {v !== null && v !== undefined

@@ -134,7 +134,7 @@ export function EstrategiaView() {
         </button>
       </div>
 
-      {error && <div className="text-[#ff7f7f] italic">{error}</div>}
+      {error && <div className="text-[var(--t-neg)] italic">{error}</div>}
       {!data && !error && (
         <p className="text-[var(--t-text-muted)] py-4">Meté un ticker y el monto del trade.</p>
       )}
@@ -208,11 +208,11 @@ export function EstrategiaView() {
                   {data.hedge_finder.slice(0, 15).map((h) => (
                     <tr key={h.ticker} className="border-b border-[var(--t-border)]">
                       <td className="text-[var(--t-accent)] px-1">{h.ticker}</td>
-                      <td className={`text-right px-1 ${h.correlacion < 0 ? "text-[#3fbf6f]" : "text-[var(--t-text)]"}`}>
+                      <td className={`text-right px-1 ${h.correlacion < 0 ? "text-[var(--t-pos)]" : "text-[var(--t-text)]"}`}>
                         {h.correlacion.toFixed(2)}
                       </td>
                       <td className="text-center px-1">
-                        <span className={h.accion === "short" ? "text-[#ff7f7f]" : "text-[#3fbf6f]"}>
+                        <span className={h.accion === "short" ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"}>
                           {h.accion.toUpperCase()}
                         </span>
                       </td>

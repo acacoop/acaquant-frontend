@@ -86,7 +86,7 @@ function fmtFechaIso(s: string | null | undefined): string {
 
 function pctColor(n: number | null | undefined): string {
   if (n === null || n === undefined) return "text-[var(--t-text-muted)]";
-  return n >= 0 ? "text-[#00cc66]" : "text-[#ff3333]";
+  return n >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
 }
 
 // ─── Componente principal ────────────────────────────────────────────────────

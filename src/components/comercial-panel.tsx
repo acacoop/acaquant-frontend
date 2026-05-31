@@ -35,7 +35,7 @@ function Kpi({ label, value, warn }: { label: string; value: string; warn?: bool
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex flex-col">
       <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">{label}</span>
-      <span className={`text-[15px] font-semibold tabular-nums ${warn ? "text-[#ff6666]" : "text-[var(--t-text)]"}`}>
+      <span className={`text-[15px] font-semibold tabular-nums ${warn ? "text-[var(--t-neg)]" : "text-[var(--t-text)]"}`}>
         {value}
       </span>
     </div>
@@ -62,7 +62,7 @@ export function ComercialPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
       {error && (
-        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[#ff6666] text-xs">{error}</div>
+        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[var(--t-neg)] text-xs">{error}</div>
       )}
 
       {/* KPIs */}
@@ -87,9 +87,9 @@ export function ComercialPanel() {
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-3 py-2">OPERADOR</th>
               <th className="text-right px-2">CUENTAS</th>
-              <th className="text-right px-2 text-[#00cc66]">ACTIVAS</th>
+              <th className="text-right px-2 text-[var(--t-pos)]">ACTIVAS</th>
               <th className="text-right px-2 text-[var(--t-accent)]">ENFRIÁND.</th>
-              <th className="text-right px-2 text-[#ff6666]">DORMIDAS</th>
+              <th className="text-right px-2 text-[var(--t-neg)]">DORMIDAS</th>
               <th className="text-right px-2 text-[var(--t-text-dim)]">NUEVAS</th>
               <th className="text-right px-2">SIN SEG.</th>
               <th className="text-right px-3">AUM</th>
@@ -108,13 +108,13 @@ export function ComercialPanel() {
                   {o.operador_nombre || o.operador_email || "— sin operador —"}
                   {o.huerfana && (
                     <span title="El email del operador ya no es usuario de la página — reasignar"
-                      className="ml-1.5 text-[8px] px-1 py-0.5 border border-[#ff4444]/40 text-[#ff6666] bg-[#ff4444]/10">HUÉRFANA</span>
+                      className="ml-1.5 text-[8px] px-1 py-0.5 border border-[#ff4444]/40 text-[var(--t-neg)] bg-[#ff4444]/10">HUÉRFANA</span>
                   )}
                 </td>
                 <td className="text-right px-2 tabular-nums font-semibold">{fmtN(o.n_cuentas)}</td>
-                <td className="text-right px-2 tabular-nums text-[#00cc66]">{fmtN(o.n_activas)}</td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-pos)]">{fmtN(o.n_activas)}</td>
                 <td className="text-right px-2 tabular-nums text-[var(--t-accent)]">{fmtN(o.n_enfriandose)}</td>
-                <td className="text-right px-2 tabular-nums text-[#ff6666]">{fmtN(o.n_dormidas)}</td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-neg)]">{fmtN(o.n_dormidas)}</td>
                 <td className="text-right px-2 tabular-nums text-[var(--t-text-dim)]">{fmtN(o.n_nuevas)}</td>
                 <td className="text-right px-2 tabular-nums text-[var(--t-text-dim)]">{fmtN(o.n_sin_segmentar)}</td>
                 <td className="text-right px-3 tabular-nums font-semibold text-[var(--t-accent)]">{fmtAum(o.aum_total)}</td>

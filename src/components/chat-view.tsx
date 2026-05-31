@@ -823,7 +823,7 @@ function ConversationsSidebar({
             </div>
             <button
               onClick={(e) => { e.stopPropagation(); onEliminar(c.id); }}
-              className="opacity-0 group-hover:opacity-100 px-1.5 text-[12px] text-[var(--t-text-dim)] hover:text-[#ff6666]"
+              className="opacity-0 group-hover:opacity-100 px-1.5 text-[12px] text-[var(--t-text-dim)] hover:text-[var(--t-neg)]"
               title="Eliminar"
             >
               ×

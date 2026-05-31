@@ -86,7 +86,7 @@ function TabTasaFija({ operador }: { operador: string }) {
       {/* KPIs + toggle */}
       <div className="flex items-center gap-3 shrink-0">
         <Kpi label="VALUACIÓN ACTUAL" value={fmtCompact(data.total_valuacion)} accent={BRAND_BLUE} />
-        <Kpi label="COBRO PROYECTADO" value={fmtCompact(data.total_cobro)} accent="#00cc66" />
+        <Kpi label="COBRO PROYECTADO" value={fmtCompact(data.total_cobro)} accent="var(--t-pos)" />
         <Kpi label="FECHA SNAPSHOT"   value={fmtVto(data.fecha)} />
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[10px] text-[var(--t-text-muted)]">VALOR NOMINAL</span>
@@ -117,7 +117,7 @@ function TabTasaFija({ operador }: { operador: string }) {
                     <td className="text-[var(--t-accent)] font-semibold">{t.ticker}</td>
                     <td className="text-[var(--t-text-dim)]">{fmtVto(t.fecha_vencimiento)}</td>
                     <td className="text-right font-mono">{fmtCol(t[colSrc])}</td>
-                    <td className="text-right font-mono text-[#00cc66]">{t.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                    <td className="text-right font-mono text-[var(--t-pos)]">{t.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                   </tr>
                 ))}
               </tbody>
@@ -137,7 +137,7 @@ function TabTasaFija({ operador }: { operador: string }) {
                     <tr key={i}>
                       <td className="text-[var(--t-text)]">{c.cuenta}</td>
                       <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
-                      <td className="text-right font-mono text-[#00cc66]">{c.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
+                      <td className="text-right font-mono text-[var(--t-pos)]">{c.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -854,7 +854,7 @@ export function AumView() {
     return (
       <div className="h-full flex flex-col min-h-0">
         {tabBar}
-        <div className="flex-1 flex items-center justify-center text-[#ff3333] text-sm">Error: {serieErr}</div>
+        <div className="flex-1 flex items-center justify-center text-[var(--t-neg)] text-sm">Error: {serieErr}</div>
       </div>
     );
   }
@@ -1208,7 +1208,7 @@ export function AumView() {
               />
               <div className="flex-1 min-h-0 overflow-y-auto p-2">
                 {snapErr ? (
-                  <div className="text-[#ff3333] text-[11px] p-2">
+                  <div className="text-[var(--t-neg)] text-[11px] p-2">
                     Error: {snapErr}
                   </div>
                 ) : !emisorSel ? (
@@ -1437,7 +1437,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
           <Kpi
             label={`TOTAL DIFERENCIA · ${moneda}`}
             value={data ? (data.total_diff > 0 ? "+" : "") + fmtCompact(data.total_diff) : "—"}
-            accent={data ? (data.total_diff >= 0 ? "#00cc66" : "#ff4d4d") : BRAND_BLUE}
+            accent={data ? (data.total_diff >= 0 ? "var(--t-pos)" : "#ff4d4d") : BRAND_BLUE}
           />
           <Kpi label="CUENTAS NUEVAS" value={data ? String(data.n_nuevas) : "—"}
                sub={data ? `de ${data.n_total} totales` : ""} />
@@ -1447,7 +1447,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
         {/* Tabla */}
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex-1 min-h-0 flex flex-col overflow-hidden">
           {err ? (
-            <div className="p-3 text-[#ff4d4d] text-[11px]">Error: {err}</div>
+            <div className="p-3 text-[var(--t-neg)] text-[11px]">Error: {err}</div>
           ) : loading && !data ? (
             <div className="p-6 text-center text-[var(--t-text-muted)] text-[11px]">Cargando…</div>
           ) : data && data.filas.length === 0 ? (
@@ -1485,12 +1485,12 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
                           <span className="text-[var(--t-text-muted)] mr-1">[{r.id_cuenta}]</span>
                           {r.cuenta.replace(/^\[\d+\]\s*/, "")}
                           {tagNueva && (
-                            <span className="ml-2 px-1 py-0.5 text-[9px] bg-[#00cc66]/15 text-[#00cc66] tracking-widest">
+                            <span className="ml-2 px-1 py-0.5 text-[9px] bg-[#00cc66]/15 text-[var(--t-pos)] tracking-widest">
                               NUEVA
                             </span>
                           )}
                           {tagCerrada && (
-                            <span className="ml-2 px-1 py-0.5 text-[9px] bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">
+                            <span className="ml-2 px-1 py-0.5 text-[9px] bg-[#ff4d4d]/15 text-[var(--t-neg)] tracking-widest">
                               CERRADA
                             </span>
                           )}
@@ -1502,7 +1502,7 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
                           {r.saldo_anterior !== null ? fmtCompact(r.saldo_anterior) : "—"}
                         </td>
                         <td className={`px-3 py-1.5 text-right font-semibold ${
-                          r.diff > 0 ? "text-[#00cc66]" : r.diff < 0 ? "text-[#ff4d4d]" : "text-[var(--t-text-dim)]"
+                          r.diff > 0 ? "text-[var(--t-pos)]" : r.diff < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"
                         }`}>
                           {r.diff > 0 ? "+" : ""}{fmtCompact(r.diff)}
                         </td>

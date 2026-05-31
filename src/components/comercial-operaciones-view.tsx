@@ -800,7 +800,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                           <td className="px-2 py-1 text-right text-[var(--t-text)]">
                             {o.precio != null ? o.precio.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
                           </td>
-                          <td className={"px-3 py-1 text-right whitespace-nowrap " + (imp > 0 ? "text-[#3fbf6f]" : imp < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]")}>
+                          <td className={"px-3 py-1 text-right whitespace-nowrap " + (imp > 0 ? "text-[var(--t-pos)]" : imp < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]")}>
                             {o.importe != null ? fmtAum(o.importe) : "—"}
                             {o.moneda === "USD" && <span className="text-[var(--t-text-muted)] ml-0.5">u$s</span>}
                           </td>
@@ -1128,7 +1128,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           </div>
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo libre = transaccional − usado.">
             <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">Cupo libre</span>
-            <span className="text-[15px] font-semibold tabular-nums text-[#5dd6a0] leading-tight">{fmtUsd(cupoTotales.libre)}</span>
+            <span className="text-[15px] font-semibold tabular-nums text-[var(--t-pos)] leading-tight">{fmtUsd(cupoTotales.libre)}</span>
           </div>
 
           {/* Ayuda: definiciones de los estados + umbrales (reales del backend) */}
@@ -1235,7 +1235,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                       >
                         <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={n.nivel}>{n.nivel}</td>
                         <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.n}</td>
-                        <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{n.activas}</td>
+                        <td className="px-2 py-1.5 text-right text-[var(--t-pos)]">{n.activas}</td>
                         <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{n.pctActivas.toFixed(0)}%</td>
                         <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(n.aum)}</td>
                       </tr>
@@ -1289,8 +1289,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                         >
                           <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={r.n3}>{r.n3}</td>
                           <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtUsd(r.cupo_trans_usd)}</td>
-                          <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{fmtUsd(r.cupo_libre_usd)}</td>
-                          <td className="px-2 py-1.5 text-right text-[#5dd6a0]">{r.n_activas}</td>
+                          <td className="px-2 py-1.5 text-right text-[var(--t-pos)]">{fmtUsd(r.cupo_libre_usd)}</td>
+                          <td className="px-2 py-1.5 text-right text-[var(--t-pos)]">{r.n_activas}</td>
                           <td className="px-2 py-1.5 text-right text-[var(--t-accent)]">{r.n_enfriandose}</td>
                           <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(r.aum)}</td>
                         </tr>

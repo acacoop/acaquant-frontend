@@ -123,8 +123,8 @@ function truncate(s: string, n: number): string {
 }
 
 const ESTADO_COLOR: Record<string, string> = {
-  ok: "#00cc66",
-  error: "#ff3333",
+  ok: "var(--t-pos)",
+  error: "var(--t-neg)",
   truncated: "#ff9900",
 };
 
@@ -142,7 +142,7 @@ function MetricCard({
   accent?: "ok" | "warn" | "err";
 }) {
   const color =
-    accent === "ok" ? "#00cc66" : accent === "warn" ? "#ff9900" : accent === "err" ? "#ff3333" : "#d0d0d0";
+    accent === "ok" ? "var(--t-pos)" : accent === "warn" ? "#ff9900" : accent === "err" ? "var(--t-neg)" : "#d0d0d0";
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-surface)] px-3 py-2 font-mono">
       <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide">{label}</div>
@@ -170,7 +170,7 @@ function ToolsRanking({ data }: { data: ToolRank[] }) {
               <span className="text-[var(--t-text)] truncate pr-2">{t.tool}</span>
               <span className="text-[var(--t-text-dim)]">
                 {t.calls}
-                {t.fail > 0 && <span className="text-[#ff3333]"> / {t.fail} ✗</span>}
+                {t.fail > 0 && <span className="text-[var(--t-neg)]"> / {t.fail} ✗</span>}
               </span>
             </div>
             <div className="h-1.5 bg-[var(--t-border)] relative">
@@ -178,7 +178,7 @@ function ToolsRanking({ data }: { data: ToolRank[] }) {
                 className="h-full"
                 style={{
                   width: `${pct}%`,
-                  background: failPct > 20 ? "#ff3333" : "#ff9900",
+                  background: failPct > 20 ? "var(--t-neg)" : "#ff9900",
                 }}
               />
             </div>
@@ -204,8 +204,8 @@ function ExpandedRow({ log }: { log: LogEntry }) {
       )}
       {log.error && (
         <div>
-          <div className="text-[9px] text-[#ff3333] uppercase tracking-wide">Error</div>
-          <div className="text-[#ff3333] mt-0.5">
+          <div className="text-[9px] text-[var(--t-neg)] uppercase tracking-wide">Error</div>
+          <div className="text-[var(--t-neg)] mt-0.5">
             [{log.error.code ?? "?"}] {log.error.message}
           </div>
         </div>
@@ -218,7 +218,7 @@ function ExpandedRow({ log }: { log: LogEntry }) {
           <div className="mt-0.5 space-y-0.5">
             {log.tool_calls.map((tc, i) => (
               <div key={i} className="text-[var(--t-text-dim)]">
-                <span className={tc.ok ? "text-[#00cc66]" : "text-[#ff3333]"}>{tc.ok ? "✓" : "✗"}</span>{" "}
+                <span className={tc.ok ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}>{tc.ok ? "✓" : "✗"}</span>{" "}
                 <span className="text-[var(--t-accent)]">{tc.name}</span>
                 <span className="text-[var(--t-text-muted)]">
                   ({JSON.stringify(tc.args)})
@@ -372,7 +372,7 @@ export function AsistenteDashboard() {
         <div className="ml-auto flex items-center gap-2 text-[10px] text-[var(--t-text-muted)]">
           <span
             className="w-1.5 h-1.5 rounded-full"
-            style={{ background: loading ? "#ff9900" : "#00cc66" }}
+            style={{ background: loading ? "#ff9900" : "var(--t-pos)" }}
           />
           <span>
             {loading
@@ -387,7 +387,7 @@ export function AsistenteDashboard() {
       </div>
 
       {error && (
-        <div className="px-3 py-1.5 text-[10px] text-[#ff3333] bg-[#ff3333]/10 border-b border-[#ff3333]/40 font-mono">
+        <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)] bg-[#ff3333]/10 border-b border-[#ff3333]/40 font-mono">
           Error: {error}
         </div>
       )}

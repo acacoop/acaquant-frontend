@@ -484,10 +484,10 @@ function SaldoCell({
     value == null
       ? "text-[var(--t-text-dim)]"
       : value < 0
-        ? "text-[#ff7f7f]"
+        ? "text-[var(--t-neg)]"
         : dim
           ? "text-[var(--t-text-dim)]"
-          : "text-[#7fff7f]";
+          : "text-[var(--t-pos)]";
   return (
     <div className="flex flex-col gap-0.5 leading-tight">
       <span className="text-[8px] tracking-wider text-[var(--t-text-muted)]">{label}</span>
@@ -569,7 +569,7 @@ export function AccountSearch({
                 setOpen(false);
               }}
               className={`px-2 py-1 hover:bg-[var(--t-border)] cursor-pointer flex items-center gap-2 ${
-                c.account_id === value ? "bg-[#1a1308]" : ""
+                c.account_id === value ? "bg-[var(--t-tint-amber)]" : ""
               }`}
             >
               <span className="text-[var(--t-accent)] font-mono tabular-nums min-w-[60px]">
@@ -820,7 +820,7 @@ function OperarCard({
   }
 
   const sideBg =
-    form.side === "BUY" ? "bg-[#0d1d0d]" : "bg-[#1d0d0d]";
+    form.side === "BUY" ? "bg-[var(--t-tint-green)]" : "bg-[var(--t-tint-red)]";
 
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-w-0 w-full">
@@ -852,20 +852,20 @@ function OperarCard({
         </div>
         <button
           onClick={onRemove}
-          className="ml-1 text-[var(--t-text-muted)] hover:text-[#f87171] text-[14px] leading-none"
+          className="ml-1 text-[var(--t-text-muted)] hover:text-[var(--t-neg)] text-[14px] leading-none"
           title="Cerrar panel"
         >
           ×
         </button>
       </div>
       {status === "subscribing" && (
-        <div className="px-2 py-1 text-[9px] text-[#ffe066] border-b border-[var(--t-border)] bg-[#1a1608] flex items-center gap-2">
+        <div className="px-2 py-1 text-[9px] text-[#ffe066] border-b border-[var(--t-border)] bg-[var(--t-tint-amber)] flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-[#ffe066] animate-pulse" />
           suscribiendo… el motor lo levanta en ~5s
         </div>
       )}
       {status === "error" && error && (
-        <div className="px-2 py-1 text-[9px] text-[#f87171] border-b border-[var(--t-border)] bg-[#1a0d0d]">
+        <div className="px-2 py-1 text-[9px] text-[var(--t-neg)] border-b border-[var(--t-border)] bg-[var(--t-tint-red)]">
           {error}
         </div>
       )}
@@ -924,7 +924,7 @@ function OperarCard({
                 <td
                   className={`px-1 py-0.5 text-right ${
                     b
-                      ? "text-[#7fff7f] cursor-pointer hover:bg-[#0d2d0d]"
+                      ? "text-[var(--t-pos)] cursor-pointer hover:bg-[var(--t-tint-green)]"
                       : "text-[var(--t-text-muted)]"
                   }`}
                   onClick={() => b && pickFromBook("SELL", b.price, b.size)}
@@ -935,7 +935,7 @@ function OperarCard({
                 <td
                   className={`px-1 py-0.5 ${
                     a
-                      ? "text-[#ff7f7f] cursor-pointer hover:bg-[#2d0d0d]"
+                      ? "text-[var(--t-neg)] cursor-pointer hover:bg-[var(--t-tint-red)]"
                       : "text-[var(--t-text-muted)]"
                   }`}
                   onClick={() => a && pickFromBook("BUY", a.price, a.size)}
@@ -1051,7 +1051,7 @@ function OperarCard({
         {result && (
           <div
             className={`mt-1 text-[9px] ${
-              result.ok ? "text-[#4ade80]" : "text-[#f87171]"
+              result.ok ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
             }`}
           >
             {result.msg}
@@ -1159,7 +1159,7 @@ export function OrderManagement({
                   </td>
                   <td
                     className={`px-2 py-0.5 font-semibold ${
-                      o.side === "BUY" ? "text-[#7fff7f]" : "text-[#ff7f7f]"
+                      o.side === "BUY" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
                     }`}
                   >
                     {o.side ?? "—"}
@@ -1194,7 +1194,7 @@ export function OrderManagement({
                     {isActive && o.cl_ord_id && (
                       <button
                         onClick={() => onCancel(o.cl_ord_id!, o.proprietary)}
-                        className="text-[9px] text-[#f87171] hover:underline"
+                        className="text-[9px] text-[var(--t-neg)] hover:underline"
                       >
                         cancelar
                       </button>
@@ -1213,9 +1213,9 @@ export function OrderManagement({
 
 function statusColor(s?: string): string {
   if (!s) return "text-[var(--t-text-dim)]";
-  if (s === "FILLED") return "text-[#7fff7f]";
+  if (s === "FILLED") return "text-[var(--t-pos)]";
   if (s === "REJECTED" || s === "CANCELLED" || s === "EXPIRED")
-    return "text-[#ff7f7f]";
+    return "text-[var(--t-neg)]";
   if (s === "NEW" || s === "PARTIALLY_FILLED" || s === "PENDING_NEW")
     return "text-[#ffe066]";
   return "text-white";
@@ -1386,8 +1386,8 @@ export function OperarDashboardView() {
           <div
             className={`shrink-0 flex items-center gap-2 px-2 py-1 text-[10px] border ${
               noOperable
-                ? "border-[#f87171]/50 bg-[#1a0d0d] text-[#f87171]"
-                : "border-[var(--t-accent)]/40 bg-[#1a1308] text-[#ffcf66]"
+                ? "border-[#f87171]/50 bg-[var(--t-tint-red)] text-[var(--t-neg)]"
+                : "border-[var(--t-accent)]/40 bg-[var(--t-tint-amber)] text-[#ffcf66]"
             }`}
           >
             <span>

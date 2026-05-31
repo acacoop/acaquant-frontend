@@ -247,9 +247,9 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
           const side = (t.side || "").toUpperCase();
           const color =
             side === "BUY"
-              ? "text-[#00cc66]"
+              ? "text-[var(--t-pos)]"
               : side === "SELL"
-              ? "text-[#ff3333]"
+              ? "text-[var(--t-neg)]"
               : "text-[var(--t-text)]";
           const d = new Date(t.timestamp);
           const hora = `${String(d.getHours()).padStart(2, "0")}:${String(

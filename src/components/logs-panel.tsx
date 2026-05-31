@@ -20,12 +20,12 @@ const SERVICES = [
 ];
 
 const PRIORITY_COLOR: Record<string, string> = {
-  emerg:  "#ff3333",
-  alert:  "#ff3333",
-  crit:   "#ff3333",
-  error:  "#ff3333",
+  emerg:  "var(--t-neg)",
+  alert:  "var(--t-neg)",
+  crit:   "var(--t-neg)",
+  error:  "var(--t-neg)",
   warn:   "#ff9900",
-  notice: "#00cc66",
+  notice: "var(--t-pos)",
   info:   "#999999",
   debug:  "#555555",
 };
@@ -170,7 +170,7 @@ export function LogsPanel() {
           onClick={() => setAutoRefresh((v) => !v)}
           className={`px-2 py-1 text-[10px] font-semibold tracking-wide border ml-1 ${
             autoRefresh
-              ? "bg-[#00cc66]/20 text-[#00cc66] border-[#00cc66]/40"
+              ? "bg-[#00cc66]/20 text-[var(--t-pos)] border-[#00cc66]/40"
               : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)]"
           }`}
           title="Auto-refresh cada 3 s"
@@ -194,7 +194,7 @@ export function LogsPanel() {
 
       {/* Errores */}
       {error && (
-        <div className="px-3 py-2 text-[11px] text-[#ff3333] bg-[#ff3333]/10 border-b border-[#ff3333]/30 font-mono">
+        <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] bg-[#ff3333]/10 border-b border-[#ff3333]/30 font-mono">
           {error}
         </div>
       )}

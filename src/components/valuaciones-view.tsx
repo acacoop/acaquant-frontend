@@ -81,7 +81,7 @@ interface Posicion {
 // y nuevos (renombrados) porque carteraColor normaliza con carteraShort.
 const CARTERA_COLORS: Record<string, string> = {
   "ARS": "#4a9eff",
-  "DL":  "#00cc66",
+  "DL":  "var(--t-pos)",
   "HD":  "#ff9900",
   "FCI": "#bb66ff",
 };
@@ -507,7 +507,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   // vista entera con datos válidos ya cargados.
   if (error && !mensualResp) {
     return (
-      <div className="h-full flex items-center justify-center text-[#ff3333] text-sm p-4">
+      <div className="h-full flex items-center justify-center text-[var(--t-neg)] text-sm p-4">
         Error: {error}
       </div>
     );
@@ -548,7 +548,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   }
 
   const colorDelta = (n: number | null | undefined) =>
-    n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
+    n == null ? "#888" : n >= 0 ? "var(--t-pos)" : "var(--t-neg)";
 
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
@@ -1169,7 +1169,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtPrice(p.precio)}</td>
                       <td
                         className="px-2 py-1 align-top text-right font-semibold"
-                        style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "#ff3333" }}
+                        style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "var(--t-neg)" }}
                       >
                         {fmtCompact(p.valuacion)}
                       </td>
@@ -1209,7 +1209,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               setCtxMenu(null);
               router.push(href);
             }}
-            className="w-full text-left px-3 py-2 hover:bg-[#1a1308] text-[#ffcf66] flex items-center gap-2"
+            className="w-full text-left px-3 py-2 hover:bg-[var(--t-tint-amber)] text-[#ffcf66] flex items-center gap-2"
           >
             <span>▸</span>
             <span>
@@ -1225,7 +1225,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
 // ── Color de variación (compartido) ─────────────────────────────────────────
 function colorDeltaMod(n: number | null | undefined): string {
-  return n == null ? "#888" : n >= 0 ? "#00cc66" : "#ff3333";
+  return n == null ? "#888" : n >= 0 ? "var(--t-pos)" : "var(--t-neg)";
 }
 
 // ── Tabla FLUJO del mes (depósitos / extracciones / transferencias) ─────────
@@ -1267,7 +1267,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
             <tr key={m.comprobante ?? m.fecha} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
               <td className="px-2 py-1 align-top text-[var(--t-text-dim)]">{fmtFechaCorta(m.fecha)}</td>
               <td className="px-2 py-1 align-top whitespace-normal break-words">
-                <span style={{ color: isDep ? "#00cc66" : "#ff5d6c" }}>
+                <span style={{ color: isDep ? "var(--t-pos)" : "#ff5d6c" }}>
                   {m.categoria === "deposito"
                     ? "Depósito"
                     : m.categoria === "extraccion"
@@ -1286,7 +1286,7 @@ function FlujoTabla({ movResp }: { movResp: MovimientosResp | null }) {
               <td className="px-2 py-1 align-top text-[var(--t-text-dim)]">{m.moneda ?? "—"}</td>
               <td
                 className="px-2 py-1 align-top text-right font-semibold"
-                style={{ color: (m.importe_ars ?? 0) >= 0 ? "#00cc66" : "#ff5d6c" }}
+                style={{ color: (m.importe_ars ?? 0) >= 0 ? "var(--t-pos)" : "#ff5d6c" }}
               >
                 {fmtSigned(m.importe_ars)}
               </td>

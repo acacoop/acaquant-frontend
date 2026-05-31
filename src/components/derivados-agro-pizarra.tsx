@@ -95,11 +95,11 @@ function mercadoAbiertoUTC(d: Date = new Date()): boolean {
 
 function pasecolor(n: number | null | undefined): string {
   if (n === null || n === undefined) return "text-[var(--t-text-muted)]";
-  return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
+  return n >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
 }
 function tnavColor(n: number | null | undefined): string {
   if (n === null || n === undefined) return "text-[var(--t-text-muted)]";
-  return n >= 0 ? "text-[#4ade80]" : "text-[#f87171]";
+  return n >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
 }
 
 // ─── Flash al cambiar de valor ───────────────────────────────────────────────
@@ -157,10 +157,10 @@ type EstadoFeed = "live" | "cerrado" | "stale";
 function FreshnessPill({ estado }: { estado: EstadoFeed }) {
   const cfg =
     estado === "live"
-      ? { dot: "bg-[#4ade80] animate-pulse", txt: "text-[#4ade80]", label: "LIVE" }
+      ? { dot: "bg-[#4ade80] animate-pulse", txt: "text-[var(--t-pos)]", label: "LIVE" }
       : estado === "cerrado"
         ? { dot: "bg-[#666]", txt: "text-[var(--t-text-dim)]", label: "MERCADO CERRADO" }
-        : { dot: "bg-[#f87171]", txt: "text-[#f87171]", label: "DESACTUALIZADO" };
+        : { dot: "bg-[#f87171]", txt: "text-[var(--t-neg)]", label: "DESACTUALIZADO" };
   return (
     <span className="inline-flex items-center gap-1 text-[10px] tracking-wide">
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
@@ -212,7 +212,7 @@ export function DerivadosAgroPizarra({
         </span>
         <span
           className={`font-mono text-[11px] ${
-            oficialStale ? "text-[#f87171]" : "text-[var(--t-accent)]"
+            oficialStale ? "text-[var(--t-neg)]" : "text-[var(--t-accent)]"
           }`}
         >
           {oficial ? fmtArs(oficial) : "—"}
@@ -557,7 +557,7 @@ function PizarraRow({
   const arsBg = useFlashBg(row.ars);
 
   return (
-    <tr className="border-y border-[#3a2c0a] bg-[#1a1308]">
+    <tr className="border-y border-[#3a2c0a] bg-[var(--t-tint-amber)]">
       <td className="px-1.5 py-1 text-[#e0c890]">
         {fmtFechaVtoFuturo(row.vencimiento)}
       </td>

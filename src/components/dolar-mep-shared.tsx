@@ -151,9 +151,9 @@ export function PataCell({ pata }: { pata: PataOrden | null | undefined }) {
 // /api/risk/account/report.
 function _colorDisp(value: number | null, opts?: { ref?: number }): string {
   if (value === null) return "text-[var(--t-text-dim)]";
-  if (value < 0) return "text-[#ff7f7f]";
+  if (value < 0) return "text-[var(--t-neg)]";
   if (opts?.ref !== undefined && opts.ref > 0 && value < opts.ref) return "text-[var(--t-accent)]";
-  return "text-[#7fff7f]";
+  return "text-[var(--t-pos)]";
 }
 
 export function SaldoBox({
@@ -299,16 +299,16 @@ export function fmtSignedUsd(n: number): string {
 
 export function statusColor(s?: string): string {
   if (!s) return "";
-  if (s === "FILLED") return "text-[#7fff7f]";
-  if (s === "REJECTED" || s === "CANCELLED" || s === "EXPIRED") return "text-[#ff7f7f]";
+  if (s === "FILLED") return "text-[var(--t-pos)]";
+  if (s === "REJECTED" || s === "CANCELLED" || s === "EXPIRED") return "text-[var(--t-neg)]";
   if (s === "NEW" || s === "PARTIALLY_FILLED" || s === "PENDING_NEW") return "text-[#ffe066]";
   return "text-white";
 }
 
 export function estadoColor(s?: string): string {
   if (!s) return "";
-  if (s === "FILLED" || s === "OK" || s === "EXECUTED") return "text-[#7fff7f]";
-  if (s === "FAIL") return "text-[#ff7f7f]";
+  if (s === "FILLED" || s === "OK" || s === "EXECUTED") return "text-[var(--t-pos)]";
+  if (s === "FAIL") return "text-[var(--t-neg)]";
   if (s === "OK_PARCIAL" || s === "PENDING" || s === "FIRING" || s === "ACTIVE") return "text-[#ffe066]";
   if (s === "CANCELLED" || s === "CANCELLED_EOD" || s === "STALE_BUY") return "text-[var(--t-text-dim)]";
   return "text-white";

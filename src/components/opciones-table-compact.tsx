@@ -162,8 +162,8 @@ export function OpcionesTableCompact({
                         intraday === null
                           ? "text-[var(--t-text-muted)]"
                           : intraday >= 0
-                          ? "text-[#00cc66]"
-                          : "text-[#ff3333]"
+                          ? "text-[var(--t-pos)]"
+                          : "text-[var(--t-neg)]"
                       }`}
                     >
                       {intraday !== null
@@ -175,8 +175,8 @@ export function OpcionesTableCompact({
                         vs1d === null
                           ? "text-[var(--t-text-muted)]"
                           : vs1d >= 0
-                          ? "text-[#00cc66]"
-                          : "text-[#ff3333]"
+                          ? "text-[var(--t-pos)]"
+                          : "text-[var(--t-neg)]"
                       }`}
                     >
                       {vs1d !== null

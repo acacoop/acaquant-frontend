@@ -182,7 +182,7 @@ export function DerivadosOperar({
     }
   }
 
-  const sideBg = side === "BUY" ? "bg-[#0d1d0d]" : "bg-[#1d0d0d]";
+  const sideBg = side === "BUY" ? "bg-[var(--t-tint-green)]" : "bg-[var(--t-tint-red)]";
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -197,13 +197,13 @@ export function DerivadosOperar({
       </div>
 
       {status === "subscribing" && (
-        <div className="px-2 py-1 text-[9px] text-[#ffe066] border-b border-[var(--t-border)] bg-[#1a1608] flex items-center gap-2 shrink-0">
+        <div className="px-2 py-1 text-[9px] text-[#ffe066] border-b border-[var(--t-border)] bg-[var(--t-tint-amber)] flex items-center gap-2 shrink-0">
           <span className="inline-block w-2 h-2 rounded-full bg-[#ffe066] animate-pulse" />
           suscribiendo… el motor lo levanta en ~5s
         </div>
       )}
       {status === "error" && bookErr && (
-        <div className="px-2 py-1 text-[9px] text-[#f87171] border-b border-[var(--t-border)] bg-[#1a0d0d] shrink-0">
+        <div className="px-2 py-1 text-[9px] text-[var(--t-neg)] border-b border-[var(--t-border)] bg-[var(--t-tint-red)] shrink-0">
           {bookErr}
         </div>
       )}
@@ -230,7 +230,7 @@ export function DerivadosOperar({
                   </td>
                   <td
                     className={`px-1 py-0.5 text-right ${
-                      b ? "text-[#7fff7f] cursor-pointer hover:bg-[#0d2d0d]" : "text-[var(--t-text-muted)]"
+                      b ? "text-[var(--t-pos)] cursor-pointer hover:bg-[var(--t-tint-green)]" : "text-[var(--t-text-muted)]"
                     }`}
                     onClick={() => b && pickFromBook("SELL", b.price, b.size)}
                     title={b ? "Click: vender al bid" : ""}
@@ -239,7 +239,7 @@ export function DerivadosOperar({
                   </td>
                   <td
                     className={`px-1 py-0.5 ${
-                      a ? "text-[#ff7f7f] cursor-pointer hover:bg-[#2d0d0d]" : "text-[var(--t-text-muted)]"
+                      a ? "text-[var(--t-neg)] cursor-pointer hover:bg-[var(--t-tint-red)]" : "text-[var(--t-text-muted)]"
                     }`}
                     onClick={() => a && pickFromBook("BUY", a.price, a.size)}
                     title={a ? "Click: comprar al ask" : ""}
@@ -347,7 +347,7 @@ export function DerivadosOperar({
         </button>
 
         {result && (
-          <div className={`mt-1 text-[9px] ${result.ok ? "text-[#4ade80]" : "text-[#f87171]"}`}>
+          <div className={`mt-1 text-[9px] ${result.ok ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
             {result.msg}
           </div>
         )}

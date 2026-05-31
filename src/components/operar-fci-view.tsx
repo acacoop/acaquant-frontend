@@ -380,7 +380,7 @@ function FciOperatePanel({
         </button>
 
         {result && (
-          <div className={`text-[10px] ${result.ok ? "text-[#4ade80]" : "text-[#f87171]"}`}>
+          <div className={`text-[10px] ${result.ok ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
             {result.msg}
           </div>
         )}
@@ -495,8 +495,8 @@ export function OperarFciView() {
           <div
             className={`shrink-0 flex items-center gap-2 px-2 py-1 text-[10px] border ${
               noOperable
-                ? "border-[#f87171]/50 bg-[#1a0d0d] text-[#f87171]"
-                : "border-[var(--t-accent)]/40 bg-[#1a1308] text-[#ffcf66]"
+                ? "border-[#f87171]/50 bg-[var(--t-tint-red)] text-[var(--t-neg)]"
+                : "border-[var(--t-accent)]/40 bg-[var(--t-tint-amber)] text-[#ffcf66]"
             }`}
           >
             <span>

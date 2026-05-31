@@ -100,7 +100,7 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
 
   if (error && puntos.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#ff3333] font-mono text-xs">
+      <div className="h-full flex items-center justify-center text-[var(--t-neg)] font-mono text-xs">
         Error: {error}
       </div>
     );
@@ -208,7 +208,7 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
                 const { cx, cy, payload } = props;
                 if (cx === undefined || cy === undefined || !payload) return <g />;
                 const r = payload.selected ? 6 : 3.5;
-                const fill = payload.selected ? "#00cc66" : "#ffcc00";
+                const fill = payload.selected ? "var(--t-pos)" : "#ffcc00";
                 return <circle cx={cx} cy={cy} r={r} fill={fill} stroke="#080808" strokeWidth={1} />;
               }}
             >

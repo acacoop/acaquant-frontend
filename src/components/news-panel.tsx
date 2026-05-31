@@ -18,7 +18,7 @@ const FUENTE_COLOR: Record<string, string> = {
   "Ámbito":       "#ff9900",
   "Cronista":     "#4a9eff",
   "Infobae":      "#bb66ff",
-  "iProfesional": "#00cc66",
+  "iProfesional": "var(--t-pos)",
   "La Nación":    "#ff6666",
   "Clarín":       "#ffcc00",
   "BAE":          "#66ddcc",
@@ -138,7 +138,7 @@ export function NewsPanel() {
         </span>
         <span
           className="w-1.5 h-1.5 rounded-full"
-          style={{ background: loading ? "#ff9900" : "#00cc66" }}
+          style={{ background: loading ? "#ff9900" : "var(--t-pos)" }}
         />
         <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">
           {loading
@@ -191,7 +191,7 @@ export function NewsPanel() {
       {/* Lista de headlines */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {error && (
-          <div className="px-3 py-2 text-[10px] text-[#ff3333] font-mono">Error: {error}</div>
+          <div className="px-3 py-2 text-[10px] text-[var(--t-neg)] font-mono">Error: {error}</div>
         )}
         {!loading && visibles.length === 0 && (
           <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center font-mono">

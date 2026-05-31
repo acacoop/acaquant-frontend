@@ -53,8 +53,8 @@ const POLL_MS = 300_000; // 5 min — refresh para tomar precios del día
 const PALETA = [
   "#ff9900",
   "#4a9eff",
-  "#00cc66",
-  "#ff3333",
+  "var(--t-pos)",
+  "var(--t-neg)",
   "#bb66ff",
   "#00cccc",
   "#ffee44",
@@ -452,7 +452,7 @@ function HistoricoTab() {
         {loading ? (
           <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>
         ) : error ? (
-          <span className="text-[10px] text-[#ff3333]">error: {error}</span>
+          <span className="text-[10px] text-[var(--t-neg)]">error: {error}</span>
         ) : fechas.length < 2 ? (
           <span className="text-[10px] text-[var(--t-text-muted)]">sin datos</span>
         ) : (
@@ -580,7 +580,7 @@ function HistoricoTab() {
                       <>
                         <td
                           className={`!px-1 text-right font-semibold ${
-                            r.retArs >= 0 ? "text-[#00cc66]" : "text-[#ff3333]"
+                            r.retArs >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
                           }`}
                         >
                           {r.retArs >= 0 ? "+" : ""}
@@ -591,8 +591,8 @@ function HistoricoTab() {
                             r.retUsd == null
                               ? "text-[var(--t-text-muted)]"
                               : r.retUsd >= 0
-                                ? "text-[#00cc66]"
-                                : "text-[#ff3333]"
+                                ? "text-[var(--t-pos)]"
+                                : "text-[var(--t-neg)]"
                           }`}
                         >
                           {r.retUsd == null
@@ -603,7 +603,7 @@ function HistoricoTab() {
                     ) : (
                       <td
                         className={`!px-1 text-right font-semibold ${
-                          r.retArs >= 0 ? "text-[#00cc66]" : "text-[#ff3333]"
+                          r.retArs >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
                         }`}
                       >
                         {r.retArs >= 0 ? "+" : ""}

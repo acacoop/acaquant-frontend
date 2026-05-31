@@ -185,7 +185,7 @@ export function PnLTotalesView() {
   }
 
   if (err) {
-    return <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>;
+    return <div className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</div>;
   }
   if (loading && !data) {
     return (
@@ -214,15 +214,15 @@ export function PnLTotalesView() {
       <div className="grid grid-cols-5 gap-3">
         <Kpi label={`PNL TOTAL · ${moneda}`}
              value={fmtMonSigned(aggVisible.pnl, esUSD)}
-             accent={aggVisible.pnl >= 0 ? "#00cc66" : "#ff4d4d"}
+             accent={aggVisible.pnl >= 0 ? "var(--t-pos)" : "#ff4d4d"}
              sub="papel + cobros + dia" />
         <Kpi label="PNL NO REALIZADO"
              value={fmtMonSigned(aggVisible.no_real, esUSD)}
-             accent={aggVisible.no_real >= 0 ? "#00cc66" : "#ff4d4d"}
+             accent={aggVisible.no_real >= 0 ? "var(--t-pos)" : "#ff4d4d"}
              sub={esUSD ? "valor hoy − costo USD" : "stock vivo · papel"} />
         <Kpi label="PNL PASIVO"
              value={fmtMonSigned(aggVisible.pasivo, esUSD)}
-             accent={aggVisible.pasivo >= 0 ? "#00cc66" : "#ff4d4d"}
+             accent={aggVisible.pasivo >= 0 ? "var(--t-pos)" : "#ff4d4d"}
              sub="cupones · divs · amorts" />
         <Kpi label="VALOR ACTUAL"
              value={fmtMon(aggVisible.valor, esUSD)}
@@ -358,7 +358,7 @@ export function PnLTotalesView() {
                             <span className="px-1 py-0 bg-[var(--t-accent)]/15 text-[var(--t-accent)] tracking-widest">P</span>
                           )}
                           {r.completeness === "sin_boletos" && (
-                            <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SB</span>
+                            <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[var(--t-neg)] tracking-widest">SB</span>
                           )}
                           {r.moneda_mixta && (
                             <span className="ml-1 px-1 py-0 bg-[#4a9eff]/15 text-[#4a9eff] tracking-widest">$</span>

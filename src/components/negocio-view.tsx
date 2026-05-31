@@ -787,7 +787,7 @@ export function NegocioView() {
       </div>
 
       {error && (
-        <div className="mx-4 mt-3 border border-[#aa3333] bg-[#1a0808] p-3 text-[11px] text-[#ff7777]">
+        <div className="mx-4 mt-3 border border-[#aa3333] bg-[var(--t-tint-red)] p-3 text-[11px] text-[#ff7777]">
           {error}
         </div>
       )}
@@ -1198,8 +1198,8 @@ export function NegocioView() {
                                             </td>
                                             <td className={
                                               "px-2 py-0.5 text-right " +
-                                              ((b.importe ?? 0) > 0 ? "text-[#3fbf6f]" :
-                                               (b.importe ?? 0) < 0 ? "text-[#ff5d6c]" : "text-[var(--t-text-dim)]")
+                                              ((b.importe ?? 0) > 0 ? "text-[var(--t-pos)]" :
+                                               (b.importe ?? 0) < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]")
                                             }>
                                               {b.importe != null
                                                 ? b.importe.toLocaleString("es-AR", { maximumFractionDigits: 2 })

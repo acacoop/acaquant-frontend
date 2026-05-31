@@ -213,8 +213,8 @@ export function DolarMepVentaView({
         <div
           className={`px-3 py-2 text-[11px] border ${
             feedback.kind === "ok"
-              ? "bg-[#0a2a0a] border-[#1a4a1a] text-[#7fff7f]"
-              : "bg-[#2a0a0a] border-[#4a1a1a] text-[#ff7f7f]"
+              ? "bg-[var(--t-tint-green)] border-[#1a4a1a] text-[var(--t-pos)]"
+              : "bg-[var(--t-tint-red)] border-[#4a1a1a] text-[var(--t-neg)]"
           }`}
         >
           {feedback.msg}
@@ -260,7 +260,7 @@ export function DolarMepVentaView({
                   <Td>{fmtTime(op.created_at)}</Td>
                   <Td
                     className={
-                      tipo === "venta" ? "text-[#f87171]" : "text-[#7fff7f]"
+                      tipo === "venta" ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
                     }
                   >
                     {tipo.toUpperCase()}

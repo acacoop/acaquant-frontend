@@ -105,8 +105,8 @@ export function fmtSigned(n: number): string {
 
 export function pnlClass(n: number | null | undefined): string {
   if (n == null) return "text-[var(--t-text-dim)]";
-  if (n > 0) return "text-[#00cc66]";
-  if (n < 0) return "text-[#ff4d4d]";
+  if (n > 0) return "text-[var(--t-pos)]";
+  if (n < 0) return "text-[var(--t-neg)]";
   return "text-[var(--t-text-dim)]";
 }
 
@@ -244,7 +244,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
     return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">Elegí una cuenta.</div>;
   }
   if (err) {
-    return <div className="p-3 text-[11px] text-[#ff4d4d]">Error: {err}</div>;
+    return <div className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</div>;
   }
   if (loading && !data) {
     return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">Cargando…</div>;
@@ -269,7 +269,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
         />
         <Kpi label={`PNL NO REALIZADO · ${moneda}`}
              value={fmtMonSigned(tNoReal, esUSD)}
-             accent={tNoReal >= 0 ? "#00cc66" : "#ff4d4d"}
+             accent={tNoReal >= 0 ? "var(--t-pos)" : "#ff4d4d"}
              sub={esUSD ? "valor hoy − costo USD" : "stock vivo · papel"}
         />
       </div>
@@ -368,7 +368,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                         <td className="px-2 py-1.5 text-right text-[var(--t-text)]">
                           {fmtMon(valorRow, esUSD)}
                           {r.valor_actual_source === "live" && (
-                            <span className="ml-1 text-[7px] text-[#00cc66] tracking-widest">LIVE</span>
+                            <span className="ml-1 text-[7px] text-[var(--t-pos)] tracking-widest">LIVE</span>
                           )}
                           {r.valor_actual_source === "cierre" && (
                             <span className="ml-1 text-[7px] text-[var(--t-text-dim)] tracking-widest">CIE</span>
@@ -388,7 +388,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
                             <span className="px-1 py-0 bg-[var(--t-accent)]/15 text-[var(--t-accent)] tracking-widest">P</span>
                           )}
                           {r.completeness === "sin_boletos" && (
-                            <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[#ff4d4d] tracking-widest">SB</span>
+                            <span className="px-1 py-0 bg-[#ff4d4d]/15 text-[var(--t-neg)] tracking-widest">SB</span>
                           )}
                           {r.moneda_mixta && (
                             <span className="ml-1 px-1 py-0 bg-[#4a9eff]/15 text-[#4a9eff] tracking-widest">$</span>
@@ -453,13 +453,13 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
         <DetKpi label="VALOR"    value={fmtMon(valor, esUSD)} />
         <DetKpi label="PNL"
                 value={fmtMonSigned(pnlTot, esUSD)}
-                accent={pnlTot >= 0 ? "#00cc66" : "#ff4d4d"} />
+                accent={pnlTot >= 0 ? "var(--t-pos)" : "#ff4d4d"} />
         <DetKpi label="NO REAL"  value={noReal != null ? fmtMonSigned(noReal, esUSD) : "—"}
-                accent={(noReal ?? 0) >= 0 ? "#00cc66" : "#ff4d4d"} />
+                accent={(noReal ?? 0) >= 0 ? "var(--t-pos)" : "#ff4d4d"} />
         <DetKpi label="COBROS"   value={pasivo !== 0 ? fmtMonSigned(pasivo, esUSD) : "—"}
-                accent={pasivo >= 0 ? "#00cc66" : "#ff4d4d"} />
+                accent={pasivo >= 0 ? "var(--t-pos)" : "#ff4d4d"} />
         <DetKpi label="GAN %"    value={ganPct != null ? `${ganPct >= 0 ? "+" : ""}${ganPct.toFixed(2)}%` : "—"}
-                accent={(ganPct ?? 0) >= 0 ? "#00cc66" : "#ff4d4d"} />
+                accent={(ganPct ?? 0) >= 0 ? "var(--t-pos)" : "#ff4d4d"} />
       </div>
 
       {/* Realizado intraday — solo si hubo day-trades cerrados */}
@@ -531,8 +531,8 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
               <tbody>
                 {boletosPeriodo.map((b, i) => {
                   const colorImporte =
-                    b.importe > 0 ? "text-[#00cc66]"
-                    : b.importe < 0 ? "text-[#ff4d4d]"
+                    b.importe > 0 ? "text-[var(--t-pos)]"
+                    : b.importe < 0 ? "text-[var(--t-neg)]"
                     : "text-[var(--t-text-dim)]";
                   return (
                     <tr key={i} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">

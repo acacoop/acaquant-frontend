@@ -266,7 +266,7 @@ function Metric({
       <div className="text-[8px] text-[var(--t-text-muted)] tracking-wide">{label}</div>
       <div
         className="text-[12px] font-semibold tabular-nums"
-        style={pos === undefined ? { color: "#d0d0d0" } : { color: pos ? "#00cc66" : "#ff4444" }}
+        style={pos === undefined ? { color: "#d0d0d0" } : { color: pos ? "var(--t-pos)" : "#ff4444" }}
       >
         {value}
       </div>

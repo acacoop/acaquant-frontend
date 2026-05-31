@@ -32,7 +32,7 @@ const MESES = [
 
 const COLOR_AUM = "#4a9eff";
 const COLOR_POS = "#ff9900";
-const COLOR_NEG = "#ff3333";
+const COLOR_NEG = "var(--t-neg)";
 
 interface Serie {
   contraparte: string;
@@ -172,7 +172,7 @@ export function FlujoVsAumView() {
   }
   if (error && fondos.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[#ff3333] text-sm">
+      <div className="h-full flex items-center justify-center text-[var(--t-neg)] text-sm">
         Error: {error}
       </div>
     );

@@ -33,7 +33,7 @@ export function EscenariosTabla({
       maximumFractionDigits: 0,
     });
   const plColor = (v: number) =>
-    v > 0 ? "text-[#00cc66]" : v < 0 ? "text-[#ff4444]" : "text-[var(--t-text-dim)]";
+    v > 0 ? "text-[var(--t-pos)]" : v < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]";
 
   return (
     <div className="h-full min-h-0 flex flex-col">

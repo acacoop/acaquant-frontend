@@ -47,7 +47,7 @@ function PctCell({ v }: { v: number | null | undefined }) {
   if (v === null || v === undefined) {
     return <td className="px-2 py-0.5 text-right text-[var(--t-text-muted)] tabular-nums">—</td>;
   }
-  const color = v >= 0 ? "#00cc66" : "#ff3333";
+  const color = v >= 0 ? "var(--t-pos)" : "var(--t-neg)";
   return (
     <td className="px-2 py-0.5 text-right tabular-nums" style={{ color }}>
       {fmtPct(v)}
@@ -245,7 +245,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         </span>
         <span
           className="w-1.5 h-1.5 rounded-full"
-          style={{ background: loading ? "#ff9900" : "#00cc66" }}
+          style={{ background: loading ? "#ff9900" : "var(--t-pos)" }}
         />
         <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide uppercase">
           {lastFetch
@@ -277,7 +277,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {error && (
-          <div className="px-3 py-2 text-[10px] text-[#ff3333] font-mono">Error: {error}</div>
+          <div className="px-3 py-2 text-[10px] text-[var(--t-neg)] font-mono">Error: {error}</div>
         )}
 
         {!loading && totalVisibles === 0 && !error && (
@@ -390,7 +390,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     </td>
                     <PctCell v={directo} />
                     <PctCell v={deva} />
-                    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "#00cc66" }}>
+                    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "var(--t-pos)" }}>
                       {fmtTna(f.tasa_implicita_tna_bid)}
                     </td>
                     <td
@@ -399,7 +399,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                     >
                       {fmtTna(f.tasa_implicita_tna)}
                     </td>
-                    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "#ff3333" }}>
+                    <td className="px-2 py-0.5 text-right tabular-nums" style={{ color: "var(--t-neg)" }}>
                       {fmtTna(f.tasa_implicita_tna_offer)}
                     </td>
                   </tr>
@@ -428,10 +428,10 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                 const valueColor = isPct
                   ? r.label === "CANJE"
                     ? r.value !== null && r.value < 0
-                      ? "#ff3333"
-                      : "#00cc66"
+                      ? "var(--t-neg)"
+                      : "var(--t-pos)"
                     : "#ffcc00"
-                  : "#00cc66";
+                  : "var(--t-pos)";
                 const labelExtra = r.plazo_dias ? ` ${r.plazo_dias}D` : "";
                 return (
                   <tr

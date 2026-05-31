@@ -350,14 +350,14 @@ function Header({
           <div className="h-4 w-px bg-[var(--t-border)]" />
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">ENVIAR</span>
-            <span className="text-[#f87171] font-mono text-[12px] font-semibold">
+            <span className="text-[var(--t-neg)] font-mono text-[12px] font-semibold">
               {fmt(enviarVal)}
             </span>
           </div>
           <div className="h-4 w-px bg-[var(--t-border)]" />
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">RECIBIR</span>
-            <span className="text-[#4ade80] font-mono text-[12px] font-semibold">
+            <span className="text-[var(--t-pos)] font-mono text-[12px] font-semibold">
               {fmt(recibirVal)}
             </span>
           </div>
@@ -550,9 +550,9 @@ function TablaTickers({
               : t.enviar_importe - t.recibir_importe;
           const netoColor =
             netoVal > 0
-              ? "text-[#f87171]"
+              ? "text-[var(--t-neg)]"
               : netoVal < 0
-                ? "text-[#4ade80]"
+                ? "text-[var(--t-pos)]"
                 : "text-[var(--t-text-muted)]";
           return (
             <Fragment key={t.ticker}>
@@ -566,10 +566,10 @@ function TablaTickers({
                 <td className="px-2 py-1 text-[var(--t-accent)] font-semibold">
                   {t.ticker}
                 </td>
-                <td className="px-2 py-1 text-right text-[#f87171] font-semibold">
+                <td className="px-2 py-1 text-right text-[var(--t-neg)] font-semibold">
                   {fmt(enviarVal)}
                 </td>
-                <td className="px-2 py-1 text-right text-[#4ade80] font-semibold">
+                <td className="px-2 py-1 text-right text-[var(--t-pos)] font-semibold">
                   {fmt(recibirVal)}
                 </td>
                 <td className={`px-2 py-1 text-right ${netoColor} font-semibold`}>
@@ -631,7 +631,7 @@ function CuentasDetail({
               <td className="px-1.5 py-0.5 text-[var(--t-text)]">{c.cuenta}</td>
               <td
                 className={`px-1.5 py-0.5 font-semibold ${
-                  isVenta ? "text-[#f87171]" : "text-[#4ade80]"
+                  isVenta ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
                 }`}
               >
                 {c.op}
@@ -706,9 +706,9 @@ function TablaTickerComitente({
           const netoVal    = unidad === "nominales" ? f.neto_qty    : f.neto_importe;
           const netoColor =
             netoVal > 0
-              ? "text-[#f87171]"
+              ? "text-[var(--t-neg)]"
               : netoVal < 0
-                ? "text-[#4ade80]"
+                ? "text-[var(--t-pos)]"
                 : "text-[var(--t-text-muted)]";
           const isFirst = firstOf[i];
           return (
@@ -733,10 +733,10 @@ function TablaTickerComitente({
                   </span>
                 )}
               </td>
-              <td className="px-2 py-1 text-right text-[#f87171] font-semibold">
+              <td className="px-2 py-1 text-right text-[var(--t-neg)] font-semibold">
                 {fmt(enviarVal)}
               </td>
-              <td className="px-2 py-1 text-right text-[#4ade80] font-semibold">
+              <td className="px-2 py-1 text-right text-[var(--t-pos)] font-semibold">
                 {fmt(recibirVal)}
               </td>
               <td className={`px-2 py-1 text-right ${netoColor} font-semibold`}>

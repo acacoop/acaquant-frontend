@@ -143,7 +143,7 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
     );
   }
   if (error) {
-    return <p className="text-[#ff6666] text-xs py-4 text-center">Error: {error}</p>;
+    return <p className="text-[var(--t-neg)] text-xs py-4 text-center">Error: {error}</p>;
   }
   if (!serie.length) {
     return (

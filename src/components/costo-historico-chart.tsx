@@ -197,7 +197,7 @@ export function CostoHistoricoChart({
   }
   if (error) {
     return (
-      <p className="text-[#ff6666] text-xs py-4 text-center">
+      <p className="text-[var(--t-neg)] text-xs py-4 text-center">
         Error: {error}
       </p>
     );
@@ -259,8 +259,8 @@ export function CostoHistoricoChart({
           <span
             className={
               stats.delta >= 0
-                ? "text-[#00cc66]"
-                : "text-[#ff4444]"
+                ? "text-[var(--t-pos)]"
+                : "text-[var(--t-neg)]"
             }
           >
             Δ {stats.delta >= 0 ? "+" : ""}

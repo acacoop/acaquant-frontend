@@ -33,6 +33,13 @@
   --t-accent: #ff9900;
   --t-brand: #094293;
   --t-on-accent: #000000;  /* texto SOBRE el acento (negro sobre naranja en oscuro) */
+  /* Tintes de estado (fondos suaves de filas bid/ask, badges). Oscuro = apagado. */
+  --t-tint-red: #1a0d0d;
+  --t-tint-green: #0d1d0d;
+  --t-tint-amber: #1a1308;
+  /* Colores de datos P&L (verde sube / rojo baja). Oscuro = el hex de siempre. */
+  --t-pos: #00cc66;
+  --t-neg: #ff3333;
 }
 
 /* Modo claro: blanco + azul de empresa. Se activa con class="light" en <html>.
@@ -52,6 +59,19 @@
   --t-accent: #094293;    /* acento = azul de empresa (en claro no es naranja) */
   --t-brand: #094293;
   --t-on-accent: #ffffff; /* texto sobre el acento = BLANCO (sobre azul empresa) */
+  /* Tintes de estado en claro: suaves y legibles sobre blanco. */
+  --t-tint-red: #fdecec;
+  --t-tint-green: #e9f7ee;
+  --t-tint-amber: #fbf3df;
+  /* P&L en claro: tonos más oscuros/saturados para leerse sobre blanco. */
+  --t-pos: #0a8f43;
+  --t-neg: #c81e1e;
+}
+
+/* Modo claro: los números de datos un punto más gruesos (sobre blanco el peso
+   fino se ve flojo). Afecta SOLO claro; el oscuro no cambia. */
+.light .tabular-nums {
+  font-weight: 500;
 }
 
 @theme inline {

@@ -206,10 +206,10 @@ function CerealRow({ row }: { row: CamaraRow }) {
           />
           {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
           {savedOk === true && (
-            <span className="text-[9px] text-[#4ade80]">✓</span>
+            <span className="text-[9px] text-[var(--t-pos)]">✓</span>
           )}
           {savedOk === false && (
-            <span className="text-[9px] text-[#f87171]">✗</span>
+            <span className="text-[9px] text-[var(--t-neg)]">✗</span>
           )}
         </div>
       </td>

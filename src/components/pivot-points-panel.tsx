@@ -160,7 +160,7 @@ export function PivotPointsPanel({ ticker }: { ticker: string | null }) {
             {pivot?.last != null ? `$${pivot.last.toFixed(2)}` : "--"}
           </span>
           {pivot?.last_source === "live" && (
-            <span className="ml-1 text-[8px] text-[#00cc66] tracking-widest align-middle">LIVE</span>
+            <span className="ml-1 text-[8px] text-[var(--t-pos)] tracking-widest align-middle">LIVE</span>
           )}
           {pivot?.last_source === "eod" && (
             <span className="ml-1 text-[8px] text-[var(--t-text-muted)] tracking-widest align-middle">EOD</span>
@@ -301,9 +301,9 @@ function ZRow({ label, v }: { label: string; v: number | null }) {
   let color = "text-[var(--t-text)]";
   if (v != null) {
     const abs = Math.abs(v);
-    if (abs >= 3)      color = "text-[#ff3333]";
+    if (abs >= 3)      color = "text-[var(--t-neg)]";
     else if (abs >= 2) color = "text-[var(--t-accent)]";
-    else               color = "text-[#00cc66]";
+    else               color = "text-[var(--t-pos)]";
   }
   return (
     <tr>
@@ -332,9 +332,9 @@ function Row({
   const dist = last !== null && last > 0 ? ((value / last) - 1) * 100 : null;
   const labelColor =
     color === "resistance"
-      ? "text-[#ff3333]"
+      ? "text-[var(--t-neg)]"
       : color === "support"
-      ? "text-[#00cc66]"
+      ? "text-[var(--t-pos)]"
       : "text-[var(--t-accent)]";
   return (
     <tr>
@@ -347,8 +347,8 @@ function Row({
           dist === null
             ? "text-[var(--t-text-muted)]"
             : dist >= 0
-            ? "text-[#00cc66]"
-            : "text-[#ff3333]"
+            ? "text-[var(--t-pos)]"
+            : "text-[var(--t-neg)]"
         }`}
       >
         {dist !== null ? `${dist >= 0 ? "+" : ""}${dist.toFixed(2)}%` : "--"}
@@ -375,7 +375,7 @@ function StatRow({
   };
   const colorFor = (v: number | null) => {
     if (v == null) return "text-[var(--t-text-muted)]";
-    if (fmt === "pct") return v >= 0 ? "text-[#00cc66]" : "text-[#ff3333]";
+    if (fmt === "pct") return v >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
     return "text-[var(--t-text)]";
   };
   return (

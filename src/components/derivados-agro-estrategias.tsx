@@ -531,13 +531,13 @@ function PanelOpciones({
     <table className="w-full text-[10px] font-mono">
       <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
         <tr>
-          <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#4ade80]">
+          <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[var(--t-pos)]">
             CALL
           </th>
           <th className="text-center px-2 py-1 border-b border-[var(--t-border)]">
             STRIKE
           </th>
-          <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#f87171]">
+          <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[var(--t-neg)]">
             PUT
           </th>
         </tr>
@@ -698,7 +698,7 @@ function SimuladorForm({
 
       {/* Resultado */}
       {error ? (
-        <div className="border border-[#f87171]/30 bg-[#f87171]/5 px-2 py-1.5 text-[10px] text-[#f87171]">
+        <div className="border border-[#f87171]/30 bg-[#f87171]/5 px-2 py-1.5 text-[10px] text-[var(--t-neg)]">
           {error}
         </div>
       ) : sim ? (

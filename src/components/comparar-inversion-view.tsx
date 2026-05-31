@@ -357,7 +357,7 @@ export function CompararInversionView() {
           <BonoSelector label="B" bonos={bonos} selected={bId} onChange={setBId} color={COLOR_B} />
         </div>
         {loading && <span className="text-[10px] text-[var(--t-text-muted)] italic">cargando…</span>}
-        {error && <span className="text-[10px] text-[#ff7f7f] italic">{error}</span>}
+        {error && <span className="text-[10px] text-[var(--t-neg)] italic">{error}</span>}
       </div>
 
       {/* Cuerpo: tabla izq + gráfico der */}
@@ -492,7 +492,7 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   vista === "mes"
                     ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
-                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-pos)]"
                 }`}
               >
                 POR MES
@@ -502,7 +502,7 @@ export function CompararInversionView() {
                 className={`px-1.5 py-0.5 text-[9px] font-semibold border transition-colors ${
                   vista === "acum"
                     ? "bg-[#3fbf6f] text-black border-[#3fbf6f]"
-                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#3fbf6f]"
+                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-pos)]"
                 }`}
               >
                 ACUMULADO

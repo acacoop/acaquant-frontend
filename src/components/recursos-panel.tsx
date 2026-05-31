@@ -51,9 +51,9 @@ function fmtUptime(s: number): string {
 }
 
 function colorFor(percent: number): string {
-  if (percent >= 85) return "#ff3333";
+  if (percent >= 85) return "var(--t-neg)";
   if (percent >= 65) return "#ff9900";
-  return "#00cc66";
+  return "var(--t-pos)";
 }
 
 function Gauge({
@@ -148,7 +148,7 @@ export function RecursosPanel() {
 
   if (err && !now) {
     return (
-      <div className="p-6 text-[11px] text-[#ff3333]">
+      <div className="p-6 text-[11px] text-[var(--t-neg)]">
         Error cargando recursos: {err}
       </div>
     );
@@ -276,8 +276,8 @@ export function RecursosPanel() {
               <Area
                 type="monotone"
                 dataKey="cpu"
-                stroke="#00cc66"
-                fill="#00cc66"
+                stroke="var(--t-pos)"
+                fill="var(--t-pos)"
                 fillOpacity={0.1}
                 name="CPU %"
                 isAnimationActive={false}

@@ -127,7 +127,7 @@ export function UsuariosPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3">
       {error && (
-        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[#ff6666] text-xs">
+        <div className="px-3 py-2 bg-[#ff3333]/15 border border-[#ff3333]/40 text-[var(--t-neg)] text-xs">
           {error}
         </div>
       )}
@@ -263,7 +263,7 @@ function UserRow({
           className="accent-[var(--t-accent)]"
         />
         <span
-          className={`text-[10px] ${user.enabled ? "text-[#00cc66]" : "text-[var(--t-text-muted)]"}`}
+          className={`text-[10px] ${user.enabled ? "text-[var(--t-pos)]" : "text-[var(--t-text-muted)]"}`}
         >
           {user.enabled ? "ON" : "OFF"}
         </span>
@@ -274,7 +274,7 @@ function UserRow({
       <button
         onClick={onDelete}
         disabled={busy}
-        className="px-2 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[#ff4444] hover:border-[#ff4444] disabled:opacity-40"
+        className="px-2 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[var(--t-neg)] hover:border-[#ff4444] disabled:opacity-40"
       >
         BORRAR
       </button>
@@ -301,14 +301,14 @@ function LastSeenCell({ lastSeen }: { lastSeen?: string }) {
   return (
     <div className="flex items-center gap-1.5 text-[10px]">
       <span className="text-[var(--t-text-dim)]">{fecha}</span>
-      <span className={inactivo ? "text-[#ff6666]" : "text-[var(--t-text-muted)]"}>
+      <span className={inactivo ? "text-[var(--t-neg)]" : "text-[var(--t-text-muted)]"}>
         ·{" "}
         {dias === 0 ? "hoy" : `hace ${dias}d`}
       </span>
       {inactivo && (
         <span
           title={`Sin actividad hace ${dias} días — candidato a deshabilitar`}
-          className="text-[8px] px-1 py-0.5 border border-[#ff4444]/40 text-[#ff6666] bg-[#ff4444]/10 shrink-0"
+          className="text-[8px] px-1 py-0.5 border border-[#ff4444]/40 text-[var(--t-neg)] bg-[#ff4444]/10 shrink-0"
         >
           INACTIVO
         </span>

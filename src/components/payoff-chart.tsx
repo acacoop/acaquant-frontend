@@ -117,7 +117,7 @@ export function PayoffChart({
             type="monotone"
             dataKey="plPos"
             stroke="none"
-            fill="#00cc66"
+            fill="var(--t-pos)"
             fillOpacity={0.55}
             isAnimationActive={false}
           />

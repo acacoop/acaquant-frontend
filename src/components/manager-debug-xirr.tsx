@@ -90,8 +90,8 @@ function fmtNum(v: number | null | undefined, decimals = 4): string {
 
 function pctColor(v: number | null): string {
   if (v === null) return "text-[var(--t-text-dim)]";
-  if (v > 0) return "text-[#4ade80]";    // verde
-  if (v < 0) return "text-[#f87171]";    // rojo
+  if (v > 0) return "text-[var(--t-pos)]";    // verde
+  if (v < 0) return "text-[var(--t-neg)]";    // rojo
   return "text-[var(--t-text)]";
 }
 
@@ -158,7 +158,7 @@ export function ManagerDebugXirrPanel() {
             onClick={() => setMoneda("ARS")}
             className={`text-[10px] tracking-widest px-2 py-1 border ${
               moneda === "ARS"
-                ? "border-[#4ade80] text-[#4ade80] bg-[#4ade80]/10"
+                ? "border-[#4ade80] text-[var(--t-pos)] bg-[#4ade80]/10"
                 : "border-[#666] text-[var(--t-text-dim)] hover:border-[#888]"
             }`}
           >
@@ -168,7 +168,7 @@ export function ManagerDebugXirrPanel() {
             onClick={() => setMoneda("USD")}
             className={`text-[10px] tracking-widest px-2 py-1 border ${
               moneda === "USD"
-                ? "border-[#4ade80] text-[#4ade80] bg-[#4ade80]/10"
+                ? "border-[#4ade80] text-[var(--t-pos)] bg-[#4ade80]/10"
                 : "border-[#666] text-[var(--t-text-dim)] hover:border-[#888]"
             }`}
           >
@@ -204,7 +204,7 @@ export function ManagerDebugXirrPanel() {
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-auto">
         {error && (
-          <div className="px-3 py-2 text-[11px] text-[#f87171] font-mono">{error}</div>
+          <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] font-mono">{error}</div>
         )}
 
         {!data && !loading && !error && (
@@ -273,8 +273,8 @@ export function ManagerDebugXirrPanel() {
                       <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{m.dias_periodo ?? "—"}</td>
                       <td className="px-2 py-1 text-right">{fmtMoney(v_inicio)}</td>
                       <td className="px-2 py-1 text-right">{fmtMoney(v_cierre)}</td>
-                      <td className="px-2 py-1 text-right text-[#4ade80]">{fmtMoney(depositos)}</td>
-                      <td className="px-2 py-1 text-right text-[#f87171]">{fmtMoney(extracciones)}</td>
+                      <td className="px-2 py-1 text-right text-[var(--t-pos)]">{fmtMoney(depositos)}</td>
+                      <td className="px-2 py-1 text-right text-[var(--t-neg)]">{fmtMoney(extracciones)}</td>
                       <td className={`px-2 py-1 text-right ${pctColor(flujo_neto)}`}>{fmtMoney(flujo_neto)}</td>
                       <td className={`px-2 py-1 text-right ${pctColor(delta_bruto)}`}>{fmtMoney(delta_bruto)}</td>
                       <td className={`px-2 py-1 text-right ${pctColor(delta_real)}`}>{fmtMoney(delta_real)}</td>

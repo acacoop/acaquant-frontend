@@ -143,7 +143,7 @@ export function CanjeTab() {
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-[11px] text-[#ff3333] bg-[#ff3333]/10 border border-[#ff3333]/30 font-mono shrink-0">
+        <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] bg-[#ff3333]/10 border border-[#ff3333]/30 font-mono shrink-0">
           {error}
         </div>
       )}
@@ -251,9 +251,9 @@ function Kpi({
 }) {
   const color =
     tone === "up"
-      ? "text-[#00cc66]"
+      ? "text-[var(--t-pos)]"
       : tone === "down"
-        ? "text-[#ff3333]"
+        ? "text-[var(--t-neg)]"
         : highlight
           ? "text-[var(--t-accent)]"
           : "text-[var(--t-text)]";

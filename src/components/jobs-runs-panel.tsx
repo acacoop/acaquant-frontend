@@ -24,9 +24,9 @@ interface JobStat {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  ok:      "#00cc66",
+  ok:      "var(--t-pos)",
   partial: "#ff9900",
-  error:   "#ff3333",
+  error:   "var(--t-neg)",
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -116,9 +116,9 @@ export function JobsRunsPanel() {
                   {s.last_status && <StatusBadge status={s.last_status} />}
                 </div>
                 <div className="text-[10px] text-[var(--t-text-muted)] mt-1 font-mono">
-                  <span className="text-[#00cc66]">{s.ok} ok</span>
+                  <span className="text-[var(--t-pos)]">{s.ok} ok</span>
                   {s.partial > 0 && <> · <span className="text-[var(--t-accent)]">{s.partial} partial</span></>}
-                  {s.error > 0 && <> · <span className="text-[#ff3333]">{s.error} err</span></>}
+                  {s.error > 0 && <> · <span className="text-[var(--t-neg)]">{s.error} err</span></>}
                   <> · {s.total} total</>
                 </div>
                 {s.last_run && (
@@ -237,7 +237,7 @@ export function JobsRunsPanel() {
               {selected.errors.length > 0 && (
                 <div>
                   <div className="text-[var(--t-accent)] uppercase text-[10px] mb-1">Errores</div>
-                  <ul className="space-y-0.5 text-[#ff3333]">
+                  <ul className="space-y-0.5 text-[var(--t-neg)]">
                     {selected.errors.map((e, i) => <li key={i}>• {e}</li>)}
                   </ul>
                 </div>

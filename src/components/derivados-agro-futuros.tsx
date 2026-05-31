@@ -52,8 +52,8 @@ function VarCell({ pct }: { pct: number | null }) {
     pct === null
       ? "text-[var(--t-text-muted)]"
       : pct >= 0
-        ? "text-[#00cc66]"
-        : "text-[#ff3333]";
+        ? "text-[var(--t-pos)]"
+        : "text-[var(--t-neg)]";
   return (
     <td className={`px-2 py-1 text-right ${color}`}>
       {pct !== null ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : "—"}

@@ -48,9 +48,9 @@ function fmtArs(v: number | null | undefined): string {
 
 function statusColor(st: string | undefined): string {
   if (!st) return "#888";
-  if (st === "OK" || st === "FILLED") return "#00cc66";
+  if (st === "OK" || st === "FILLED") return "var(--t-pos)";
   if (st.startsWith("OK_")) return "#ffcc00";
-  return "#ff3333";
+  return "var(--t-neg)";
 }
 
 interface Props {
@@ -116,7 +116,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
           </span>
           <button
             onClick={onClose}
-            className="ml-auto text-[var(--t-text-dim)] hover:text-[#ff3333] text-[18px] leading-none"
+            className="ml-auto text-[var(--t-text-dim)] hover:text-[var(--t-neg)] text-[18px] leading-none"
             title="Cerrar (Esc)"
           >
             ×
@@ -129,7 +129,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
             <div className="text-[var(--t-text-dim)] text-[11px]">Cargando…</div>
           )}
           {error && (
-            <div className="text-[#ff3333] text-[11px] font-mono">
+            <div className="text-[var(--t-neg)] text-[11px] font-mono">
               Error: {error}
             </div>
           )}
@@ -153,7 +153,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
 
               {/* Lo justo y necesario */}
               <div className="border border-[var(--t-border)]">
-                <Linea label="Compra AL30" value={`$${fmtArs(m.precio_compra_al30)}`} color="#00cc66" />
+                <Linea label="Compra AL30" value={`$${fmtArs(m.precio_compra_al30)}`} color="var(--t-pos)" />
                 <Linea label="Venta AL30D" value={`US$${fmtArs(m.precio_venta_al30d)}`} color="#4488ff" />
                 <Linea label="USD obtenidos" value={m.usd_efectivo !== undefined ? `US$${fmtArs(m.usd_efectivo)}` : "—"} color="#d0d0d0" />
                 <Linea
@@ -168,7 +168,7 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
               {m.slippage_pct !== undefined && op.mep_inicial && (
                 <div className="text-[10px] text-[var(--t-text-muted)] font-mono px-1">
                   MEP inicial $ {fmtArs(op.mep_inicial)} · slippage{" "}
-                  <span style={{ color: m.slippage_pct >= 0 ? "#ff3333" : "#00cc66" }}>
+                  <span style={{ color: m.slippage_pct >= 0 ? "var(--t-neg)" : "var(--t-pos)" }}>
                     {m.slippage_pct >= 0 ? "+" : ""}
                     {m.slippage_pct}%
                   </span>

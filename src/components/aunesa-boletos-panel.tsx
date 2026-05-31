@@ -185,7 +185,7 @@ function Faltantes() {
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-[11px] text-[#ff7f7f] bg-[#1a0a0a] border-b border-[#2a1a1a]">
+        <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] bg-[var(--t-tint-red)] border-b border-[#2a1a1a]">
           {error}
         </div>
       )}
@@ -197,7 +197,7 @@ function Faltantes() {
             {loading ? "Cargando…" : "Sin datos"}
           </div>
         ) : data.resumen.length === 0 ? (
-          <div className="p-6 text-[11px] text-[#7fff7f] text-center">
+          <div className="p-6 text-[11px] text-[var(--t-pos)] text-center">
             ✓ Sin boletos faltantes en el rango — todos tienen arancel.
           </div>
         ) : (
@@ -504,7 +504,7 @@ function Backfill() {
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-[11px] text-[#ff7f7f] bg-[#1a0a0a] border-b border-[#2a1a1a]">
+        <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] bg-[var(--t-tint-red)] border-b border-[#2a1a1a]">
           {error}
         </div>
       )}
@@ -516,11 +516,11 @@ function Backfill() {
             <span
               className={`text-[10px] font-bold tracking-widest px-2 py-0.5 ${
                 job.status === "done"
-                  ? "bg-[#0d2a0d] text-[#7fff7f]"
+                  ? "bg-[var(--t-tint-green)] text-[var(--t-pos)]"
                   : job.status === "error"
-                    ? "bg-[#2a0d0d] text-[#ff7f7f]"
+                    ? "bg-[#2a0d0d] text-[var(--t-neg)]"
                     : job.status === "stale"
-                      ? "bg-[#2a1a0a] text-[#ffaa44]"
+                      ? "bg-[var(--t-tint-amber)] text-[#ffaa44]"
                       : "bg-[#0a1a2a] text-[#7faaff]"
               }`}
             >
@@ -555,7 +555,7 @@ function Backfill() {
           </div>
 
           {job.status === "error" && job.error && (
-            <div className="mt-2 text-[10px] text-[#ff7f7f]">
+            <div className="mt-2 text-[10px] text-[var(--t-neg)]">
               <span className="font-bold">Error fatal:</span> {job.error}
             </div>
           )}
@@ -627,9 +627,9 @@ function Backfill() {
                   <td
                     className={`px-2 py-0.5 font-bold ${
                       h.status === "done"
-                        ? "text-[#7fff7f]"
+                        ? "text-[var(--t-pos)]"
                         : h.status === "error"
-                          ? "text-[#ff7f7f]"
+                          ? "text-[var(--t-neg)]"
                           : h.status === "stale"
                             ? "text-[#ffaa44]"
                             : "text-[#7faaff]"
@@ -640,7 +640,7 @@ function Backfill() {
                   <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">
                     {h.cuentas_done}/{h.cuentas_total}
                   </td>
-                  <td className="px-2 py-0.5 text-right text-[#7fff7f]">
+                  <td className="px-2 py-0.5 text-right text-[var(--t-pos)]">
                     {h.stats.match}
                   </td>
                   <td className="px-2 py-0.5 text-right text-[var(--t-accent)]">
