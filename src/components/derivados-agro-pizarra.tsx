@@ -428,7 +428,7 @@ function PaseConCoberturaTable({
         {filas.map((f) => (
           <tr
             key={`${f.commodity}-${f.ticker ?? f.vto}`}
-            className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
+            className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
           >
             <td className="px-1.5 py-0.5 text-[var(--t-text)] font-semibold">
               {posicionFromVto(f.commodity, f.vto)}
@@ -494,7 +494,7 @@ function BloqueRows({
           return (
             <tr
               key={`${bloque.commodity}-dispo`}
-              className="border-b border-[#101010]"
+              className="border-b border-[var(--t-border)]"
             >
               <td className="px-1.5 py-0.5 text-[var(--t-text-muted)]">
                 {r.vencimiento ? fmtFechaVtoFuturo(r.vencimiento) : "—"}
@@ -510,7 +510,7 @@ function BloqueRows({
         return (
           <tr
             key={`${bloque.commodity}-${r.ticker ?? i}`}
-            className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
+            className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
           >
             <td className={`px-1.5 py-0.5 text-[var(--t-text-dim)] ${dim}`}>
               {fmtFechaVtoFuturo(r.vencimiento)}

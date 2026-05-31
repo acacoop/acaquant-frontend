@@ -223,7 +223,7 @@ export function PostTradeLab({
           </thead>
           <tbody>
             {matriz.map((row) => (
-              <tr key={row.pct} className="border-t border-[#101010]">
+              <tr key={row.pct} className="border-t border-[var(--t-border)]">
                 <td className="px-1 py-0.5 text-[var(--t-text-dim)] whitespace-nowrap">
                   <span className={row.pct === 0 ? "text-[#ffcc00]" : ""}>
                     {row.pct >= 0 ? "+" : ""}

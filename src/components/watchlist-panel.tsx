@@ -307,7 +307,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                   <tr
                     key={q.symbol}
                     onClick={clickable ? () => onSelect!(q.symbol) : undefined}
-                    className={`border-b border-[#0e0e0e] ${
+                    className={`border-b border-[var(--t-border)] ${
                       isSel
                         ? "bg-[var(--t-accent)]/15"
                         : clickable
@@ -370,7 +370,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                   <tr
                     key={f.ticker}
                     onClick={clickable ? () => onSelect!(f.ticker) : undefined}
-                    className={`border-b border-[#0e0e0e] ${
+                    className={`border-b border-[var(--t-border)] ${
                       isSel
                         ? "bg-[var(--t-accent)]/15"
                         : clickable
@@ -436,7 +436,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
                 return (
                   <tr
                     key={r.label}
-                    className="border-b border-[#0e0e0e] hover:bg-[var(--t-surface)]"
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-2 py-0.5 text-[var(--t-text)] font-semibold">
                       {r.label}

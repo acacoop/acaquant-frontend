@@ -613,7 +613,7 @@ export function NegocioView() {
 
       {/* HEADER */}
       <div className="px-4 py-3 border-b border-[var(--t-border)] flex flex-wrap items-center gap-3 shrink-0">
-        <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+        <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           <button
             onClick={goPrev}
             disabled={!hayPrev}
@@ -661,7 +661,7 @@ export function NegocioView() {
         </div>
 
         {/* Modo global DIA/TODOS — afecta POR CATEGORÍA + DETALLE */}
-        <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+        <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           {(["DIA", "TODOS"] as VistaMode[]).map((m) => (
             <button
               key={m}
@@ -722,7 +722,7 @@ export function NegocioView() {
           placeholder="Buscar cuenta…"
           className={
             "ml-auto bg-[var(--t-panel)] border px-2 py-1 text-[11px] font-mono outline-none w-[200px] " +
-            (cuentaExacta ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[#333] text-[var(--t-text)]")
+            (cuentaExacta ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text)]")
           }
           title="Escribí parte del nombre de cuenta. Las sugerencias filtran live; al elegir una, todos los paneles muestran solo esa cuenta."
         />
@@ -745,7 +745,7 @@ export function NegocioView() {
           onChange={(e) => setFiltroCta(e.target.value as CuentaFilter)}
           disabled={!!cuentaExacta}
           className={
-            "bg-[var(--t-panel)] border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider outline-none " +
+            "bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[10px] uppercase tracking-wider outline-none " +
             (cuentaExacta
               ? "text-[var(--t-text-muted)] cursor-not-allowed"
               : "text-[var(--t-text)] hover:text-[var(--t-accent)]")
@@ -761,7 +761,7 @@ export function NegocioView() {
           ))}
         </select>
 
-        <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+        <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           {(["ARS", "USD"] as Moneda[]).map((m) => (
             <button
               key={m}
@@ -780,7 +780,7 @@ export function NegocioView() {
 
         <button
           onClick={() => fecha && void fetchData(fecha)}
-          className="bg-[var(--t-surface-2)] border border-[#333] px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          className="bg-[var(--t-surface-2)] border border-[var(--t-border-2)] px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
         >
           ↻ Refresh
         </button>
@@ -822,7 +822,7 @@ export function NegocioView() {
                   </span>
                 )}
                 {/* Aggregation toggle */}
-                <div className="ml-auto inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+                <div className="ml-auto inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
                   {(["DIARIO", "SEMANAL", "MENSUAL"] as AggKey[]).map((k) => (
                     <button
                       key={k}
@@ -844,9 +844,9 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => o + 1)}
                     disabled={!puedeIrAtras}
                     title="Período anterior"
-                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >◀</button>
-                  <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+                  <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
                     {(["1W", "1M", "3M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
                       <button
                         key={k}
@@ -866,7 +866,7 @@ export function NegocioView() {
                     onClick={() => setRangoOffset((o) => Math.max(0, o - 1))}
                     disabled={!puedeIrAdelante}
                     title="Período siguiente"
-                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                    className="px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
                   >▶</button>
                 </div>
                 {/* Foco día: ON = highlight selected day, OFF = todas las
@@ -874,7 +874,7 @@ export function NegocioView() {
                 <button
                   onClick={() => setFocoDia((v) => !v)}
                   className={
-                    "px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[#333] " +
+                    "px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[var(--t-border-2)] " +
                     (focoDia
                       ? "bg-[var(--t-accent)] text-black"
                       : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")

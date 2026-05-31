@@ -224,7 +224,7 @@ export function DerivadosOperar({
               const b = bids[i];
               const a = offers[i];
               return (
-                <tr key={i} className="border-t border-[#101010]">
+                <tr key={i} className="border-t border-[var(--t-border)]">
                   <td className="px-1 py-0.5 text-[var(--t-text-dim)]">
                     {b?.size != null ? b.size.toLocaleString("es-AR") : "—"}
                   </td>

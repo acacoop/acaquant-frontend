@@ -147,7 +147,7 @@ export function AgroFuturos({
                   return (
                     <tr
                       key={r.ticker ?? i}
-                      className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
+                      className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                     >
                       <td className="px-2 py-1 text-[var(--t-accent)]">
                         {r.ticker ?? "—"}

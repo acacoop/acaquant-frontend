@@ -349,7 +349,7 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
                 {visibles.map((r) => (
                   <tr
                     key={r.ticker ?? ""}
-                    className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-1.5 py-0.5 text-[var(--t-accent)] font-semibold">
                       {r.ticker ?? "—"}
@@ -460,7 +460,7 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
                 {visibles.map((r) => (
                   <tr
                     key={r.ticker ?? ""}
-                    className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-1.5 py-0.5 text-[var(--t-accent)] font-semibold">
                       {r.ticker ?? "—"}

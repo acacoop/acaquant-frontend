@@ -558,7 +558,7 @@ function TablaTickers({
             <Fragment key={t.ticker}>
               <tr
                 onClick={() => toggle(t.ticker)}
-                className="border-b border-[#101010] hover:bg-[var(--t-surface)] cursor-pointer"
+                className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer"
               >
                 <td className="px-2 py-1 text-[var(--t-text-muted)] text-[10px]">
                   {isOpen ? "▼" : "▶"}
@@ -626,7 +626,7 @@ function CuentasDetail({
           return (
             <tr
               key={`${c.comprobante ?? i}-${c.op}`}
-              className="border-b border-[#101010]"
+              className="border-b border-[var(--t-border)]"
             >
               <td className="px-1.5 py-0.5 text-[var(--t-text)]">{c.cuenta}</td>
               <td
@@ -714,7 +714,7 @@ function TablaTickerComitente({
           return (
             <tr
               key={`${f.ticker}-${f.cuenta}-${i}`}
-              className={`border-b border-[#101010] hover:bg-[var(--t-surface)] ${
+              className={`border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
                 isFirst ? "border-t border-[var(--t-border)]" : ""
               }`}
             >

@@ -176,7 +176,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
       : "—";
 
   return (
-    <tr className="border-b border-[#101010] hover:bg-[var(--t-surface)]">
+    <tr className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
       <td className="px-2 py-1.5 text-[var(--t-accent)] font-semibold tracking-wide">
         {row.cereal}
       </td>

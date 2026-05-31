@@ -573,9 +573,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => o + 1)}
                 disabled={!chartPuedeAtras}
                 title="Período anterior"
-                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >◀</button>
-              <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+              <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
                 {(["3M", "6M", "1A", "ALL"] as const).map((k) => (
                   <button
                     key={k}
@@ -593,7 +593,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 onClick={() => setChartOffset((o) => Math.max(0, o - 1))}
                 disabled={!chartPuedeAdelante}
                 title="Período siguiente"
-                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[#333] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
+                className="px-1 py-0 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:text-[#333] disabled:border-[var(--t-border)] disabled:cursor-not-allowed"
               >▶</button>
             </div>
             {chartData.length > 0 && (
@@ -736,7 +736,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               Mensual
             </span>
             {/* ARS/USD toggle — afecta chart + tabla mensual + label de valor */}
-            <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["ARS", "USD"] as const).map((m) => (
                 <button
                   key={m}
@@ -960,7 +960,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             </span>
           )}
           {/* Tabs Posiciones / Variación */}
-          <div className="inline-flex items-stretch border border-[#333] divide-x divide-[#333] ml-1">
+          <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] ml-1">
             {(["posiciones", "variacion"] as const).map((t) => (
               <button
                 key={t}
@@ -1364,7 +1364,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
           </tr>
         ))}
         {varResp.otros && varResp.otros.delta_total !== 0 && (
-          <tr className="border-t border-[#222] bg-[var(--t-surface-2)]">
+          <tr className="border-t border-[var(--t-border-2)] bg-[var(--t-surface-2)]">
             <td className="px-2 py-1 align-top text-[var(--t-text-dim)] italic">
               OTROS · efectivo ({varResp.otros.n ?? 0})
             </td>
@@ -1382,7 +1382,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
             </td>
           </tr>
         )}
-        <tr className="border-t-2 border-[#333] bg-[var(--t-surface-2)] font-semibold">
+        <tr className="border-t-2 border-[var(--t-border-2)] bg-[var(--t-surface-2)] font-semibold">
           <td className="px-2 py-1 align-top text-[var(--t-accent)]" colSpan={2}>TOTAL</td>
           <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtCompact(varResp.totales.val_anterior)}</td>
           <td className="px-2 py-1 align-top text-right text-[var(--t-text)]">{fmtCompact(varResp.totales.val_actual)}</td>

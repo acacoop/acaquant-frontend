@@ -218,7 +218,7 @@ function Faltantes() {
                 {data.resumen.map((r, i) => (
                   <tr
                     key={`${r.categoria}-${r.op}-${i}`}
-                    className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-2 py-0.5 text-[var(--t-accent)]">{r.categoria ?? "—"}</td>
                     <td className="px-2 py-0.5 text-[var(--t-text)]">{r.op ?? "—"}</td>
@@ -264,7 +264,7 @@ function Faltantes() {
                     {data.boletos.map((b, i) => (
                       <tr
                         key={`${b.comprobante}-${i}`}
-                        className="border-t border-[#101010] hover:bg-[var(--t-surface)]"
+                        className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                       >
                         <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.fecha ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[var(--t-accent)]">{b.id_cuenta ?? "—"}</td>
@@ -613,7 +613,7 @@ function Backfill() {
             </thead>
             <tbody>
               {historial.map((h, i) => (
-                <tr key={i} className="border-t border-[#101010] hover:bg-[var(--t-surface)]">
+                <tr key={i} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                   <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {h.started_at?.replace("T", " ").slice(0, 19) ?? "—"}
                   </td>

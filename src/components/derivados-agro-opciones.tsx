@@ -192,7 +192,7 @@ function ChainTable({
           return (
             <tr
               key={s.strike}
-              className={`border-b border-[#101010] ${
+              className={`border-b border-[var(--t-border)] ${
                 isAtm ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]"
               }`}
             >

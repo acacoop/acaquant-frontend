@@ -418,7 +418,7 @@ export function PortfolioPanel({
                   {tenencias.map((t, i) => (
                     <tr
                       key={`${t.ticker}-${i}`}
-                      className="border-t border-[#101010] hover:bg-[var(--t-surface)]"
+                      className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                     >
                       <td className="px-2 py-0.5 text-[var(--t-text)]">{t.ticker}</td>
                       <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{t.tipo}</td>
@@ -917,7 +917,7 @@ function OperarCard({
             const b = bids[i];
             const a = offers[i];
             return (
-              <tr key={i} className="border-t border-[#101010]">
+              <tr key={i} className="border-t border-[var(--t-border)]">
                 <td className="px-1 py-0.5 text-[var(--t-text-dim)]">
                   {b?.size != null ? b.size.toLocaleString("es-AR") : "—"}
                 </td>
@@ -1141,7 +1141,7 @@ export function OrderManagement({
               return (
                 <tr
                   key={o.cl_ord_id ?? `ord-${i}`}
-                  className="border-t border-[#101010] hover:bg-[var(--t-surface)]"
+                  className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]"
                 >
                   <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {o.created_at ? fmtTime(o.created_at) : "—"}

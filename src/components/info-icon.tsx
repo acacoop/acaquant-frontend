@@ -72,7 +72,7 @@ export function InfoIcon({ tip, width = "300px", align = "left" }: Props) {
         className={`text-[8px] border rounded-full px-[3px] leading-[1.2] font-mono select-none ${
           pinned
             ? "text-[var(--t-accent)] border-[var(--t-accent)]"
-            : "text-[var(--t-text-muted)] hover:text-[var(--t-accent)] border-[#333]"
+            : "text-[var(--t-text-muted)] hover:text-[var(--t-accent)] border-[var(--t-border-2)]"
         }`}
       >
         ?

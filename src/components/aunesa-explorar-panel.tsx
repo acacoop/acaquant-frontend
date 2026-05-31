@@ -225,7 +225,7 @@ export function AunesaExplorarPanel() {
           </>
         )}
 
-        <span className="ml-auto inline-flex border border-[#333] divide-x divide-[#333]">
+        <span className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           {(["consolidado", "raw"] as Vista[]).map((v) => (
             <button
               key={v}
@@ -320,7 +320,7 @@ export function AunesaExplorarPanel() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="buscar…"
-                className="flex-1 min-w-[150px] bg-[var(--t-panel)] border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)]"
+                className="flex-1 min-w-[150px] bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)]"
               />
               <span className="text-[9px] text-[var(--t-text-dim)]">
                 {vista === "consolidado"
@@ -661,7 +661,7 @@ function DatePickerCompact({
   const isFuture = parseISO(value) > parseISO(today);
 
   return (
-    <div ref={wrapperRef} className="relative inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
+    <div ref={wrapperRef} className="relative inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
       <button
         onClick={() => onChange(addDays(value, -1))}
         className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[var(--t-border)]"

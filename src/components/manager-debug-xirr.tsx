@@ -153,7 +153,7 @@ export function ManagerDebugXirrPanel() {
           {loading ? "CARGANDO…" : "CARGAR"}
         </button>
         {/* ARS/USD toggle */}
-        <div className="flex items-center gap-1 ml-3 border-l border-[#333] pl-3">
+        <div className="flex items-center gap-1 ml-3 border-l border-[var(--t-border-2)] pl-3">
           <button
             onClick={() => setMoneda("ARS")}
             className={`text-[10px] tracking-widest px-2 py-1 border ${
@@ -308,7 +308,7 @@ export function ManagerDebugXirrPanel() {
                                     </td></tr>
                                   )}
                                   {cf.map((c, i) => (
-                                    <tr key={i} className="border-b border-[#0a0a0a]">
+                                    <tr key={i} className="border-b border-[var(--t-border)]">
                                       <td className="py-0.5 text-[var(--t-text)]">{c.fecha}</td>
                                       <td className={`py-0.5 text-right ${pctColor(c.monto)}`}>{fmtMoney(c.monto)}</td>
                                       <td className="py-0.5 pl-3 text-[var(--t-text-dim)]">{c.tipo}</td>
@@ -341,7 +341,7 @@ export function ManagerDebugXirrPanel() {
                                     </td></tr>
                                   )}
                                   {flujos.map((f, i) => (
-                                    <tr key={i} className="border-b border-[#0a0a0a]" title={f.informacion ?? ""}>
+                                    <tr key={i} className="border-b border-[var(--t-border)]" title={f.informacion ?? ""}>
                                       <td className="py-0.5 text-[var(--t-text)]">{f.fecha}</td>
                                       <td className="py-0.5 text-[var(--t-text-dim)]">{f.categoria}</td>
                                       <td className={`py-0.5 text-right ${pctColor(f.importe_original)}`}>
