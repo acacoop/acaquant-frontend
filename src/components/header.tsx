@@ -29,24 +29,26 @@ const NAV: Entry[] = [
   {
     kind: "group",
     label: "MERCADOS",
+    // Items ordenados alfabéticamente (A→Z) por label.
     items: [
-      { href: "/renta-fija",     label: "Renta Fija",     module: "renta-fija" },
-      { href: "/derivados",      label: "Derivados",      module: "derivados" },
       { href: "/agro",           label: "Agro",           module: "agro" },
-      { href: "/sinteticos",     label: "Sintéticos",     module: "sinteticos" },
-      { href: "/renta-variable", label: "Renta Variable", module: "renta-variable" },
+      { href: "/derivados",      label: "Derivados",      module: "derivados" },
       { href: "/retorno",        label: "Estrategia",     module: "estrategia" },
+      { href: "/renta-fija",     label: "Renta Fija",     module: "renta-fija" },
+      { href: "/renta-variable", label: "Renta Variable", module: "renta-variable" },
+      { href: "/sinteticos",     label: "Sintéticos",     module: "sinteticos" },
     ],
   },
   {
     kind: "group",
     label: "NEGOCIO",
+    // Items ordenados alfabéticamente (A→Z) por label.
     items: [
-      { href: "/operaciones",  label: "Operaciones",  module: "operaciones" },
-      { href: "/operadores",   label: "Operadores",   module: "operaciones" },
-      { href: "/contrapartes", label: "Contrapartes", module: "operaciones" },
       { href: "/aum",          label: "AUM",          module: "portfolios" },
       { href: "/valuaciones",  label: "Carteras",     module: "portfolios" },
+      { href: "/contrapartes", label: "Contrapartes", module: "operaciones" },
+      { href: "/operaciones",  label: "Operaciones",  module: "operaciones" },
+      { href: "/operadores",   label: "Operadores",   module: "operaciones" },
     ],
   },
   { kind: "link", href: "/back-office", label: "BACK OFFICE", module: "back-office" },
