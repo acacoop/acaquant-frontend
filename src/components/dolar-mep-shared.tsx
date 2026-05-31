@@ -73,7 +73,7 @@ export interface CuentaDescubierta {
 }
 
 export const inputCls =
-  "bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] w-full focus:border-[var(--t-accent)] outline-none";
+  "bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] w-full focus:border-[var(--t-accent)] outline-none";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Componentes UI compartidos

@@ -102,7 +102,7 @@ export function ManagerDebugComercialPanel() {
               </div>
               <div className="max-h-[320px] overflow-auto border border-[var(--t-border)]">
                 <table className="w-full text-[10px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[#0a0a0a] text-[9px] text-[var(--t-text-muted)] uppercase">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] text-[var(--t-text-muted)] uppercase">
                     <tr>
                       <th className="text-left px-2 py-1">Cuenta</th>
                       <th className="text-right px-2"># ops</th>

@@ -305,7 +305,7 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Ticker
@@ -349,7 +349,7 @@ function LongLecapPanel({ rows }: { rows: LongLecapRow[] }) {
                 {visibles.map((r) => (
                   <tr
                     key={r.ticker ?? ""}
-                    className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+                    className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-1.5 py-0.5 text-[var(--t-accent)] font-semibold">
                       {r.ticker ?? "—"}
@@ -419,7 +419,7 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-1.5 py-1 border-b border-[var(--t-border)]">
                     Ticker
@@ -460,7 +460,7 @@ function ShortDlkPanel({ rows }: { rows: ShortDlkRow[] }) {
                 {visibles.map((r) => (
                   <tr
                     key={r.ticker ?? ""}
-                    className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+                    className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-1.5 py-0.5 text-[var(--t-accent)] font-semibold">
                       {r.ticker ?? "—"}

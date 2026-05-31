@@ -112,7 +112,7 @@ export function ManagerDebugSegmentoPanel() {
           onChange={(e) => setPick(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onConsultar(); }}
           placeholder="ID o denominación…"
-          className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[420px]"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[420px]"
         />
         <datalist id="cuentas-list">
           {cuentas.map((c) => (

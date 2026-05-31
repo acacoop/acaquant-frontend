@@ -122,7 +122,7 @@ export function AgroMejorasDispo() {
             </p>
           ) : (
             <table className="w-full text-[10px] font-mono tabular-nums">
-              <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
                 <tr>
                   <th rowSpan={2} className="text-left px-1 py-1 border-b border-[var(--t-border)] align-bottom">
                     Ticker
@@ -173,7 +173,7 @@ export function AgroMejorasDispo() {
                   return (
                     <tr
                       key={key}
-                      className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+                      className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
                     >
                       <td className="px-1 py-0.5 text-[var(--t-accent)] font-semibold">
                         {r.ticker ?? "—"}

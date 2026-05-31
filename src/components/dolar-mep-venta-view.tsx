@@ -150,7 +150,7 @@ export function DolarMepVentaView({
   }
 
   return (
-    <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
+    <div className="h-full flex flex-col gap-3 p-3 bg-[var(--t-panel)] text-white text-[12px] overflow-auto">
       <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[var(--t-border)] flex-wrap">
         <Field label="MONTO USD" className="w-[160px]">
           <input
@@ -223,7 +223,7 @@ export function DolarMepVentaView({
 
       <DolarMepBoard rueda={rueda}>
         <table className="w-full text-[11px]">
-          <thead className="bg-[#1a1a1a] sticky top-0">
+          <thead className="bg-[var(--t-border)] sticky top-0">
             <tr>
               <Th>HORA</Th>
               <Th>TIPO</Th>

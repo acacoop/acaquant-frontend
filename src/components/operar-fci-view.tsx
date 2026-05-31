@@ -93,10 +93,10 @@ function FciSearch({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
         placeholder="buscar FCI por nombre…"
-        className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full focus:border-[var(--t-accent)] outline-none"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full focus:border-[var(--t-accent)] outline-none"
       />
       {open && q.trim().length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[320px] overflow-y-auto text-[11px]">
+        <div className="absolute top-full left-0 right-0 mt-0.5 bg-[var(--t-surface)] border border-[var(--t-border-2)] z-20 max-h-[320px] overflow-y-auto text-[11px]">
           {loading && hits.length === 0 ? (
             <div className="px-2 py-2 text-[var(--t-text-muted)]">buscando…</div>
           ) : hits.length === 0 ? (
@@ -110,7 +110,7 @@ function FciSearch({
                   setQ("");
                   setOpen(false);
                 }}
-                className="px-2 py-1 hover:bg-[#1a1a1a] cursor-pointer flex items-center gap-2"
+                className="px-2 py-1 hover:bg-[var(--t-border)] cursor-pointer flex items-center gap-2"
               >
                 <span className="text-[var(--t-text)] flex-1 truncate" title={h.ticker}>
                   {h.ticker}
@@ -265,7 +265,7 @@ function FciOperatePanel({
 
         {/* Fondo seleccionado */}
         {fci && (
-          <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-2 flex flex-col gap-1">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <span
                 className="text-[var(--t-accent)] font-semibold text-[12px] flex-1 truncate"
@@ -338,7 +338,7 @@ function FciOperatePanel({
             onChange={(e) => setAmount(e.target.value)}
             placeholder={amountMode === "importe" ? `importe en ${ccy || "$"}` : "cuotapartes"}
             inputMode="decimal"
-            className="bg-black border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[var(--t-accent)] outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[12px] w-full tabular-nums focus:border-[var(--t-accent)] outline-none"
           />
           <div className="mt-1 text-[10px] text-[var(--t-text-dim)] min-h-[14px]">
             {conversion ? (
@@ -476,7 +476,7 @@ export function OperarFciView() {
   }
 
   return (
-    <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
+    <div className="h-full flex flex-col gap-2 p-2 bg-[var(--t-panel)] min-h-0 overflow-hidden">
       {/* Toolbar — mismo que el dashboard */}
       <div className="flex items-center gap-2 px-2 py-1 border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-wider text-[var(--t-text-dim)]">CUENTA</span>

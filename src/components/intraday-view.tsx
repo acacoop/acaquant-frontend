@@ -331,7 +331,7 @@ export function IntradayView() {
 
         {resultado && (
           <>
-            <div className="h-5 w-px bg-[#222]" />
+            <div className="h-5 w-px bg-[var(--t-border-2)]" />
 
             <div className="flex items-center gap-1">
               <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)] mr-1">
@@ -394,7 +394,7 @@ export function IntradayView() {
           {/* Tabla consolidada (agrupada visualmente por moneda). */}
           <div className="overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
             <table className="w-full text-[11px] font-mono border-collapse">
-              <thead className="sticky top-0 bg-[#0c0c0c] z-10">
+              <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
                 <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[var(--t-accent)]">
                   <th className="!px-2 !py-1.5 text-left">Símbolo</th>
                   <th className="!px-2 !py-1.5 text-center">Moneda</th>
@@ -444,7 +444,7 @@ export function IntradayView() {
 
           {/* Sidebar derecho: totales + consolidado por especie */}
           <div className="shrink-0 w-96 flex flex-col gap-3 overflow-hidden">
-            <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 flex flex-col gap-2 shrink-0">
+            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col gap-2 shrink-0">
               <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
                 Totales por moneda
               </div>
@@ -467,13 +467,13 @@ export function IntradayView() {
             </div>
 
             {/* Consolidado por especie (descalce de títulos) */}
-            <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 flex flex-col overflow-hidden flex-1 min-h-0">
+            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col overflow-hidden flex-1 min-h-0">
               <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-2 shrink-0">
                 Consolidado por especie
               </div>
               <div className="flex-1 overflow-y-auto">
                 <table className="w-full text-[10px] font-mono">
-                  <thead className="sticky top-0 bg-[#0a0a0a]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)]">
                     <tr className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
                       <th className="!py-1 text-left">Especie</th>
                       <th className="!py-1 text-right">Neto</th>

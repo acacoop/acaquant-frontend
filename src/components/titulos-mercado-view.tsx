@@ -347,14 +347,14 @@ function Header({
       </div>
       {!mercadoCerrado && (
         <>
-          <div className="h-4 w-px bg-[#1a1a1a]" />
+          <div className="h-4 w-px bg-[var(--t-border)]" />
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">ENVIAR</span>
             <span className="text-[#f87171] font-mono text-[12px] font-semibold">
               {fmt(enviarVal)}
             </span>
           </div>
-          <div className="h-4 w-px bg-[#1a1a1a]" />
+          <div className="h-4 w-px bg-[var(--t-border)]" />
           <div className="flex items-center gap-2">
             <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">RECIBIR</span>
             <span className="text-[#4ade80] font-mono text-[12px] font-semibold">
@@ -501,7 +501,7 @@ function TablaTickers({
 
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
         <tr>
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)] w-6" />
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">
@@ -558,7 +558,7 @@ function TablaTickers({
             <Fragment key={t.ticker}>
               <tr
                 onClick={() => toggle(t.ticker)}
-                className="border-b border-[#101010] hover:bg-[#0d0d0d] cursor-pointer"
+                className="border-b border-[#101010] hover:bg-[var(--t-surface)] cursor-pointer"
               >
                 <td className="px-2 py-1 text-[var(--t-text-muted)] text-[10px]">
                   {isOpen ? "▼" : "▶"}
@@ -581,7 +581,7 @@ function TablaTickers({
                 </td>
               </tr>
               {isOpen && (
-                <tr className="bg-[#0a0a0a]">
+                <tr className="bg-[var(--t-panel)]">
                   <td />
                   <td colSpan={5} className="px-2 py-2">
                     <CuentasDetail cuentas={t.cuentas} unidad={unidad} />
@@ -689,7 +689,7 @@ function TablaTickerComitente({
 
   return (
     <table className="w-full text-[11px] font-mono tabular-nums">
-      <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
         <tr>
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">Ticker</th>
           <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">Comitente</th>
@@ -714,7 +714,7 @@ function TablaTickerComitente({
           return (
             <tr
               key={`${f.ticker}-${f.cuenta}-${i}`}
-              className={`border-b border-[#101010] hover:bg-[#0d0d0d] ${
+              className={`border-b border-[#101010] hover:bg-[var(--t-surface)] ${
                 isFirst ? "border-t border-[var(--t-border)]" : ""
               }`}
             >

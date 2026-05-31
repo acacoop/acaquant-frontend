@@ -142,7 +142,7 @@ export function OpcionesTableCompact({
                       isSelected
                         ? "bg-[var(--t-accent)]/15"
                         : onSelect
-                        ? "hover:bg-[#1a1a1a]"
+                        ? "hover:bg-[var(--t-border)]"
                         : ""
                     }`}
                     title={onSelect ? "Click para ver costo histórico" : undefined}

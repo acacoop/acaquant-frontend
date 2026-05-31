@@ -719,7 +719,7 @@ function TabValidaciones() {
                       </tr>
                       {expanded && (
                         <tr key={`${key}_detail`}>
-                          <td colSpan={7} className="!py-2 !px-3 bg-[#0a0a0a] border-l-2 border-l-[var(--t-accent)]">
+                          <td colSpan={7} className="!py-2 !px-3 bg-[var(--t-panel)] border-l-2 border-l-[var(--t-accent)]">
                             <div className="font-mono text-[10px] text-[var(--t-text)] grid grid-cols-2 gap-4">
                               {/* Buscar Objetivo */}
                               <div className="flex flex-col gap-1">
@@ -956,7 +956,7 @@ function TabValidaciones() {
             onChange={(e) => setCurvaTickerInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") runCurva(); }}
             placeholder="ticker_corto (ej: TX26, AL30D, T15E7, S30M6)"
-            className="flex-1 max-w-[280px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            className="flex-1 max-w-[280px] bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
           <button
             onClick={runCurva}
@@ -1187,7 +1187,7 @@ function TabValidaciones() {
             onChange={(e) => setPvTicker(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") runPv(); }}
             placeholder="ticker (ej: NVDA, AAPL, KO)"
-            className="flex-1 max-w-[280px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            className="flex-1 max-w-[280px] bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
           <button
             onClick={runPv}
@@ -1501,7 +1501,7 @@ function TabAssets() {
         <select
           value={filtroCartera}
           onChange={(e) => setFiltroCartera(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           <option value="">— todas —</option>
           {valueOpts.CARTERA.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -1511,7 +1511,7 @@ function TabAssets() {
         <select
           value={filtroEmisor}
           onChange={(e) => setFiltroEmisor(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           <option value="">— todos —</option>
           {valueOpts.EMISOR.map((e) => <option key={e} value={e}>{e}</option>)}
@@ -1521,7 +1521,7 @@ function TabAssets() {
         <select
           value={campoVacio}
           onChange={(e) => setCampoVacio(e.target.value as AssetCampo | "")}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           title="Mostrar solo los assets con este campo sin completar"
         >
           <option value="">— sin filtro —</option>
@@ -1561,7 +1561,7 @@ function TabAssets() {
                 const state: RowState = rowState[a.unidad] || { kind: "idle" };
                 const dirty = ASSET_CAMPOS.some((c) => draft[c] !== ((a[c] ?? "") as string));
                 return (
-                  <tr key={a.unidad} className="border-b border-[var(--t-border)] hover:bg-[#0c0c0c]">
+                  <tr key={a.unidad} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
                     <td
                       className="px-3 py-1.5 text-[var(--t-text)] whitespace-nowrap max-w-[280px] truncate"
                       title={a.unidad}
@@ -1582,7 +1582,7 @@ function TabAssets() {
                                 setDraftField(a.unidad, c, e.target.value);
                                 saveRow(a, nd);
                               }}
-                              className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-full min-w-[90px]"
+                              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-full min-w-[90px]"
                             >
                               <option value="">—</option>
                               {/* Incluye el valor actual aunque no esté en la lista (placeholder viejo). */}
@@ -1603,7 +1603,7 @@ function TabAssets() {
                                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                               }}
                               placeholder="—"
-                              className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-full min-w-[90px]"
+                              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-full min-w-[90px]"
                             />
                           )}
                         </td>
@@ -1891,21 +1891,21 @@ function TabClientesSegmentacion() {
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">OPERADOR</span>
         <select value={fOperador} onChange={(e) => setFOperador(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
           {operadores.map((o) => <option key={o.email} value={o.email}>{o.nombre}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 1</span>
         <select value={fNivel1} onChange={(e) => setFNivel1(e.target.value)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
           {(vals["nivel_1"] || []).map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CAMPO VACÍO</span>
         <select value={campoVacio} onChange={(e) => setCampoVacio(e.target.value as ClienteCampo | "")}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           title="Mostrar solo los clientes con este campo sin completar">
           <option value="">— sin filtro —</option>
           {CLIENTE_CAMPOS.map((c) => <option key={c} value={c}>{CLIENTE_CAMPO_LABEL[c]}</option>)}
@@ -1916,7 +1916,7 @@ function TabClientesSegmentacion() {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") fetchClientes(); }}
           placeholder="buscar id o nombre…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[170px]"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[170px]"
         />
 
         <label
@@ -1967,7 +1967,7 @@ function TabClientesSegmentacion() {
                 const state: RowState = rowState[c.id_cuenta] || { kind: "idle" };
                 const dirty = CLIENTE_CAMPOS.some((k) => draft[k] !== ((c[k] ?? "") as string));
                 return (
-                  <tr key={c.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[#0c0c0c]">
+                  <tr key={c.id_cuenta} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
                     <td className="px-3 py-1.5 text-[var(--t-accent)] whitespace-nowrap">{c.id_cuenta}</td>
                     <td className="px-2 py-1.5 text-[var(--t-text)] whitespace-nowrap max-w-[220px] truncate" title={c.denominacion ?? ""}>{c.denominacion ?? "—"}</td>
                     <td className="px-2 py-1.5">
@@ -1975,7 +1975,7 @@ function TabClientesSegmentacion() {
                         value={c.operador_email ?? ""}
                         onChange={(e) => saveOperador(c, e.target.value)}
                         title={c.operador_email ?? "sin operador"}
-                        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none min-w-[120px] max-w-[170px]"
+                        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none min-w-[120px] max-w-[170px]"
                       >
                         {!c.operador_email && <option value="" disabled>— elegí —</option>}
                         {c.operador_email && !operadores.some((o) => o.email === c.operador_email) && (
@@ -1996,7 +1996,7 @@ function TabClientesSegmentacion() {
                           onBlur={() => saveRow(c)}
                           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                           placeholder="—"
-                          className={`bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none ${k === "observaciones" ? "min-w-[180px]" : "min-w-[90px]"} w-full`}
+                          className={`bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none ${k === "observaciones" ? "min-w-[180px]" : "min-w-[90px]"} w-full`}
                         />
                       </td>
                     ))}
@@ -2177,7 +2177,7 @@ function TabClientesFondeos() {
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") fetchClientes(); }}
           placeholder="buscar id o nombre…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[170px]"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[170px]"
         />
 
         <label
@@ -2228,7 +2228,7 @@ function TabClientesFondeos() {
                 const lf = c.cupo || {};
                 const cargado = lf.cargado_en ? new Date(lf.cargado_en).toLocaleDateString("es-AR") : "—";
                 return (
-                  <tr key={c.id_cuenta} className="border-b border-[var(--t-border)]/50 hover:bg-[#0c0c0c]">
+                  <tr key={c.id_cuenta} className="border-b border-[var(--t-border)]/50 hover:bg-[var(--t-surface-2)]">
                     <td className="px-3 py-1.5 text-[var(--t-text)]">{c.id_cuenta}</td>
                     <td className="px-2 py-1.5 text-[var(--t-text)]">{c.denominacion || "—"}</td>
                     <td className="px-2 py-1.5 text-[var(--t-text-dim)]">{c.tipo_cliente || "—"}</td>
@@ -2260,7 +2260,7 @@ function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
     : ([{ id: "segmentacion", label: "SEGMENTACIÓN" }] as const);
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         {subs.map((t) => (
           <button
             key={t.id}
@@ -2378,7 +2378,7 @@ function TabInstrumentos() {
           <select
             value={selectedCfi}
             onChange={(e) => setSelectedCfi(e.target.value)}
-            className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-accent)] font-mono min-w-[180px] focus:border-[var(--t-accent)] focus:outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-accent)] font-mono min-w-[180px] focus:border-[var(--t-accent)] focus:outline-none"
             disabled={!discData?.ok}
           >
             {!discData?.ok && <option value="">— sin data —</option>}
@@ -2393,7 +2393,7 @@ function TabInstrumentos() {
           <select
             value={selectedUnderlying}
             onChange={(e) => setSelectedUnderlying(e.target.value)}
-            className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono min-w-[300px] focus:border-[var(--t-accent)] focus:outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono min-w-[300px] focus:border-[var(--t-accent)] focus:outline-none"
             disabled={instruments.length === 0}
           >
             <option value="__ALL__">
@@ -2411,7 +2411,7 @@ function TabInstrumentos() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar ticker o maturity"
-            className="flex-1 min-w-[200px] bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            className="flex-1 min-w-[200px] bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
             disabled={!instruments.length}
           />
 
@@ -2503,7 +2503,7 @@ function TabAsistente() {
   const [sub, setSub] = useState<"chat" | "obs">("chat");
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2">
           ASISTENTE · LEGACY
         </span>
@@ -2536,7 +2536,7 @@ type Tab =
 //              lo que Aunesa manda contra lo persistido en AUM.
 // ── Grupos consolidados (sub-tabs con Pill, patrón AunesaGroup) ───────────────
 
-const GROUP_HEADER = "flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0";
+const GROUP_HEADER = "flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0";
 const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2";
 
 // DIAGNÓSTICO: Motores (rediseñado 50/50) + Recursos + Logs.
@@ -2623,7 +2623,7 @@ function AunesaGroup() {
   const [sub, setSub] = useState<"flujo" | "aum" | "posicion" | "boletos">("flujo");
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2">AUNESA</span>
         <Pill label="FLUJO" active={sub === "flujo"} onClick={() => setSub("flujo")} />
         <Pill label="AUM" active={sub === "aum"} onClick={() => setSub("aum")} />

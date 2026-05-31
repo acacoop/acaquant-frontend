@@ -193,7 +193,7 @@ export function AunesaExplorarPanel() {
   }, [data, capFilter, catFilter, search]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0a] text-[var(--t-text)]">
+    <div className="h-full flex flex-col bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* HEADER */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[var(--t-border)] px-3 py-2 shrink-0 bg-[var(--t-panel)]">
         <DatePickerCompact value={fecha} onChange={setFecha} />
@@ -282,7 +282,7 @@ export function AunesaExplorarPanel() {
                     className={
                       "w-full flex items-center gap-2 px-3 py-1 text-left text-[11px] font-mono " +
                       (active
-                        ? "bg-[#1a1a1a] border-l-2 border-[var(--t-accent)]"
+                        ? "bg-[var(--t-border)] border-l-2 border-[var(--t-accent)]"
                         : "hover:bg-[var(--t-surface-2)] border-l-2 border-transparent")
                     }
                   >
@@ -320,7 +320,7 @@ export function AunesaExplorarPanel() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="buscar…"
-                className="flex-1 min-w-[150px] bg-black border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)]"
+                className="flex-1 min-w-[150px] bg-[var(--t-panel)] border border-[#333] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)]"
               />
               <span className="text-[9px] text-[var(--t-text-dim)]">
                 {vista === "consolidado"
@@ -664,7 +664,7 @@ function DatePickerCompact({
     <div ref={wrapperRef} className="relative inline-flex items-stretch border border-[#333] divide-x divide-[#333]">
       <button
         onClick={() => onChange(addDays(value, -1))}
-        className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[#1a1a1a]"
+        className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[var(--t-border)]"
         title="Día anterior"
       >
         ‹
@@ -673,7 +673,7 @@ function DatePickerCompact({
         onClick={() => setOpen((p) => !p)}
         className={
           "px-3 py-1 text-[11px] font-mono min-w-[170px] text-center " +
-          (open ? "bg-[#1a1a1a] text-[var(--t-accent)]" : "bg-black text-[var(--t-text)] hover:bg-[var(--t-surface-2)]")
+          (open ? "bg-[var(--t-border)] text-[var(--t-accent)]" : "bg-[var(--t-panel)] text-[var(--t-text)] hover:bg-[var(--t-surface-2)]")
         }
       >
         {fmtDisplay(value)}
@@ -681,7 +681,7 @@ function DatePickerCompact({
       <button
         onClick={() => onChange(addDays(value, 1))}
         disabled={isFuture}
-        className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[#1a1a1a] disabled:text-[#333] disabled:hover:bg-transparent"
+        className="px-2 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[var(--t-border)] disabled:text-[#333] disabled:hover:bg-transparent"
         title="Día siguiente"
       >
         ›
@@ -692,8 +692,8 @@ function DatePickerCompact({
         className={
           "px-2 text-[10px] uppercase tracking-wider " +
           (isToday
-            ? "bg-[#0a0a0a] text-[var(--t-text-muted)]"
-            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[#1a1a1a]")
+            ? "bg-[var(--t-panel)] text-[var(--t-text-muted)]"
+            : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:bg-[var(--t-border)]")
         }
       >
         Hoy
@@ -740,7 +740,7 @@ function CalendarPopup({
   const valD = parseISO(value);
 
   return (
-    <div className="absolute top-full left-0 mt-1 z-50 bg-black border border-[var(--t-accent)] p-3 shadow-2xl min-w-[260px]">
+    <div className="absolute top-full left-0 mt-1 z-50 bg-[var(--t-panel)] border border-[var(--t-accent)] p-3 shadow-2xl min-w-[260px]">
       {/* Header — mes/año + nav */}
       <div className="flex items-center justify-between mb-2">
         <button
@@ -782,13 +782,13 @@ function CalendarPopup({
           if (isSelected) {
             cls = "bg-[var(--t-accent)] text-black font-semibold";
           } else if (isToday) {
-            cls = "border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[#1a1a1a]";
+            cls = "border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-border)]";
           } else if (isFuture) {
             cls = "text-[#333] cursor-not-allowed";
           } else if (isWeekend) {
-            cls = "text-[var(--t-text-muted)] hover:bg-[#1a1a1a] hover:text-[var(--t-text-dim)]";
+            cls = "text-[var(--t-text-muted)] hover:bg-[var(--t-border)] hover:text-[var(--t-text-dim)]";
           } else {
-            cls = "text-[var(--t-text)] hover:bg-[#1a1a1a] hover:text-[var(--t-accent)]";
+            cls = "text-[var(--t-text)] hover:bg-[var(--t-border)] hover:text-[var(--t-accent)]";
           }
           return (
             <button

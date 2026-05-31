@@ -83,7 +83,7 @@ export function ComercialPanel() {
       {/* Tabla por operador */}
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto">
         <table className="w-full text-[11px]">
-          <thead className="sticky top-0 bg-[#0a0a0a]">
+          <thead className="sticky top-0 bg-[var(--t-panel)]">
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-3 py-2">OPERADOR</th>
               <th className="text-right px-2">CUENTAS</th>

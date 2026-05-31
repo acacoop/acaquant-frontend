@@ -140,7 +140,7 @@ export function JobsRunsPanel() {
             <select
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option value="">todos los tipos</option>
               {tipos.map((t) => (
@@ -150,7 +150,7 @@ export function JobsRunsPanel() {
             <select
               value={filtroStatus}
               onChange={(e) => setFiltroStatus(e.target.value)}
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option value="">todos</option>
               <option value="ok">ok</option>
@@ -175,7 +175,7 @@ export function JobsRunsPanel() {
             </p>
           ) : (
             <table className="w-full text-[10px] font-mono">
-              <thead className="sticky top-0 bg-[#0a0a0a]">
+              <thead className="sticky top-0 bg-[var(--t-panel)]">
                 <tr className="text-left border-b border-[var(--t-border)]">
                   <th className="px-2 py-1 text-[var(--t-accent)] uppercase">Tipo</th>
                   <th className="px-2 py-1 text-[var(--t-accent)] uppercase">Start (ART)</th>
@@ -189,7 +189,7 @@ export function JobsRunsPanel() {
                   <tr
                     key={`${r.tipo}-${r.started_at}`}
                     onClick={() => setSelected(r)}
-                    className="border-b border-[var(--t-border)] hover:bg-[#141414] cursor-pointer"
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)] cursor-pointer"
                   >
                     <td className="px-2 py-1 text-[var(--t-text)]">{r.tipo}</td>
                     <td className="px-2 py-1 text-[var(--t-text-dim)] whitespace-nowrap">{r.started_at}</td>
@@ -211,7 +211,7 @@ export function JobsRunsPanel() {
       {/* Drawer de detalle */}
       {selected && (
         <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-[var(--t-panel)]/70 z-50 flex items-center justify-center p-4"
           onClick={() => setSelected(null)}
         >
           <div
@@ -246,7 +246,7 @@ export function JobsRunsPanel() {
               {Object.keys(selected.stats || {}).length > 0 && (
                 <div>
                   <div className="text-[var(--t-accent)] uppercase text-[10px] mb-1">Stats</div>
-                  <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[var(--t-text)] overflow-x-auto whitespace-pre-wrap">
+                  <pre className="bg-[var(--t-panel)] border border-[var(--t-border)] p-2 text-[var(--t-text)] overflow-x-auto whitespace-pre-wrap">
                     {JSON.stringify(selected.stats, null, 2)}
                   </pre>
                 </div>
@@ -255,7 +255,7 @@ export function JobsRunsPanel() {
               {selected.log && selected.log.length > 0 && (
                 <div>
                   <div className="text-[var(--t-accent)] uppercase text-[10px] mb-1">Log ({selected.log.length} líneas)</div>
-                  <pre className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 text-[var(--t-text-dim)] overflow-x-auto whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                  <pre className="bg-[var(--t-panel)] border border-[var(--t-border)] p-2 text-[var(--t-text-dim)] overflow-x-auto whitespace-pre-wrap max-h-[400px] overflow-y-auto">
                     {selected.log.join("\n")}
                   </pre>
                 </div>

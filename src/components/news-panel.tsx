@@ -166,7 +166,7 @@ export function NewsPanel() {
             {c.label}
           </button>
         ))}
-        <div className="w-px h-3 bg-[#2a2a2a] mx-1" />
+        <div className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
         {fuentesPresentes.map((f) => {
           const color = FUENTE_COLOR[f] ?? "#888888";
           const active = fuenteFiltro === f;
@@ -202,7 +202,7 @@ export function NewsPanel() {
           {visibles.map((h) => {
             const color = FUENTE_COLOR[h.fuente] ?? "#888888";
             const flash = newUrls.has(h.url);
-            const bg = FUENTE_BG[h.fuente] ?? "bg-[#1a1a1a]/20";
+            const bg = FUENTE_BG[h.fuente] ?? "bg-[var(--t-border)]/20";
             return (
               <li
                 key={h.url}

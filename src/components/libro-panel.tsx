@@ -195,7 +195,7 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
       {/* El chart fue removido por pedido de la mesa — ocupaba mucho
           espacio en un panel chico (~50%×50% de pantalla) y el eje X no
           se entendía. Time & Sales solo, full width. */}
-      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[#0a0a0a] overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col">
         <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
           <span className="text-[10px] text-[var(--t-accent)] tracking-wide font-semibold">
             TIME &amp; SALES
@@ -229,7 +229,7 @@ function TimeSalesTape({ trades }: { trades: Trade[] }) {
 
   return (
     <table className="w-full text-[10px] font-mono">
-      <thead className="sticky top-0 bg-[#0a0a0a] z-10">
+      <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
         <tr className="border-b border-[var(--t-border)]">
           <th className="text-left px-1.5 py-0.5 text-[var(--t-text-muted)] font-normal">
             HORA

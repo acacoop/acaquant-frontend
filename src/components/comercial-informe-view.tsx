@@ -271,7 +271,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
         }
       >
         <table className="w-full text-[11px] tabular-nums">
-          <thead className="sticky top-0 bg-[#0a0a0a]">
+          <thead className="sticky top-0 bg-[var(--t-panel)]">
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-2 py-2">#</th>
               <th className="text-left px-1">COMERCIAL</th>
@@ -332,7 +332,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
         extra={<DownloadBtn onClick={dlAranceles} />}
       >
         <table className="w-full text-[11px] tabular-nums">
-          <thead className="sticky top-0 bg-[#0a0a0a]">
+          <thead className="sticky top-0 bg-[var(--t-panel)]">
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-3 py-2">SEGMENTO</th>
               <th className="text-right px-2">ARANC. TOTAL</th>
@@ -383,7 +383,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                   onClick={() => setQ4tab(t)}
                   className={
                     "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
-                    (q4tab === t ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                    (q4tab === t ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                 >
                   {t === "clientes" ? "Clientes" : "Operaciones"}
@@ -398,7 +398,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
           <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">cargando…</div>
         ) : q4tab === "clientes" ? (
           <table className="w-full text-[11px] tabular-nums">
-            <thead className="sticky top-0 bg-[#0a0a0a]">
+            <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
                 <th className="text-left px-3 py-2">CLIENTE</th>
                 <th className="text-right px-2">ARANC. TOTAL</th>
@@ -422,7 +422,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
           </table>
         ) : (
           <table className="w-full text-[11px] tabular-nums">
-            <thead className="sticky top-0 bg-[#0a0a0a]">
+            <thead className="sticky top-0 bg-[var(--t-panel)]">
               <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
                 <th className="text-left px-3 py-2">FECHA</th>
                 <th className="text-left px-1">CLIENTE</th>

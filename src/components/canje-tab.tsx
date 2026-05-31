@@ -219,7 +219,7 @@ export function CanjeTab() {
       </div>
 
       {/* Leyenda */}
-      <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 shrink-0 text-[10px] font-mono">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0 text-[10px] font-mono">
         <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
           Cálculo
         </div>

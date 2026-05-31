@@ -177,10 +177,10 @@ function BonoSelector({
             if (e.key === "Enter" && filtered.length > 0) pick(filtered[0]);
             else if (e.key === "Escape") setOpen(false);
           }}
-          className="w-full bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          className="w-full bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         />
         {open && (
-          <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-64 overflow-y-auto bg-black border border-[var(--t-border-2)] shadow-lg">
+          <div className="absolute z-50 top-full left-0 right-0 mt-0.5 max-h-64 overflow-y-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-lg">
             {filtered.length === 0 ? (
               <div className="px-2 py-1 text-[10px] text-[var(--t-text-muted)] italic">sin resultados</div>
             ) : (
@@ -333,7 +333,7 @@ export function CompararInversionView() {
             <input
               value={monto}
               onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
-              className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+              className="w-32 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
             />
             <div className="flex">
               {(["ARS", "USD"] as const).map((m) => (

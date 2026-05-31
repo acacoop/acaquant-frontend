@@ -105,7 +105,7 @@ export function AgroFuturos({
             </p>
           ) : (
             <table className="w-full text-[11px] font-mono">
-              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-2 py-1.5 border-b border-[var(--t-border)]">
                     Ticker
@@ -147,7 +147,7 @@ export function AgroFuturos({
                   return (
                     <tr
                       key={r.ticker ?? i}
-                      className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+                      className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
                     >
                       <td className="px-2 py-1 text-[var(--t-accent)]">
                         {r.ticker ?? "—"}

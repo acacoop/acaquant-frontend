@@ -535,7 +535,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
                     : b.importe < 0 ? "text-[#ff4d4d]"
                     : "text-[var(--t-text-dim)]";
                   return (
-                    <tr key={i} className="border-t border-[var(--t-border)] hover:bg-[#0d0d0d]">
+                    <tr key={i} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                       <td className="px-2 py-0.5 text-[var(--t-text)]">{b.fecha}</td>
                       <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.op || b.categoria}</td>
                       <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
@@ -568,7 +568,7 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
 
 function DetKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="border border-[var(--t-border)] bg-[#0a0a0a] px-2 py-1">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-2 py-1">
       <div className="text-[8px] text-[var(--t-text-muted)] uppercase tracking-wider">{label}</div>
       <div className="text-[12px] font-semibold truncate" style={accent ? { color: accent } : undefined}>{value}</div>
     </div>

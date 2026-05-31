@@ -82,9 +82,9 @@ export function InfoIcon({ tip, width = "300px", align = "left" }: Props) {
           pinned
             ? "block pointer-events-auto"
             : "hidden group-hover:block pointer-events-none"
-        } bg-black border ${
+        } bg-[var(--t-panel)] border ${
           pinned ? "border-[var(--t-accent)]" : "border-[var(--t-border-2)]"
-        } p-3 ${pinned ? "pr-6" : ""} text-[10px] text-[var(--t-text)] leading-relaxed shadow-xl normal-case tracking-normal whitespace-normal max-h-[60vh] overflow-y-auto [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h4]:text-[10px] [&_h4]:text-[var(--t-accent)] [&_h4]:font-semibold [&_h4]:tracking-wider [&_h4]:mb-1 [&_h4]:mt-2 [&_h4:first-child]:mt-0 [&_ul]:my-2 [&_ul]:pl-3 [&_li]:mb-1 [&_strong]:text-[var(--t-accent)] [&_strong]:font-semibold [&_code]:text-[#3fbf6f] [&_code]:font-mono [&_code]:bg-[#0a0a0a] [&_code]:px-1`}
+        } p-3 ${pinned ? "pr-6" : ""} text-[10px] text-[var(--t-text)] leading-relaxed shadow-xl normal-case tracking-normal whitespace-normal max-h-[60vh] overflow-y-auto [&_p]:mb-2 [&_p:last-child]:mb-0 [&_h4]:text-[10px] [&_h4]:text-[var(--t-accent)] [&_h4]:font-semibold [&_h4]:tracking-wider [&_h4]:mb-1 [&_h4]:mt-2 [&_h4:first-child]:mt-0 [&_ul]:my-2 [&_ul]:pl-3 [&_li]:mb-1 [&_strong]:text-[var(--t-accent)] [&_strong]:font-semibold [&_code]:text-[#3fbf6f] [&_code]:font-mono [&_code]:bg-[var(--t-panel)] [&_code]:px-1`}
         style={{ width }}
       >
         {pinned && (

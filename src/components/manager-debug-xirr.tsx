@@ -143,7 +143,7 @@ export function ManagerDebugXirrPanel() {
           onChange={(e) => setIdCuenta(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") cargar(); }}
           placeholder="ej: 805"
-          className="bg-black border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[var(--t-accent)] focus:outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] font-mono w-[120px] focus:border-[var(--t-accent)] focus:outline-none"
         />
         <button
           onClick={cargar}
@@ -222,7 +222,7 @@ export function ManagerDebugXirrPanel() {
 
         {data && data.meses.length > 0 && (
           <table className="w-full text-[10px] font-mono">
-            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] border-b border-[var(--t-border-2)]">
               <tr className="text-[var(--t-text-muted)] tracking-widest">
                 <th className="text-left px-2 py-1 w-[28px]"></th>
                 <th className="text-left px-2 py-1">MES</th>
@@ -285,7 +285,7 @@ export function ManagerDebugXirrPanel() {
                     </tr>
 
                     {isOpen && (
-                      <tr key={`${m.mes}-detail`} className="bg-[#050505] border-b border-[var(--t-border)]">
+                      <tr key={`${m.mes}-detail`} className="bg-[var(--t-panel)] border-b border-[var(--t-border)]">
                         <td colSpan={moneda === "USD" ? 15 : 14} className="px-4 py-3">
                           <div className="grid grid-cols-2 gap-6">
                             {/* Cashflow XIRR */}

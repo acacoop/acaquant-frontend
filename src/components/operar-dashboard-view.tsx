@@ -405,7 +405,7 @@ export function PortfolioPanel({
               </div>
             ) : (
               <table className="w-full text-[10px] font-mono tabular-nums">
-                <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider bg-[#0a0a0a] sticky top-0">
+                <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider bg-[var(--t-panel)] sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1">TICKER</th>
                     <th className="text-left px-2 py-1">TIPO</th>
@@ -418,7 +418,7 @@ export function PortfolioPanel({
                   {tenencias.map((t, i) => (
                     <tr
                       key={`${t.ticker}-${i}`}
-                      className="border-t border-[#101010] hover:bg-[#0d0d0d]"
+                      className="border-t border-[#101010] hover:bg-[var(--t-surface)]"
                     >
                       <td className="px-2 py-0.5 text-[var(--t-text)]">{t.ticker}</td>
                       <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{t.tipo}</td>
@@ -438,7 +438,7 @@ export function PortfolioPanel({
                 </tbody>
                 {totalMarketValue != null && (
                   <tfoot>
-                    <tr className="border-t border-[var(--t-border-2)] bg-[#0a0a0a]">
+                    <tr className="border-t border-[var(--t-border-2)] bg-[var(--t-panel)]">
                       <td colSpan={4} className="px-2 py-1 text-right text-[10px] text-[var(--t-text-dim)]">
                         TOTAL
                       </td>
@@ -557,10 +557,10 @@ export function AccountSearch({
           setTimeout(() => setOpen(false), 200);
         }}
         placeholder="ID o nombre"
-        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[260px] focus:border-[var(--t-accent)] outline-none"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[260px] focus:border-[var(--t-accent)] outline-none"
       />
       {open && hits.length > 0 && (
-        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[280px] overflow-y-auto w-[320px] text-[11px]">
+        <div className="absolute top-full left-0 mt-0.5 bg-[var(--t-surface)] border border-[var(--t-border-2)] z-20 max-h-[280px] overflow-y-auto w-[320px] text-[11px]">
           {hits.map((c) => (
             <div
               key={c.account_id}
@@ -568,7 +568,7 @@ export function AccountSearch({
                 onPick(c.account_id);
                 setOpen(false);
               }}
-              className={`px-2 py-1 hover:bg-[#1a1a1a] cursor-pointer flex items-center gap-2 ${
+              className={`px-2 py-1 hover:bg-[var(--t-border)] cursor-pointer flex items-center gap-2 ${
                 c.account_id === value ? "bg-[#1a1308]" : ""
               }`}
             >
@@ -638,10 +638,10 @@ function TickerSearch({
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 200)}
         placeholder="ticker"
-        className="bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[var(--t-accent)] outline-none"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[var(--t-accent)] outline-none"
       />
       {open && hits.length > 0 && (
-        <div className="absolute top-full left-0 mt-0.5 bg-[#0d0d0d] border border-[var(--t-border-2)] z-20 max-h-[200px] overflow-y-auto min-w-[260px] text-[10px]">
+        <div className="absolute top-full left-0 mt-0.5 bg-[var(--t-surface)] border border-[var(--t-border-2)] z-20 max-h-[200px] overflow-y-auto min-w-[260px] text-[10px]">
           {hits.map((h) => {
             const corto =
               h.ticker_corto ||
@@ -651,7 +651,7 @@ function TickerSearch({
               <div
                 key={h.ticker}
                 onMouseDown={() => onPick(corto, h.ticker)}
-                className="px-2 py-0.5 hover:bg-[#1a1a1a] cursor-pointer font-mono"
+                className="px-2 py-0.5 hover:bg-[var(--t-border)] cursor-pointer font-mono"
               >
                 <span className="text-[var(--t-text)]">{corto}</span>
                 <span className="text-[var(--t-text-muted)] ml-2">{h.ticker}</span>
@@ -832,7 +832,7 @@ function OperarCard({
           onChange={(e) =>
             onChangePlazo(e.target.value as "CI" | "24hs" | "48hs")
           }
-          className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] focus:border-[var(--t-accent)] outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] focus:border-[var(--t-accent)] outline-none"
           title="Plazo de liquidación (ignorado si elegiste el ticker full del autocomplete)"
         >
           <option value="CI">CI</option>
@@ -873,7 +873,7 @@ function OperarCard({
       {/* Quick-pick cauciones — tickers fijos ROFEX, no pasan por el autocomplete.
           Si el book no aparece tras 5s puede ser que Manager.PyRofexInstruments
           no tenga la caución cargada (correr scripts/discovery_pyrofex). */}
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--t-border)] bg-[#0a0a0a]">
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-panel)]">
         <span className="text-[8px] text-[var(--t-text-muted)] tracking-widest mr-1">CAUCIÓN</span>
         {[1, 7, 14, 30].map((d) => (
           <button
@@ -978,7 +978,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, order_type: e.target.value as OrderType }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
           >
             <option value="LIMIT">LIMIT</option>
             <option value="MARKET">MARKET</option>
@@ -988,7 +988,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, tif: e.target.value as Tif }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
           >
             <option value="DAY">DAY</option>
             <option value="IOC">IOC</option>
@@ -1008,7 +1008,7 @@ function OperarCard({
               // normalizamos al tipear (no al enviar) para que el user VEA el punto.
               setForm((f) => ({ ...f, price: e.target.value.replace(",", ".") }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40"
           />
           <input
             value={form.size}
@@ -1016,7 +1016,7 @@ function OperarCard({
             onChange={(e) =>
               setForm((f) => ({ ...f, size: e.target.value.replace(",", ".") }))
             }
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none"
           />
         </div>
 
@@ -1027,7 +1027,7 @@ function OperarCard({
             placeholder="precio salida (bracket — opcional)"
             disabled={form.order_type === "MARKET"}
             onChange={(e) => setPriceExit(e.target.value.replace(",", "."))}
-            className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40 ${
+            className={`w-full bg-[var(--t-panel)] border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40 ${
               priceExit.trim() !== ""
                 ? "border-[var(--t-accent)] text-[var(--t-accent)]"
                 : "border-[var(--t-border-2)]"
@@ -1119,7 +1119,7 @@ export function OrderManagement({
         </div>
       ) : (
         <table className="w-full text-[10px] font-mono tabular-nums">
-          <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider bg-[#0a0a0a] sticky top-0">
+          <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider bg-[var(--t-panel)] sticky top-0">
             <tr>
               <th className="text-left px-2 py-1">HORA</th>
               <th className="text-left px-2 py-1">TICKER</th>
@@ -1141,7 +1141,7 @@ export function OrderManagement({
               return (
                 <tr
                   key={o.cl_ord_id ?? `ord-${i}`}
-                  className="border-t border-[#101010] hover:bg-[#0d0d0d]"
+                  className="border-t border-[#101010] hover:bg-[var(--t-surface)]"
                 >
                   <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {o.created_at ? fmtTime(o.created_at) : "—"}
@@ -1360,7 +1360,7 @@ export function OperarDashboardView() {
   }
 
   return (
-    <div className="h-full flex flex-col gap-2 p-2 bg-black min-h-0 overflow-hidden">
+    <div className="h-full flex flex-col gap-2 p-2 bg-[var(--t-panel)] min-h-0 overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-2 py-1 border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[10px] tracking-wider text-[var(--t-text-dim)]">CUENTA</span>

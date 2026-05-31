@@ -29,7 +29,7 @@ export function HelpTooltip({
       <sup className="text-[var(--t-text-muted)] cursor-help select-none text-[9px]">?</sup>
       {show && (
         <span
-          className={`absolute z-50 ${verticalClass} left-1/2 -translate-x-1/2 px-2 py-1 bg-[#1a1a1a] border border-[var(--t-border-2)] text-[10px] text-[var(--t-text)] whitespace-normal max-w-[280px] w-max pointer-events-none normal-case tracking-normal text-left font-normal leading-tight`}
+          className={`absolute z-50 ${verticalClass} left-1/2 -translate-x-1/2 px-2 py-1 bg-[var(--t-border)] border border-[var(--t-border-2)] text-[10px] text-[var(--t-text)] whitespace-normal max-w-[280px] w-max pointer-events-none normal-case tracking-normal text-left font-normal leading-tight`}
         >
           {text}
         </span>
@@ -81,7 +81,7 @@ export function TableHelp({
       </button>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--t-panel)]/50"
           onClick={() => setOpen(false)}
         >
           <div

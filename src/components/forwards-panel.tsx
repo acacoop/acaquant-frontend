@@ -168,7 +168,7 @@ export function ForwardsPanel({
         <FilterBtn active={curva === "cer"} onClick={() => setCurva("cer")}>
           CER
         </FilterBtn>
-        <span className="w-px h-3 bg-[#2a2a2a] mx-1" />
+        <span className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
         <FilterBtn active={modo === "live"} onClick={() => setModo("live")}>
           LIVE
         </FilterBtn>
@@ -204,7 +204,7 @@ export function ForwardsPanel({
                 }
               }}
               placeholder="agregar par…"
-              className="bg-[#0a0a0a] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-[130px]"
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-[130px]"
             />
             {dropOpen && filteredPares.length > 0 && (
               <div

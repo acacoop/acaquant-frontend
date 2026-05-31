@@ -432,8 +432,8 @@ function RealizadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                         setAuditOpen(true);
                       }}
                       className={`cursor-pointer ${
-                        isSel ? "bg-[var(--t-accent)]/15" : i % 2 === 0 ? "bg-[#0a0a0a]" : ""
-                      } hover:bg-[#1a1a1a]`}
+                        isSel ? "bg-[var(--t-accent)]/15" : i % 2 === 0 ? "bg-[var(--t-panel)]" : ""
+                      } hover:bg-[var(--t-border)]`}
                     >
                       <td className="!px-1 text-[var(--t-accent)]">{b.ticker_corto || b.ticker}</td>
                       <td className="!px-1 text-right text-[#4a9eff]">{pct(b.carry)}</td>
@@ -639,8 +639,8 @@ function EsperadoView({ metodo, curva }: { metodo: Metodo; curva: Curva }) {
                         setAuditOpen(true);
                       }}
                       className={`cursor-pointer ${
-                        isSel ? "bg-[var(--t-accent)]/15" : i % 2 === 0 ? "bg-[#0a0a0a]" : ""
-                      } hover:bg-[#1a1a1a]`}
+                        isSel ? "bg-[var(--t-accent)]/15" : i % 2 === 0 ? "bg-[var(--t-panel)]" : ""
+                      } hover:bg-[var(--t-border)]`}
                     >
                       <td className="!px-1 text-[var(--t-accent)]">{b.ticker_corto || b.ticker}</td>
                       <td className="!px-1 text-right text-[var(--t-text)]">{pct(b.tasa)}</td>
@@ -891,7 +891,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <div className="text-[9px] tracking-widest text-[var(--t-accent)] font-semibold mb-1">
         {title}
       </div>
-      <div className="bg-[#0a0a0a] border border-[var(--t-border)] p-2 space-y-0.5">
+      <div className="bg-[var(--t-panel)] border border-[var(--t-border)] p-2 space-y-0.5">
         {children}
       </div>
     </div>

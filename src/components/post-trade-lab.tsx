@@ -150,7 +150,7 @@ export function PostTradeLab({
             value={entry}
             onChange={(e) => setEntry(e.target.value)}
             placeholder="prima"
-            className="w-16 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
+            className="w-16 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
           />
         </label>
         <label className="flex items-center gap-1 text-[var(--t-text-dim)]">
@@ -158,7 +158,7 @@ export function PostTradeLab({
           <input
             value={nUnidades}
             onChange={(e) => setNUnidades(e.target.value.replace(/[^0-9]/g, ""))}
-            className="w-12 bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
+            className="w-12 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
           />
         </label>
         {singleLeg && (
@@ -187,7 +187,7 @@ export function PostTradeLab({
 
       {/* Métricas clave */}
       {metricas && (
-        <div className="grid grid-cols-4 gap-px bg-[#1a1a1a] shrink-0">
+        <div className="grid grid-cols-4 gap-px bg-[var(--t-border)] shrink-0">
           <Metric label="P&L HOY" value={fmtMoney(metricas.hoy)} pos={metricas.hoy >= 0} />
           <Metric
             label="θ / DÍA"

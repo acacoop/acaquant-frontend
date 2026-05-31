@@ -529,7 +529,7 @@ function PanelOpciones({
   }
   return (
     <table className="w-full text-[10px] font-mono">
-      <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a] sticky top-0 z-10">
+      <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
         <tr>
           <th colSpan={3} className="text-center px-2 py-1 border-b border-[var(--t-border)] text-[#4ade80]">
             CALL
@@ -563,7 +563,7 @@ function PanelOpciones({
             <tr
               key={s.strike}
               className={`border-b border-[#101010] ${
-                isAtm ? "bg-[var(--t-accent)]/10" : "hover:bg-[#0d0d0d]"
+                isAtm ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]"
               }`}
             >
               <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">

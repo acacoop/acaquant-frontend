@@ -177,7 +177,7 @@ export function BreakevensBlock({
           HISTÓRICO
         </FilterBtn>
 
-        <div className="ml-2 h-4 w-px bg-[#222]" />
+        <div className="ml-2 h-4 w-px bg-[var(--t-border-2)]" />
 
         <FilterBtn active={remOn} onClick={() => setRemOn((v) => !v)}>
           REM

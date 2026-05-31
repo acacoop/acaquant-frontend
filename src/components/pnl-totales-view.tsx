@@ -237,7 +237,7 @@ export function PnLTotalesView() {
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as FiltroCuenta)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           {FILTRO_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -248,14 +248,14 @@ export function PnLTotalesView() {
           value={searchCta}
           onChange={(e) => setSearchCta(e.target.value)}
           placeholder="Filtrar cuenta…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-44"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-44"
         />
         <input
           type="text"
           value={searchTk}
           onChange={(e) => setSearchTk(e.target.value)}
           placeholder="Filtrar ticker…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-44"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-44"
         />
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">MONEDA</span>

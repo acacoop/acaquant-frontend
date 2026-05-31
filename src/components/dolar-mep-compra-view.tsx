@@ -151,7 +151,7 @@ export function DolarMepCompraView({
   }
 
   return (
-    <div className="h-full flex flex-col gap-3 p-3 bg-black text-white text-[12px] overflow-auto">
+    <div className="h-full flex flex-col gap-3 p-3 bg-[var(--t-panel)] text-white text-[12px] overflow-auto">
       {/* Form: inputs + EJECUTAR + cálculos horizontales pegados al botón */}
       <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[var(--t-border)] flex-wrap">
         {/* Toggle ARS / USD: cuando el user pone monto en USD, el ARS equivalente
@@ -267,7 +267,7 @@ export function DolarMepCompraView({
       {/* Chart + tabla operativas — split compartido con TRADING (sólo cambia la tabla) */}
       <DolarMepBoard rueda={rueda}>
         <table className="w-full text-[11px]">
-          <thead className="bg-[#1a1a1a] sticky top-0">
+          <thead className="bg-[var(--t-border)] sticky top-0">
             <tr>
               <Th>HORA</Th>
               <Th right>MONTO ARS</Th>

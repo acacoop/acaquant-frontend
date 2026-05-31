@@ -162,7 +162,7 @@ function CarteraRow({ inst }: { inst: CarteraInstrumento }) {
     <>
       <tr
         onClick={() => setOpen((o) => !o)}
-        className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[#1a1a1a]/40"
+        className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-border)]/40"
       >
         <td className="px-1 py-1 text-[var(--t-accent)] font-semibold">{inst.ticker}</td>
         <td className="px-1 py-1 text-right text-[var(--t-text)] font-mono">
@@ -173,7 +173,7 @@ function CarteraRow({ inst }: { inst: CarteraInstrumento }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={4} className="bg-[#0a0a0a] px-2 py-1.5 text-[10px] text-[var(--t-text-dim)] leading-relaxed">
+          <td colSpan={4} className="bg-[var(--t-panel)] px-2 py-1.5 text-[10px] text-[var(--t-text-dim)] leading-relaxed">
             {inst.justificacion}
           </td>
         </tr>

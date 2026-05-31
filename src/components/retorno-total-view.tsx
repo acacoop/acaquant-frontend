@@ -560,7 +560,7 @@ function HistoricoTab() {
                 return (
                   <tr
                     key={r.ticker}
-                    className={i % 2 === 0 ? "bg-[#0a0a0a]" : ""}
+                    className={i % 2 === 0 ? "bg-[var(--t-panel)]" : ""}
                     title={
                       `Base: ${r.fechaBase}  ·  Final: ${r.fechaFinal}` +
                       (baseDesalineada || finalDesalineado

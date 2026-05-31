@@ -418,7 +418,7 @@ export function CurvasChart({
             </FilterBtn>
           </div>
         )}
-        <span className="w-px h-3 bg-[#2a2a2a] mx-1" />
+        <span className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
         <FilterBtn active={modo === "live"} onClick={() => setModo("live")}>
           LIVE
         </FilterBtn>

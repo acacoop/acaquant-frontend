@@ -131,7 +131,7 @@ export function MonitorView() {
             onChange={(e) => setTk(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
             placeholder="NVDA"
-            className="w-24 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            className="w-24 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div>
@@ -140,7 +140,7 @@ export function MonitorView() {
             value={monto}
             onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
-            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            className="w-28 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div className="flex gap-1">

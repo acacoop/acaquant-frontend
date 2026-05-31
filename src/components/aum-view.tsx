@@ -92,7 +92,7 @@ function TabTasaFija({ operador }: { operador: string }) {
           <span className="text-[10px] text-[var(--t-text-muted)]">VALOR NOMINAL</span>
           <button
             onClick={() => setVerVN((v) => !v)}
-            className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[var(--t-accent)]" : "bg-[#2a2a2a]"}`}
+            className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[var(--t-accent)]" : "bg-[var(--t-border-2)]"}`}
           >
             <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${verVN ? "translate-x-4" : "translate-x-0.5"}`} />
           </button>
@@ -278,7 +278,7 @@ function TabCer({ operador }: { operador: string }) {
           <span className="text-[10px] text-[var(--t-text-muted)]">VALOR NOMINAL</span>
           <button
             onClick={() => setVerVN((v) => !v)}
-            className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[var(--t-accent)]" : "bg-[#2a2a2a]"}`}
+            className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[var(--t-accent)]" : "bg-[var(--t-border-2)]"}`}
           >
             <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${verVN ? "translate-x-4" : "translate-x-0.5"}`} />
           </button>
@@ -734,7 +734,7 @@ export function AumView() {
         <select
           value={operador}
           onChange={(e) => setOperador(e.target.value)}
-          className={`bg-black border text-[10px] px-2 py-0.5 font-mono focus:outline-none ${
+          className={`bg-[var(--t-panel)] border text-[10px] px-2 py-0.5 font-mono focus:outline-none ${
             operador ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text)] focus:border-[var(--t-accent)]"
           }`}
           title="Filtra toda la vista AUM a las cuentas de un operador"
@@ -759,7 +759,7 @@ export function AumView() {
                 <select
                   value={fechaSel}
                   onChange={(e) => setFechaSel(e.target.value)}
-                  className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+                  className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
                 >
                   {fechasAll.length === 0 && <option value="">—</option>}
                   {fechasAll.slice().reverse().map((f) => (
@@ -801,7 +801,7 @@ export function AumView() {
             <select
               value={cuentaFilter}
               onChange={(e) => setCuentaFilter(e.target.value as CuentaFilter)}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
             >
               {CUENTA_FILTER_OPTS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -1112,7 +1112,7 @@ export function AumView() {
               />
               <div className="flex-1 min-h-0 overflow-y-auto p-2 grid grid-rows-2 gap-2">
                 {/* POR CUENTA */}
-                <div className="border border-[var(--t-border)] bg-[#0a0a0a] flex flex-col min-h-0">
+                <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0">
                   <div className="px-3 py-1.5 text-[10px] tracking-widest text-[var(--t-text-dim)] flex items-center gap-2 border-b border-[var(--t-border)]">
                     <span>POR CUENTA</span>
                     <span className="text-[var(--t-text-muted)]">{porCuenta.length}</span>
@@ -1120,7 +1120,7 @@ export function AumView() {
                       value={cuentaQuery}
                       onChange={(e) => setCuentaQuery(e.target.value)}
                       placeholder="buscar cuenta…"
-                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[var(--t-text)] placeholder:text-[var(--t-text-muted)] focus:border-[var(--t-accent)] outline-none"
+                      className="ml-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[var(--t-text)] placeholder:text-[var(--t-text-muted)] focus:border-[var(--t-accent)] outline-none"
                     />
                     {(cuentaSel || unidadSel || cuentaQuery || unidadQuery) && (
                       <button
@@ -1156,7 +1156,7 @@ export function AumView() {
                   </div>
                 </div>
                 {/* POR ASSET */}
-                <div className="border border-[var(--t-border)] bg-[#0a0a0a] flex flex-col min-h-0">
+                <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0">
                   <div className="px-3 py-1.5 text-[10px] tracking-widest text-[var(--t-text-dim)] flex items-center gap-2 border-b border-[var(--t-border)]">
                     <span>POR ASSET</span>
                     <span className="text-[var(--t-text-muted)]">{porUnidad.length}</span>
@@ -1164,7 +1164,7 @@ export function AumView() {
                       value={unidadQuery}
                       onChange={(e) => setUnidadQuery(e.target.value)}
                       placeholder="buscar asset…"
-                      className="ml-auto bg-black border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[var(--t-text)] placeholder:text-[var(--t-text-muted)] focus:border-[var(--t-accent)] outline-none"
+                      className="ml-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] tracking-normal w-[150px] text-[var(--t-text)] placeholder:text-[var(--t-text-muted)] focus:border-[var(--t-accent)] outline-none"
                     />
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto">
@@ -1390,13 +1390,13 @@ function AnalisisDinero({ fechasAll, operador }: { fechasAll: string[]; operador
           <>
             <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-widest mt-3 mb-1">Fecha actual</div>
             <select value={customActual} onChange={e => setCustomActual(e.target.value)}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
               <option value="">—</option>
               {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-widest mb-1">Fecha anterior</div>
             <select value={customAnterior} onChange={e => setCustomAnterior(e.target.value)}
-              className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
               <option value="">—</option>
               {[...fechasAll].reverse().map(f => <option key={f} value={f}>{f}</option>)}
             </select>
@@ -1629,7 +1629,7 @@ export function CuentaCombobox({
               ? "Tipeá para filtrar o scrolleá la lista…"
               : "Seleccionar cuenta"
         }
-        className="w-full bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+        className="w-full bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
       />
       {open && filtered.length > 0 && (
         <ul
@@ -1680,7 +1680,7 @@ function TickerCard({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-[var(--t-border)] bg-[#0a0a0a]">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center px-3 py-2 hover:bg-[var(--t-accent)]/5 transition-colors"
@@ -1699,7 +1699,7 @@ function TickerCard({
         </span>
       </button>
       {open && (
-        <div className="border-t border-[var(--t-border)] bg-[#060606]">
+        <div className="border-t border-[var(--t-border)] bg-[var(--t-panel)]">
           {cuentas.map((c) => (
             <div
               key={c.cuenta}

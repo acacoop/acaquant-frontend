@@ -61,7 +61,7 @@ export function AunesaBoletosPanel() {
   const [sub, setSub] = useState<Sub>("faltantes");
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2">BOLETOS</span>
         <button
           onClick={() => setSub("faltantes")}
@@ -205,7 +205,7 @@ function Faltantes() {
             {/* Resumen agrupado por (categoría, op) — dice qué tipos de
                 movimiento están rebotando el match. n_cuentas = ámbito. */}
             <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest bg-[#0a0a0a] sticky top-0 z-10">
+              <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest bg-[var(--t-panel)] sticky top-0 z-10">
                 <tr>
                   <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">CATEGORÍA</th>
                   <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">OP</th>
@@ -218,7 +218,7 @@ function Faltantes() {
                 {data.resumen.map((r, i) => (
                   <tr
                     key={`${r.categoria}-${r.op}-${i}`}
-                    className="border-b border-[#101010] hover:bg-[#0d0d0d]"
+                    className="border-b border-[#101010] hover:bg-[var(--t-surface)]"
                   >
                     <td className="px-2 py-0.5 text-[var(--t-accent)]">{r.categoria ?? "—"}</td>
                     <td className="px-2 py-0.5 text-[var(--t-text)]">{r.op ?? "—"}</td>
@@ -264,7 +264,7 @@ function Faltantes() {
                     {data.boletos.map((b, i) => (
                       <tr
                         key={`${b.comprobante}-${i}`}
-                        className="border-t border-[#101010] hover:bg-[#0d0d0d]"
+                        className="border-t border-[#101010] hover:bg-[var(--t-surface)]"
                       >
                         <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.fecha ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[var(--t-accent)]">{b.id_cuenta ?? "—"}</td>
@@ -297,7 +297,7 @@ function Faltantes() {
 }
 
 const inputCls =
-  "bg-black border border-[var(--t-border-2)] text-[var(--t-text)] px-2 py-1 text-[11px] tabular-nums focus:border-[var(--t-accent)] outline-none";
+  "bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[var(--t-text)] px-2 py-1 text-[11px] tabular-nums focus:border-[var(--t-accent)] outline-none";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -511,7 +511,7 @@ function Backfill() {
 
       {/* Job en curso / último resultado */}
       {job && (
-        <div className="px-3 py-3 border-b border-[var(--t-border)] bg-[#0a0a0a] shrink-0">
+        <div className="px-3 py-3 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
           <div className="flex items-center gap-3 mb-2">
             <span
               className={`text-[10px] font-bold tracking-widest px-2 py-0.5 ${
@@ -536,7 +536,7 @@ function Backfill() {
           </div>
 
           {/* Barra de progreso */}
-          <div className="h-1.5 bg-[#1a1a1a] mb-3">
+          <div className="h-1.5 bg-[var(--t-border)] mb-3">
             <div
               className={`h-full ${job.status === "error" ? "bg-[#ff7f7f]" : "bg-[var(--t-accent)]"}`}
               style={{ width: `${progressPct}%`, transition: "width 0.3s ease-out" }}
@@ -599,7 +599,7 @@ function Backfill() {
           </div>
         ) : (
           <table className="w-full text-[10px] font-mono tabular-nums">
-            <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest bg-[#0a0a0a]">
+            <thead className="text-[9px] text-[var(--t-text-muted)] tracking-widest bg-[var(--t-panel)]">
               <tr>
                 <th className="text-left px-2 py-1">START</th>
                 <th className="text-left px-2 py-1">ACTOR</th>
@@ -613,7 +613,7 @@ function Backfill() {
             </thead>
             <tbody>
               {historial.map((h, i) => (
-                <tr key={i} className="border-t border-[#101010] hover:bg-[#0d0d0d]">
+                <tr key={i} className="border-t border-[#101010] hover:bg-[var(--t-surface)]">
                   <td className="px-2 py-0.5 text-[var(--t-text-dim)]">
                     {h.started_at?.replace("T", " ").slice(0, 19) ?? "—"}
                   </td>

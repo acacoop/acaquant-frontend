@@ -244,7 +244,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
       {hayDatos && (
         <div className="border-t border-[var(--t-border-2)] shrink-0">
           <table className="w-full text-[11px]">
-            <thead className="sticky top-0 bg-[#0a0a0a] border-b border-[var(--t-border-2)]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] border-b border-[var(--t-border-2)]">
               <tr className="text-[var(--t-text-dim)]">
                 {renderHeader("TICKER", "ticker", "left")}
                 {renderHeader("DUR", "duration")}
@@ -265,7 +265,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
                   <tr
                     key={b.ticker}
                     onClick={() => setTickerSel(b.ticker)}
-                    className="cursor-pointer hover:bg-[#181818]"
+                    className="cursor-pointer hover:bg-[var(--t-border)]"
                   >
                     <td className="!px-2 !py-0.5 text-[var(--t-accent)]">{tk}</td>
                     <td className="!px-2 !py-0.5 text-right text-[var(--t-text)]">{b.duration.toFixed(2)}</td>

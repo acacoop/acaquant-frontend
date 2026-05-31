@@ -100,7 +100,7 @@ export function EstrategiasTabla({
                   className={`cursor-pointer ${
                     isSel
                       ? "bg-[var(--t-accent)]/15 outline outline-1 outline-[var(--t-accent)]/50"
-                      : "hover:bg-[#1a1a1a]"
+                      : "hover:bg-[var(--t-border)]"
                   }`}
                 >
                   <td className="!px-1 text-[var(--t-text)]">{r.nombre}</td>

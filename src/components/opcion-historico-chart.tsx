@@ -269,7 +269,7 @@ export function OpcionHistoricoChart({
                     "px-1.5 py-0 text-[9px] uppercase tracking-wider border " +
                     (spotMoneda === m
                       ? "bg-[#4a9eff] text-black border-[#4a9eff]"
-                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#4a9eff]")
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[#4a9eff]")
                   }
                 >
                   {m}

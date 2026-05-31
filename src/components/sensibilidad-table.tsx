@@ -285,7 +285,7 @@ export function SensibilidadTable() {
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
       <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
         <table className="w-full text-[11px] font-mono border-collapse">
-          <thead className="sticky top-0 bg-[#0c0c0c] z-10">
+          <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
             <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[var(--t-accent)]">
               <th className="!px-2 !py-1.5 text-left">Ticker</th>
               <th className="!px-2 !py-1.5 text-right">Vto</th>
@@ -366,7 +366,7 @@ export function SensibilidadTable() {
       {/* Panel de debug lateral — colapsable. Cerrado = rail con label
           vertical clickeable. Abierto = panel con detalle. */}
       <aside
-        className={`shrink-0 border border-[var(--t-border)] bg-[#0a0a0a] text-[10px] font-mono transition-[width] duration-150 flex flex-col ${
+        className={`shrink-0 border border-[var(--t-border)] bg-[var(--t-panel)] text-[10px] font-mono transition-[width] duration-150 flex flex-col ${
           debugOpen ? "w-72" : "w-8"
         }`}
       >
@@ -528,7 +528,7 @@ export function SensibilidadTable() {
 
       {/* Leyenda compacta — siempre visible, explica la fórmula y la
            interpretación del modo activo. */}
-      <div className="border border-[var(--t-border)] bg-[#0a0a0a] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
             Cálculo — retorno total

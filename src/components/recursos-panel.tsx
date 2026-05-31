@@ -68,14 +68,14 @@ function Gauge({
   const clamped = Math.max(0, Math.min(100, percent));
   const color = colorFor(clamped);
   return (
-    <div className="bg-[#0a0a0a] border border-[var(--t-border)] p-3 flex flex-col gap-2">
+    <div className="bg-[var(--t-panel)] border border-[var(--t-border)] p-3 flex flex-col gap-2">
       <div className="flex items-center justify-between">
         <span className="text-[10px] tracking-[0.2em] text-white/50">{title}</span>
         <span className="text-[11px] font-bold" style={{ color }}>
           {clamped.toFixed(1)}%
         </span>
       </div>
-      <div className="h-1.5 bg-[#1f1f1f] overflow-hidden">
+      <div className="h-1.5 bg-[var(--t-border-2)] overflow-hidden">
         <div
           className="h-full transition-[width] duration-500"
           style={{ width: `${clamped}%`, background: color }}
@@ -96,7 +96,7 @@ function ProcessRow({ p, maxRss }: { p: ProcessInfo; maxRss: number }) {
       }`}
     >
       <div className="text-white/80 font-mono">{p.label}</div>
-      <div className="h-1 bg-[#1f1f1f] relative overflow-hidden">
+      <div className="h-1 bg-[var(--t-border-2)] relative overflow-hidden">
         <div className="h-full bg-[var(--t-accent)]" style={{ width: `${barPct}%` }} />
       </div>
       <div className="text-right text-white/70 tabular-nums">

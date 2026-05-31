@@ -127,7 +127,7 @@ export function LogsPanel() {
   return (
     <div className="h-full flex flex-col min-h-0 bg-[var(--t-panel)]">
       {/* Controles */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[#0c0c0c] shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-surface-2)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">LOGS</span>
 
         <select

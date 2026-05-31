@@ -392,7 +392,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
   });
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-[#0a0a0a] text-[var(--t-text)] overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 bg-[var(--t-panel)] text-[var(--t-text)] overflow-hidden">
 
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
@@ -472,7 +472,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setMetric(m)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (metric === m ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                      (metric === m ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {m === "volumen" ? "Volumen" : "AuM"}
@@ -487,7 +487,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setAgg(k)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (agg === k ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                      (agg === k ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {k}
@@ -509,7 +509,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                       onClick={() => { setRango(k); setRangoOffset(0); }}
                       className={
                         "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                        (rango === k ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                        (rango === k ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                       }
                     >
                       {k}
@@ -626,7 +626,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setFichaTab(t)}
                     className={
                       "px-2 py-0.5 text-[10px] uppercase tracking-wider " +
-                      (fichaTab === t ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                      (fichaTab === t ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {t === "datos" ? "Datos" : t}
@@ -725,7 +725,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                     onClick={() => setPortTab(t)}
                     className={
                       "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                      (portTab === t ? "bg-[var(--t-accent)] text-black" : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                      (portTab === t ? "bg-[var(--t-accent)] text-black" : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >
                     {t === "tenencia" ? "Tenencia" : "Operaciones"}

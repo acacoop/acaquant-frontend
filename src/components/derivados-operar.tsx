@@ -280,7 +280,7 @@ export function DerivadosOperar({
           <select
             value={orderType}
             onChange={(e) => setOrderType(e.target.value as OrderType)}
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
           >
             <option value="LIMIT">LIMIT</option>
             <option value="MARKET">MARKET</option>
@@ -288,7 +288,7 @@ export function DerivadosOperar({
           <select
             value={tif}
             onChange={(e) => setTif(e.target.value as Tif)}
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)] outline-none"
           >
             <option value="DAY">DAY</option>
             <option value="IOC">IOC</option>
@@ -303,13 +303,13 @@ export function DerivadosOperar({
             placeholder="precio"
             disabled={orderType === "MARKET"}
             onChange={(e) => setPrice(e.target.value)}
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40"
           />
           <input
             value={size}
             placeholder="nominales"
             onChange={(e) => setSize(e.target.value)}
-            className="bg-black border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none"
           />
         </div>
 
@@ -319,7 +319,7 @@ export function DerivadosOperar({
             placeholder="precio salida (bracket — opcional)"
             disabled={orderType === "MARKET"}
             onChange={(e) => setPriceExit(e.target.value)}
-            className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40 ${
+            className={`w-full bg-[var(--t-panel)] border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none disabled:opacity-40 ${
               priceExit.trim() !== "" ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)]"
             }`}
             title="Cuando la entrada se llene, manda automáticamente la salida LIMIT a este precio (side opuesto, mismo size)"
@@ -331,7 +331,7 @@ export function DerivadosOperar({
             value={account}
             placeholder="cuenta (ej. 805)"
             onChange={(e) => setAccount(e.target.value)}
-            className={`w-full bg-black border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none ${
+            className={`w-full bg-[var(--t-panel)] border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none ${
               account.trim() === "" ? "border-[#f87171]/50" : "border-[var(--t-border-2)]"
             }`}
             title="Cuenta comitente sobre la que se manda la orden"

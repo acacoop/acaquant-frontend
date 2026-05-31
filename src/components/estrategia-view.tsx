@@ -96,7 +96,7 @@ export function EstrategiaView() {
             onChange={(e) => setTicker(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
             placeholder="IBIT"
-            className="w-28 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            className="w-28 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div>
@@ -105,7 +105,7 @@ export function EstrategiaView() {
             value={monto}
             onChange={(e) => setMonto(e.target.value.replace(/[^0-9]/g, ""))}
             onKeyDown={(e) => { if (e.key === "Enter") analizar(); }}
-            className="w-32 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            className="w-32 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
           />
         </div>
         <div className="flex gap-1">

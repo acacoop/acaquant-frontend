@@ -34,18 +34,21 @@
   --t-brand: #094293;
 }
 
-/* Modo claro: blanco + azul de empresa. Se activa con class="light" en <html>. */
+/* Modo claro: blanco + azul de empresa. Se activa con class="light" en <html>.
+   Jerarquía: fondo gris sutil (--t-bg) → paneles BLANCOS (--t-panel) que
+   "flotan" sobre el fondo → superficies/inputs gris claro. Bordes marcados para
+   dar contraste (lo que faltaba: todo quedaba lavado sin separación). */
 .light {
-  --t-bg: #ffffff;
-  --t-panel: #f4f6fa;
-  --t-surface: #eef1f6;
-  --t-surface-2: #e7ebf2;
-  --t-border: #d4dae6;
-  --t-border-2: #b9c2d4;
-  --t-text: #0f1c33;
-  --t-text-dim: #4a5a78;
-  --t-text-muted: #7a88a0;
-  --t-accent: #094293;   /* en claro el acento es el azul de empresa (no naranja) */
+  --t-bg: #e9edf3;        /* fondo de página: gris sutil (no blanco puro) */
+  --t-panel: #ffffff;     /* paneles BLANCOS sobre el fondo gris → contraste */
+  --t-surface: #f3f5f9;   /* inputs / superficies internas */
+  --t-surface-2: #e8ecf2; /* hover de filas */
+  --t-border: #cdd5e2;    /* borde principal (marcado, da separación) */
+  --t-border-2: #aab6c9;  /* borde fuerte / inputs */
+  --t-text: #0d1830;      /* texto principal casi-negro azulado */
+  --t-text-dim: #44546f;  /* texto secundario */
+  --t-text-muted: #8190a6;/* texto apagado / labels */
+  --t-accent: #094293;    /* acento = azul de empresa (en claro no es naranja) */
   --t-brand: #094293;
 }
 

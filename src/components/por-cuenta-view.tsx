@@ -146,7 +146,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
         <select
           value={filtroCta}
           onChange={(e) => setFiltroCta(e.target.value as FiltroCuenta)}
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
         >
           {FILTRO_OPTS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -157,7 +157,7 @@ export function PorCuentaView({ onVolver }: { onVolver: () => void }) {
           value={searchCta}
           onChange={(e) => setSearchCta(e.target.value)}
           placeholder="Filtrar cuenta…"
-          className="bg-black border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-48"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-48"
         />
         <label className="flex items-center gap-1 text-[10px] text-[var(--t-text-dim)] font-mono cursor-pointer select-none">
           <input

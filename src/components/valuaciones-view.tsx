@@ -584,7 +584,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       "px-2 py-0 text-[9px] uppercase tracking-wider " +
                       (chartRango === k
                         ? "bg-[var(--t-accent)] text-black"
-                        : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                        : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                     }
                   >{k}</button>
                 ))}
@@ -745,7 +745,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     "px-2 py-0 text-[9px] uppercase tracking-wider " +
                     (moneda === m
                       ? "bg-[var(--t-accent)] text-black"
-                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                   title={
                     m === "USD"
@@ -914,7 +914,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       </tr>
                       {/* Flujos del mes — se despliegan inline debajo del mes seleccionado */}
                       {active && (
-                        <tr className="bg-[#070707]">
+                        <tr className="bg-[var(--t-panel)]">
                           <td colSpan={7} className="p-0 border-t border-[var(--t-border)]">
                             <div className="px-2 py-1.5">
                               <div className="flex items-center gap-2 mb-1">
@@ -969,7 +969,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                   "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                   (portfolioTab === t
                     ? "bg-[var(--t-accent)] text-black"
-                    : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                    : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                 }
                 title={t === "variacion" ? "Variación vs mes anterior (requiere mes seleccionado)" : "Posiciones del portfolio"}
               >
@@ -1187,7 +1187,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       {/* Menú contextual (click derecho en una posición) → operar en Trading. */}
       {ctxMenu && (
         <div
-          className="fixed z-50 min-w-[210px] bg-[#0d0d0d] border border-[var(--t-border-2)] shadow-xl text-[11px]"
+          className="fixed z-50 min-w-[210px] bg-[var(--t-surface)] border border-[var(--t-border-2)] shadow-xl text-[11px]"
           style={{
             top: Math.min(ctxMenu.y, (typeof window !== "undefined" ? window.innerHeight : 9999) - 120),
             left: Math.min(ctxMenu.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 230),
@@ -1364,7 +1364,7 @@ function VariacionTabla({ varResp }: { varResp: VariacionResp | null }) {
           </tr>
         ))}
         {varResp.otros && varResp.otros.delta_total !== 0 && (
-          <tr className="border-t border-[#222] bg-[#0c0c0c]">
+          <tr className="border-t border-[#222] bg-[var(--t-surface-2)]">
             <td className="px-2 py-1 align-top text-[var(--t-text-dim)] italic">
               OTROS · efectivo ({varResp.otros.n ?? 0})
             </td>

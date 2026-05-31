@@ -60,7 +60,7 @@ export function AgroDatos() {
             reutilizan en otras vistas (Mejoras Precio Dispo, etc.).
           </div>
           <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[#0a0a0a]">
+            <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
               <tr>
                 <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">
                   Cereal
@@ -176,7 +176,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
       : "—";
 
   return (
-    <tr className="border-b border-[#101010] hover:bg-[#0d0d0d]">
+    <tr className="border-b border-[#101010] hover:bg-[var(--t-surface)]">
       <td className="px-2 py-1.5 text-[var(--t-accent)] font-semibold tracking-wide">
         {row.cereal}
       </td>

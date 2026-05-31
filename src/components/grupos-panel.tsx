@@ -276,7 +276,7 @@ function GrupoCard({
             {emails.map((em) => (
               <span
                 key={em}
-                className="flex items-center gap-1 text-[10px] font-mono text-[var(--t-text)] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
+                className="flex items-center gap-1 text-[10px] font-mono text-[var(--t-text)] bg-[var(--t-surface-2)] border border-[var(--t-border-2)] px-1.5 py-0.5"
               >
                 {em}
                 <button
@@ -317,7 +317,7 @@ function GrupoCard({
               <span
                 key={id}
                 title={cuentaLabel(id)}
-                className="flex items-center gap-1 text-[10px] font-mono text-[var(--t-text)] bg-[#141414] border border-[var(--t-border-2)] px-1.5 py-0.5"
+                className="flex items-center gap-1 text-[10px] font-mono text-[var(--t-text)] bg-[var(--t-surface-2)] border border-[var(--t-border-2)] px-1.5 py-0.5"
               >
                 <span className="text-[var(--t-accent)]">{id}</span>
                 <span className="text-[var(--t-text-dim)] max-w-[120px] truncate">
@@ -355,7 +355,7 @@ function GrupoCard({
                       setIdCuentas([...idCuentas, c.id_cuenta]);
                       setFiltroCuenta("");
                     }}
-                    className="w-full text-left text-[10px] font-mono px-1.5 py-1 hover:bg-[#141414] flex gap-2"
+                    className="w-full text-left text-[10px] font-mono px-1.5 py-1 hover:bg-[var(--t-surface-2)] flex gap-2"
                   >
                     <span className="text-[var(--t-accent)] w-12 shrink-0">
                       {c.id_cuenta}

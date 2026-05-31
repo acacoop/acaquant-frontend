@@ -84,11 +84,11 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[var(--t-panel)]/70 flex items-center justify-center p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[#0a0a0a] border border-[var(--t-border-2)] w-full max-w-3xl max-h-[85vh] flex flex-col"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-3xl max-h-[85vh] flex flex-col"
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--t-border-2)]">
           <div className="flex items-baseline gap-3">

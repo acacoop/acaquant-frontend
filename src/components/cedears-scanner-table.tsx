@@ -161,7 +161,7 @@ export function CedearsScannerTable({
                       isSelected
                         ? "bg-[var(--t-accent)]/15"
                         : onSelect
-                        ? "hover:bg-[#1a1a1a]"
+                        ? "hover:bg-[var(--t-border)]"
                         : ""
                     }`}
                   >

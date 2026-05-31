@@ -104,7 +104,7 @@ export function DolarMepShell() {
   const precioAl30d = cot?.al30d?.price ?? null;
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-black">
+    <div className="h-full flex flex-col min-h-0 bg-[var(--t-panel)]">
       {/* Sub-tabs + cotización en una sola fila compacta */}
       <div className="flex items-center gap-4 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <div className="flex items-center gap-1">

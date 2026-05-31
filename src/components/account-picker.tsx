@@ -105,15 +105,15 @@ export function AccountPicker({
         placeholder={cuentas.length === 0 ? "— sin cuentas —" : "buscar…"}
       />
       {open && filtradas.length > 0 && (
-        <div className="absolute z-20 left-0 right-0 mt-1 max-h-[300px] overflow-y-auto bg-black border border-[var(--t-border-2)] shadow-lg">
+        <div className="absolute z-20 left-0 right-0 mt-1 max-h-[300px] overflow-y-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-lg">
           {filtradas.map((c) => (
             <button
               key={c.account_id}
               type="button"
               onMouseDown={(e) => e.preventDefault()} // que no robe el blur al input antes del click
               onClick={() => commit(c.account_id)}
-              className={`w-full text-left px-2 py-1 text-[11px] font-mono hover:bg-[#1a1a1a] flex items-center justify-between ${
-                c.account_id === value ? "bg-[#1a1a1a] text-[var(--t-accent)]" : "text-[var(--t-text)]"
+              className={`w-full text-left px-2 py-1 text-[11px] font-mono hover:bg-[var(--t-border)] flex items-center justify-between ${
+                c.account_id === value ? "bg-[var(--t-border)] text-[var(--t-accent)]" : "text-[var(--t-text)]"
               }`}
             >
               <span>{c.account_id}</span>
@@ -129,7 +129,7 @@ export function AccountPicker({
         </div>
       )}
       {open && filtradas.length === 0 && query.trim() && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-black border border-[var(--t-border-2)] px-2 py-1 text-[10px] text-[var(--t-text-muted)]">
+        <div className="absolute z-20 left-0 right-0 mt-1 bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-1 text-[10px] text-[var(--t-text-muted)]">
           ninguna empieza con &ldquo;{query}&rdquo;
         </div>
       )}

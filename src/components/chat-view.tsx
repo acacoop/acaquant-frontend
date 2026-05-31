@@ -187,7 +187,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
       );
     } else if (match[4]) {
       nodes.push(
-        <code key={key++} className="bg-[#1a1a1a] px-1 text-[var(--t-accent)]">
+        <code key={key++} className="bg-[var(--t-border)] px-1 text-[var(--t-accent)]">
           {match[4]}
         </code>,
       );
@@ -733,7 +733,7 @@ export function ChatView() {
           <button
             onClick={() => enviar(input)}
             disabled={loading || !input.trim()}
-            className="ml-auto text-[10px] px-3 py-1 bg-[#094293] text-white hover:bg-[#0a52b5] disabled:bg-[#1a1a1a] disabled:text-[var(--t-text-muted)] uppercase tracking-wide"
+            className="ml-auto text-[10px] px-3 py-1 bg-[#094293] text-white hover:bg-[#0a52b5] disabled:bg-[var(--t-border)] disabled:text-[var(--t-text-muted)] uppercase tracking-wide"
           >
             Enviar
           </button>
@@ -759,7 +759,7 @@ function ConversationsSidebar({
   // Versión colapsada: barra delgada con toggle + nueva + conteo.
   if (!open) {
     return (
-      <aside className="w-8 shrink-0 border-r border-[var(--t-border)] flex flex-col items-center bg-[#0a0a0a] py-2 gap-1">
+      <aside className="w-8 shrink-0 border-r border-[var(--t-border)] flex flex-col items-center bg-[var(--t-panel)] py-2 gap-1">
         <button
           onClick={onToggle}
           title="Expandir conversaciones"
@@ -782,7 +782,7 @@ function ConversationsSidebar({
   }
 
   return (
-    <aside className="w-64 shrink-0 border-r border-[var(--t-border)] flex flex-col bg-[#0a0a0a]">
+    <aside className="w-64 shrink-0 border-r border-[var(--t-border)] flex flex-col bg-[var(--t-panel)]">
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
         <button
           onClick={onNueva}
@@ -808,7 +808,7 @@ function ConversationsSidebar({
           <div
             key={c.id}
             className={`group flex items-center px-3 py-2 border-b border-[var(--t-border)] cursor-pointer ${
-              activeId === c.id ? "bg-[#1a1a1a]" : "hover:bg-[#121212]"
+              activeId === c.id ? "bg-[var(--t-border)]" : "hover:bg-[var(--t-surface)]"
             }`}
             onClick={() => onSelect(c.id)}
           >

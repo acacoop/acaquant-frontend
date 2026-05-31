@@ -173,7 +173,7 @@ function ToolsRanking({ data }: { data: ToolRank[] }) {
                 {t.fail > 0 && <span className="text-[#ff3333]"> / {t.fail} ✗</span>}
               </span>
             </div>
-            <div className="h-1.5 bg-[#1a1a1a] relative">
+            <div className="h-1.5 bg-[var(--t-border)] relative">
               <div
                 className="h-full"
                 style={{
@@ -191,7 +191,7 @@ function ToolsRanking({ data }: { data: ToolRank[] }) {
 
 function ExpandedRow({ log }: { log: LogEntry }) {
   return (
-    <div className="bg-[#050505] border-t border-[var(--t-border)] p-3 text-[11px] font-mono space-y-2">
+    <div className="bg-[var(--t-panel)] border-t border-[var(--t-border)] p-3 text-[11px] font-mono space-y-2">
       <div>
         <div className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide">Pregunta completa</div>
         <div className="text-[var(--t-text)] mt-0.5 whitespace-pre-wrap">{log.message}</div>
@@ -586,18 +586,18 @@ export function AsistenteDashboard() {
                       <tr>
                         <td colSpan={6} className="p-0">
                           {turns === undefined ? (
-                            <div className="bg-[#050505] border-t border-[var(--t-border)] p-3 text-[10px] text-[var(--t-text-muted)] font-mono">
+                            <div className="bg-[var(--t-panel)] border-t border-[var(--t-border)] p-3 text-[10px] text-[var(--t-text-muted)] font-mono">
                               cargando turns…
                             </div>
                           ) : turns.length === 0 ? (
-                            <div className="bg-[#050505] border-t border-[var(--t-border)] p-3 text-[10px] text-[var(--t-text-muted)] font-mono">
+                            <div className="bg-[var(--t-panel)] border-t border-[var(--t-border)] p-3 text-[10px] text-[var(--t-text-muted)] font-mono">
                               (sin turns)
                             </div>
                           ) : (
-                            <div className="bg-[#050505] border-t border-[var(--t-border)]">
+                            <div className="bg-[var(--t-panel)] border-t border-[var(--t-border)]">
                               {turns.map((t, i) => (
                                 <div key={i} className="border-b border-[var(--t-border)] last:border-b-0">
-                                  <div className="px-3 py-1 text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide bg-[#0a0a0a]">
+                                  <div className="px-3 py-1 text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide bg-[var(--t-panel)]">
                                     Turn {i + 1} · {fmtTime(t.ts)}
                                   </div>
                                   <ExpandedRow log={t} />

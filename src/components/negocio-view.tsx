@@ -609,7 +609,7 @@ export function NegocioView() {
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="h-full overflow-hidden bg-[#0a0a0a] text-[var(--t-text)] flex flex-col">
+    <div className="h-full overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)] flex flex-col">
 
       {/* HEADER */}
       <div className="px-4 py-3 border-b border-[var(--t-border)] flex flex-wrap items-center gap-3 shrink-0">
@@ -644,7 +644,7 @@ export function NegocioView() {
                 fechasOrdenadasAsc[fechasOrdenadasAsc.length - 1];
               if (nextAvail) setFecha(nextAvail);
             }}
-            className="bg-black px-2 py-1 text-[12px] font-mono text-[var(--t-text)] outline-none disabled:opacity-50 [color-scheme:dark]"
+            className="bg-[var(--t-panel)] px-2 py-1 text-[12px] font-mono text-[var(--t-text)] outline-none disabled:opacity-50 [color-scheme:dark]"
           />
           <button
             onClick={goNext}
@@ -655,7 +655,7 @@ export function NegocioView() {
           <button
             onClick={goLatest}
             disabled={isLatest || !ultimaFecha}
-            className="px-2 text-[10px] uppercase tracking-wider bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:text-[var(--t-text-muted)]"
+            className="px-2 text-[10px] uppercase tracking-wider bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:text-[var(--t-text-muted)]"
             title="Última fecha con data"
           >Última</button>
         </div>
@@ -670,7 +670,7 @@ export function NegocioView() {
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (vistaMode === m
                   ? "bg-[var(--t-accent)] text-black"
-                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                  : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
               }
               title={m === "DIA"
                 ? "Vista del día seleccionado"
@@ -721,7 +721,7 @@ export function NegocioView() {
           onChange={(e) => setCuentaSearch(e.target.value)}
           placeholder="Buscar cuenta…"
           className={
-            "ml-auto bg-black border px-2 py-1 text-[11px] font-mono outline-none w-[200px] " +
+            "ml-auto bg-[var(--t-panel)] border px-2 py-1 text-[11px] font-mono outline-none w-[200px] " +
             (cuentaExacta ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[#333] text-[var(--t-text)]")
           }
           title="Escribí parte del nombre de cuenta. Las sugerencias filtran live; al elegir una, todos los paneles muestran solo esa cuenta."
@@ -745,7 +745,7 @@ export function NegocioView() {
           onChange={(e) => setFiltroCta(e.target.value as CuentaFilter)}
           disabled={!!cuentaExacta}
           className={
-            "bg-black border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider outline-none " +
+            "bg-[var(--t-panel)] border border-[#333] px-2 py-1 text-[10px] uppercase tracking-wider outline-none " +
             (cuentaExacta
               ? "text-[var(--t-text-muted)] cursor-not-allowed"
               : "text-[var(--t-text)] hover:text-[var(--t-accent)]")
@@ -770,7 +770,7 @@ export function NegocioView() {
                 "px-3 py-1 text-[10px] uppercase tracking-wider " +
                 (moneda === m
                   ? "bg-[var(--t-accent)] text-black"
-                  : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                  : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
               }
             >
               {m}
@@ -831,7 +831,7 @@ export function NegocioView() {
                         "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                         (agg === k
                           ? "bg-[var(--t-accent)] text-black"
-                          : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                          : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                       }
                     >
                       {k}
@@ -855,7 +855,7 @@ export function NegocioView() {
                           "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
                           (rango === k
                             ? "bg-[var(--t-accent)] text-black"
-                            : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                            : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                         }
                       >
                         {k}
@@ -877,7 +877,7 @@ export function NegocioView() {
                     "px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[#333] " +
                     (focoDia
                       ? "bg-[var(--t-accent)] text-black"
-                      : "bg-[#0a0a0a] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
                   }
                   title={focoDia
                     ? "Foco día activo: el día elegido resalta. Apagá para imprimir / report."
@@ -1145,7 +1145,7 @@ export function NegocioView() {
                             </td>
                           </tr>
                           {expanded && (
-                            <tr className="bg-[#060606]">
+                            <tr className="bg-[var(--t-panel)]">
                               <td colSpan={4} className="p-0 border-t border-[var(--t-border)]">
                                 {!boletosForRow ? (
                                   <div className="px-3 py-2 text-[10px] text-[var(--t-text-muted)]">
