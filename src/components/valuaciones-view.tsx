@@ -77,15 +77,17 @@ interface Posicion {
 }
 
 // Mismo mapeo que aum-view.tsx — paleta consistente entre vistas.
+// Keyed por nombre sin prefijo 'CARTERA ' — tolera datos viejos (con prefijo)
+// y nuevos (renombrados) porque carteraColor normaliza con carteraShort.
 const CARTERA_COLORS: Record<string, string> = {
-  "CARTERA ARS": "#4a9eff",
-  "CARTERA DL":  "#00cc66",
-  "CARTERA HD":  "#ff9900",
-  "CARTERA FCI": "#bb66ff",
+  "ARS": "#4a9eff",
+  "DL":  "#00cc66",
+  "HD":  "#ff9900",
+  "FCI": "#bb66ff",
 };
 
 function carteraColor(c: string): string {
-  return CARTERA_COLORS[c] ?? "#666";
+  return CARTERA_COLORS[carteraShort(c)] ?? "#666";
 }
 
 function carteraShort(c: string): string {
