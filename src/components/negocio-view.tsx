@@ -887,7 +887,7 @@ export function NegocioView() {
                 </button>
               </div>
 
-              <div className="flex-1 min-h-0 p-2">
+              <div className="flex-1 min-h-0 p-2 wm-corner">
                 {chartData.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                     Sin datos para {moneda} en este rango.
