@@ -292,7 +292,24 @@ function computeYRange(vals: number[]): { min: number; max: number; ticks: numbe
   // (variación <1%), usamos 15% del valor absoluto como piso de padding.
   const range = coreMax - coreMin;
   const pad = Math.max(range * 0.15, Math.abs(coreMax) * 0.05);
-  return niceScale(coreMin - pad, coreMax + pad, 5);
+  let loPad = coreMin - pad;
+  // Si NO hay datos negativos, el eje no baja de 0 → no se inventan ticks
+  // negativos (ensucian y confunden; "negativos solo si realmente hay").
+  const hayNegativos = coreMin < 0;
+  if (!hayNegativos) loPad = Math.max(0, loPad);
+
+  const s = niceScale(loPad, coreMax + pad, 5);
+  let ticks = s.ticks;
+  let min = s.min;
+  if (!hayNegativos) {
+    ticks = ticks.filter((t) => t >= 0);
+    min = Math.max(0, min);
+    if (ticks.length === 0 || ticks[0] !== min) ticks = [min, ...ticks.filter((t) => t > min)];
+  }
+  // Colchón visual: el borde inferior queda un poco DEBAJO del primer tick (sin
+  // tick ahí) para que el 0 / mínimo no se pegue al límite del cuadro.
+  const step = ticks.length > 1 ? ticks[1] - ticks[0] : (s.max - min) || 1;
+  return { min: min - step * 0.35, max: s.max, ticks };
 }
 
 // ── Componente ────────────────────────────────────────────────────────────
