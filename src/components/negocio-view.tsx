@@ -956,16 +956,22 @@ export function NegocioView() {
                           isAnimationActive={false}
                         >
                           {chartData.map((d, i) => {
-                            // En modo TODOS no hay día foco; en DIA respetamos focoDia.
+                            // Todas las barras en color de empresa. Dos focos que
+                            // atenúan el resto (var(--t-border-2)):
+                            //  - foco categoría: catSel seleccionada (clic leyenda)
+                            //    → segmentos de otras categorías se atenúan.
+                            //  - foco día (modo DIA): el día elegido resalta.
                             const sel = vistaMode === "DIA" && focoDia && fecha
                               ? bucketKey(fecha, agg)
                               : null;
                             const selInData = !!sel && chartData.some((x) => x.fecha === sel);
-                            const muted = selInData && d.fecha !== sel;
+                            const mutedDia = selInData && d.fecha !== sel;
+                            const mutedCat = catSel !== null && catSel !== cat;
+                            const muted = mutedDia || mutedCat;
                             return (
                               <Cell
                                 key={i}
-                                fill={muted ? MUTED_BAR_COLOR : CAT_COLOR[cat]}
+                                fill={muted ? MUTED_BAR_COLOR : "var(--t-brand)"}
                               />
                             );
                           })}
@@ -976,14 +982,41 @@ export function NegocioView() {
                 )}
               </div>
 
-              {/* Leyenda manual */}
-              <div className="flex flex-wrap gap-3 px-3 pb-2 pt-1 text-[10px] shrink-0">
-                {NEGOCIO_CATS.map((cat) => (
-                  <div key={cat} className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 inline-block" style={{ background: CAT_COLOR[cat] }} />
-                    <span className="text-[var(--t-text-dim)]">{CAT_LABEL[cat]}</span>
-                  </div>
-                ))}
+              {/* Leyenda = selector de FOCO por categoría. Clic: resalta cuánto
+                  del total es esa categoría (el resto se atenúa). Clic de nuevo
+                  o en otra: cambia/quita el foco. */}
+              <div className="flex flex-wrap gap-2 px-3 pb-2 pt-1 text-[10px] shrink-0">
+                {NEGOCIO_CATS.map((cat) => {
+                  const active = catSel === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setCatSel(active ? null : cat)}
+                      title={active ? "Quitar foco" : `Resaltar ${CAT_LABEL[cat]} sobre el total`}
+                      className={
+                        "flex items-center gap-1.5 px-1.5 py-0.5 border transition-colors " +
+                        (active
+                          ? "border-[var(--t-brand)] bg-[var(--t-brand)]/10"
+                          : "border-transparent hover:border-[var(--t-border-2)]")
+                      }
+                    >
+                      <span
+                        className="w-2 h-2 inline-block"
+                        style={{ background: catSel === null || active ? "var(--t-brand)" : MUTED_BAR_COLOR }}
+                      />
+                      <span className={active ? "text-[var(--t-brand)] font-semibold" : "text-[var(--t-text-dim)]"}>
+                        {CAT_LABEL[cat]}
+                      </span>
+                    </button>
+                  );
+                })}
+                {catSel && (
+                  <button
+                    onClick={() => setCatSel(null)}
+                    className="px-1.5 py-0.5 text-[var(--t-text-muted)] hover:text-[var(--t-brand)]"
+                    title="Quitar foco"
+                  >× foco</button>
+                )}
               </div>
             </div>
 
