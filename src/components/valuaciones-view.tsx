@@ -606,28 +606,6 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             )}
           </div>
           <div className="flex-1 min-h-0 p-2 relative">
-            {/* Mini-leyenda — color de cada línea. Offset left ≥ ancho del
-                eje Y izquierdo (64px) para no taparle los ticks. */}
-            {chartDataVisible.length > 0 && (
-              <div className="absolute top-2 left-[76px] z-10 flex flex-col gap-0.5 text-[9px] font-mono pointer-events-none">
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-block w-3 h-[2px] bg-[#4a9eff]" />
-                  <span className="text-[#4a9eff]">Valor</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block w-3 h-[2px]"
-                    style={{
-                      backgroundImage:
-                        "linear-gradient(to right, #ff9900 50%, transparent 50%)",
-                      backgroundSize: "4px 2px",
-                      backgroundRepeat: "repeat-x",
-                    }}
-                  />
-                  <span className="text-[var(--t-accent)]">PnL</span>
-                </div>
-              </div>
-            )}
             {chartDataVisible.length === 0 ? (
               <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
                 Sin meses con data en este rango.
@@ -636,7 +614,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartDataVisible}
-                  margin={{ top: 8, right: 12, bottom: 24, left: 8 }}
+                  margin={{ top: 16, right: 24, bottom: 8, left: 12 }}
                 >
                   <defs>
                     <linearGradient id="grad-val" x1="0" y1="0" x2="0" y2="1">
@@ -651,21 +629,22 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
                     tickFormatter={(v: string) => fmtMesCorto(v)}
-                    angle={-30}
-                    textAnchor="end"
-                    height={38}
+                    minTickGap={24}
+                    tickMargin={8}
+                    height={28}
+                    padding={{ left: 12, right: 12 }}
                   />
                   {/* Eje izquierdo: VALUACIÓN ($) */}
                   <YAxis
                     yAxisId="izq"
-                    domain={[yScale.min, yScale.max]}
+                    domain={[yScale.min, yScale.max * 1.08]}
                     ticks={yScale.ticks}
                     allowDataOverflow
                     tick={{ fill: "#4a9eff", fontSize: 10 }}
                     axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
                     tickFormatter={(v: number) => fmtCompact(v)}
-                    width={64}
+                    width={62}
                   />
                   {/* Eje derecho: RENDIMIENTO TWR base 100. Si el portafolio
                       arrancó en 100 y subió 5%, la línea va a 105. Aísla
@@ -681,30 +660,36 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     domain={["dataMin", "dataMax"]}
                   />
                   <Tooltip
-                    cursor={{ stroke: "#ffffff20" }}
                     contentStyle={{
-                      background: "#0e0e0e",
-                      border: "1px solid #2a2a2a",
+                      background: "var(--t-surface)",
+                      border: "1px solid var(--t-border-2)",
                       fontSize: 11,
                       fontFamily: "JetBrains Mono, monospace",
                     }}
-                    labelStyle={{ color: "#808080" }}
-                    itemStyle={{ color: "#d0d0d0" }}
+                    labelStyle={{ color: "var(--t-text-dim)" }}
+                    itemStyle={{ color: "var(--t-text)" }}
                     labelFormatter={(v) => fmtMesAnio(String(v))}
                     formatter={(value, name) => {
-                      if (name === "rendimiento") {
+                      if (name === "Rendimiento") {
                         const n = Number(value);
                         const pct = n - 100;
                         return [`${n.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`, "Rendimiento"];
                       }
-                      return [fmtCompact(Number(value)), "Cierre"];
+                      return [fmtCompact(Number(value)), "Valor"];
                     }}
+                  />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    height={24}
+                    iconType="plainline"
+                    wrapperStyle={{ fontSize: 10, paddingBottom: 4 }}
                   />
                   <Line
                     yAxisId="izq"
                     type="monotone"
                     dataKey="valuacion"
-                    name="valuacion"
+                    name="Valor"
                     stroke="#4a9eff"
                     strokeWidth={2}
                     dot={{ r: 3, fill: "#4a9eff" }}
@@ -715,7 +700,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     yAxisId="der"
                     type="monotone"
                     dataKey="rendimiento"
-                    name="rendimiento"
+                    name="Rendimiento"
                     stroke="#ff9900"
                     strokeWidth={2}
                     strokeDasharray="4 3"
