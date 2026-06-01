@@ -9,7 +9,6 @@ import { EscenariosTabla } from "./escenarios-tabla";
 import { CostoHistoricoChart } from "./costo-historico-chart";
 import { OpcionHistoricoChart } from "./opcion-historico-chart";
 import { GriegasHistoricoChart } from "./griegas-historico-chart";
-import { DerivadosOperar } from "./derivados-operar";
 import { PostTradeLab } from "./post-trade-lab";
 import { usePoll } from "@/lib/use-poll";
 import {
@@ -35,8 +34,6 @@ interface Meta {
 }
 
 type DetalleTab = "payoff" | "escenarios" | "lab";
-// Tab del panel cuando hay un contrato individual elegido.
-type OpcionTab = "operar" | "lab";
 // Filtro de la tabla OPCIONES GGAL: chain CALL/PUT o la tabla de estrategias.
 type TablaVista = "CALL" | "PUT" | "ESTRATEGIAS";
 
@@ -77,7 +74,6 @@ export function DerivadosView({
   // Filtro de la tabla OPCIONES GGAL (CALL/PUT = chain; ESTRATEGIAS = tabla
   // de estrategias en el mismo panel).
   const [tablaVista, setTablaVista] = useState<TablaVista>("CALL");
-  const [opcionTab, setOpcionTab] = useState<OpcionTab>("lab");
 
   function pickStrategy(i: number) {
     setSelected(i);
@@ -292,35 +288,18 @@ export function DerivadosView({
           {selectedOpcion ? (
             // Contrato elegido → OPERAR (book + ticket) o LAB (post-trade).
             <Panel
-              title={`${opcionTab === "lab" ? "LAB" : "OPERAR"} — ${shortTicker(selectedOpcion.instrumento)}`}
+              title={`LAB — ${shortTicker(selectedOpcion.instrumento)}`}
               fill
               expandable
-              actions={
-                <div className="flex items-center gap-1">
-                  <TabBtn active={opcionTab === "operar"} onClick={() => setOpcionTab("operar")}>
-                    OPERAR
-                  </TabBtn>
-                  <TabBtn active={opcionTab === "lab"} onClick={() => setOpcionTab("lab")}>
-                    LAB
-                  </TabBtn>
-                </div>
-              }
             >
-              {opcionTab === "operar" ? (
-                <DerivadosOperar
-                  instrumento={selectedOpcion.instrumento}
-                  last={selectedOpcion.last}
-                />
-              ) : (
-                <PostTradeLab
-                  legs={[opcionAsLeg(selectedOpcion)]}
-                  spot={spot}
-                  tasa={meta.tasa}
-                  entrySugerido={selectedOpcion.last ?? 0}
-                  vence={selectedOpcion.vence}
-                  singleLeg
-                />
-              )}
+              <PostTradeLab
+                legs={[opcionAsLeg(selectedOpcion)]}
+                spot={spot}
+                tasa={meta.tasa}
+                entrySugerido={selectedOpcion.last ?? 0}
+                vence={selectedOpcion.vence}
+                singleLeg
+              />
             </Panel>
           ) : (
             // Estrategia → payoff / escenarios / lab.
