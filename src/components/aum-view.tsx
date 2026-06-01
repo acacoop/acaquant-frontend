@@ -1018,13 +1018,13 @@ export function AumView() {
                 <table className="w-full text-[11px] font-mono">
                   {/* Una sola franja de encabezado: el nombre de la 1ª columna ES
                       el título (CARTERA / SOC. GERENTE), sin banda extra arriba. */}
-                  <thead className="sticky top-0 z-10 bg-[var(--t-accent)]/10">
+                  <thead className="sticky top-0 z-10">
                     <tr>
-                      <th className="!px-2 !py-1.5 text-left text-[var(--t-accent)]">
+                      <th className="!px-2 !py-1.5 text-left text-[var(--t-accent)] bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
                         {tab === "total" ? "CARTERA" : "SOC. GERENTE"}
                       </th>
-                      <th className="!px-2 !py-1.5 text-right text-[var(--t-accent)]">VALUACIÓN</th>
-                      <th className="!px-2 !py-1.5 text-right text-[var(--t-accent)]">%</th>
+                      <th className="!px-2 !py-1.5 text-right text-[var(--t-accent)] bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">VALUACIÓN</th>
+                      <th className="!px-2 !py-1.5 text-right text-[var(--t-accent)] bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">%</th>
                     </tr>
                   </thead>
                   <tbody>
