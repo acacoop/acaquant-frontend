@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { DualRange } from "./dual-range";
+import { DatePickerCompact } from "./date-picker";
 import {
   BarChart,
   Bar,
@@ -156,7 +156,8 @@ export function CashFlowView() {
     return { minDate: mn, maxDate: mx };
   }, [flujos]);
 
-  const [rangoIdx, setRangoIdx] = useState<[number, number] | null>(null);
+  const [desdeSel, setDesdeSel] = useState<string | null>(null);
+  const [hastaSel, setHastaSel] = useState<string | null>(null);
   const [showArs, setShowArs] = useState(true);
   const [showUsd, setShowUsd] = useState(true);
   const [granularity, setGranularity] = useState<Granularity>("Diario");
@@ -168,23 +169,20 @@ export function CashFlowView() {
   const seleccion = selState.filtro === filtroAcc ? selState.val : "__TODAS__";
   const setSeleccion = (v: string) => setSelState({ filtro: filtroAcc, val: v });
 
-  const fechasUnicas = useMemo(
-    () => Array.from(new Set(flujos.map((f) => f.concertacion.slice(0, 10)))).sort(),
-    [flujos]
-  );
-
-  const efectivoRango: [number, number] =
-    fechasUnicas.length > 0
-      ? rangoIdx == null
-        ? [0, fechasUnicas.length - 1]
-        : [
-            Math.min(Math.max(0, rangoIdx[0]), fechasUnicas.length - 1),
-            Math.min(Math.max(rangoIdx[0], rangoIdx[1]), fechasUnicas.length - 1),
-          ]
-      : [0, 0];
-
-  const desde = fechasUnicas[efectivoRango[0]] ?? minDate;
-  const hasta = fechasUnicas[efectivoRango[1]] ?? maxDate;
+  // Rango de fechas (YYYY-MM-DD). Default = todo el rango de datos disponible.
+  // El usuario lo cambia con calendario; clamp para mantener desde ≤ hasta.
+  const minDay = minDate.slice(0, 10);
+  const maxDay = maxDate.slice(0, 10);
+  const desde = desdeSel ?? minDay;
+  const hasta = hastaSel ?? maxDay;
+  const setDesde = (s: string) => {
+    setDesdeSel(s);
+    if (s > hasta) setHastaSel(s);
+  };
+  const setHasta = (s: string) => {
+    setHastaSel(s);
+    if (s < desde) setDesdeSel(s);
+  };
 
 
   const monedasSel = useMemo(
@@ -307,21 +305,15 @@ export function CashFlowView() {
 
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[54px]">{desde}</span>
-          <DualRange
-            min={0}
-            max={Math.max(0, fechasUnicas.length - 1)}
-            lo={efectivoRango[0]}
-            hi={efectivoRango[1]}
-            setLo={(v) => setRangoIdx([v, Math.max(v, efectivoRango[1])])}
-            setHi={(v) => setRangoIdx([Math.min(v, efectivoRango[0]), v])}
-          />
-          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[54px] text-right">{hasta}</span>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <LabeledInput label="Monedas">
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0">
+        <div className="flex flex-wrap items-end gap-3">
+          <LabeledInput label="Desde" className="shrink-0">
+            <DatePickerCompact value={desde} onChange={setDesde} min={minDay} max={maxDay} />
+          </LabeledInput>
+          <LabeledInput label="Hasta" className="shrink-0">
+            <DatePickerCompact value={hasta} onChange={setHasta} min={minDay} max={maxDay} />
+          </LabeledInput>
+          <LabeledInput label="Monedas" className="shrink-0">
             <div className="flex items-center gap-1 h-[26px]">
               <Toggle active={showArs} onClick={() => setShowArs(!showArs)}>
                 ARS
@@ -331,7 +323,7 @@ export function CashFlowView() {
               </Toggle>
             </div>
           </LabeledInput>
-          <LabeledInput label="Granularidad">
+          <LabeledInput label="Granularidad" className="shrink-0">
             <div className="flex items-center gap-1 h-[26px]">
               <Toggle
                 active={granularity === "Diario"}
@@ -347,11 +339,11 @@ export function CashFlowView() {
               </Toggle>
             </div>
           </LabeledInput>
-          <LabeledInput label="Cuentas">
+          <LabeledInput label="Cuentas" className="w-[150px]">
             <select
               value={filtroAcc}
               onChange={(e) => setFiltroAcc(e.target.value as FiltroAcc)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 h-[26px] font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option>Todas</option>
               <option>Sin accionistas</option>
@@ -359,11 +351,11 @@ export function CashFlowView() {
               <option>Solo cooperativas</option>
             </select>
           </LabeledInput>
-          <LabeledInput label={label}>
+          <LabeledInput label={label} className="w-[170px]">
             <select
               value={seleccion}
               onChange={(e) => setSeleccion(e.target.value)}
-              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 h-[26px] font-mono focus:border-[var(--t-accent)] outline-none"
             >
               <option value="__TODAS__">Todas</option>
               {opciones.map((o) => (
@@ -541,12 +533,14 @@ function LegendStat({
 function LabeledInput({
   label,
   children,
+  className = "",
 }: {
   label: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 min-w-0">
+    <div className={`flex flex-col gap-1 min-w-0 ${className}`}>
       <span className="text-[10px] tracking-wide text-[var(--t-text-muted)] uppercase">
         {label}
       </span>
