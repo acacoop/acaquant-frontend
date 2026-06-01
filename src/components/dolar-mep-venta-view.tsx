@@ -150,7 +150,7 @@ export function DolarMepVentaView({
   }
 
   return (
-    <div className="h-full flex flex-col gap-3 p-3 bg-[var(--t-panel)] text-white text-[12px] overflow-auto">
+    <div className="h-full flex flex-col gap-3 p-3 bg-[var(--t-panel)] text-[var(--t-text)] text-[12px] overflow-auto">
       <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[var(--t-border)] flex-wrap">
         <Field label="MONTO USD" className="w-[160px]">
           <input

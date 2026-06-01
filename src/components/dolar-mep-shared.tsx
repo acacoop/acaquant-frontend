@@ -302,7 +302,7 @@ export function statusColor(s?: string): string {
   if (s === "FILLED") return "text-[var(--t-pos)]";
   if (s === "REJECTED" || s === "CANCELLED" || s === "EXPIRED") return "text-[var(--t-neg)]";
   if (s === "NEW" || s === "PARTIALLY_FILLED" || s === "PENDING_NEW") return "text-[#ffe066]";
-  return "text-white";
+  return "text-[var(--t-text)]";
 }
 
 export function estadoColor(s?: string): string {
@@ -311,7 +311,7 @@ export function estadoColor(s?: string): string {
   if (s === "FAIL") return "text-[var(--t-neg)]";
   if (s === "OK_PARCIAL" || s === "PENDING" || s === "FIRING" || s === "ACTIVE") return "text-[#ffe066]";
   if (s === "CANCELLED" || s === "CANCELLED_EOD" || s === "STALE_BUY") return "text-[var(--t-text-dim)]";
-  return "text-white";
+  return "text-[var(--t-text)]";
 }
 
 // Convención BYMA: bonos cotizan precio por 100 VN.

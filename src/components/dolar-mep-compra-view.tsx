@@ -151,7 +151,7 @@ export function DolarMepCompraView({
   }
 
   return (
-    <div className="h-full flex flex-col gap-3 p-3 bg-[var(--t-panel)] text-white text-[12px] overflow-auto">
+    <div className="h-full flex flex-col gap-3 p-3 bg-[var(--t-panel)] text-[var(--t-text)] text-[12px] overflow-auto">
       {/* Form: inputs + EJECUTAR + cálculos horizontales pegados al botón */}
       <div className="flex gap-2 items-end p-3 bg-[var(--t-panel)] border border-[var(--t-border)] flex-wrap">
         {/* Toggle ARS / USD: cuando el user pone monto en USD, el ARS equivalente

@@ -94,12 +94,12 @@ export function DolarMepTimeSalesChart({ rueda }: { rueda: Rueda }) {
         <CartesianGrid stroke="var(--t-border)" strokeDasharray="3 3" />
         <XAxis
           dataKey="hora"
-          stroke="#666"
+          stroke="var(--t-border-2)"
           tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
           minTickGap={24}
         />
         <YAxis
-          stroke="#666"
+          stroke="var(--t-border-2)"
           tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
           domain={[lo - pad, hi + pad]}
           tickFormatter={(v) => v.toFixed(2)}
@@ -117,7 +117,7 @@ export function DolarMepTimeSalesChart({ rueda }: { rueda: Rueda }) {
         <Line
           type="monotone"
           dataKey="mep"
-          stroke="#ff9900"
+          stroke="var(--t-accent)"
           strokeWidth={1.5}
           dot={false}
           isAnimationActive={false}

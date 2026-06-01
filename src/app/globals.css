@@ -142,7 +142,10 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a2a #080808;
+  /* Variables de tema: en oscuro resuelve a #2a2a2a/#080808 (idéntico a antes);
+     en claro a gris/blanco. Sin esto, scrollbar-color (que en Chrome/Edge le gana
+     a ::-webkit-scrollbar) deja todas las barras NEGRAS en modo claro. */
+  scrollbar-color: var(--t-border-2) var(--t-panel);
 }
 
 body {
