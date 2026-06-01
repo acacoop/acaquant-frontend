@@ -640,14 +640,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartDataVisible}
-                  margin={{ top: 16, right: 24, bottom: 8, left: 12 }}
+                  margin={{ top: 12, right: 16, bottom: 4, left: 4 }}
                 >
-                  <defs>
-                    <linearGradient id="grad-val" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#4a9eff" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="#4a9eff" stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
                   <CartesianGrid stroke="var(--t-border)" vertical={false} />
                   <XAxis
                     dataKey="mes"
@@ -657,34 +651,32 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     tickFormatter={(v: string) => fmtMesCorto(v)}
                     minTickGap={24}
                     tickMargin={8}
-                    height={28}
-                    padding={{ left: 12, right: 12 }}
+                    height={26}
+                    padding={{ left: 16, right: 16 }}
                   />
-                  {/* Eje izquierdo: VALUACIÓN ($) */}
-                  <YAxis
-                    yAxisId="izq"
-                    domain={[yScale.min, yScale.max * 1.08]}
-                    ticks={yScale.ticks}
-                    allowDataOverflow
-                    tick={{ fill: "#4a9eff", fontSize: 10 }}
-                    axisLine={{ stroke: "var(--t-border-2)" }}
-                    tickLine={false}
-                    tickFormatter={(v: number) => fmtCompact(v)}
-                    width={62}
-                  />
-                  {/* Eje derecho: RENDIMIENTO TWR base 100. Si el portafolio
-                      arrancó en 100 y subió 5%, la línea va a 105. Aísla
-                      performance pura — aportes y retiros no afectan. */}
-                  <YAxis
-                    yAxisId="der"
-                    orientation="right"
-                    tick={{ fill: "#ff9900", fontSize: 10 }}
-                    axisLine={{ stroke: "var(--t-border-2)" }}
-                    tickLine={false}
-                    tickFormatter={(v: number) => v.toFixed(1)}
-                    width={48}
-                    domain={["dataMin", "dataMax"]}
-                  />
+                  {chartMetric === "valor" ? (
+                    <YAxis
+                      domain={[yScale.min, yScale.max]}
+                      ticks={yScale.ticks}
+                      allowDataOverflow
+                      tick={{ fill: "#4a9eff", fontSize: 10 }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
+                      tickLine={false}
+                      tickFormatter={(v: number) => fmtCompact(v)}
+                      width={56}
+                    />
+                  ) : (
+                    <YAxis
+                      domain={[yScaleRend.min, yScaleRend.max]}
+                      ticks={yScaleRend.ticks}
+                      allowDataOverflow
+                      tick={{ fill: "#ff9900", fontSize: 10 }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
+                      tickLine={false}
+                      tickFormatter={(v: number) => `${(v - 100) >= 0 ? "+" : ""}${(v - 100).toFixed(0)}%`}
+                      width={48}
+                    />
+                  )}
                   <Tooltip
                     contentStyle={{
                       background: "var(--t-surface)",
@@ -695,45 +687,38 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     labelStyle={{ color: "var(--t-text-dim)" }}
                     itemStyle={{ color: "var(--t-text)" }}
                     labelFormatter={(v) => fmtMesAnio(String(v))}
-                    formatter={(value, name) => {
-                      if (name === "Rendimiento") {
+                    formatter={(value) => {
+                      if (chartMetric === "rendimiento") {
                         const n = Number(value);
                         const pct = n - 100;
-                        return [`${n.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`, "Rendimiento"];
+                        return [`${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`, "Rendimiento"];
                       }
                       return [fmtCompact(Number(value)), "Valor"];
                     }}
                   />
-                  <Legend
-                    verticalAlign="top"
-                    align="right"
-                    height={24}
-                    iconType="plainline"
-                    wrapperStyle={{ fontSize: 10, paddingBottom: 4 }}
-                  />
-                  <Line
-                    yAxisId="izq"
-                    type="monotone"
-                    dataKey="valuacion"
-                    name="Valor"
-                    stroke="#4a9eff"
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: "#4a9eff" }}
-                    activeDot={{ r: 5 }}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    yAxisId="der"
-                    type="monotone"
-                    dataKey="rendimiento"
-                    name="Rendimiento"
-                    stroke="#ff9900"
-                    strokeWidth={2}
-                    strokeDasharray="4 3"
-                    dot={{ r: 2, fill: "#ff9900" }}
-                    activeDot={{ r: 4 }}
-                    isAnimationActive={false}
-                  />
+                  {chartMetric === "valor" ? (
+                    <Line
+                      type="monotone"
+                      dataKey="valuacion"
+                      name="Valor"
+                      stroke="#4a9eff"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "#4a9eff" }}
+                      activeDot={{ r: 5 }}
+                      isAnimationActive={false}
+                    />
+                  ) : (
+                    <Line
+                      type="monotone"
+                      dataKey="rendimiento"
+                      name="Rendimiento"
+                      stroke="#ff9900"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "#ff9900" }}
+                      activeDot={{ r: 5 }}
+                      isAnimationActive={false}
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             )}
