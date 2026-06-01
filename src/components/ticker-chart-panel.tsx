@@ -98,6 +98,16 @@ export function TickerChartPanel({ ticker }: { ticker: string | null }) {
 
 function TradingViewChart({ ticker }: { ticker: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // Tema según la clase "light" de <html>; al togglear reconstruye el widget.
+  const [isLight, setIsLight] = useState(false);
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setIsLight(el.classList.contains("light"));
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -121,7 +131,7 @@ function TradingViewChart({ ticker }: { ticker: string }) {
       symbol:             ticker,           // TV resuelve la bolsa solo
       interval:           "D",
       timezone:           "America/Argentina/Buenos_Aires",
-      theme:              "dark",
+      theme:              isLight ? "light" : "dark",
       style:              "1",              // 1 = velas
       locale:             "es",
       enable_publishing:  false,
@@ -130,8 +140,8 @@ function TradingViewChart({ ticker }: { ticker: string }) {
       hide_top_toolbar:   false,
       hide_legend:        false,
       withdateranges:     true,
-      backgroundColor:    "#080808",
-      gridColor:          "#1a1a1a",
+      backgroundColor:    isLight ? "#ffffff" : "#080808",
+      gridColor:          isLight ? "#e0e0e0" : "#1a1a1a",
       support_host:       "https://www.tradingview.com",
     });
     container.appendChild(script);
@@ -139,7 +149,7 @@ function TradingViewChart({ ticker }: { ticker: string }) {
     return () => {
       container.innerHTML = "";
     };
-  }, [ticker]);
+  }, [ticker, isLight]);
 
   return (
     <div
