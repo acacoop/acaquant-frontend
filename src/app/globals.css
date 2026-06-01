@@ -68,10 +68,19 @@
   --t-neg: #c81e1e;
 }
 
-/* Modo claro: los números de datos un punto más gruesos (sobre blanco el peso
-   fino se ve flojo). Afecta SOLO claro; el oscuro no cambia. */
+/* Modo claro: TODO el texto en negrita. Sobre blanco el peso fino se lee flojo
+   y la mesa pidió negrita en toda la app. Base a 600 (semibold) + forzamos las
+   utilities finas de Tailwind (font-normal/light/medium) y los números. El
+   font-bold (700) se mantiene para NO perder la jerarquía de los títulos.
+   Reglas sin @layer → le ganan a las utilities de Tailwind. SOLO claro. */
+.light {
+  font-weight: 600;
+}
+.light .font-normal,
+.light .font-light,
+.light .font-medium,
 .light .tabular-nums {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* Marca de agua: logo de empresa de fondo, MUY tenue, SOLO en modo claro.
