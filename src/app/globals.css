@@ -47,10 +47,10 @@
    "flotan" sobre el fondo → superficies/inputs gris claro. Bordes marcados para
    dar contraste (lo que faltaba: todo quedaba lavado sin separación). */
 .light {
-  --t-bg: #e9edf3;        /* fondo de página: gris sutil (no blanco puro) */
+  --t-bg: #d4d9e1;        /* fondo de página: gris de empresa (más oscuro → los paneles blancos contrastan, menos lavado) */
   --t-panel: #ffffff;     /* paneles BLANCOS sobre el fondo gris → contraste */
-  --t-surface: #f3f5f9;   /* inputs / superficies internas */
-  --t-surface-2: #e8ecf2; /* hover de filas */
+  --t-surface: #e8ecf1;   /* inputs / superficies internas */
+  --t-surface-2: #dbe0e8; /* hover de filas / banda */
   --t-border: #cdd5e2;    /* borde principal (marcado, da separación) */
   --t-border-2: #aab6c9;  /* borde fuerte / inputs */
   --t-text: #0d1830;      /* texto principal casi-negro azulado */
@@ -89,7 +89,7 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: min(45%, 320px);
-  opacity: 0.04;
+  opacity: 0.09;
   pointer-events: none;
   z-index: 0;
 }
@@ -113,7 +113,7 @@
   background-repeat: no-repeat;
   background-position: center 42%;
   background-size: min(40%, 240px);
-  opacity: 0.09;
+  opacity: 0.14;
   pointer-events: none;
   z-index: 0;
 }
@@ -222,6 +222,12 @@ body {
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--t-border-2);
     white-space: nowrap;
+  }
+  /* Banda gris en los títulos de tabla (solo modo claro) para que no queden
+     lavados sobre el panel blanco. En oscuro el th sigue transparente. Las
+     utilidades bg-[...] de Tailwind igual ganan donde un th setea su fondo. */
+  .light th {
+    background-color: var(--t-surface-2);
   }
   td {
     padding: 3px 8px;
