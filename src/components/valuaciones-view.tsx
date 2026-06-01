@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -343,6 +342,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   // "3M" / "1A" / "ALL" presets, ◀ ▶ para mover offset.
   const [chartRango, setChartRango] = useState<"3M" | "6M" | "1A" | "ALL">("6M");
   const [chartOffset, setChartOffset] = useState<number>(0);
+  // Métrica del chart: un solo eje Y por vez (Valor $ o Rendimiento %). Meter
+  // las dos juntas con doble eje hacía la escala ilegible.
+  const [chartMetric, setChartMetric] = useState<"valor" | "rendimiento">("valor");
   // Moneda de visualización: ARS (default) o USD. Backend devuelve campos
   // paralelos `*_usd` con MEP por fecha aplicado al cashflow XIRR — toggle
   // solo cambia qué columna se muestra.
@@ -495,6 +497,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
     () => computeYRange(chartDataVisible.map((d) => d.valuacion)),
     [chartDataVisible],
   );
+  const yScaleRend = useMemo(
+    () => computeYRange(chartDataVisible.map((d) => d.rendimiento)),
+    [chartDataVisible],
+  );
 
   if (loading) {
     return (
@@ -560,14 +566,21 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         {/* Chart panel — izquierda (más ancho que la tabla mensual) */}
         <div className="w-[58%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
-            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-              Evolución mensual · [{idCuenta}]
-            </span>
-            {chartDataVisible.length > 0 && (
-              <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
-                {fmtMesCorto(chartDataVisible[0].mes)} → {fmtMesCorto(chartDataVisible[chartDataVisible.length - 1].mes)}
-              </span>
-            )}
+            {/* Tabs VALOR / RENDIMIENTO — un solo eje Y por vez */}
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {([["valor", "VALOR"], ["rendimiento", "RENDIMIENTO"]] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => setChartMetric(k)}
+                  className={
+                    "px-2 py-0 text-[9px] font-semibold uppercase tracking-wider " +
+                    (chartMetric === k
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                  }
+                >{label}</button>
+              ))}
+            </div>
             {/* Range filter + pan */}
             <div className="ml-auto inline-flex items-center gap-1">
               <button
@@ -599,10 +612,22 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             </div>
             {chartData.length > 0 && (
               <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
-                Último: <span className="text-[#4a9eff] font-semibold">
-                  {fmtCompact(chartData[chartData.length - 1].valuacion)}
-                </span>
-                <span className="text-[var(--t-text-muted)] ml-1">{esUSD ? "USD" : "ARS"}</span>
+                Último:{" "}
+                {chartMetric === "valor" ? (
+                  <>
+                    <span className="text-[#4a9eff] font-semibold">
+                      {fmtCompact(chartData[chartData.length - 1].valuacion)}
+                    </span>
+                    <span className="text-[var(--t-text-muted)] ml-1">{esUSD ? "USD" : "ARS"}</span>
+                  </>
+                ) : (
+                  <span className="text-[#ff9900] font-semibold">
+                    {(() => {
+                      const r = chartData[chartData.length - 1].rendimiento - 100;
+                      return `${r >= 0 ? "+" : ""}${r.toFixed(2)}%`;
+                    })()}
+                  </span>
+                )}
               </span>
             )}
           </div>
