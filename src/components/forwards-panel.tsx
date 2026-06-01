@@ -117,7 +117,7 @@ export function ForwardsPanel({
 
   const chartData = useMemo(() => {
     if (!histCurva.length || !paresEfectivos.length) return [] as Array<Record<string, string | number>>;
-    return histCurva.map((doc) => {
+    const rows = histCurva.map((doc) => {
       const row: Record<string, string | number> = { fecha: doc.fecha };
       for (const par of paresEfectivos) {
         const [tLargo, tCorto] = par.split("→");
@@ -128,6 +128,16 @@ export function ForwardsPanel({
       }
       return row;
     });
+    // Recorta los días del arranque/fin donde NINGÚN par seleccionado tiene
+    // dato. Sin esto, un par que empezó a cotizar tarde queda flotando a
+    // mitad del gráfico con un tramo vacío a la izquierda.
+    const tiene = (r: Record<string, string | number>) =>
+      paresEfectivos.some((p) => r[p] !== undefined);
+    let lo = 0;
+    while (lo < rows.length && !tiene(rows[lo])) lo++;
+    let hi = rows.length - 1;
+    while (hi > lo && !tiene(rows[hi])) hi--;
+    return rows.slice(lo, hi + 1);
   }, [histCurva, paresEfectivos]);
 
   const togglePar = (par: string) => {
@@ -295,17 +305,20 @@ export function ForwardsPanel({
                     textAnchor="end"
                     height={40}
                     tickFormatter={fmtFechaCorta}
-                    interval={Math.max(0, Math.floor(chartData.length / 10))}
+                    interval="preserveStartEnd"
+                    minTickGap={28}
                   />
                   <YAxis
                     tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
                     axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
-                    tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+                    tickFormatter={(v: number) => `${v.toFixed(2)}%`}
                     width={55}
+                    tickCount={8}
+                    allowDecimals
                     domain={[
-                      (dataMin: number) => dataMin - 0.5,
-                      (dataMax: number) => dataMax + 0.5,
+                      (dataMin: number) => Math.floor((dataMin - 0.15) * 10) / 10,
+                      (dataMax: number) => Math.ceil((dataMax + 0.15) * 10) / 10,
                     ]}
                   />
                   <Tooltip
