@@ -334,8 +334,8 @@ export function CostoHistoricoChart({
             )}
             <Tooltip
               contentStyle={{
-                background: "#0e0e0e",
-                border: "1px solid #2a2a2a",
+                background: "var(--t-surface)",
+                border: "1px solid var(--t-border-2)",
                 fontSize: 11,
                 fontFamily: "JetBrains Mono, monospace",
               }}

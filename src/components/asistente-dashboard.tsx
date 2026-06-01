@@ -453,8 +453,8 @@ export function AsistenteDashboard() {
                   <YAxis tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} axisLine={{ stroke: "var(--t-border-2)" }} />
                   <Tooltip
                     contentStyle={{
-                      background: "#0e0e0e",
-                      border: "1px solid #2a2a2a",
+                      background: "var(--t-surface)",
+                      border: "1px solid var(--t-border-2)",
                       fontSize: 10,
                     }}
                     labelFormatter={(v) => `${fmtDateShort(v as string)} ${fmtTime(v as string)}`}
@@ -493,8 +493,8 @@ export function AsistenteDashboard() {
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#0e0e0e",
-                      border: "1px solid #2a2a2a",
+                      background: "var(--t-surface)",
+                      border: "1px solid var(--t-border-2)",
                       fontSize: 10,
                     }}
                     labelFormatter={(v) => `${fmtDateShort(v as string)} ${fmtTime(v as string)}`}

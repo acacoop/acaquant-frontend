@@ -248,11 +248,11 @@ export function RecursosPanel() {
               <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--t-text-muted)" }} />
               <Tooltip
                 contentStyle={{
-                  background: "#0a0a0a",
-                  border: "1px solid #1a1a1a",
+                  background: "var(--t-surface)",
+                  border: "1px solid var(--t-border-2)",
                   fontSize: 11,
                 }}
-                labelStyle={{ color: "#aaa" }}
+                labelStyle={{ color: "var(--t-text-dim)" }}
               />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               <Area

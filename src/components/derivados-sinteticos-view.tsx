@@ -248,11 +248,11 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#0a0a0a",
-                      border: "1px solid #2a2a2a",
+                      background: "var(--t-surface)",
+                      border: "1px solid var(--t-border-2)",
                       fontSize: 11,
                     }}
-                    labelStyle={{ color: "#888" }}
+                    labelStyle={{ color: "var(--t-text-dim)" }}
                     formatter={(value, _name, item) => {
                       const v = typeof value === "number" ? value : Number(value);
                       const payload = (item?.payload ?? {}) as { ticker?: string };

@@ -504,12 +504,12 @@ function HistoricoTab() {
                 <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
                 <Tooltip
                   contentStyle={{
-                    background: "#0e0e0e",
-                    border: "1px solid #2a2a2a",
+                    background: "var(--t-surface)",
+                    border: "1px solid var(--t-border-2)",
                     fontSize: 11,
                     fontFamily: "JetBrains Mono, monospace",
                   }}
-                  labelStyle={{ color: "#ff9900" }}
+                  labelStyle={{ color: "var(--t-accent)" }}
                   labelFormatter={(v) => fmtFechaCorta(String(v))}
                   formatter={(v, name) => [`${Number(v).toFixed(2)}%`, String(name)]}
                 />

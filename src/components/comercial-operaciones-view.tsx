@@ -563,9 +563,9 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         allowDecimals={false}
                       />
                       <Tooltip
-                        contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                        labelStyle={{ color: "#808080" }}
-                        itemStyle={{ color: "#d0d0d0" }}
+                        contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                        labelStyle={{ color: "var(--t-text-dim)" }}
+                        itemStyle={{ color: "var(--t-text)" }}
                         labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v) => [fmtAum(Number(v)), "AuM"]}
                       />
@@ -595,10 +595,10 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         width={56}
                       />
                       <Tooltip
-                        cursor={{ fill: "#ffffff08" }}
-                        contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                        labelStyle={{ color: "#808080" }}
-                        itemStyle={{ color: "#d0d0d0" }}
+                        cursor={{ fill: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}
+                        contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                        labelStyle={{ color: "var(--t-text-dim)" }}
+                        itemStyle={{ color: "var(--t-text)" }}
                         labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v) => [fmtAum(Number(v)), "Volumen"]}
                       />

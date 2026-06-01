@@ -171,12 +171,12 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "#0e0e0e",
-                border: "1px solid #1a1a1a",
+                backgroundColor: "var(--t-surface)",
+                border: "1px solid var(--t-border-2)",
                 fontFamily: "monospace",
                 fontSize: 11,
               }}
-              labelStyle={{ color: "#d0d0d0" }}
+              labelStyle={{ color: "var(--t-text)" }}
               cursor={{ stroke: "var(--t-border-2)", strokeDasharray: "3 3" }}
               formatter={(_value, _name, ctx) => {
                 const p = (ctx as { payload?: Punto })?.payload;

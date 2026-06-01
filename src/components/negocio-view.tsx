@@ -926,18 +926,18 @@ export function NegocioView() {
                         width={56}
                       />
                       <Tooltip
-                        cursor={{ fill: "#ffffff08" }}
+                        cursor={{ fill: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}
                         contentStyle={{
-                          background: "#0e0e0e",
-                          border: "1px solid #2a2a2a",
+                          background: "var(--t-surface)",
+                          border: "1px solid var(--t-border-2)",
                           fontSize: 11,
                           fontFamily: "JetBrains Mono, monospace",
                         }}
-                        labelStyle={{ color: "#808080" }}
+                        labelStyle={{ color: "var(--t-text-dim)" }}
                         // Forzamos color del texto del tooltip — recharts por
                         // default usa el fill del Cell, lo cual queda invisible
                         // sobre fondo oscuro cuando la barra está muteada (#222).
-                        itemStyle={{ color: "#d0d0d0" }}
+                        itemStyle={{ color: "var(--t-text)" }}
                         labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v, name) => [
                           fmtCompact(Number(v)),

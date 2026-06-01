@@ -399,8 +399,8 @@ export function DerivadosAgroEstrategias({
                         />
                         <Tooltip
                           contentStyle={{
-                            background: "#080808",
-                            border: "1px solid #2a2a2a",
+                            background: "var(--t-surface)",
+                            border: "1px solid var(--t-border-2)",
                             fontSize: 11,
                           }}
                           labelFormatter={(v) =>
@@ -460,8 +460,8 @@ export function DerivadosAgroEstrategias({
                         />
                         <Tooltip
                           contentStyle={{
-                            background: "#080808",
-                            border: "1px solid #2a2a2a",
+                            background: "var(--t-surface)",
+                            border: "1px solid var(--t-border-2)",
                             fontSize: 11,
                           }}
                           labelFormatter={(v) =>

@@ -107,11 +107,11 @@ export function DolarMepTimeSalesChart({ rueda }: { rueda: Rueda }) {
         />
         <Tooltip
           contentStyle={{
-            background: "#0a0a0a",
-            border: "1px solid #333",
+            background: "var(--t-surface)",
+            border: "1px solid var(--t-border-2)",
             fontSize: 11,
           }}
-          labelStyle={{ color: "#888" }}
+          labelStyle={{ color: "var(--t-text-dim)" }}
           formatter={(v) => [`$${Number(v).toFixed(2)}`, "MEP"]}
         />
         <Line

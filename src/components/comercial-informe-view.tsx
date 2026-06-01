@@ -246,9 +246,9 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 tickLine={false} allowDecimals={false} width={36}
               />
               <Tooltip
-                contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
                 formatter={(v) => [fmtN(Number(v)), "Cuentas"]}
-                cursor={{ fill: "#ffffff10" }}
+                cursor={{ fill: "color-mix(in srgb, var(--t-text) 10%, transparent)" }}
               />
               <Bar dataKey="n" fill="var(--t-brand)" isAnimationActive={false} />
             </BarChart>

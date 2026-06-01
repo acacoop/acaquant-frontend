@@ -159,7 +159,7 @@ function TabTasaFija({ operador }: { operador: string }) {
                 <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
                 <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
                 <Tooltip
-                  contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                  contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
                   formatter={(v, _, entry) => [`${Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, String((entry as { payload?: { ticker?: string } })?.payload?.ticker ?? "")]}
                   labelFormatter={(l) => `Vto: ${l}`}
                 />
@@ -367,7 +367,7 @@ function TabCer({ operador }: { operador: string }) {
                 <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
                 <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
                 <Tooltip
-                  contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                  contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
                   formatter={(v, _, entry) => [`${Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, String((entry as { payload?: { ticker?: string } })?.payload?.ticker ?? "")]}
                   labelFormatter={(l) => `Vto: ${l}`}
                 />
@@ -966,12 +966,12 @@ export function AumView() {
                     />
                     <Tooltip
                       contentStyle={{
-                        background: "#0e0e0e",
-                        border: "1px solid #2a2a2a",
+                        background: "var(--t-surface)",
+                        border: "1px solid var(--t-border-2)",
                         fontSize: 11,
                         fontFamily: "JetBrains Mono, monospace",
                       }}
-                      labelStyle={{ color: "#808080" }}
+                      labelStyle={{ color: "var(--t-text-dim)" }}
                       labelFormatter={(v) => fmtFecha(String(v))}
                       formatter={(v) => [fmtCompact(Number(v)), tab === "total" ? "Total AUM" : "Total FCI"]}
                     />
