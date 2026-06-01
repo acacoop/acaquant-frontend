@@ -13,11 +13,33 @@ export function OperadoresView() {
   useEffect(() => {
     void (async () => {
       try {
-        const r = await fetch("/api/operaciones/comercial/operadores", { cache: "no-store" });
-        if (!r.ok) return;
-        const d: Operador[] = await r.json();
+        // Traigo la lista de operadores y, en paralelo, mi identidad (/api/me).
+        const [rOps, rMe] = await Promise.all([
+          fetch("/api/operaciones/comercial/operadores", { cache: "no-store" }),
+          fetch("/api/me", { cache: "no-store" }),
+        ]);
+        if (!rOps.ok) return;
+        const d: Operador[] = await rOps.json();
         setOperadores(d);
-        setOperador((s) => s || (d[0]?.operador_email ?? ""));
+
+        // Email del usuario logueado (si /api/me falla, queda null y caemos
+        // al comportamiento previo: primer operador de la lista).
+        let miEmail: string | null = null;
+        if (rMe.ok) {
+          try {
+            miEmail = ((await rMe.json())?.email ?? null) as string | null;
+          } catch {
+            /* body no-JSON — ignoramos */
+          }
+        }
+
+        // Si tu email está registrado como operador, arrancás viendo el TUYO.
+        // Si no sos operador (manager/admin/etc.), primer operador de la lista
+        // (igual que antes). Match case-insensitive.
+        const mio = miEmail
+          ? d.find((o) => o.operador_email?.toLowerCase() === miEmail.toLowerCase())
+          : undefined;
+        setOperador((s) => s || (mio?.operador_email ?? d[0]?.operador_email ?? ""));
       } catch {
         // silencioso — la vista muestra su propio estado de error/vacío.
       }

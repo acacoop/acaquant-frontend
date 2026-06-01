@@ -459,13 +459,33 @@ export function AumView() {
     });
   }, [tab]);
 
-  // Operadores para el filtro madre (una vez).
+  // Operadores para el filtro madre (una vez). Si el usuario logueado está
+  // registrado como operador, el filtro arranca scopeado a SUS cuentas; si no
+  // (manager/admin/trader), queda en "TODOS" como antes.
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch("/api/portfolio/operadores", { cache: "no-store" });
-        if (!r.ok) return;
-        setOperadores(await r.json());
+        const [rOps, rMe] = await Promise.all([
+          fetch("/api/portfolio/operadores", { cache: "no-store" }),
+          fetch("/api/me", { cache: "no-store" }),
+        ]);
+        if (!rOps.ok) return;
+        const d: { operador_email: string; operador_nombre: string | null; n_cuentas: number }[] =
+          await rOps.json();
+        setOperadores(d);
+
+        let miEmail: string | null = null;
+        if (rMe.ok) {
+          try {
+            miEmail = ((await rMe.json())?.email ?? null) as string | null;
+          } catch {
+            /* body no-JSON — ignoramos */
+          }
+        }
+        const mio = miEmail
+          ? d.find((o) => o.operador_email?.toLowerCase() === miEmail.toLowerCase())
+          : undefined;
+        if (mio) setOperador((s) => s || mio.operador_email);
       } catch {
         // silencioso — sin operadores el selector queda en "TODOS".
       }
