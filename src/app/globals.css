@@ -133,7 +133,7 @@
    regla base. */
 .light .wm-corner .recharts-wrapper::before {
   background-position: top 6px right 10px;
-  background-size: min(28%, 170px);
+  background-size: min(24%, 145px);
   opacity: 0.8;
 }
 
