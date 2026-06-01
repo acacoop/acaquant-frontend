@@ -129,7 +129,14 @@ function useOrderBook(
   // mandamos corto + plazo y el backend lo resuelve.
   const tickerParam = fullTicker || tickerCorto;
   useEffect(() => {
-    if (!tickerParam) return;
+    if (!tickerParam) {
+      // Panel vaciado (× sobre el último slot): limpiamos el book para que no
+      // quede pegado el del instrumento anterior.
+      setBook(null);
+      setStatus("ready");
+      setError(null);
+      return;
+    }
     let alive = true;
     async function fetchBook() {
       try {
@@ -627,6 +634,31 @@ function TickerSearch({
     };
   }, [q, open]);
 
+  // Ordenamos los hits para que lo más parecido a lo escrito vaya PRIMERO:
+  // 1) match exacto, 2) empieza con lo escrito, 3) resto. A igual cercanía, el
+  // ticker más corto (AAPL antes que AAPLC) y plazo 24hs > CI > 48hs. Sin esto
+  // el backend devolvía AAPLC arriba de AAPL y había que scrollear.
+  const qUp = q.trim().toUpperCase();
+  const cortoDe = (h: SymbolHit) =>
+    (h.ticker_corto || h.ticker.split(" - ")[2] || h.ticker).toUpperCase();
+  const plazoRank = (h: SymbolHit) => {
+    const p = h.ticker.split(" - ")[3];
+    return p === "24hs" ? 0 : p === "CI" ? 1 : p === "48hs" ? 2 : 3;
+  };
+  const sortedHits = [...hits].sort((a, b) => {
+    const ca = cortoDe(a);
+    const cb = cortoDe(b);
+    const score = (c: string) => (c === qUp ? 0 : c.startsWith(qUp) ? 1 : 2);
+    const sa = score(ca);
+    const sb = score(cb);
+    if (sa !== sb) return sa - sb;
+    if (ca.length !== cb.length) return ca.length - cb.length;
+    const pa = plazoRank(a);
+    const pb = plazoRank(b);
+    if (pa !== pb) return pa - pb;
+    return ca.localeCompare(cb);
+  });
+
   return (
     <div className="relative">
       <input
@@ -640,9 +672,9 @@ function TickerSearch({
         placeholder="ticker"
         className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[110px] font-mono uppercase focus:border-[var(--t-accent)] outline-none"
       />
-      {open && hits.length > 0 && (
+      {open && sortedHits.length > 0 && (
         <div className="absolute top-full left-0 mt-0.5 bg-[var(--t-surface)] border border-[var(--t-border-2)] z-20 max-h-[200px] overflow-y-auto min-w-[260px] text-[10px]">
-          {hits.map((h) => {
+          {sortedHits.map((h) => {
             const corto =
               h.ticker_corto ||
               h.ticker.split(" - ")[2] ||
@@ -833,11 +865,13 @@ function OperarCard({
             onChangePlazo(e.target.value as "CI" | "24hs" | "48hs")
           }
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] focus:border-[var(--t-accent)] outline-none"
-          title="Plazo de liquidación (ignorado si elegiste el ticker full del autocomplete)"
+          title="Plazo de liquidación · CI = contado inmediato (hoy), 24hs = mañana. Cambiarlo reescribe el plazo del instrumento."
         >
           <option value="CI">CI</option>
           <option value="24hs">24hs</option>
-          <option value="48hs">48hs</option>
+          {/* 48hs no aplica a estos instrumentos; solo se muestra si ya quedó
+              seteado (ticker pickeado con ese plazo). */}
+          {plazo === "48hs" && <option value="48hs">48hs</option>}
         </select>
         <div className="flex items-baseline gap-2 ml-1 flex-1 justify-end">
           <span className="text-[9px] text-[var(--t-text-muted)]">last</span>
@@ -1313,9 +1347,19 @@ export function OperarDashboardView() {
 
   function changeTicker(id: string, corto: string, full?: string) {
     setCards((cs) =>
-      cs.map((c) =>
-        c.id === id ? { ...c, tickerCorto: corto, fullTicker: full } : c,
-      ),
+      cs.map((c) => {
+        if (c.id !== id) return c;
+        // Si el ticker viene del autocomplete con el plazo embebido
+        // ("MERV - XMEV - SHORT - 24hs"), sincronizamos el selector de plazo
+        // para que no quede descalzado con el instrumento elegido.
+        let plazo = c.plazo;
+        if (full) {
+          const parts = full.split(" - ");
+          const p = parts.length === 4 ? parts[3] : null;
+          if (p === "CI" || p === "24hs" || p === "48hs") plazo = p;
+        }
+        return { ...c, tickerCorto: corto, fullTicker: full, plazo };
+      }),
     );
   }
 
