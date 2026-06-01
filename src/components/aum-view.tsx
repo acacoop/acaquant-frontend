@@ -1002,10 +1002,6 @@ export function AumView() {
               "auto" y el chart agarraba todo el espacio mientras llegaba
               la data, después se comprimía cuando aparecía la tabla). */}
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
-            <PanelHeader
-              title={`${tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"} · ${fmtFecha(fechaSel)}`}
-              sub={`${porEmisor.length} ${tab === "total" ? "carteras" : "emisores"}${loadingSnap && snapshot.length > 0 ? " · actualizando…" : ""}`}
-            />
             <div className="flex-1 min-h-0 overflow-y-auto">
               {/* Stale-while-revalidate: mantenemos las filas previas mientras
                   carga el nuevo snapshot — evita el "bounce" del chart al
@@ -1020,8 +1016,19 @@ export function AumView() {
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono">
-                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                    <tr>
+                  <thead className="sticky top-0 z-10">
+                    {/* Banda de título integrada (reemplaza el PanelHeader separado
+                        para no duplicar encabezado). Fecha + contador a la derecha. */}
+                    <tr className="bg-[var(--t-accent)]/10">
+                      <th colSpan={3} className="!px-3 !py-1.5 text-left font-semibold text-[var(--t-accent)] tracking-wide uppercase">
+                        {tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"}
+                        <span className="ml-2 font-normal normal-case text-[9px] text-[var(--t-text-muted)]">
+                          {fmtFecha(fechaSel)} · {porEmisor.length} {tab === "total" ? "carteras" : "emisores"}
+                          {loadingSnap && snapshot.length > 0 ? " · actualizando…" : ""}
+                        </span>
+                      </th>
+                    </tr>
+                    <tr className="bg-[var(--t-panel)]">
                       <th className="!px-2 !py-1 text-left">EMISOR</th>
                       <th className="!px-2 !py-1 text-right">VALUACIÓN</th>
                       <th className="!px-2 !py-1 text-right">%</th>
