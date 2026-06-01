@@ -45,7 +45,7 @@ type VistaMode = "DIA" | "TODOS";
 
 // Color de barras "muteadas" cuando hay un día seleccionado y queremos
 // que el día elegido resalte sobre el resto.
-const MUTED_BAR_COLOR = "#222";
+const MUTED_BAR_COLOR = "var(--t-border-2)";
 
 // El filtro accionistas/coop se resuelve server-side en /negocio/serie
 // y /negocio/cuentas (mismo regex que cashflow). Acá solo declaramos

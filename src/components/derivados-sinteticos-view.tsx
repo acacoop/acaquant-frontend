@@ -268,9 +268,9 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
                     // monotone con 4+ para suavizar la curva de tasas.
                     type={data.length <= 3 ? "linear" : "monotone"}
                     dataKey="tnaPct"
-                    stroke="#ff9900"
+                    stroke="var(--t-brand)"
                     strokeWidth={1.5}
-                    dot={{ r: 3, fill: "#ff9900" }}
+                    dot={{ r: 3, fill: "var(--t-brand)" }}
                     activeDot={{ r: 4 }}
                   />
                 </LineChart>
