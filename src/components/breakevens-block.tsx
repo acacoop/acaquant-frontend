@@ -313,9 +313,16 @@ function BreakevensGrafico({
     if (todosTs.length === 0) return [];
     const ultimoTs = todosTs[todosTs.length - 1];
 
-    // Generar lista de meses consecutivos: hoy → último mes con datos.
+    // Generar lista de meses consecutivos. Arranca en el mes presente, PERO si
+    // algún breakeven pricea el IPC de un mes ya pasado (mes_inflacion = vto −
+    // 2m puede caer ANTES de hoy: un bono que vence en jul pricea el IPC de
+    // may), extendemos la grilla hacia atrás para incluirlo. Sin esto el primer
+    // breakeven (el de menor vto) se caía del gráfico — quedaba fuera de la
+    // grilla por la izquierda.
+    const beTs = [...beByMonth.keys()];
+    const primerTs = beTs.length ? Math.min(mesActualUtc, ...beTs) : mesActualUtc;
     const meses: number[] = [];
-    let cursor = mesActualUtc;
+    let cursor = primerTs;
     while (cursor <= ultimoTs) {
       meses.push(cursor);
       const d = new Date(cursor);

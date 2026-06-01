@@ -285,7 +285,11 @@ export function CurvasChart({
           metricaUsada === "TEM" ? temPct
           : metricaUsada === "TNA" ? tnaPct
           : teaPct;
-        pushPunto(r.tipo, {
+        // Solo soberanos se divide en familias (globales/bonares), cada una con
+        // su propio fit. Para tasa_fija / cer / dolar_linked todo va a "default"
+        // → UNA sola curva, igual que en LIVE. Sin esto, el `tipo` de cada bono
+        // (lecap/boncap) partía la curva en 2 líneas de fit en HISTÓRICO.
+        pushPunto(curva === "soberanos" ? r.tipo : null, {
           Ticker: r.ticker,
           Duration: +r.duration.toFixed(4),
           y: +y.toFixed(4),
