@@ -3,7 +3,6 @@ import { JetBrains_Mono } from "next/font/google";
 import { Header } from "@/components/header";
 import { PauseBanner } from "@/components/pause-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { SectionMarker } from "@/components/section-marker";
 import { getMe } from "@/lib/me";
 import "./globals.css";
 
@@ -55,7 +54,6 @@ export default async function RootLayout({
         />
       </head>
       <body className="h-full flex flex-col">
-        <SectionMarker />
         <Header modules={modules} />
         <PauseBanner />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
