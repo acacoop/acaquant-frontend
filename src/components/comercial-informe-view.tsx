@@ -247,7 +247,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 formatter={(v) => [fmtN(Number(v)), "Cuentas"]}
                 cursor={{ fill: "#ffffff10" }}
               />
-              <Bar dataKey="n" fill="#ff9900" isAnimationActive={false} />
+              <Bar dataKey="n" fill="var(--t-brand)" isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>

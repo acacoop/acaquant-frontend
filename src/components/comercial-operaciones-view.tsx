@@ -569,7 +569,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v) => [fmtAum(Number(v)), "AuM"]}
                       />
-                      <Line type="monotone" dataKey="valor" stroke="#ff9900" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="valor" stroke="var(--t-brand)" strokeWidth={1.5} dot={false} isAnimationActive={false} />
                     </LineChart>
                   ) : (
                     // Volumen es flujo → barras.
@@ -602,7 +602,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v) => [fmtAum(Number(v)), "Volumen"]}
                       />
-                      <Bar dataKey="valor" fill="#ff9900" maxBarSize={40} isAnimationActive={false} />
+                      <Bar dataKey="valor" fill="var(--t-brand)" maxBarSize={40} isAnimationActive={false} />
                     </BarChart>
                   )}
                 </ResponsiveContainer>

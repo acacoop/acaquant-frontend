@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-// Switch de tema (oscuro/claro). Alterna la clase "light" en <html> y guarda la
-// preferencia en localStorage. El default es OSCURO (sin clase) — el modo claro
-// es opt-in. El anti-parpadeo al cargar lo resuelve un script inline en layout.
+// Switch de tema (claro/oscuro). Alterna la clase "light" en <html> y guarda la
+// preferencia en localStorage. El default es CLARO (con clase 'light') — el modo
+// oscuro es opt-in. El anti-parpadeo al cargar lo resuelve un script en layout.
 type Theme = "dark" | "light";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   // Sincroniza el estado inicial con lo que el script anti-parpadeo ya aplicó.
   useEffect(() => {

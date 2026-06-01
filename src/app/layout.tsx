@@ -42,14 +42,14 @@ export default async function RootLayout({
   const isProd = !!process.env.API_URL;
   const modules = me?.modules ?? (isProd ? [] : null);
   return (
-    <html lang="es" className={`h-full ${jbMono.variable}`}>
+    <html lang="es" className={`h-full light ${jbMono.variable}`}>
       <head>
-        {/* Anti-parpadeo: aplica el tema guardado ANTES del primer paint, así
-            no se ve un flash de oscuro→claro al recargar en modo claro. */}
+        {/* Anti-parpadeo: el DEFAULT es claro (clase 'light' en <html>). Solo se
+            saca si el usuario eligió oscuro explícitamente. Corre antes del paint. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "try{if(localStorage.getItem('aca-theme')==='light')document.documentElement.classList.add('light')}catch(e){}",
+              "try{if(localStorage.getItem('aca-theme')==='dark')document.documentElement.classList.remove('light')}catch(e){}",
           }}
         />
       </head>
