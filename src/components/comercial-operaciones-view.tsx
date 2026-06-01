@@ -1198,21 +1198,22 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
         {/* DER — Distribución por nivel (arriba, click = filtra clientes) + Riesgo de churn (abajo) */}
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
           <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-              <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Distribución por nivel 1</span>
-              <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{porNivel.length}</span>
-              <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">click = filtra clientes</span>
-              <DownloadBtn onClick={dlPorNivel} />
-            </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                {/* Una sola franja sticky sólida: columnas = título. El botón XLS
+                    y el hint van integrados en la última celda (AuM). */}
+                <thead className="sticky top-0 z-10 text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
                   <tr>
-                    <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Nivel 1</th>
-                    <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]" title="Cuentas totales asignadas al segmento">Ctas. Tot.</th>
-                    <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]" title="Cuentas que operaron en el mes calendario actual">Activas</th>
-                    <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]" title="% activas sobre el total del segmento">%</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">AuM</th>
+                    <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
+                      Nivel 1
+                      <span className="ml-1.5 normal-case tracking-normal text-[var(--t-text-muted)]">· {porNivel.length} · click filtra</span>
+                    </th>
+                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas totales asignadas al segmento">Ctas. Tot.</th>
+                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas que operaron en el mes calendario actual">Activas</th>
+                    <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="% activas sobre el total del segmento">%</th>
+                    <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
+                      <span className="inline-flex items-center gap-1.5 justify-end">AuM <DownloadBtn onClick={dlPorNivel} /></span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
