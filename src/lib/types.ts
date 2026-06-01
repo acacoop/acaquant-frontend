@@ -20,6 +20,9 @@ export interface RentaFijaDoc {
     // TC breakeven = MEP × (flujo_vto / last). Sólo populado para
     // bonos de tasa fija (nativa o CER ya fijado por el BCRA).
     tc_breakeven?: number | null;
+    // Pago final = bullet al vto por 100 VN. Populado para tasa fija (nativa o
+    // CER fijado); se muestra en la columna "Pago Final".
+    flujo_vencimiento?: number;
   };
 }
 
@@ -107,9 +110,6 @@ export interface FlujoTicker {
    *  `_bonos_cer_fijados()` en cada request. */
   cer_fijado?: boolean;
   fecha_vencimiento?: string;
-  /** Pago al vencimiento por 100 VN (bullet de tasa fija / cupón cero). Sólo
-   *  presente para bonos con flujo bullet; se muestra como "Pago Final". */
-  flujo_vencimiento?: number | null;
 }
 
 export interface BreakevenPar {
