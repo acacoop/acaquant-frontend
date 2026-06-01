@@ -77,7 +77,7 @@ export function DerivadosView({
   // Filtro de la tabla OPCIONES GGAL (CALL/PUT = chain; ESTRATEGIAS = tabla
   // de estrategias en el mismo panel).
   const [tablaVista, setTablaVista] = useState<TablaVista>("CALL");
-  const [opcionTab, setOpcionTab] = useState<OpcionTab>("operar");
+  const [opcionTab, setOpcionTab] = useState<OpcionTab>("lab");
 
   function pickStrategy(i: number) {
     setSelected(i);

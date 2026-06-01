@@ -235,7 +235,7 @@ export function PostTradeLab({
                   <td
                     key={i}
                     className="px-1 py-0.5 text-right"
-                    style={{ background: cellColor(pl), color: "#e8e8e8" }}
+                    style={{ background: cellColor(pl), color: "var(--t-text)" }}
                     title={`${fmtMoney(pl)}`}
                   >
                     {fmtMoney(pl)}
@@ -266,7 +266,7 @@ function Metric({
       <div className="text-[8px] text-[var(--t-text-muted)] tracking-wide">{label}</div>
       <div
         className="text-[12px] font-semibold tabular-nums"
-        style={pos === undefined ? { color: "#d0d0d0" } : { color: pos ? "var(--t-pos)" : "#ff4444" }}
+        style={pos === undefined ? { color: "var(--t-text)" } : { color: pos ? "var(--t-pos)" : "var(--t-neg)" }}
       >
         {value}
       </div>

@@ -331,7 +331,7 @@ export function DerivadosOperar({
             value={account}
             placeholder="cuenta (ej. 805)"
             onChange={(e) => setAccount(e.target.value)}
-            className={`w-full bg-[var(--t-panel)] border px-1 py-0.5 tabular-nums focus:border-[var(--t-accent)] outline-none ${
+            className={`w-full bg-[var(--t-panel)] border px-1 py-0.5 tabular-nums text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none ${
               account.trim() === "" ? "border-[#f87171]/50" : "border-[var(--t-border-2)]"
             }`}
             title="Cuenta comitente sobre la que se manda la orden"

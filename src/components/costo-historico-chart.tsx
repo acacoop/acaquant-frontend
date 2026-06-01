@@ -392,8 +392,8 @@ export function CostoHistoricoChart({
             <Brush
               dataKey="idx"
               height={16}
-              stroke="#ff9900"
-              fill="#0a0a0a"
+              stroke="var(--t-accent)"
+              fill="var(--t-surface)"
               travellerWidth={8}
               tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
             />
