@@ -42,6 +42,7 @@ export function CedearsScannerTable({
   const [view, setView] = useState<View>("cedear");
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [query, setQuery] = useState("");
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -65,6 +66,14 @@ export function CedearsScannerTable({
   }
 
   const sorted = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? data.filter(
+          (r) =>
+            r.ticker_corto?.toLowerCase().includes(q) ||
+            r.nombre?.toLowerCase().includes(q),
+        )
+      : data;
     const cmp = (a: CedearScannerRow, b: CedearScannerRow) => {
       const av = (a as unknown as Record<string, unknown>)[sortKey];
       const bv = (b as unknown as Record<string, unknown>)[sortKey];
@@ -77,8 +86,8 @@ export function CedearsScannerTable({
       const bn = bv as number;
       return sortDir === "asc" ? an - bn : bn - an;
     };
-    return [...data].sort(cmp);
-  }, [data, sortKey, sortDir]);
+    return [...filtered].sort(cmp);
+  }, [data, sortKey, sortDir, query]);
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -89,6 +98,21 @@ export function CedearsScannerTable({
         <ViewBtn active={view === "adr"} onClick={() => changeView("adr")} tone="cyan">
           ADR
         </ViewBtn>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar ticker…"
+          className="ml-2 w-[150px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none placeholder:text-[var(--t-text-muted)]"
+        />
+        {query && (
+          <button
+            onClick={() => setQuery("")}
+            className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px] px-1"
+            title="Limpiar búsqueda"
+          >
+            ✕
+          </button>
+        )}
         {ccl && (
           <div
             className="ml-auto flex items-center gap-2 pr-1 text-[10px] tabular-nums"
