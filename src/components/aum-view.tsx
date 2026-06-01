@@ -1016,22 +1016,15 @@ export function AumView() {
                 </div>
               ) : (
                 <table className="w-full text-[11px] font-mono">
-                  <thead className="sticky top-0 z-10">
-                    {/* Banda de título integrada (reemplaza el PanelHeader separado
-                        para no duplicar encabezado). Fecha + contador a la derecha. */}
-                    <tr className="bg-[var(--t-accent)]/10">
-                      <th colSpan={3} className="!px-3 !py-1.5 text-left font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-                        {tab === "total" ? "POR CARTERA" : "POR SOC. GERENTE"}
-                        <span className="ml-2 font-normal normal-case text-[9px] text-[var(--t-text-muted)]">
-                          {fmtFecha(fechaSel)} · {porEmisor.length} {tab === "total" ? "carteras" : "emisores"}
-                          {loadingSnap && snapshot.length > 0 ? " · actualizando…" : ""}
-                        </span>
+                  {/* Una sola franja de encabezado: el nombre de la 1ª columna ES
+                      el título (CARTERA / SOC. GERENTE), sin banda extra arriba. */}
+                  <thead className="sticky top-0 z-10 bg-[var(--t-accent)]/10">
+                    <tr>
+                      <th className="!px-2 !py-1.5 text-left text-[var(--t-accent)]">
+                        {tab === "total" ? "CARTERA" : "SOC. GERENTE"}
                       </th>
-                    </tr>
-                    <tr className="bg-[var(--t-panel)]">
-                      <th className="!px-2 !py-1 text-left">EMISOR</th>
-                      <th className="!px-2 !py-1 text-right">VALUACIÓN</th>
-                      <th className="!px-2 !py-1 text-right">%</th>
+                      <th className="!px-2 !py-1.5 text-right text-[var(--t-accent)]">VALUACIÓN</th>
+                      <th className="!px-2 !py-1.5 text-right text-[var(--t-accent)]">%</th>
                     </tr>
                   </thead>
                   <tbody>
