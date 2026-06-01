@@ -99,6 +99,26 @@
   z-index: 1;
 }
 
+/* Marca de agua del logo en TODOS los charts de recharts dentro de las vistas
+   de MERCADOS, solo en modo claro. El body lleva data-section="mercados" (lo
+   pone SectionMarker segun la ruta). El logo va DETRAS del SVG del chart (que
+   es transparente) → se ve como fondo tenue al 5%. */
+.light body[data-section="mercados"] .recharts-wrapper {
+  position: relative;
+}
+.light body[data-section="mercados"] .recharts-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/logo-header.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(40%, 240px);
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
+}
+
 @theme inline {
   /* ACA Valores + Bloomberg palette */
   --color-aca-blue: #094293;
