@@ -35,14 +35,14 @@ export function BreakevenChart({ pares }: { pares: BreakevenPar[] }) {
       <LineChart data={data} margin={{ top: 15, right: 20, bottom: 5, left: 10 }}>
         <XAxis
           dataKey="name"
-          tick={{ fill: "#808080", fontSize: 10 }}
-          axisLine={{ stroke: "#2a2a2a" }}
+          tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+          axisLine={{ stroke: "var(--t-border-2)" }}
           tickLine={false}
         />
         <YAxis
           domain={["dataMin - 0.2", "dataMax + 0.2"]}
-          tick={{ fill: "#808080", fontSize: 10 }}
-          axisLine={{ stroke: "#2a2a2a" }}
+          tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+          axisLine={{ stroke: "var(--t-border-2)" }}
           tickLine={false}
           tickFormatter={(v: number) => `${v.toFixed(1)}%`}
         />

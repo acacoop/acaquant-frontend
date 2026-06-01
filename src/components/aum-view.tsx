@@ -156,8 +156,8 @@ function TabTasaFija({ operador }: { operador: string }) {
           <div className="flex-1 min-h-0 p-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
-                <XAxis dataKey="fecha" tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
-                <YAxis tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
+                <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
+                <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
                 <Tooltip
                   contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
                   formatter={(v, _, entry) => [`${Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, String((entry as { payload?: { ticker?: string } })?.payload?.ticker ?? "")]}
@@ -354,8 +354,8 @@ function TabCer({ operador }: { operador: string }) {
           <div className="flex-1 min-h-0 p-2">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
-                <XAxis dataKey="fecha" tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
-                <YAxis tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
+                <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
+                <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
                 <Tooltip
                   contentStyle={{ background: "#0e0e0e", border: "1px solid #2a2a2a", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
                   formatter={(v, _, entry) => [`${Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, String((entry as { payload?: { ticker?: string } })?.payload?.ticker ?? "")]}
@@ -935,8 +935,8 @@ export function AumView() {
                     </defs>
                     <XAxis
                       dataKey="fecha"
-                      tick={{ fill: "#808080", fontSize: 9 }}
-                      axisLine={{ stroke: "#2a2a2a" }}
+                      tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
                       tickLine={false}
                       tickFormatter={(v: string) => fmtFecha(v)}
                       interval={Math.max(0, Math.floor(chartData.length / 8))}
@@ -947,8 +947,8 @@ export function AumView() {
                     <YAxis
                       domain={[yScale.min, yScale.max]}
                       ticks={yScale.ticks}
-                      tick={{ fill: "#808080", fontSize: 9 }}
-                      axisLine={{ stroke: "#2a2a2a" }}
+                      tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
                       tickLine={false}
                       tickFormatter={(v: number) => fmtCompact(v)}
                       width={55}

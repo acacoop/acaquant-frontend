@@ -703,8 +703,8 @@ export function ContrapartesView() {
                         </defs>
                         <XAxis
                           dataKey="label"
-                          tick={{ fill: "#808080", fontSize: 9 }}
-                          axisLine={{ stroke: "#2a2a2a" }}
+                          tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                          axisLine={{ stroke: "var(--t-border-2)" }}
                           tickLine={false}
                           interval={Math.max(
                             0,
@@ -717,8 +717,8 @@ export function ContrapartesView() {
                         <YAxis
                           domain={[yScale.min, yScale.max]}
                           ticks={yScale.ticks}
-                          tick={{ fill: "#808080", fontSize: 9 }}
-                          axisLine={{ stroke: "#2a2a2a" }}
+                          tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                          axisLine={{ stroke: "var(--t-border-2)" }}
                           tickLine={false}
                           tickFormatter={(v: number) => fmtCompact(v)}
                           width={55}

@@ -534,11 +534,11 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   {metric === "aum" ? (
                     // AuM es saldo continuo → línea.
                     <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
-                      <CartesianGrid stroke="#161616" vertical={false} />
+                      <CartesianGrid stroke="var(--t-border)" vertical={false} />
                       <XAxis
                         dataKey="fecha"
-                        tick={{ fill: "#808080", fontSize: 10 }}
-                        axisLine={{ stroke: "#2a2a2a" }}
+                        tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--t-border-2)" }}
                         tickLine={false}
                         tickFormatter={(v: string) => fmtBucket(v, agg)}
                         interval={tickInterval}
@@ -548,8 +548,8 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         minTickGap={4}
                       />
                       <YAxis
-                        tick={{ fill: "#808080", fontSize: 10 }}
-                        axisLine={{ stroke: "#2a2a2a" }}
+                        tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--t-border-2)" }}
                         tickLine={false}
                         tickFormatter={(v) => fmtAum(Number(v))}
                         width={56}
@@ -574,11 +574,11 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   ) : (
                     // Volumen es flujo → barras.
                     <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 20, left: 8 }}>
-                      <CartesianGrid stroke="#161616" vertical={false} />
+                      <CartesianGrid stroke="var(--t-border)" vertical={false} />
                       <XAxis
                         dataKey="fecha"
-                        tick={{ fill: "#808080", fontSize: 10 }}
-                        axisLine={{ stroke: "#2a2a2a" }}
+                        tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--t-border-2)" }}
                         tickLine={false}
                         tickFormatter={(v: string) => fmtBucket(v, agg)}
                         interval={tickInterval}
@@ -588,8 +588,8 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         minTickGap={4}
                       />
                       <YAxis
-                        tick={{ fill: "#808080", fontSize: 10 }}
-                        axisLine={{ stroke: "#2a2a2a" }}
+                        tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--t-border-2)" }}
                         tickLine={false}
                         tickFormatter={(v) => fmtAum(Number(v))}
                         width={56}

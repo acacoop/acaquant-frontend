@@ -482,11 +482,11 @@ function HistoricoTab() {
           ) : (
             <ResponsiveContainer key={vpKey} width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 28, left: 4 }}>
-                <CartesianGrid stroke="#1a1a1a" vertical={false} />
+                <CartesianGrid stroke="var(--t-border)" vertical={false} />
                 <XAxis
                   dataKey="fecha"
-                  tick={{ fill: "#808080", fontSize: 10 }}
-                  axisLine={{ stroke: "#2a2a2a" }}
+                  tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                  axisLine={{ stroke: "var(--t-border-2)" }}
                   tickLine={false}
                   angle={-35}
                   textAnchor="end"
@@ -495,8 +495,8 @@ function HistoricoTab() {
                   interval={Math.max(0, Math.floor(chartData.length / 12))}
                 />
                 <YAxis
-                  tick={{ fill: "#808080", fontSize: 10 }}
-                  axisLine={{ stroke: "#2a2a2a" }}
+                  tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                  axisLine={{ stroke: "var(--t-border-2)" }}
                   tickLine={false}
                   tickFormatter={(v: number) => `${v.toFixed(1)}%`}
                   width={55}

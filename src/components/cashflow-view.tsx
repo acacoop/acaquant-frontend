@@ -470,8 +470,8 @@ function MonedaChart({
               >
                 <XAxis
                   dataKey="label"
-                  tick={{ fill: "#808080", fontSize: 10 }}
-                  axisLine={{ stroke: "#2a2a2a" }}
+                  tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                  axisLine={{ stroke: "var(--t-border-2)" }}
                   tickLine={false}
                   interval={xInterval}
                   angle={-45}
@@ -481,13 +481,13 @@ function MonedaChart({
                 <YAxis
                   domain={[yScale.min, yScale.max]}
                   ticks={yScale.ticks}
-                  tick={{ fill: "#808080", fontSize: 10 }}
-                  axisLine={{ stroke: "#2a2a2a" }}
+                  tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                  axisLine={{ stroke: "var(--t-border-2)" }}
                   tickLine={false}
                   tickFormatter={(v: number) => fmtCompact(v)}
                   width={60}
                 />
-                <ReferenceLine y={0} stroke="#2a2a2a" />
+                <ReferenceLine y={0} stroke="var(--t-border-2)" />
                 <Tooltip
                   contentStyle={{
                     background: "#0e0e0e",

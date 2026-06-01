@@ -241,11 +241,11 @@ export function RecursosPanel() {
             >
               <XAxis
                 dataKey="t"
-                tick={{ fontSize: 10, fill: "#777" }}
+                tick={{ fontSize: 10, fill: "var(--t-text-muted)" }}
                 interval="preserveStartEnd"
                 minTickGap={40}
               />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#777" }} />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--t-text-muted)" }} />
               <Tooltip
                 contentStyle={{
                   background: "#0a0a0a",

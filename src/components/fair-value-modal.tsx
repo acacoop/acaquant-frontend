@@ -116,8 +116,8 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
                 <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
                   <XAxis
                     dataKey="fecha"
-                    tick={{ fill: "#808080", fontSize: 10 }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
                     angle={-35}
                     textAnchor="end"
@@ -126,8 +126,8 @@ export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
                     interval={Math.max(0, Math.floor(chartData.length / 10))}
                   />
                   <YAxis
-                    tick={{ fill: "#808080", fontSize: 10 }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
                     tickFormatter={(v: number) => `${v.toFixed(0)}bps`}
                     width={55}

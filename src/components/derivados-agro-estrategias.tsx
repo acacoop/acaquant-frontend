@@ -387,15 +387,15 @@ export function DerivadosAgroEstrategias({
                         data={sim.curva_estrategia}
                         margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
                       >
-                        <CartesianGrid stroke="#1a1a1a" />
+                        <CartesianGrid stroke="var(--t-border)" />
                         <XAxis
                           dataKey="x"
-                          tick={{ fill: "#666", fontSize: 10 }}
-                          stroke="#2a2a2a"
+                          tick={{ fill: "var(--t-text-muted)", fontSize: 10 }}
+                          stroke="var(--t-border-2)"
                         />
                         <YAxis
-                          tick={{ fill: "#666", fontSize: 10 }}
-                          stroke="#2a2a2a"
+                          tick={{ fill: "var(--t-text-muted)", fontSize: 10 }}
+                          stroke="var(--t-border-2)"
                         />
                         <Tooltip
                           contentStyle={{
@@ -448,15 +448,15 @@ export function DerivadosAgroEstrategias({
                         data={sim.curva_diferencias}
                         margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
                       >
-                        <CartesianGrid stroke="#1a1a1a" />
+                        <CartesianGrid stroke="var(--t-border)" />
                         <XAxis
                           dataKey="x"
-                          tick={{ fill: "#666", fontSize: 10 }}
-                          stroke="#2a2a2a"
+                          tick={{ fill: "var(--t-text-muted)", fontSize: 10 }}
+                          stroke="var(--t-border-2)"
                         />
                         <YAxis
-                          tick={{ fill: "#666", fontSize: 10 }}
-                          stroke="#2a2a2a"
+                          tick={{ fill: "var(--t-text-muted)", fontSize: 10 }}
+                          stroke="var(--t-border-2)"
                         />
                         <Tooltip
                           contentStyle={{

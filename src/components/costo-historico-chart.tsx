@@ -296,22 +296,22 @@ export function CostoHistoricoChart({
             data={serie}
             margin={{ top: 4, right: 12, bottom: 20, left: 4 }}
           >
-            <CartesianGrid stroke="#1a1a1a" vertical={false} />
+            <CartesianGrid stroke="var(--t-border)" vertical={false} />
             <XAxis
               dataKey="idx"
               type="number"
               domain={[0, Math.max(0, serie.length - 1)]}
               ticks={xTicks}
-              tick={{ fill: "#808080", fontSize: 9 }}
-              axisLine={{ stroke: "#2a2a2a" }}
+              tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+              axisLine={{ stroke: "var(--t-border-2)" }}
               tickLine={false}
               tickFormatter={fmtTickFecha}
               minTickGap={30}
             />
             <YAxis
               domain={yDomain}
-              tick={{ fill: "#808080", fontSize: 9 }}
-              axisLine={{ stroke: "#2a2a2a" }}
+              tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+              axisLine={{ stroke: "var(--t-border-2)" }}
               tickLine={false}
               tickFormatter={fmtCosto}
               tickCount={6}

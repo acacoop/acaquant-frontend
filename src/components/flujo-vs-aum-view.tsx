@@ -248,8 +248,8 @@ export function FlujoVsAumView() {
               >
                 <XAxis
                   dataKey="label"
-                  tick={{ fill: "#808080", fontSize: 10 }}
-                  axisLine={{ stroke: "#2a2a2a" }}
+                  tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                  axisLine={{ stroke: "var(--t-border-2)" }}
                   tickLine={false}
                   interval={Math.max(0, Math.floor(chartData.length / 12))}
                   angle={-35}
@@ -259,8 +259,8 @@ export function FlujoVsAumView() {
                 <YAxis
                   yAxisId="flujo"
                   orientation="left"
-                  tick={{ fill: "#808080", fontSize: 10 }}
-                  axisLine={{ stroke: "#2a2a2a" }}
+                  tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                  axisLine={{ stroke: "var(--t-border-2)" }}
                   tickLine={false}
                   tickFormatter={(v: number) => fmtCompact(v)}
                   width={55}
@@ -273,7 +273,7 @@ export function FlujoVsAumView() {
                   yAxisId="aum"
                   orientation="right"
                   tick={{ fill: COLOR_AUM, fontSize: 10 }}
-                  axisLine={{ stroke: "#2a2a2a" }}
+                  axisLine={{ stroke: "var(--t-border-2)" }}
                   tickLine={false}
                   tickFormatter={(v: number) => fmtCompact(v)}
                   width={60}

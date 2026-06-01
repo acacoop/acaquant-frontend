@@ -138,13 +138,13 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
               type="number"
               dataKey="dias"
               name="Días al vto"
-              tick={{ fill: "#888888", fontSize: 10, fontFamily: "monospace" }}
-              stroke="#1a1a1a"
+              tick={{ fill: "var(--t-text-dim)", fontSize: 10, fontFamily: "monospace" }}
+              stroke="var(--t-border)"
               label={{
                 value: "Días al vencimiento",
                 position: "insideBottom",
                 offset: -16,
-                fill: "#666666",
+                fill: "var(--t-text-muted)",
                 fontSize: 10,
                 fontFamily: "monospace",
               }}
@@ -155,15 +155,15 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
               type="number"
               dataKey="precio"
               name="Precio"
-              tick={{ fill: "#888888", fontSize: 10, fontFamily: "monospace" }}
-              stroke="#1a1a1a"
+              tick={{ fill: "var(--t-text-dim)", fontSize: 10, fontFamily: "monospace" }}
+              stroke="var(--t-border)"
               tickFormatter={fmtPrice}
               label={{
                 value: "Precio",
                 angle: -90,
                 position: "insideLeft",
                 offset: 4,
-                fill: "#666666",
+                fill: "var(--t-text-muted)",
                 fontSize: 10,
                 fontFamily: "monospace",
               }}
@@ -177,7 +177,7 @@ export function FuturosDlrCurveChart({ selectedTicker }: Props) {
                 fontSize: 11,
               }}
               labelStyle={{ color: "#d0d0d0" }}
-              cursor={{ stroke: "#333333", strokeDasharray: "3 3" }}
+              cursor={{ stroke: "var(--t-border-2)", strokeDasharray: "3 3" }}
               formatter={(_value, _name, ctx) => {
                 const p = (ctx as { payload?: Punto })?.payload;
                 if (!p) return ["", ""];

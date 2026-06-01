@@ -905,11 +905,11 @@ export function NegocioView() {
                         }
                       }}
                     >
-                      <CartesianGrid stroke="#161616" vertical={false} />
+                      <CartesianGrid stroke="var(--t-border)" vertical={false} />
                       <XAxis
                         dataKey="fecha"
-                        tick={{ fill: "#808080", fontSize: 10 }}
-                        axisLine={{ stroke: "#2a2a2a" }}
+                        tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--t-border-2)" }}
                         tickLine={false}
                         tickFormatter={(v: string) => fmtBucket(v, agg)}
                         interval={Math.max(0, Math.floor(chartData.length / 14))}
@@ -919,8 +919,8 @@ export function NegocioView() {
                         minTickGap={4}
                       />
                       <YAxis
-                        tick={{ fill: "#808080", fontSize: 10 }}
-                        axisLine={{ stroke: "#2a2a2a" }}
+                        tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                        axisLine={{ stroke: "var(--t-border-2)" }}
                         tickLine={false}
                         tickFormatter={(v: number) => fmtCompact(v)}
                         width={56}

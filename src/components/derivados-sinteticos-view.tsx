@@ -226,13 +226,13 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
                   data={data}
                   margin={{ top: 8, right: 24, bottom: 8, left: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1a1a1a" />
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--t-border)" />
                   <XAxis
                     type="number"
                     dataKey="plazo"
                     domain={["dataMin", "dataMax"]}
                     stroke="#666"
-                    tick={{ fontSize: 9, fill: "#888" }}
+                    tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
                     label={{
                       value: "Días",
                       position: "insideBottom",
@@ -242,7 +242,7 @@ function CurvaTnaChart({ titulo, rows }: { titulo: string; rows: ChartRow[] }) {
                   />
                   <YAxis
                     stroke="#666"
-                    tick={{ fontSize: 9, fill: "#888" }}
+                    tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
                     tickFormatter={(v: number) => `${v.toFixed(0)}%`}
                     domain={yDomain ?? ["auto", "auto"]}
                   />

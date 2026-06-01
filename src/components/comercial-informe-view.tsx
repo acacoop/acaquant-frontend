@@ -232,14 +232,14 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
         <div className="h-full w-full p-2">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={seg?.segmentos ?? []} margin={{ top: 8, right: 12, bottom: 40, left: 0 }}>
-              <CartesianGrid stroke="#161616" vertical={false} />
+              <CartesianGrid stroke="var(--t-border)" vertical={false} />
               <XAxis
-                dataKey="segmento" tick={{ fill: "#808080", fontSize: 9 }}
-                axisLine={{ stroke: "#2a2a2a" }} tickLine={false}
+                dataKey="segmento" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
                 angle={-35} textAnchor="end" height={48} interval={0}
               />
               <YAxis
-                tick={{ fill: "#808080", fontSize: 10 }} axisLine={{ stroke: "#2a2a2a" }}
+                tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }}
                 tickLine={false} allowDecimals={false} width={36}
               />
               <Tooltip

@@ -491,17 +491,17 @@ export function CurvasChart({
                 type="number"
                 domain={[xMin, xMax]}
                 ticks={xTicks}
-                tick={{ fill: "#808080", fontSize: 10 }}
-                axisLine={{ stroke: "#2a2a2a" }}
+                tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                axisLine={{ stroke: "var(--t-border-2)" }}
                 tickLine={false}
                 tickFormatter={(v: number) => v.toFixed(1)}
-                label={{ value: "Duration (años)", position: "insideBottom", offset: -4, fill: "#555555", fontSize: 10 }}
+                label={{ value: "Duration (años)", position: "insideBottom", offset: -4, fill: "var(--t-text-muted)", fontSize: 10 }}
               />
               <YAxis
                 domain={[yMin, yMax]}
                 ticks={yTicks}
-                tick={{ fill: "#808080", fontSize: 10 }}
-                axisLine={{ stroke: "#2a2a2a" }}
+                tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                axisLine={{ stroke: "var(--t-border-2)" }}
                 tickLine={false}
                 tickFormatter={(v: number) => `${v.toFixed(curva === "cer" ? 1 : 2)}%`}
               />

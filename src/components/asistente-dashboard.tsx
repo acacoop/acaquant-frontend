@@ -443,14 +443,14 @@ export function AsistenteDashboard() {
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={series} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
-                  <CartesianGrid stroke="#1a1a1a" strokeDasharray="1 3" />
+                  <CartesianGrid stroke="var(--t-border)" strokeDasharray="1 3" />
                   <XAxis
                     dataKey="bucket"
                     tickFormatter={fmtTime}
-                    tick={{ fontSize: 9, fill: "#555555" }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                   />
-                  <YAxis tick={{ fontSize: 9, fill: "#555555" }} axisLine={{ stroke: "#2a2a2a" }} />
+                  <YAxis tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} axisLine={{ stroke: "var(--t-border-2)" }} />
                   <Tooltip
                     contentStyle={{
                       background: "#0e0e0e",
@@ -479,16 +479,16 @@ export function AsistenteDashboard() {
             <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={series} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
-                  <CartesianGrid stroke="#1a1a1a" strokeDasharray="1 3" />
+                  <CartesianGrid stroke="var(--t-border)" strokeDasharray="1 3" />
                   <XAxis
                     dataKey="bucket"
                     tickFormatter={fmtTime}
-                    tick={{ fontSize: 9, fill: "#555555" }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                   />
                   <YAxis
-                    tick={{ fontSize: 9, fill: "#555555" }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                     tickFormatter={fmtK}
                   />
                   <Tooltip

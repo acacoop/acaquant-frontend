@@ -91,16 +91,16 @@ export function DolarMepTimeSalesChart({ rueda }: { rueda: Rueda }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-        <CartesianGrid stroke="#1a1a1a" strokeDasharray="3 3" />
+        <CartesianGrid stroke="var(--t-border)" strokeDasharray="3 3" />
         <XAxis
           dataKey="hora"
           stroke="#666"
-          tick={{ fontSize: 9, fill: "#888" }}
+          tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
           minTickGap={24}
         />
         <YAxis
           stroke="#666"
-          tick={{ fontSize: 9, fill: "#888" }}
+          tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
           domain={[lo - pad, hi + pad]}
           tickFormatter={(v) => v.toFixed(2)}
           width={50}

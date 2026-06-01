@@ -518,19 +518,19 @@ export function CompararInversionView() {
               <ResponsiveContainer width="100%" height="100%">
                 {vista === "mes" ? (
                   <BarChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 18 }}>
-                    <CartesianGrid stroke="#1a1a1a" strokeDasharray="2 3" vertical={false} />
+                    <CartesianGrid stroke="var(--t-border)" strokeDasharray="2 3" vertical={false} />
                     <XAxis
                       dataKey="mes"
-                      tick={{ fontSize: 9, fill: "#808080" }}
-                      axisLine={{ stroke: "#2a2a2a" }}
+                      tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
                       tickLine={false}
                       angle={-35}
                       textAnchor="end"
                       height={36}
                     />
                     <YAxis
-                      tick={{ fontSize: 9, fill: "#808080" }}
-                      axisLine={{ stroke: "#2a2a2a" }}
+                      tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
                       tickLine={false}
                       width={70}
                       tickFormatter={fmtAxisMoney}
@@ -552,19 +552,19 @@ export function CompararInversionView() {
                   </BarChart>
                 ) : (
                   <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 18 }}>
-                    <CartesianGrid stroke="#1a1a1a" strokeDasharray="2 3" vertical={false} />
+                    <CartesianGrid stroke="var(--t-border)" strokeDasharray="2 3" vertical={false} />
                     <XAxis
                       dataKey="mes"
-                      tick={{ fontSize: 9, fill: "#808080" }}
-                      axisLine={{ stroke: "#2a2a2a" }}
+                      tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
                       tickLine={false}
                       angle={-35}
                       textAnchor="end"
                       height={36}
                     />
                     <YAxis
-                      tick={{ fontSize: 9, fill: "#808080" }}
-                      axisLine={{ stroke: "#2a2a2a" }}
+                      tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
+                      axisLine={{ stroke: "var(--t-border-2)" }}
                       tickLine={false}
                       width={70}
                       tickFormatter={fmtAxisMoney}

@@ -231,7 +231,7 @@ function ReturnsHistogram({ data }: { data: TickerReturns | null }) {
             x2={W - padding.right}
             y1={H - padding.bottom}
             y2={H - padding.bottom}
-            stroke="#2a2a2a"
+            stroke="var(--t-border-2)"
             strokeWidth={1}
           />
 

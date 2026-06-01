@@ -556,8 +556,8 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       {/* FILA SUPERIOR: gráfico (50%) + tabla mensual (50%), juntos */}
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
 
-        {/* Chart panel — izquierda */}
-        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+        {/* Chart panel — izquierda (más ancho que la tabla mensual) */}
+        <div className="w-[58%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Evolución mensual · [{idCuenta}]
@@ -644,11 +644,11 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       <stop offset="100%" stopColor="#4a9eff" stopOpacity={0.03} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid stroke="#161616" vertical={false} />
+                  <CartesianGrid stroke="var(--t-border)" vertical={false} />
                   <XAxis
                     dataKey="mes"
-                    tick={{ fill: "#808080", fontSize: 10 }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
                     tickFormatter={(v: string) => fmtMesCorto(v)}
                     angle={-30}
@@ -662,7 +662,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     ticks={yScale.ticks}
                     allowDataOverflow
                     tick={{ fill: "#4a9eff", fontSize: 10 }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
                     tickFormatter={(v: number) => fmtCompact(v)}
                     width={64}
@@ -674,7 +674,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                     yAxisId="der"
                     orientation="right"
                     tick={{ fill: "#ff9900", fontSize: 10 }}
-                    axisLine={{ stroke: "#2a2a2a" }}
+                    axisLine={{ stroke: "var(--t-border-2)" }}
                     tickLine={false}
                     tickFormatter={(v: number) => v.toFixed(1)}
                     width={48}
@@ -730,7 +730,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         </div>
 
         {/* Tabla mensual compacta — derecha (con flujos inline al seleccionar un mes) */}
-        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+        <div className="w-[42%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Mensual

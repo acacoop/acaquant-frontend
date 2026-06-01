@@ -372,8 +372,8 @@ function BreakevensGrafico({
             domain={["dataMin", "dataMax"]}
             ticks={xTicksShown}
             scale="time"
-            tick={{ fill: "#808080", fontSize: 10 }}
-            axisLine={{ stroke: "#2a2a2a" }}
+            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+            axisLine={{ stroke: "var(--t-border-2)" }}
             tickLine={false}
             angle={-45}
             textAnchor="end"
@@ -385,8 +385,8 @@ function BreakevensGrafico({
           <YAxis
             domain={[yScale.min, yScale.max]}
             ticks={yScale.ticks}
-            tick={{ fill: "#808080", fontSize: 10 }}
-            axisLine={{ stroke: "#2a2a2a" }}
+            tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+            axisLine={{ stroke: "var(--t-border-2)" }}
             tickLine={false}
             tickFormatter={(v: number) => `${v.toFixed(1)}%`}
           />

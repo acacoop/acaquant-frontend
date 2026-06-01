@@ -60,19 +60,19 @@ export function PayoffChart({
           data={data}
           margin={{ top: 4, right: 12, bottom: 20, left: 4 }}
         >
-          <CartesianGrid stroke="#1a1a1a" vertical={false} />
+          <CartesianGrid stroke="var(--t-border)" vertical={false} />
           <XAxis
             dataKey="x"
             type="number"
             domain={["dataMin", "dataMax"]}
-            tick={{ fill: "#808080", fontSize: 9 }}
-            axisLine={{ stroke: "#2a2a2a" }}
+            tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+            axisLine={{ stroke: "var(--t-border-2)" }}
             tickLine={false}
             tickFormatter={fmtX}
           />
           <YAxis
-            tick={{ fill: "#808080", fontSize: 9 }}
-            axisLine={{ stroke: "#2a2a2a" }}
+            tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+            axisLine={{ stroke: "var(--t-border-2)" }}
             tickLine={false}
             tickFormatter={fmtY}
             width={50}
