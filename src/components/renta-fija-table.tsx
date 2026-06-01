@@ -34,12 +34,14 @@ export function RentaFijaTable({
 
   const tickerCurvaMap: Record<string, string> = {};
   const tickerVtoMap: Record<string, string> = {};
+  const tickerFlujoVtoMap: Record<string, number> = {};
   const tickerFijadoSet = new Set<string>();
   for (const f of flujos) {
     // curva_efectiva mueve los CER fijados a tasa_fija; si no viene
     // (backend viejo) caemos a la curva original.
     tickerCurvaMap[f.ticker] = f.curva_efectiva ?? f.curva;
     if (f.fecha_vencimiento) tickerVtoMap[f.ticker] = f.fecha_vencimiento;
+    if (f.flujo_vencimiento != null) tickerFlujoVtoMap[f.ticker] = f.flujo_vencimiento;
     if (f.cer_fijado) tickerFijadoSet.add(f.ticker);
   }
 
@@ -105,7 +107,12 @@ export function RentaFijaTable({
                 <th className="!px-1 text-center">LAST</th>
                 <th className="!px-1 text-center">Intra</th>
                 <th className="!px-1 text-center">1D</th>
-                <th className="!px-1 text-center">VWAP</th>
+                <th
+                  className="!px-1 text-center"
+                  title={curva === "tasa_fija" ? "Pago al vencimiento por 100 VN (bullet)" : undefined}
+                >
+                  {curva === "tasa_fija" ? "Pago Final" : "VWAP"}
+                </th>
                 <th className="!px-1 text-center">TNA</th>
                 <th className="!px-1 text-center">TEA</th>
                 {curva === "tasa_fija" && (
@@ -190,7 +197,9 @@ export function RentaFijaTable({
                         : "--"}
                     </td>
                     <td className="!px-1 text-right text-[var(--t-text-dim)]">
-                      {fmtPrice(r.metrics?.vwap)}
+                      {curva === "tasa_fija"
+                        ? fmtPrice(tickerFlujoVtoMap[short])
+                        : fmtPrice(r.metrics?.vwap)}
                     </td>
                     <td className="!px-1 text-right text-[var(--t-text)]">
                       {tna !== null ? `${tna.toFixed(1)}%` : "--"}

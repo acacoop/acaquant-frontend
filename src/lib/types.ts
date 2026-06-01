@@ -107,6 +107,9 @@ export interface FlujoTicker {
    *  `_bonos_cer_fijados()` en cada request. */
   cer_fijado?: boolean;
   fecha_vencimiento?: string;
+  /** Pago al vencimiento por 100 VN (bullet de tasa fija / cupón cero). Sólo
+   *  presente para bonos con flujo bullet; se muestra como "Pago Final". */
+  flujo_vencimiento?: number | null;
 }
 
 export interface BreakevenPar {
