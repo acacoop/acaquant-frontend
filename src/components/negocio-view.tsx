@@ -1022,22 +1022,24 @@ export function NegocioView() {
 
             {/* POR CATEGORÍA leaderboard (order-1 → arriba) */}
             <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden shrink-0 order-1">
-              <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-                <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-                  Por categoría · {vistaMode === "DIA"
-                    ? (fecha ? fmtFechaCorta(fecha) : "—")
-                    : "Período"}
-                </span>
-                <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">
-                  Total {fmtCompact(totalActual)} {moneda}
-                </span>
-              </div>
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="bg-[var(--t-surface-2)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                {/* Una sola franja sticky sólida: nombres de columna = título.
+                    El total del período va integrado en la celda IMPORTE. */}
+                <thead className="sticky top-0 z-10 text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
                   <tr>
-                    <th className="px-3 py-1 text-left">Categoría</th>
-                    <th className="px-3 py-1 text-right">Importe</th>
-                    <th className="px-3 py-1 text-right">%</th>
+                    <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
+                      Categoría
+                      <span className="ml-1.5 normal-case tracking-normal text-[var(--t-text-muted)]">
+                        · {vistaMode === "DIA" ? (fecha ? fmtFechaCorta(fecha) : "—") : "Período"}
+                      </span>
+                    </th>
+                    <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
+                      Importe
+                      <span className="ml-1.5 normal-case tracking-normal text-[var(--t-text-muted)]">
+                        Σ {fmtCompact(totalActual)}
+                      </span>
+                    </th>
+                    <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">%</th>
                   </tr>
                 </thead>
                 <tbody>
