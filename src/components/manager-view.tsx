@@ -1,32 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-
-// Sub-paneles cargados on-demand (cada tab trae su JS al seleccionarse, en vez
-// de bundlear los 16 en la carga inicial de /manager). ssr:false → son
-// client-only (charts/fetches) y la page ya es force-dynamic. Turbopack exige
-// que las options de dynamic() sean un objeto literal inline (no una variable).
-function Loading() {
-  return <div className="p-4 text-[11px] text-[var(--t-text-muted)]">Cargando…</div>;
-}
-
-const AsistenteDashboard = dynamic(() => import("./asistente-dashboard").then((m) => m.AsistenteDashboard), { ssr: false, loading: Loading });
-const ChatView = dynamic(() => import("./chat-view").then((m) => m.ChatView), { ssr: false, loading: Loading });
-const AunesaExplorarPanel = dynamic(() => import("./aunesa-explorar-panel").then((m) => m.AunesaExplorarPanel), { ssr: false, loading: Loading });
-const AunesaAumPanel = dynamic(() => import("./aunesa-aum-panel").then((m) => m.AunesaAumPanel), { ssr: false, loading: Loading });
-const AunesaPosicionPanel = dynamic(() => import("./aunesa-posicion-panel").then((m) => m.AunesaPosicionPanel), { ssr: false, loading: Loading });
-const AunesaBoletosPanel = dynamic(() => import("./aunesa-boletos-panel").then((m) => m.AunesaBoletosPanel), { ssr: false, loading: Loading });
-const JobsRunsPanel = dynamic(() => import("./jobs-runs-panel").then((m) => m.JobsRunsPanel), { ssr: false, loading: Loading });
-const GruposPanel = dynamic(() => import("./grupos-panel").then((m) => m.GruposPanel), { ssr: false, loading: Loading });
-const ComercialPanel = dynamic(() => import("./comercial-panel").then((m) => m.ComercialPanel), { ssr: false, loading: Loading });
-const LogsPanel = dynamic(() => import("./logs-panel").then((m) => m.LogsPanel), { ssr: false, loading: Loading });
-const ManagerDebugXirrPanel = dynamic(() => import("./manager-debug-xirr").then((m) => m.ManagerDebugXirrPanel), { ssr: false, loading: Loading });
-const ManagerDebugSegmentoPanel = dynamic(() => import("./manager-debug-segmento").then((m) => m.ManagerDebugSegmentoPanel), { ssr: false, loading: Loading });
-const ManagerDebugComercialPanel = dynamic(() => import("./manager-debug-comercial").then((m) => m.ManagerDebugComercialPanel), { ssr: false, loading: Loading });
-const RecursosPanel = dynamic(() => import("./recursos-panel").then((m) => m.RecursosPanel), { ssr: false, loading: Loading });
-const RolesPanel = dynamic(() => import("./roles-panel").then((m) => m.RolesPanel), { ssr: false, loading: Loading });
-const UsuariosPanel = dynamic(() => import("./usuarios-panel").then((m) => m.UsuariosPanel), { ssr: false, loading: Loading });
+// Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
+// su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
+// estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
+// Manager es admin-only y se prioriza la velocidad de navegación entre tabs).
+import { AsistenteDashboard } from "./asistente-dashboard";
+import { ChatView } from "./chat-view";
+import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
+import { AunesaAumPanel } from "./aunesa-aum-panel";
+import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
+import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
+import { JobsRunsPanel } from "./jobs-runs-panel";
+import { GruposPanel } from "./grupos-panel";
+import { ComercialPanel } from "./comercial-panel";
+import { LogsPanel } from "./logs-panel";
+import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
+import { ManagerDebugSegmentoPanel } from "./manager-debug-segmento";
+import { ManagerDebugComercialPanel } from "./manager-debug-comercial";
+import { RecursosPanel } from "./recursos-panel";
+import { RolesPanel } from "./roles-panel";
+import { UsuariosPanel } from "./usuarios-panel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
