@@ -78,14 +78,16 @@ async function getJson<T>(url: string, fallback: T): Promise<T> {
   }
 }
 
-function Panel({ title, extra, children }: { title: string; extra?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, extra, children, fill }: { title: string; extra?: React.ReactNode; children: React.ReactNode; fill?: boolean }) {
+  // fill=true: el body llena el panel sin scroll (para charts → ResponsiveContainer
+  // necesita un contenedor con altura concreta, no overflow-auto que lo colapsa).
   return (
     <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
         <span className="text-[9px] text-[var(--t-text-dim)] tracking-widest uppercase mr-auto">{title}</span>
         {extra}
       </div>
-      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+      <div className={`flex-1 min-h-0 ${fill ? "relative" : "overflow-auto"}`}>{children}</div>
     </div>
   );
 }
@@ -209,6 +211,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
       {/* Q1 — Cuentas por segmento (barras) + selector temporal estilo cashflow */}
       <Panel
+        fill
         title={`Cuentas por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${seg ? ` · ${seg.total}` : ""}`}
         extra={
           <div className="flex items-center gap-1">
@@ -229,7 +232,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
           </div>
         }
       >
-        <div className="h-full w-full p-2">
+        <div className="absolute inset-0 p-2">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={seg?.segmentos ?? []} margin={{ top: 8, right: 12, bottom: 40, left: 0 }}>
               <CartesianGrid stroke="var(--t-border)" vertical={false} />

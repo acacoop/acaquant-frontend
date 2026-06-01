@@ -55,6 +55,13 @@ function modulesForPath(path: string): string[] | null {
   return null;
 }
 
+// Cache en memoria de /api/me por email (TTL corto). El middleware corría un
+// fetch bloqueante al backend en CADA navegación → lag al cambiar de vista.
+// Con esto, navegaciones seguidas del mismo user reusan el resultado. Costo:
+// un cambio de permisos tarda hasta TTL en reflejarse (aceptable).
+const ME_TTL_MS = 30_000;
+const meCache = new Map<string, { modules: string[]; exp: number }>();
+
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
@@ -110,14 +117,23 @@ export async function proxy(request: NextRequest) {
   // fetches fallaran. Un trader llegando vía URL directa veía la página
   // por un instante. Fail-closed evita ese flash.
   try {
-    const res = await fetch(`${apiUrl}/api/me`, { headers, cache: "no-store" });
-    if (!res.ok) {
-      return path.startsWith("/api/")
-        ? NextResponse.json({ error: "auth_failed" }, { status: 502 })
-        : NextResponse.redirect(new URL("/", request.url));
+    // Cache hit: evita el round-trip al backend en navegaciones seguidas.
+    const cached = email ? meCache.get(email) : undefined;
+    let modules: string[];
+    if (cached && cached.exp > Date.now()) {
+      modules = cached.modules;
+    } else {
+      const res = await fetch(`${apiUrl}/api/me`, { headers, cache: "no-store" });
+      if (!res.ok) {
+        return path.startsWith("/api/")
+          ? NextResponse.json({ error: "auth_failed" }, { status: 502 })
+          : NextResponse.redirect(new URL("/", request.url));
+      }
+      const me = (await res.json()) as { modules: string[] };
+      modules = me.modules ?? [];
+      if (email) meCache.set(email, { modules, exp: Date.now() + ME_TTL_MS });
     }
-    const me = (await res.json()) as { modules: string[] };
-    const ok = requiredModules.some((m) => me.modules?.includes(m));
+    const ok = requiredModules.some((m) => modules.includes(m));
     if (!ok) {
       if (path.startsWith("/api/")) {
         return NextResponse.json(

@@ -397,7 +397,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis"], ["informe", "Informe"]] as [SubView, string][]).map(
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["informe", "Informe"]] as [SubView, string][]).map(
             ([v, label]) => (
               <button
                 key={v}

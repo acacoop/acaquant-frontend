@@ -208,8 +208,11 @@ function fmtSigned(n: number | null | undefined): string {
 }
 
 function fmtFechaCorta(s: string): string {
-  const [y, m, d] = s.split("-");
-  return `${d}/${m}/${y.slice(-2)}`;
+  // Solo formatea fechas ISO YYYY-MM-DD. Cualquier otra cosa (placeholder "-",
+  // vacío, "NO APLICA") → "—". Antes "-".split("-") daba "undefined//".
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m) return "—";
+  return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
 }
 
 function fmtMesCorto(s: string): string {
