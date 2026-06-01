@@ -972,6 +972,11 @@ export function NegocioView() {
                               <Cell
                                 key={i}
                                 fill={muted ? MUTED_BAR_COLOR : "var(--t-brand)"}
+                                // Borde del MISMO color que el relleno: tapa la
+                                // costura de ~1px entre segmentos apilados (en
+                                // claro el fondo blanco se colaba como rayas).
+                                stroke={muted ? MUTED_BAR_COLOR : "var(--t-brand)"}
+                                strokeWidth={1}
                               />
                             );
                           })}
