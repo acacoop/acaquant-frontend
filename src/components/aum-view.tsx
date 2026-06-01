@@ -193,6 +193,16 @@ function fmtFecha(k: string): string {
   return `${d}/${m}/${y.slice(-2)}`;
 }
 
+// Eje X: las fechas de snapshot son irregulares (06/25, 28/02/26, 03/04/26…) →
+// quedan "raras". Mostramos solo mes-año abreviado (ej. "may 26"). El día completo
+// queda en el tooltip (fmtFecha).
+const _MES_ABBR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+function fmtMesAnioX(k: string): string {
+  const [y, m] = k.split("-");
+  const mi = Number(m) - 1;
+  return `${_MES_ABBR[mi] ?? m} ${y.slice(-2)}`;
+}
+
 function niceScale(
   min: number,
   max: number,
@@ -938,11 +948,12 @@ export function AumView() {
                       tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
                       axisLine={{ stroke: "var(--t-border-2)" }}
                       tickLine={false}
-                      tickFormatter={(v: string) => fmtFecha(v)}
-                      interval={Math.max(0, Math.floor(chartData.length / 8))}
-                      angle={-35}
-                      textAnchor="end"
-                      height={28}
+                      tickFormatter={(v: string) => fmtMesAnioX(v)}
+                      minTickGap={28}
+                      tickMargin={6}
+                      angle={0}
+                      textAnchor="middle"
+                      height={20}
                     />
                     <YAxis
                       domain={[yScale.min, yScale.max]}
