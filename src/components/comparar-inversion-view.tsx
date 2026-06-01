@@ -104,8 +104,9 @@ function fmtFechaCorta(s: string): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCFullYear()).slice(2)}`;
 }
 
-const bonoOptionLabel = (b: BonoSeleccionable): string =>
-  `${b.moneda} · ${b.label}${b.cer_fijado ? " (CER fij.)" : ""} · ${b.curva} · ${b.vencimiento ?? "—"}`;
+// Display compacto: sólo el ticker. El detalle (curva/vto/moneda) se ve en la
+// tabla de métricas una vez elegido; acá el foco es elegir/escribir rápido.
+const bonoOptionLabel = (b: BonoSeleccionable): string => b.label;
 
 function BonoSelector({
   label,
@@ -189,11 +190,14 @@ function BonoSelector({
                   key={b.id}
                   type="button"
                   onClick={() => pick(b)}
-                  className={`block w-full text-left px-2 py-0.5 text-[10px] font-mono hover:bg-[var(--t-accent)]/10 ${
+                  className={`flex w-full items-baseline justify-between text-left px-2 py-0.5 text-[10px] font-mono hover:bg-[var(--t-accent)]/10 ${
                     b.id === selected ? "text-[var(--t-accent)]" : "text-[var(--t-text)]"
                   }`}
                 >
-                  {bonoOptionLabel(b)}
+                  <span className="font-semibold">{b.label}</span>
+                  <span className="text-[var(--t-text-muted)] text-[8px] ml-2 shrink-0">
+                    {b.moneda}{b.vencimiento ? ` · ${b.vencimiento}` : ""}
+                  </span>
                 </button>
               ))
             )}
@@ -232,7 +236,7 @@ export function CompararInversionView() {
   const [aId, setAId] = useState("");
   const [bId, setBId] = useState("");
   const [monto, setMonto] = useState("1000000");
-  const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  const [moneda, setMoneda] = useState<"ARS" | "USD">("USD");
   // Modo del gráfico: "renta" = solo cupones (default, así no los aplasta el
   // bullet de amortización); "total" = cupón + capital apilados.
   const [modoChart, setModoChart] = useState<"renta" | "total">("renta");

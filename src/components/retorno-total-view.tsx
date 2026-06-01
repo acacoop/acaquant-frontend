@@ -79,7 +79,7 @@ function fmtFechaCorta(s: string): string {
 type EstrategiaTab = "retorno_total" | "sensibilidad" | "canje" | "descomposicion" | "comparar";
 
 export function RetornoTotalView() {
-  const [tab, setTab] = useState<EstrategiaTab>("retorno_total");
+  const [tab, setTab] = useState<EstrategiaTab>("comparar");
 
   return (
     <div className="h-full min-h-0 flex flex-col">
