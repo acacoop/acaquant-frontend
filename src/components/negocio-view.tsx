@@ -1022,23 +1022,17 @@ export function NegocioView() {
 
             {/* POR CATEGORÍA leaderboard (order-1 → arriba) */}
             <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden shrink-0 order-1">
+              {/* Barra fina: total del período (dato, no título). */}
+              <div className="flex items-center px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 text-[10px] font-mono">
+                <span className="ml-auto text-[var(--t-text-dim)]">
+                  Σ {fmtCompact(totalActual)} {moneda}
+                </span>
+              </div>
               <table className="w-full text-[11px] font-mono tabular-nums">
-                {/* Una sola franja sticky sólida: nombres de columna = título.
-                    El total del período va integrado en la celda IMPORTE. */}
                 <thead className="sticky top-0 z-10 text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
                   <tr>
-                    <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
-                      Categoría
-                      <span className="ml-1.5 normal-case tracking-normal text-[var(--t-text-muted)]">
-                        · {vistaMode === "DIA" ? (fecha ? fmtFechaCorta(fecha) : "—") : "Período"}
-                      </span>
-                    </th>
-                    <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
-                      Importe
-                      <span className="ml-1.5 normal-case tracking-normal text-[var(--t-text-muted)]">
-                        Σ {fmtCompact(totalActual)}
-                      </span>
-                    </th>
+                    <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">Categoría</th>
+                    <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">Importe</th>
                     <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">%</th>
                   </tr>
                 </thead>

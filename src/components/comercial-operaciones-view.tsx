@@ -1198,22 +1198,20 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
         {/* DER — Distribución por nivel (arriba, click = filtra clientes) + Riesgo de churn (abajo) */}
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
           <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+            {/* Barra fina: solo el botón de descarga (sin título — el nombre de
+                columna ya lo dice). */}
+            <div className="flex items-center px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="ml-auto"><DownloadBtn onClick={dlPorNivel} /></span>
+            </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                {/* Una sola franja sticky sólida: columnas = título. El botón XLS
-                    y el hint van integrados en la última celda (AuM). */}
                 <thead className="sticky top-0 z-10 text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
                   <tr>
-                    <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
-                      Nivel 1
-                      <span className="ml-1.5 normal-case tracking-normal text-[var(--t-text-muted)]">· {porNivel.length} · click filtra</span>
-                    </th>
+                    <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">Nivel 1</th>
                     <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas totales asignadas al segmento">Ctas. Tot.</th>
                     <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas que operaron en el mes calendario actual">Activas</th>
                     <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="% activas sobre el total del segmento">%</th>
-                    <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
-                      <span className="inline-flex items-center gap-1.5 justify-end">AuM <DownloadBtn onClick={dlPorNivel} /></span>
-                    </th>
+                    <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">AuM</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1248,32 +1246,30 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
           </div>
 
           <div className="flex-[3_1_0%] min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+            {/* Barra fina: chips de filtro activos (si hay) + botón descarga. Sin título. */}
+            <div className="flex items-center gap-2 px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 min-h-[26px]">
+              {nivelSel && <span className="text-[10px] text-[var(--t-accent)] font-mono truncate max-w-[160px]">· {nivelSel}</span>}
+              {nivel3Sel && (
+                <span className="text-[10px] text-[var(--t-accent)] font-mono inline-flex items-center gap-1">
+                  · {nivel3Sel}
+                  <button onClick={() => setNivel3Sel(null)} className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Quitar filtro de nivel 3">×</button>
+                </span>
+              )}
+              <span className="ml-auto"><DownloadBtn onClick={dlNivel3} /></span>
+            </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {nivel3Det.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">Sin datos.</div>
               ) : (
                 <table className="w-full text-[11px] font-mono tabular-nums">
-                  {/* Una sola franja sticky sólida: columnas = título. Chips de
-                      filtro (nivelSel/nivel3Sel) + XLS integrados en el encabezado. */}
                   <thead className="sticky top-0 z-10 text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
                     <tr>
-                      <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
-                        Nivel 3
-                        {nivelSel && <span className="ml-1.5 normal-case tracking-normal text-[var(--t-text-muted)] truncate">· {nivelSel}</span>}
-                        {nivel3Sel && (
-                          <span className="ml-1 normal-case tracking-normal inline-flex items-center gap-1">
-                            · {nivel3Sel}
-                            <button onClick={() => setNivel3Sel(null)} className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Quitar filtro de nivel 3">×</button>
-                          </span>
-                        )}
-                      </th>
+                      <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">Nivel 3</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Suma del cupo transaccional (USD al MEP) del segmento.">Cupo Trans. (USD)</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Suma del cupo libre = transaccional − usado (USD).">Cupo Libre (USD)</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas con estado Activa.">Activas</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas con estado Enfriándose.">Enfr.</th>
-                      <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">
-                        <span className="inline-flex items-center gap-1.5 justify-end">AuM <DownloadBtn onClick={dlNivel3} /></span>
-                      </th>
+                      <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">AuM</th>
                     </tr>
                   </thead>
                   <tbody>
