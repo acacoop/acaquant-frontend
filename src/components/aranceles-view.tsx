@@ -30,10 +30,10 @@ function fmtPeriodo(p: string): string {
   const [, m, d] = p.split("-"); return `${d}/${m}`;
 }
 
+type Modo = "ULTIMA" | "DIA" | "TODOS";
+
 export function ArancelesView() {
   const [moneda, setMoneda] = useState<Moneda>("ARS");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
   const [agg, setAgg] = useState<Agg>("MENSUAL");
   const [segmento, setSegmento] = useState("");
   const [segmentos, setSegmentos] = useState<string[]>([]);
@@ -41,31 +41,49 @@ export function ArancelesView() {
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
+  const [modo, setModo] = useState<Modo>("ULTIMA");
+  const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
+  const [idx, setIdx] = useState(0);
+  const [meta, setMeta] = useState<{ n_boletos: number } | null>(null);
+
+  const fecha = fechas[idx]?.fecha ?? "";
+  const rango = useMemo(() => {
+    if (!fechas.length) return { desde: "", hasta: "" };
+    if (modo === "TODOS") return { desde: fechas[fechas.length - 1].fecha, hasta: fechas[0].fecha };
+    return { desde: fecha, hasta: fecha };
+  }, [fechas, modo, fecha]);
 
   useEffect(() => {
     (async () => {
       try {
         const r = await fetch("/api/operaciones/ops/fechas", { cache: "no-store" });
         const j = r.ok ? await r.json() : null;
-        const f: { fecha: string }[] = j?.fechas ?? [];
-        if (f.length) { setHasta((h) => h || f[0].fecha); setDesde((d) => d || f[f.length - 1].fecha); }
+        setFechas(j?.fechas ?? []);
         const s = await fetch("/api/operaciones/ops/segmentos", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null);
         setSegmentos(s?.segmentos ?? []);
       } catch { /* */ }
     })();
   }, []);
 
+  useEffect(() => { if (modo === "ULTIMA") setIdx(0); }, [modo]);
+
   useEffect(() => {
-    if (!desde || !hasta) return;
+    if (modo === "TODOS" || !fecha) { setMeta(null); return; }
+    fetch(`/api/operaciones/ops/meta?fecha=${fecha}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null)).then((j) => setMeta(j?.meta ?? null)).catch(() => setMeta(null));
+  }, [fecha, modo]);
+
+  useEffect(() => {
+    if (!rango.desde || !rango.hasta) return;
     setLoading(true);
-    const qs = `moneda=${moneda}&desde=${desde}&hasta=${hasta}&agg=${agg}`
+    const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=${agg}`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
       + (selN3 ? `&nivel3=${encodeURIComponent(selN3)}` : "")
       + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "");
     fetch(`/api/operaciones/ops/aranceles?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [moneda, desde, hasta, agg, segmento, selN3, selCuenta]);
+  }, [moneda, rango.desde, rango.hasta, agg, segmento, selN3, selCuenta]);
 
   const chartData = useMemo(() => (data?.serie ?? []).map((r) => ({ x: fmtPeriodo(r.periodo), arancel: r.arancel })), [data]);
   const total = data?.total ?? 0;
@@ -74,35 +92,41 @@ export function ArancelesView() {
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
-      {/* Filtros */}
-      <div className="flex items-end flex-wrap gap-3 px-4 py-2 border-b border-[var(--t-border)] shrink-0 text-[11px]">
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
-          <input type="date" value={desde} max={hasta} onChange={(e) => setDesde(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 font-mono outline-none [color-scheme:dark]" />
-        </label>
-        <label className="flex flex-col gap-0.5">
-          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Hasta</span>
-          <input type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 font-mono outline-none [color-scheme:dark]" />
-        </label>
+      {/* Filtros — modelo ÚLTIMA/DÍA/TODOS (tablas del día; gráfico histórico) */}
+      <div className="flex items-center flex-wrap gap-2 px-4 py-2 border-b border-[var(--t-border)] shrink-0 text-[11px]">
         <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          <button onClick={() => { setModo("DIA"); setIdx((i) => Math.min(i + 1, fechas.length - 1)); }} disabled={idx >= fechas.length - 1} className="px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30">‹</button>
+          <button onClick={() => { setModo("DIA"); setIdx((i) => Math.max(i - 1, 0)); }} disabled={idx <= 0} className="px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30">›</button>
+        </div>
+        {(["ULTIMA", "DIA", "TODOS"] as Modo[]).map((m) => (
+          <button key={m} onClick={() => setModo(m)} className={"px-2 py-0.5 border text-[11px] font-semibold " + (modo === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]")}>{m}</button>
+        ))}
+        <span className="font-mono text-[12px] text-[var(--t-accent)] mx-1">
+          {modo === "TODOS" ? "histórico" : (fecha || "—")}
+        </span>
+        {meta && modo !== "TODOS" && (
+          <><span className="text-[#333]">│</span>
+          <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-wider">
+            Boletos: <span className="text-[var(--t-text)] font-mono">{meta.n_boletos}</span>
+          </span></>
+        )}
+        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] ml-2">
           {(["DIARIO", "MENSUAL"] as Agg[]).map((a) => (
-            <button key={a} onClick={() => setAgg(a)} className={"px-2 py-1 text-[9px] uppercase tracking-wider " + (agg === a ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{a}</button>
+            <button key={a} onClick={() => setAgg(a)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (agg === a ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{a}</button>
           ))}
         </div>
         <select value={segmento} onChange={(e) => setSegmento(e.target.value)}
-          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 outline-none [color-scheme:dark]">
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-2 py-0.5 outline-none [color-scheme:dark]">
           <option value="">Todos los segmentos</option>
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           {(["ARS", "USD"] as Moneda[]).map((m) => (
-            <button key={m} onClick={() => setMoneda(m)} className={"px-3 py-1 text-[10px] uppercase tracking-wider " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
+            <button key={m} onClick={() => setMoneda(m)} className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
           ))}
         </div>
         {(selN3 || selCuenta) && (
-          <button onClick={() => { setSelN3(null); setSelCuenta(null); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-1">✕ {selN3 || selCuenta}</button>
+          <button onClick={() => { setSelN3(null); setSelCuenta(null); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ {selN3 || selCuenta}</button>
         )}
         <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
           TOTAL: <span className="text-[var(--t-text)] font-semibold">{fmtCompact(total)} {moneda}</span>{loading ? " · cargando…" : ""}
