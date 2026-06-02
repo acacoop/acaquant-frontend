@@ -111,14 +111,14 @@ export function ArancelesView() {
 
       {/* Cuerpo 50/50 */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
-        {/* IZQUIERDA: nivel_3 (chico) + gráfico (grande) */}
-        <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
-          <div className="border border-[var(--t-border)] flex flex-col overflow-hidden shrink-0 max-h-[45%]">
+        {/* IZQUIERDA: nivel_3 (arriba) + gráfico (abajo) — tamaños FIJOS */}
+        <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por nivel 3</span>
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(total)} {moneda}</span>
             </div>
-            <div className="overflow-auto">
+            <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <tbody>
                   {n3.map((r) => {
@@ -137,7 +137,7 @@ export function ArancelesView() {
               </table>
             </div>
           </div>
-          <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] uppercase tracking-widest text-[var(--t-text-muted)] shrink-0">
               Aranceles operados · {moneda}
             </div>

@@ -104,15 +104,15 @@ export function AgroView() {
 
       {/* Cuerpo 50/50 */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
-        {/* IZQUIERDA: tabla commodity chica (arriba) + gráfico grande (abajo) */}
-        <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+        {/* IZQUIERDA: tabla commodity (arriba) + gráfico (abajo) — tamaños FIJOS */}
+        <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
           {/* Por commodity */}
-          <div className="border border-[var(--t-border)] flex flex-col overflow-hidden shrink-0">
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por commodity</span>
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtTon(totGral)} t</span>
             </div>
-            <div>
+            <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <tbody>
                   {COMMS.filter((c) => tot[c.key] !== 0).map((c) => {
@@ -133,8 +133,8 @@ export function AgroView() {
               </table>
             </div>
           </div>
-          {/* Gráfico (grande) */}
-          <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+          {/* Gráfico */}
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado · toneladas</span>
               {desde && hasta && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{desde.slice(5)} → {hasta.slice(5)}</span>}
