@@ -2038,6 +2038,7 @@ type ClienteFondeo = {
   id_cuenta: string;
   denominacion?: string | null;
   tipo_cliente?: string | null;
+  nivel_3?: string | null;
   operador_nombre?: string | null;
   cupo?: Cupo | null;
 };
@@ -2053,6 +2054,7 @@ function TabClientesFondeos() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [soloCargados, setSoloCargados] = useState(true);
+  const [nivelSel, setNivelSel] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -2076,12 +2078,27 @@ function TabClientesFondeos() {
 
   useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const visibles = soloCargados
-    ? rows.filter((c) => {
-        const lf = c.cupo;
-        return lf && (lf.transaccional_ars != null || lf.usado_ars != null);
-      })
-    : rows;
+  // Resumen de segmentación (nivel_3) sobre TODAS las cuentas — para ver de un
+  // vistazo cuántas hay por nivel y cuántas sin segmentar. Click en un chip
+  // filtra la tabla por ese nivel.
+  const nivel3De = (c: ClienteFondeo) => c.nivel_3 || "(sin segmentar)";
+  const tieneCupo = (c: ClienteFondeo) =>
+    !!(c.cupo && (c.cupo.transaccional_ars != null || c.cupo.usado_ars != null));
+  const resumenNivel = (() => {
+    const m = new Map<string, number>();
+    for (const c of rows) m.set(nivel3De(c), (m.get(nivel3De(c)) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) =>
+      // "(sin segmentar)" siempre al final; el resto por count desc.
+      (a[0] === "(sin segmentar)" ? 1 : 0) - (b[0] === "(sin segmentar)" ? 1 : 0) || b[1] - a[1]);
+  })();
+  const nSinSegmentar = rows.filter((c) => !c.nivel_3).length;
+  const nConCupo = rows.filter(tieneCupo).length;
+
+  const visibles = rows.filter((c) => {
+    if (nivelSel && nivel3De(c) !== nivelSel) return false;
+    if (soloCargados) return tieneCupo(c);
+    return true;
+  });
 
   // Import .csv / .xlsx. Headers válidos: id_cuenta, cupo_transaccional,
   // cupo_usado. Solo se mandan filas con al menos un valor cargado.
@@ -2203,6 +2220,34 @@ function TabClientesFondeos() {
           <button onClick={() => setImportMsg(null)} className="ml-2 text-[var(--t-text-dim)] hover:text-white">✕</button>
         </div>
       )}
+
+      {/* Resumen de segmentación (nivel_3) — chips clickeables que filtran la tabla.
+          "(sin segmentar)" resaltado en ámbar para verlo de un vistazo. */}
+      <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] mr-1">Nivel 3:</span>
+        <button onClick={() => setNivelSel(null)}
+          className={"px-2 py-0.5 text-[10px] border tabular-nums " + (nivelSel === null ? "border-[var(--t-accent)] text-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)]")}>
+          TODAS <span className="font-semibold">{rows.length}</span>
+        </button>
+        {resumenNivel.map(([n, c]) => {
+          const sinSeg = n === "(sin segmentar)";
+          const active = nivelSel === n;
+          return (
+            <button key={n} onClick={() => setNivelSel(active ? null : n)}
+              className={"px-2 py-0.5 text-[10px] border tabular-nums " + (active
+                ? "border-[var(--t-accent)] text-[var(--t-accent)] bg-[var(--t-accent)]/10"
+                : sinSeg
+                  ? "border-amber-500/50 text-amber-400 hover:border-amber-500"
+                  : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)]")}>
+              {n} <span className="font-semibold">{c}</span>
+            </button>
+          );
+        })}
+        <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">
+          sin segmentar <span className="font-semibold text-amber-400">{nSinSegmentar}</span>
+          {" · "}con cupo <span className="font-semibold text-[var(--t-text)]">{nConCupo}</span>
+        </span>
+      </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
         {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
