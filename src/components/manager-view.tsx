@@ -2691,28 +2691,58 @@ function OperacionesBackfillPanel() {
   const subir = async () => {
     if (busy || !rows.length) return;
     setBusy(true); setMsg(null); setResult(null);
-    const total = Math.ceil(rows.length / OPS_BATCH);
-    const acc = { recibidas: 0, upsertadas: 0, modificadas: 0, sin_boleto: 0 };
-    try {
-      for (let i = 0; i < total; i++) {
-        const batch = rows.slice(i * OPS_BATCH, (i + 1) * OPS_BATCH);
-        const res = await fetch("/api/manager/operaciones/backfill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows: batch, crear_indice: i === 0 }),
-        });
-        if (!res.ok) {
-          let detail = `HTTP ${res.status}`;
-          try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
-          throw new Error(detail);
-        }
-        const j = await res.json();
-        acc.recibidas += j.recibidas ?? 0;
-        acc.upsertadas += j.upsertadas ?? 0;
-        acc.modificadas += j.modificadas ?? 0;
-        acc.sin_boleto += j.sin_boleto ?? 0;
-        setProgress({ done: i + 1, total });
+
+    // Dedup por boleto en TODO el archivo (última fila gana). Así ningún boleto
+    // aparece en dos lotes → se pueden mandar EN PARALELO sin chocar contra el
+    // índice único (y de paso achica el total).
+    const normH = (h: string) =>
+      h.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const bHeader = headers.find((h) => normH(h) === "boleto");
+    let unique: Record<string, unknown>[] = rows;
+    if (bHeader) {
+      const map = new Map<string, Record<string, unknown>>();
+      for (const r of rows) {
+        const b = String(r[bHeader] ?? "").trim();
+        if (b) map.set(b, r);
       }
+      unique = [...map.values()];
+    }
+
+    const batches: Record<string, unknown>[][] = [];
+    for (let i = 0; i < unique.length; i += OPS_BATCH) batches.push(unique.slice(i, i + OPS_BATCH));
+    const total = batches.length;
+    const acc = { recibidas: 0, upsertadas: 0, modificadas: 0, sin_boleto: 0 };
+    let done = 0;
+
+    const send = async (batch: Record<string, unknown>[], crear: boolean) => {
+      const res = await fetch("/api/manager/operaciones/backfill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: batch, crear_indice: crear }),
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+        throw new Error(detail);
+      }
+      const j = await res.json();
+      acc.recibidas += j.recibidas ?? 0;
+      acc.upsertadas += j.upsertadas ?? 0;
+      acc.modificadas += j.modificadas ?? 0;
+      acc.sin_boleto += j.sin_boleto ?? 0;
+      done++;
+      setProgress({ done, total });
+    };
+
+    try {
+      if (!total) { setMsg({ ok: false, text: "Nada para subir." }); return; }
+      // Primer lote solo (crea el índice) y después el resto en paralelo (pool de 6).
+      await send(batches[0], true);
+      let next = 1;
+      const worker = async () => {
+        for (let i = next++; i < total; i = next++) await send(batches[i], false);
+      };
+      await Promise.all(Array.from({ length: Math.min(6, Math.max(total - 1, 1)) }, worker));
       setResult(acc);
       setMsg({ ok: true, text: `Listo: ${acc.upsertadas} nuevas, ${acc.modificadas} actualizadas, ${acc.sin_boleto} sin boleto.` });
       loadStats();
