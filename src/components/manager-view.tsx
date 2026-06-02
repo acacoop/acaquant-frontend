@@ -2715,23 +2715,33 @@ function OperacionesBackfillPanel() {
     let done = 0;
 
     const send = async (batch: Record<string, unknown>[], crear: boolean) => {
-      const res = await fetch("/api/manager/operaciones/backfill", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: batch, crear_indice: crear }),
-      });
-      if (!res.ok) {
-        let detail = `HTTP ${res.status}`;
-        try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
-        throw new Error(detail);
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const res = await fetch("/api/manager/operaciones/backfill", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rows: batch, crear_indice: crear }),
+          });
+          if (!res.ok) {
+            let detail = `HTTP ${res.status}`;
+            try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+            throw new Error(detail);
+          }
+          const j = await res.json();
+          acc.recibidas += j.recibidas ?? 0;
+          acc.upsertadas += j.upsertadas ?? 0;
+          acc.modificadas += j.modificadas ?? 0;
+          acc.sin_boleto += j.sin_boleto ?? 0;
+          done++;
+          setProgress({ done, total });
+          return;
+        } catch (e) {
+          lastErr = e;
+          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));  // backoff y reintenta
+        }
       }
-      const j = await res.json();
-      acc.recibidas += j.recibidas ?? 0;
-      acc.upsertadas += j.upsertadas ?? 0;
-      acc.modificadas += j.modificadas ?? 0;
-      acc.sin_boleto += j.sin_boleto ?? 0;
-      done++;
-      setProgress({ done, total });
+      throw lastErr;  // falló las 3 veces
     };
 
     try {
@@ -2742,7 +2752,7 @@ function OperacionesBackfillPanel() {
       const worker = async () => {
         for (let i = next++; i < total; i = next++) await send(batches[i], false);
       };
-      await Promise.all(Array.from({ length: Math.min(6, Math.max(total - 1, 1)) }, worker));
+      await Promise.all(Array.from({ length: Math.min(4, Math.max(total - 1, 1)) }, worker));
       setResult(acc);
       setMsg({ ok: true, text: `Listo: ${acc.upsertadas} nuevas, ${acc.modificadas} actualizadas, ${acc.sin_boleto} sin boleto.` });
       loadStats();
