@@ -1,63 +1,30 @@
 "use client";
 
 // OPERACIONES → AGRO: mismo formato que Operaciones, pero en TONELADAS de Futuros
-// Agropecuarios. Izq: Σ ton por commodity (arriba) + gráfico (abajo, más alto).
-// Der: Σ ton por cuenta. Tablas = día (modelo ÚLTIMA/DÍA/TODOS); gráfico =
-// histórico con rango (1W/1M/…/ALL) + agg + foco día + maximizar.
+// Agropecuarios. Izq: Σ ton por commodity (arriba) + gráfico (abajo, OpsBarChart).
+// Der: Σ ton por cuenta. Tablas = día (modelo ÚLTIMA/DÍA/TODOS); el gráfico trae
+// la serie DIARIA y agrega/filtra en cliente (toolbar idéntico a OPERACIONES).
 // Endpoint: /api/operaciones/ops/agro.
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
+import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
 
-type Agg = "DIARIO" | "MENSUAL";
 type Modo = "ULTIMA" | "DIA" | "TODOS";
-type RangoKey = "1W" | "1M" | "3M" | "YTD" | "1A" | "ALL";
-type SerieRow = { periodo: string; SOJA: number; TRIGO: number; MAIZ: number };
+type AgroSerieRow = { periodo: string; SOJA: number; TRIGO: number; MAIZ: number };
 type CuentaRow = { denominacion: string; toneladas: number; n: number };
 type Resp = {
-  serie: SerieRow[];
+  serie: AgroSerieRow[];
   totales: { SOJA: number; TRIGO: number; MAIZ: number };
   por_cuenta: CuentaRow[];
 };
 
-const COMMS = [
+const COMMS: SerieDef[] = [
   { key: "SOJA", label: "Soja", color: "#22c55e" },
   { key: "TRIGO", label: "Trigo", color: "#eab308" },
   { key: "MAIZ", label: "Maíz", color: "#3b82f6" },
-] as const;
-const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-const MUTED = "var(--t-border-2)";
+];
 
 const fmtTon = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
-const fmtMesCorto = (s: string) => { const [y, m] = s.split("-").map(Number); return `${MESES[m - 1]} ${String(y).slice(-2)}`; };
-
-function bucketKey(fecha: string, agg: Agg): string {
-  return agg === "MENSUAL" ? fecha.slice(0, 7) : fecha;
-}
-function filtrarRango(serie: SerieRow[], rango: RangoKey, offset: number): SerieRow[] {
-  if (rango === "ALL" || !serie.length) return serie;
-  if (rango === "YTD") {
-    const yyyy = new Date().getFullYear() - offset;
-    return serie.filter((s) => s.periodo.startsWith(`${yyyy}-`));
-  }
-  const n = rango === "1W" ? 5 : rango === "1M" ? 22 : rango === "3M" ? 65 : 252;
-  const end = serie.length - offset * n;
-  return serie.slice(Math.max(0, end - n), Math.max(0, end));
-}
-function aggSerie(serie: SerieRow[], agg: Agg): { key: string; x: string; SOJA: number; TRIGO: number; MAIZ: number }[] {
-  const m = new Map<string, { SOJA: number; TRIGO: number; MAIZ: number }>();
-  for (const p of serie) {
-    const k = bucketKey(p.periodo, agg);
-    const cur = m.get(k) ?? { SOJA: 0, TRIGO: 0, MAIZ: 0 };
-    cur.SOJA += p.SOJA; cur.TRIGO += p.TRIGO; cur.MAIZ += p.MAIZ;
-    m.set(k, cur);
-  }
-  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([k, v]) => ({ key: k, x: agg === "MENSUAL" ? fmtMesCorto(k) : fmtFechaCorta(k), ...v }));
-}
 
 export function AgroView() {
   const [modo, setModo] = useState<Modo>("ULTIMA");
@@ -68,12 +35,6 @@ export function AgroView() {
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
-  // Controles del gráfico (histórico)
-  const [agg, setAgg] = useState<Agg>("MENSUAL");
-  const [rango, setRango] = useState<RangoKey>("YTD");
-  const [rangoOffset, setRangoOffset] = useState(0);
-  const [focoDia, setFocoDia] = useState(false);
-  const [maxi, setMaxi] = useState(false);
 
   const fecha = fechas[idx]?.fecha ?? "";
   const rangoFecha = useMemo(() => {
@@ -95,8 +56,8 @@ export function AgroView() {
       .then((r) => r.ok ? r.json() : null).then((j) => setMeta(j?.meta ?? null)).catch(() => setMeta(null));
   }, [modo, fecha]);
 
-  // Datos: tablas = rango [desde,hasta]; serie = histórica DIARIA (se agrega/filtra
-  // en cliente). Por eso pedimos agg=DIARIO siempre; el toggle del gráfico no refetch.
+  // Tablas = rango [desde,hasta]; serie = histórica DIARIA (se agrega/filtra en
+  // cliente). Por eso pedimos agg=DIARIO siempre; el toolbar del gráfico no refetch.
   useEffect(() => {
     if (!rangoFecha.desde || !rangoFecha.hasta) return;
     setLoading(true);
@@ -108,54 +69,14 @@ export function AgroView() {
       .catch(() => setData(null)).finally(() => setLoading(false));
   }, [rangoFecha.desde, rangoFecha.hasta, selComm, selCuenta]);
 
-  const serie = useMemo(() => data?.serie ?? [], [data]);
-  const chartData = useMemo(() => aggSerie(filtrarRango(serie, rango, rangoOffset), agg), [serie, rango, rangoOffset, agg]);
-  const totalPeriodo = useMemo(() => chartData.reduce((a, p) => a + p.SOJA + p.TRIGO + p.MAIZ, 0), [chartData]);
-  const focoKey = modo === "DIA" && focoDia && fecha ? bucketKey(fecha, agg) : null;
+  const chartSerie = useMemo<SerieRow[]>(
+    () => (data?.serie ?? []).map((p) => ({ fecha: p.periodo, SOJA: p.SOJA, TRIGO: p.TRIGO, MAIZ: p.MAIZ })),
+    [data],
+  );
+  const series = useMemo(() => COMMS.filter((c) => !selComm || selComm === c.key), [selComm]);
   const tot = data?.totales ?? { SOJA: 0, TRIGO: 0, MAIZ: 0 };
   const totGral = tot.SOJA + tot.TRIGO + tot.MAIZ;
   const cuentas = data?.por_cuenta ?? [];
-
-  const Chart = (
-    <BarChart data={chartData} margin={{ top: 6, right: 10, left: 6, bottom: 4 }} barCategoryGap="12%">
-      <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-      <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} angle={-35} textAnchor="end" height={28} />
-      <YAxis tickFormatter={fmtTon} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={56}
-        domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
-      <Tooltip formatter={(v, n) => [`${fmtTon(Number(v))} t`, String(n)]}
-        contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
-      <Legend wrapperStyle={{ fontSize: 9 }} />
-      {COMMS.filter((c) => !selComm || selComm === c.key).map((c) => (
-        <Bar key={c.key} dataKey={c.key} name={c.label} isAnimationActive={false} maxBarSize={64}>
-          {chartData.map((d, i) => (
-            <Cell key={i} fill={focoKey && d.key !== focoKey ? MUTED : c.color} />
-          ))}
-        </Bar>
-      ))}
-    </BarChart>
-  );
-
-  const chartHeader = (
-    <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-      <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado · toneladas</span>
-      {chartData.length > 0 && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{chartData[0].x} → {chartData[chartData.length - 1].x}</span>}
-      <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span><span className="text-[var(--t-accent)] font-semibold">{fmtTon(totalPeriodo)} t</span></span>
-      <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-        {(["DIARIO", "MENSUAL"] as Agg[]).map((k) => (
-          <button key={k} onClick={() => setAgg(k)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (agg === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
-        ))}
-      </div>
-      <button onClick={() => setRangoOffset((o) => o + 1)} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)]" title="Período anterior">◀</button>
-      <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-        {(["1W", "1M", "3M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
-          <button key={k} onClick={() => { setRango(k); setRangoOffset(0); }} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (rango === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
-        ))}
-      </div>
-      <button onClick={() => setRangoOffset((o) => Math.max(0, o - 1))} disabled={rangoOffset === 0} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] disabled:opacity-30" title="Período siguiente">▶</button>
-      <button onClick={() => setFocoDia((v) => !v)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[var(--t-border-2)] " + (focoDia ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>Foco día {focoDia ? "✓" : "○"}</button>
-      <button onClick={() => setMaxi((v) => !v)} className="px-2 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Maximizar gráfico">⤢</button>
-    </div>
-  );
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
@@ -198,7 +119,8 @@ export function AgroView() {
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <tbody>
-                  {COMMS.filter((c) => tot[c.key] !== 0).map((c) => {
+                  {COMMS.filter((c) => tot[c.key as "SOJA" | "TRIGO" | "MAIZ"] !== 0).map((c) => {
+                    const ck = c.key as "SOJA" | "TRIGO" | "MAIZ";
                     const act = selComm === c.key;
                     return (
                       <tr key={c.key} onClick={() => { setSelComm(act ? null : c.key); setSelCuenta(null); }}
@@ -206,8 +128,8 @@ export function AgroView() {
                         <td className="px-3 py-1">
                           <span className="inline-block w-2 h-2 mr-2" style={{ background: c.color }} />{c.label}
                         </td>
-                        <td className="px-3 py-1 text-right font-semibold">{fmtTon(tot[c.key])} t</td>
-                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{totGral ? ((tot[c.key] / totGral) * 100).toFixed(0) : "0"}%</td>
+                        <td className="px-3 py-1 text-right font-semibold">{fmtTon(tot[ck])} t</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{totGral ? ((tot[ck] / totGral) * 100).toFixed(0) : "0"}%</td>
                       </tr>
                     );
                   })}
@@ -217,12 +139,8 @@ export function AgroView() {
             </div>
           </div>
           {/* Gráfico */}
-          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-            {chartHeader}
-            <div className="flex-1 min-h-0 p-2 wm-corner">
-              <ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer>
-            </div>
-          </div>
+          <OpsBarChart serie={chartSerie} series={series} fmt={fmtTon} unidad="toneladas" defaultAgg="MENSUAL"
+            focoFecha={modo === "DIA" ? fecha : null} />
         </div>
 
         {/* DERECHA: por cuenta */}
@@ -258,16 +176,6 @@ export function AgroView() {
           </div>
         </div>
       </div>
-
-      {/* Gráfico maximizado */}
-      {maxi && (
-        <div className="fixed inset-0 z-50 bg-[var(--t-bg)]/95 flex flex-col p-4">
-          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col flex-1 min-h-0 overflow-hidden">
-            {chartHeader}
-            <div className="flex-1 min-h-0 p-2 wm-corner"><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,23 +1,18 @@
 "use client";
 
 // OPERACIONES → MOVIMIENTOS sobre CashFlow.Operaciones.
-// Izq 50%: arriba Σbruto por operacion, abajo gráfico Σbruto por fecha (rango +
-// agregación + foco día + maximizar). Der 50%: Σbruto por denominacion.
+// Izq 50%: arriba Σbruto por operacion, abajo gráfico Σbruto por fecha (OpsBarChart,
+// toolbar rango + agg + foco día + maximizar). Der 50%: Σbruto por denominacion.
 // Interactivo: elegir una operacion o una denominacion filtra la otra tabla + el
 // gráfico. Excluye los "Cierre" (server-side). Filtro de moneda (campo `moneda`).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
+import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 
 type Moneda = "ARS" | "USD";
 type Modo = "ULTIMA" | "DIA" | "TODOS";
-type Agg = "DIARIO" | "SEMANAL" | "MENSUAL";
-type RangoKey = "1W" | "1M" | "3M" | "YTD" | "1A" | "ALL";
 
 type FechaRow = { fecha: string; n: number };
-type SerieRow = { fecha: string; bruto: number };
 type OpRow = { operacion: string; bruto: number; n: number };
 type DenomRow = { denominacion: string; bruto: number; n: number };
 type Meta = { n_boletos: number; ultima_ingesta: string | null };
@@ -28,7 +23,6 @@ type BoletoRow = {
 };
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-const MUTED = "var(--t-border-2)";
 
 function fmtCompact(n: number): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -40,34 +34,10 @@ function fmtCompact(n: number): string {
 }
 const fmtFechaDisplay = (s: string) => { const [y,m,d] = s.split("-").map(Number); return `${d} ${MESES[m-1]} ${y}`; };
 const fmtFechaCorta = (s: string) => { const [y,m,d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
-const fmtMesCorto = (s: string) => { const [y,m] = s.split("-").map(Number); return `${MESES[m-1]} ${String(y).slice(-2)}`; };
 function formatTime(iso: string | null): string {
   if (!iso) return "—";
   try { return new Date(new Date(iso).getTime() - 3 * 3600_000).toISOString().slice(11, 19) + " ART"; }
   catch { return "—"; }
-}
-function lunesDeSemana(fecha: string): string {
-  const d = new Date(fecha + "T00:00:00Z"); const dow = d.getUTCDay(); const off = dow === 0 ? -6 : 1 - dow;
-  return new Date(d.getTime() + off * 86400000).toISOString().slice(0, 10);
-}
-function bucketKey(fecha: string, agg: Agg): string {
-  return agg === "MENSUAL" ? fecha.slice(0, 7) : agg === "SEMANAL" ? lunesDeSemana(fecha) : fecha;
-}
-function filtrarRango(serie: SerieRow[], rango: RangoKey, offset: number): SerieRow[] {
-  if (rango === "ALL" || !serie.length) return serie;
-  if (rango === "YTD") {
-    const yyyy = new Date().getFullYear() - offset;
-    return serie.filter((s) => s.fecha.startsWith(`${yyyy}-`));
-  }
-  const n = rango === "1W" ? 5 : rango === "1M" ? 22 : rango === "3M" ? 65 : 252;
-  const end = serie.length - offset * n;
-  return serie.slice(Math.max(0, end - n), Math.max(0, end));
-}
-function aggSerie(serie: SerieRow[], agg: Agg): { key: string; x: string; bruto: number }[] {
-  const m = new Map<string, number>();
-  for (const p of serie) { const k = bucketKey(p.fecha, agg); m.set(k, (m.get(k) ?? 0) + p.bruto); }
-  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([k, v]) => ({ key: k, x: agg === "MENSUAL" ? fmtMesCorto(k) : fmtFechaCorta(k), bruto: v }));
 }
 async function getJSON<T>(url: string): Promise<T | null> {
   try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? (await r.json()) as T : null; }
@@ -82,11 +52,6 @@ export function OpsView() {
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
   const [boletos, setBoletos] = useState<BoletoRow[]>([]);
   const [modo, setModo] = useState<Modo>("ULTIMA");
-  const [agg, setAgg] = useState<Agg>("DIARIO");
-  const [rango, setRango] = useState<RangoKey>("YTD");
-  const [rangoOffset, setRangoOffset] = useState(0);
-  const [focoDia, setFocoDia] = useState(false);
-  const [maxi, setMaxi] = useState(false);
   const [fechas, setFechas] = useState<FechaRow[]>([]);
   const [idx, setIdx] = useState(0);
   const [selOp, setSelOp] = useState<string | null>(null);
@@ -164,10 +129,6 @@ export function OpsView() {
     })();
   }, [modo, fecha, moneda, rangoFecha.desde, rangoFecha.hasta, selQS, fechas.length]);
 
-  const chartData = useMemo(() => aggSerie(filtrarRango(serie, rango, rangoOffset), agg), [serie, rango, rangoOffset, agg]);
-  const totalPeriodo = useMemo(() => chartData.reduce((a, p) => a + p.bruto, 0), [chartData]);
-  const focoKey = modo === "DIA" && focoDia && fecha ? bucketKey(fecha, agg) : null;
-
   // Drill abreviado: lo que operó la cuenta agrupado por instrumento (Σ bruto + n).
   const porInstrumento = useMemo(() => {
     const m = new Map<string, { instrumento: string; bruto: number; n: number }>();
@@ -184,44 +145,6 @@ export function OpsView() {
     const snap = fechasAsc.includes(picked) ? picked : (fechasAsc.find((f) => f >= picked) ?? fechasAsc[fechasAsc.length - 1]);
     if (snap) { setModo("DIA"); setIdx(fechas.findIndex((f) => f.fecha === snap)); }
   };
-
-  const Chart = (
-    <BarChart data={chartData} margin={{ top: 6, right: 10, left: 6, bottom: 4 }}>
-      <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-      <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
-      <YAxis tickFormatter={fmtCompact} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={48}
-        domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
-      <Tooltip formatter={(v) => `${fmtCompact(Number(v))} ${moneda}`}
-        contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
-      <Bar dataKey="bruto" name="Bruto" isAnimationActive={false}>
-        {chartData.map((d, i) => (
-          <Cell key={i} fill={focoKey && d.key !== focoKey ? MUTED : "var(--t-brand)"} />
-        ))}
-      </Bar>
-    </BarChart>
-  );
-
-  const chartHeader = (
-    <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-      <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado · {moneda}</span>
-      {chartData.length > 0 && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{chartData[0].x} → {chartData[chartData.length - 1].x}</span>}
-      <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span><span className="text-[var(--t-accent)] font-semibold">{fmtCompact(totalPeriodo)}</span></span>
-      <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-        {(["DIARIO","SEMANAL","MENSUAL"] as Agg[]).map((k) => (
-          <button key={k} onClick={() => setAgg(k)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (agg === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
-        ))}
-      </div>
-      <button onClick={() => setRangoOffset((o) => o + 1)} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)]" title="Período anterior">◀</button>
-      <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-        {(["1W","1M","3M","YTD","1A","ALL"] as RangoKey[]).map((k) => (
-          <button key={k} onClick={() => { setRango(k); setRangoOffset(0); }} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (rango === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
-        ))}
-      </div>
-      <button onClick={() => setRangoOffset((o) => Math.max(0, o - 1))} disabled={rangoOffset === 0} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] disabled:opacity-30" title="Período siguiente">▶</button>
-      <button onClick={() => setFocoDia((v) => !v)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[var(--t-border-2)] " + (focoDia ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>Foco día {focoDia ? "✓" : "○"}</button>
-      <button onClick={() => setMaxi((v) => !v)} className="px-2 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Maximizar gráfico">⤢</button>
-    </div>
-  );
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
@@ -306,10 +229,9 @@ export function OpsView() {
             </div>
           </div>
           {/* Gráfico */}
-          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-            {chartHeader}
-            <div className="flex-1 min-h-0 p-2 wm-corner"><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
-          </div>
+          <OpsBarChart serie={serie} fmt={fmtCompact} unidad={moneda} defaultAgg="DIARIO"
+            focoFecha={modo === "DIA" ? fecha : null}
+            series={[{ key: "bruto", label: "Bruto", color: "var(--t-brand)" }]} />
         </div>
 
         {/* DERECHA: por denominacion, o boletos si hay una seleccionada */}
@@ -369,16 +291,6 @@ export function OpsView() {
           )}
         </div>
       </div>
-
-      {/* ── Gráfico maximizado ────────────────────────────────── */}
-      {maxi && (
-        <div className="fixed inset-0 z-50 bg-[var(--t-bg)]/95 flex flex-col p-4">
-          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col flex-1 min-h-0 overflow-hidden">
-            {chartHeader}
-            <div className="flex-1 min-h-0 p-2 wm-corner"><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
