@@ -2057,6 +2057,7 @@ function TabClientesFondeos() {
   const [nivelSel, setNivelSel] = useState<string | null>(null);
   const [nivel3Opts, setNivel3Opts] = useState<string[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [recalc, setRecalc] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -2103,6 +2104,40 @@ function TabClientesFondeos() {
       setImportMsg({ ok: false, text: `No se pudo guardar el nivel 3 de ${id_cuenta}.` });
     } finally {
       setSavingId(null);
+    }
+  };
+
+  // Recalcular nivel_3 patrimonial de TODAS las activas (motor de segmentación).
+  // Preview → confirmación → aplica. NO destructivo (no borra niveles existentes).
+  const recalcularNiveles = async () => {
+    setRecalc(true);
+    setImportMsg(null);
+    try {
+      const post = (apply: boolean) =>
+        fetch("/api/manager/clientes/recalcular-niveles", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apply }),
+        }).then((r) => r.json());
+      const prev = await post(false);
+      if (!prev || prev.evaluadas == null) throw new Error("preview falló");
+      if (!prev.cambios) {
+        setImportMsg({ ok: true, text: "Niveles al día — no hay nada que recalcular." });
+        return;
+      }
+      const warn = prev.sin_uva ? "\n⚠ Sin UVA cargada → las PJ no se calculan." : "";
+      const ok = window.confirm(
+        "Recalcular niveles patrimoniales\n(FCI/contraparte → PJ GRANDE; PH por cupo/MEP; PJ por cupo/UVA).\n\n" +
+        `${prev.cambios} cuentas cambiarían de nivel (de ${prev.evaluadas} activas).\n` +
+        `No borra los niveles existentes — solo asigna lo que puede derivar.${warn}\n\n¿Aplicar?`,
+      );
+      if (!ok) return;
+      const res = await post(true);
+      setImportMsg({ ok: true, text: `✓ Recalculado: ${res.modificadas} niveles actualizados de ${res.evaluadas} cuentas.` });
+      fetchClientes();
+    } catch {
+      setImportMsg({ ok: false, text: "Error al recalcular niveles." });
+    } finally {
+      setRecalc(false);
     }
   };
 
@@ -2275,6 +2310,11 @@ function TabClientesFondeos() {
           sin segmentar <span className="font-semibold text-amber-400">{nSinSegmentar}</span>
           {" · "}con cupo <span className="font-semibold text-[var(--t-text)]">{nConCupo}</span>
         </span>
+        <button onClick={recalcularNiveles} disabled={recalc || loading}
+          className="px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-accent)]/60 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 transition-colors disabled:opacity-40"
+          title="Recalcula el nivel_3 patrimonial de todas las cuentas activas (FCI/contraparte → PJ GRANDE; PH/PJ por cupo). No borra los niveles existentes; previsualiza antes de aplicar.">
+          {recalc ? "Recalculando…" : "⟳ Recalcular niveles"}
+        </button>
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
