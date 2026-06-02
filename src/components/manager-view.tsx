@@ -12,6 +12,7 @@ import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
+import { NegocioView } from "./negocio-view";
 import { GruposPanel } from "./grupos-panel";
 import { ComercialPanel } from "./comercial-panel";
 import { LogsPanel } from "./logs-panel";
@@ -2521,6 +2522,7 @@ type Tab =
   | "clientes"
   | "aunesa"
   | "operaciones"
+  | "movimientos"
   | "asistente"
   | "usuarios";
 
@@ -2842,6 +2844,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   clientes:     ["manager", "manager_clientes"],
   aunesa:       ["manager"],
   operaciones:  ["manager"],
+  movimientos:  ["manager"],
   asistente:    ["manager"],
   usuarios:     ["manager"],
 };
@@ -2856,6 +2859,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "clientes",     label: "CLIENTES"     },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
+    { id: "movimientos",  label: "MOVIMIENTOS"  },
     { id: "asistente",    label: "ASISTENTE"    },
     { id: "usuarios",     label: "USUARIOS"     },
   ];
@@ -2893,6 +2897,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "aunesa"       && <AunesaGroup />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
+        {tab === "movimientos"  && <NegocioView />}
         {tab === "asistente"    && <TabAsistente />}
         {tab === "usuarios"     && <UsuariosGroup />}
       </div>
