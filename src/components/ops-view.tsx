@@ -1,8 +1,9 @@
 "use client";
 
 // OPERACIONES (nueva) → sub-tab MOVIMIENTOS, sobre CashFlow.Operaciones (fuente:
-// API informes). Replica la lógica de NEGOCIO pero con datos limpios + filtro de
-// MERCADO. Endpoints: /api/operaciones/ops/{fechas,meta,mercados,serie,cuentas-matrix}.
+// API informes). Mismo layout que NEGOCIO: filtros arriba · grid 2 columnas →
+// IZQ = POR CATEGORÍA (arriba) + gráfico (abajo); DER = cuentas que operaron.
+// Endpoints: /api/operaciones/ops/{fechas,meta,mercados,serie,cuentas-matrix}.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -12,7 +13,6 @@ import {
 type Moneda = "ARS" | "USD";
 type Modo = "ULTIMA" | "DIA" | "TODOS";
 
-// Categorías (operacion) — mismas claves que el backend (_OPS_CATS).
 const CATS = [
   { key: "compra",             label: "Compra",      color: "#22c55e" },
   { key: "venta",              label: "Venta",       color: "#ef4444" },
@@ -71,7 +71,7 @@ function OpsMovimientos() {
   const [mercados, setMercados] = useState<string[]>([]);
   const [modo, setModo] = useState<Modo>("ULTIMA");
   const [fechas, setFechas] = useState<FechaRow[]>([]);
-  const [idx, setIdx] = useState(0); // índice en `fechas` (0 = más reciente)
+  const [idx, setIdx] = useState(0);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [serie, setSerie] = useState<SerieRow[]>([]);
   const [cuentas, setCuentas] = useState<CuentaRow[]>([]);
@@ -87,7 +87,6 @@ function OpsMovimientos() {
 
   const mercadoQS = mercado ? `&mercado=${encodeURIComponent(mercado)}` : "";
 
-  // Mount: fechas + mercados.
   const cargarBase = useCallback(async () => {
     const [f, m] = await Promise.all([
       getJSON<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas"),
@@ -98,11 +97,8 @@ function OpsMovimientos() {
     setIdx(0);
   }, []);
   useEffect(() => { cargarBase(); }, [cargarBase]);
-
-  // ULTIMA fuerza el más reciente.
   useEffect(() => { if (modo === "ULTIMA") setIdx(0); }, [modo]);
 
-  // Serie (gráfico) — depende de moneda + mercado.
   useEffect(() => {
     (async () => {
       const d = await getJSON<{ serie: SerieRow[] }>(
@@ -112,7 +108,6 @@ function OpsMovimientos() {
     })();
   }, [moneda, mercadoQS]);
 
-  // Meta + matrix de cuentas — depende de modo + fecha + moneda + mercado.
   useEffect(() => {
     if (!fechas.length) return;
     setLoading(true);
@@ -133,26 +128,23 @@ function OpsMovimientos() {
     })();
   }, [modo, fecha, moneda, mercadoQS, rango.desde, rango.hasta, fechas.length]);
 
-  // Datos del gráfico: en DÍA/ÚLTIMA, barras por categoría del día; en TODOS, serie por fecha.
+  // Totales por categoría (suma sobre las cuentas del scope).
+  const catTotales = useMemo(() => {
+    const t: Record<string, number> = {};
+    for (const c of CATS) t[c.key] = cuentas.reduce((a, r) => a + Number(r[c.key] ?? 0), 0);
+    return t;
+  }, [cuentas]);
+  const catsActivas = useMemo(() => CATS.filter((c) => catTotales[c.key] !== 0), [catTotales]);
+
   const chartData = useMemo<Array<Record<string, string | number>>>(() => {
-    if (modo === "TODOS") {
-      return serie.map((r) => ({ ...r, x: r.fecha }));
-    }
+    if (modo === "TODOS") return serie.map((r) => ({ ...r, x: r.fecha }));
     const row = serie.find((r) => r.fecha === fecha);
     return CATS.map((c) => ({ x: c.label, valor: row ? Number(row[c.key] ?? 0) : 0 }));
   }, [modo, serie, fecha]);
 
-  // Qué categorías tienen algún valor (para columnas de la tabla).
-  const catsActivas = useMemo(
-    () => CATS.filter((c) => cuentas.some((r) => Number(r[c.key] ?? 0) !== 0)),
-    [cuentas],
-  );
-
-  const refresh = () => { cargarBase(); };
-
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden">
-      {/* Barra de filtros */}
+      {/* ── Filtros (arriba) ───────────────────────────────────────── */}
       <div className="flex items-center flex-wrap gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 text-[11px]">
         <button onClick={() => setIdx((i) => Math.min(i + 1, fechas.length - 1))}
           disabled={modo !== "DIA" || idx >= fechas.length - 1}
@@ -170,76 +162,110 @@ function OpsMovimientos() {
         {(["ARS", "USD"] as Moneda[]).map((m) => (
           <Pill key={m} active={moneda === m} onClick={() => setMoneda(m)}>{m}</Pill>
         ))}
-        <span className="text-[var(--t-text-muted)]">│</span>
         <select value={mercado} onChange={(e) => setMercado(e.target.value)}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[var(--t-text)] px-2 py-0.5">
           <option value="">Todos los mercados</option>
           {mercados.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
-        <button onClick={refresh} className="px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]">↻ REFRESH</button>
+        <button onClick={() => cargarBase()} className="px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]">↻</button>
         {meta && modo !== "TODOS" && (
           <span className="ml-auto text-[var(--t-text-muted)]">
             BOLETOS: <span className="text-[var(--t-text)]">{meta.n_boletos.toLocaleString("es-AR")}</span>
-            {meta.ultima_ingesta && <> · ÚLTIMA INGESTA: <span className="text-[var(--t-text)]">{new Date(meta.ultima_ingesta).toLocaleTimeString("es-AR")}</span></>}
+            {meta.ultima_ingesta && <> · ÚLT. INGESTA: <span className="text-[var(--t-text)]">{new Date(meta.ultima_ingesta).toLocaleTimeString("es-AR")}</span></>}
           </span>
         )}
       </div>
 
-      {/* Tabla de cuentas */}
-      <div className="flex-1 min-h-0 overflow-auto p-3">
-        <div className="text-[10px] text-[var(--t-text-muted)] mb-2">
-          {loading ? "cargando…" : `${cuentas.length} cuentas operaron · total ${fmtM(totalGral)} ${moneda}`}
-        </div>
-        <table className="w-full text-[11px] border-collapse">
-          <thead>
-            <tr className="text-[var(--t-text-muted)] border-b border-[var(--t-border)]">
-              <th className="text-left py-1 px-2">CUENTA</th>
-              {catsActivas.map((c) => <th key={c.key} className="text-right py-1 px-2">{c.label}</th>)}
-              <th className="text-right py-1 px-2">TOTAL</th>
-              <th className="text-right py-1 px-2">#</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cuentas.slice(0, 200).map((r) => (
-              <tr key={r.cuenta} className="border-b border-[var(--t-border)]/40 hover:bg-[var(--t-panel)]">
-                <td className="py-1 px-2 text-[var(--t-text)]">{r.cuenta}</td>
-                {catsActivas.map((c) => (
-                  <td key={c.key} className="text-right py-1 px-2 text-[var(--t-text-muted)]">
-                    {Number(r[c.key] ?? 0) ? fmtM(Number(r[c.key])) : "—"}
-                  </td>
-                ))}
-                <td className="text-right py-1 px-2 text-[var(--t-text)] font-semibold">{fmtM(r.total)}</td>
-                <td className="text-right py-1 px-2 text-[var(--t-text-muted)]">{r.n}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {cuentas.length > 200 && (
-          <div className="text-[10px] text-[var(--t-text-muted)] mt-2">… {cuentas.length - 200} cuentas más (top 200 por total)</div>
-        )}
-      </div>
+      {/* ── Grid 2 columnas ────────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
-      {/* Gráfico de importes */}
-      <div className="h-[220px] shrink-0 border-t border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
-        <div className="text-[10px] text-[var(--t-text-muted)] mb-1">
-          Importe operado · {moneda}{mercado ? ` · ${mercado}` : ""}{modo === "TODOS" ? " · por día" : " · por categoría"}
+        {/* IZQUIERDA: POR CATEGORÍA (arriba) + gráfico (abajo) */}
+        <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+            <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+              Por categoría · {fmtM(totalGral)} {moneda}
+            </div>
+            <table className="w-full text-[11px]">
+              <tbody>
+                {catsActivas.map((c) => (
+                  <tr key={c.key} className="border-b border-[var(--t-border)]/40">
+                    <td className="py-1 px-3">
+                      <span className="inline-block w-2 h-2 mr-2" style={{ background: c.color }} />
+                      <span className="text-[var(--t-text)]">{c.label}</span>
+                    </td>
+                    <td className="text-right py-1 px-3 text-[var(--t-text)] font-mono">{fmtM(catTotales[c.key])}</td>
+                    <td className="text-right py-1 px-3 text-[var(--t-text-muted)] font-mono w-12">
+                      {totalGral ? `${((catTotales[c.key] / totalGral) * 100).toFixed(0)}%` : "—"}
+                    </td>
+                  </tr>
+                ))}
+                {!catsActivas.length && (
+                  <tr><td className="py-3 px-3 text-[var(--t-text-muted)]">{loading ? "cargando…" : "sin datos"}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] uppercase tracking-widest text-[var(--t-text-muted)] shrink-0">
+              Importe operado · {moneda}{mercado ? ` · ${mercado}` : ""}{modo === "TODOS" ? " · por día" : " · por categoría"}
+            </div>
+            <div className="flex-1 min-h-0 p-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
+                  <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
+                  <YAxis tickFormatter={fmtM} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={44} />
+                  <Tooltip formatter={(value) => `${fmtM(Number(value))} ${moneda}`} contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
+                  {modo === "TODOS" ? (
+                    <>
+                      <Legend wrapperStyle={{ fontSize: 9 }} />
+                      {CATS.map((c) => <Bar key={c.key} dataKey={c.key} name={c.label} stackId="a" fill={c.color} />)}
+                    </>
+                  ) : (
+                    <Bar dataKey="valor" name="Importe" fill="var(--t-accent)" />
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
-        <ResponsiveContainer width="100%" height="88%">
-          <BarChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-            <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
-            <YAxis tickFormatter={fmtM} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={44} />
-            <Tooltip formatter={(value) => `${fmtM(Number(value))} ${moneda}`} contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
-            {modo === "TODOS" ? (
-              <>
-                <Legend wrapperStyle={{ fontSize: 9 }} />
-                {CATS.map((c) => <Bar key={c.key} dataKey={c.key} name={c.label} stackId="a" fill={c.color} />)}
-              </>
-            ) : (
-              <Bar dataKey="valor" name="Importe" fill="var(--t-accent)" />
+
+        {/* DERECHA: cuentas que operaron */}
+        <div className="min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] uppercase tracking-widest text-[var(--t-accent)] shrink-0">
+            {loading ? "cargando…" : `${cuentas.length} cuentas operaron · ${fmtM(totalGral)} ${moneda}`}
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-[11px] border-collapse">
+              <thead className="sticky top-0 bg-[var(--t-panel)]">
+                <tr className="text-[var(--t-text-muted)] border-b border-[var(--t-border)]">
+                  <th className="text-left py-1 px-2">CUENTA</th>
+                  {catsActivas.map((c) => <th key={c.key} className="text-right py-1 px-2">{c.label}</th>)}
+                  <th className="text-right py-1 px-2">TOTAL</th>
+                  <th className="text-right py-1 px-2">#</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cuentas.slice(0, 300).map((r) => (
+                  <tr key={r.cuenta} className="border-b border-[var(--t-border)]/40 hover:bg-[var(--t-bg)]">
+                    <td className="py-1 px-2 text-[var(--t-text)]">{r.cuenta}</td>
+                    {catsActivas.map((c) => (
+                      <td key={c.key} className="text-right py-1 px-2 text-[var(--t-text-muted)] font-mono">
+                        {Number(r[c.key] ?? 0) ? fmtM(Number(r[c.key])) : "—"}
+                      </td>
+                    ))}
+                    <td className="text-right py-1 px-2 text-[var(--t-text)] font-semibold font-mono">{fmtM(r.total)}</td>
+                    <td className="text-right py-1 px-2 text-[var(--t-text-muted)] font-mono">{r.n}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {cuentas.length > 300 && (
+              <div className="text-[10px] text-[var(--t-text-muted)] p-2">… {cuentas.length - 300} cuentas más (top 300)</div>
             )}
-          </BarChart>
-        </ResponsiveContainer>
+          </div>
+        </div>
       </div>
     </div>
   );
