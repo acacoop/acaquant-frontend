@@ -59,7 +59,7 @@ function aggSerie(serie: SerieRow[], keys: string[], agg: Agg): ChartRow[] {
 }
 
 export function OpsBarChart({
-  serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO",
+  serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", onAllSelected,
 }: {
   serie: SerieRow[];
   series: SerieDef[];
@@ -67,6 +67,7 @@ export function OpsBarChart({
   unidad: string;            // sufijo para tooltip/header: "ARS" | "USD" | "toneladas"
   focoFecha?: string | null; // día seleccionado (modo DIA) → resaltar; null = sin foco
   defaultAgg?: Agg;
+  onAllSelected?: () => void; // se llama al elegir "ALL" (vistas con serie acotada → traen historia completa)
 }) {
   const [agg, setAgg] = useState<Agg>(defaultAgg);
   const [rango, setRango] = useState<RangoKey>("YTD");
@@ -119,7 +120,7 @@ export function OpsBarChart({
       <button onClick={() => setRangoOffset((o) => o + 1)} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)]" title="Período anterior">◀</button>
       <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
         {(["1W","1M","3M","YTD","1A","ALL"] as RangoKey[]).map((k) => (
-          <button key={k} onClick={() => { setRango(k); setRangoOffset(0); }} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (rango === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
+          <button key={k} onClick={() => { setRango(k); setRangoOffset(0); if (k === "ALL") onAllSelected?.(); }} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (rango === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
         ))}
       </div>
       <button onClick={() => setRangoOffset((o) => Math.max(0, o - 1))} disabled={rangoOffset === 0} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] disabled:opacity-30" title="Período siguiente">▶</button>

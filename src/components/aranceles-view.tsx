@@ -37,6 +37,9 @@ export function ArancelesView() {
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
   const [idx, setIdx] = useState(0);
   const [meta, setMeta] = useState<{ n_boletos: number } | null>(null);
+  // La serie del gráfico llega acotada a ~18m (perf). Al elegir "ALL" pedimos
+  // la historia completa (serie_full) — el resto de los rangos entran en 18m.
+  const [serieFull, setSerieFull] = useState(false);
 
   const fecha = fechas[idx]?.fecha ?? "";
   const rango = useMemo(() => {
@@ -72,11 +75,12 @@ export function ArancelesView() {
     const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
       + (selN3 ? `&nivel3=${encodeURIComponent(selN3)}` : "")
-      + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "");
+      + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
+      + (serieFull ? "&serie_full=true" : "");
     fetch(`/api/operaciones/ops/aranceles?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [moneda, rango.desde, rango.hasta, segmento, selN3, selCuenta]);
+  }, [moneda, rango.desde, rango.hasta, segmento, selN3, selCuenta, serieFull]);
 
   const chartSerie = useMemo<SerieRow[]>(
     () => (data?.serie ?? []).map((r) => ({ fecha: r.periodo, arancel: r.arancel })),
@@ -153,7 +157,7 @@ export function ArancelesView() {
             </div>
           </div>
           <OpsBarChart serie={chartSerie} fmt={fmtCompact} unidad={moneda} defaultAgg="MENSUAL"
-            focoFecha={modo === "DIA" ? fecha : null}
+            focoFecha={modo === "DIA" ? fecha : null} onAllSelected={() => setSerieFull(true)}
             series={[{ key: "arancel", label: "Aranceles", color: "var(--t-brand)" }]} />
         </div>
 
