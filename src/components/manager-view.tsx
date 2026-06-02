@@ -2520,6 +2520,7 @@ type Tab =
   | "comercial"
   | "clientes"
   | "aunesa"
+  | "operaciones"
   | "asistente"
   | "usuarios";
 
@@ -2634,6 +2635,146 @@ function AunesaGroup() {
   );
 }
 
+// OPERACIONES: backfill de CashFlow.Operaciones por CSV (fuente de verdad de
+// operaciones desde la API informes). Parsea el CSV en el cliente y lo sube en
+// lotes a /api/manager/operaciones/backfill (upsert por boleto, índice único).
+type OpsStats = { n: number; n_cuentas: number; min_concertacion: string | null; max_concertacion: string | null };
+
+const OPS_BATCH = 2000;
+
+function OpsStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">{label}</div>
+      <div className="text-[13px] text-[var(--t-text)]">{value}</div>
+    </div>
+  );
+}
+
+function OperacionesBackfillPanel() {
+  const [stats, setStats] = useState<OpsStats | null>(null);
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [fileName, setFileName] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<{ recibidas: number; upsertadas: number; modificadas: number; sin_boleto: number } | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const loadStats = useCallback(() => {
+    fetch("/api/manager/operaciones/stats").then((r) => r.json()).then(setStats).catch(() => {});
+  }, []);
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  const onFile = async (file: File) => {
+    setMsg(null); setResult(null); setRows([]); setHeaders([]); setFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
+      setRows(json);
+      setHeaders(Object.keys(json[0]).filter((h) => h.trim() !== ""));
+    } catch (e) {
+      setMsg({ ok: false, text: `No se pudo leer el archivo: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
+
+  const subir = async () => {
+    if (!rows.length) return;
+    setBusy(true); setMsg(null); setResult(null);
+    const total = Math.ceil(rows.length / OPS_BATCH);
+    const acc = { recibidas: 0, upsertadas: 0, modificadas: 0, sin_boleto: 0 };
+    try {
+      for (let i = 0; i < total; i++) {
+        const batch = rows.slice(i * OPS_BATCH, (i + 1) * OPS_BATCH);
+        const res = await fetch("/api/manager/operaciones/backfill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: batch, crear_indice: i === 0 }),
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+          throw new Error(detail);
+        }
+        const j = await res.json();
+        acc.recibidas += j.recibidas ?? 0;
+        acc.upsertadas += j.upsertadas ?? 0;
+        acc.modificadas += j.modificadas ?? 0;
+        acc.sin_boleto += j.sin_boleto ?? 0;
+        setProgress({ done: i + 1, total });
+      }
+      setResult(acc);
+      setMsg({ ok: true, text: `Listo: ${acc.upsertadas} nuevas, ${acc.modificadas} actualizadas, ${acc.sin_boleto} sin boleto.` });
+      loadStats();
+    } catch (e) {
+      setMsg({ ok: false, text: `Error al subir: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(false); setProgress(null);
+    }
+  };
+
+  return (
+    <div className="h-full overflow-y-auto p-4 text-[12px] text-[var(--t-text)]">
+      <div className="max-w-[780px] space-y-4">
+        <div>
+          <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">BACKFILL OPERACIONES</h2>
+          <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
+            Subí un CSV con operaciones (fuente: informe de operaciones). Se carga en{" "}
+            <code className="text-[var(--t-text)]">CashFlow.Operaciones</code> con índice único por
+            boleto — un boleto, un documento; re-subir el mismo archivo actualiza, no duplica.
+            Columnas reconocidas: boleto, cuenta, concertación, denominación, tipo de operación,
+            instrumento, condiciones, cantidad, bruto, aranceles.
+          </p>
+        </div>
+
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
+          <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mb-2">ESTADO ACTUAL</div>
+          {stats ? (
+            <div className="flex gap-8">
+              <OpsStat label="BOLETOS" value={stats.n.toLocaleString("es-AR")} />
+              <OpsStat label="CUENTAS" value={String(stats.n_cuentas)} />
+              <OpsStat label="DESDE" value={stats.min_concertacion ?? "—"} />
+              <OpsStat label="HASTA" value={stats.max_concertacion ?? "—"} />
+            </div>
+          ) : <span className="text-[var(--t-text-muted)]">cargando…</span>}
+        </div>
+
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+          <input
+            type="file" accept=".csv,text/csv" disabled={busy}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+            className="text-[var(--t-text)] text-[11px]"
+          />
+          {fileName && rows.length > 0 && (
+            <div className="text-[var(--t-text-muted)]">
+              <span className="text-[var(--t-text)]">{fileName}</span> · {rows.length.toLocaleString("es-AR")} filas · columnas: {headers.join(", ")}
+            </div>
+          )}
+          <div>
+            <button
+              onClick={subir} disabled={busy || !rows.length}
+              className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]"
+            >
+              {busy ? "Subiendo…" : "SUBIR A CASHFLOW.OPERACIONES"}
+            </button>
+          </div>
+          {progress && <div className="text-[var(--t-text-muted)]">lote {progress.done}/{progress.total}…</div>}
+          {result && (
+            <div className="text-[var(--t-text)]">
+              ✓ {result.upsertadas.toLocaleString("es-AR")} nuevas · {result.modificadas.toLocaleString("es-AR")} actualizadas · {result.sin_boleto} sin boleto · {result.recibidas.toLocaleString("es-AR")} procesadas
+            </div>
+          )}
+          {msg && <div className={msg.ok ? "text-green-400" : "text-red-400"}>{msg.text}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Cada tab habilita con CUALQUIERA de los módulos listados (OR). El umbrella
 // `manager` da acceso a todas (admin); las tabs que también listan un sub-módulo
 // (comercial, clientes) son accesibles a `asistente_comercial` aunque NO tenga
@@ -2647,6 +2788,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   comercial:    ["manager", "manager_comercial"],
   clientes:     ["manager", "manager_clientes"],
   aunesa:       ["manager"],
+  operaciones:  ["manager"],
   asistente:    ["manager"],
   usuarios:     ["manager"],
 };
@@ -2660,6 +2802,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "comercial",    label: "COMERCIAL"    },
     { id: "clientes",     label: "CLIENTES"     },
     { id: "aunesa",       label: "AUNESA"       },
+    { id: "operaciones",  label: "OPERACIONES"  },
     { id: "asistente",    label: "ASISTENTE"    },
     { id: "usuarios",     label: "USUARIOS"     },
   ];
@@ -2696,6 +2839,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "comercial"    && <ComercialPanel />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "aunesa"       && <AunesaGroup />}
+        {tab === "operaciones"  && <OperacionesBackfillPanel />}
         {tab === "asistente"    && <TabAsistente />}
         {tab === "usuarios"     && <UsuariosGroup />}
       </div>
