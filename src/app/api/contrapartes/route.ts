@@ -37,10 +37,10 @@ export async function GET() {
     const [flujos, contrapartes] = await Promise.all([
       apiFetch<FlujoDoc[]>(
         `/api/operaciones/flujo?desde=${desde}&hasta=${hasta}`,
-        { revalidate: 300 }
+        { revalidate: 0 }
       ),
       apiFetch<ContraparteDoc[]>(`/api/cuentas/contrapartes`, {
-        revalidate: 3600,
+        revalidate: 0,
       }),
     ]);
 
