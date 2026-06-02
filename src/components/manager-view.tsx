@@ -2745,7 +2745,7 @@ function OperacionesBackfillPanel() {
 
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
           <input
-            type="file" accept=".csv,text/csv" disabled={busy}
+            type="file" accept=".csv,.xlsx,.xls" disabled={busy}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
             className="text-[var(--t-text)] text-[11px]"
           />
