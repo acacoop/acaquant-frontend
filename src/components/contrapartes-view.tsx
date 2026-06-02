@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -125,6 +126,7 @@ export function ContrapartesView() {
   const [monSel, setMonSel] = useState<string[]>([]);
   const [dia, setDia] = useState<string>(""); // vacío = rango; si hay valor = solo ese día (detalle)
   const [cpSel, setCpSel] = useState<string | null>(null);
+  const [mesSel, setMesSel] = useState<string | null>(null); // mes elegido → cross-filter
   const [monedaTabla, setMonedaTabla] = useState<string>("");
   const [chartMoneda, setChartMoneda] = useState<"ARS" | "USD">("ARS");
   const [aggCp, setAggCp] = useState<"DIARIO" | "MENSUAL">("MENSUAL");
@@ -185,10 +187,12 @@ export function ContrapartesView() {
   }, [filtered, dia]);
 
   // Σ volumen por moneda y por bucket (día o mes) — barras (NO acumulado).
+  // Respeta la contraparte seleccionada (cross-filter): si hay cpSel, el gráfico
+  // muestra solo esa contraparte.
   const chartDataByMoneda = useMemo(() => {
     const out: Record<string, { label: string; key: string; bruto: number }[]> = {};
     for (const moneda of monSel) {
-      const sub = filtered.filter((f) => f.moneda === moneda);
+      const sub = filtered.filter((f) => f.moneda === moneda && (cpSel ? f.contraparte === cpSel : true));
       const buckets: Record<string, number> = {};
       for (const f of sub) {
         const k = aggCp === "MENSUAL" ? f.concertacion.slice(0, 7) : f.concertacion.slice(0, 10);
@@ -201,11 +205,14 @@ export function ContrapartesView() {
       }));
     }
     return out;
-  }, [filtered, monSel, aggCp]);
+  }, [filtered, monSel, aggCp, cpSel]);
 
-  // Tabla de contrapartes (moneda seleccionada)
+  // Tabla de contrapartes (moneda seleccionada). Respeta el mes elegido en la
+  // tabla MESES (cross-filter): si hay mesSel, solo cuenta ese mes.
   const contrapartesTabla = useMemo(() => {
-    const sub = filtered.filter((f) => f.moneda === monedaTabla);
+    const sub = filtered.filter(
+      (f) => f.moneda === monedaTabla && (mesSel ? f.concertacion.slice(0, 7) === mesSel : true)
+    );
     const agg: Record<string, number> = {};
     for (const f of sub) {
       const k = f.contraparte || "—";
@@ -219,7 +226,7 @@ export function ContrapartesView() {
         share: total ? (bruto / total) * 100 : 0,
       }))
       .sort((a, b) => b.bruto - a.bruto);
-  }, [filtered, monedaTabla]);
+  }, [filtered, monedaTabla, mesSel]);
 
   // Meses: por defecto consolidado (todas las contrapartes) — o de la contraparte seleccionada
   const mesesTabla = useMemo(() => {
@@ -239,6 +246,7 @@ export function ContrapartesView() {
 
   useEffect(() => {
     setCpSel(null);
+    setMesSel(null);
   }, [monedaTabla, desde, hasta, dia]);
 
   if (loading) {
@@ -264,86 +272,60 @@ export function ContrapartesView() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
-      {/* Filtros */}
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
-        <div className="flex items-end gap-3 flex-wrap">
-          <Labeled label="Desde">
-            <input
-              type="date" value={desde} min={minDia} max={hasta || maxDia}
-              onChange={(e) => setDesde(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none [color-scheme:dark]"
-            />
-          </Labeled>
-          <Labeled label="Hasta">
-            <input
-              type="date" value={hasta} min={desde || minDia} max={maxDia}
-              onChange={(e) => setHasta(e.target.value)}
-              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none [color-scheme:dark]"
-            />
-          </Labeled>
-          <Labeled label="Día (detalle)">
-            <div className="flex items-center gap-1">
-              <input
-                type="date" value={dia} min={minDia} max={maxDia}
-                onChange={(e) => setDia(e.target.value)}
-                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none [color-scheme:dark]"
-              />
-              {dia && (
-                <button onClick={() => setDia("")} title="Limpiar día"
-                  className="px-2 py-1 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">✕</button>
-              )}
-            </div>
-          </Labeled>
-          <Labeled label="Grupo">
-            <div className="flex items-center gap-1 h-[26px] flex-wrap">
-              {gruposDisp.map((g) => (
-                <Chip
-                  key={g}
-                  active={grupoSel.includes(g)}
-                  onClick={() =>
-                    setGrupoSel((prev) =>
-                      prev.includes(g)
-                        ? prev.filter((x) => x !== g)
-                        : [...prev, g]
-                    )
-                  }
-                >
-                  {g}
-                </Chip>
-              ))}
-            </div>
-          </Labeled>
-          <Labeled label="Moneda">
-            <div className="flex items-center gap-1 h-[26px]">
-              {monedasDisp.map((m) => (
-                <Chip
-                  key={m}
-                  active={monSel.includes(m)}
-                  onClick={() =>
-                    setMonSel((prev) =>
-                      prev.includes(m)
-                        ? prev.filter((x) => x !== m)
-                        : [...prev, m]
-                    )
-                  }
-                >
-                  {m}
-                </Chip>
-              ))}
-            </div>
-          </Labeled>
-          <Labeled label="Total filtrado">
-            <div className="h-[26px] flex items-center text-[11px] font-mono text-[var(--t-text)]">
-              {filtered.length} ops
-            </div>
-          </Labeled>
+    <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
+      {/* Filtros — barra compacta (desde/hasta calendario + grupo + moneda) */}
+      <div className="flex items-center flex-wrap gap-3 px-4 py-2 border-b border-[var(--t-border)] shrink-0 text-[11px]">
+        <label className="flex items-center gap-1">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
+          <input type="date" value={desde} min={minDia} max={hasta || maxDia}
+            onChange={(e) => setDesde(e.target.value)}
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-0.5 font-mono outline-none [color-scheme:dark]" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Hasta</span>
+          <input type="date" value={hasta} min={desde || minDia} max={maxDia}
+            onChange={(e) => setHasta(e.target.value)}
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-0.5 font-mono outline-none [color-scheme:dark]" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Día</span>
+          <input type="date" value={dia} min={minDia} max={maxDia}
+            onChange={(e) => setDia(e.target.value)}
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-0.5 font-mono outline-none [color-scheme:dark]" />
+          {dia && (
+            <button onClick={() => setDia("")} title="Limpiar día"
+              className="px-1.5 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">✕</button>
+          )}
+        </label>
+        <div className="flex items-center gap-1 flex-wrap">
+          {gruposDisp.map((g) => (
+            <Chip key={g} active={grupoSel.includes(g)}
+              onClick={() => setGrupoSel((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g])}>
+              {g}
+            </Chip>
+          ))}
         </div>
+        <div className="flex items-center gap-1">
+          {monedasDisp.map((m) => (
+            <Chip key={m} active={monSel.includes(m)}
+              onClick={() => setMonSel((prev) => prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m])}>
+              {m}
+            </Chip>
+          ))}
+        </div>
+        {mesSel && (
+          <button onClick={() => setMesSel(null)} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ {mesLabel(mesSel)}</button>
+        )}
+        <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
+          {filtered.length} ops
+        </span>
       </div>
 
-      {/* Si hay día específico: tabla de operaciones del día. Si no: contrapartes + meses. */}
+      {/* Cuerpo */}
+      <div className="flex-1 min-h-0 p-3 overflow-hidden">
       {dia ? (
-        <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col">
+        /* Día específico: tabla de operaciones del día (ancho completo) */
+        <div className="h-full border border-[var(--t-border)] overflow-hidden flex flex-col">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
             <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               OPERACIONES · {dia}
@@ -374,254 +356,179 @@ export function ContrapartesView() {
               </thead>
               <tbody>
                 {opsDelDia.map((o, i) => (
-                  <tr
-                    key={`${o.boleto ?? ""}-${i}`}
-                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
-                  >
-                    <td className="!px-2 !py-1 text-[var(--t-text-dim)]">
-                      {o.boleto ?? "—"}
-                    </td>
-                    <td className="!px-2 !py-1 text-[var(--t-text)]">
-                      {o.tipoOperacion ?? "—"}
-                    </td>
-                    <td className="!px-2 !py-1 text-[var(--t-text)] truncate max-w-[180px]">
-                      {o.cuenta ?? "—"}
-                    </td>
-                    <td className="!px-2 !py-1 text-[var(--t-text)]">
-                      {o.contraparte ?? "—"}
-                    </td>
-                    <td className="!px-2 !py-1 text-[var(--t-text-dim)]">
-                      {o.segmento ?? "—"}
-                    </td>
-                    <td className="!px-2 !py-1 text-[var(--t-text-dim)] truncate max-w-[260px]">
-                      {o.unidad ?? "—"}
-                    </td>
-                    <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
-                      {fmtFull(o.bruto ?? 0)}
-                    </td>
-                    <td className="!px-2 !py-1 text-[var(--t-accent)]">
-                      {o.moneda ?? ""}
-                    </td>
+                  <tr key={`${o.boleto ?? ""}-${i}`}
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5">
+                    <td className="!px-2 !py-1 text-[var(--t-text-dim)]">{o.boleto ?? "—"}</td>
+                    <td className="!px-2 !py-1 text-[var(--t-text)]">{o.tipoOperacion ?? "—"}</td>
+                    <td className="!px-2 !py-1 text-[var(--t-text)] truncate max-w-[180px]">{o.cuenta ?? "—"}</td>
+                    <td className="!px-2 !py-1 text-[var(--t-text)]">{o.contraparte ?? "—"}</td>
+                    <td className="!px-2 !py-1 text-[var(--t-text-dim)]">{o.segmento ?? "—"}</td>
+                    <td className="!px-2 !py-1 text-[var(--t-text-dim)] truncate max-w-[260px]">{o.unidad ?? "—"}</td>
+                    <td className="!px-2 !py-1 text-right text-[var(--t-text)]">{fmtFull(o.bruto ?? 0)}</td>
+                    <td className="!px-2 !py-1 text-[var(--t-accent)]">{o.moneda ?? ""}</td>
                   </tr>
                 ))}
                 {opsDelDia.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="text-center text-[var(--t-text-muted)] py-4">
-                      Sin operaciones en este día.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={8} className="text-center text-[var(--t-text-muted)] py-4">Sin operaciones en este día.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
       ) : (
-      /* Fila 1: Tabla contrapartes | Tabla meses (misma altura, flex-1) */
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 overflow-hidden">
-        {/* Contrapartes */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                <tr className="border-b border-[var(--t-border)]">
-                  <th className="!px-2 !py-1 text-left text-[var(--t-accent)] font-semibold tracking-wide uppercase">
-                    CONTRAPARTE
-                    <span className="ml-1 text-[10px] text-[var(--t-text-muted)] font-normal normal-case">
-                      ({contrapartesTabla.length})
-                    </span>
-                  </th>
-                  <th className="!px-2 !py-1 text-right text-[var(--t-accent)] font-semibold tracking-wide uppercase">
-                    BRUTO
-                  </th>
-                  <th className="!px-2 !py-1 text-right text-[var(--t-accent)] font-semibold tracking-wide uppercase">
-                    <div className="flex items-center justify-end gap-1">
-                      <span>%</span>
-                      <span className="ml-1 flex items-center gap-1">
-                        {monSel.map((m) => (
-                          <MiniChip
-                            key={m}
-                            active={monedaTabla === m}
-                            onClick={() => setMonedaTabla(m)}
-                          >
-                            {m}
-                          </MiniChip>
-                        ))}
-                      </span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {contrapartesTabla.map((r) => {
-                  const active = cpSel === r.cp;
-                  return (
-                    <tr
-                      key={r.cp}
-                      onClick={() => setCpSel(active ? null : r.cp)}
-                      className={`cursor-pointer border-b border-[var(--t-border)] transition-colors ${
-                        active
-                          ? "bg-[var(--t-accent)]/10 text-[var(--t-accent)]"
-                          : "hover:bg-[var(--t-accent)]/5"
-                      }`}
-                    >
-                      <td className="!px-2 !py-1 text-[var(--t-text)]">{r.cp}</td>
-                      <td className="!px-2 !py-1 text-right">
-                        {fmtFull(r.bruto)}
-                      </td>
-                      <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
-                        {r.share.toFixed(1)}%
-                      </td>
+        /* 50/50: izq = contrapartes (arriba) + gráfico (abajo); der = meses */
+        <div className="h-full grid grid-cols-2 gap-3 overflow-hidden">
+          {/* IZQUIERDA */}
+          <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+            {/* Contrapartes — header propio (no se pisa con el título) */}
+            <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+                  Contrapartes <span className="text-[var(--t-text-muted)] normal-case">({contrapartesTabla.length})</span>
+                </span>
+                {mesSel && <span className="text-[9px] font-mono text-[var(--t-text-dim)]">· {mesLabel(mesSel)}</span>}
+                <span className="ml-auto flex items-center gap-1">
+                  {monSel.map((m) => (
+                    <MiniChip key={m} active={monedaTabla === m} onClick={() => setMonedaTabla(m)}>{m}</MiniChip>
+                  ))}
+                </span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <table className="w-full text-[11px] font-mono tabular-nums">
+                  <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                    <tr className="border-b border-[var(--t-border)]">
+                      <th className="!px-2 !py-1 text-left">Contraparte</th>
+                      <th className="!px-2 !py-1 text-right">Bruto</th>
+                      <th className="!px-2 !py-1 text-right">%</th>
                     </tr>
+                  </thead>
+                  <tbody>
+                    {contrapartesTabla.map((r) => {
+                      const active = cpSel === r.cp;
+                      return (
+                        <tr key={r.cp} onClick={() => setCpSel(active ? null : r.cp)}
+                          className={`cursor-pointer border-b border-[var(--t-border)] transition-colors ${
+                            active ? "bg-[var(--t-accent)]/10 text-[var(--t-accent)]" : "hover:bg-[var(--t-accent)]/5"}`}>
+                          <td className="!px-2 !py-1 text-[var(--t-text)]">{r.cp}</td>
+                          <td className="!px-2 !py-1 text-right">{fmtFull(r.bruto)}</td>
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{r.share.toFixed(1)}%</td>
+                        </tr>
+                      );
+                    })}
+                    {contrapartesTabla.length === 0 && (
+                      <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-4">Sin datos</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Gráfico — 50% inferior de la mitad izquierda */}
+            <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+              <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado</span>
+                {(() => {
+                  const dd = chartDataByMoneda[chartMoneda] || [];
+                  const totalVol = dd.reduce((a, d) => a + d.bruto, 0);
+                  return (
+                    <span className="text-[10px] font-mono">
+                      <span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total: </span>
+                      <span className="text-[var(--t-accent)] font-semibold">{fmtCompact(totalVol)} {chartMoneda}</span>
+                    </span>
                   );
-                })}
-                {contrapartesTabla.length === 0 && (
+                })()}
+                <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                  {(["DIARIO", "MENSUAL"] as const).map((a) => (
+                    <button key={a} onClick={() => setAggCp(a)}
+                      className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (aggCp === a
+                        ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                        : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{a}</button>
+                  ))}
+                </div>
+                <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                  {(["ARS", "USD"] as const).map((m) => (
+                    <button key={m} onClick={() => setChartMoneda(m)}
+                      className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (chartMoneda === m
+                        ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                        : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 p-2 wm-corner">
+                {(() => {
+                  const data = chartDataByMoneda[chartMoneda] || [];
+                  const hasData = data.some((d) => d.bruto !== 0);
+                  const color = chartMoneda === "ARS" ? COLOR_ARS : COLOR_USD;
+                  if (!hasData) {
+                    return (
+                      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
+                        Sin datos en {chartMoneda} para este rango.
+                      </div>
+                    );
+                  }
+                  return (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={data} margin={{ top: 4, right: 10, bottom: 4, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
+                        <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                          axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
+                          interval={Math.max(0, Math.floor(data.length / 12))} angle={-35} textAnchor="end" height={24} />
+                        <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} axisLine={{ stroke: "var(--t-border-2)" }}
+                          tickLine={false} tickFormatter={(v: number) => fmtCompact(v)} width={55}
+                          domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
+                        <Tooltip contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                          labelStyle={{ color: "var(--t-text-dim)" }} formatter={(v) => [fmtCompact(Number(v)), chartMoneda]} />
+                        <Bar dataKey="bruto" isAnimationActive={false} maxBarSize={48}>
+                          {data.map((d, i) => (
+                            <Cell key={i} fill={mesSel && !d.key.startsWith(mesSel) ? "var(--t-border-2)" : color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* DERECHA: meses (clic en un mes filtra contrapartes + gráfico) */}
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Meses</span>
+              <span className="ml-auto text-[10px] text-[var(--t-text-dim)] truncate max-w-[60%]">
+                {cpSel ? cpSel : "Consolidado"}
+              </span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                   <tr>
-                    <td
-                      colSpan={3}
-                      className="text-center text-[var(--t-text-muted)] py-4"
-                    >
-                      Sin datos
-                    </td>
+                    <th className="!px-2 !py-1 text-left">Mes</th>
+                    <th className="!px-2 !py-1 text-right">Bruto</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {mesesTabla.map((r) => {
+                    const active = mesSel === r.key;
+                    return (
+                      <tr key={r.key} onClick={() => setMesSel(active ? null : r.key)}
+                        className={`cursor-pointer border-b border-[var(--t-border)] transition-colors ${
+                          active ? "bg-[var(--t-accent)]/10 text-[var(--t-accent)]" : "hover:bg-[var(--t-accent)]/5"}`}>
+                        <td className="!px-2 !py-1 text-[var(--t-text)]">{r.label}</td>
+                        <td className="!px-2 !py-1 text-right">{fmtFull(r.bruto)}</td>
+                      </tr>
+                    );
+                  })}
+                  {mesesTabla.length === 0 && (
+                    <tr><td colSpan={2} className="text-center text-[var(--t-text-muted)] py-4">Sin meses</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-
-        {/* Meses */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden flex flex-col min-h-0">
-          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-              MESES
-            </span>
-            <span className="ml-auto text-[10px] text-[var(--t-text-dim)] truncate max-w-[60%]">
-              {cpSel ? cpSel : "Consolidado"}
-            </span>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
-                <tr>
-                  <th className="!px-2 !py-1 text-left">MES</th>
-                  <th className="!px-2 !py-1 text-right">BRUTO</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mesesTabla.map((r) => (
-                  <tr
-                    key={r.key}
-                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
-                  >
-                    <td className="!px-2 !py-1 text-[var(--t-text)]">{r.label}</td>
-                    <td className="!px-2 !py-1 text-right">
-                      {fmtFull(r.bruto)}
-                    </td>
-                  </tr>
-                ))}
-                {mesesTabla.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={2}
-                      className="text-center text-[var(--t-text-muted)] py-4"
-                    >
-                      Sin meses
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
       )}
-
-      {/* Fila 2: Charts acumulados — solo en modo rango. Con un día específico
-           el chart muestra un solo punto y no aporta; la tabla alcanza. */}
-      {!dia && (
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
-          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-            VOLUMEN OPERADO
-          </span>
-          {/* Toggle DIARIO/MENSUAL */}
-          <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-            {(["DIARIO", "MENSUAL"] as const).map((a) => (
-              <button key={a} onClick={() => setAggCp(a)}
-                className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (aggCp === a
-                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
-                  : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{a}</button>
-            ))}
-          </div>
-          {/* Toggle ARS/USD */}
-          <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-            {(["ARS", "USD"] as const).map((m) => (
-              <button key={m} onClick={() => setChartMoneda(m)}
-                className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (chartMoneda === m
-                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
-                  : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
-            ))}
-          </div>
-        </div>
-        <div className="p-2 wm-corner">
-          {(() => {
-            const data = chartDataByMoneda[chartMoneda] || [];
-            const hasData = data.some((d) => d.bruto !== 0);
-            const color = chartMoneda === "ARS" ? COLOR_ARS : COLOR_USD;
-            const totalVol = data.reduce((a, d) => a + d.bruto, 0);
-            if (!hasData) {
-              return (
-                <div className="h-[200px] flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
-                  Sin datos en {chartMoneda} para este rango.
-                </div>
-              );
-            }
-            return (
-              <>
-                <div className="flex items-center px-1 pb-1 text-[10px] tracking-wide">
-                  <span className="ml-auto text-[var(--t-text-dim)]">
-                    Total: <span style={{ color }} className="font-semibold">{fmtCompact(totalVol)} {chartMoneda}</span>
-                  </span>
-                </div>
-                <div className="h-[200px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data} margin={{ top: 4, right: 10, bottom: 20, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-                      <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
-                        axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
-                        interval={Math.max(0, Math.floor(data.length / 12))} angle={-35} textAnchor="end" height={24} />
-                      <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} axisLine={{ stroke: "var(--t-border-2)" }}
-                        tickLine={false} tickFormatter={(v: number) => fmtCompact(v)} width={55}
-                        domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
-                      <Tooltip contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                        labelStyle={{ color: "var(--t-text-dim)" }} formatter={(v) => [fmtCompact(Number(v)), chartMoneda]} />
-                      <Bar dataKey="bruto" fill={color} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </>
-            );
-          })()}
-        </div>
       </div>
-      )}
-    </div>
-  );
-}
-
-function Labeled({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1 min-w-0">
-      <span className="text-[10px] tracking-wide text-[var(--t-text-muted)] uppercase">
-        {label}
-      </span>
-      {children}
     </div>
   );
 }

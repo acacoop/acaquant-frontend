@@ -1,17 +1,19 @@
 "use client";
 
 // OPERACIONES → AGRO: mismo formato que Operaciones, pero en TONELADAS de Futuros
-// Agropecuarios. Izq: Σ ton por commodity (arriba) + gráfico (abajo). Der: Σ ton
-// por cuenta. Interactivo (clic commodity/cuenta filtra el resto).
+// Agropecuarios. Izq: Σ ton por commodity (arriba) + gráfico (abajo, más alto).
+// Der: Σ ton por cuenta. Tablas = día (modelo ÚLTIMA/DÍA/TODOS); gráfico =
+// histórico con rango (1W/1M/…/ALL) + agg + foco día + maximizar.
 // Endpoint: /api/operaciones/ops/agro.
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
-type Agg = "MENSUAL" | "DIARIO";
+type Agg = "DIARIO" | "MENSUAL";
 type Modo = "ULTIMA" | "DIA" | "TODOS";
+type RangoKey = "1W" | "1M" | "3M" | "YTD" | "1A" | "ALL";
 type SerieRow = { periodo: string; SOJA: number; TRIGO: number; MAIZ: number };
 type CuentaRow = { denominacion: string; toneladas: number; n: number };
 type Resp = {
@@ -26,11 +28,35 @@ const COMMS = [
   { key: "MAIZ", label: "Maíz", color: "#3b82f6" },
 ] as const;
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const MUTED = "var(--t-border-2)";
 
 const fmtTon = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-function fmtPeriodo(p: string): string {
-  if (p.length === 7) { const [y, m] = p.split("-"); return `${MESES[+m - 1]} ${y.slice(2)}`; }
-  const [, m, d] = p.split("-"); return `${d}/${m}`;
+const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
+const fmtMesCorto = (s: string) => { const [y, m] = s.split("-").map(Number); return `${MESES[m - 1]} ${String(y).slice(-2)}`; };
+
+function bucketKey(fecha: string, agg: Agg): string {
+  return agg === "MENSUAL" ? fecha.slice(0, 7) : fecha;
+}
+function filtrarRango(serie: SerieRow[], rango: RangoKey, offset: number): SerieRow[] {
+  if (rango === "ALL" || !serie.length) return serie;
+  if (rango === "YTD") {
+    const yyyy = new Date().getFullYear() - offset;
+    return serie.filter((s) => s.periodo.startsWith(`${yyyy}-`));
+  }
+  const n = rango === "1W" ? 5 : rango === "1M" ? 22 : rango === "3M" ? 65 : 252;
+  const end = serie.length - offset * n;
+  return serie.slice(Math.max(0, end - n), Math.max(0, end));
+}
+function aggSerie(serie: SerieRow[], agg: Agg): { key: string; x: string; SOJA: number; TRIGO: number; MAIZ: number }[] {
+  const m = new Map<string, { SOJA: number; TRIGO: number; MAIZ: number }>();
+  for (const p of serie) {
+    const k = bucketKey(p.periodo, agg);
+    const cur = m.get(k) ?? { SOJA: 0, TRIGO: 0, MAIZ: 0 };
+    cur.SOJA += p.SOJA; cur.TRIGO += p.TRIGO; cur.MAIZ += p.MAIZ;
+    m.set(k, cur);
+  }
+  return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([k, v]) => ({ key: k, x: agg === "MENSUAL" ? fmtMesCorto(k) : fmtFechaCorta(k), ...v }));
 }
 
 export function AgroView() {
@@ -38,14 +64,19 @@ export function AgroView() {
   const [fechas, setFechas] = useState<{ fecha: string; n: number }[]>([]);
   const [idx, setIdx] = useState(0);
   const [meta, setMeta] = useState<{ n_boletos: number; ultima_ingesta: string | null } | null>(null);
-  const [agg, setAgg] = useState<Agg>("MENSUAL");
   const [selComm, setSelComm] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
+  // Controles del gráfico (histórico)
+  const [agg, setAgg] = useState<Agg>("MENSUAL");
+  const [rango, setRango] = useState<RangoKey>("YTD");
+  const [rangoOffset, setRangoOffset] = useState(0);
+  const [focoDia, setFocoDia] = useState(false);
+  const [maxi, setMaxi] = useState(false);
 
   const fecha = fechas[idx]?.fecha ?? "";
-  const rango = useMemo(() => {
+  const rangoFecha = useMemo(() => {
     if (!fechas.length) return { desde: "", hasta: "" };
     if (modo === "TODOS") return { desde: fechas[fechas.length - 1].fecha, hasta: fechas[0].fecha };
     return { desde: fecha, hasta: fecha };
@@ -64,24 +95,67 @@ export function AgroView() {
       .then((r) => r.ok ? r.json() : null).then((j) => setMeta(j?.meta ?? null)).catch(() => setMeta(null));
   }, [modo, fecha]);
 
+  // Datos: tablas = rango [desde,hasta]; serie = histórica DIARIA (se agrega/filtra
+  // en cliente). Por eso pedimos agg=DIARIO siempre; el toggle del gráfico no refetch.
   useEffect(() => {
-    if (!rango.desde || !rango.hasta) return;
+    if (!rangoFecha.desde || !rangoFecha.hasta) return;
     setLoading(true);
-    const qs = `desde=${rango.desde}&hasta=${rango.hasta}&agg=${agg}`
+    const qs = `desde=${rangoFecha.desde}&hasta=${rangoFecha.hasta}&agg=DIARIO`
       + (selComm ? `&commodity=${selComm}` : "")
       + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "");
     fetch(`/api/operaciones/ops/agro?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [rango.desde, rango.hasta, agg, selComm, selCuenta]);
+  }, [rangoFecha.desde, rangoFecha.hasta, selComm, selCuenta]);
 
-  const chartData = useMemo(
-    () => (data?.serie ?? []).map((r) => ({ ...r, x: fmtPeriodo(r.periodo) })),
-    [data],
-  );
+  const serie = useMemo(() => data?.serie ?? [], [data]);
+  const chartData = useMemo(() => aggSerie(filtrarRango(serie, rango, rangoOffset), agg), [serie, rango, rangoOffset, agg]);
+  const totalPeriodo = useMemo(() => chartData.reduce((a, p) => a + p.SOJA + p.TRIGO + p.MAIZ, 0), [chartData]);
+  const focoKey = modo === "DIA" && focoDia && fecha ? bucketKey(fecha, agg) : null;
   const tot = data?.totales ?? { SOJA: 0, TRIGO: 0, MAIZ: 0 };
   const totGral = tot.SOJA + tot.TRIGO + tot.MAIZ;
   const cuentas = data?.por_cuenta ?? [];
+
+  const Chart = (
+    <BarChart data={chartData} margin={{ top: 6, right: 10, left: 6, bottom: 4 }} barCategoryGap="12%">
+      <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
+      <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} angle={-35} textAnchor="end" height={28} />
+      <YAxis tickFormatter={fmtTon} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={56}
+        domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
+      <Tooltip formatter={(v, n) => [`${fmtTon(Number(v))} t`, String(n)]}
+        contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
+      <Legend wrapperStyle={{ fontSize: 9 }} />
+      {COMMS.filter((c) => !selComm || selComm === c.key).map((c) => (
+        <Bar key={c.key} dataKey={c.key} name={c.label} isAnimationActive={false} maxBarSize={64}>
+          {chartData.map((d, i) => (
+            <Cell key={i} fill={focoKey && d.key !== focoKey ? MUTED : c.color} />
+          ))}
+        </Bar>
+      ))}
+    </BarChart>
+  );
+
+  const chartHeader = (
+    <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+      <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado · toneladas</span>
+      {chartData.length > 0 && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{chartData[0].x} → {chartData[chartData.length - 1].x}</span>}
+      <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span><span className="text-[var(--t-accent)] font-semibold">{fmtTon(totalPeriodo)} t</span></span>
+      <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+        {(["DIARIO", "MENSUAL"] as Agg[]).map((k) => (
+          <button key={k} onClick={() => setAgg(k)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (agg === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
+        ))}
+      </div>
+      <button onClick={() => setRangoOffset((o) => o + 1)} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)]" title="Período anterior">◀</button>
+      <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+        {(["1W", "1M", "3M", "YTD", "1A", "ALL"] as RangoKey[]).map((k) => (
+          <button key={k} onClick={() => { setRango(k); setRangoOffset(0); }} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (rango === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
+        ))}
+      </div>
+      <button onClick={() => setRangoOffset((o) => Math.max(0, o - 1))} disabled={rangoOffset === 0} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] disabled:opacity-30" title="Período siguiente">▶</button>
+      <button onClick={() => setFocoDia((v) => !v)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[var(--t-border-2)] " + (focoDia ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>Foco día {focoDia ? "✓" : "○"}</button>
+      <button onClick={() => setMaxi((v) => !v)} className="px-2 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Maximizar gráfico">⤢</button>
+    </div>
+  );
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
@@ -103,11 +177,6 @@ export function AgroView() {
             Boletos: <span className="text-[var(--t-text)] font-mono">{meta.n_boletos}</span>
           </span></>
         )}
-        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] ml-2">
-          {(["DIARIO", "MENSUAL"] as Agg[]).map((a) => (
-            <button key={a} onClick={() => setAgg(a)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (agg === a ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{a}</button>
-          ))}
-        </div>
         {(selComm || selCuenta) && (
           <button onClick={() => { setSelComm(null); setSelCuenta(null); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ {selComm || selCuenta}</button>
         )}
@@ -118,8 +187,8 @@ export function AgroView() {
 
       {/* Cuerpo 50/50 */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
-        {/* IZQUIERDA: tabla commodity (arriba) + gráfico (abajo) — tamaños FIJOS */}
-        <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+        {/* IZQUIERDA: tabla commodity (arriba, chica) + gráfico (abajo, MÁS ALTO) */}
+        <div className="min-h-0 grid grid-rows-[2fr_3fr] gap-3 overflow-hidden">
           {/* Por commodity */}
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
@@ -149,27 +218,9 @@ export function AgroView() {
           </div>
           {/* Gráfico */}
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-            <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado · toneladas</span>
-              <span className="text-[9px] font-mono text-[var(--t-text-muted)]">histórico</span>
-              <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total: </span><span className="text-[var(--t-accent)] font-semibold">{fmtTon(totGral)} t</span></span>
-            </div>
+            {chartHeader}
             <div className="flex-1 min-h-0 p-2 wm-corner">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 6, right: 10, left: 6, bottom: 4 }} barCategoryGap="20%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-                  <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
-                    interval={Math.max(0, Math.floor(chartData.length / 12))} angle={-35} textAnchor="end" height={28} />
-                  <YAxis tickFormatter={fmtTon} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={56}
-                    domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
-                  <Tooltip formatter={(v, n) => [`${fmtTon(Number(v))} t`, String(n)]}
-                    contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
-                  <Legend wrapperStyle={{ fontSize: 9 }} />
-                  {COMMS.filter((c) => !selComm || selComm === c.key).map((c) => (
-                    <Bar key={c.key} dataKey={c.key} name={c.label} fill={c.color} isAnimationActive={false} maxBarSize={48} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
+              <ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer>
             </div>
           </div>
         </div>
@@ -207,6 +258,16 @@ export function AgroView() {
           </div>
         </div>
       </div>
+
+      {/* Gráfico maximizado */}
+      {maxi && (
+        <div className="fixed inset-0 z-50 bg-[var(--t-bg)]/95 flex flex-col p-4">
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col flex-1 min-h-0 overflow-hidden">
+            {chartHeader}
+            <div className="flex-1 min-h-0 p-2 wm-corner"><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
