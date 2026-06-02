@@ -1710,9 +1710,13 @@ function TabClientesSegmentacion() {
         return r.json();
       })
       .then((d: { clientes: Cliente[] }) => {
-        setRows(d.clientes || []);
+        // Cuentas ordenadas por id_cuenta ascendente (numérico) — no desparramadas.
+        const ordenadas = [...(d.clientes || [])].sort(
+          (a, b) => (Number(a.id_cuenta) || 0) - (Number(b.id_cuenta) || 0),
+        );
+        setRows(ordenadas);
         const initial: Record<string, ClienteDraft> = {};
-        for (const c of d.clientes || []) initial[c.id_cuenta] = draftFromCliente(c);
+        for (const c of ordenadas) initial[c.id_cuenta] = draftFromCliente(c);
         setDrafts(initial);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
