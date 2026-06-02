@@ -4,18 +4,21 @@ import { useState } from "react";
 import { CashFlowView } from "./cashflow-view";
 import { IntradayView } from "./intraday-view";
 import { NegocioView } from "./negocio-view";
+import { OpsView } from "./ops-view";
 
-// /operaciones: movimientos (ex NEGOCIO) · depósitos & extracciones (ex CASH FLOW)
-// · intraday. COMERCIAL → /operadores y CONTRAPARTES + FLUJO vs AUM → /contrapartes
-// se separaron en rutas propias (dropdown NEGOCIO de la nav).
-type Tab = "movimientos" | "depositos" | "intraday";
+// /operaciones: OPERACIONES (sobre CashFlow.Operaciones, ex /ops de prueba) ·
+// movimientos (ex NEGOCIO, consolidados) · depósitos & extracciones · intraday.
+type Tab = "operaciones" | "movimientos" | "depositos" | "intraday";
 
 export function OperacionesView() {
-  const [tab, setTab] = useState<Tab>("movimientos");
+  const [tab, setTab] = useState<Tab>("operaciones");
 
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <TabBtn active={tab === "operaciones"} onClick={() => setTab("operaciones")}>
+          OPERACIONES
+        </TabBtn>
         <TabBtn active={tab === "movimientos"} onClick={() => setTab("movimientos")}>
           MOVIMIENTOS
         </TabBtn>
@@ -28,13 +31,10 @@ export function OperacionesView() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "movimientos" ? (
-          <NegocioView />
-        ) : tab === "depositos" ? (
-          <CashFlowView />
-        ) : (
-          <IntradayView />
-        )}
+        {tab === "operaciones" && <OpsView />}
+        {tab === "movimientos" && <NegocioView />}
+        {tab === "depositos" && <CashFlowView />}
+        {tab === "intraday" && <IntradayView />}
       </div>
     </div>
   );

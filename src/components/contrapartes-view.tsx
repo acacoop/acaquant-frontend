@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AreaChart,
-  Area,
+  Bar,
+  BarChart,
+  CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { DualRange } from "./dual-range";
 
 interface FlujoDoc {
   boleto?: number | string;
@@ -66,31 +66,6 @@ function mesLabel(key: string): string {
   return `${MESES[parseInt(m) - 1]} ${y.slice(-2)}`;
 }
 
-function niceScale(
-  min: number,
-  max: number,
-  maxTicks = 5
-): { min: number; max: number; ticks: number[] } {
-  if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };
-  if (min === max) {
-    const d = Math.abs(min) || 1;
-    return { min: min - d, max: max + d, ticks: [min - d, min, min + d] };
-  }
-  const range = max - min;
-  const roughStep = range / Math.max(1, maxTicks - 1);
-  const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
-  const normalized = roughStep / pow10;
-  const niceStep =
-    normalized < 1.5 ? 1 : normalized < 3 ? 2 : normalized < 7 ? 5 : 10;
-  const step = niceStep * pow10;
-  const niceMin = Math.floor(min / step) * step;
-  const niceMax = Math.ceil(max / step) * step;
-  const ticks: number[] = [];
-  for (let t = niceMin; t <= niceMax + step / 2; t += step)
-    ticks.push(+t.toFixed(10));
-  return { min: niceMin, max: niceMax, ticks };
-}
-
 export function ContrapartesView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,13 +113,6 @@ export function ContrapartesView() {
       ).sort(),
     [contrapartes]
   );
-  const segmentosDisp = useMemo(
-    () =>
-      Array.from(
-        new Set(flujos.map((f) => f.segmento).filter(Boolean) as string[])
-      ).sort(),
-    [flujos]
-  );
   const monedasDisp = useMemo(
     () =>
       Array.from(
@@ -154,19 +122,16 @@ export function ContrapartesView() {
   );
 
   const [grupoSel, setGrupoSel] = useState<string[]>([]);
-  const [segSel, setSegSel] = useState<string[]>([]);
   const [monSel, setMonSel] = useState<string[]>([]);
-  const [rangoIdx, setRangoIdx] = useState<[number, number] | null>(null);
-  const [dia, setDia] = useState<string>(""); // vacío = rango; si hay valor = solo ese día
+  const [dia, setDia] = useState<string>(""); // vacío = rango; si hay valor = solo ese día (detalle)
   const [cpSel, setCpSel] = useState<string | null>(null);
   const [monedaTabla, setMonedaTabla] = useState<string>("");
+  const [chartMoneda, setChartMoneda] = useState<"ARS" | "USD">("ARS");
+  const [aggCp, setAggCp] = useState<"DIARIO" | "MENSUAL">("MENSUAL");
 
   useEffect(() => {
     if (gruposDisp.length && grupoSel.length === 0) setGrupoSel(gruposDisp);
   }, [gruposDisp, grupoSel.length]);
-  useEffect(() => {
-    if (segmentosDisp.length && segSel.length === 0) setSegSel(segmentosDisp);
-  }, [segmentosDisp, segSel.length]);
   useEffect(() => {
     if (monedasDisp.length && monSel.length === 0) setMonSel(monedasDisp);
   }, [monedasDisp, monSel.length]);
@@ -178,18 +143,17 @@ export function ContrapartesView() {
     return Array.from(set).sort();
   }, [flujos]);
 
-  // Rango efectivo — default a todo el universo disponible.
-  const efectivoRango: [number, number] =
-    diasAll.length > 0
-      ? rangoIdx == null
-        ? [0, diasAll.length - 1]
-        : [
-            Math.min(Math.max(0, rangoIdx[0]), diasAll.length - 1),
-            Math.min(Math.max(rangoIdx[0], rangoIdx[1]), diasAll.length - 1),
-          ]
-      : [0, 0];
-  const desde = diasAll[efectivoRango[0]] ?? "";
-  const hasta = diasAll[efectivoRango[1]] ?? "";
+  // Rango por inputs de fecha (calendario). Default = todo el universo.
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  useEffect(() => {
+    if (diasAll.length) {
+      setDesde((d) => d || diasAll[0]);
+      setHasta((h) => h || diasAll[diasAll.length - 1]);
+    }
+  }, [diasAll]);
+  const minDia = diasAll[0];
+  const maxDia = diasAll[diasAll.length - 1];
 
   useEffect(() => {
     if (monSel.length && !monedaTabla) setMonedaTabla(monSel[0]);
@@ -200,35 +164,16 @@ export function ContrapartesView() {
   const filtered = useMemo(() => {
     return flujos.filter((f) => {
       const dd = f.concertacion.slice(0, 10);
-      if (dia) {
-        // Modo "día específico": ignora rango, filtra exact match.
-        if (dd !== dia) return false;
-      } else {
-        if (desde && dd < desde) return false;
-        if (hasta && dd > hasta) return false;
-      }
+      if (desde && dd < desde) return false;
+      if (hasta && dd > hasta) return false;
       if (f.moneda && !monSel.includes(f.moneda)) return false;
-      if (segSel.length && segSel.length !== segmentosDisp.length) {
-        if (!f.segmento || !segSel.includes(f.segmento)) return false;
-      }
       if (grupoSel.length && grupoSel.length !== gruposDisp.length) {
         const g = f.contraparte ? grupoMap[f.contraparte] : undefined;
         if (!g || !grupoSel.includes(g)) return false;
       }
       return true;
     });
-  }, [
-    flujos,
-    desde,
-    hasta,
-    dia,
-    monSel,
-    segSel,
-    segmentosDisp.length,
-    grupoSel,
-    gruposDisp.length,
-    grupoMap,
-  ]);
+  }, [flujos, desde, hasta, monSel, grupoSel, gruposDisp.length, grupoMap]);
 
   // Operaciones del día seleccionado, ordenadas por |bruto| DESC — las más
   // grandes primero, para ver dónde se concentra el flujo del día.
@@ -239,26 +184,24 @@ export function ContrapartesView() {
     });
   }, [filtered, dia]);
 
-  // Acumulado por moneda (para los charts abajo)
+  // Σ volumen por moneda y por bucket (día o mes) — barras (NO acumulado).
   const chartDataByMoneda = useMemo(() => {
-    const out: Record<string, { label: string; key: string; acum: number }[]> =
-      {};
+    const out: Record<string, { label: string; key: string; bruto: number }[]> = {};
     for (const moneda of monSel) {
       const sub = filtered.filter((f) => f.moneda === moneda);
-      const monthly: Record<string, number> = {};
+      const buckets: Record<string, number> = {};
       for (const f of sub) {
-        const k = f.concertacion.slice(0, 7);
-        monthly[k] = (monthly[k] || 0) + (f.bruto || 0);
+        const k = aggCp === "MENSUAL" ? f.concertacion.slice(0, 7) : f.concertacion.slice(0, 10);
+        buckets[k] = (buckets[k] || 0) + (f.bruto || 0);
       }
-      const keys = Object.keys(monthly).sort();
-      let acum = 0;
-      out[moneda] = keys.map((k) => {
-        acum += monthly[k];
-        return { key: k, label: mesLabel(k), acum };
-      });
+      out[moneda] = Object.keys(buckets).sort().map((k) => ({
+        key: k,
+        label: aggCp === "MENSUAL" ? mesLabel(k) : k.slice(5),  // DD-MM corto
+        bruto: buckets[k],
+      }));
     }
     return out;
-  }, [filtered, monSel]);
+  }, [filtered, monSel, aggCp]);
 
   // Tabla de contrapartes (moneda seleccionada)
   const contrapartesTabla = useMemo(() => {
@@ -324,51 +267,31 @@ export function ContrapartesView() {
     <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
       {/* Filtros */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-2 shrink-0">
-        {/* Barrita de rango (deshabilitada si hay día específico) */}
-        <div
-          className={`flex items-center gap-2 ${
-            dia ? "opacity-40 pointer-events-none" : ""
-          }`}
-        >
-          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[78px]">
-            {desde}
-          </span>
-          <DualRange
-            min={0}
-            max={Math.max(0, diasAll.length - 1)}
-            lo={efectivoRango[0]}
-            hi={efectivoRango[1]}
-            setLo={(v) => setRangoIdx([v, Math.max(v, efectivoRango[1])])}
-            setHi={(v) => setRangoIdx([Math.min(v, efectivoRango[0]), v])}
-          />
-          <span className="text-[10px] text-[var(--t-accent)] font-mono min-w-[78px] text-right">
-            {hasta}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Labeled label="Día específico">
-            <div className="flex items-center gap-1 h-[26px]">
-              <select
-                value={dia}
+        <div className="flex items-end gap-3 flex-wrap">
+          <Labeled label="Desde">
+            <input
+              type="date" value={desde} min={minDia} max={hasta || maxDia}
+              onChange={(e) => setDesde(e.target.value)}
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none [color-scheme:dark]"
+            />
+          </Labeled>
+          <Labeled label="Hasta">
+            <input
+              type="date" value={hasta} min={desde || minDia} max={maxDia}
+              onChange={(e) => setHasta(e.target.value)}
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none [color-scheme:dark]"
+            />
+          </Labeled>
+          <Labeled label="Día (detalle)">
+            <div className="flex items-center gap-1">
+              <input
+                type="date" value={dia} min={minDia} max={maxDia}
                 onChange={(e) => setDia(e.target.value)}
-                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none"
-              >
-                <option value="">(rango completo)</option>
-                {[...diasAll].reverse().map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none [color-scheme:dark]"
+              />
               {dia && (
-                <button
-                  onClick={() => setDia("")}
-                  title="Limpiar día"
-                  className="h-[26px] px-2 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-                >
-                  ✕
-                </button>
+                <button onClick={() => setDia("")} title="Limpiar día"
+                  className="px-2 py-1 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">✕</button>
               )}
             </div>
           </Labeled>
@@ -387,25 +310,6 @@ export function ContrapartesView() {
                   }
                 >
                   {g}
-                </Chip>
-              ))}
-            </div>
-          </Labeled>
-          <Labeled label="Segmento">
-            <div className="flex items-center gap-1 h-[26px] flex-wrap">
-              {segmentosDisp.map((s) => (
-                <Chip
-                  key={s}
-                  active={segSel.includes(s)}
-                  onClick={() =>
-                    setSegSel((prev) =>
-                      prev.includes(s)
-                        ? prev.filter((x) => x !== s)
-                        : [...prev, s]
-                    )
-                  }
-                >
-                  {s}
                 </Chip>
               ))}
             </div>
@@ -636,122 +540,68 @@ export function ContrapartesView() {
            el chart muestra un solo punto y no aporta; la tabla alcanza. */}
       {!dia && (
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10">
           <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-            FLUJO ACUMULADO
+            VOLUMEN OPERADO
           </span>
+          {/* Toggle DIARIO/MENSUAL */}
+          <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+            {(["DIARIO", "MENSUAL"] as const).map((a) => (
+              <button key={a} onClick={() => setAggCp(a)}
+                className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (aggCp === a
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                  : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{a}</button>
+            ))}
+          </div>
+          {/* Toggle ARS/USD */}
+          <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+            {(["ARS", "USD"] as const).map((m) => (
+              <button key={m} onClick={() => setChartMoneda(m)}
+                className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (chartMoneda === m
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                  : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
+            ))}
+          </div>
         </div>
-        <div
-          className={`p-2 grid gap-2 ${
-            monSel.length === 2 ? "grid-cols-2" : "grid-cols-1"
-          }`}
-        >
-          {monSel.length === 0 && (
-            <div className="h-[180px] flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
-              Seleccioná al menos una moneda.
-            </div>
-          )}
-          {monSel.map((moneda) => {
-            const data = chartDataByMoneda[moneda] || [];
-            const hasData = data.some((d) => d.acum !== 0);
-            const color = moneda === "ARS" ? COLOR_ARS : COLOR_USD;
-            const vals = data.map((d) => d.acum);
-            const yScale = hasData
-              ? niceScale(Math.min(0, ...vals), Math.max(0, ...vals), 4)
-              : { min: 0, max: 1, ticks: [0, 1] };
+        <div className="p-2 wm-corner">
+          {(() => {
+            const data = chartDataByMoneda[chartMoneda] || [];
+            const hasData = data.some((d) => d.bruto !== 0);
+            const color = chartMoneda === "ARS" ? COLOR_ARS : COLOR_USD;
+            const totalVol = data.reduce((a, d) => a + d.bruto, 0);
+            if (!hasData) {
+              return (
+                <div className="h-[200px] flex items-center justify-center text-[var(--t-text-muted)] text-[11px]">
+                  Sin datos en {chartMoneda} para este rango.
+                </div>
+              );
+            }
             return (
-              <div key={moneda}>
+              <>
                 <div className="flex items-center px-1 pb-1 text-[10px] tracking-wide">
-                  <span style={{ color }} className="font-semibold">
-                    {moneda}
-                  </span>
                   <span className="ml-auto text-[var(--t-text-dim)]">
-                    Acum:{" "}
-                    <span style={{ color }} className="font-semibold">
-                      {data.length
-                        ? fmtCompact(data[data.length - 1].acum)
-                        : "--"}
-                    </span>
+                    Total: <span style={{ color }} className="font-semibold">{fmtCompact(totalVol)} {chartMoneda}</span>
                   </span>
                 </div>
-                {hasData ? (
-                  <div className="h-[180px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={data}
-                        margin={{ top: 4, right: 10, bottom: 20, left: 0 }}
-                      >
-                        <defs>
-                          <linearGradient
-                            id={`grad-${moneda}`}
-                            x1="0"
-                            y1="0"
-                            x2="0"
-                            y2="1"
-                          >
-                            <stop
-                              offset="0%"
-                              stopColor={color}
-                              stopOpacity={0.35}
-                            />
-                            <stop
-                              offset="100%"
-                              stopColor={color}
-                              stopOpacity={0.02}
-                            />
-                          </linearGradient>
-                        </defs>
-                        <XAxis
-                          dataKey="label"
-                          tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
-                          axisLine={{ stroke: "var(--t-border-2)" }}
-                          tickLine={false}
-                          interval={Math.max(
-                            0,
-                            Math.floor(data.length / 8)
-                          )}
-                          angle={-35}
-                          textAnchor="end"
-                          height={24}
-                        />
-                        <YAxis
-                          domain={[yScale.min, yScale.max]}
-                          ticks={yScale.ticks}
-                          tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
-                          axisLine={{ stroke: "var(--t-border-2)" }}
-                          tickLine={false}
-                          tickFormatter={(v: number) => fmtCompact(v)}
-                          width={55}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            background: "var(--t-surface)",
-                            border: "1px solid var(--t-border-2)",
-                            fontSize: 11,
-                            fontFamily: "JetBrains Mono, monospace",
-                          }}
-                          labelStyle={{ color: "var(--t-text-dim)" }}
-                          formatter={(v) => [fmtCompact(Number(v)), moneda]}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="acum"
-                          stroke={color}
-                          strokeWidth={2}
-                          fill={`url(#grad-${moneda})`}
-                          isAnimationActive={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="h-[180px] flex items-center justify-center text-[var(--t-text-muted)] text-[10px]">
-                    Sin datos en {moneda}
-                  </div>
-                )}
-              </div>
+                <div className="h-[200px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 4, right: 10, bottom: 20, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
+                      <XAxis dataKey="label" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                        axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
+                        interval={Math.max(0, Math.floor(data.length / 12))} angle={-35} textAnchor="end" height={24} />
+                      <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} axisLine={{ stroke: "var(--t-border-2)" }}
+                        tickLine={false} tickFormatter={(v: number) => fmtCompact(v)} width={55}
+                        domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
+                      <Tooltip contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
+                        labelStyle={{ color: "var(--t-text-dim)" }} formatter={(v) => [fmtCompact(Number(v)), chartMoneda]} />
+                      <Bar dataKey="bruto" fill={color} isAnimationActive={false} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
             );
-          })}
+          })()}
         </div>
       </div>
       )}
