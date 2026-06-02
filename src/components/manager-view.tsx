@@ -2683,7 +2683,7 @@ function OperacionesBackfillPanel() {
   };
 
   const subir = async () => {
-    if (!rows.length) return;
+    if (busy || !rows.length) return;
     setBusy(true); setMsg(null); setResult(null);
     const total = Math.ceil(rows.length / OPS_BATCH);
     const acc = { recibidas: 0, upsertadas: 0, modificadas: 0, sin_boleto: 0 };
@@ -2744,24 +2744,31 @@ function OperacionesBackfillPanel() {
         </div>
 
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
-          <input
-            type="file" accept=".csv,.xlsx,.xls" disabled={busy}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
-            className="text-[var(--t-text)] text-[11px]"
-          />
+          <label className="inline-block px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]">
+            ELEGIR ARCHIVO (.csv / .xlsx)
+            <input
+              type="file" accept=".csv,.xlsx,.xls"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
+              className="hidden"
+            />
+          </label>
           {fileName && rows.length > 0 && (
             <div className="text-[var(--t-text-muted)]">
               <span className="text-[var(--t-text)]">{fileName}</span> · {rows.length.toLocaleString("es-AR")} filas · columnas: {headers.join(", ")}
             </div>
           )}
-          <div>
-            <button
-              onClick={subir} disabled={busy || !rows.length}
-              className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]"
-            >
-              {busy ? "Subiendo…" : "SUBIR A CASHFLOW.OPERACIONES"}
-            </button>
-          </div>
+          {rows.length > 0 ? (
+            <div>
+              <button
+                onClick={subir}
+                className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]"
+              >
+                {busy ? "Subiendo…" : "SUBIR A CASHFLOW.OPERACIONES"}
+              </button>
+            </div>
+          ) : (
+            <div className="text-[var(--t-text-muted)]">Elegí un archivo para habilitar la subida.</div>
+          )}
           {progress && <div className="text-[var(--t-text-muted)]">lote {progress.done}/{progress.total}…</div>}
           {result && (
             <div className="text-[var(--t-text)]">
