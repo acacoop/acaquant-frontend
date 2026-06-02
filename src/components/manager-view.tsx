@@ -2055,6 +2055,8 @@ function TabClientesFondeos() {
   const [q, setQ] = useState("");
   const [soloCargados, setSoloCargados] = useState(true);
   const [nivelSel, setNivelSel] = useState<string | null>(null);
+  const [nivel3Opts, setNivel3Opts] = useState<string[]>([]);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -2077,6 +2079,32 @@ function TabClientesFondeos() {
   };
 
   useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // Valores existentes de nivel_3 (para el select — NO se pueden crear nuevos).
+  useEffect(() => {
+    fetch("/api/manager/clientes/values")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { values?: Record<string, string[]> } | null) => setNivel3Opts(d?.values?.nivel_3 ?? []))
+      .catch(() => { /* silencioso */ });
+  }, []);
+
+  // Segmentar inline: setea nivel_3 (solo valores existentes) vía PATCH.
+  const saveNivel3 = async (id_cuenta: string, nivel_3: string) => {
+    setSavingId(id_cuenta);
+    try {
+      const res = await fetch("/api/manager/clientes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_cuenta, nivel_3 }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRows((prev) => prev.map((c) => (c.id_cuenta === id_cuenta ? { ...c, nivel_3: nivel_3 || null } : c)));
+    } catch {
+      setImportMsg({ ok: false, text: `No se pudo guardar el nivel 3 de ${id_cuenta}.` });
+    } finally {
+      setSavingId(null);
+    }
+  };
 
   // Resumen de segmentación (nivel_3) sobre TODAS las cuentas — para ver de un
   // vistazo cuántas hay por nivel y cuántas sin segmentar. Click en un chip
@@ -2260,6 +2288,7 @@ function TabClientesFondeos() {
                 <th className="px-3 py-2">CUENTA</th>
                 <th className="px-2 py-2">DENOMINACIÓN</th>
                 <th className="px-2 py-2">TIPO</th>
+                <th className="px-2 py-2">NIVEL 3</th>
                 <th className="px-2 py-2 text-right">CUPO TRANS. (ARS)</th>
                 <th className="px-2 py-2 text-right">CUPO USADO (ARS)</th>
                 <th className="px-2 py-2 text-right">% UTIL.</th>
@@ -2275,6 +2304,14 @@ function TabClientesFondeos() {
                     <td className="px-3 py-1.5 text-[var(--t-text)]">{c.id_cuenta}</td>
                     <td className="px-2 py-1.5 text-[var(--t-text)]">{c.denominacion || "—"}</td>
                     <td className="px-2 py-1.5 text-[var(--t-text-dim)]">{c.tipo_cliente || "—"}</td>
+                    <td className="px-2 py-1.5">
+                      <select value={c.nivel_3 ?? ""} disabled={savingId === c.id_cuenta}
+                        onChange={(e) => saveNivel3(c.id_cuenta, e.target.value)}
+                        className={"bg-[var(--t-panel)] border px-1.5 py-0.5 text-[10px] focus:outline-none focus:border-[var(--t-accent)] [color-scheme:dark] disabled:opacity-40 " + (c.nivel_3 ? "border-[var(--t-border-2)] text-[var(--t-text)]" : "border-amber-500/50 text-amber-400")}>
+                        <option value="">— sin segmentar —</option>
+                        {nivel3Opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtARS(lf.transaccional_ars)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtARS(lf.usado_ars)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{lf.utilizacion_pct != null ? `${lf.utilizacion_pct.toFixed(1)}%` : "—"}</td>
