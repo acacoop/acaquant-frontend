@@ -104,15 +104,15 @@ export function AgroView() {
 
       {/* Cuerpo 50/50 */}
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
-        {/* IZQUIERDA */}
-        <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+        {/* IZQUIERDA: tabla commodity chica (arriba) + gráfico grande (abajo) */}
+        <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
           {/* Por commodity */}
-          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+          <div className="border border-[var(--t-border)] flex flex-col overflow-hidden shrink-0">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por commodity</span>
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtTon(totGral)} t</span>
             </div>
-            <div className="flex-1 min-h-0 overflow-auto">
+            <div>
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <tbody>
                   {COMMS.filter((c) => tot[c.key] !== 0).map((c) => {
@@ -133,14 +133,16 @@ export function AgroView() {
               </table>
             </div>
           </div>
-          {/* Gráfico */}
-          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-            <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] uppercase tracking-widest text-[var(--t-text-muted)] shrink-0">
-              Volumen operado · toneladas
+          {/* Gráfico (grande) */}
+          <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado · toneladas</span>
+              {desde && hasta && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{desde.slice(5)} → {hasta.slice(5)}</span>}
+              <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total: </span><span className="text-[var(--t-accent)] font-semibold">{fmtTon(totGral)} t</span></span>
             </div>
             <div className="flex-1 min-h-0 p-2 wm-corner">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 6, right: 10, left: 6, bottom: 4 }}>
+                <BarChart data={chartData} margin={{ top: 6, right: 10, left: 6, bottom: 4 }} barCategoryGap="20%">
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
                   <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
                     interval={Math.max(0, Math.floor(chartData.length / 12))} angle={-35} textAnchor="end" height={28} />
@@ -150,7 +152,7 @@ export function AgroView() {
                     contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
                   <Legend wrapperStyle={{ fontSize: 9 }} />
                   {COMMS.filter((c) => !selComm || selComm === c.key).map((c) => (
-                    <Bar key={c.key} dataKey={c.key} name={c.label} fill={c.color} isAnimationActive={false} />
+                    <Bar key={c.key} dataKey={c.key} name={c.label} fill={c.color} isAnimationActive={false} maxBarSize={48} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
