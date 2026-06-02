@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { AgroView } from "./agro-view";
 import { CashFlowView } from "./cashflow-view";
 import { IntradayView } from "./intraday-view";
 import { OpsView } from "./ops-view";
 
-// /operaciones: OPERACIONES (sobre CashFlow.Operaciones) · depósitos &
-// extracciones · intraday. MOVIMIENTOS (ex NEGOCIO, consolidados) se movió a
-// Manager (es la vieja, queda solo para la mesa interna).
-type Tab = "operaciones" | "depositos" | "intraday";
+// /operaciones: OPERACIONES (CashFlow.Operaciones) · AGRO (futuros agro, ton) ·
+// depósitos & extracciones · intraday. MOVIMIENTOS (ex NEGOCIO) se movió a Manager.
+type Tab = "operaciones" | "agro" | "depositos" | "intraday";
 
 export function OperacionesView() {
   const [tab, setTab] = useState<Tab>("operaciones");
@@ -18,6 +18,9 @@ export function OperacionesView() {
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "operaciones"} onClick={() => setTab("operaciones")}>
           OPERACIONES
+        </TabBtn>
+        <TabBtn active={tab === "agro"} onClick={() => setTab("agro")}>
+          AGRO
         </TabBtn>
         <TabBtn active={tab === "depositos"} onClick={() => setTab("depositos")}>
           DEPÓSITOS & EXTRACCIONES
@@ -29,6 +32,7 @@ export function OperacionesView() {
 
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "operaciones" && <OpsView />}
+        {tab === "agro" && <AgroView />}
         {tab === "depositos" && <CashFlowView />}
         {tab === "intraday" && <IntradayView />}
       </div>
