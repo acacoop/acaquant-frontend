@@ -1267,6 +1267,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                       <th className="px-3 py-1.5 text-left bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">Nivel 3</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Suma del cupo transaccional (USD al MEP) del segmento.">Cupo Trans. (USD)</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Suma del cupo libre = transaccional − usado (USD).">Cupo Libre (USD)</th>
+                      <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Total de cuentas en este nivel 3 (todas, sin importar estado).">Cuentas</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas con estado Activa.">Activas</th>
                       <th className="px-2 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]" title="Cuentas con estado Enfriándose.">Enfr.</th>
                       <th className="px-3 py-1.5 text-right bg-[var(--t-surface)] border-b border-[var(--t-border-2)]">AuM</th>
@@ -1288,6 +1289,7 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
                           <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[180px]" title={r.n3}>{r.n3}</td>
                           <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmtUsd(r.cupo_trans_usd)}</td>
                           <td className="px-2 py-1.5 text-right text-[var(--t-pos)]">{fmtUsd(r.cupo_libre_usd)}</td>
+                          <td className="px-2 py-1.5 text-right text-[var(--t-text)] font-semibold">{r.n}</td>
                           <td className="px-2 py-1.5 text-right text-[var(--t-pos)]">{r.n_activas}</td>
                           <td className="px-2 py-1.5 text-right text-[var(--t-accent)]">{r.n_enfriandose}</td>
                           <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(r.aum)}</td>
