@@ -168,6 +168,17 @@ export function OpsView() {
   const totalPeriodo = useMemo(() => chartData.reduce((a, p) => a + p.bruto, 0), [chartData]);
   const focoKey = modo === "DIA" && focoDia && fecha ? bucketKey(fecha, agg) : null;
 
+  // Drill abreviado: lo que operó la cuenta agrupado por instrumento (Σ bruto + n).
+  const porInstrumento = useMemo(() => {
+    const m = new Map<string, { instrumento: string; bruto: number; n: number }>();
+    for (const b of boletos) {
+      const k = b.instrumento || "—";
+      const cur = m.get(k) ?? { instrumento: k, bruto: 0, n: 0 };
+      cur.bruto += b.bruto ?? 0; cur.n += 1; m.set(k, cur);
+    }
+    return [...m.values()].sort((a, b) => b.bruto - a.bruto);
+  }, [boletos]);
+
   const pickFecha = (picked: string) => {
     if (!picked) return;
     const snap = fechasAsc.includes(picked) ? picked : (fechasAsc.find((f) => f >= picked) ?? fechasAsc[fechasAsc.length - 1]);
@@ -314,24 +325,20 @@ export function OpsView() {
                 <table className="w-full text-[10px] font-mono tabular-nums">
                   <thead className="sticky top-0 bg-[var(--t-panel)] text-[8px] uppercase tracking-widest text-[var(--t-text-muted)]">
                     <tr>
-                      <th className="px-2 py-1 text-left border-b border-[var(--t-border)]">Fecha</th>
-                      <th className="px-2 py-1 text-left border-b border-[var(--t-border)]">Operación</th>
                       <th className="px-2 py-1 text-left border-b border-[var(--t-border)]">Instrumento</th>
-                      <th className="px-2 py-1 text-right border-b border-[var(--t-border)]">Cantidad</th>
-                      <th className="px-2 py-1 text-right border-b border-[var(--t-border)]">Bruto</th>
+                      <th className="px-2 py-1 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                      <th className="px-2 py-1 text-right border-b border-[var(--t-border)]">N</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {boletos.map((b) => (
-                      <tr key={b.boleto} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
-                        <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{fmtFechaCorta(b.concertacion)}</td>
-                        <td className="px-2 py-0.5 text-[var(--t-text)]">{b.operacion ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[var(--t-accent)] truncate max-w-[220px]" title={b.instrumento ?? ""}>{b.instrumento ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-right text-[var(--t-text)]">{b.cantidad != null ? b.cantidad.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}</td>
-                        <td className="px-2 py-0.5 text-right text-[var(--t-text)] font-semibold">{b.bruto != null ? fmtCompact(b.bruto) : "—"}</td>
+                    {porInstrumento.map((r) => (
+                      <tr key={r.instrumento} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
+                        <td className="px-2 py-0.5 text-[var(--t-accent)] truncate max-w-[260px]" title={r.instrumento}>{r.instrumento}</td>
+                        <td className="px-2 py-0.5 text-right text-[var(--t-text)] font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">{r.n}</td>
                       </tr>
                     ))}
-                    {!boletos.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin boletos</td></tr>}
+                    {!porInstrumento.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin operaciones</td></tr>}
                   </tbody>
                 </table>
               </div>
