@@ -48,7 +48,7 @@ const NAV: Entry[] = [
       { href: "/valuaciones",  label: "Carteras",     module: "portfolios" },
       { href: "/contrapartes", label: "Contrapartes", module: "operaciones" },
       { href: "/operaciones",  label: "Operaciones",  module: "operaciones" },
-      { href: "/ops",          label: "Operaciones ✦", module: "operaciones" },
+      { href: "/ops",          label: "Operaciones ✦", module: "manager" },
       { href: "/operadores",   label: "Operadores",   module: "operaciones" },
     ],
   },
