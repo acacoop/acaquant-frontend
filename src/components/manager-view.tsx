@@ -2671,7 +2671,13 @@ function OperacionesBackfillPanel() {
     try {
       const buf = await file.arrayBuffer();
       const XLSX = await import("xlsx");
-      const wb = XLSX.read(buf, { type: "array" });
+      // CSV: decodificar como UTF-8 explícito (si no, los acentos llegan rotos:
+      // "Concertación" → "ConcertaciÃ³n" y el mapeo de columnas falla). XLSX
+      // se lee binario.
+      const isCsv = /\.csv$/i.test(file.name);
+      const wb = isCsv
+        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
+        : XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
       if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
