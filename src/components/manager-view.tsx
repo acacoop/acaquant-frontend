@@ -5,8 +5,6 @@ import { useCallback, useEffect, useState } from "react";
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
 // estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
 // Manager es admin-only y se prioriza la velocidad de navegación entre tabs).
-import { AsistenteDashboard } from "./asistente-dashboard";
-import { ChatView } from "./chat-view";
 import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
@@ -2616,28 +2614,6 @@ function TabInstrumentos() {
   );
 }
 
-// ── Tab: Asistente (legacy, no en uso) ────────────────────────────────────────
-// Migrado desde la vista standalone /asistente. Sub-tabs: CHAT (vista del
-// asistente) + OBSERVABILITY (stats/logs de Manager.AsistenteLogs).
-function TabAsistente() {
-  const [sub, setSub] = useState<"chat" | "obs">("chat");
-  return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[10px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2">
-          ASISTENTE · LEGACY
-        </span>
-        <Pill label="CHAT"          active={sub === "chat"} onClick={() => setSub("chat")} />
-        <Pill label="OBSERVABILITY" active={sub === "obs"}  onClick={() => setSub("obs")} />
-      </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "chat" && <ChatView />}
-        {sub === "obs"  && <AsistenteDashboard />}
-      </div>
-    </div>
-  );
-}
-
 type Tab =
   | "diagnostico"
   | "jobs"
@@ -2647,7 +2623,6 @@ type Tab =
   | "clientes"
   | "aunesa"
   | "operaciones"
-  | "asistente"
   | "usuarios";
 
 // AUNESA es un grupo con tres sub-vistas:
@@ -2968,7 +2943,6 @@ const TAB_MODULES: Record<Tab, string[]> = {
   clientes:     ["manager", "manager_clientes"],
   aunesa:       ["manager"],
   operaciones:  ["manager"],
-  asistente:    ["manager"],
   usuarios:     ["manager"],
 };
 
@@ -2982,7 +2956,6 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "clientes",     label: "CLIENTES"     },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
-    { id: "asistente",    label: "ASISTENTE"    },
     { id: "usuarios",     label: "USUARIOS"     },
   ];
   // modules === null → dev / backend caído: mostrar todo (sin RBAC en cliente).
@@ -3019,7 +2992,6 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "aunesa"       && <AunesaGroup />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
-        {tab === "asistente"    && <TabAsistente />}
         {tab === "usuarios"     && <UsuariosGroup />}
       </div>
     </div>

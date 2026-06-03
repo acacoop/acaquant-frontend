@@ -23,8 +23,6 @@ import { trustedEmail } from "./lib/cf-access";
 const PATH_MODULES: [string, string[]][] = [
   ["/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk"]],
   ["/api/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk"]],
-  // Asistente (legacy): accesible solo desde Manager. Sin entrada propia.
-  ["/api/chat", ["manager"]],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
   ["/operar", ["operar"]],
   ["/api/ordenes", ["operar"]],
@@ -163,7 +161,6 @@ export const config = {
     "/valuaciones/:path*",
     "/back-office/:path*",
     "/api/manager/:path*",
-    "/api/chat/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
     "/api/operativa/:path*",
