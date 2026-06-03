@@ -12,6 +12,7 @@ import { DatePickerCompact } from "./date-picker";
 import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
 
 type Commodity = "SOJA" | "TRIGO" | "MAIZ";
+type ShareTab = Commodity | "TOTAL";
 type AgroSerieRow = { periodo: string; SOJA: number; TRIGO: number; MAIZ: number };
 // serie_share trae el % por commodity + el detalle absoluto (_nuestro / _mercado).
 type ShareRow = {
@@ -35,9 +36,9 @@ type Resp = {
 };
 
 const COMMS: SerieDef[] = [
-  { key: "SOJA", label: "Soja", color: "#22c55e" },
-  { key: "TRIGO", label: "Trigo", color: "#eab308" },
-  { key: "MAIZ", label: "Maíz", color: "#3b82f6" },
+  { key: "SOJA", label: "Soja", color: "#f97316" },   // naranja
+  { key: "TRIGO", label: "Trigo", color: "#22c55e" }, // verde
+  { key: "MAIZ", label: "Maíz", color: "#3b82f6" },   // azul
 ];
 const TOTAL_SERIE: SerieDef[] = [{ key: "TOTAL", label: "Total", color: "var(--t-accent)" }];
 
@@ -56,7 +57,7 @@ export function AgroView() {
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [chartTab, setChartTab] = useState<ChartTab>("volumen");
   const [shareModo, setShareModo] = useState<ShareModo>("commodity");
-  const [shareCommTab, setShareCommTab] = useState<Commodity>("SOJA");
+  const [shareCommTab, setShareCommTab] = useState<ShareTab>("SOJA");
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -102,16 +103,20 @@ export function AgroView() {
     }),
     [data],
   );
-  // Tabla del lado derecho en modo share: por mes, del commodity elegido.
-  const shareTabla = useMemo(
-    () => (data?.serie_share ?? []).map((p) => ({
-      periodo: p.periodo,
-      mercado: p[`${shareCommTab}_mercado`],
-      nuestro: p[`${shareCommTab}_nuestro`],
-      share: p[shareCommTab],
-    })),
-    [data, shareCommTab],
-  );
+  // Tabla del lado derecho en modo share: por mes, del commodity elegido o el TOTAL.
+  const shareTabla = useMemo(() => {
+    const tab = shareCommTab;
+    return (data?.serie_share ?? []).map((p) => {
+      if (tab === "TOTAL") {
+        const mercado = p.SOJA_mercado + p.TRIGO_mercado + p.MAIZ_mercado;
+        const nuestro = p.SOJA_nuestro + p.TRIGO_nuestro + p.MAIZ_nuestro;
+        return { periodo: p.periodo, mercado, nuestro,
+                 share: mercado ? Math.round((1000 * nuestro) / mercado) / 10 : null };
+      }
+      return { periodo: p.periodo, mercado: p[`${tab}_mercado`],
+               nuestro: p[`${tab}_nuestro`], share: p[tab] };
+    });
+  }, [data, shareCommTab]);
   const tot = data?.totales ?? { SOJA: 0, TRIGO: 0, MAIZ: 0 };
   const totGral = tot.SOJA + tot.TRIGO + tot.MAIZ;
   const cuentas = data?.por_cuenta ?? [];
@@ -241,7 +246,7 @@ export function AgroView() {
             <div className="flex-1 min-h-0">
               {chartTab === "volumen" ? (
                 <OpsBarChart serie={serieGlobal} series={series} fmt={fmtTon} unidad="toneladas"
-                  defaultAgg="MENSUAL" titulo="Volumen global" />
+                  defaultAgg="MENSUAL" titulo="Volumen global" etiquetas />
               ) : !serieShare.length ? (
                 <div className="min-h-0 border border-[var(--t-border)] flex items-center justify-center text-center px-4 text-[11px] text-[var(--t-text-muted)] h-full">
                   Sin volumen de mercado cargado (CashFlow.VolumenMercadoAgro)
@@ -262,7 +267,7 @@ export function AgroView() {
             <ShareTabla rows={shareTabla} commTab={shareCommTab} onCommTab={setShareCommTab} />
           ) : selCuenta ? (
             <OpsBarChart serie={serieCuenta} series={series} fmt={fmtTon} unidad="toneladas"
-              defaultAgg="MENSUAL" titulo={`Cuenta: ${selCuenta}`} />
+              defaultAgg="MENSUAL" titulo={`Cuenta: ${selCuenta}`} etiquetas />
           ) : (
             <div className="min-h-0 border border-[var(--t-border)] flex items-center justify-center text-center px-4 text-[11px] text-[var(--t-text-muted)] h-full">
               Elegí una cuenta en la tabla para ver su volumen
@@ -278,13 +283,13 @@ function ShareTabla({
   rows, commTab, onCommTab,
 }: {
   rows: { periodo: string; mercado: number; nuestro: number; share: number | null }[];
-  commTab: Commodity;
-  onCommTab: (c: Commodity) => void;
+  commTab: ShareTab;
+  onCommTab: (c: ShareTab) => void;
 }) {
   const desc = [...rows].sort((a, b) => b.periodo.localeCompare(a.periodo));
   return (
     <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-      {/* Header con tabs por commodity */}
+      {/* Header con tabs por commodity + TOTAL */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
         <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Mercado vs nosotros</span>
         <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
@@ -294,6 +299,10 @@ function ShareTabla({
               <span className="inline-block w-2 h-2 mr-1 align-middle" style={{ background: c.color }} />{c.label}
             </button>
           ))}
+          <button onClick={() => onCommTab("TOTAL")}
+            className={"px-2 py-0.5 text-[10px] uppercase tracking-wider font-semibold " + (commTab === "TOTAL" ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+            Total
+          </button>
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-auto">

@@ -60,7 +60,7 @@ function aggSerie(serie: SerieRow[], keys: string[], agg: Agg): ChartRow[] {
 
 export function OpsBarChart({
   serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", onAllSelected, titulo,
-  soloMensual = false,
+  soloMensual = false, etiquetas = false,
 }: {
   serie: SerieRow[];
   series: SerieDef[];
@@ -71,6 +71,7 @@ export function OpsBarChart({
   onAllSelected?: () => void; // se llama al elegir "ALL" (vistas con serie acotada → traen historia completa)
   titulo?: string;           // título del header (default "Volumen operado")
   soloMensual?: boolean;     // fuerza MENSUAL y oculta toggles agg/rango/foco + total (modo share)
+  etiquetas?: boolean;       // muestra el valor arriba de cada barra (sin sufijo)
 }) {
   const [agg, setAgg] = useState<Agg>(defaultAgg);
   const [rango, setRango] = useState<RangoKey>("YTD");
@@ -110,7 +111,7 @@ export function OpsBarChart({
         // `fill` en el Bar (además del Cell) → la leyenda y el tooltip toman el
         // color de la serie; los Cells lo overridean por-barra para el foco día.
         <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} isAnimationActive={false} maxBarSize={64}>
-          {soloMensual && (
+          {(soloMensual || etiquetas) && (
             <LabelList dataKey={s.key} position="top" fontSize={9} fill="var(--t-text)"
               formatter={(v) => { const n = Number(v); return n ? fmt(n) : ""; }} />
           )}
