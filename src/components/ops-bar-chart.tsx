@@ -111,7 +111,7 @@ export function OpsBarChart({
         // `fill` en el Bar (además del Cell) → la leyenda y el tooltip toman el
         // color de la serie; los Cells lo overridean por-barra para el foco día.
         <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} isAnimationActive={false} maxBarSize={64}>
-          {(soloMensual || etiquetas) && (
+          {(soloMensual || etiquetas) && effAgg === "MENSUAL" && (
             <LabelList dataKey={s.key} position="top" fontSize={9} fill="var(--t-text)"
               formatter={(v) => { const n = Number(v); return n ? fmt(n) : ""; }} />
           )}
