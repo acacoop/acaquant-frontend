@@ -96,10 +96,14 @@ export function OpsBarChart({
       <YAxis tickFormatter={fmt} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={52}
         domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
       <Tooltip formatter={(v, n) => multi ? [`${fmt(Number(v))} ${unidad}`, String(n)] : `${fmt(Number(v))} ${unidad}`}
-        contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
-      {multi && <Legend wrapperStyle={{ fontSize: 9 }} />}
+        contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }}
+        labelStyle={{ color: "var(--t-text)" }}
+        cursor={{ fill: "var(--t-border)", opacity: 0.3 }} />
+      {multi && <Legend wrapperStyle={{ fontSize: 9, color: "var(--t-text-dim)" }} />}
       {series.map((s) => (
-        <Bar key={s.key} dataKey={s.key} name={s.label} isAnimationActive={false} maxBarSize={64}>
+        // `fill` en el Bar (además del Cell) → la leyenda y el tooltip toman el
+        // color de la serie; los Cells lo overridean por-barra para el foco día.
+        <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} isAnimationActive={false} maxBarSize={64}>
           {chartData.map((d, i) => (
             <Cell key={i} fill={focoKey && d.key !== focoKey ? MUTED : s.color} />
           ))}
