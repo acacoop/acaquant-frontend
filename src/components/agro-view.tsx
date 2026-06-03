@@ -12,11 +12,14 @@ import { DatePickerCompact } from "./date-picker";
 import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
 
 type AgroSerieRow = { periodo: string; SOJA: number; TRIGO: number; MAIZ: number };
+type ShareRow = { periodo: string; SOJA: number | null; TRIGO: number | null; MAIZ: number | null };
 type CuentaRow = { denominacion: string; toneladas: number; n: number };
 type InstrRow = { instrumento: string; toneladas: number; n: number };
+type ChartTab = "volumen" | "share";
 type Resp = {
   serie: AgroSerieRow[];
   serie_cuenta: AgroSerieRow[];
+  serie_share: ShareRow[];
   totales: { SOJA: number; TRIGO: number; MAIZ: number };
   por_cuenta: CuentaRow[];
   por_instrumento: InstrRow[];
@@ -29,8 +32,11 @@ const COMMS: SerieDef[] = [
 ];
 
 const fmtTon = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+const fmtPct = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 1 });
 const toSerieRows = (s: AgroSerieRow[]): SerieRow[] =>
   s.map((p) => ({ fecha: p.periodo, SOJA: p.SOJA, TRIGO: p.TRIGO, MAIZ: p.MAIZ }));
+const toShareRows = (s: ShareRow[]): SerieRow[] =>
+  s.map((p) => ({ fecha: p.periodo, SOJA: p.SOJA ?? 0, TRIGO: p.TRIGO ?? 0, MAIZ: p.MAIZ ?? 0 }));
 
 export function AgroView() {
   const [bounds, setBounds] = useState<{ min: string; max: string } | null>(null);
@@ -38,6 +44,7 @@ export function AgroView() {
   const [hasta, setHasta] = useState("");
   const [selComm, setSelComm] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
+  const [chartTab, setChartTab] = useState<ChartTab>("volumen");
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -73,6 +80,7 @@ export function AgroView() {
   const series = useMemo(() => COMMS.filter((c) => !selComm || selComm === c.key), [selComm]);
   const serieGlobal = useMemo(() => toSerieRows(data?.serie ?? []), [data]);
   const serieCuenta = useMemo(() => toSerieRows(data?.serie_cuenta ?? []), [data]);
+  const serieShare = useMemo(() => toShareRows(data?.serie_share ?? []), [data]);
   const tot = data?.totales ?? { SOJA: 0, TRIGO: 0, MAIZ: 0 };
   const totGral = tot.SOJA + tot.TRIGO + tot.MAIZ;
   const cuentas = data?.por_cuenta ?? [];
@@ -175,10 +183,34 @@ export function AgroView() {
           </TablePanel>
         </div>
 
-        {/* INFERIOR: 2 charts */}
+        {/* INFERIOR: 2 charts. Izq con tab Volumen ↔ Share de mercado. */}
         <div className="min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
-          <OpsBarChart serie={serieGlobal} series={series} fmt={fmtTon} unidad="toneladas"
-            defaultAgg="MENSUAL" titulo="Volumen global" />
+          {/* Izquierda: tab + chart */}
+          <div className="min-h-0 flex flex-col gap-1.5 overflow-hidden">
+            <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] shrink-0 w-fit">
+              {(["volumen", "share"] as ChartTab[]).map((t) => (
+                <button key={t} onClick={() => setChartTab(t)}
+                  className={"px-3 py-0.5 text-[10px] uppercase tracking-wider font-semibold " + (chartTab === t ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+                  {t === "volumen" ? "Volumen" : "Share de mercado"}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 min-h-0">
+              {chartTab === "volumen" ? (
+                <OpsBarChart serie={serieGlobal} series={series} fmt={fmtTon} unidad="toneladas"
+                  defaultAgg="MENSUAL" titulo="Volumen global" />
+              ) : serieShare.length ? (
+                <OpsBarChart serie={serieShare} series={series} fmt={fmtPct} unidad="%"
+                  soloMensual titulo="Share de mercado (nuestro / mercado)" />
+              ) : (
+                <div className="min-h-0 border border-[var(--t-border)] flex items-center justify-center text-center px-4 text-[11px] text-[var(--t-text-muted)] h-full">
+                  Sin volumen de mercado cargado (CashFlow.VolumenMercadoAgro)
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Derecha: chart de la cuenta elegida */}
           {selCuenta ? (
             <OpsBarChart serie={serieCuenta} series={series} fmt={fmtTon} unidad="toneladas"
               defaultAgg="MENSUAL" titulo={`Cuenta: ${selCuenta}`} />

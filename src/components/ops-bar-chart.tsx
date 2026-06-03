@@ -60,6 +60,7 @@ function aggSerie(serie: SerieRow[], keys: string[], agg: Agg): ChartRow[] {
 
 export function OpsBarChart({
   serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", onAllSelected, titulo,
+  soloMensual = false,
 }: {
   serie: SerieRow[];
   series: SerieDef[];
@@ -69,6 +70,7 @@ export function OpsBarChart({
   defaultAgg?: Agg;
   onAllSelected?: () => void; // se llama al elegir "ALL" (vistas con serie acotada → traen historia completa)
   titulo?: string;           // título del header (default "Volumen operado")
+  soloMensual?: boolean;     // fuerza MENSUAL y oculta toggles agg/rango/foco + total (modo share)
 }) {
   const [agg, setAgg] = useState<Agg>(defaultAgg);
   const [rango, setRango] = useState<RangoKey>("YTD");
@@ -76,17 +78,21 @@ export function OpsBarChart({
   const [focoDia, setFocoDia] = useState(false);
   const [maxi, setMaxi] = useState(false);
 
+  // En modo share el dato es mensual y todo el histórico: sin agregación ni rango.
+  const effAgg: Agg = soloMensual ? "MENSUAL" : agg;
+  const effSerie = soloMensual ? serie : filtrarRango(serie, rango, rangoOffset);
+
   const keys = series.map((s) => s.key);
   const keySig = keys.join("|");
   const chartData = useMemo(
-    () => aggSerie(filtrarRango(serie, rango, rangoOffset), keys, agg),
-    [serie, rango, rangoOffset, agg, keySig], // eslint-disable-line react-hooks/exhaustive-deps
+    () => aggSerie(effSerie, keys, effAgg),
+    [effSerie, effAgg, keySig], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const totalPeriodo = useMemo(
     () => chartData.reduce((a, p) => a + keys.reduce((s, k) => s + Number(p[k] ?? 0), 0), 0),
     [chartData, keySig], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const focoKey = focoDia && focoFecha ? bucketKey(focoFecha, agg) : null;
+  const focoKey = focoDia && focoFecha ? bucketKey(focoFecha, effAgg) : null;
   const multi = series.length > 1;
 
   const Chart = (
@@ -116,21 +122,27 @@ export function OpsBarChart({
     <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
       <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)] truncate max-w-[260px]" title={titulo ?? "Volumen operado"}>{titulo ?? "Volumen operado"} · {unidad}</span>
       {chartData.length > 0 && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{chartData[0].x} → {chartData[chartData.length - 1].x}</span>}
-      <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span><span className="text-[var(--t-accent)] font-semibold">{fmt(totalPeriodo)} {unidad === "toneladas" ? "t" : ""}</span></span>
-      <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-        {(["DIARIO","SEMANAL","MENSUAL"] as Agg[]).map((k) => (
-          <button key={k} onClick={() => setAgg(k)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (agg === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
-        ))}
-      </div>
-      <button onClick={() => setRangoOffset((o) => o + 1)} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)]" title="Período anterior">◀</button>
-      <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-        {(["1W","1M","3M","YTD","1A","ALL"] as RangoKey[]).map((k) => (
-          <button key={k} onClick={() => { setRango(k); setRangoOffset(0); if (k === "ALL") onAllSelected?.(); }} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (rango === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
-        ))}
-      </div>
-      <button onClick={() => setRangoOffset((o) => Math.max(0, o - 1))} disabled={rangoOffset === 0} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] disabled:opacity-30" title="Período siguiente">▶</button>
-      <button onClick={() => setFocoDia((v) => !v)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[var(--t-border-2)] " + (focoDia ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>Foco día {focoDia ? "✓" : "○"}</button>
-      <button onClick={() => setMaxi((v) => !v)} className="px-2 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]" title="Maximizar gráfico">⤢</button>
+      {!soloMensual && (
+        <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span><span className="text-[var(--t-accent)] font-semibold">{fmt(totalPeriodo)} {unidad === "toneladas" ? "t" : ""}</span></span>
+      )}
+      {!soloMensual && (
+        <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          {(["DIARIO","SEMANAL","MENSUAL"] as Agg[]).map((k) => (
+            <button key={k} onClick={() => setAgg(k)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (agg === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
+          ))}
+        </div>
+      )}
+      {!soloMensual && <button onClick={() => setRangoOffset((o) => o + 1)} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)]" title="Período anterior">◀</button>}
+      {!soloMensual && (
+        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          {(["1W","1M","3M","YTD","1A","ALL"] as RangoKey[]).map((k) => (
+            <button key={k} onClick={() => { setRango(k); setRangoOffset(0); if (k === "ALL") onAllSelected?.(); }} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider " + (rango === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{k}</button>
+          ))}
+        </div>
+      )}
+      {!soloMensual && <button onClick={() => setRangoOffset((o) => Math.max(0, o - 1))} disabled={rangoOffset === 0} className="px-1 text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] hover:text-[var(--t-accent)] disabled:opacity-30" title="Período siguiente">▶</button>}
+      {!soloMensual && <button onClick={() => setFocoDia((v) => !v)} className={"px-2 py-0.5 text-[9px] uppercase tracking-wider border border-[var(--t-border-2)] " + (focoDia ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>Foco día {focoDia ? "✓" : "○"}</button>}
+      <button onClick={() => setMaxi((v) => !v)} className={(soloMensual ? "ml-auto " : "") + "px-2 py-0.5 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"} title="Maximizar gráfico">⤢</button>
     </div>
   );
 
