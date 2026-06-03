@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
 export type Agg = "DIARIO" | "SEMANAL" | "MENSUAL";
@@ -110,6 +110,10 @@ export function OpsBarChart({
         // `fill` en el Bar (además del Cell) → la leyenda y el tooltip toman el
         // color de la serie; los Cells lo overridean por-barra para el foco día.
         <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} isAnimationActive={false} maxBarSize={64}>
+          {soloMensual && (
+            <LabelList dataKey={s.key} position="top" fontSize={9} fill="var(--t-text)"
+              formatter={(v) => { const n = Number(v); return n ? `${fmt(n)}${unidad === "%" ? "%" : ""}` : ""; }} />
+          )}
           {chartData.map((d, i) => (
             <Cell key={i} fill={focoKey && d.key !== focoKey ? MUTED : s.color} />
           ))}
@@ -121,7 +125,7 @@ export function OpsBarChart({
   const chartHeader = (
     <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
       <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)] truncate max-w-[260px]" title={titulo ?? "Volumen operado"}>{titulo ?? "Volumen operado"} · {unidad}</span>
-      {chartData.length > 0 && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{chartData[0].x} → {chartData[chartData.length - 1].x}</span>}
+      {!soloMensual && chartData.length > 0 && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{chartData[0].x} → {chartData[chartData.length - 1].x}</span>}
       {!soloMensual && (
         <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span><span className="text-[var(--t-accent)] font-semibold">{fmt(totalPeriodo)} {unidad === "toneladas" ? "t" : ""}</span></span>
       )}
