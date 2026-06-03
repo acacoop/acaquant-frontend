@@ -59,7 +59,7 @@ function aggSerie(serie: SerieRow[], keys: string[], agg: Agg): ChartRow[] {
 }
 
 export function OpsBarChart({
-  serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", onAllSelected,
+  serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", onAllSelected, titulo,
 }: {
   serie: SerieRow[];
   series: SerieDef[];
@@ -68,6 +68,7 @@ export function OpsBarChart({
   focoFecha?: string | null; // día seleccionado (modo DIA) → resaltar; null = sin foco
   defaultAgg?: Agg;
   onAllSelected?: () => void; // se llama al elegir "ALL" (vistas con serie acotada → traen historia completa)
+  titulo?: string;           // título del header (default "Volumen operado")
 }) {
   const [agg, setAgg] = useState<Agg>(defaultAgg);
   const [rango, setRango] = useState<RangoKey>("YTD");
@@ -109,7 +110,7 @@ export function OpsBarChart({
 
   const chartHeader = (
     <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-      <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Volumen operado · {unidad}</span>
+      <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)] truncate max-w-[260px]" title={titulo ?? "Volumen operado"}>{titulo ?? "Volumen operado"} · {unidad}</span>
       {chartData.length > 0 && <span className="text-[9px] font-mono text-[var(--t-text-muted)]">{chartData[0].x} → {chartData[chartData.length - 1].x}</span>}
       <span className="text-[10px] font-mono"><span className="text-[var(--t-text-muted)] uppercase tracking-wider">Total período: </span><span className="text-[var(--t-accent)] font-semibold">{fmt(totalPeriodo)} {unidad === "toneladas" ? "t" : ""}</span></span>
       <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
