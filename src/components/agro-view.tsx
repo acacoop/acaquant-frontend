@@ -11,11 +11,20 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { DatePickerCompact } from "./date-picker";
 import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
 
+type Commodity = "SOJA" | "TRIGO" | "MAIZ";
 type AgroSerieRow = { periodo: string; SOJA: number; TRIGO: number; MAIZ: number };
-type ShareRow = { periodo: string; SOJA: number | null; TRIGO: number | null; MAIZ: number | null };
+// serie_share trae el % por commodity + el detalle absoluto (_nuestro / _mercado).
+type ShareRow = {
+  periodo: string;
+  SOJA: number | null; TRIGO: number | null; MAIZ: number | null;
+  SOJA_nuestro: number; SOJA_mercado: number;
+  TRIGO_nuestro: number; TRIGO_mercado: number;
+  MAIZ_nuestro: number; MAIZ_mercado: number;
+};
 type CuentaRow = { denominacion: string; toneladas: number; n: number };
 type InstrRow = { instrumento: string; toneladas: number; n: number };
 type ChartTab = "volumen" | "share";
+type ShareModo = "commodity" | "total";
 type Resp = {
   serie: AgroSerieRow[];
   serie_cuenta: AgroSerieRow[];
@@ -30,6 +39,7 @@ const COMMS: SerieDef[] = [
   { key: "TRIGO", label: "Trigo", color: "#eab308" },
   { key: "MAIZ", label: "Maíz", color: "#3b82f6" },
 ];
+const TOTAL_SERIE: SerieDef[] = [{ key: "TOTAL", label: "Total", color: "var(--t-accent)" }];
 
 const fmtTon = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 const fmtPct = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 1 });
@@ -45,6 +55,8 @@ export function AgroView() {
   const [selComm, setSelComm] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [chartTab, setChartTab] = useState<ChartTab>("volumen");
+  const [shareModo, setShareModo] = useState<ShareModo>("commodity");
+  const [shareCommTab, setShareCommTab] = useState<Commodity>("SOJA");
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -81,6 +93,25 @@ export function AgroView() {
   const serieGlobal = useMemo(() => toSerieRows(data?.serie ?? []), [data]);
   const serieCuenta = useMemo(() => toSerieRows(data?.serie_cuenta ?? []), [data]);
   const serieShare = useMemo(() => toShareRows(data?.serie_share ?? []), [data]);
+  // Total: nuestro total / mercado total (Σ commodities) → una barra por mes.
+  const serieShareTotal = useMemo<SerieRow[]>(
+    () => (data?.serie_share ?? []).map((p) => {
+      const nu = p.SOJA_nuestro + p.TRIGO_nuestro + p.MAIZ_nuestro;
+      const me = p.SOJA_mercado + p.TRIGO_mercado + p.MAIZ_mercado;
+      return { fecha: p.periodo, TOTAL: me ? Math.round((1000 * nu) / me) / 10 : 0 };
+    }),
+    [data],
+  );
+  // Tabla del lado derecho en modo share: por mes, del commodity elegido.
+  const shareTabla = useMemo(
+    () => (data?.serie_share ?? []).map((p) => ({
+      periodo: p.periodo,
+      mercado: p[`${shareCommTab}_mercado`],
+      nuestro: p[`${shareCommTab}_nuestro`],
+      share: p[shareCommTab],
+    })),
+    [data, shareCommTab],
+  );
   const tot = data?.totales ?? { SOJA: 0, TRIGO: 0, MAIZ: 0 };
   const totGral = tot.SOJA + tot.TRIGO + tot.MAIZ;
   const cuentas = data?.por_cuenta ?? [];
@@ -183,35 +214,53 @@ export function AgroView() {
           </TablePanel>
         </div>
 
-        {/* INFERIOR: 2 charts. Izq con tab Volumen ↔ Share de mercado. */}
+        {/* INFERIOR: izq = chart (tab Volumen ↔ Share); der = chart cuenta o tabla share. */}
         <div className="min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
-          {/* Izquierda: tab + chart */}
+          {/* Izquierda: tabs + chart */}
           <div className="min-h-0 flex flex-col gap-1.5 overflow-hidden">
-            <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] shrink-0 w-fit">
-              {(["volumen", "share"] as ChartTab[]).map((t) => (
-                <button key={t} onClick={() => setChartTab(t)}
-                  className={"px-3 py-0.5 text-[10px] uppercase tracking-wider font-semibold " + (chartTab === t ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
-                  {t === "volumen" ? "Volumen" : "Share de mercado"}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] w-fit">
+                {(["volumen", "share"] as ChartTab[]).map((t) => (
+                  <button key={t} onClick={() => setChartTab(t)}
+                    className={"px-3 py-0.5 text-[10px] uppercase tracking-wider font-semibold " + (chartTab === t ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+                    {t === "volumen" ? "Volumen" : "Share de mercado"}
+                  </button>
+                ))}
+              </div>
+              {chartTab === "share" && (
+                <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] w-fit">
+                  {(["commodity", "total"] as ShareModo[]).map((m) => (
+                    <button key={m} onClick={() => setShareModo(m)}
+                      className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (shareModo === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+                      {m === "commodity" ? "Por commodity" : "Total"}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex-1 min-h-0">
               {chartTab === "volumen" ? (
                 <OpsBarChart serie={serieGlobal} series={series} fmt={fmtTon} unidad="toneladas"
                   defaultAgg="MENSUAL" titulo="Volumen global" />
-              ) : serieShare.length ? (
-                <OpsBarChart serie={serieShare} series={series} fmt={fmtPct} unidad="%"
-                  soloMensual titulo="Share de mercado (nuestro / mercado)" />
-              ) : (
+              ) : !serieShare.length ? (
                 <div className="min-h-0 border border-[var(--t-border)] flex items-center justify-center text-center px-4 text-[11px] text-[var(--t-text-muted)] h-full">
                   Sin volumen de mercado cargado (CashFlow.VolumenMercadoAgro)
                 </div>
+              ) : shareModo === "total" ? (
+                <OpsBarChart serie={serieShareTotal} series={TOTAL_SERIE} fmt={fmtPct} unidad="%"
+                  soloMensual titulo="Share de mercado · TOTAL (nuestro / mercado)" />
+              ) : (
+                <OpsBarChart serie={serieShare} series={series} fmt={fmtPct} unidad="%"
+                  soloMensual titulo="Share de mercado · por commodity" />
               )}
             </div>
           </div>
 
-          {/* Derecha: chart de la cuenta elegida */}
-          {selCuenta ? (
+          {/* Derecha: en share = tabla mes × (mercado/nosotros/share) con tabs por
+              commodity; en volumen = chart de la cuenta elegida. */}
+          {chartTab === "share" ? (
+            <ShareTabla rows={shareTabla} commTab={shareCommTab} onCommTab={setShareCommTab} />
+          ) : selCuenta ? (
             <OpsBarChart serie={serieCuenta} series={series} fmt={fmtTon} unidad="toneladas"
               defaultAgg="MENSUAL" titulo={`Cuenta: ${selCuenta}`} />
           ) : (
@@ -220,6 +269,55 @@ export function AgroView() {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ShareTabla({
+  rows, commTab, onCommTab,
+}: {
+  rows: { periodo: string; mercado: number; nuestro: number; share: number | null }[];
+  commTab: Commodity;
+  onCommTab: (c: Commodity) => void;
+}) {
+  const desc = [...rows].sort((a, b) => b.periodo.localeCompare(a.periodo));
+  return (
+    <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+      {/* Header con tabs por commodity */}
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Mercado vs nosotros</span>
+        <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          {COMMS.map((c) => (
+            <button key={c.key} onClick={() => onCommTab(c.key as Commodity)}
+              className={"px-2 py-0.5 text-[10px] uppercase tracking-wider " + (commTab === c.key ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+              <span className="inline-block w-2 h-2 mr-1 align-middle" style={{ background: c.color }} />{c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        <table className="w-full text-[11px] font-mono tabular-nums">
+          <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+            <tr>
+              <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Mes</th>
+              <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Mercado (t)</th>
+              <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Nosotros (t)</th>
+              <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {desc.map((r) => (
+              <tr key={r.periodo} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
+                <td className="px-3 py-1">{r.periodo}</td>
+                <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtTon(r.mercado)}</td>
+                <td className="px-3 py-1 text-right font-semibold">{fmtTon(r.nuestro)}</td>
+                <td className="px-3 py-1 text-right text-[var(--t-accent)] font-semibold">{r.share == null ? "—" : `${fmtPct(r.share)}%`}</td>
+              </tr>
+            ))}
+            {!desc.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   );
