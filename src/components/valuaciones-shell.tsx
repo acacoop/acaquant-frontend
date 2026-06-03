@@ -47,14 +47,18 @@ export function ValuacionesShell() {
   }, [valSubtab, valCuenta]);
 
   // Lista de cuentas — mismo fetch que tenía AumView. Si no había selección
-  // previa (ni desde URL) defaulteamos a la primera de la lista.
+  // previa (ni desde URL) defaulteamos a [100] ACA VALORES S.A. (la cuenta propia);
+  // fallback a la primera de la lista si por algún motivo no estuviera.
   useEffect(() => {
     fetch("/api/portfolio-cuentas", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((d: { cuentas: CuentaDoc[] }) => {
         const list = d.cuentas || [];
         setCuentas(list);
-        if (list.length && !valCuenta) setValCuenta(list[0].id_cuenta);
+        if (list.length && !valCuenta) {
+          const def = list.find((c) => c.id_cuenta === "100") || list[0];
+          setValCuenta(def.id_cuenta);
+        }
       })
       .catch(() => {
         /* sin lista — el selector queda vacío */
