@@ -59,8 +59,8 @@ function aggSerie(serie: SerieRow[], keys: string[], agg: Agg): ChartRow[] {
 }
 
 export function OpsBarChart({
-  serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", onAllSelected, titulo,
-  soloMensual = false, etiquetas = false,
+  serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", defaultRango = "YTD",
+  onAllSelected, titulo, soloMensual = false, etiquetas = false,
 }: {
   serie: SerieRow[];
   series: SerieDef[];
@@ -68,13 +68,14 @@ export function OpsBarChart({
   unidad: string;            // sufijo para tooltip/header: "ARS" | "USD" | "toneladas"
   focoFecha?: string | null; // día seleccionado (modo DIA) → resaltar; null = sin foco
   defaultAgg?: Agg;
+  defaultRango?: RangoKey;   // rango inicial del toolbar (default YTD). "ALL" = sigue al Desde/Hasta.
   onAllSelected?: () => void; // se llama al elegir "ALL" (vistas con serie acotada → traen historia completa)
   titulo?: string;           // título del header (default "Volumen operado")
   soloMensual?: boolean;     // fuerza MENSUAL y oculta toggles agg/rango/foco + total (modo share)
   etiquetas?: boolean;       // muestra el valor arriba de cada barra (sin sufijo)
 }) {
   const [agg, setAgg] = useState<Agg>(defaultAgg);
-  const [rango, setRango] = useState<RangoKey>("YTD");
+  const [rango, setRango] = useState<RangoKey>(defaultRango);
   const [rangoOffset, setRangoOffset] = useState(0);
   const [focoDia, setFocoDia] = useState(false);
   const [maxi, setMaxi] = useState(false);
