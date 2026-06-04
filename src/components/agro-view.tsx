@@ -77,8 +77,8 @@ export function AgroView() {
     })();
   }, []);
 
-  // Tablas = rango [desde,hasta]; series = históricas DIARIAS (el chart agrega en
-  // cliente, su toolbar no refetchea). serie_cuenta sólo viene si hay cuenta.
+  // Tablas Y series (chart de volumen) = rango [desde,hasta]: el toolbar Desde/Hasta
+  // maneja el gráfico (su "ALL" = el rango). serie_cuenta sólo viene si hay cuenta.
   useEffect(() => {
     if (!desde || !hasta) return;
     setLoading(true);
