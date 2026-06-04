@@ -1988,7 +1988,8 @@ function TabClientesSegmentacion() {
                       <td key={k} className="px-2 py-1.5">
                         <input
                           type="text"
-                          list={`cli-${k}`}
+                          // observaciones = texto libre → sin datalist (no desplegable).
+                          list={k === "observaciones" ? undefined : `cli-${k}`}
                           value={draft[k]}
                           onChange={(e) => setDraftField(c.id_cuenta, k, e.target.value)}
                           onBlur={() => saveRow(c)}
