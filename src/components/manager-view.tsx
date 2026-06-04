@@ -1890,6 +1890,7 @@ function TabClientesSegmentacion() {
         <select value={fOperador} onChange={(e) => setFOperador(e.target.value)}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
+          <option value="__vacio__">(sin operador)</option>
           {operadores.map((o) => <option key={o.email} value={o.email}>{o.nombre}</option>)}
         </select>
 
