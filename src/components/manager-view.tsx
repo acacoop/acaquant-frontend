@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
 // estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
@@ -2369,7 +2370,7 @@ function TabClientesFondeos() {
 // canBulk = true → muestra ambas sub-tabs. false → solo SEGMENTACIÓN (carga
 // masiva de fondeos requiere el módulo manager_clientes_bulk, admin-only).
 function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
-  const [subTab, setSubTab] = useState<"segmentacion" | "fondeos">("segmentacion");
+  const [subTab, setSubTab] = usePersistedState<"segmentacion" | "fondeos">("manager.cli.subtab", "segmentacion");
   const subs = canBulk
     ? ([
         { id: "segmentacion", label: "SEGMENTACIÓN" },
@@ -2637,7 +2638,7 @@ const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] trackin
 
 // DIAGNÓSTICO: Motores (rediseñado 50/50) + Recursos + Logs.
 function DiagnosticoGroup() {
-  const [sub, setSub] = useState<"motores" | "recursos" | "logs">("motores");
+  const [sub, setSub] = usePersistedState<"motores" | "recursos" | "logs">("manager.diag.sub", "motores");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -2657,7 +2658,7 @@ function DiagnosticoGroup() {
 
 // VALIDACIONES: checks + Opciones Vto (relocalizado de Backfills) + Debug XIRR.
 function ValidacionesGroup() {
-  const [sub, setSub] = useState<"checks" | "opciones" | "xirr" | "segmento">("checks");
+  const [sub, setSub] = usePersistedState<"checks" | "opciones" | "xirr" | "segmento">("manager.valid.sub", "checks");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -2679,7 +2680,7 @@ function ValidacionesGroup() {
 
 // TÍTULOS: Instrumentos + Assets.
 function TitulosGroup() {
-  const [sub, setSub] = useState<"instrumentos" | "assets">("instrumentos");
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets">("manager.titulos.sub", "instrumentos");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -2697,7 +2698,7 @@ function TitulosGroup() {
 
 // USUARIOS: Usuarios + Roles y Permisos + Grupos.
 function UsuariosGroup() {
-  const [sub, setSub] = useState<"usuarios" | "roles" | "grupos">("usuarios");
+  const [sub, setSub] = usePersistedState<"usuarios" | "roles" | "grupos">("manager.usuarios.sub", "usuarios");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -2716,7 +2717,7 @@ function UsuariosGroup() {
 }
 
 function AunesaGroup() {
-  const [sub, setSub] = useState<"flujo" | "aum" | "posicion" | "boletos">("flujo");
+  const [sub, setSub] = usePersistedState<"flujo" | "aum" | "posicion" | "boletos">("manager.aunesa.sub", "flujo");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
@@ -2970,7 +2971,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     modules === null ||
     modules.includes("manager") ||
     modules.includes("manager_clientes_bulk");
-  const [tab, setTab] = useState<Tab>(tabs[0]?.id ?? "comercial");
+  const [tab, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "comercial");
 
   return (
     <div className="h-full flex flex-col min-h-0">

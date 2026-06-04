@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import {
   Bar,
   BarChart,
@@ -208,19 +209,19 @@ type AnalisisCliente = {
 // `operador` (email) lo controla el selector que vive en la barra de tabs de
 // operaciones-view.tsx (margen superior derecho) → llega como prop.
 export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operador: string; moneda?: "ARS" | "USD" }) {
-  const [subview, setSubview] = useState<SubView>("portfolio");
+  const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
-  const [metric, setMetric] = useState<"volumen" | "aum">("volumen");
+  const [metric, setMetric] = usePersistedState<"volumen" | "aum">("comercial.metric", "volumen");
   const [serie, setSerie] = useState<SeriePoint[]>([]);
   const [portafolio, setPortafolio] = useState<Portafolio | null>(null);
-  const [portTab, setPortTab] = useState<PortTab>("tenencia");
+  const [portTab, setPortTab] = usePersistedState<PortTab>("comercial.portTab", "tenencia");
   const [operaciones, setOperaciones] = useState<Operacion[]>([]);
   const [loadingOps, setLoadingOps] = useState(false);
   const [fichaTab, setFichaTab] = useState<"datos">("datos");
-  const [agg, setAgg] = useState<AggKey>("DIARIO");
-  const [rango, setRango] = useState<RangoKey>("YTD");
+  const [agg, setAgg] = usePersistedState<AggKey>("comercial.agg", "DIARIO");
+  const [rango, setRango] = usePersistedState<RangoKey>("comercial.rango", "YTD");
   const [rangoOffset, setRangoOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingSerie, setLoadingSerie] = useState(false);
@@ -857,8 +858,8 @@ function AnalisisComercial({ operador, moneda = "ARS" }: { operador: string; mon
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
   type SortCol = "cuenta" | "estado" | "dias" | "aum" | "cupo_trans" | "cupo_usado";
-  const [sortCol, setSortCol] = useState<SortCol>("aum");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortCol, setSortCol] = usePersistedState<SortCol>("comercial.analisis.sortCol", "aum");
+  const [sortDir, setSortDir] = usePersistedState<"asc" | "desc">("comercial.analisis.sortDir", "desc");
   const [nivelSel, setNivelSel] = useState<string | null>(null);
   const [nivel3Sel, setNivel3Sel] = useState<string | null>(null);
   const [estadoSel, setEstadoSel] = useState<string | null>(null);

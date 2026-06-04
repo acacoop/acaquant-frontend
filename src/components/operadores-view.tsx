@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { ComercialOperacionesView, type Operador } from "./comercial-operaciones-view";
 
 // /operadores (ex tab COMERCIAL de /operaciones). El selector de operador +
 // moneda vive en la barra de arriba y se pasa como prop a la vista.
 export function OperadoresView() {
   const [operadores, setOperadores] = useState<Operador[]>([]);
-  const [operador, setOperador] = useState<string>("");
-  const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
+  // operador/moneda persisten entre rutas (volvés y seguís con el mismo operador).
+  const [operador, setOperador] = usePersistedState<string>("operadores.operador", "");
+  const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("operadores.moneda", "ARS");
 
   useEffect(() => {
     void (async () => {
