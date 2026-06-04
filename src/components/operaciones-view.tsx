@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { AgroView } from "./agro-view";
 import { ArancelesView } from "./aranceles-view";
 import { CashFlowView } from "./cashflow-view";
@@ -17,13 +18,17 @@ import { OpsView } from "./ops-view";
 type Tab = "operaciones" | "aranceles" | "agro" | "depositos" | "intraday";
 
 export function OperacionesView() {
-  const [tab, setTab] = useState<Tab>("operaciones");
-  const [visited, setVisited] = useState<Set<Tab>>(() => new Set<Tab>(["operaciones"]));
+  // tab persiste entre rutas (volvés a /operaciones → misma sub-pestaña).
+  const [tab, setTab] = usePersistedState<Tab>("operaciones.tab", "operaciones");
+  const [visited, setVisited] = useState<Set<Tab>>(() => new Set<Tab>([tab]));
 
-  const open = (t: Tab) => {
-    setTab(t);
-    setVisited((v) => (v.has(t) ? v : new Set(v).add(t)));
-  };
+  // Asegura que la pestaña activa (incluso la restaurada por el hook al
+  // rehidratar) esté montada. setState condicional DURANTE el render: patrón
+  // recomendado por React para ajustar estado ante un cambio (no un effect →
+  // converge sin re-render extra ni el warning set-state-in-effect).
+  if (!visited.has(tab)) setVisited(new Set(visited).add(tab));
+
+  const open = (t: Tab) => setTab(t);
 
   return (
     <div className="h-full flex flex-col min-h-0">

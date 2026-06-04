@@ -7,6 +7,7 @@
 // gráfico. Excluye los "Cierre" (server-side). Filtro de moneda (campo `moneda`).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 
 type Moneda = "ARS" | "USD";
@@ -45,13 +46,14 @@ async function getJSON<T>(url: string): Promise<T | null> {
 }
 
 export function OpsView() {
-  const [moneda, setMoneda] = useState<Moneda>("ARS");
-  const [segmento, setSegmento] = useState<string>("");
+  // Filtros (elección del usuario) → persisten entre rutas con sessionStorage.
+  const [moneda, setMoneda] = usePersistedState<Moneda>("ops.moneda", "ARS");
+  const [segmento, setSegmento] = usePersistedState<string>("ops.segmento", "");
   const [segmentos, setSegmentos] = useState<string[]>([]);
-  const [search, setSearch] = useState<string>("");
+  const [search, setSearch] = usePersistedState<string>("ops.search", "");
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
   const [boletos, setBoletos] = useState<BoletoRow[]>([]);
-  const [modo, setModo] = useState<Modo>("ULTIMA");
+  const [modo, setModo] = usePersistedState<Modo>("ops.modo", "ULTIMA");
   const [fechas, setFechas] = useState<FechaRow[]>([]);
   const [idx, setIdx] = useState(0);
   const [selOp, setSelOp] = useState<string | null>(null);
