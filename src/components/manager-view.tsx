@@ -2623,6 +2623,7 @@ type Tab =
   | "titulos"
   | "comercial"
   | "clientes"
+  | "compliance"
   | "aunesa"
   | "operaciones"
   | "usuarios";
@@ -2943,10 +2944,115 @@ const TAB_MODULES: Record<Tab, string[]> = {
   titulos:      ["manager"],
   comercial:    ["manager", "manager_comercial"],
   clientes:     ["manager", "manager_clientes"],
+  compliance:   ["manager", "manager_compliance"],
   aunesa:       ["manager"],
   operaciones:  ["manager"],
   usuarios:     ["manager"],
 };
+
+// ── Tab: COMPLIANCE — operador nuestro vs Aunesa (live, no persiste) ──────────
+interface ComplianceFila {
+  id_cuenta: string;
+  denominacion: string | null;
+  nuestro_email: string | null;
+  nuestro_nombre: string | null;
+  aunesa_email: string | null;
+  aunesa_nombre: string | null;
+  categoria: "ok" | "distinto" | "falta_en_nuestra_base" | "falta_en_aunesa";
+  difiere: boolean;
+}
+
+const _CMP_LABEL: Record<string, string> = {
+  ok: "OK",
+  distinto: "DISTINTO",
+  falta_en_nuestra_base: "FALTA (n/base)",
+  falta_en_aunesa: "FALTA (Aunesa)",
+};
+const _CMP_COLOR: Record<string, string> = {
+  ok: "var(--t-pos)",
+  distinto: "var(--t-neg)",
+  falta_en_nuestra_base: "#ff9900",
+  falta_en_aunesa: "#ff9900",
+};
+
+function ComplianceGroup() {
+  const [data, setData] = useState<{ filas: ComplianceFila[]; total: number; difieren: number } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // Por default mostrar solo las diferencias (lo que el auditor quiere ver).
+  const [soloDif, setSoloDif] = usePersistedState<boolean>("manager.compliance.soloDif", true);
+
+  const cargar = useCallback(() => {
+    setLoading(true);
+    setErr(null);
+    fetch("/api/manager/compliance/operadores", { cache: "no-store" })
+      .then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: { filas: ComplianceFila[]; total: number; difieren: number }) => setData(d))
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const filas = (data?.filas ?? []).filter((f) => !soloDif || f.difiere);
+
+  return (
+    <div className="h-full flex flex-col min-h-0 p-3 gap-2">
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">
+          COMPLIANCE — OPERADOR NUESTRO vs AUNESA
+        </span>
+        {data && (
+          <span className="text-[10px] text-[var(--t-text-muted)]">
+            <span className="text-[var(--t-neg)] font-semibold">{data.difieren}</span> difieren / {data.total} cuentas
+          </span>
+        )}
+        <label className="flex items-center gap-1 text-[10px] text-[var(--t-text-dim)] ml-2 cursor-pointer">
+          <input type="checkbox" checked={soloDif} onChange={(e) => setSoloDif(e.target.checked)} />
+          solo diferencias
+        </label>
+        <button onClick={cargar} disabled={loading}
+          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          {loading ? "Consultando Aunesa…" : "↻ Re-consultar"}
+        </button>
+      </div>
+      {err && <div className="text-[10px] text-[var(--t-neg)] shrink-0">Error consultando Aunesa: {err}</div>}
+      <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)]">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th>CUENTA</th>
+              <th>DENOMINACIÓN</th>
+              <th>OPERADOR (NUESTRO)</th>
+              <th>OPERADOR (AUNESA)</th>
+              <th>ESTADO</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map((f) => (
+              <tr key={f.id_cuenta} className={f.difiere ? "bg-[var(--t-neg)]/10" : ""}>
+                <td className="font-mono text-[var(--t-text-dim)]">{f.id_cuenta}</td>
+                <td className="text-[var(--t-text)]">{f.denominacion ?? "—"}</td>
+                <td className="font-mono">{f.nuestro_nombre || f.nuestro_email || "—"}</td>
+                <td className="font-mono">{f.aunesa_nombre || f.aunesa_email || "—"}</td>
+                <td>
+                  <span className="text-[10px] font-semibold" style={{ color: _CMP_COLOR[f.categoria] }}>
+                    {_CMP_LABEL[f.categoria] ?? f.categoria}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {data && !loading && filas.length === 0 && (
+          <div className="p-3 text-[10px] text-[var(--t-text-muted)]">
+            {soloDif ? "Sin diferencias — todos los operadores coinciden con Aunesa. 🎉" : "Sin datos."}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   const allTabs: { id: Tab; label: string }[] = [
@@ -2956,6 +3062,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "titulos",      label: "TÍTULOS"      },
     { id: "comercial",    label: "COMERCIAL"    },
     { id: "clientes",     label: "CLIENTES"     },
+    { id: "compliance",   label: "COMPLIANCE"   },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
     { id: "usuarios",     label: "USUARIOS"     },
@@ -2992,6 +3099,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "titulos"      && <TitulosGroup />}
         {tab === "comercial"    && <ComercialPanel />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
+        {tab === "compliance"   && <ComplianceGroup />}
         {tab === "aunesa"       && <AunesaGroup />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
         {tab === "usuarios"     && <UsuariosGroup />}
