@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
@@ -1683,6 +1683,10 @@ function TabClientesSegmentacion() {
   const [drafts, setDrafts] = useState<Record<string, ClienteDraft>>({});
   const [vals, setVals] = useState<Record<string, string[]>>({});
   const [operadores, setOperadores] = useState<{ email: string; nombre: string }[]>([]);
+  // Jerarquía de segmentación (combos nivel_1..5) + cuál input de nivel está
+  // enfocado → para sugerir en cascada (nivel_N filtra por los niveles padre).
+  const [niveles, setNiveles] = useState<Record<string, string>[]>([]);
+  const [nivelFocus, setNivelFocus] = useState<{ row: string; level: ClienteCampo } | null>(null);
   // Filtros
   const [fOperador, setFOperador] = useState("");
   const [fNivel1, setFNivel1] = useState("");
@@ -1725,12 +1729,33 @@ function TabClientesSegmentacion() {
   useEffect(() => {
     fetch("/api/manager/clientes/values")
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d: { values: Record<string, string[]>; operadores: { email: string; nombre: string }[] }) => {
+      .then((d: { values: Record<string, string[]>; operadores: { email: string; nombre: string }[]; niveles?: Record<string, string>[] }) => {
         setVals(d.values || {});
         setOperadores(d.operadores || []);
+        setNiveles(d.niveles || []);
       })
       .catch(() => { /* silencioso */ });
   }, []);
+
+  // Opciones del nivel ENFOCADO, filtradas por los niveles PADRE de esa fila:
+  // nivel_N sugiere solo lo que co-ocurre con nivel_1..N-1 ya elegidos (padre
+  // vacío = no filtra). Así no se cruzan valores de distintos nivel_1.
+  const NIVELES_ORD: ClienteCampo[] = ["nivel_1", "nivel_2", "nivel_3", "nivel_4", "nivel_5"];
+  const nivelDynOpts = useMemo(() => {
+    if (!nivelFocus) return [];
+    const idx = NIVELES_ORD.indexOf(nivelFocus.level);
+    const draft = drafts[nivelFocus.row];
+    if (idx < 0 || !draft) return [];
+    const padres = NIVELES_ORD.slice(0, idx);
+    const out = new Set<string>();
+    for (const combo of niveles) {
+      if (padres.every((p) => !draft[p] || combo[p] === draft[p]) && combo[nivelFocus.level]) {
+        out.add(combo[nivelFocus.level]);
+      }
+    }
+    return [...out].sort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivelFocus, drafts, niveles]);
 
   // Re-fetch al cambiar filtros de select. La búsqueda libre va por Enter/botón.
   useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, campoVacio]);
@@ -1881,6 +1906,10 @@ function TabClientesSegmentacion() {
           {(vals[cmp] || []).map((v) => <option key={v} value={v} />)}
         </datalist>
       ))}
+      {/* Datalist dinámico de niveles: opciones en cascada del input enfocado. */}
+      <datalist id="cli-nivel-dyn">
+        {nivelDynOpts.map((v) => <option key={v} value={v} />)}
+      </datalist>
 
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">CLIENTES</span>
@@ -1988,8 +2017,11 @@ function TabClientesSegmentacion() {
                       <td key={k} className="px-2 py-1.5">
                         <input
                           type="text"
-                          // observaciones = texto libre → sin datalist (no desplegable).
-                          list={k === "observaciones" ? undefined : `cli-${k}`}
+                          // observaciones = texto libre (sin datalist). nivel_N =
+                          // datalist dinámico en cascada (filtra por niveles padre).
+                          // resto = datalist plano del campo.
+                          list={k === "observaciones" ? undefined : k.startsWith("nivel_") ? "cli-nivel-dyn" : `cli-${k}`}
+                          onFocus={k.startsWith("nivel_") ? () => setNivelFocus({ row: c.id_cuenta, level: k }) : undefined}
                           value={draft[k]}
                           onChange={(e) => setDraftField(c.id_cuenta, k, e.target.value)}
                           onBlur={() => saveRow(c)}
