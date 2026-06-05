@@ -9,10 +9,13 @@ import { useEffect, useMemo, useState } from "react";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 
 type Moneda = "ARS" | "USD";
-type N3Row = { nivel_3: string; arancel: number; n: number };
+type Dim = "nivel3" | "operacion" | "operador";
+type DimRow = { clave: string; arancel: number; n: number };
 type CuentaRow = { denominacion: string; arancel: number; n: number };
 type ArSerieRow = { periodo: string; arancel: number };
-type Resp = { serie: ArSerieRow[]; por_nivel3: N3Row[]; por_cuenta: CuentaRow[]; total: number };
+type Resp = { serie: ArSerieRow[]; por_dim: DimRow[]; por_cuenta: CuentaRow[]; total: number };
+
+const _DIMS: [Dim, string][] = [["nivel3", "NIVEL 3"], ["operacion", "OPERACIÓN"], ["operador", "OPERADOR"]];
 
 function fmtCompact(n: number): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -29,6 +32,7 @@ export function ArancelesView() {
   const [moneda, setMoneda] = useState<Moneda>("ARS");
   const [segmento, setSegmento] = useState("");
   const [segmentos, setSegmentos] = useState<string[]>([]);
+  const [dim, setDim] = useState<Dim>("nivel3");
   const [selN3, setSelN3] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [data, setData] = useState<Resp | null>(null);
@@ -72,7 +76,7 @@ export function ArancelesView() {
   useEffect(() => {
     if (!rango.desde || !rango.hasta) return;
     setLoading(true);
-    const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO`
+    const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO&dim=${dim}`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
       + (selN3 ? `&nivel3=${encodeURIComponent(selN3)}` : "")
       + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
@@ -80,14 +84,14 @@ export function ArancelesView() {
     fetch(`/api/operaciones/ops/aranceles?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [moneda, rango.desde, rango.hasta, segmento, selN3, selCuenta, serieFull]);
+  }, [moneda, rango.desde, rango.hasta, segmento, dim, selN3, selCuenta, serieFull]);
 
   const chartSerie = useMemo<SerieRow[]>(
     () => (data?.serie ?? []).map((r) => ({ fecha: r.periodo, arancel: r.arancel })),
     [data],
   );
   const total = data?.total ?? 0;
-  const n3 = data?.por_nivel3 ?? [];
+  const dimRows = data?.por_dim ?? [];
   const cuentas = data?.por_cuenta ?? [];
 
   return (
@@ -133,25 +137,31 @@ export function ArancelesView() {
         {/* IZQUIERDA: nivel_3 (arriba) + gráfico (abajo) — tamaños FIJOS */}
         <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por nivel 3</span>
+            <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)] mr-1">Por</span>
+              {_DIMS.map(([k, lbl]) => (
+                <button key={k} onClick={() => { setDim(k); setSelN3(null); setSelCuenta(null); }}
+                  className={"px-1.5 py-0.5 text-[9px] uppercase tracking-wider border " + (dim === k ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
+              ))}
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(total)} {moneda}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <tbody>
-                  {n3.map((r) => {
-                    const act = selN3 === r.nivel_3;
+                  {dimRows.map((r) => {
+                    // El cross-filter (selN3 → filtra "por cliente") solo aplica en NIVEL 3.
+                    const clickable = dim === "nivel3";
+                    const act = clickable && selN3 === r.clave;
                     return (
-                      <tr key={r.nivel_3} onClick={() => { setSelN3(act ? null : r.nivel_3); setSelCuenta(null); }}
-                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
-                        <td className="px-3 py-1 truncate max-w-[220px]" title={r.nivel_3}>{r.nivel_3}</td>
+                      <tr key={r.clave} onClick={clickable ? () => { setSelN3(act ? null : r.clave); setSelCuenta(null); } : undefined}
+                        className={"border-t border-[var(--t-border)] " + (clickable ? "cursor-pointer " : "") + (act ? "bg-[var(--t-accent)]/15" : clickable ? "hover:bg-[var(--t-surface-2)]" : "")}>
+                        <td className="px-3 py-1 truncate max-w-[220px]" title={r.clave}>{r.clave}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{total ? ((r.arancel / total) * 100).toFixed(0) : "0"}%</td>
                       </tr>
                     );
                   })}
-                  {!n3.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!dimRows.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>

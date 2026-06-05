@@ -2558,6 +2558,7 @@ function TabSinOperador() {
   const [data, setData] = useState<SinOpData | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [catFilter, setCatFilter] = useState<string>("SIN CLASIFICAR");
 
   const cargar = useCallback(() => {
     setLoading(true); setErr(null);
@@ -2593,18 +2594,17 @@ function TabSinOperador() {
       {data && (
         <div className="flex-1 min-h-0 flex gap-3">
           {/* A: clientes reales sin operador → accionable */}
-          <div className="w-2/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
+          <div className="w-1/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
             <div className="px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-neg)]/10 text-[10px] font-semibold text-[var(--t-neg)] tracking-widest shrink-0">
-              CLIENTES REALES SIN OPERADOR — asignar en CLIENTES → SEGMENTACIÓN ({data.n_clientes_sin_op})
+              CLIENTES REALES SIN OPERADOR ({data.n_clientes_sin_op})
             </div>
             <div className="flex-1 overflow-y-auto">
               <table className="w-full text-[11px]">
                 <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider sticky top-0 bg-[var(--t-panel)]">
                   <tr>
-                    <th className="text-left px-2 py-1">ID CUENTA</th>
+                    <th className="text-left px-2 py-1">ID</th>
                     <th className="text-left px-2 py-1">DENOMINACIÓN</th>
-                    <th className="text-left px-2 py-1">ESTADO</th>
-                    <th className="text-right px-2 py-1">VOLUMEN (ARS)</th>
+                    <th className="text-right px-2 py-1">VOL (ARS)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2612,30 +2612,61 @@ function TabSinOperador() {
                     <tr key={f.id_cuenta} className="border-b border-[var(--t-border)]/40">
                       <td className="px-2 py-0.5 font-mono text-[var(--t-accent)]">{f.id_cuenta}</td>
                       <td className="px-2 py-0.5 text-[var(--t-text)]">{f.denominacion ?? "—"}</td>
-                      <td className="px-2 py-0.5 text-[var(--t-text-muted)]">{f.estado ?? "—"}</td>
                       <td className="px-2 py-0.5 font-mono text-[var(--t-text-dim)] text-right">{fmt(f.vol)}</td>
                     </tr>
                   ))}
                   {data.clientes_sin_operador.length === 0 && (
-                    <tr><td colSpan={4} className="px-2 py-2 text-[10px] text-[var(--t-pos)]">✓ Ningún cliente real quedó sin operador.</td></tr>
+                    <tr><td colSpan={3} className="px-2 py-2 text-[10px] text-[var(--t-pos)]">✓ Ningún cliente real quedó sin operador.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
-          {/* B: no-clientes categorizados → ruido esperado */}
-          <div className="w-1/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
-            <div className="px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-text-muted)]/10 text-[10px] font-semibold text-[var(--t-text-muted)] tracking-widest shrink-0">
-              NO-CLIENTES (ruido del ranking) ({data.n_no_clientes})
+          {/* B: no-clientes — DETALLE con filtro por categoría (SIN CLASIFICAR = revisar) */}
+          <div className="w-2/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
+            <div className="px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-text-muted)]/10 flex items-center gap-1 flex-wrap shrink-0">
+              <span className="text-[10px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-1">NO-CLIENTES</span>
+              <button onClick={() => setCatFilter("")}
+                className={`px-1.5 py-0.5 text-[9px] border font-mono ${catFilter === "" ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text-dim)]"}`}>
+                todas ({data.n_no_clientes})
+              </button>
+              {data.resumen_no_clientes.map((r) => {
+                const sc = r.categoria === "SIN CLASIFICAR";
+                const on = catFilter === r.categoria;
+                return (
+                  <button key={r.categoria} onClick={() => setCatFilter(r.categoria)}
+                    className={`px-1.5 py-0.5 text-[9px] border font-mono ${on ? "border-[var(--t-accent)] text-[var(--t-accent)]" : sc ? "border-[#ff9900] text-[#ff9900]" : "border-[var(--t-border-2)] text-[var(--t-text-dim)]"}`}>
+                    {sc ? "⚠ " : ""}{r.categoria} ({r.n})
+                  </button>
+                );
+              })}
             </div>
-            <div className="flex-1 overflow-y-auto p-1">
-              {data.resumen_no_clientes.map((r) => (
-                <div key={r.categoria} className="flex items-baseline gap-2 px-2 py-0.5 text-[10px] border-b border-[var(--t-border)]/40">
-                  <span className={r.categoria === "SIN CLASIFICAR" ? "text-[#ff9900]" : "text-[var(--t-text-dim)]"}>{r.categoria}</span>
-                  <span className="ml-auto font-mono text-[var(--t-text-muted)]">{r.n}</span>
-                  <span className="font-mono text-[var(--t-text-dim)] w-28 text-right">{fmt(r.vol)}</span>
-                </div>
-              ))}
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-[11px]">
+                <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider sticky top-0 bg-[var(--t-panel)]">
+                  <tr>
+                    <th className="text-left px-2 py-1">ID CUENTA</th>
+                    <th className="text-left px-2 py-1">CUENTA (cruda)</th>
+                    <th className="text-left px-2 py-1">CATEGORÍA</th>
+                    <th className="text-right px-2 py-1">VOLUMEN (ARS)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.no_clientes
+                    .filter((f) => !catFilter || f.categoria === catFilter)
+                    .map((f) => {
+                      const sc = f.categoria === "SIN CLASIFICAR";
+                      return (
+                        <tr key={f.id_cuenta} className="border-b border-[var(--t-border)]/40">
+                          <td className="px-2 py-0.5 font-mono text-[var(--t-text-dim)]">{f.id_cuenta}</td>
+                          <td className="px-2 py-0.5 text-[var(--t-text)]">{f.cuenta ?? "—"}</td>
+                          <td className={`px-2 py-0.5 font-mono ${sc ? "text-[#ff9900]" : "text-[var(--t-text-muted)]"}`}>{f.categoria}</td>
+                          <td className="px-2 py-0.5 font-mono text-[var(--t-text-dim)] text-right">{fmt(f.vol)}</td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
