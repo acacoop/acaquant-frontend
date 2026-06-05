@@ -5,6 +5,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -101,6 +102,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
   const [q4tab, setQ4tab] = useState<"clientes" | "operaciones">("clientes");
   const [selComercial, setSelComercial] = useState<string | null>(null);
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
+  const [q1mode, setQ1mode] = useState<"cuentas" | "aranceles">("cuentas");
 
   useEffect(() => {
     void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}`, null).then(setInforme);
@@ -155,6 +157,16 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     }),
     { vol_total: 0, vol_mes: 0, ar_total: 0, ar_mes: 0 },
   );
+  // Fila de total: si hay un comercial elegido, muestra SU sumatoria; sino el total global.
+  const selRow = selComercial
+    ? (informe?.comerciales.find((c) => c.operador_email === selComercial) ?? null)
+    : null;
+  const totMostrado = selRow ?? totRanking;
+
+  // Datos del gráfico Q1 según el modo (cuentas por segmento / aranceles por segmento).
+  const q1data = q1mode === "aranceles"
+    ? (q3segs ?? []).map((s) => ({ segmento: s.segmento, valor: s.ar_total }))
+    : (seg?.segmentos ?? []).map((s) => ({ segmento: s.segmento, valor: s.n }));
 
   // ── Export a Excel (item 4) ──────────────────────────────────────────────
   const dlCuentasSeg = () => void exportToXlsx({
@@ -209,48 +221,50 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
 
   return (
     <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
-      {/* Q1 — Cuentas por segmento (barras) + selector temporal estilo cashflow */}
+      {/* Q1 — Cuentas / Aranceles por segmento (barras HORIZONTALES) + toggle */}
       <Panel
         fill
-        title={`Cuentas por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${seg ? ` · ${seg.total}` : ""}`}
+        title={`${q1mode === "aranceles" ? "Aranceles" : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${q1mode === "cuentas" && seg ? ` · ${seg.total}` : ""}`}
         extra={
           <div className="flex items-center gap-1">
-            <button
-              disabled={!canPrev}
-              onClick={() => mes && setMes(ymAdd(mes, -1))}
-              className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]"
-            >◀</button>
-            <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center">
-              {mes ? ymLabel(mes) : "…"}
-            </span>
-            <button
-              disabled={!canNext}
-              onClick={() => mes && setMes(ymAdd(mes, 1))}
-              className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]"
-            >▶</button>
-            <DownloadBtn onClick={dlCuentasSeg} />
+            <div className="inline-flex border border-[var(--t-border-2)] mr-1">
+              {(["cuentas", "aranceles"] as const).map((m) => (
+                <button key={m} onClick={() => setQ1mode(m)}
+                  className={"px-1.5 py-0.5 text-[9px] uppercase tracking-wider " + (q1mode === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+                  {m === "cuentas" ? "Cuentas" : "Arancel"}
+                </button>
+              ))}
+            </div>
+            {q1mode === "cuentas" && (
+              <>
+                <button disabled={!canPrev} onClick={() => mes && setMes(ymAdd(mes, -1))}
+                  className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]">◀</button>
+                <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center">{mes ? ymLabel(mes) : "…"}</span>
+                <button disabled={!canNext} onClick={() => mes && setMes(ymAdd(mes, 1))}
+                  className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]">▶</button>
+                <DownloadBtn onClick={dlCuentasSeg} />
+              </>
+            )}
           </div>
         }
       >
         <div className="absolute inset-0 p-2">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={seg?.segmentos ?? []} margin={{ top: 8, right: 12, bottom: 40, left: 0 }}>
-              <CartesianGrid stroke="var(--t-border)" vertical={false} />
-              <XAxis
-                dataKey="segmento" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
-                axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false}
-                angle={-35} textAnchor="end" height={48} interval={0}
-              />
-              <YAxis
-                tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }}
-                tickLine={false} allowDecimals={false} width={36}
-              />
+            <BarChart data={q1data} layout="vertical" margin={{ top: 4, right: 56, bottom: 4, left: 4 }}>
+              <CartesianGrid stroke="var(--t-border)" horizontal={false} />
+              <XAxis type="number" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} allowDecimals={false}
+                tickFormatter={q1mode === "aranceles" ? (v) => fmtMoney(Number(v)) : undefined} />
+              <YAxis type="category" dataKey="segmento" tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
+                axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} width={114} interval={0} />
               <Tooltip
                 contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                formatter={(v) => [fmtN(Number(v)), "Cuentas"]}
-                cursor={{ fill: "color-mix(in srgb, var(--t-text) 10%, transparent)" }}
-              />
-              <Bar dataKey="n" fill="var(--t-brand)" isAnimationActive={false} />
+                formatter={(v) => [q1mode === "aranceles" ? fmtMoney(Number(v)) : fmtN(Number(v)), q1mode === "aranceles" ? "Arancel" : "Cuentas"]}
+                cursor={{ fill: "color-mix(in srgb, var(--t-text) 10%, transparent)" }} />
+              <Bar dataKey="valor" fill="var(--t-brand)" isAnimationActive={false}>
+                <LabelList dataKey="valor" position="right" fontSize={9} fill="var(--t-text)"
+                  formatter={(v) => (q1mode === "aranceles" ? fmtMoney(Number(v)) : fmtN(Number(v)))} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -317,12 +331,12 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
           {informe && informe.comerciales.length > 0 && (
             <tfoot className="sticky bottom-0 bg-[var(--t-surface)]">
               <tr className="border-t-2 border-[var(--t-border-2)] font-semibold text-[var(--t-text)]">
-                <td className="px-2 py-1.5" colSpan={2}>TOTAL</td>
-                <td className="text-right px-2 text-[var(--t-text-muted)]">—</td>
-                <td className="text-right px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totRanking.vol_total)}>{fmtMoney(totRanking.vol_total)}</td>
-                <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totRanking.vol_mes)}>{fmtMoney(totRanking.vol_mes)}</td>
-                <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(totRanking.ar_total)}>{fmtMoney(totRanking.ar_total)}</td>
-                <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(totRanking.ar_mes)}>{fmtMoney(totRanking.ar_mes)}</td>
+                <td className="px-2 py-1.5 truncate max-w-[180px]" colSpan={2}>{selRow ? `Σ ${selRow.operador_nombre}` : "TOTAL"}</td>
+                <td className="text-right px-2 text-[var(--t-text-muted)]">{selRow ? fmtAum(selRow.ticket_promedio) : "—"}</td>
+                <td className="text-right px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totMostrado.vol_total)}>{fmtMoney(totMostrado.vol_total)}</td>
+                <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totMostrado.vol_mes)}>{fmtMoney(totMostrado.vol_mes)}</td>
+                <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(totMostrado.ar_total)}>{fmtMoney(totMostrado.ar_total)}</td>
+                <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(totMostrado.ar_mes)}>{fmtMoney(totMostrado.ar_mes)}</td>
               </tr>
             </tfoot>
           )}
