@@ -53,23 +53,27 @@ interface CurvaDebugResp {
   error_calc?: string | null;
 }
 
-interface MotorStatus {
-  nombre: string; ultima: string | null; hace: string;
-  umbral: number; estado: "ok" | "lento" | "critico" | "fuera_rueda" | "sin_datos";
+interface DiagPieza {
+  label: string; tipo: "motor" | "job" | "api"; cadencia: string;
+  estado: string; ultima: string | null; hace: string;
+  umbral_s: number; run_status?: string | null;
 }
-interface JobStatus {
-  nombre: string; ultimo: string | null; hace: string;
-  frecuencia: string; estado: "ok" | "atrasado" | "critico" | "sin_datos" | "error_parse";
+interface DiagGrupo { grupo: string | null; piezas: DiagPieza[] }
+interface DiagVista {
+  vista: string; resumen: { ok: number; total: number; alertas: number };
+  grupos: DiagGrupo[];
 }
-interface ApiStatus {
-  nombre: string; ultimo: string | null; hace: string;
-  cadencia: string; umbral?: string;
-  estado: "ok" | "lento" | "critico" | "fuera_rueda" | "sin_datos" | "error_parse";
-}
-interface StatusData {
-  ahora_ar: string; en_rueda: boolean;
-  motores: MotorStatus[]; jobs: JobStatus[]; apis: ApiStatus[];
-}
+interface DiagData { ahora_ar: string; en_rueda: boolean; vistas: DiagVista[] }
+
+const _VISTA_META: Record<string, { icon: string; label: string }> = {
+  HOME:        { icon: "🏠", label: "HOME" },
+  OPERAR:      { icon: "💱", label: "OPERAR" },
+  MERCADOS:    { icon: "📈", label: "MERCADOS" },
+  NEGOCIO:     { icon: "💼", label: "NEGOCIO" },
+  BACK_OFFICE: { icon: "📦", label: "BACK OFFICE" },
+  PORTFOLIOS:  { icon: "📊", label: "PORTFOLIOS / AuM" },
+};
+const _TIPO_ICON: Record<string, string> = { motor: "⚙", job: "⏱", api: "🔌" };
 interface Job { status: "running" | "done" | "error"; tipo: string; result?: string; started_at?: string; finished_at?: string }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,12 +83,13 @@ const ESTADO_COLOR: Record<string, string> = {
   lento:       "#ff9900",
   atrasado:    "#ff9900",
   critico:     "var(--t-neg)",
+  error:       "var(--t-neg)",
   fuera_rueda: "#555555",
   sin_datos:   "#555555",
   error_parse: "#555555",
 };
 const ESTADO_LABEL: Record<string, string> = {
-  ok: "OK", lento: "LENTO", atrasado: "ATRASADO",
+  ok: "OK", lento: "LENTO", atrasado: "ATRASADO", error: "ERROR",
   critico: "CRÍTICO", fuera_rueda: "FUERA RUEDA", sin_datos: "SIN DATOS", error_parse: "ERR PARSE",
 };
 
@@ -110,109 +115,86 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
-  return (
-    <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-      <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">{title}</span>
-    </div>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="h-full min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-      <SectionHeader title={title} />
-      <div className="flex-1 overflow-y-auto">{children}</div>
-    </div>
-  );
-}
-
-// ── Tab: Diagnóstico ──────────────────────────────────────────────────────────
+// ── Tab: Diagnóstico (árbol por vista) ────────────────────────────────────────
 
 function TabDiagnostico() {
-  const [data, setData] = useState<StatusData | null>(null);
+  const [data, setData] = useState<DiagData | null>(null);
   const [lastCheck, setLastCheck] = useState<string>("");
+  const [colapsadas, setColapsadas] = usePersistedState<string[]>("manager.diag.arbol.colapsadas", []);
 
   const refresh = useCallback(() => {
-    fetch("/api/manager/status")
+    fetch("/api/manager/diagnostico", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d: StatusData) => { setData(d); setLastCheck(new Date().toLocaleTimeString("es-AR")); })
+      .then((d: DiagData) => { setData(d); setLastCheck(new Date().toLocaleTimeString("es-AR")); })
       .catch(console.error);
   }, []);
 
   useEffect(() => { refresh(); const id = setInterval(refresh, 10000); return () => clearInterval(id); }, [refresh]);
 
+  const toggle = (v: string) =>
+    setColapsadas((c) => (c.includes(v) ? c.filter((x) => x !== v) : [...c, v]));
+
   return (
-    <div className="h-full flex flex-col gap-3 p-3 min-h-0">
+    <div className="h-full flex flex-col gap-2 p-3 min-h-0">
       <div className="flex items-center gap-3 shrink-0">
         <span className={`text-[11px] font-semibold ${data?.en_rueda ? "text-[var(--t-pos)]" : "text-[var(--t-text-muted)]"}`}>
           {data ? (data.en_rueda ? "● EN RUEDA" : "● FUERA DE RUEDA") : "—"}
         </span>
-        <span className="text-[10px] text-[var(--t-text-muted)]">{data?.ahora_ar ?? ""}</span>
+        <span className="text-[10px] text-[var(--t-text-muted)] font-mono">{data?.ahora_ar ?? ""}</span>
         <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">Chequeado: {lastCheck} · auto 10s</span>
       </div>
 
-      {/* Izq 50% (full height): motores · Der 50%: apis arriba / jobs abajo */}
-      <div className="flex-1 min-h-0 flex gap-3">
-        <div className="w-1/2 min-h-0">
-          <Panel title="MOTORES (TIEMPO REAL)">
-            <table>
-              <thead><tr><th>MOTOR</th><th>ÚLTIMA ACTUALIZACIÓN</th><th>HACE</th><th>UMBRAL</th><th>ESTADO</th></tr></thead>
-              <tbody>
-                {(data?.motores ?? []).map((m) => (
-                  <tr key={m.nombre}>
-                    <td className="text-[var(--t-text)] font-semibold">{m.nombre}</td>
-                    <td className="font-mono">{m.ultima ?? "—"}</td>
-                    <td className="font-mono text-[var(--t-text-dim)]">{m.hace}</td>
-                    <td className="font-mono text-[var(--t-text-muted)]">{m.umbral}s</td>
-                    <td><Badge estado={m.estado} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Panel>
-        </div>
-
-        <div className="w-1/2 min-h-0 flex flex-col gap-3">
-          <div className="flex-1 min-h-0">
-            <Panel title="APIS EXTERNAS (FUENTES DE DATOS)">
-              <table>
-                <thead><tr><th>FUENTE</th><th>ÚLTIMO DATO</th><th>HACE</th><th>CADENCIA</th><th>UMBRAL</th><th>ESTADO</th></tr></thead>
-                <tbody>
-                  {(data?.apis ?? []).map((a) => (
-                    <tr key={a.nombre}>
-                      <td className="text-[var(--t-text)] font-semibold">{a.nombre}</td>
-                      <td className="font-mono">{a.ultimo ?? "—"}</td>
-                      <td className="font-mono text-[var(--t-text-dim)]">{a.hace}</td>
-                      <td className="text-[var(--t-text-muted)]">{a.cadencia}</td>
-                      <td className="font-mono text-[var(--t-text-muted)]">{a.umbral ?? "—"}</td>
-                      <td><Badge estado={a.estado} /></td>
-                    </tr>
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2">
+        {!data && <div className="text-[10px] text-[var(--t-text-muted)] font-mono p-2">Cargando…</div>}
+        {(data?.vistas ?? []).map((v) => {
+          const meta = _VISTA_META[v.vista] ?? { icon: "•", label: v.vista };
+          const colapsada = colapsadas.includes(v.vista);
+          const hasCrit = v.grupos.some((g) =>
+            g.piezas.some((p) => ["critico", "error", "sin_datos"].includes(p.estado)));
+          const dot = v.resumen.alertas === 0 ? "var(--t-pos)" : hasCrit ? "var(--t-neg)" : "#ff9900";
+          return (
+            <div key={v.vista} className="border border-[var(--t-border)] bg-[var(--t-panel)]">
+              <button onClick={() => toggle(v.vista)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 bg-[var(--t-accent)]/10 hover:bg-[var(--t-accent)]/20 transition-colors">
+                <span className="text-[10px] text-[var(--t-text-muted)] w-3">{colapsada ? "▸" : "▾"}</span>
+                <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
+                  {meta.icon} {meta.label}
+                </span>
+                <span className="ml-auto text-[10px] text-[var(--t-text-muted)] font-mono">
+                  {v.resumen.ok}/{v.resumen.total}{v.resumen.alertas > 0 ? ` · ${v.resumen.alertas} alerta` : ""}
+                </span>
+                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: dot }} />
+              </button>
+              {!colapsada && (
+                <div className="px-2 py-1">
+                  {v.grupos.map((g, gi) => (
+                    <div key={gi} className="mb-1">
+                      {g.grupo && (
+                        <div className="text-[9px] text-[var(--t-text-muted)] tracking-widest px-1 pt-1 pb-0.5 uppercase">
+                          {g.grupo}
+                        </div>
+                      )}
+                      <table className="w-full text-[11px]">
+                        <tbody>
+                          {g.piezas.map((p, pi) => (
+                            <tr key={pi} className="border-b border-[var(--t-border)]/40">
+                              <td className="px-1 py-0.5 text-[var(--t-text-dim)] w-4">{_TIPO_ICON[p.tipo] ?? "•"}</td>
+                              <td className="px-1 py-0.5 text-[var(--t-text)] whitespace-nowrap">{p.label}</td>
+                              <td className="px-1 py-0.5 text-[10px] text-[var(--t-text-muted)] whitespace-nowrap">{p.cadencia}</td>
+                              <td className="px-1 py-0.5 font-mono text-[var(--t-text-dim)] text-right whitespace-nowrap">{p.hace}</td>
+                              <td className="px-1 py-0.5 font-mono text-[9px] text-[var(--t-text-muted)] text-right whitespace-nowrap">{p.ultima ?? "—"}</td>
+                              <td className="px-1 py-0.5 text-right"><Badge estado={p.estado} /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </Panel>
-          </div>
-
-          <div className="flex-1 min-h-0">
-            <Panel title="JOBS (PERIÓDICOS)">
-              <table>
-                <thead><tr><th>JOB</th><th>ÚLTIMO DATO</th><th>HACE</th><th>FRECUENCIA</th><th>ESTADO</th></tr></thead>
-                <tbody>
-                  {(data?.jobs ?? []).map((j) => (
-                    <tr key={j.nombre}>
-                      <td className="text-[var(--t-text)] font-semibold">{j.nombre}</td>
-                      <td className="font-mono">{j.ultimo ?? "—"}</td>
-                      <td className="font-mono text-[var(--t-text-dim)]">{j.hace}</td>
-                      <td className="text-[var(--t-text-muted)]">{j.frecuencia}</td>
-                      <td><Badge estado={j.estado} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Panel>
-          </div>
-        </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -2678,7 +2660,7 @@ function DiagnosticoGroup() {
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
         <span className={GROUP_TITLE}>DIAGNÓSTICO</span>
-        <Pill label="MOTORES" active={sub === "motores"} onClick={() => setSub("motores")} />
+        <Pill label="ÁRBOL" active={sub === "motores"} onClick={() => setSub("motores")} />
         <Pill label="RECURSOS" active={sub === "recursos"} onClick={() => setSub("recursos")} />
         <Pill label="LOGS" active={sub === "logs"} onClick={() => setSub("logs")} />
       </div>

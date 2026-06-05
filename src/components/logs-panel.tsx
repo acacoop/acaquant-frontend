@@ -2,21 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// Lista de services a mostrar en el dropdown. Mismo orden que el backend.
-const SERVICES = [
-  { id: "motor_rofex",         label: "motor_rofex"         },
-  { id: "motor_options",       label: "motor_options"       },
-  { id: "motor_curvas",        label: "motor_curvas"        },
-  { id: "motor_forwards",      label: "motor_forwards"      },
-  { id: "motor_breakevens",    label: "motor_breakevens"    },
-  { id: "motor_caucion",       label: "motor_caucion"       },
-  { id: "motor_futuros_dlr",   label: "motor_futuros_dlr"   },
-  { id: "motor_dolares",       label: "motor_dolares"       },
-  { id: "motor_agro",          label: "motor_agro"          },
-  { id: "motor_order_book_l2", label: "motor_order_book_l2" },
-  { id: "motor_ordenes",       label: "motor_ordenes"       },
-  { id: "api",                 label: "api"                 },
-  { id: "cloudflared",         label: "cloudflared"         },
+// Fallback si el backend no responde. La lista REAL se trae de
+// /api/manager/logs/services (derivada del registro del Diagnóstico → no se
+// desfasa al agregar/sacar un motor).
+const SERVICES_FALLBACK: string[] = [
+  "motor_rofex", "motor_options", "motor_curvas", "motor_forwards", "motor_breakevens",
+  "motor_caucion", "motor_futuros_dlr", "motor_dolares", "motor_agro", "motor_agro_opciones",
+  "motor_cedears", "motor_portfolio_snapshot", "motor_ordenes", "api", "partner_api", "cloudflared",
 ];
 
 const PRIORITY_COLOR: Record<string, string> = {
@@ -55,6 +47,7 @@ function fmtTime(tsEpoch: number): string {
 
 export function LogsPanel() {
   const [servicio, setServicio] = useState<string>("motor_rofex");
+  const [services, setServices] = useState<string[]>(SERVICES_FALLBACK);
   const [lines, setLines] = useState<number>(DEFAULT_LINES);
   const [filter, setFilter] = useState<"all" | "error" | "warn">("all");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -86,6 +79,14 @@ export function LogsPanel() {
       setLoading(false);
     }
   }, [servicio, lines]);
+
+  // Lista de servicios desde el backend (no se desfasa al agregar un motor).
+  useEffect(() => {
+    fetch("/api/manager/logs/services", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: string[] | null) => { if (Array.isArray(s) && s.length) setServices(s); })
+      .catch(() => {});
+  }, []);
 
   // Captura si el usuario está al final ANTES del siguiente refresh, para
   // re-anclarlo al final si sí lo estaba (si está mirando más arriba, no pisa).
@@ -135,8 +136,8 @@ export function LogsPanel() {
           onChange={(e) => setServicio(e.target.value)}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[#e0e0e0] text-[11px] font-mono px-2 py-1 focus:outline-none focus:border-[var(--t-accent)]"
         >
-          {SERVICES.map((s) => (
-            <option key={s.id} value={s.id}>{s.label}</option>
+          {services.map((s) => (
+            <option key={s} value={s}>{s}</option>
           ))}
         </select>
 
