@@ -12,8 +12,9 @@ type Moneda = "ARS" | "USD";
 type Dim = "nivel3" | "operacion" | "operador";
 type DimRow = { clave: string; arancel: number; n: number };
 type CuentaRow = { denominacion: string; arancel: number; n: number };
+type InstrRow = { instrumento: string; arancel: number; n: number };
 type ArSerieRow = { periodo: string; arancel: number };
-type Resp = { serie: ArSerieRow[]; por_dim: DimRow[]; por_cuenta: CuentaRow[]; total: number };
+type Resp = { serie: ArSerieRow[]; por_dim: DimRow[]; por_cuenta: CuentaRow[]; por_instrumento: InstrRow[]; total: number };
 
 const _DIMS: [Dim, string][] = [["nivel3", "NIVEL 3"], ["operacion", "OPERACIÓN"], ["operador", "OPERADOR"]];
 
@@ -33,8 +34,9 @@ export function ArancelesView() {
   const [segmento, setSegmento] = useState("");
   const [segmentos, setSegmentos] = useState<string[]>([]);
   const [dim, setDim] = useState<Dim>("nivel3");
-  const [selN3, setSelN3] = useState<string | null>(null);
+  const [selDim, setSelDim] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
+  const [selInstr, setSelInstr] = useState<string | null>(null);
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
   const [modo, setModo] = useState<Modo>("ULTIMA");
@@ -78,13 +80,14 @@ export function ArancelesView() {
     setLoading(true);
     const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO&dim=${dim}`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
-      + (selN3 ? `&nivel3=${encodeURIComponent(selN3)}` : "")
+      + (selDim ? `&sel_dim=${encodeURIComponent(selDim)}` : "")
       + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
+      + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
       + (serieFull ? "&serie_full=true" : "");
     fetch(`/api/operaciones/ops/aranceles?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [moneda, rango.desde, rango.hasta, segmento, dim, selN3, selCuenta, serieFull]);
+  }, [moneda, rango.desde, rango.hasta, segmento, dim, selDim, selCuenta, selInstr, serieFull]);
 
   const chartSerie = useMemo<SerieRow[]>(
     () => (data?.serie ?? []).map((r) => ({ fecha: r.periodo, arancel: r.arancel })),
@@ -93,6 +96,7 @@ export function ArancelesView() {
   const total = data?.total ?? 0;
   const dimRows = data?.por_dim ?? [];
   const cuentas = data?.por_cuenta ?? [];
+  const instrumentos = data?.por_instrumento ?? [];
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
@@ -124,8 +128,9 @@ export function ArancelesView() {
             <button key={m} onClick={() => setMoneda(m)} className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
           ))}
         </div>
-        {(selN3 || selCuenta) && (
-          <button onClick={() => { setSelN3(null); setSelCuenta(null); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ {selN3 || selCuenta}</button>
+        {(selDim || selCuenta || selInstr) && (
+          <button onClick={() => { setSelDim(null); setSelCuenta(null); setSelInstr(null); }}
+            className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ limpiar filtros</button>
         )}
         <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
           TOTAL: <span className="text-[var(--t-text)] font-semibold">{fmtCompact(total)} {moneda}</span>{loading ? " · cargando…" : ""}
@@ -140,7 +145,7 @@ export function ArancelesView() {
             <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)] mr-1">Por</span>
               {_DIMS.map(([k, lbl]) => (
-                <button key={k} onClick={() => { setDim(k); setSelN3(null); setSelCuenta(null); }}
+                <button key={k} onClick={() => { setDim(k); setSelDim(null); }}
                   className={"px-1.5 py-0.5 text-[9px] uppercase tracking-wider border " + (dim === k ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
               ))}
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(total)} {moneda}</span>
@@ -149,12 +154,10 @@ export function ArancelesView() {
               <table className="w-full text-[11px] font-mono tabular-nums">
                 <tbody>
                   {dimRows.map((r) => {
-                    // El cross-filter (selN3 → filtra "por cliente") solo aplica en NIVEL 3.
-                    const clickable = dim === "nivel3";
-                    const act = clickable && selN3 === r.clave;
+                    const act = selDim === r.clave;
                     return (
-                      <tr key={r.clave} onClick={clickable ? () => { setSelN3(act ? null : r.clave); setSelCuenta(null); } : undefined}
-                        className={"border-t border-[var(--t-border)] " + (clickable ? "cursor-pointer " : "") + (act ? "bg-[var(--t-accent)]/15" : clickable ? "hover:bg-[var(--t-surface-2)]" : "")}>
+                      <tr key={r.clave} onClick={() => setSelDim(act ? null : r.clave)}
+                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1 truncate max-w-[220px]" title={r.clave}>{r.clave}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{total ? ((r.arancel / total) * 100).toFixed(0) : "0"}%</td>
@@ -171,36 +174,71 @@ export function ArancelesView() {
             series={[{ key: "arancel", label: "Aranceles", color: "var(--t-brand)" }]} />
         </div>
 
-        {/* DERECHA: por cliente */}
-        <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-          <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cliente</span>
-            <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{cuentas.length} · Σ {fmtCompact(total)} {moneda}</span>
+        {/* DERECHA: 50% por cliente (arriba) + 50% por instrumento (abajo) */}
+        <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+          {/* ARRIBA: por cliente */}
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cliente</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{cuentas.length} · Σ {fmtCompact(total)} {moneda}</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cliente</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Aranceles</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cuentas.map((r) => {
+                    const act = selCuenta === r.denominacion;
+                    return (
+                      <tr key={r.denominacion} onClick={() => setSelCuenta(act ? null : r.denominacion)}
+                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
+                        <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
+                        <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.arancel)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                      </tr>
+                    );
+                  })}
+                  {!cuentas.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="flex-1 min-h-0 overflow-auto">
-            <table className="w-full text-[11px] font-mono tabular-nums">
-              <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
-                <tr>
-                  <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cliente</th>
-                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Aranceles</th>
-                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cuentas.map((r) => {
-                  const act = selCuenta === r.denominacion;
-                  return (
-                    <tr key={r.denominacion} onClick={() => { setSelCuenta(act ? null : r.denominacion); setSelN3(null); }}
-                      className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
-                      <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
-                      <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.arancel)}</td>
-                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
-                    </tr>
-                  );
-                })}
-                {!cuentas.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
-              </tbody>
-            </table>
+          {/* ABAJO: por instrumento */}
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por instrumento</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{instrumentos.length} · Σ {fmtCompact(total)} {moneda}</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Instrumento</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Aranceles</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {instrumentos.map((r) => {
+                    const act = selInstr === r.instrumento;
+                    return (
+                      <tr key={r.instrumento} onClick={() => setSelInstr(act ? null : r.instrumento)}
+                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
+                        <td className="px-3 py-1 truncate max-w-[320px]" title={r.instrumento}>{r.instrumento}</td>
+                        <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.arancel)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                      </tr>
+                    );
+                  })}
+                  {!instrumentos.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
