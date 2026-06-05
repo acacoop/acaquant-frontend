@@ -2541,17 +2541,122 @@ function TabControlAutomatico() {
   );
 }
 
+// ── Clientes → Sin Operador (cuentas que caen en "(sin operador)" del ranking) ──
+
+interface SinOpFila {
+  id_cuenta: string; vol: number; cuenta?: string;
+  denominacion?: string; estado?: string; categoria?: string;
+}
+interface SinOpData {
+  clientes_sin_operador: SinOpFila[];
+  no_clientes: SinOpFila[];
+  resumen_no_clientes: { categoria: string; n: number; vol: number }[];
+  n_clientes_sin_op: number; n_no_clientes: number; sin_clasificar: number;
+}
+
+function TabSinOperador() {
+  const [data, setData] = useState<SinOpData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const cargar = useCallback(() => {
+    setLoading(true); setErr(null);
+    fetch("/api/manager/clientes/sin-operador", { cache: "no-store" })
+      .then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: SinOpData) => setData(d))
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const fmt = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+
+  return (
+    <div className="h-full flex flex-col min-h-0 p-3 gap-2">
+      <div className="flex items-center gap-3 shrink-0 flex-wrap">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">SIN OPERADOR</span>
+        {data && (
+          <span className="text-[10px] text-[var(--t-text-muted)]">
+            <span className="text-[var(--t-neg)] font-semibold">{data.n_clientes_sin_op}</span> clientes reales sin operador
+            {" · "}{data.n_no_clientes} no-clientes
+            {data.sin_clasificar > 0 && <span className="text-[#ff9900]">{" · ⚠ "}{data.sin_clasificar} sin clasificar</span>}
+          </span>
+        )}
+        <button onClick={cargar} disabled={loading}
+          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40 transition-colors">
+          {loading ? "Calculando…" : "↻ Recalcular"}
+        </button>
+      </div>
+      {err && <div className="text-[10px] text-[var(--t-neg)] shrink-0">Error: {err}</div>}
+      {!data && !loading && <div className="text-[10px] text-[var(--t-text-muted)] p-2">Cargando…</div>}
+
+      {data && (
+        <div className="flex-1 min-h-0 flex gap-3">
+          {/* A: clientes reales sin operador → accionable */}
+          <div className="w-2/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
+            <div className="px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-neg)]/10 text-[10px] font-semibold text-[var(--t-neg)] tracking-widest shrink-0">
+              CLIENTES REALES SIN OPERADOR — asignar en CLIENTES → SEGMENTACIÓN ({data.n_clientes_sin_op})
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-[11px]">
+                <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider sticky top-0 bg-[var(--t-panel)]">
+                  <tr>
+                    <th className="text-left px-2 py-1">ID CUENTA</th>
+                    <th className="text-left px-2 py-1">DENOMINACIÓN</th>
+                    <th className="text-left px-2 py-1">ESTADO</th>
+                    <th className="text-right px-2 py-1">VOLUMEN (ARS)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.clientes_sin_operador.map((f) => (
+                    <tr key={f.id_cuenta} className="border-b border-[var(--t-border)]/40">
+                      <td className="px-2 py-0.5 font-mono text-[var(--t-accent)]">{f.id_cuenta}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text)]">{f.denominacion ?? "—"}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text-muted)]">{f.estado ?? "—"}</td>
+                      <td className="px-2 py-0.5 font-mono text-[var(--t-text-dim)] text-right">{fmt(f.vol)}</td>
+                    </tr>
+                  ))}
+                  {data.clientes_sin_operador.length === 0 && (
+                    <tr><td colSpan={4} className="px-2 py-2 text-[10px] text-[var(--t-pos)]">✓ Ningún cliente real quedó sin operador.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {/* B: no-clientes categorizados → ruido esperado */}
+          <div className="w-1/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
+            <div className="px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-text-muted)]/10 text-[10px] font-semibold text-[var(--t-text-muted)] tracking-widest shrink-0">
+              NO-CLIENTES (ruido del ranking) ({data.n_no_clientes})
+            </div>
+            <div className="flex-1 overflow-y-auto p-1">
+              {data.resumen_no_clientes.map((r) => (
+                <div key={r.categoria} className="flex items-baseline gap-2 px-2 py-0.5 text-[10px] border-b border-[var(--t-border)]/40">
+                  <span className={r.categoria === "SIN CLASIFICAR" ? "text-[#ff9900]" : "text-[var(--t-text-dim)]"}>{r.categoria}</span>
+                  <span className="ml-auto font-mono text-[var(--t-text-muted)]">{r.n}</span>
+                  <span className="font-mono text-[var(--t-text-dim)] w-28 text-right">{fmt(r.vol)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
-  const [subTab, setSubTab] = usePersistedState<"segmentacion" | "control" | "fondeos">("manager.cli.subtab", "segmentacion");
+  const [subTab, setSubTab] = usePersistedState<"segmentacion" | "control" | "sinoperador" | "fondeos">("manager.cli.subtab", "segmentacion");
   const subs = canBulk
     ? ([
         { id: "segmentacion", label: "SEGMENTACIÓN" },
         { id: "control",      label: "CONTROL AUTO" },
+        { id: "sinoperador",  label: "SIN OPERADOR" },
         { id: "fondeos",      label: "FONDEOS" },
       ] as const)
     : ([
         { id: "segmentacion", label: "SEGMENTACIÓN" },
         { id: "control",      label: "CONTROL AUTO" },
+        { id: "sinoperador",  label: "SIN OPERADOR" },
       ] as const);
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -2569,6 +2674,7 @@ function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
       <div className="flex-1 min-h-0">
         {subTab === "segmentacion" && <TabClientesSegmentacion />}
         {subTab === "control" && <TabControlAutomatico />}
+        {subTab === "sinoperador" && <TabSinOperador />}
         {subTab === "fondeos" && canBulk && <TabClientesFondeos />}
       </div>
     </div>
