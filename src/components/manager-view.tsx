@@ -2956,7 +2956,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   diagnostico:  ["manager"],
   jobs:         ["manager"],
   validaciones: ["manager"],
-  titulos:      ["manager"],
+  titulos:      ["manager", "manager_titulos"],
   comercial:    ["manager", "manager_comercial"],
   clientes:     ["manager", "manager_clientes"],
   compliance:   ["manager", "manager_compliance"],

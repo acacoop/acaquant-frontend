@@ -21,8 +21,8 @@ import { trustedEmail } from "./lib/cf-access";
 // sub-módulos (asistente_comercial = manager_comercial + manager_clientes).
 // Coincide con require_any_module() del backend en api/auth.py.
 const PATH_MODULES: [string, string[]][] = [
-  ["/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk"]],
-  ["/api/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk"]],
+  ["/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
+  ["/api/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
   ["/operar", ["operar"]],
   ["/api/ordenes", ["operar"]],
