@@ -170,6 +170,7 @@ export function ArancelesView() {
             </div>
           </div>
           <OpsBarChart serie={chartSerie} fmt={fmtCompact} unidad={moneda} defaultAgg="MENSUAL"
+            titulo="Aranceles"
             focoFecha={modo === "DIA" ? fecha : null} onAllSelected={() => setSerieFull(true)}
             series={[{ key: "arancel", label: "Aranceles", color: "var(--t-brand)" }]} />
         </div>
