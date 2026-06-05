@@ -904,38 +904,6 @@ function OperarCard({
         </div>
       )}
 
-      {/* Quick-pick cauciones — tickers fijos ROFEX, no pasan por el autocomplete.
-          Si el book no aparece tras 5s puede ser que Manager.PyRofexInstruments
-          no tenga la caución cargada (correr scripts/discovery_pyrofex). */}
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-panel)]">
-        <span className="text-[8px] text-[var(--t-text-muted)] tracking-widest mr-1">CAUCIÓN</span>
-        {[1, 7, 14, 30].map((d) => (
-          <button
-            key={`p${d}`}
-            onClick={() =>
-              onChangeTicker(`PESOS - ${d}D`, `MERV - XMEV - PESOS - ${d}D`)
-            }
-            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] font-mono"
-            title={`Caución pesos a ${d} día(s)`}
-          >
-            ${d}D
-          </button>
-        ))}
-        <span className="text-[8px] text-[#333] mx-1">·</span>
-        {[1, 7].map((d) => (
-          <button
-            key={`d${d}`}
-            onClick={() =>
-              onChangeTicker(`DOLAR - ${d}D`, `MERV - XMEV - DOLAR - ${d}D`)
-            }
-            className="px-1.5 py-0.5 text-[9px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] font-mono"
-            title={`Caución dólares a ${d} día(s)`}
-          >
-            U${d}D
-          </button>
-        ))}
-      </div>
-
       {/* Book */}
       <table className="w-full text-[11px] font-mono tabular-nums">
         <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider">
