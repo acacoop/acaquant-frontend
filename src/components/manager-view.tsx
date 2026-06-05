@@ -2385,14 +2385,174 @@ function TabClientesFondeos() {
 // ── Wrapper TabClientes: switch entre sub-tabs Segmentación / Fondeos ────────
 // canBulk = true → muestra ambas sub-tabs. false → solo SEGMENTACIÓN (carga
 // masiva de fondeos requiere el módulo manager_clientes_bulk, admin-only).
+// ── Clientes → Control Automático (concilia Excel de CUITs ↔ cuentas) ──────────
+
+interface ReconcFila {
+  cuit: string; id_cuenta: string; denominacion: string | null;
+  operador: string | null; nivel_1: string | null; ya_productor: boolean;
+}
+interface ReconcData {
+  tenemos: ReconcFila[]; no_tenemos: { cuit: string }[];
+  n_excel: number; n_tenemos: number; n_no_tenemos: number;
+}
+
+function TabControlAutomatico() {
+  const [data, setData] = useState<ReconcData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [segmentando, setSegmentando] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const onFile = async (file: File) => {
+    setMsg(null); setData(null); setFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
+      const cols = Object.keys(json[0]);
+      // El CUIT está en 'Nº ident.fis.1' (normalizado → contiene 'identfis1').
+      const cuitCol = cols.find((k) => k.toLowerCase().replace(/[^a-z0-9]/g, "").includes("identfis1"));
+      if (!cuitCol) {
+        setMsg({ ok: false, text: `No encontré la columna 'Nº ident.fis.1'. Columnas: ${cols.join(", ")}` });
+        return;
+      }
+      const cuits = json.map((r) => String(r[cuitCol] ?? "").trim()).filter(Boolean);
+      if (!cuits.length) { setMsg({ ok: false, text: `La columna '${cuitCol}' está vacía.` }); return; }
+      setLoading(true);
+      const r = await fetch("/api/manager/control-automatico/reconciliar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cuits }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setData(await r.json());
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const segmentar = async () => {
+    if (!data) return;
+    const ids = data.tenemos.filter((t) => !t.ya_productor).map((t) => t.id_cuenta);
+    if (!ids.length) { setMsg({ ok: true, text: "Todas las que tenemos ya son PRODUCTORES." }); return; }
+    setSegmentando(true); setMsg(null);
+    try {
+      const r = await fetch("/api/manager/control-automatico/segmentar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_cuentas: ids }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const res = await r.json();
+      setMsg({ ok: true, text: `✅ ${res.modificadas} cuenta(s) marcadas nivel_1 = PRODUCTORES.` });
+      setData((d) => d ? { ...d, tenemos: d.tenemos.map((t) => ({ ...t, nivel_1: "PRODUCTORES", ya_productor: true })) } : d);
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSegmentando(false);
+    }
+  };
+
+  const pendientes = data ? data.tenemos.filter((t) => !t.ya_productor).length : 0;
+
+  return (
+    <div className="h-full flex flex-col min-h-0 p-3 gap-2">
+      <div className="flex items-center gap-3 shrink-0 flex-wrap">
+        <label className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] cursor-pointer transition-colors">
+          {loading ? "Conciliando…" : "📄 Subir Excel"}
+          <input type="file" accept=".xlsx,.xls,.csv" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
+        </label>
+        {fileName && <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{fileName}</span>}
+        {data && (
+          <span className="text-[10px] text-[var(--t-text-muted)]">
+            {data.n_excel} en el Excel · <span className="text-[var(--t-pos)] font-semibold">{data.n_tenemos} tenemos</span> · {data.n_no_tenemos} no
+          </span>
+        )}
+        {data && data.n_tenemos > 0 && (
+          <button onClick={segmentar} disabled={segmentando || pendientes === 0}
+            className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40 transition-colors">
+            {segmentando ? "Segmentando…" : `Segmentar a PRODUCTORES (${pendientes})`}
+          </button>
+        )}
+      </div>
+      {msg && <div className={`text-[10px] shrink-0 ${msg.ok ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>{msg.text}</div>}
+      {!data && !loading && (
+        <div className="text-[10px] text-[var(--t-text-muted)] p-2">
+          Subí el Excel de clientes (el CUIT se lee de la columna <span className="font-mono">Nº ident.fis.1</span>).
+          Te muestro cuáles tenemos (con su id de cuenta) y cuáles no; el botón marca las que tenemos como
+          productores de nivel 1.
+        </div>
+      )}
+
+      {data && (
+        <div className="flex-1 min-h-0 flex gap-3">
+          {/* TENEMOS */}
+          <div className="w-2/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
+            <div className="px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-pos)]/10 text-[10px] font-semibold text-[var(--t-pos)] tracking-widest shrink-0">
+              LAS QUE TENEMOS ({data.n_tenemos})
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-[11px]">
+                <thead className="text-[9px] text-[var(--t-text-muted)] tracking-wider sticky top-0 bg-[var(--t-panel)]">
+                  <tr>
+                    <th className="text-left px-2 py-1">CUIT</th>
+                    <th className="text-left px-2 py-1">ID CUENTA</th>
+                    <th className="text-left px-2 py-1">DENOMINACIÓN</th>
+                    <th className="text-left px-2 py-1">OPERADOR</th>
+                    <th className="text-left px-2 py-1">NIVEL 1</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.tenemos.map((t) => (
+                    <tr key={t.id_cuenta} className="border-b border-[var(--t-border)]/40">
+                      <td className="px-2 py-0.5 font-mono text-[var(--t-text-dim)]">{t.cuit}</td>
+                      <td className="px-2 py-0.5 font-mono text-[var(--t-accent)]">{t.id_cuenta}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text)]">{t.denominacion ?? "—"}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text-muted)]">{t.operador ?? "—"}</td>
+                      <td className="px-2 py-0.5 font-mono">
+                        {t.ya_productor
+                          ? <span className="text-[var(--t-pos)]">PRODUCTORES</span>
+                          : <span className="text-[var(--t-text-muted)]">{t.nivel_1 ?? "—"}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {/* NO TENEMOS */}
+          <div className="w-1/3 min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)]">
+            <div className="px-3 py-1 border-b border-[var(--t-border)] bg-[var(--t-text-muted)]/10 text-[10px] font-semibold text-[var(--t-text-muted)] tracking-widest shrink-0">
+              NO LAS TENEMOS ({data.n_no_tenemos})
+            </div>
+            <div className="flex-1 overflow-y-auto p-1">
+              {data.no_tenemos.map((n, i) => (
+                <div key={i} className="px-2 py-0.5 font-mono text-[10px] text-[var(--t-text-dim)]">{n.cuit}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
-  const [subTab, setSubTab] = usePersistedState<"segmentacion" | "fondeos">("manager.cli.subtab", "segmentacion");
+  const [subTab, setSubTab] = usePersistedState<"segmentacion" | "control" | "fondeos">("manager.cli.subtab", "segmentacion");
   const subs = canBulk
     ? ([
         { id: "segmentacion", label: "SEGMENTACIÓN" },
+        { id: "control",      label: "CONTROL AUTO" },
         { id: "fondeos",      label: "FONDEOS" },
       ] as const)
-    : ([{ id: "segmentacion", label: "SEGMENTACIÓN" }] as const);
+    : ([
+        { id: "segmentacion", label: "SEGMENTACIÓN" },
+        { id: "control",      label: "CONTROL AUTO" },
+      ] as const);
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
@@ -2408,6 +2568,7 @@ function TabClientes({ canBulk = true }: { canBulk?: boolean }) {
       </div>
       <div className="flex-1 min-h-0">
         {subTab === "segmentacion" && <TabClientesSegmentacion />}
+        {subTab === "control" && <TabControlAutomatico />}
         {subTab === "fondeos" && canBulk && <TabClientesFondeos />}
       </div>
     </div>
