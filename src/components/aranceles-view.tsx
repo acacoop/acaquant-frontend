@@ -30,7 +30,8 @@ function fmtCompact(n: number): string {
 type Modo = "ULTIMA" | "DIA" | "TODOS";
 
 export function ArancelesView() {
-  const [moneda, setMoneda] = useState<Moneda>("ARS");
+  // El arancel es un solo valor SIEMPRE en pesos (no existe arancel en USD) → sin toggle.
+  const moneda: Moneda = "ARS";
   const [segmento, setSegmento] = useState("");
   const [segmentos, setSegmentos] = useState<string[]>([]);
   const [dim, setDim] = useState<Dim>("nivel3");
@@ -123,11 +124,7 @@ export function ArancelesView() {
           <option value="">Todos los segmentos</option>
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {(["ARS", "USD"] as Moneda[]).map((m) => (
-            <button key={m} onClick={() => setMoneda(m)} className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
-          ))}
-        </div>
+        <span className="text-[10px] uppercase tracking-wider text-[var(--t-text-muted)]">Aranceles en pesos</span>
         {(selDim || selCuenta || selInstr) && (
           <button onClick={() => { setSelDim(null); setSelCuenta(null); setSelInstr(null); }}
             className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ limpiar filtros</button>
