@@ -49,6 +49,7 @@ export function TabContrapartes() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);  // último error de guardado (visible)
   // Secuencia de request: descarta respuestas viejas (si escribís rápido, la que
   // llega tarde NO pisa a la última) → la lista SIEMPRE corresponde a lo tipeado.
   const reqSeq = useRef(0);
@@ -92,6 +93,7 @@ export function TabContrapartes() {
     if (!d) return;
     if (d.contraparte === (c.contraparte || "") && d.segmento === (c.segmento || "")) return;
     setRowState((s) => ({ ...s, [c.cuenta]: { kind: "saving" } }));
+    setSaveErr(null);
     try {
       const r = await fetch("/api/manager/contrapartes", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -103,7 +105,9 @@ export function TabContrapartes() {
       setRowState((s) => ({ ...s, [c.cuenta]: { kind: "saved" } }));
       setTimeout(() => setRowState((s) => ({ ...s, [c.cuenta]: { kind: "idle" } })), 1500);
     } catch (e) {
-      setRowState((s) => ({ ...s, [c.cuenta]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+      const msg = e instanceof Error ? e.message : String(e);
+      setRowState((s) => ({ ...s, [c.cuenta]: { kind: "error", msg } }));
+      setSaveErr(`Cuenta ${c.cuenta}: ${msg}`);  // banner visible arriba
     }
   };
 
@@ -168,6 +172,12 @@ export function TabContrapartes() {
           <button onClick={fetchRows} className="text-[10px] uppercase tracking-wider border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">↻</button>
         </div>
         {error && <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)]">{error}</div>}
+        {saveErr && (
+          <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)] bg-[#ff333315] border-b border-[var(--t-border)] flex items-start gap-2">
+            <span className="flex-1 break-words">⚠ {saveErr}</span>
+            <button onClick={() => setSaveErr(null)} className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">✕</button>
+          </div>
+        )}
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full text-[11px] font-mono tabular-nums">
             <thead className="sticky top-0 bg-[var(--t-panel)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
