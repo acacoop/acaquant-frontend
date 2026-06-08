@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { SensibilidadTable } from "./sensibilidad-table";
-import { CanjeTab } from "./canje-tab";
 import { DescomposicionTab } from "./descomposicion-tab";
 import { CompararInversionView } from "./comparar-inversion-view";
 
-// La tab "RETORNO TOTAL" se migró a la HOME (retorno-total-mini.tsx) — acá quedan
-// el resto de las herramientas de estrategia.
-type EstrategiaTab = "sensibilidad" | "canje" | "descomposicion" | "comparar";
+// "RETORNO TOTAL" y "CANJE" se migraron a la HOME (recuadro con toggle) — acá
+// quedan el resto de las herramientas de estrategia.
+type EstrategiaTab = "sensibilidad" | "descomposicion" | "comparar";
 
 export function RetornoTotalView() {
   const [tab, setTab] = useState<EstrategiaTab>("comparar");
@@ -25,11 +24,6 @@ export function RetornoTotalView() {
           onClick={() => setTab("sensibilidad")}
         />
         <TabPill
-          label="CANJE"
-          active={tab === "canje"}
-          onClick={() => setTab("canje")}
-        />
-        <TabPill
           label="DESCOMPOSICIÓN"
           active={tab === "descomposicion"}
           onClick={() => setTab("descomposicion")}
@@ -42,7 +36,6 @@ export function RetornoTotalView() {
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "sensibilidad" && <SensibilidadTable />}
-        {tab === "canje" && <CanjeTab />}
         {tab === "descomposicion" && <DescomposicionTab />}
         {tab === "comparar" && <CompararInversionView />}
       </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
 import { RetornoTotalMini } from "@/components/retorno-total-mini";
+import { CanjeTab } from "@/components/canje-tab";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
@@ -24,6 +25,35 @@ function esTickerArgy(t: string): boolean {
     t === "DOLAR MEP" ||
     t === "DOLAR CCL" ||
     t === "DOLAR OFICIAL"
+  );
+}
+
+// Recuadro de la home (abajo-izquierda) con toggle Retorno Total ⇄ Canje.
+// Canje se movió acá desde /estrategia: comparten el mismo espacio, se switchea.
+function RetornoCanjeBox() {
+  const [view, setView] = useState<"retorno" | "canje">("retorno");
+  return (
+    <div className="h-full min-h-0 min-w-0 flex flex-col">
+      <div className="flex items-center gap-1 pb-1.5 shrink-0">
+        {(["retorno", "canje"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={
+              "px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors " +
+              (view === v
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]")
+            }
+          >
+            {v === "retorno" ? "RETORNO TOTAL" : "CANJE"}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0 min-w-0">
+        {view === "retorno" ? <RetornoTotalMini /> : <CanjeTab />}
+      </div>
+    </div>
   );
 }
 
@@ -86,7 +116,7 @@ export function HomeView() {
             />
           </div>
           <div className="min-w-0 min-h-0">
-            <RetornoTotalMini />
+            <RetornoCanjeBox />
           </div>
         </div>
 
