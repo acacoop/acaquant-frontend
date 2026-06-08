@@ -241,7 +241,7 @@ export function RetornoTotalMini() {
       layout: {
         background: { type: ColorType.Solid, color: bg },
         textColor: txt,
-        fontSize: 11,
+        fontSize: 10,
         fontFamily: "JetBrains Mono, monospace",
         attributionLogo: false,
       },
@@ -254,7 +254,9 @@ export function RetornoTotalMini() {
         visible: true,
         borderColor: border,
         // Márgenes chicos → el rango usa más alto → más etiquetas en el eje Y.
-        scaleMargins: { top: 0.06, bottom: 0.06 },
+        scaleMargins: { top: 0.04, bottom: 0.04 },
+        // Fuerza las etiquetas de los extremos (máx/mín) → 2 ticks más, eje más denso.
+        ensureEdgeTickMarksVisible: true,
       },
       rightPriceScale: { visible: false },
       timeScale: {
@@ -378,7 +380,7 @@ export function RetornoTotalMini() {
                   key={tk}
                   onClick={() => toggle(tk)}
                   title={off ? "Mostrar en el chart" : "Ocultar del chart"}
-                  className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] font-mono hover:bg-[var(--t-accent)]/10 ${
+                  className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] font-mono font-bold hover:bg-[var(--t-accent)]/10 ${
                     off ? "opacity-40" : ""
                   }`}
                 >
@@ -386,7 +388,7 @@ export function RetornoTotalMini() {
                     className="w-2 h-2 shrink-0 rounded-[1px] border"
                     style={{ background: off ? "transparent" : color, borderColor: color }}
                   />
-                  <span className="text-[var(--t-text)] truncate flex-1 text-left">{tk}</span>
+                  <span className="text-[var(--t-text)] truncate flex-1 text-left font-bold">{tk}</span>
                   <span
                     className={
                       ret == null
