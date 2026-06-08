@@ -154,8 +154,9 @@ export function RolesPanel() {
         </button>
       </div>
 
-      {/* Matriz */}
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto shrink-0">
+      {/* Matriz — flex-1 + scroll propio para que NO se corte la última fila
+          (con shrink-0 la matriz se pasaba del alto y clippeaba el último módulo). */}
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto flex-1 min-h-0">
         <table className="w-full text-xs font-mono">
           <thead>
             <tr className="border-b border-[var(--t-border)]">
