@@ -51,6 +51,8 @@ function fmtPct(v: number | null | undefined, d = 2): string {
   return `${(v * 100).toFixed(d)}%`;
 }
 
+// Canje compacto para la home (recuadro chico, switch con Retorno Total): header
+// fino con toggle de par + métricas inline, y el gráfico ocupa todo el resto.
 export function CanjeTab() {
   const [par, setPar] = useState<Par>("AL30");
   const [data, setData] = useState<CanjeResp | null>(null);
@@ -64,9 +66,7 @@ export function CanjeTab() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`/api/analitica/canje?par=${encodeURIComponent(par)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/analitica/canje?par=${encodeURIComponent(par)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j: CanjeResp = await res.json();
         if (cancelled) return;
@@ -80,10 +80,7 @@ export function CanjeTab() {
     };
     run();
     const id = setInterval(run, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+    return () => { cancelled = true; clearInterval(id); };
   }, [par]);
 
   const serie = data?.serie || [];
@@ -97,83 +94,59 @@ export function CanjeTab() {
     const ult = serie[serie.length - 1];
     const primero = serie[0];
     const valores = serie.map((p) => p.canje);
-    const min = Math.min(...valores);
-    const max = Math.max(...valores);
-    const promedio = valores.reduce((a, b) => a + b, 0) / valores.length;
     return {
-      actual:    ult.canje,
-      delta:     ult.canje - primero.canje,
-      min,
-      max,
-      promedio,
-      precio_c:  ult.precio_c,
-      precio_d:  ult.precio_d,
+      actual: ult.canje,
+      delta: ult.canje - primero.canje,
+      min: Math.min(...valores),
+      max: Math.max(...valores),
+      precio_c: ult.precio_c,
+      precio_d: ult.precio_d,
     };
   }, [serie]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
-      {/* Controles */}
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">Par</span>
-          <div className="flex items-center gap-1 h-[26px]">
-            {PARES.map((p) => (
-              <button
-                key={p}
-                onClick={() => setPar(p)}
-                className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
-                  par === p
-                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                    : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+    <div className="h-full min-h-0 min-w-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+      {/* Header: título + toggle par + métricas inline */}
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap text-[10px] font-mono">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Canje</span>
+        <div className="flex items-center gap-1">
+          {PARES.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPar(p)}
+              className={`px-2 py-0.5 text-[9px] font-semibold tracking-wide border ${
+                par === p
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+        {kpis && (
+          <div className="flex items-center gap-3 ml-auto">
+            <span><span className="text-[var(--t-text-muted)]">Canje </span><span className="text-[var(--t-accent)] font-semibold">{fmtPct(kpis.actual)}</span></span>
+            <span><span className="text-[var(--t-text-muted)]">Δ </span><span className={kpis.delta >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}>{`${kpis.delta >= 0 ? "+" : ""}${(kpis.delta * 100).toFixed(2)} pp`}</span></span>
+            <span className="text-[var(--t-text-dim)]"><span className="text-[var(--t-text-muted)]">mín/máx </span>{fmtPct(kpis.min)} / {fmtPct(kpis.max)}</span>
+            <span className="text-[var(--t-text-dim)]">{par} C/D {kpis.precio_c.toFixed(2)} / {kpis.precio_d.toFixed(2)}</span>
           </div>
-        </div>
-        <div className="ml-auto text-[10px] text-[var(--t-text-muted)] font-mono">
-          {loading
-            ? "actualizando…"
-            : data
-              ? `${chartData.length} días${data.meta.fechas_solo_c + data.meta.fechas_solo_d > 0 ? ` (${data.meta.fechas_solo_c + data.meta.fechas_solo_d} sin par)` : ""}`
-              : ""}
-        </div>
+        )}
       </div>
 
       {error && (
-        <div className="px-3 py-2 text-[11px] text-[var(--t-neg)] bg-[#ff3333]/10 border border-[#ff3333]/30 font-mono shrink-0">
-          {error}
-        </div>
+        <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)] font-mono shrink-0">{error}</div>
       )}
 
-      {/* KPIs */}
-      {kpis && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
-          <Kpi label="Canje actual" value={fmtPct(kpis.actual)} highlight />
-          <Kpi
-            label="Δ período"
-            value={`${kpis.delta >= 0 ? "+" : ""}${(kpis.delta * 100).toFixed(2)} pp`}
-            tone={kpis.delta >= 0 ? "up" : "down"}
-          />
-          <Kpi label="Mín / Máx" value={`${fmtPct(kpis.min)} / ${fmtPct(kpis.max)}`} />
-          <Kpi
-            label={`${data?.par} C / D último`}
-            value={`${kpis.precio_c.toFixed(2)} / ${kpis.precio_d.toFixed(2)}`}
-          />
-        </div>
-      )}
-
-      {/* Chart */}
-      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] p-2">
+      {/* Gráfico (ocupa todo el resto) */}
+      <div className="flex-1 min-h-0 min-w-0 p-2">
         {chartData.length < 2 ? (
           <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
             {loading ? "Cargando…" : "Sin datos suficientes."}
           </p>
         ) : (
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 28, left: 4 }}>
+            <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 20, left: 4 }}>
               <CartesianGrid stroke="var(--t-border)" vertical={false} />
               <XAxis
                 dataKey="fecha"
@@ -182,18 +155,19 @@ export function CanjeTab() {
                 tickLine={false}
                 angle={-35}
                 textAnchor="end"
-                height={40}
+                height={34}
                 tickFormatter={fmtFechaCorta}
-                interval={Math.max(0, Math.floor(chartData.length / 12))}
+                interval={Math.max(0, Math.floor(chartData.length / 10))}
               />
               <YAxis
                 tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
                 axisLine={{ stroke: "var(--t-border-2)" }}
                 tickLine={false}
                 tickFormatter={(v: number) => `${v.toFixed(1)}%`}
-                width={55}
+                width={50}
+                tickCount={8}
               />
-              <ReferenceLine y={0} stroke="#555" strokeDasharray="4 4" />
+              <ReferenceLine y={0} stroke="var(--t-text-dim)" strokeDasharray="4 4" />
               <Tooltip
                 contentStyle={{
                   background: "var(--t-surface)",
@@ -205,62 +179,11 @@ export function CanjeTab() {
                 labelFormatter={(v) => fmtFechaCorta(String(v))}
                 formatter={(v) => [`${Number(v).toFixed(2)}%`, "Canje"]}
               />
-              <Line
-                type="monotone"
-                dataKey="canjePct"
-                stroke="#ff9900"
-                strokeWidth={1.6}
-                dot={false}
-                isAnimationActive={false}
-              />
+              <Line type="monotone" dataKey="canjePct" stroke="#ff9900" strokeWidth={1.6} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         )}
       </div>
-
-      {/* Leyenda */}
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0 text-[10px] font-mono">
-        <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
-          Cálculo
-        </div>
-        <div className="text-[var(--t-text)]">
-          Canje = Precio<sub>C</sub> / Precio<sub>D</sub> − 1
-        </div>
-        <div className="text-[var(--t-text-dim)] mt-1 leading-relaxed">
-          Spread implícito de cable: cuánto más caro está el bono en CCL (USD
-          afuera) que en MEP (USD acá). Un canje en alza señala fuga de USD
-          hacia el exterior; comprime cuando hay confianza local.
-          <br />
-          <span className="text-[var(--t-text-muted)]">Solo se grafican días con ambos precios disponibles.</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  highlight = false,
-  tone,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-  tone?: "up" | "down";
-}) {
-  const color =
-    tone === "up"
-      ? "text-[var(--t-pos)]"
-      : tone === "down"
-        ? "text-[var(--t-neg)]"
-        : highlight
-          ? "text-[var(--t-accent)]"
-          : "text-[var(--t-text)]";
-  return (
-    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2">
-      <div className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] mb-1">{label}</div>
-      <div className={`text-[14px] font-mono font-semibold ${color}`}>{value}</div>
     </div>
   );
 }

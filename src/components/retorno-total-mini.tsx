@@ -253,7 +253,8 @@ export function RetornoTotalMini() {
       leftPriceScale: {
         visible: true,
         borderColor: border,
-        scaleMargins: { top: 0.14, bottom: 0.14 },
+        // Márgenes chicos → el rango usa más alto → más etiquetas en el eje Y.
+        scaleMargins: { top: 0.06, bottom: 0.06 },
       },
       rightPriceScale: { visible: false },
       timeScale: {
@@ -270,7 +271,7 @@ export function RetornoTotalMini() {
         vertLine: { color: border, width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#ff9900" },
         horzLine: { color: border, width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#ff9900" },
       },
-      localization: { priceFormatter: (v: number) => `${v.toFixed(1)}%` },
+      localization: { priceFormatter: (v: number) => `${v.toFixed(2)}%` },
     });
     chartRef.current = chart;
     seriesMap.current = new Map();
