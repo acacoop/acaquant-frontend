@@ -6,22 +6,24 @@ import {
   CrosshairMode,
   createChart,
   LineSeries,
+  LineStyle,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type Time,
 } from "lightweight-charts";
 
 /**
  * Versión compacta de RETORNO TOTAL para la HOME (cuadrante izq-abajo).
- * Solo el chart, con look TradingView real (lightweight-charts).
- * Tabs por curva (Tasa Fija / CER / Hard Dólar) + ventanas 7D / 14D / MTD.
+ * Chart con look TradingView real (lightweight-charts), eje Y a la izquierda,
+ * + lista interactiva de retornos al costado que sirve de leyenda Y de selector
+ * (tildás/destildás bonos para limpiar el chart).
  *
- * Reusa el endpoint y la lógica de cálculo de retorno total de la vista
- * ESTRATEGIAS (retorno-total-view.tsx): precio + cupones/amortizaciones
- * cobrados en el período, con alineación de flujos al desplome de precio
- * (el bono cotiza "ex" antes de la fecha de pago). El retorno mini se muestra
- * en moneda nativa de la curva (ARS para tasa_fija/cer, USD para soberanos);
- * la dolarización ARS→USD vive solo en la vista completa.
+ * Tabs por curva (Tasa Fija / CER / Hard Dólar) + ventanas 7D / 14D / MTD.
+ * Reusa la lógica de cálculo de la vista ESTRATEGIAS completa: precio +
+ * cupones/amortizaciones cobrados, con flujos alineados al desplome de precio
+ * (el bono cotiza "ex" antes de la fecha de pago). Retorno en moneda nativa de
+ * la curva (ARS para tasa_fija/cer, USD para soberanos).
  */
 
 interface HistRow {
@@ -53,13 +55,6 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function fmtCorta(s: string): string {
-  const iso = s.length >= 10 ? s.slice(0, 10) : s;
-  const d = new Date(iso + "T00:00:00Z");
-  if (isNaN(d.getTime())) return iso;
-  return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
 // Ventana → fecha desde, dada la última fecha disponible.
 function desdeForVentana(v: Ventana, last: string): string {
   if (v === "7D") return addDays(last, -7);
@@ -68,11 +63,18 @@ function desdeForVentana(v: Ventana, last: string): string {
 }
 
 export function RetornoTotalMini() {
-  const [curva, setCurva] = useState<Curva>("tasa_fija");
+  const [curva, setCurvaState] = useState<Curva>("tasa_fija");
   const [ventana, setVentana] = useState<Ventana>("14D");
   const [byCurva, setByCurva] = useState<Record<string, RetornoData>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bonos destildados en la lista → se ocultan del chart (no se borran).
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const setCurva = (c: Curva) => {
+    setCurvaState(c);
+    setHidden(new Set()); // cada curva tiene sus propios bonos
+  };
 
   // Tema (claro/oscuro): misma señal que el resto de la app (clase "light" en <html>).
   const [isLight, setIsLight] = useState(false);
@@ -173,8 +175,6 @@ export function RetornoTotalMini() {
       return s;
     };
 
-    // Base por ticker = precio as-of fechaDesde (o primera fecha dentro de la
-    // ventana si recién empieza a cotizar).
     const out: Record<string, Array<{ time: Time; value: number }>> = {};
     const tickersConDatos: string[] = [];
     for (const tk of Object.keys(serieByTicker).sort()) {
@@ -201,106 +201,138 @@ export function RetornoTotalMini() {
     return { tickers: tickersConDatos, data: out };
   }, [rows, flujos, fechaDesde, fechaHasta]);
 
+  // Color estable por ticker (orden alfabético de `tickers`).
+  const colorOf = useMemo(() => {
+    const m: Record<string, string> = {};
+    tickers.forEach((tk, i) => (m[tk] = PALETA[i % PALETA.length]));
+    return m;
+  }, [tickers]);
+
+  // Lista de retornos del período (último valor de cada serie), ordenada desc.
+  const resumen = useMemo(
+    () =>
+      tickers
+        .map((tk) => ({ tk, ret: data[tk]?.at(-1)?.value ?? null, color: colorOf[tk] }))
+        .sort((a, b) => (b.ret ?? -1e9) - (a.ret ?? -1e9)),
+    [tickers, data, colorOf],
+  );
+
   // ── Chart (lightweight-charts) ────────────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
-  const legendRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const seriesMap = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+  const hiddenRef = useRef(hidden);
+  useEffect(() => {
+    hiddenRef.current = hidden;
+  }, [hidden]);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el || tickers.length === 0) return;
 
     const txt = isLight ? "#5a6678" : "#8a8a8a";
-    const grid = isLight ? "#e8edf4" : "#161616";
+    const grid = isLight ? "#eef2f7" : "#141414";
     const border = isLight ? "#aab6c9" : "#2a2a2a";
     const bg = isLight ? "#ffffff" : "#080808";
+    const zero = isLight ? "#94a3b8" : "#3a3a3a";
 
     const chart = createChart(el, {
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: bg },
         textColor: txt,
-        fontSize: 10,
+        fontSize: 11,
         fontFamily: "JetBrains Mono, monospace",
         attributionLogo: false,
       },
-      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
-      rightPriceScale: { borderColor: border },
-      timeScale: { borderColor: border, timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
-      crosshair: { mode: CrosshairMode.Normal },
+      grid: {
+        vertLines: { color: grid, style: LineStyle.Dotted },
+        horzLines: { color: grid, style: LineStyle.Dotted },
+      },
+      // Eje Y a la IZQUIERDA.
+      leftPriceScale: {
+        visible: true,
+        borderColor: border,
+        scaleMargins: { top: 0.14, bottom: 0.14 },
+      },
+      rightPriceScale: { visible: false },
+      timeScale: {
+        borderColor: border,
+        timeVisible: false,
+        secondsVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        rightOffset: 4,
+        barSpacing: 8,
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: border, width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#ff9900" },
+        horzLine: { color: border, width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#ff9900" },
+      },
       localization: { priceFormatter: (v: number) => `${v.toFixed(1)}%` },
     });
     chartRef.current = chart;
+    seriesMap.current = new Map();
 
-    const serieByTk: Array<{ tk: string; color: string; api: ISeriesApi<"Line"> }> = [];
-    tickers.forEach((tk, i) => {
-      const color = PALETA[i % PALETA.length];
+    let zeroLineHost: ISeriesApi<"Line"> | null = null;
+    let zeroLine: IPriceLine | null = null;
+    tickers.forEach((tk) => {
       const api = chart.addSeries(LineSeries, {
-        color,
+        priceScaleId: "left",
+        color: colorOf[tk],
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: false,
         crosshairMarkerVisible: true,
-        crosshairMarkerRadius: 3,
+        crosshairMarkerRadius: 4,
+        visible: !hiddenRef.current.has(tk),
       });
       api.setData(data[tk]);
-      serieByTk.push({ tk, color, api });
+      seriesMap.current.set(tk, api);
+      if (!zeroLineHost) zeroLineHost = api;
     });
+
+    // Línea de referencia en 0% (estilo TradingView, contra qué se lee el retorno).
+    if (zeroLineHost) {
+      zeroLine = (zeroLineHost as ISeriesApi<"Line">).createPriceLine({
+        price: 0,
+        color: zero,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: false,
+      });
+    }
+
     chart.timeScale().fitContent();
 
-    // Legend estilo TradingView: por defecto último valor; en hover el del
-    // crosshair. Se construye con nodos DOM (no innerHTML) para evitar cualquier
-    // riesgo de inyección, aunque los tickers vengan de nuestro propio backend.
-    const renderLegend = (valores: Record<string, number | undefined>, fecha?: string) => {
-      const leg = legendRef.current;
-      if (!leg) return;
-      leg.replaceChildren();
-      if (fecha) {
-        const h = document.createElement("span");
-        h.style.color = txt;
-        h.textContent = fmtCorta(fecha);
-        leg.appendChild(h);
-      }
-      for (const { tk, color } of serieByTk) {
-        const v = valores[tk];
-        const val = v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
-        const span = document.createElement("span");
-        span.style.color = color;
-        span.style.marginLeft = "8px";
-        span.textContent = `${tk} `;
-        const b = document.createElement("b");
-        b.textContent = val;
-        span.appendChild(b);
-        leg.appendChild(span);
-      }
-    };
-    const ultimos: Record<string, number | undefined> = {};
-    for (const { tk } of serieByTk) ultimos[tk] = data[tk]?.at(-1)?.value;
-    renderLegend(ultimos);
-
-    chart.subscribeCrosshairMove((param) => {
-      if (!param.time) {
-        renderLegend(ultimos);
-        return;
-      }
-      const vals: Record<string, number | undefined> = {};
-      for (const { tk, api } of serieByTk) {
-        const p = param.seriesData.get(api) as { value?: number } | undefined;
-        vals[tk] = p?.value;
-      }
-      renderLegend(vals, String(param.time));
-    });
-
     return () => {
+      if (zeroLine && zeroLineHost) (zeroLineHost as ISeriesApi<"Line">).removePriceLine(zeroLine);
       chart.remove();
       chartRef.current = null;
+      seriesMap.current = new Map();
     };
-  }, [data, tickers, isLight]);
+  }, [data, tickers, isLight, colorOf]);
+
+  // Toggle de visibilidad sin recrear el chart.
+  useEffect(() => {
+    for (const [tk, api] of seriesMap.current) {
+      api.applyOptions({ visible: !hidden.has(tk) });
+    }
+  }, [hidden]);
+
+  const toggle = (tk: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(tk)) next.delete(tk);
+      else next.add(tk);
+      return next;
+    });
 
   const hayDatos = tickers.length > 0;
 
   return (
-    <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 min-w-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
       {/* Header: título + tabs de curva + ventanas */}
       <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
@@ -318,22 +350,57 @@ export function RetornoTotalMini() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div
-        ref={legendRef}
-        className="px-3 pt-1 text-[10px] font-mono leading-tight shrink-0 truncate"
-      />
+      {/* Cuerpo: chart (eje Y izq) + lista interactiva de retornos */}
+      <div className="flex-1 min-h-0 min-w-0 flex">
+        <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
+          {loading && !curr ? (
+            <Centro>cargando…</Centro>
+          ) : error ? (
+            <Centro tono="neg">error: {error}</Centro>
+          ) : !hayDatos ? (
+            <Centro>sin datos suficientes en la ventana</Centro>
+          ) : (
+            <div ref={containerRef} className="absolute inset-0" />
+          )}
+        </div>
 
-      {/* Chart / estados */}
-      <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
-        {loading && !curr ? (
-          <Centro>cargando…</Centro>
-        ) : error ? (
-          <Centro tono="neg">error: {error}</Centro>
-        ) : !hayDatos ? (
-          <Centro>sin datos suficientes en la ventana</Centro>
-        ) : (
-          <div ref={containerRef} className="absolute inset-0" />
+        {/* Lista de retornos = leyenda + selector (tildar/destildar) */}
+        {hayDatos && (
+          <div className="w-[124px] shrink-0 border-l border-[var(--t-border)] overflow-y-auto">
+            <div className="px-1.5 py-1 text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
+              {ventana} · {resumen.length}
+            </div>
+            {resumen.map(({ tk, ret, color }) => {
+              const off = hidden.has(tk);
+              return (
+                <button
+                  key={tk}
+                  onClick={() => toggle(tk)}
+                  title={off ? "Mostrar en el chart" : "Ocultar del chart"}
+                  className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] font-mono hover:bg-[var(--t-accent)]/10 ${
+                    off ? "opacity-40" : ""
+                  }`}
+                >
+                  <span
+                    className="w-2 h-2 shrink-0 rounded-[1px] border"
+                    style={{ background: off ? "transparent" : color, borderColor: color }}
+                  />
+                  <span className="text-[var(--t-text)] truncate flex-1 text-left">{tk}</span>
+                  <span
+                    className={
+                      ret == null
+                        ? "text-[var(--t-text-muted)]"
+                        : ret >= 0
+                          ? "text-[var(--t-pos)]"
+                          : "text-[var(--t-neg)]"
+                    }
+                  >
+                    {ret == null ? "—" : `${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
