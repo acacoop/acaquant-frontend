@@ -13,6 +13,7 @@ import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { GruposPanel } from "./grupos-panel";
 import { ComercialPanel } from "./comercial-panel";
+import { TabContrapartes } from "./manager-contrapartes-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { ManagerDebugSegmentoPanel } from "./manager-debug-segmento";
@@ -2936,6 +2937,7 @@ type Tab =
   | "titulos"
   | "comercial"
   | "clientes"
+  | "contrapartes"
   | "compliance"
   | "aunesa"
   | "operaciones"
@@ -3257,6 +3259,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   titulos:      ["manager", "manager_titulos"],
   comercial:    ["manager", "manager_comercial"],
   clientes:     ["manager", "manager_clientes"],
+  contrapartes: ["manager", "manager_contrapartes"],
   compliance:   ["manager", "manager_compliance"],
   aunesa:       ["manager"],
   operaciones:  ["manager"],
@@ -3375,6 +3378,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "titulos",      label: "TÍTULOS"      },
     { id: "comercial",    label: "COMERCIAL"    },
     { id: "clientes",     label: "CLIENTES"     },
+    { id: "contrapartes", label: "CONTRAPARTES" },
     { id: "compliance",   label: "COMPLIANCE"   },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
@@ -3412,6 +3416,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "titulos"      && <TitulosGroup />}
         {tab === "comercial"    && <ComercialPanel />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
+        {tab === "contrapartes" && <TabContrapartes />}
         {tab === "compliance"   && <ComplianceGroup />}
         {tab === "aunesa"       && <AunesaGroup />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
