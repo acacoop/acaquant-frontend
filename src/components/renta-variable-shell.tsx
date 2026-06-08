@@ -1,26 +1,14 @@
 "use client";
 
-import { useState } from "react";
 import { ScannerView } from "./scanner-view";
-import { EstrategiaView } from "./estrategia-view";
-import { MonitorView } from "./monitor-view";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 /**
- * Shell de /renta-variable. Tres tabs:
- *   - SCANNER:    vista de CEDEARs (master + snapshot live).
- *   - ESTRATEGIA: Mesa de Estrategia — análisis de trade individual + hedging.
- *   - MONITOR:    Mesa de Estrategia — análisis de book / exposición.
- * Ver docs/wip_mesa_estrategia_rv.md (repo TradingAV).
+ * Shell de /renta-variable — Scanner de CEDEARs (master + snapshot live).
+ *
+ * La "Mesa de Estrategia" (tabs ESTRATEGIA y MONITOR) era WIP sin uso y se
+ * removió: el módulo hospeda únicamente el Scanner.
  */
-type Tab = "scanner" | "estrategia" | "monitor";
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: "scanner", label: "SCANNER" },
-  { key: "estrategia", label: "ESTRATEGIA" },
-  { key: "monitor", label: "MONITOR" },
-];
-
 export function RentaVariableShell({
   initialScanner,
   initialCcl,
@@ -28,32 +16,9 @@ export function RentaVariableShell({
   initialScanner: CedearScannerRow[];
   initialCcl: CclLive;
 }) {
-  const [tab, setTab] = useState<Tab>("scanner");
-
   return (
-    <div className="h-full min-h-0 flex flex-col">
-      <div className="flex items-center gap-1 px-3 pt-2 shrink-0">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`px-3 py-1 text-[10px] font-semibold tracking-wide border transition-colors ${
-              tab === key
-                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 min-h-0">
-        {tab === "scanner" && (
-          <ScannerView initial={initialScanner} initialCcl={initialCcl} />
-        )}
-        {tab === "estrategia" && <EstrategiaView />}
-        {tab === "monitor" && <MonitorView />}
-      </div>
+    <div className="h-full min-h-0">
+      <ScannerView initial={initialScanner} initialCcl={initialCcl} />
     </div>
   );
 }
