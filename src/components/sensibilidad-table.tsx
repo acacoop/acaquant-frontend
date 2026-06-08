@@ -29,14 +29,14 @@ interface BonoRow {
 
 const POLL_MS = 300_000; // 5 min
 
-// Color de la celda según retorno %. Gradiente verde (positivo) → rojo (negativo).
+// Color de la celda según retorno %. Verde positivo / rojo negativo, con intensidad
+// por magnitud, MEZCLADO sobre el panel del tema (var(--t-panel)) → funciona en modo
+// claro Y oscuro (antes había celdas negras hardcodeadas + texto claro ilegible).
+// Texto var(--t-text) se adapta al tema solo.
 function colorRetorno(r: number): { bg: string; fg: string } {
-  if (r >= 0.25) return { bg: "#0a3", fg: "#fff" };
-  if (r >= 0.15) return { bg: "#0a3a", fg: "#dfd" };
-  if (r >= 0.05) return { bg: "#0a32", fg: "#bdb" };
-  if (r >= 0)    return { bg: "#1a1a1a", fg: "#bdb" };
-  if (r >= -0.05) return { bg: "#3a1a1a", fg: "#fbb" };
-  return { bg: "#a30", fg: "#fff" };
+  const pct = Math.min(72, Math.round((Math.abs(r) / 0.30) * 72));
+  const base = r >= 0 ? "#00aa44" : "#dd3322";
+  return { bg: `color-mix(in srgb, ${base} ${pct}%, var(--t-panel))`, fg: "var(--t-text)" };
 }
 
 function fmtPct(v: number | null | undefined, d = 1): string {
@@ -483,7 +483,7 @@ export function SensibilidadTable() {
               </div>
               <div
                 className="mt-1 text-[13px] font-semibold"
-                style={{ color: colorRetorno(debug.esc.upside ?? 0).bg === "#1a1a1a" ? "#bdb" : "#fff" }}
+                style={{ color: (debug.esc.upside ?? 0) >= 0 ? "#0a7d3a" : "#c0392b" }}
               >
                 = {fmtPct(debug.esc.upside ?? 0, 2)}
               </div>
