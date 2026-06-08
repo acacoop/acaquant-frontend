@@ -10,7 +10,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 import { DownloadButton } from "@/components/download-button";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
@@ -32,148 +31,6 @@ interface SnapshotRow {
 }
 
 const BRAND_BLUE = "#094293";
-
-// ── Tasa Fija ─────────────────────────────────────────────────────────────────
-
-interface TFCuenta { cuenta: string; id_cuenta: string; valuacion: number; cantidad: number; cobro_proyectado: number }
-interface TFTicker {
-  ticker: string; fecha_vencimiento: string | null;
-  flujo_vencimiento: number; valuacion: number; cantidad: number;
-  cobro_proyectado: number; cuentas: TFCuenta[];
-}
-interface TFData { fecha: string | null; total_valuacion: number; total_cobro: number; tickers: TFTicker[] }
-
-function fmtVto(s: string | null): string {
-  if (!s) return "-";
-  const [y, m, d] = s.slice(0, 10).split("-");
-  return `${d}/${m}/${y.slice(-2)}`;
-}
-
-function TabTasaFija({ operador }: { operador: string }) {
-  const [data, setData]           = useState<TFData | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [selTicker, setSelTicker] = useState<string | null>(null);
-  const [verVN, setVerVN]         = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    const q = operador ? `?operador=${encodeURIComponent(operador)}` : "";
-    fetch(`/api/portfolio/tasa-fija${q}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: TFData) => { setData(d); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [operador]);
-
-  if (loading) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Cargando…</div>;
-  if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Sin posiciones de Tasa Fija.</div>;
-
-  const tickers = data.tickers;
-  const tickerSel = selTicker ? tickers.find((t) => t.ticker === selTicker) ?? null : null;
-
-  const colSrc  = verVN ? "cantidad"  : "valuacion";
-  const colLbl  = verVN ? "VN"        : "VALUACIÓN";
-  const fmtCol  = verVN
-    ? (v: number) => v.toLocaleString("es-AR", { maximumFractionDigits: 2 })
-    : (v: number) => v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-
-  const chartData = tickers
-    .filter((t) => t.cobro_proyectado > 0 && t.fecha_vencimiento)
-    .map((t) => ({ fecha: fmtVto(t.fecha_vencimiento), monto: t.cobro_proyectado, ticker: t.ticker }));
-
-  return (
-    <div className="h-full flex flex-col gap-3 p-3 overflow-hidden min-h-0">
-      {/* KPIs + toggle */}
-      <div className="flex items-center gap-3 shrink-0">
-        <Kpi label="VALUACIÓN ACTUAL" value={fmtCompact(data.total_valuacion)} accent={BRAND_BLUE} />
-        <Kpi label="COBRO PROYECTADO" value={fmtCompact(data.total_cobro)} accent="var(--t-pos)" />
-        <Kpi label="FECHA SNAPSHOT"   value={fmtVto(data.fecha)} />
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] text-[var(--t-text-muted)]">VALOR NOMINAL</span>
-          <button
-            onClick={() => setVerVN((v) => !v)}
-            className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[var(--t-accent)]" : "bg-[var(--t-border-2)]"}`}
-          >
-            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${verVN ? "translate-x-4" : "translate-x-0.5"}`} />
-          </button>
-        </div>
-      </div>
-
-      {/* Tabla tickers + detalle cuentas */}
-      <div className="grid grid-cols-[35%_65%] gap-3 min-h-0" style={{ height: "38%" }}>
-        {/* Tickers */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-          <PanelHeader title="POSICIONES POR TICKER" />
-          <div className="flex-1 overflow-y-auto">
-            <table>
-              <thead><tr><th>TICKER</th><th>VTO.</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO</th></tr></thead>
-              <tbody>
-                {tickers.map((t) => (
-                  <tr
-                    key={t.ticker}
-                    onClick={() => setSelTicker(selTicker === t.ticker ? null : t.ticker)}
-                    className={`cursor-pointer ${selTicker === t.ticker ? "bg-[var(--t-accent)]/10" : ""}`}
-                  >
-                    <td className="text-[var(--t-accent)] font-semibold">{t.ticker}</td>
-                    <td className="text-[var(--t-text-dim)]">{fmtVto(t.fecha_vencimiento)}</td>
-                    <td className="text-right font-mono">{fmtCol(t[colSrc])}</td>
-                    <td className="text-right font-mono text-[var(--t-pos)]">{t.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Cuentas */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-          <PanelHeader title={tickerSel ? `CUENTAS — ${tickerSel.ticker}` : "CUENTAS (seleccioná un ticker)"} />
-          <div className="flex-1 overflow-y-auto">
-            {tickerSel ? (
-              <table>
-                <thead><tr><th>CUENTA</th><th className="text-right">{colLbl}</th><th className="text-right">COBRO</th></tr></thead>
-                <tbody>
-                  {tickerSel.cuentas.sort((a, b) => b.valuacion - a.valuacion).map((c, i) => (
-                    <tr key={i}>
-                      <td className="text-[var(--t-text)]">{c.cuenta}</td>
-                      <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
-                      <td className="text-right font-mono text-[var(--t-pos)]">{c.cobro_proyectado.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Clickeá un ticker para ver detalle por cuenta.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Gráfico amortizaciones */}
-      {chartData.length > 0 && (
-        <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-          <PanelHeader title="COBRO PROYECTADO POR VENCIMIENTO" />
-          <div className="flex-1 min-h-0 p-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
-                <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
-                <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
-                <Tooltip
-                  contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                  formatter={(v, _, entry) => [`${Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, String((entry as { payload?: { ticker?: string } })?.payload?.ticker ?? "")]}
-                  labelFormatter={(l) => `Vto: ${l}`}
-                />
-                <Bar dataKey="monto" radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                  {chartData.map((_, i) => <Cell key={i} fill={BRAND_BLUE} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function fmtCompact(n: number): string {
   const abs = Math.abs(n);
@@ -228,162 +85,7 @@ function niceScale(
   return { min: niceMin, max: niceMax, ticks };
 }
 
-// ── CER ───────────────────────────────────────────────────────────────────────
-
-interface CERCuenta { cuenta: string; id_cuenta: string; valuacion: number; cantidad: number }
-interface CERTicker {
-  ticker: string; fecha_vencimiento: string | null;
-  valuacion: number; cantidad: number;
-  tea: number | null; paridad: number | null; duration: number | null;
-  cuentas: CERCuenta[];
-}
-interface CERData { fecha: string | null; total_valuacion: number; tickers: CERTicker[] }
-
-function fmtPct(v: number | null | undefined, digits = 2): string {
-  if (v === null || v === undefined) return "-";
-  // TEA se almacena como decimal (0.12 = 12%). Paridad como 100-based (95 = 95%).
-  return v.toFixed(digits);
-}
-
-function TabCer({ operador }: { operador: string }) {
-  const [data, setData]           = useState<CERData | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [selTicker, setSelTicker] = useState<string | null>(null);
-  const [verVN, setVerVN]         = useState(false);
-
-  useEffect(() => {
-    setLoading(true);
-    const q = operador ? `?operador=${encodeURIComponent(operador)}` : "";
-    fetch(`/api/portfolio/cer${q}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d: CERData) => { setData(d); })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [operador]);
-
-  if (loading) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Cargando…</div>;
-  if (!data || !data.tickers.length) return <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">Sin posiciones CER.</div>;
-
-  const tickers = data.tickers;
-  const tickerSel = selTicker ? tickers.find((t) => t.ticker === selTicker) ?? null : null;
-
-  const colSrc  = verVN ? "cantidad"  : "valuacion";
-  const colLbl  = verVN ? "VN"        : "VALUACIÓN";
-  const fmtCol  = verVN
-    ? (v: number) => v.toLocaleString("es-AR", { maximumFractionDigits: 2 })
-    : (v: number) => v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
-
-  const chartData = tickers
-    .filter((t) => t.valuacion > 0 && t.fecha_vencimiento)
-    .map((t) => ({ fecha: fmtVto(t.fecha_vencimiento), monto: t.valuacion, ticker: t.ticker }));
-
-  return (
-    <div className="h-full flex flex-col gap-3 p-3 overflow-hidden min-h-0">
-      {/* KPIs + toggle */}
-      <div className="flex items-center gap-3 shrink-0">
-        <Kpi label="VALUACIÓN ACTUAL" value={fmtCompact(data.total_valuacion)} accent={BRAND_BLUE} />
-        <Kpi label="TICKERS"          value={String(tickers.length)} />
-        <Kpi label="FECHA SNAPSHOT"   value={fmtVto(data.fecha)} />
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] text-[var(--t-text-muted)]">VALOR NOMINAL</span>
-          <button
-            onClick={() => setVerVN((v) => !v)}
-            className={`w-8 h-4 rounded-full transition-colors relative ${verVN ? "bg-[var(--t-accent)]" : "bg-[var(--t-border-2)]"}`}
-          >
-            <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${verVN ? "translate-x-4" : "translate-x-0.5"}`} />
-          </button>
-        </div>
-      </div>
-
-      {/* Tabla tickers + detalle cuentas */}
-      <div className="grid grid-cols-[45%_55%] gap-3 min-h-0" style={{ height: "38%" }}>
-        {/* Tickers */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-          <PanelHeader title="POSICIONES POR TICKER" />
-          <div className="flex-1 overflow-y-auto">
-            <table>
-              <thead>
-                <tr>
-                  <th>TICKER</th>
-                  <th>VTO.</th>
-                  <th className="text-right">{colLbl}</th>
-                  <th className="text-right">TEA</th>
-                  <th className="text-right">PAR.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickers.map((t) => (
-                  <tr
-                    key={t.ticker}
-                    onClick={() => setSelTicker(selTicker === t.ticker ? null : t.ticker)}
-                    className={`cursor-pointer ${selTicker === t.ticker ? "bg-[var(--t-accent)]/10" : ""}`}
-                  >
-                    <td className="text-[var(--t-accent)] font-semibold">{t.ticker}</td>
-                    <td className="text-[var(--t-text-dim)]">{fmtVto(t.fecha_vencimiento)}</td>
-                    <td className="text-right font-mono">{fmtCol(t[colSrc])}</td>
-                    <td className="text-right font-mono text-[var(--t-text-dim)]">
-                      {t.tea != null ? `${(t.tea * 100).toFixed(1)}%` : "—"}
-                    </td>
-                    <td className="text-right font-mono text-[var(--t-text-dim)]">
-                      {t.paridad != null ? fmtPct(t.paridad, 1) : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Cuentas */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-          <PanelHeader title={tickerSel ? `CUENTAS — ${tickerSel.ticker}` : "CUENTAS (seleccioná un ticker)"} />
-          <div className="flex-1 overflow-y-auto">
-            {tickerSel ? (
-              <table>
-                <thead><tr><th>CUENTA</th><th className="text-right">{colLbl}</th></tr></thead>
-                <tbody>
-                  {tickerSel.cuentas.sort((a, b) => b.valuacion - a.valuacion).map((c, i) => (
-                    <tr key={i}>
-                      <td className="text-[var(--t-text)]">{c.cuenta}</td>
-                      <td className="text-right font-mono">{fmtCol(verVN ? c.cantidad : c.valuacion)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">Clickeá un ticker para ver detalle por cuenta.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Gráfico valuación por vencimiento */}
-      {chartData.length > 0 && (
-        <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-          <PanelHeader title="VALUACIÓN POR VENCIMIENTO" />
-          <div className="flex-1 min-h-0 p-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
-                <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} angle={-35} textAnchor="end" height={36} />
-                <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 10 }} axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} tickFormatter={(v) => fmtCompact(v)} width={60} />
-                <Tooltip
-                  contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                  formatter={(v, _, entry) => [`${Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`, String((entry as { payload?: { ticker?: string } })?.payload?.ticker ?? "")]}
-                  labelFormatter={(l) => `Vto: ${l}`}
-                />
-                <Bar dataKey="monto" radius={[2, 2, 0, 0]} isAnimationActive={false}>
-                  {chartData.map((_, i) => <Cell key={i} fill={BRAND_BLUE} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-type AumTab = "total" | "fci" | "tasa_fija" | "cer" | "analisis_dinero";
+type AumTab = "total" | "fci" | "analisis_dinero";
 
 // Exportado para que ValuacionesShell (módulo top-level) lo reuse — VALUACIONES
 // salió de /aum y ahora vive en /valuaciones, pero comparte el modelo de cuenta
@@ -418,7 +120,7 @@ function _writeUrlParams(params: Record<string, string | null | undefined>) {
   window.history.replaceState(null, "", url.toString());
 }
 
-const _AUM_TABS: AumTab[] = ["total", "fci", "tasa_fija", "cer", "analisis_dinero"];
+const _AUM_TABS: AumTab[] = ["total", "fci", "analisis_dinero"];
 
 export function AumView() {
   const [tab, setTab] = useState<AumTab>(() => {
@@ -745,15 +447,13 @@ export function AumView() {
 
   const tabBar = (
     <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-      {(["total", "fci", "tasa_fija", "cer", "analisis_dinero"] as AumTab[]).map((t) => (
+      {(["total", "fci", "analisis_dinero"] as AumTab[]).map((t) => (
         <button key={t} onClick={() => setTab(t)}
           className={`px-3 py-0.5 text-[11px] font-semibold tracking-wide border transition-colors ${
             tab === t ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
           }`}>
           {t === "fci" ? "FCI"
            : t === "total" ? "TOTAL"
-           : t === "tasa_fija" ? "TASA FIJA"
-           : t === "cer" ? "CER"
            : "ANÁLISIS DE DINERO"}
         </button>
       ))}
@@ -850,24 +550,6 @@ export function AumView() {
         <div className="flex-1 min-h-0">
           <AnalisisDinero fechasAll={fechasAll} operador={operador} />
         </div>
-      </div>
-    );
-  }
-
-  if (tab === "tasa_fija") {
-    return (
-      <div className="h-full flex flex-col min-h-0">
-        {tabBar}
-        <div className="flex-1 min-h-0"><TabTasaFija operador={operador} /></div>
-      </div>
-    );
-  }
-
-  if (tab === "cer") {
-    return (
-      <div className="h-full flex flex-col min-h-0">
-        {tabBar}
-        <div className="flex-1 min-h-0"><TabCer operador={operador} /></div>
       </div>
     );
   }
