@@ -10,8 +10,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 
-type Moneda = "ARS" | "USD";
-type Modo = "ULTIMA" | "DIA" | "TODOS";
+type Moneda = "ARS" | "USD" | "USD_DOL";
+type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 
 type FechaRow = { fecha: string; n: number };
 type OpRow = { operacion: string; bruto: number; n: number };
@@ -35,6 +35,22 @@ function fmtCompact(n: number): string {
 }
 const fmtFechaDisplay = (s: string) => { const [y,m,d] = s.split("-").map(Number); return `${d} ${MESES[m-1]} ${y}`; };
 const fmtFechaCorta = (s: string) => { const [y,m,d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
+
+// Etiqueta del botón de moneda y unidad mostrada. USD_DOL = volumen dolarizado
+// (ARS+USD convertidos a USD con el mep de cada boleto) → la unidad sigue siendo USD.
+const MONEDA_LABEL: Record<Moneda, string> = { ARS: "ARS", USD: "USD", USD_DOL: "DOLARIZAR" };
+const MONEDA_UNIDAD: Record<Moneda, string> = { ARS: "ARS", USD: "USD", USD_DOL: "USD" };
+
+// Límites de SEMANA/MES, anclados en la fecha más reciente con datos (no en hoy:
+// si el mercado no operó hoy, "actual" = la última semana/mes con operaciones).
+function lunesDeSemana(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay();                       // 0=Dom … 6=Sáb
+  dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));  // retrocede al lunes
+  return dt.toISOString().slice(0, 10);
+}
+const primerDiaMes = (iso: string) => iso.slice(0, 7) + "-01";
 function formatTime(iso: string | null): string {
   if (!iso) return "—";
   try { return new Date(new Date(iso).getTime() - 3 * 3600_000).toISOString().slice(11, 19) + " ART"; }
@@ -54,8 +70,10 @@ export function OpsView() {
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
   const [boletos, setBoletos] = useState<BoletoRow[]>([]);
   const [modo, setModo] = usePersistedState<Modo>("ops.modo", "ULTIMA");
+  // Rango custom (modo RANGO). Vacío = se cae al ancla (última fecha con datos).
+  const [rDesde, setRDesde] = usePersistedState<string>("ops.desde", "");
+  const [rHasta, setRHasta] = usePersistedState<string>("ops.hasta", "");
   const [fechas, setFechas] = useState<FechaRow[]>([]);
-  const [idx, setIdx] = useState(0);
   const [selOp, setSelOp] = useState<string | null>(null);
   const [selDenom, setSelDenom] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -65,12 +83,20 @@ export function OpsView() {
   const [total, setTotal] = useState(0);
 
   const fechasAsc = useMemo(() => [...fechas].map((f) => f.fecha).sort(), [fechas]);
-  const fecha = fechas[idx]?.fecha ?? "";
+  const fecha = fechas[0]?.fecha ?? "";   // ancla = fecha más reciente (fechas viene desc)
   const rangoFecha = useMemo(() => {
     if (!fechas.length) return { desde: "", hasta: "" };
-    if (modo === "TODOS") return { desde: fechas[fechas.length - 1].fecha, hasta: fechas[0].fecha };
-    return { desde: fecha, hasta: fecha };
-  }, [modo, fecha, fechas]);
+    const ultima = fechas[0].fecha;
+    if (modo === "SEMANA") return { desde: lunesDeSemana(ultima), hasta: ultima };
+    if (modo === "MES")    return { desde: primerDiaMes(ultima), hasta: ultima };
+    if (modo === "RANGO")  return { desde: rDesde || ultima, hasta: rHasta || ultima };
+    return { desde: ultima, hasta: ultima };  // ULTIMA = solo el último día
+  }, [modo, fechas, rDesde, rHasta]);
+
+  // Editar cualquiera de los dos date inputs salta a modo RANGO, sembrando el
+  // otro extremo con el valor vigente del rango actual (así no queda a medias).
+  const onDesde = (v: string) => { setRHasta(rHasta || rangoFecha.hasta); setRDesde(v); setModo("RANGO"); };
+  const onHasta = (v: string) => { setRDesde(rDesde || rangoFecha.desde); setRHasta(v); setModo("RANGO"); };
 
   const selQS = (selOp ? `&operacion=${encodeURIComponent(selOp)}` : "")
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
@@ -78,10 +104,9 @@ export function OpsView() {
 
   const cargarFechas = useCallback(async () => {
     const f = await getJSON<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas");
-    setFechas(f?.fechas ?? []); setIdx(0);
+    setFechas(f?.fechas ?? []);
   }, []);
   useEffect(() => { cargarFechas(); }, [cargarFechas]);
-  useEffect(() => { if (modo === "ULTIMA") setIdx(0); }, [modo]);
 
   // Listas para filtros (una vez): segmentos + cuentas (buscador).
   useEffect(() => {
@@ -118,8 +143,9 @@ export function OpsView() {
     if (!fechas.length) return;
     (async () => {
       const [mt, rs] = await Promise.all([
-        modo === "TODOS" ? Promise.resolve(null)
-          : getJSON<{ meta: Meta }>(`/api/operaciones/ops/meta?fecha=${fecha}`),
+        modo === "ULTIMA"
+          ? getJSON<{ meta: Meta }>(`/api/operaciones/ops/meta?fecha=${fecha}`)
+          : Promise.resolve(null),
         getJSON<{ por_operacion: OpRow[]; por_denominacion: DenomRow[]; total: number }>(
           `/api/operaciones/ops/resumen?moneda=${moneda}&desde=${rangoFecha.desde}&hasta=${rangoFecha.hasta}${selQS}`,
         ),
@@ -142,31 +168,27 @@ export function OpsView() {
     return [...m.values()].sort((a, b) => b.bruto - a.bruto);
   }, [boletos]);
 
-  const pickFecha = (picked: string) => {
-    if (!picked) return;
-    const snap = fechasAsc.includes(picked) ? picked : (fechasAsc.find((f) => f >= picked) ?? fechasAsc[fechasAsc.length - 1]);
-    if (snap) { setModo("DIA"); setIdx(fechas.findIndex((f) => f.fecha === snap)); }
-  };
-
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* ── Filtros ───────────────────────────────────────────── */}
       <div className="flex items-center flex-wrap gap-2 px-4 py-2 border-b border-[var(--t-border)] shrink-0 text-[11px]">
-        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          <button onClick={() => { setModo("DIA"); setIdx((i) => Math.min(i + 1, fechas.length - 1)); }} disabled={idx >= fechas.length - 1} className="px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30">‹</button>
-          <input type="date" value={fecha} min={fechasAsc[0] || undefined} max={fechasAsc[fechasAsc.length - 1] || undefined}
-            disabled={!fechas.length} onChange={(e) => pickFecha(e.target.value)}
-            className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
-          <button onClick={() => { setModo("DIA"); setIdx((i) => Math.max(i - 1, 0)); }} disabled={idx <= 0} className="px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30">›</button>
-        </div>
-        {(["ULTIMA","DIA","TODOS"] as Modo[]).map((m) => (
+        {(["ULTIMA","SEMANA","MES","RANGO"] as Modo[]).map((m) => (
           <Pill key={m} active={modo === m} onClick={() => setModo(m)}>{m}</Pill>
         ))}
+        <div className="inline-flex items-center border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          <input type="date" value={rangoFecha.desde} max={rangoFecha.hasta || fechasAsc[fechasAsc.length - 1] || undefined}
+            disabled={!fechas.length} onChange={(e) => onDesde(e.target.value)}
+            className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
+          <span className="px-1 text-[var(--t-text-dim)]">→</span>
+          <input type="date" value={rangoFecha.hasta} min={rangoFecha.desde || undefined} max={fechasAsc[fechasAsc.length - 1] || undefined}
+            disabled={!fechas.length} onChange={(e) => onHasta(e.target.value)}
+            className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
+        </div>
         <span className="font-mono text-[12px] text-[var(--t-accent)] mx-1">
-          {modo === "TODOS" ? `${fmtFechaCorta(rangoFecha.desde)} → ${fmtFechaCorta(rangoFecha.hasta)}` : (fecha ? fmtFechaDisplay(fecha) : "—")}
+          {modo === "ULTIMA" ? (fecha ? fmtFechaDisplay(fecha) : "—") : `${fmtFechaCorta(rangoFecha.desde)} → ${fmtFechaCorta(rangoFecha.hasta)}`}
         </span>
         <span className="text-[#333]">│</span>
-        {meta && modo !== "TODOS" && (
+        {meta && modo === "ULTIMA" && (
           <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-wider">
             Boletos: <span className="text-[var(--t-text)] font-mono">{meta.n_boletos}</span>
             {meta.ultima_ingesta && <> · Últ. ingesta: <span className="text-[var(--t-text)] font-mono">{formatTime(meta.ultima_ingesta)}</span></>}
@@ -194,8 +216,8 @@ export function OpsView() {
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {(["ARS","USD"] as Moneda[]).map((m) => (
-            <button key={m} onClick={() => setMoneda(m)} className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
+          {(["ARS","USD","USD_DOL"] as Moneda[]).map((m) => (
+            <button key={m} onClick={() => setMoneda(m)} className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{MONEDA_LABEL[m]}</button>
           ))}
         </div>
         <button onClick={() => cargarFechas()} className="border border-[var(--t-border-2)] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">↻ Refresh</button>
@@ -209,7 +231,7 @@ export function OpsView() {
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por operación</span>
-              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(total)} {moneda}</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(total)} {MONEDA_UNIDAD[moneda]}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
@@ -231,8 +253,8 @@ export function OpsView() {
             </div>
           </div>
           {/* Gráfico */}
-          <OpsBarChart serie={serie} fmt={fmtCompact} unidad={moneda} defaultAgg="DIARIO"
-            focoFecha={modo === "DIA" ? fecha : null}
+          <OpsBarChart serie={serie} fmt={fmtCompact} unidad={MONEDA_UNIDAD[moneda]} defaultAgg="DIARIO"
+            focoFecha={modo === "ULTIMA" ? fecha : null}
             series={[{ key: "bruto", label: "Bruto", color: "var(--t-brand)" }]} />
         </div>
 
