@@ -6,6 +6,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -58,6 +59,15 @@ type Cliente = {
   ficha: Ficha;
 };
 type OperadorResp = { operador: string; moneda: string; resumen: Resumen; clientes: Cliente[] };
+// Cliente que operó en el período de la barra clickeada (interactividad del chart).
+type ClientePeriodo = {
+  id_cuenta: string;
+  denominacion: string;
+  aum: number;
+  volumen_periodo: number;
+  ficha: Ficha;
+};
+type ClientesPeriodoResp = { clientes: ClientePeriodo[] };
 type SeriePoint = { fecha: string; valor: number };
 type Posicion = { unidad: string; valuacion: number; pct: number };
 type Portafolio = { id_cuenta: string; fecha_snapshot: string | null; total: number; posiciones: Posicion[] };
@@ -133,6 +143,21 @@ const bucketKey = (f: string, agg: AggKey) =>
   agg === "MENSUAL" ? f.slice(0, 7) : agg === "SEMANAL" ? lunesDeSemana(f) : f;
 const fmtBucket = (k: string, agg: AggKey) =>
   agg === "MENSUAL" ? fmtMesCorto(k) : fmtFechaCorta(k);
+
+// Rango [desde, hasta] ISO que cubre un bucket del chart (para la tabla interactiva:
+// click en una barra → clientes que operaron en ese día / esa semana / ese mes).
+function rangoDeBucket(key: string, agg: AggKey): { desde: string; hasta: string } {
+  if (agg === "MENSUAL") {
+    const [y, m] = key.split("-").map(Number);
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return { desde: `${key}-01`, hasta: `${key}-${String(last).padStart(2, "0")}` };
+  }
+  if (agg === "SEMANAL") {
+    const d = new Date(key + "T00:00:00Z");
+    return { desde: key, hasta: new Date(d.getTime() + 6 * 86400000).toISOString().slice(0, 10) };
+  }
+  return { desde: key, hasta: key };
+}
 
 // Volumen es flujo → suma por bucket; AuM es stock → último del bucket.
 function aggregateSerie(serie: SeriePoint[], agg: AggKey, metric: "volumen" | "aum"): SeriePoint[] {
@@ -224,6 +249,10 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
   const [rango, setRango] = usePersistedState<RangoKey>("comercial.rango", "YTD");
   const [rangoOffset, setRangoOffset] = useState(0);
   const [loading, setLoading] = useState(false);
+  // Interactividad chart→tabla: barra clickeada + clientes que operaron en ese período.
+  const [selBar, setSelBar] = useState<{ key: string; desde: string; hasta: string } | null>(null);
+  const [periodo, setPeriodo] = useState<ClientePeriodo[]>([]);
+  const [loadingPeriodo, setLoadingPeriodo] = useState(false);
   const [loadingSerie, setLoadingSerie] = useState(false);
   const [loadingPort, setLoadingPort] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -237,6 +266,15 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
       (c) => c.id_cuenta.toLowerCase().includes(q) || c.denominacion.toLowerCase().includes(q),
     );
   }, [clientes, qCuenta]);
+
+  // Mismo filtro de búsqueda para la tabla en modo "período" (barra clickeada).
+  const periodoFiltrado = useMemo(() => {
+    const q = qCuenta.trim().toLowerCase();
+    if (!q) return periodo;
+    return periodo.filter(
+      (c) => c.id_cuenta.toLowerCase().includes(q) || c.denominacion.toLowerCase().includes(q),
+    );
+  }, [periodo, qCuenta]);
 
   // Resumen + clientes del operador (una pasada). Limpia el cliente elegido.
   useEffect(() => {
@@ -332,6 +370,35 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
 
   // Volver al inicio del rango cuando cambia el scope o el preset/métrica.
   useEffect(() => { setRangoOffset(0); }, [rango, metric, operador, selCuenta]);
+
+  // Si cambia el scope/granularidad/rango, el período seleccionado deja de tener
+  // sentido (las barras cambian) → limpiar la selección interactiva.
+  useEffect(() => {
+    setSelBar(null);
+    setPeriodo([]);
+  }, [operador, moneda, agg, rango, rangoOffset, metric, selCuenta]);
+
+  // Click en una barra del chart de volumen → tabla de clientes que operaron ese período.
+  function onBarClick(data: unknown) {
+    const key = (data as { payload?: { fecha?: string }; fecha?: string })?.payload?.fecha
+      ?? (data as { fecha?: string })?.fecha;
+    if (!key) return;
+    if (selBar?.key === key) { setSelBar(null); setPeriodo([]); return; }
+    const { desde, hasta } = rangoDeBucket(key, agg);
+    setSelBar({ key, desde, hasta });
+    setLoadingPeriodo(true);
+    void (async () => {
+      try {
+        const q = `operador=${encodeURIComponent(operador)}&desde=${desde}&hasta=${hasta}&moneda=${moneda}`;
+        const d = await getJson<ClientesPeriodoResp>(`/api/operaciones/comercial/clientes-por-fecha?${q}`);
+        setPeriodo(Array.isArray(d.clientes) ? d.clientes : []);
+      } catch {
+        setPeriodo([]);
+      } finally {
+        setLoadingPeriodo(false);
+      }
+    })();
+  }
 
   const serieRango = useMemo(
     () => filtrarRango(serie, rango, rangoOffset),
@@ -603,7 +670,21 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                         labelFormatter={(v) => fmtBucket(String(v), agg)}
                         formatter={(v) => [fmtAum(Number(v)), "Volumen"]}
                       />
-                      <Bar dataKey="valor" fill="var(--t-brand)" maxBarSize={40} isAnimationActive={false} />
+                      <Bar
+                        dataKey="valor"
+                        fill="var(--t-brand)"
+                        maxBarSize={40}
+                        isAnimationActive={false}
+                        onClick={onBarClick}
+                        cursor="pointer"
+                      >
+                        {chartData.map((d) => (
+                          <Cell
+                            key={d.fecha}
+                            fill={selBar?.key === d.fecha ? "var(--t-accent)" : "var(--t-brand)"}
+                          />
+                        ))}
+                      </Bar>
                     </BarChart>
                   )}
                 </ResponsiveContainer>
@@ -664,7 +745,18 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                 placeholder="buscar cuenta o nombre…"
                 className="ml-2 flex-1 max-w-[220px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none"
               />
-              <span className="ml-auto text-[10px] text-[var(--t-text-dim)] font-mono">{clientesFiltrados.length}</span>
+              {selBar && (
+                <button
+                  onClick={() => { setSelBar(null); setPeriodo([]); }}
+                  className="ml-auto inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10"
+                  title="Volver a la vista anual (limpiar período)"
+                >
+                  {fmtBucket(selBar.key, agg)} ✕
+                </button>
+              )}
+              <span className={(selBar ? "" : "ml-auto ") + "text-[10px] text-[var(--t-text-dim)] font-mono"}>
+                {(selBar ? periodoFiltrado : clientesFiltrados).length}
+              </span>
               <DownloadBtn onClick={dlClientes} />
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
@@ -673,33 +765,68 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cuenta</th>
                     <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]">AuM</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Vol. YTD</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">
+                      {selBar ? `Vol. ${fmtBucket(selBar.key, agg)}` : "Vol. YTD"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {clientesFiltrados.length === 0 && !loading && (
-                    <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-6">Sin clientes.</td></tr>
+                  {selBar ? (
+                    <>
+                      {loadingPeriodo && (
+                        <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-6">Cargando…</td></tr>
+                      )}
+                      {!loadingPeriodo && periodoFiltrado.length === 0 && (
+                        <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-6">Nadie operó en este período.</td></tr>
+                      )}
+                      {!loadingPeriodo && periodoFiltrado.map((c) => {
+                        const active = c.id_cuenta === selCuenta;
+                        return (
+                          <tr
+                            key={c.id_cuenta}
+                            onClick={() => setSelCuenta(active ? null : c.id_cuenta)}
+                            className={
+                              "border-t border-[var(--t-border)] cursor-pointer transition-colors " +
+                              (active ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
+                            }
+                            title="Click: ficha + tenencia de este cliente"
+                          >
+                            <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[260px]" title={c.denominacion}>
+                              <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(c.aum)}</td>
+                            <td className="px-3 py-1.5 text-right text-[var(--t-text)]">{fmtAum(c.volumen_periodo)}</td>
+                          </tr>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      {clientesFiltrados.length === 0 && !loading && (
+                        <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-6">Sin clientes.</td></tr>
+                      )}
+                      {clientesFiltrados.map((c) => {
+                        const active = c.id_cuenta === selCuenta;
+                        return (
+                          <tr
+                            key={c.id_cuenta}
+                            onClick={() => setSelCuenta(active ? null : c.id_cuenta)}
+                            className={
+                              "border-t border-[var(--t-border)] cursor-pointer transition-colors " +
+                              (active ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
+                            }
+                            title="Click: ficha + tenencia + gráfico de este cliente"
+                          >
+                            <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[260px]" title={c.denominacion}>
+                              <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
+                            </td>
+                            <td className="px-2 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(c.aum)}</td>
+                            <td className="px-3 py-1.5 text-right text-[var(--t-text)]">{fmtAum(c.volumen_ytd)}</td>
+                          </tr>
+                        );
+                      })}
+                    </>
                   )}
-                  {clientesFiltrados.map((c) => {
-                    const active = c.id_cuenta === selCuenta;
-                    return (
-                      <tr
-                        key={c.id_cuenta}
-                        onClick={() => setSelCuenta(active ? null : c.id_cuenta)}
-                        className={
-                          "border-t border-[var(--t-border)] cursor-pointer transition-colors " +
-                          (active ? "bg-[var(--t-accent)]/10" : "hover:bg-[var(--t-surface)]")
-                        }
-                        title="Click: ficha + tenencia + gráfico de este cliente"
-                      >
-                        <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[260px]" title={c.denominacion}>
-                          <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
-                        </td>
-                        <td className="px-2 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(c.aum)}</td>
-                        <td className="px-3 py-1.5 text-right text-[var(--t-text)]">{fmtAum(c.volumen_ytd)}</td>
-                      </tr>
-                    );
-                  })}
                 </tbody>
               </table>
             </div>
