@@ -15,6 +15,7 @@ type Combo = {
   operador_nombre: string | null;
   nivel_1: string | null;
   nivel_3: string | null;
+  referido: string | null;
   n_cuentas: number;
 };
 
@@ -26,6 +27,7 @@ export function OperadoresView() {
   const [operador, setOperador] = usePersistedState<string>("operadores.operador", "");
   const [nivel1, setNivel1] = usePersistedState<string>("operadores.nivel1", "");
   const [nivel3, setNivel3] = usePersistedState<string>("operadores.nivel3", "");
+  const [referido, setReferido] = usePersistedState<string>("operadores.referido", "");
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("operadores.moneda", "ARS");
 
   useEffect(() => {
@@ -53,34 +55,40 @@ export function OperadoresView() {
     })();
   }, []);
 
-  // ── Cross-filter: cada dropdown ofrece SOLO lo compatible con los otros dos ──
+  // ── Cross-filter: cada dropdown ofrece SOLO lo compatible con los OTROS ──
   const matchOp = (c: Combo) => operador === "" || operador === TODOS || c.operador_email === operador;
   const matchN1 = (c: Combo) => nivel1 === "" || c.nivel_1 === nivel1;
   const matchN3 = (c: Combo) => nivel3 === "" || c.nivel_3 === nivel3;
+  const matchRef = (c: Combo) => referido === "" || c.referido === referido;
 
-  // Operadores compatibles con el nivel_1/nivel_3 elegidos (con nº de cuentas sumado).
+  // Operadores compatibles con nivel_1/nivel_3/referido (con nº de cuentas sumado).
   const operadores = useMemo(() => {
     const m = new Map<string, { email: string; nombre: string | null; n: number }>();
     for (const c of combos) {
-      if (!matchN1(c) || !matchN3(c)) continue;
+      if (!matchN1(c) || !matchN3(c) || !matchRef(c)) continue;
       const cur = m.get(c.operador_email) ?? { email: c.operador_email, nombre: c.operador_nombre, n: 0 };
       cur.n += c.n_cuentas;
       m.set(c.operador_email, cur);
     }
     return [...m.values()].sort((a, b) => b.n - a.n);
-  }, [combos, nivel1, nivel3]);
+  }, [combos, nivel1, nivel3, referido]);
 
-  // Niveles compatibles con los OTROS dos filtros (null/"" se ignoran como opción).
+  // Cada dimensión ofrece solo lo compatible con las OTRAS tres (null/"" no es opción).
   const niveles1 = useMemo(() => {
     const s = new Set<string>();
-    for (const c of combos) if (matchOp(c) && matchN3(c) && c.nivel_1) s.add(c.nivel_1);
+    for (const c of combos) if (matchOp(c) && matchN3(c) && matchRef(c) && c.nivel_1) s.add(c.nivel_1);
     return [...s].sort();
-  }, [combos, operador, nivel3]);
+  }, [combos, operador, nivel3, referido]);
   const niveles3 = useMemo(() => {
     const s = new Set<string>();
-    for (const c of combos) if (matchOp(c) && matchN1(c) && c.nivel_3) s.add(c.nivel_3);
+    for (const c of combos) if (matchOp(c) && matchN1(c) && matchRef(c) && c.nivel_3) s.add(c.nivel_3);
     return [...s].sort();
-  }, [combos, operador, nivel1]);
+  }, [combos, operador, nivel1, referido]);
+  const referidos = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of combos) if (matchOp(c) && matchN1(c) && matchN3(c) && c.referido) s.add(c.referido);
+    return [...s].sort();
+  }, [combos, operador, nivel1, nivel3]);
 
   // Si un filtro elegido deja de ser compatible (lo achicó otro), se resetea a Todos.
   useEffect(() => {
@@ -89,6 +97,9 @@ export function OperadoresView() {
   useEffect(() => {
     if (nivel3 && niveles3.length && !niveles3.includes(nivel3)) setNivel3("");
   }, [niveles3, nivel3, setNivel3]);
+  useEffect(() => {
+    if (referido && referidos.length && !referidos.includes(referido)) setReferido("");
+  }, [referidos, referido, setReferido]);
   useEffect(() => {
     if (operador && operador !== TODOS && operadores.length
       && !operadores.some((o) => o.email === operador)) setOperador(TODOS);
@@ -127,6 +138,12 @@ export function OperadoresView() {
               <option value="">— Todos —</option>
               {niveles3.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
+            {/* REFERIDO */}
+            <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">REFERIDO</span>
+            <select value={referido} onChange={(e) => setReferido(e.target.value)} className={selectCls + " max-w-[180px]"}>
+              <option value="">— Todos —</option>
+              {referidos.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
             {/* MONEDA */}
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["ARS", "USD"] as const).map((m) => (
@@ -150,6 +167,7 @@ export function OperadoresView() {
           moneda={moneda}
           nivel1={nivel1}
           nivel3={nivel3}
+          referido={referido}
         />
       </div>
     </div>

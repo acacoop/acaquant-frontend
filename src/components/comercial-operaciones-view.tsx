@@ -50,6 +50,7 @@ type Ficha = {
   division: string | null;
   adc: string | null;
   dma: string | null;
+  referido: string | null;
 };
 type Cliente = {
   id_cuenta: string;
@@ -197,7 +198,7 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
   ["nivel_1", "Nivel 1"], ["nivel_2", "Nivel 2"], ["nivel_3", "Nivel 3"],
   ["nivel_4", "Nivel 4"], ["nivel_5", "Nivel 5"],
   ["primer_contacto_comercial", "1er contacto"], ["riesgo_la_ft", "Riesgo LA/FT"],
-  ["division", "División"], ["adc", "ADC"], ["dma", "DMA"],
+  ["division", "División"], ["adc", "ADC"], ["dma", "DMA"], ["referido", "Referido"],
 ];
 
 // Sub-vistas de COMERCIAL (sub-nav arriba-izquierda).
@@ -233,17 +234,18 @@ type AnalisisCliente = {
 
 // `operador` (email) lo controla el selector que vive en la barra de tabs de
 // operaciones-view.tsx (margen superior derecho) → llega como prop.
-// Query-string de los filtros madre nivel_1/nivel_3 (vacío = sin filtro). Se
-// appendea a cada fetch comercial para que el backend cruce el scope.
-const nivelQS = (nivel1?: string, nivel3?: string) =>
+// Query-string de los filtros madre nivel_1/nivel_3/referido (vacío = sin filtro).
+// Se appendea a cada fetch comercial para que el backend cruce el scope.
+const nivelQS = (nivel1?: string, nivel3?: string, referido?: string) =>
   (nivel1 ? `&nivel_1=${encodeURIComponent(nivel1)}` : "")
-  + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "");
+  + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
+  + (referido ? `&referido=${encodeURIComponent(referido)}` : "");
 
 export function ComercialOperacionesView(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string },
+  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "" }:
+  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string },
 ) {
-  const nQS = nivelQS(nivel1, nivel3);
+  const nQS = nivelQS(nivel1, nivel3, referido);
   const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -508,7 +510,7 @@ export function ComercialOperacionesView(
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {subview === "informe" && <ComercialInforme moneda={moneda} />}
-      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} />}
+      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
@@ -999,10 +1001,10 @@ function Field({ label, value }: { label: string; value: string | null }) {
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
 function AnalisisComercial(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string },
+  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "" }:
+  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string },
 ) {
-  const nQS = nivelQS(nivel1, nivel3);
+  const nQS = nivelQS(nivel1, nivel3, referido);
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
   type SortCol = "cuenta" | "estado" | "dias" | "aum" | "cupo_trans" | "cupo_usado";
