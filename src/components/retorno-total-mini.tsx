@@ -64,7 +64,7 @@ function desdeForVentana(v: Ventana, last: string): string {
 
 export function RetornoTotalMini() {
   const [curva, setCurvaState] = useState<Curva>("tasa_fija");
-  const [ventana, setVentana] = useState<Ventana>("14D");
+  const [ventana, setVentana] = useState<Ventana>("MTD");
   const [byCurva, setByCurva] = useState<Record<string, RetornoData>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
