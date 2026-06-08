@@ -17,11 +17,7 @@ type FechaRow = { fecha: string; n: number };
 type OpRow = { operacion: string; bruto: number; n: number };
 type DenomRow = { denominacion: string; bruto: number; n: number };
 type Meta = { n_boletos: number; ultima_ingesta: string | null };
-type BoletoRow = {
-  boleto: string; concertacion: string; cuenta: string; denominacion: string;
-  operacion: string | null; mercado: string | null; instrumento: string | null;
-  condiciones: string | null; cantidad: number | null; bruto: number | null;
-};
+type InstrRow = { instrumento: string; bruto: number; n: number };
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
@@ -68,7 +64,6 @@ export function OpsView() {
   const [segmentos, setSegmentos] = useState<string[]>([]);
   const [search, setSearch] = usePersistedState<string>("ops.search", "");
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
-  const [boletos, setBoletos] = useState<BoletoRow[]>([]);
   const [modo, setModo] = usePersistedState<Modo>("ops.modo", "ULTIMA");
   // Rango custom (modo RANGO). Vacío = se cae al ancla (última fecha con datos).
   const [rDesde, setRDesde] = usePersistedState<string>("ops.desde", "");
@@ -76,10 +71,12 @@ export function OpsView() {
   const [fechas, setFechas] = useState<FechaRow[]>([]);
   const [selOp, setSelOp] = useState<string | null>(null);
   const [selDenom, setSelDenom] = useState<string | null>(null);
+  const [selInstr, setSelInstr] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [serie, setSerie] = useState<SerieRow[]>([]);
   const [porOp, setPorOp] = useState<OpRow[]>([]);
   const [porDenom, setPorDenom] = useState<DenomRow[]>([]);
+  const [porInstr, setPorInstr] = useState<InstrRow[]>([]);
   const [total, setTotal] = useState(0);
 
   const fechasAsc = useMemo(() => [...fechas].map((f) => f.fecha).sort(), [fechas]);
@@ -100,6 +97,7 @@ export function OpsView() {
 
   const selQS = (selOp ? `&operacion=${encodeURIComponent(selOp)}` : "")
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
+    + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
     + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "");
 
   const cargarFechas = useCallback(async () => {
@@ -118,18 +116,6 @@ export function OpsView() {
     })();
   }, []);
 
-  // Boletos del drill-down (cuando hay una denominación seleccionada).
-  useEffect(() => {
-    if (!selDenom || !fechas.length) { setBoletos([]); return; }
-    (async () => {
-      const d = await getJSON<{ boletos: BoletoRow[] }>(
-        `/api/operaciones/ops/boletos?moneda=${moneda}&desde=${rangoFecha.desde}&hasta=${rangoFecha.hasta}`
-        + `&denominacion=${encodeURIComponent(selDenom)}${segmento ? `&segmento=${encodeURIComponent(segmento)}` : ""}`,
-      );
-      setBoletos(d?.boletos ?? []);
-    })();
-  }, [selDenom, moneda, rangoFecha.desde, rangoFecha.hasta, segmento, fechas.length]);
-
   // Gráfico: serie por fecha (depende de moneda + selección cruzada).
   useEffect(() => {
     (async () => {
@@ -146,27 +132,17 @@ export function OpsView() {
         modo === "ULTIMA"
           ? getJSON<{ meta: Meta }>(`/api/operaciones/ops/meta?fecha=${fecha}`)
           : Promise.resolve(null),
-        getJSON<{ por_operacion: OpRow[]; por_denominacion: DenomRow[]; total: number }>(
+        getJSON<{ por_operacion: OpRow[]; por_denominacion: DenomRow[]; por_instrumento: InstrRow[]; total: number }>(
           `/api/operaciones/ops/resumen?moneda=${moneda}&desde=${rangoFecha.desde}&hasta=${rangoFecha.hasta}${selQS}`,
         ),
       ]);
       setMeta(mt?.meta ?? null);
       setPorOp(rs?.por_operacion ?? []);
       setPorDenom(rs?.por_denominacion ?? []);
+      setPorInstr(rs?.por_instrumento ?? []);
       setTotal(rs?.total ?? 0);
     })();
   }, [modo, fecha, moneda, rangoFecha.desde, rangoFecha.hasta, selQS, fechas.length]);
-
-  // Drill abreviado: lo que operó la cuenta agrupado por instrumento (Σ bruto + n).
-  const porInstrumento = useMemo(() => {
-    const m = new Map<string, { instrumento: string; bruto: number; n: number }>();
-    for (const b of boletos) {
-      const k = b.instrumento || "—";
-      const cur = m.get(k) ?? { instrumento: k, bruto: 0, n: 0 };
-      cur.bruto += b.bruto ?? 0; cur.n += 1; m.set(k, cur);
-    }
-    return [...m.values()].sort((a, b) => b.bruto - a.bruto);
-  }, [boletos]);
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
@@ -194,8 +170,8 @@ export function OpsView() {
             {meta.ultima_ingesta && <> · Últ. ingesta: <span className="text-[var(--t-text)] font-mono">{formatTime(meta.ultima_ingesta)}</span></>}
           </span>
         )}
-        {(selOp || selDenom) && (
-          <button onClick={() => { setSelOp(null); setSelDenom(null); setSearch(""); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ filtro: {selOp || selDenom}</button>
+        {(selOp || selDenom || selInstr) && (
+          <button onClick={() => { setSelOp(null); setSelDenom(null); setSelInstr(null); setSearch(""); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ filtro: {selOp || selDenom || selInstr}</button>
         )}
         {/* Buscador por cuenta/denominación */}
         <input list="ops-cuentas" value={search}
@@ -258,41 +234,17 @@ export function OpsView() {
             series={[{ key: "bruto", label: "Bruto", color: "var(--t-brand)" }]} />
         </div>
 
-        {/* DERECHA: por denominacion, o boletos si hay una seleccionada */}
-        <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-          {selDenom ? (
-            <>
-              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)] truncate" title={selDenom}>Boletos · {selDenom}</span>
-                <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{boletos.length}</span>
-                <button onClick={() => { setSelDenom(null); setSearch(""); }} className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[14px] leading-none" title="Volver">×</button>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto">
-                <table className="w-full text-[10px] font-mono tabular-nums">
-                  <thead className="sticky top-0 bg-[var(--t-panel)] text-[8px] uppercase tracking-widest text-[var(--t-text-muted)]">
-                    <tr>
-                      <th className="px-2 py-1 text-left border-b border-[var(--t-border)]">Instrumento</th>
-                      <th className="px-2 py-1 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
-                      <th className="px-2 py-1 text-right border-b border-[var(--t-border)]">N</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {porInstrumento.map((r) => (
-                      <tr key={r.instrumento} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
-                        <td className="px-2 py-0.5 text-[var(--t-accent)] truncate max-w-[260px]" title={r.instrumento}>{r.instrumento}</td>
-                        <td className="px-2 py-0.5 text-right text-[var(--t-text)] font-semibold">{fmtCompact(r.bruto)}</td>
-                        <td className="px-2 py-0.5 text-right text-[var(--t-text-dim)]">{r.n}</td>
-                      </tr>
-                    ))}
-                    {!porInstrumento.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin operaciones</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          ) : (
+        {/* DERECHA: cuentas (arriba) + títulos (abajo) — 50/50, para ver qué se opera */}
+        <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+          {/* ARRIBA: por cuenta */}
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cuenta</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{porDenom.length} · Σ {fmtCompact(total)} {MONEDA_UNIDAD[moneda]}</span>
+            </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
-                <thead className="sticky top-0 bg-[var(--t-accent)]/10 text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
+                <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Denominación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
@@ -300,19 +252,54 @@ export function OpsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {porDenom.map((r) => (
-                    <tr key={r.denominacion} onClick={() => { setSelDenom(r.denominacion); setSelOp(null); }}
-                      className="border-t border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)]">
-                      <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
-                      <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
-                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
-                    </tr>
-                  ))}
+                  {porDenom.map((r) => {
+                    const act = selDenom === r.denominacion;
+                    return (
+                      <tr key={r.denominacion} onClick={() => { setSelDenom(act ? null : r.denominacion); setSelOp(null); }}
+                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
+                        <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
+                        <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                      </tr>
+                    );
+                  })}
                   {!porDenom.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
+          {/* ABAJO: por título (instrumento) */}
+          <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por título</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{porInstr.length} · Σ {fmtCompact(total)} {MONEDA_UNIDAD[moneda]}</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Instrumento</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {porInstr.map((r) => {
+                    const act = selInstr === r.instrumento;
+                    return (
+                      <tr key={r.instrumento} onClick={() => setSelInstr(act ? null : r.instrumento)}
+                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
+                        <td className="px-3 py-1 truncate max-w-[320px]" title={r.instrumento}>{r.instrumento}</td>
+                        <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                      </tr>
+                    );
+                  })}
+                  {!porInstr.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
