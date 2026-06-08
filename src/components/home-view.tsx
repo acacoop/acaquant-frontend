@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
+import { RetornoTotalMini } from "@/components/retorno-total-mini";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
@@ -74,13 +75,23 @@ export function HomeView() {
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* Columna izquierda: watchlist 40% arriba · chart 60% abajo */}
-        <div className="min-h-0 grid grid-rows-[2fr_3fr] gap-3">
+        {/* Columna izquierda: watchlist arriba · RETORNO TOTAL abajo */}
+        <div className="min-h-0 grid grid-rows-2 gap-3">
           <div className="min-h-0">
             <WatchlistPanel
               onSelect={setSelectedTicker}
               selected={selectedTicker}
             />
+          </div>
+          <div className="min-h-0">
+            <RetornoTotalMini />
+          </div>
+        </div>
+
+        {/* Columna derecha: news arriba (50%) · chart TradingView abajo (50%) */}
+        <div className="min-h-0 grid grid-rows-2 gap-3">
+          <div className="min-h-0">
+            <NewsPanel />
           </div>
           <div className="min-h-0">
             <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
@@ -90,11 +101,6 @@ export function HomeView() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Columna derecha: news */}
-        <div className="min-h-0">
-          <NewsPanel />
         </div>
       </div>
 
