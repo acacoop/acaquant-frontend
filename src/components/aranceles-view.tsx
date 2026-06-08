@@ -34,6 +34,8 @@ export function ArancelesView() {
   const moneda: Moneda = "ARS";
   const [segmento, setSegmento] = useState("");
   const [segmentos, setSegmentos] = useState<string[]>([]);
+  const [operador, setOperador] = useState("");
+  const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null }[]>([]);
   const [dim, setDim] = useState<Dim>("nivel3");
   const [selDim, setSelDim] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
@@ -63,6 +65,8 @@ export function ArancelesView() {
         setFechas(j?.fechas ?? []);
         const s = await fetch("/api/operaciones/ops/segmentos", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null);
         setSegmentos(s?.segmentos ?? []);
+        const o = await fetch("/api/operaciones/comercial/operadores", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null);
+        setOperadores(Array.isArray(o) ? o : []);
       } catch { /* */ }
     })();
   }, []);
@@ -81,6 +85,7 @@ export function ArancelesView() {
     setLoading(true);
     const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO&dim=${dim}`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
+      + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
       + (selDim ? `&sel_dim=${encodeURIComponent(selDim)}` : "")
       + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
       + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
@@ -88,7 +93,7 @@ export function ArancelesView() {
     fetch(`/api/operaciones/ops/aranceles?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [moneda, rango.desde, rango.hasta, segmento, dim, selDim, selCuenta, selInstr, serieFull]);
+  }, [moneda, rango.desde, rango.hasta, segmento, operador, dim, selDim, selCuenta, selInstr, serieFull]);
 
   const chartSerie = useMemo<SerieRow[]>(
     () => (data?.serie ?? []).map((r) => ({ fecha: r.periodo, arancel: r.arancel })),
@@ -123,6 +128,11 @@ export function ArancelesView() {
           className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-2 py-0.5 outline-none [color-scheme:dark]">
           <option value="">Todos los segmentos</option>
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={operador} onChange={(e) => setOperador(e.target.value)}
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-2 py-0.5 outline-none [color-scheme:dark] max-w-[200px]">
+          <option value="">Todos los operadores</option>
+          {operadores.map((o) => <option key={o.operador_email} value={o.operador_email}>{o.operador_nombre || o.operador_email}</option>)}
         </select>
         <span className="text-[10px] uppercase tracking-wider text-[var(--t-text-muted)]">Aranceles en pesos</span>
         {(selDim || selCuenta || selInstr) && (
