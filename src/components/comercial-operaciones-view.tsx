@@ -253,6 +253,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
   const [selBar, setSelBar] = useState<{ key: string; desde: string; hasta: string } | null>(null);
   const [periodo, setPeriodo] = useState<ClientePeriodo[]>([]);
   const [loadingPeriodo, setLoadingPeriodo] = useState(false);
+  const [errPeriodo, setErrPeriodo] = useState<string | null>(null);
   const [loadingSerie, setLoadingSerie] = useState(false);
   const [loadingPort, setLoadingPort] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -376,6 +377,7 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
   useEffect(() => {
     setSelBar(null);
     setPeriodo([]);
+    setErrPeriodo(null);
   }, [operador, moneda, agg, rango, rangoOffset, metric, selCuenta]);
 
   // Click en una barra del chart de volumen → tabla de clientes que operaron ese período.
@@ -383,17 +385,19 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
     const key = (data as { payload?: { fecha?: string }; fecha?: string })?.payload?.fecha
       ?? (data as { fecha?: string })?.fecha;
     if (!key) return;
-    if (selBar?.key === key) { setSelBar(null); setPeriodo([]); return; }
+    if (selBar?.key === key) { setSelBar(null); setPeriodo([]); setErrPeriodo(null); return; }
     const { desde, hasta } = rangoDeBucket(key, agg);
     setSelBar({ key, desde, hasta });
+    setErrPeriodo(null);
     setLoadingPeriodo(true);
     void (async () => {
       try {
         const q = `operador=${encodeURIComponent(operador)}&desde=${desde}&hasta=${hasta}&moneda=${moneda}`;
         const d = await getJson<ClientesPeriodoResp>(`/api/operaciones/comercial/clientes-por-fecha?${q}`);
         setPeriodo(Array.isArray(d.clientes) ? d.clientes : []);
-      } catch {
+      } catch (e) {
         setPeriodo([]);
+        setErrPeriodo(e instanceof Error ? e.message : String(e));
       } finally {
         setLoadingPeriodo(false);
       }
@@ -776,7 +780,10 @@ export function ComercialOperacionesView({ operador, moneda = "ARS" }: { operado
                       {loadingPeriodo && (
                         <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-6">Cargando…</td></tr>
                       )}
-                      {!loadingPeriodo && periodoFiltrado.length === 0 && (
+                      {!loadingPeriodo && errPeriodo && (
+                        <tr><td colSpan={3} className="text-center text-[var(--t-neg)] py-6">Error al cargar: {errPeriodo}</td></tr>
+                      )}
+                      {!loadingPeriodo && !errPeriodo && periodoFiltrado.length === 0 && (
                         <tr><td colSpan={3} className="text-center text-[var(--t-text-muted)] py-6">Nadie operó en este período.</td></tr>
                       )}
                       {!loadingPeriodo && periodoFiltrado.map((c) => {
