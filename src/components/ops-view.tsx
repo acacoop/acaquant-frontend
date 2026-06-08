@@ -62,6 +62,8 @@ export function OpsView() {
   const [moneda, setMoneda] = usePersistedState<Moneda>("ops.moneda", "ARS");
   const [segmento, setSegmento] = usePersistedState<string>("ops.segmento", "");
   const [segmentos, setSegmentos] = useState<string[]>([]);
+  const [mercado, setMercado] = usePersistedState<string>("ops.mercado", "");
+  const [mercados, setMercados] = useState<string[]>([]);
   const [search, setSearch] = usePersistedState<string>("ops.search", "");
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
   const [modo, setModo] = usePersistedState<Modo>("ops.modo", "ULTIMA");
@@ -98,7 +100,8 @@ export function OpsView() {
   const selQS = (selOp ? `&operacion=${encodeURIComponent(selOp)}` : "")
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
-    + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "");
+    + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
+    + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "");
 
   const cargarFechas = useCallback(async () => {
     const f = await getJSON<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas");
@@ -111,6 +114,8 @@ export function OpsView() {
     (async () => {
       const s = await getJSON<{ segmentos: string[] }>("/api/operaciones/ops/segmentos");
       setSegmentos(s?.segmentos ?? []);
+      const m = await getJSON<{ mercados: string[] }>("/api/operaciones/ops/mercados");
+      setMercados(m?.mercados ?? []);
       const c = await getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list");
       setCuentasList(c?.cuentas ?? []);
     })();
@@ -190,6 +195,12 @@ export function OpsView() {
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
           <option value="">Todos los segmentos</option>
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {/* Filtro de mercado (campo `mercado`, ej. A3) */}
+        <select value={mercado} onChange={(e) => setMercado(e.target.value)}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
+          <option value="">Todos los mercados</option>
+          {mercados.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
         <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           {(["ARS","USD","USD_DOL"] as Moneda[]).map((m) => (
