@@ -27,7 +27,18 @@ function fmtCompact(n: number): string {
   return s + a.toFixed(0);
 }
 
-type Modo = "ULTIMA" | "DIA" | "TODOS";
+const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
+// Límites de SEMANA/MES anclados en la última fecha con datos (no en hoy).
+function lunesDeSemana(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay();
+  dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return dt.toISOString().slice(0, 10);
+}
+const primerDiaMes = (iso: string) => iso.slice(0, 7) + "-01";
+
+type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 
 export function ArancelesView() {
   // El arancel es un solo valor SIEMPRE en pesos (no existe arancel en USD) → sin toggle.
@@ -43,19 +54,27 @@ export function ArancelesView() {
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
   const [modo, setModo] = useState<Modo>("ULTIMA");
+  const [rDesde, setRDesde] = useState("");
+  const [rHasta, setRHasta] = useState("");
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
-  const [idx, setIdx] = useState(0);
   const [meta, setMeta] = useState<{ n_boletos: number } | null>(null);
   // La serie del gráfico llega acotada a ~18m (perf). Al elegir "ALL" pedimos
   // la historia completa (serie_full) — el resto de los rangos entran en 18m.
   const [serieFull, setSerieFull] = useState(false);
 
-  const fecha = fechas[idx]?.fecha ?? "";
+  const fecha = fechas[0]?.fecha ?? "";   // ancla = fecha más reciente
   const rango = useMemo(() => {
     if (!fechas.length) return { desde: "", hasta: "" };
-    if (modo === "TODOS") return { desde: fechas[fechas.length - 1].fecha, hasta: fechas[0].fecha };
-    return { desde: fecha, hasta: fecha };
-  }, [fechas, modo, fecha]);
+    const ultima = fechas[0].fecha;
+    if (modo === "SEMANA") return { desde: lunesDeSemana(ultima), hasta: ultima };
+    if (modo === "MES")    return { desde: primerDiaMes(ultima), hasta: ultima };
+    if (modo === "RANGO")  return { desde: rDesde || ultima, hasta: rHasta || ultima };
+    return { desde: ultima, hasta: ultima };  // ULTIMA = solo el último día
+  }, [fechas, modo, rDesde, rHasta]);
+
+  // Editar cualquiera de los dos date inputs salta a RANGO (sembrando el otro extremo).
+  const onDesde = (v: string) => { setRHasta(rHasta || rango.hasta); setRDesde(v); setModo("RANGO"); };
+  const onHasta = (v: string) => { setRDesde(rDesde || rango.desde); setRHasta(v); setModo("RANGO"); };
 
   useEffect(() => {
     (async () => {
@@ -71,10 +90,8 @@ export function ArancelesView() {
     })();
   }, []);
 
-  useEffect(() => { if (modo === "ULTIMA") setIdx(0); }, [modo]);
-
   useEffect(() => {
-    if (modo === "TODOS" || !fecha) { setMeta(null); return; }
+    if (modo !== "ULTIMA" || !fecha) { setMeta(null); return; }
     fetch(`/api/operaciones/ops/meta?fecha=${fecha}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then((j) => setMeta(j?.meta ?? null)).catch(() => setMeta(null));
   }, [fecha, modo]);
@@ -108,17 +125,22 @@ export function ArancelesView() {
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* Filtros — modelo ÚLTIMA/DÍA/TODOS (tablas del día; gráfico histórico) */}
       <div className="flex items-center flex-wrap gap-2 px-4 py-2 border-b border-[var(--t-border)] shrink-0 text-[11px]">
-        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          <button onClick={() => { setModo("DIA"); setIdx((i) => Math.min(i + 1, fechas.length - 1)); }} disabled={idx >= fechas.length - 1} className="px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30">‹</button>
-          <button onClick={() => { setModo("DIA"); setIdx((i) => Math.max(i - 1, 0)); }} disabled={idx <= 0} className="px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30">›</button>
-        </div>
-        {(["ULTIMA", "DIA", "TODOS"] as Modo[]).map((m) => (
+        {(["ULTIMA", "SEMANA", "MES", "RANGO"] as Modo[]).map((m) => (
           <button key={m} onClick={() => setModo(m)} className={"px-2 py-0.5 border text-[11px] font-semibold " + (modo === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]")}>{m}</button>
         ))}
+        <div className="inline-flex items-center border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          <input type="date" value={rango.desde} max={rango.hasta || undefined} disabled={!fechas.length}
+            onChange={(e) => onDesde(e.target.value)}
+            className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
+          <span className="px-1 text-[var(--t-text-dim)]">→</span>
+          <input type="date" value={rango.hasta} min={rango.desde || undefined} disabled={!fechas.length}
+            onChange={(e) => onHasta(e.target.value)}
+            className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
+        </div>
         <span className="font-mono text-[12px] text-[var(--t-accent)] mx-1">
-          {modo === "TODOS" ? "histórico" : (fecha || "—")}
+          {modo === "ULTIMA" ? (fecha || "—") : `${fmtFechaCorta(rango.desde)} → ${fmtFechaCorta(rango.hasta)}`}
         </span>
-        {meta && modo !== "TODOS" && (
+        {meta && modo === "ULTIMA" && (
           <><span className="text-[#333]">│</span>
           <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-wider">
             Boletos: <span className="text-[var(--t-text)] font-mono">{meta.n_boletos}</span>
@@ -178,7 +200,7 @@ export function ArancelesView() {
           </div>
           <OpsBarChart serie={chartSerie} fmt={fmtCompact} unidad={moneda} defaultAgg="MENSUAL"
             titulo="Aranceles"
-            focoFecha={modo === "DIA" ? fecha : null} onAllSelected={() => setSerieFull(true)}
+            focoFecha={modo === "ULTIMA" ? fecha : null} onAllSelected={() => setSerieFull(true)}
             series={[{ key: "arancel", label: "Aranceles", color: "var(--t-brand)" }]} />
         </div>
 
