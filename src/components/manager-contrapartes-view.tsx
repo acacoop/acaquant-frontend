@@ -7,7 +7,7 @@
 //    están en Contrapartes y cuya denominacion matchea un nombre de contraparte → alta 1 click.
 // Consume /api/manager/contrapartes/*. Ver docs (plan wise-weaving-yao).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Contraparte = {
   cuenta: string;
@@ -49,8 +49,12 @@ export function TabContrapartes() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Secuencia de request: descarta respuestas viejas (si escribís rápido, la que
+  // llega tarde NO pisa a la última) → la lista SIEMPRE corresponde a lo tipeado.
+  const reqSeq = useRef(0);
 
   const fetchRows = useCallback(() => {
+    const seq = ++reqSeq.current;
     setLoading(true); setError(null);
     const p = new URLSearchParams();
     if (fSegmento) p.set("segmento", fSegmento);
@@ -58,13 +62,14 @@ export function TabContrapartes() {
     fetch(`/api/manager/contrapartes?${p}`, { cache: "no-store" })
       .then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status} — ${await detail(r)}`); return r.json(); })
       .then((d: { contrapartes: Contraparte[] }) => {
+        if (seq !== reqSeq.current) return;  // respuesta vieja → ignorar
         setRows(d.contrapartes || []);
         const init: Record<string, Draft> = {};
         for (const c of d.contrapartes || []) init[c.cuenta] = { contraparte: c.contraparte || "", segmento: c.segmento || "" };
         setDrafts(init);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (seq === reqSeq.current) setError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { if (seq === reqSeq.current) setLoading(false); });
   }, [fSegmento, q]);
 
   useEffect(() => {
@@ -73,7 +78,11 @@ export function TabContrapartes() {
       .then((d: Opts) => setOpts({ segmentos: d.segmentos || [], contrapartes: d.contrapartes || [] }))
       .catch(() => { /* sin sugerencias el input igual funciona */ });
   }, []);
-  useEffect(() => { fetchRows(); }, [fetchRows]);
+  // Debounce: no dispara una búsqueda por cada tecla (250ms tras dejar de tipear).
+  useEffect(() => {
+    const t = setTimeout(fetchRows, 250);
+    return () => clearTimeout(t);
+  }, [fetchRows]);
 
   const setField = (cuenta: string, k: keyof Draft, v: string) =>
     setDrafts((prev) => ({ ...prev, [cuenta]: { ...(prev[cuenta] || { contraparte: "", segmento: "" }), [k]: v } }));
