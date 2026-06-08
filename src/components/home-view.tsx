@@ -75,25 +75,27 @@ export function HomeView() {
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* Columna izquierda: watchlist arriba · RETORNO TOTAL abajo */}
-        <div className="min-h-0 grid grid-rows-2 gap-3">
-          <div className="min-h-0">
+        {/* Columna izquierda: watchlist arriba · RETORNO TOTAL abajo.
+            min-w-0 evita el grid blowout: sin esto, el contenido ancho del
+            chart (canvas + legend de N bonos) empuja la columna más allá del 50%. */}
+        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
+          <div className="min-w-0 min-h-0">
             <WatchlistPanel
               onSelect={setSelectedTicker}
               selected={selectedTicker}
             />
           </div>
-          <div className="min-h-0">
+          <div className="min-w-0 min-h-0">
             <RetornoTotalMini />
           </div>
         </div>
 
         {/* Columna derecha: news arriba (50%) · chart TradingView abajo (50%) */}
-        <div className="min-h-0 grid grid-rows-2 gap-3">
-          <div className="min-h-0">
+        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
+          <div className="min-w-0 min-h-0">
             <NewsPanel />
           </div>
-          <div className="min-h-0">
+          <div className="min-w-0 min-h-0">
             <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
               {chartHeader}
               <div className="flex-1 min-h-0">
