@@ -21,6 +21,7 @@ type Candidate = {
   contraparte_sugerida: string | null;
   segmento_sugerido: string | null;
   keyword: string;
+  tipo_cliente: string | null;
 };
 type Opts = { segmentos: string[]; contrapartes: string[] };
 type Draft = { contraparte: string; segmento: string };
@@ -234,9 +235,9 @@ export function TabContrapartes() {
                 return (
                   <tr key={c.cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                     <td className="px-3 py-1 text-[var(--t-text-muted)] whitespace-nowrap">{c.cuenta}</td>
-                    <td className="px-3 py-1 text-[var(--t-text)] truncate max-w-[240px]" title={c.denominacion}>
+                    <td className="px-3 py-1 text-[var(--t-text)] truncate max-w-[240px]" title={`${c.denominacion} · ${c.tipo_cliente ?? "sin tipo"}`}>
                       {c.denominacion}
-                      <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">({c.keyword})</span>
+                      <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">({c.keyword}{c.tipo_cliente ? ` · ${c.tipo_cliente}` : ""})</span>
                     </td>
                     <td className="px-3 py-1">
                       <input list="cp-contrapartes" value={d.contraparte} onChange={(e) => setCField(c.cuenta, "contraparte", e.target.value)} className={INPUT + " w-[130px]"} />
