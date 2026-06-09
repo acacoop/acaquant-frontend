@@ -64,6 +64,8 @@ export function OpsView() {
   const [segmentos, setSegmentos] = useState<string[]>([]);
   const [mercado, setMercado] = usePersistedState<string>("ops.mercado", "");
   const [mercados, setMercados] = useState<string[]>([]);
+  const [operador, setOperador] = usePersistedState<string>("ops.operador", "");
+  const [operadores, setOperadores] = useState<{ email: string; nombre: string | null; n_cuentas?: number }[]>([]);
   const [search, setSearch] = usePersistedState<string>("ops.search", "");
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
   const [modo, setModo] = usePersistedState<Modo>("ops.modo", "ULTIMA");
@@ -101,7 +103,8 @@ export function OpsView() {
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
     + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
-    + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "");
+    + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "")
+    + (operador ? `&operador=${encodeURIComponent(operador)}` : "");
 
   const cargarFechas = useCallback(async () => {
     const f = await getJSON<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas");
@@ -118,6 +121,8 @@ export function OpsView() {
       setMercados(m?.mercados ?? []);
       const c = await getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list");
       setCuentasList(c?.cuentas ?? []);
+      const ops = await getJSON<{ email: string; nombre: string | null; n_cuentas?: number }[]>("/api/operaciones/comercial/operadores");
+      setOperadores(Array.isArray(ops) ? ops : []);
     })();
   }, []);
 
@@ -201,6 +206,12 @@ export function OpsView() {
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
           <option value="">Todos los mercados</option>
           {mercados.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        {/* Filtro de operador (operador_email → cuentas de ese operador) */}
+        <select value={operador} onChange={(e) => setOperador(e.target.value)}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark] max-w-[200px]">
+          <option value="">Todos los operadores</option>
+          {operadores.map((o) => <option key={o.email} value={o.email}>{o.nombre || o.email}</option>)}
         </select>
         <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           {(["ARS","USD","USD_DOL"] as Moneda[]).map((m) => (
