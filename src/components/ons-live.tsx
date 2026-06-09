@@ -152,7 +152,7 @@ function ONsTable({ rows }: { rows: ONRow[] }) {
                   <td className="text-right tabular-nums">{fmtPct1(r.tea)}</td>
                   <td className="text-right tabular-nums">{r.duration != null ? r.duration.toFixed(2) : "--"}</td>
                   <td className="text-right tabular-nums">{r.paridad != null ? r.paridad.toFixed(1) : "--"}</td>
-                  <td className="text-right tabular-nums text-[#ffaa00]">{fmtVol(r.total_nominals_dia ?? undefined)}</td>
+                  <td className="text-right tabular-nums text-[var(--t-accent)]">{fmtVol(r.total_nominals_dia ?? undefined)}</td>
                 </tr>
               ))}
             </tbody>
@@ -200,10 +200,10 @@ function ONsCurva({ rows }: { rows: ONRow[] }) {
                 type="number"
                 dataKey="x"
                 name="Duration"
-                tick={{ fontSize: 10, fill: "var(--t-text-muted)" }}
-                label={{ value: "Duration (años)", position: "insideBottom", offset: -8, fontSize: 10, fill: "var(--t-text-muted)" }}
+                tick={{ fontSize: 10, fill: "var(--t-text-dim)" }}
+                label={{ value: "Duration (años)", position: "insideBottom", offset: -8, fontSize: 11, fill: "var(--t-text)", fontWeight: 600 }}
               />
-              <YAxis type="number" dataKey="y" name="TEA" unit="%" tick={{ fontSize: 10, fill: "var(--t-text-muted)" }} />
+              <YAxis type="number" dataKey="y" name="TEA" unit="%" tick={{ fontSize: 10, fill: "var(--t-text-dim)" }} />
               <Tooltip
                 cursor={{ strokeDasharray: "3 3" }}
                 content={({ payload }) => {
@@ -214,7 +214,7 @@ function ONsCurva({ rows }: { rows: ONRow[] }) {
                   return (
                     <div className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 text-[11px]">
                       <div className="font-semibold">{p.ticker}</div>
-                      <div className="text-[var(--t-text-muted)]">{p.emisor}</div>
+                      <div className="text-[var(--t-text-dim)]">{p.emisor}</div>
                       <div>
                         TEA {p.y.toFixed(2)}% · Dur {p.x.toFixed(2)}
                       </div>
