@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
@@ -3022,7 +3022,7 @@ const _onInput =
 function OnField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{label}</span>
+      <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">{label}</span>
       {children}
     </label>
   );
@@ -3069,7 +3069,7 @@ function TabOnsSegmentar() {
   return (
     <div className="h-full overflow-auto p-3">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[11px] text-[var(--t-text-muted)]">
+        <span className="text-[11px] text-[var(--t-text-dim)]">
           {ons.length} ONs · cambiar el sector se refleja en la vista al instante
         </span>
         <button type="button" onClick={fetchOns} className={_onInput + " w-auto"}>↻</button>
@@ -3084,9 +3084,9 @@ function TabOnsSegmentar() {
             return (
               <tr key={o.asset}>
                 <td className="font-semibold">{o.asset}</td>
-                <td className="text-[var(--t-text-muted)]">{o.emisor || "--"}</td>
-                <td className="text-[var(--t-text-muted)]">{o.moneda_flujo || "--"}</td>
-                <td className="text-[var(--t-text-muted)] tabular-nums">{(o.vencimiento || "").slice(0, 7) || "--"}</td>
+                <td>{o.emisor || "--"}</td>
+                <td>{o.moneda_flujo || "--"}</td>
+                <td className="tabular-nums">{(o.vencimiento || "").slice(0, 7) || "--"}</td>
                 <td>
                   <select
                     value={(o.sector || "otros").toLowerCase()}
@@ -3124,6 +3124,7 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
   const [flujosText, setFlujosText] = useState("");
   const [flujos, setFlujos] = useState<ONFlujo[]>([]);
   const [formato, setFormato] = useState<string>("");
+  const [showPaste, setShowPaste] = useState(false);
   const [existentes, setExistentes] = useState<ONMaster[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -3154,6 +3155,19 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
         vencimiento: f.vencimiento || (d.vencimiento || ""),
       }));
     } catch { /* deja el preview vacío */ }
+  };
+
+  // Subir el archivo de la descarga (CSV/Excel-guardado-como-csv) y previsualizar.
+  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      setFlujosText(text);
+      parsear(text);
+    };
+    reader.readAsText(file);
   };
 
   const cargarExistente = (asset: string) => {
@@ -3219,26 +3233,51 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
       </div>
 
       <div>
-        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
-          Flujos — pegá de Excel / la descarga oficial (se parsea solo al salir del campo)
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
+          Flujos del bono — subí el archivo de la descarga (BYMA/IAMC)
         </span>
-        <textarea
-          className={_onInput + " font-mono h-28 mt-0.5"}
-          value={flujosText}
-          onChange={(e) => setFlujosText(e.target.value)}
-          onBlur={() => parsear(flujosText)}
-          placeholder={"Pegá la tabla de la descarga (con encabezados) o: fecha\tamort\tinterés\tresidual"}
-        />
-        <div className="flex items-center gap-2 mt-1">
-          <button type="button" onClick={() => parsear(flujosText)} className={_onInput + " w-auto"}>Parsear</button>
-          {flujos.length > 0 && (
-            <span className="text-[10px] text-[var(--t-text-muted)]">
-              {flujos.length} flujos{formato ? ` (${formato})` : ""} · Σ amort {sumAmort.toFixed(0)}
-              {sumAmort < 95 || sumAmort > 105 ? <span className="text-amber-500"> ⚠ ~100</span> : <span className="text-emerald-500"> ✓</span>}
-              <span> · {flujos[0].fecha} → {flujos[flujos.length - 1].fecha}</span>
-            </span>
-          )}
+        <div className="flex items-center gap-3 mt-0.5">
+          <input type="file" accept=".csv,.txt" onChange={handleFile} className="text-[11px]" />
+          <button type="button" onClick={() => setShowPaste((s) => !s)} className={_onInput + " w-auto"}>
+            {showPaste ? "ocultar" : "o pegar texto"}
+          </button>
         </div>
+        {showPaste && (
+          <textarea
+            className={_onInput + " font-mono h-24 mt-1"}
+            value={flujosText}
+            onChange={(e) => setFlujosText(e.target.value)}
+            onBlur={() => parsear(flujosText)}
+            placeholder={"Pegá la descarga (con encabezados) o: fecha\tamort\tinterés\tresidual"}
+          />
+        )}
+        {flujos.length > 0 && (
+          <div className="mt-1.5">
+            <div className="text-[10px] text-[var(--t-text-dim)] mb-1">
+              {flujos.length} flujos{formato ? ` · ${formato}` : ""} · Σ amort {sumAmort.toFixed(0)}
+              {sumAmort < 95 || sumAmort > 105 ? <span className="text-amber-500"> ⚠ ~100</span> : <span className="text-emerald-500"> ✓</span>}
+              {" · vto "}{flujos[flujos.length - 1].fecha}
+            </div>
+            <div className="max-h-40 overflow-auto border border-[var(--t-border)]">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Fecha</th><th className="text-right">Amort.</th><th className="text-right">Interés</th><th className="text-right">Residual</th></tr>
+                </thead>
+                <tbody>
+                  {flujos.map((f, i) => (
+                    <tr key={i}>
+                      <td className="text-[var(--t-text-dim)]">{i + 1}</td>
+                      <td className="tabular-nums">{f.fecha}</td>
+                      <td className="text-right tabular-nums">{f.amortizacion}</td>
+                      <td className="text-right tabular-nums">{f.interes}</td>
+                      <td className="text-right tabular-nums">{f.valor_residual}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
@@ -3285,10 +3324,10 @@ function TabOnsConciliador({ onDarDeAlta }: { onDarDeAlta: (g: ONGap) => void })
   return (
     <div className="h-full overflow-auto p-3">
       <div className="flex items-center gap-3 mb-2 text-[11px]">
-        <span className="text-[var(--t-text-muted)]">
+        <span className="text-[var(--t-text-dim)]">
           {r ? `HD/DL de clientes: ${r.total} · en Curvas: ${r.cubiertas} · faltan: ` : "cargando…"}
           {r && <span className="text-amber-500 font-semibold">{r.faltan}</span>}
-          {r && r.ignoradas ? <span className="text-[var(--t-text-muted)]"> · ignoradas: {r.ignoradas}</span> : null}
+          {r && r.ignoradas ? <span> · ignoradas: {r.ignoradas}</span> : null}
         </span>
         <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
         {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
@@ -3301,9 +3340,9 @@ function TabOnsConciliador({ onDarDeAlta }: { onDarDeAlta: (g: ONGap) => void })
           {(data?.gap || []).map((g) => (
             <tr key={g.unidad}>
               <td className="font-semibold">{g.ticker || "--"}</td>
-              <td className="text-[var(--t-text-muted)]">{g.emisor || "--"}</td>
-              <td className="text-[var(--t-text-muted)]">{g.cartera}</td>
-              <td className="text-[var(--t-text-muted)] text-[10px] truncate max-w-[200px]" title={g.unidad}>{g.unidad}</td>
+              <td>{g.emisor || "--"}</td>
+              <td>{g.cartera}</td>
+              <td className="text-[10px] text-[var(--t-text-dim)] truncate max-w-[200px]" title={g.unidad}>{g.unidad}</td>
               <td className="whitespace-nowrap">
                 <button type="button" onClick={() => onDarDeAlta(g)}
                   className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">dar de alta</button>
