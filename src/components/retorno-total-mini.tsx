@@ -14,16 +14,17 @@ import {
 } from "lightweight-charts";
 
 /**
- * Versión compacta de RETORNO TOTAL para la HOME (cuadrante izq-abajo).
- * Chart con look TradingView real (lightweight-charts), eje Y a la izquierda,
- * + lista interactiva de retornos al costado que sirve de leyenda Y de selector
- * (tildás/destildás bonos para limpiar el chart).
+ * RETORNO TOTAL (compacto, HOME) — chart TradingView-like (lightweight-charts) +
+ * lista interactiva de retornos que sirve de leyenda Y selector.
  *
- * Tabs por curva (Tasa Fija / CER / Hard Dólar) + ventanas 7D / 14D / MTD.
- * Reusa la lógica de cálculo de la vista ESTRATEGIAS completa: precio +
- * cupones/amortizaciones cobrados, con flujos alineados al desplome de precio
- * (el bono cotiza "ex" antes de la fecha de pago). Retorno en moneda nativa de
- * la curva (ARS para tasa_fija/cer, USD para soberanos).
+ * COMPONENTE CONTROLADO: la curva, la ventana y el modo los maneja el padre
+ * (RetornoCanjeBox en home-view) en una sola barra de header compartida — así no
+ * se duplica el título "Retorno Total" ni se desfasa con el box de al lado.
+ *
+ * Modos:
+ *   - "retorno" → retorno total en moneda nativa (ARS tasa_fija/cer, USD soberanos).
+ *   - "carry"   → retorno medido en USD: descuenta la variación del MEP (cada valor
+ *     se divide por el MEP del día). Para soberanos (ya en USD) no se ajusta.
  */
 
 interface HistRow {
@@ -36,10 +37,12 @@ interface RetornoData {
   curva: string;
   rows: HistRow[];
   flujos: Record<string, Array<{ fecha: string; monto: number }>>;
+  mep?: Record<string, number>;
 }
 
-type Curva = "tasa_fija" | "cer" | "soberanos";
-type Ventana = "7D" | "14D" | "MTD";
+export type Curva = "tasa_fija" | "cer" | "soberanos";
+export type Ventana = "7D" | "14D" | "MTD";
+export type Mode = "retorno" | "carry";
 
 const POLL_MS = 300_000; // 5 min — toma precios del día
 
@@ -62,19 +65,25 @@ function desdeForVentana(v: Ventana, last: string): string {
   return last.slice(0, 8) + "01"; // MTD: primer día del mes
 }
 
-export function RetornoTotalMini() {
-  const [curva, setCurvaState] = useState<Curva>("tasa_fija");
-  const [ventana, setVentana] = useState<Ventana>("MTD");
+export function RetornoTotalMini({
+  curva,
+  ventana,
+  mode,
+}: {
+  curva: Curva;
+  ventana: Ventana;
+  mode: Mode;
+}) {
   const [byCurva, setByCurva] = useState<Record<string, RetornoData>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Bonos destildados en la lista → se ocultan del chart (no se borran).
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  const setCurva = (c: Curva) => {
-    setCurvaState(c);
-    setHidden(new Set()); // cada curva tiene sus propios bonos
-  };
+  // Cada curva tiene sus propios bonos → al cambiar de curva, mostrar todos.
+  useEffect(() => {
+    setHidden(new Set());
+  }, [curva]);
 
   // Tema (claro/oscuro): misma señal que el resto de la app (clase "light" en <html>).
   const [isLight, setIsLight] = useState(false);
@@ -118,6 +127,7 @@ export function RetornoTotalMini() {
   const curr = byCurva[curva];
   const rows = useMemo<HistRow[]>(() => curr?.rows || [], [curr]);
   const flujos = useMemo<RetornoData["flujos"]>(() => curr?.flujos || {}, [curr]);
+  const mep = useMemo<Record<string, number>>(() => curr?.mep || {}, [curr]);
 
   const fechas = useMemo(
     () => Array.from(new Set(rows.map((r) => r.fecha))).sort(),
@@ -127,9 +137,9 @@ export function RetornoTotalMini() {
   const fechaDesde = ultima ? desdeForVentana(ventana, ultima) : "";
   const fechaHasta = ultima;
 
-  // Serie de retorno total % por ticker en la ventana. Mismo cálculo que la
-  // vista completa: base = precio as-of fechaDesde, retorno = (precio + Σflujos
-  // cobrados) / base − 1. Flujos alineados al mayor desplome de precio cercano.
+  // Serie de retorno % por ticker en la ventana. base = precio as-of fechaDesde,
+  // retorno = (precio + Σflujos cobrados) / base − 1. En modo "carry" cada valor
+  // se mide en USD dividiendo por el MEP del día (descuenta el carry del dólar).
   const { tickers, data } = useMemo(() => {
     const vacio = { tickers: [] as string[], data: {} as Record<string, Array<{ time: Time; value: number }>> };
     if (!rows.length || !fechaDesde || !fechaHasta) return vacio;
@@ -143,9 +153,7 @@ export function RetornoTotalMini() {
       serieByTicker[tk].sort((a, b) => a.fecha.localeCompare(b.fecha));
     }
 
-    // Alinear cada flujo a la fecha del mayor desplome de precio en su ventana,
-    // solo si ese desplome es comparable al monto (evita pegar cupones chicos a
-    // movimientos de mercado). Idéntico a la vista completa.
+    // Alinear cada flujo a la fecha del mayor desplome de precio en su ventana.
     const flujosAlin: Record<string, Array<{ fecha: string; monto: number }>> = {};
     for (const tk in flujos) {
       const serie = serieByTicker[tk] || [];
@@ -191,7 +199,15 @@ export function RetornoTotalMini() {
       for (const pt of serie) {
         if (pt.fecha < base.fecha || pt.fecha < fechaDesde || pt.fecha > fechaHasta) continue;
         const tot = pt.price + sumaFlujos(tk, base.fecha, pt.fecha);
-        pts.push({ time: pt.fecha as Time, value: +((tot / base.price - 1) * 100).toFixed(3) });
+        let ret: number;
+        // Carry: medir en USD (÷ MEP del día). Sin MEP (soberanos, ya en USD) →
+        // retorno nativo sin ajustar.
+        if (mode === "carry" && mep[base.fecha] && mep[pt.fecha]) {
+          ret = ((tot / mep[pt.fecha]) / (base.price / mep[base.fecha]) - 1) * 100;
+        } else {
+          ret = (tot / base.price - 1) * 100;
+        }
+        pts.push({ time: pt.fecha as Time, value: +ret.toFixed(3) });
       }
       if (pts.length >= 2) {
         out[tk] = pts;
@@ -199,7 +215,7 @@ export function RetornoTotalMini() {
       }
     }
     return { tickers: tickersConDatos, data: out };
-  }, [rows, flujos, fechaDesde, fechaHasta]);
+  }, [rows, flujos, mep, mode, fechaDesde, fechaHasta]);
 
   // Color estable por ticker (orden alfabético de `tickers`).
   const colorOf = useMemo(() => {
@@ -253,9 +269,7 @@ export function RetornoTotalMini() {
       leftPriceScale: {
         visible: true,
         borderColor: border,
-        // Márgenes chicos → el rango usa más alto → más etiquetas en el eje Y.
         scaleMargins: { top: 0.04, bottom: 0.04 },
-        // Fuerza las etiquetas de los extremos (máx/mín) → 2 ticks más, eje más denso.
         ensureEdgeTickMarksVisible: true,
       },
       rightPriceScale: { visible: false },
@@ -296,7 +310,7 @@ export function RetornoTotalMini() {
       if (!zeroLineHost) zeroLineHost = api;
     });
 
-    // Línea de referencia en 0% (estilo TradingView, contra qué se lee el retorno).
+    // Línea de referencia en 0% (contra qué se lee el retorno).
     if (zeroLineHost) {
       zeroLine = (zeroLineHost as ISeriesApi<"Line">).createPriceLine({
         price: 0,
@@ -334,96 +348,61 @@ export function RetornoTotalMini() {
 
   const hayDatos = tickers.length > 0;
 
+  // Cuerpo: chart (eje Y izq) + lista interactiva de retornos. SIN header (lo pone
+  // el padre, compartido con el toggle Retorno/Carry/Canje).
   return (
-    <div className="h-full flex flex-col min-h-0 min-w-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
-      {/* Header: título + tabs de curva + ventanas */}
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap">
-        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-          Retorno Total
-        </span>
-        <div className="flex items-center gap-1">
-          <Pill active={curva === "tasa_fija"} onClick={() => setCurva("tasa_fija")}>TASA FIJA</Pill>
-          <Pill active={curva === "cer"} onClick={() => setCurva("cer")}>CER</Pill>
-          <Pill active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>HARD DÓLAR</Pill>
-        </div>
-        <div className="flex items-center gap-1 ml-auto">
-          <Pill active={ventana === "7D"} onClick={() => setVentana("7D")}>7D</Pill>
-          <Pill active={ventana === "14D"} onClick={() => setVentana("14D")}>14D</Pill>
-          <Pill active={ventana === "MTD"} onClick={() => setVentana("MTD")}>MTD</Pill>
-        </div>
-      </div>
-
-      {/* Cuerpo: chart (eje Y izq) + lista interactiva de retornos */}
-      <div className="flex-1 min-h-0 min-w-0 flex">
-        <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
-          {loading && !curr ? (
-            <Centro>cargando…</Centro>
-          ) : error ? (
-            <Centro tono="neg">error: {error}</Centro>
-          ) : !hayDatos ? (
-            <Centro>sin datos suficientes en la ventana</Centro>
-          ) : (
-            <div ref={containerRef} className="absolute inset-0" />
-          )}
-        </div>
-
-        {/* Lista de retornos = leyenda + selector (tildar/destildar) */}
-        {hayDatos && (
-          <div className="w-[124px] shrink-0 border-l border-[var(--t-border)] overflow-y-auto">
-            <div className="px-1.5 py-1 text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
-              {ventana} · {resumen.length}
-            </div>
-            {resumen.map(({ tk, ret, color }) => {
-              const off = hidden.has(tk);
-              return (
-                <button
-                  key={tk}
-                  onClick={() => toggle(tk)}
-                  title={off ? "Mostrar en el chart" : "Ocultar del chart"}
-                  className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] font-mono font-bold hover:bg-[var(--t-accent)]/10 ${
-                    off ? "opacity-40" : ""
-                  }`}
-                >
-                  <span
-                    className="w-2 h-2 shrink-0 rounded-[1px] border"
-                    style={{ background: off ? "transparent" : color, borderColor: color }}
-                  />
-                  <span className="text-[var(--t-text)] truncate flex-1 text-left font-bold">{tk}</span>
-                  <span
-                    className={
-                      ret == null
-                        ? "text-[var(--t-text-muted)]"
-                        : ret >= 0
-                          ? "text-[var(--t-pos)]"
-                          : "text-[var(--t-neg)]"
-                    }
-                  >
-                    {ret == null ? "—" : `${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%`}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+    <div className="h-full min-h-0 min-w-0 flex">
+      <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
+        {loading && !curr ? (
+          <Centro>cargando…</Centro>
+        ) : error ? (
+          <Centro tono="neg">error: {error}</Centro>
+        ) : !hayDatos ? (
+          <Centro>sin datos suficientes en la ventana</Centro>
+        ) : (
+          <div ref={containerRef} className="absolute inset-0" />
         )}
       </div>
-    </div>
-  );
-}
 
-function Pill({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-        active
-          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-      }`}
-    >
-      {children}
-    </button>
+      {/* Lista de retornos = leyenda + selector (tildar/destildar) */}
+      {hayDatos && (
+        <div className="w-[124px] shrink-0 border-l border-[var(--t-border)] overflow-y-auto">
+          <div className="px-1.5 py-1 text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
+            {ventana} · {resumen.length}
+          </div>
+          {resumen.map(({ tk, ret, color }) => {
+            const off = hidden.has(tk);
+            return (
+              <button
+                key={tk}
+                onClick={() => toggle(tk)}
+                title={off ? "Mostrar en el chart" : "Ocultar del chart"}
+                className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 text-[10px] font-mono font-bold hover:bg-[var(--t-accent)]/10 ${
+                  off ? "opacity-40" : ""
+                }`}
+              >
+                <span
+                  className="w-2 h-2 shrink-0 rounded-[1px] border"
+                  style={{ background: off ? "transparent" : color, borderColor: color }}
+                />
+                <span className="text-[var(--t-text)] truncate flex-1 text-left font-bold">{tk}</span>
+                <span
+                  className={
+                    ret == null
+                      ? "text-[var(--t-text-muted)]"
+                      : ret >= 0
+                        ? "text-[var(--t-pos)]"
+                        : "text-[var(--t-neg)]"
+                  }
+                >
+                  {ret == null ? "—" : `${ret >= 0 ? "+" : ""}${ret.toFixed(1)}%`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -34,8 +34,8 @@ interface CanjeResp {
   error?: string;
 }
 
-const PARES = ["AL30", "GD30"] as const;
-type Par = (typeof PARES)[number];
+export const PARES = ["AL30", "GD30"] as const;
+export type Par = (typeof PARES)[number];
 
 const POLL_MS = 300_000; // 5 min
 
@@ -51,10 +51,11 @@ function fmtPct(v: number | null | undefined, d = 2): string {
   return `${(v * 100).toFixed(d)}%`;
 }
 
-// Canje compacto para la home (recuadro chico, switch con Retorno Total): header
-// fino con toggle de par + métricas inline, y el gráfico ocupa todo el resto.
-export function CanjeTab() {
-  const [par, setPar] = useState<Par>("AL30");
+// Canje compacto para la home. CONTROLADO: el par lo maneja el padre
+// (RetornoCanjeBox) en el header unificado compartido con el toggle
+// Retorno/Carry/Canje → sin caja ni header propios. Acá solo va una tira fina de
+// métricas + el gráfico.
+export function CanjeTab({ par }: { par: Par }) {
   const [data, setData] = useState<CanjeResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,34 +106,16 @@ export function CanjeTab() {
   }, [serie]);
 
   return (
-    <div className="h-full min-h-0 min-w-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
-      {/* Header: título + toggle par + métricas inline */}
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap text-[10px] font-mono">
-        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Canje</span>
-        <div className="flex items-center gap-1">
-          {PARES.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPar(p)}
-              className={`px-2 py-0.5 text-[9px] font-semibold tracking-wide border ${
-                par === p
-                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                  : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-              }`}
-            >
-              {p}
-            </button>
-          ))}
+    <div className="h-full min-h-0 min-w-0 flex flex-col">
+      {/* Tira fina de métricas (sin header propio — el par lo controla el padre) */}
+      {kpis && (
+        <div className="px-3 py-1 shrink-0 flex items-center gap-3 flex-wrap text-[10px] font-mono border-b border-[var(--t-border)]">
+          <span><span className="text-[var(--t-text-muted)]">Canje </span><span className="text-[var(--t-accent)] font-semibold">{fmtPct(kpis.actual)}</span></span>
+          <span><span className="text-[var(--t-text-muted)]">Δ </span><span className={kpis.delta >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}>{`${kpis.delta >= 0 ? "+" : ""}${(kpis.delta * 100).toFixed(2)} pp`}</span></span>
+          <span className="text-[var(--t-text-dim)]"><span className="text-[var(--t-text-muted)]">mín/máx </span>{fmtPct(kpis.min)} / {fmtPct(kpis.max)}</span>
+          <span className="text-[var(--t-text-dim)] ml-auto">{par} C/D {kpis.precio_c.toFixed(2)} / {kpis.precio_d.toFixed(2)}</span>
         </div>
-        {kpis && (
-          <div className="flex items-center gap-3 ml-auto">
-            <span><span className="text-[var(--t-text-muted)]">Canje </span><span className="text-[var(--t-accent)] font-semibold">{fmtPct(kpis.actual)}</span></span>
-            <span><span className="text-[var(--t-text-muted)]">Δ </span><span className={kpis.delta >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}>{`${kpis.delta >= 0 ? "+" : ""}${(kpis.delta * 100).toFixed(2)} pp`}</span></span>
-            <span className="text-[var(--t-text-dim)]"><span className="text-[var(--t-text-muted)]">mín/máx </span>{fmtPct(kpis.min)} / {fmtPct(kpis.max)}</span>
-            <span className="text-[var(--t-text-dim)]">{par} C/D {kpis.precio_c.toFixed(2)} / {kpis.precio_d.toFixed(2)}</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {error && (
         <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)] font-mono shrink-0">{error}</div>

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
-import { RetornoTotalMini } from "@/components/retorno-total-mini";
-import { CanjeTab } from "@/components/canje-tab";
+import { RetornoTotalMini, type Curva, type Ventana } from "@/components/retorno-total-mini";
+import { CanjeTab, PARES, type Par } from "@/components/canje-tab";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
@@ -28,30 +28,70 @@ function esTickerArgy(t: string): boolean {
   );
 }
 
-// Recuadro de la home (abajo-izquierda) con toggle Retorno Total ⇄ Canje.
-// Canje se movió acá desde /estrategia: comparten el mismo espacio, se switchea.
-function RetornoCanjeBox() {
-  const [view, setView] = useState<"retorno" | "canje">("retorno");
+// Pill chico reutilizable del header (toggle + curva + ventana).
+function Pill({
+  active, onClick, children,
+}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <div className="h-full min-h-0 min-w-0 flex flex-col">
-      <div className="flex items-center gap-1 pb-1.5 shrink-0">
-        {(["retorno", "canje"] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className={
-              "px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors " +
-              (view === v
-                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]")
-            }
-          >
-            {v === "retorno" ? "RETORNO TOTAL" : "CANJE"}
-          </button>
-        ))}
+    <button
+      onClick={onClick}
+      className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+        active
+          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Recuadro de la home (abajo-izquierda): UN solo header con toggle
+// RETORNO TOTAL / CARRY / CANJE + (en retorno/carry) pills de curva y ventana.
+// Caja con borde como el box del chart de al lado → alineados, sin título
+// duplicado. CARRY = retorno medido en USD (descuenta la variación del MEP).
+function RetornoCanjeBox() {
+  const [view, setView] = useState<"retorno" | "carry" | "canje">("retorno");
+  const [curva, setCurva] = useState<Curva>("tasa_fija");
+  const [ventana, setVentana] = useState<Ventana>("MTD");
+  const [par, setPar] = useState<Par>("AL30");
+  const esRetorno = view === "retorno" || view === "carry";
+
+  return (
+    <div className="h-full min-h-0 min-w-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1">
+          <Pill active={view === "retorno"} onClick={() => setView("retorno")}>RETORNO TOTAL</Pill>
+          <Pill active={view === "carry"} onClick={() => setView("carry")}>CARRY</Pill>
+          <Pill active={view === "canje"} onClick={() => setView("canje")}>CANJE</Pill>
+        </div>
+        {esRetorno ? (
+          <>
+            <div className="flex items-center gap-1">
+              <Pill active={curva === "tasa_fija"} onClick={() => setCurva("tasa_fija")}>TASA FIJA</Pill>
+              <Pill active={curva === "cer"} onClick={() => setCurva("cer")}>CER</Pill>
+              <Pill active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>HARD DÓLAR</Pill>
+            </div>
+            <div className="flex items-center gap-1 ml-auto">
+              <Pill active={ventana === "7D"} onClick={() => setVentana("7D")}>7D</Pill>
+              <Pill active={ventana === "14D"} onClick={() => setVentana("14D")}>14D</Pill>
+              <Pill active={ventana === "MTD"} onClick={() => setVentana("MTD")}>MTD</Pill>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-1">
+            {PARES.map((p) => (
+              <Pill key={p} active={par === p} onClick={() => setPar(p)}>{p}</Pill>
+            ))}
+          </div>
+        )}
       </div>
       <div className="flex-1 min-h-0 min-w-0">
-        {view === "retorno" ? <RetornoTotalMini /> : <CanjeTab />}
+        {view === "canje" ? (
+          <CanjeTab par={par} />
+        ) : (
+          <RetornoTotalMini curva={curva} ventana={ventana} mode={view === "carry" ? "carry" : "retorno"} />
+        )}
       </div>
     </div>
   );
