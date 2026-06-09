@@ -3124,6 +3124,7 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
   const [flujosText, setFlujosText] = useState("");
   const [flujos, setFlujos] = useState<ONFlujo[]>([]);
   const [formato, setFormato] = useState<string>("");
+  const [fileName, setFileName] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const [existentes, setExistentes] = useState<ONMaster[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -3161,6 +3162,7 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
   const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => {
       const text = String(reader.result || "");
@@ -3236,8 +3238,14 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
         <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
           Flujos del bono — subí el archivo de la descarga (BYMA/IAMC)
         </span>
-        <div className="flex items-center gap-3 mt-0.5">
-          <input type="file" accept=".csv,.txt" onChange={handleFile} className="text-[11px]" />
+        <div className="flex items-center gap-3 mt-1">
+          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-[#094293] text-white cursor-pointer hover:opacity-90">
+            📁 EXAMINAR ARCHIVO
+            <input type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
+          </label>
+          {fileName
+            ? <span className="text-[11px] text-[var(--t-text)] truncate max-w-[240px]" title={fileName}>{fileName}</span>
+            : <span className="text-[11px] text-[var(--t-text-dim)]">ningún archivo seleccionado</span>}
           <button type="button" onClick={() => setShowPaste((s) => !s)} className={_onInput + " w-auto"}>
             {showPaste ? "ocultar" : "o pegar texto"}
           </button>
