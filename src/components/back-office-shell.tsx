@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { TitulosMercadoView } from "./titulos-mercado-view";
+import { AcreenciasView } from "./acreencias-view";
 
-// Tabs del Back Office. Por ahora solo Títulos / Mercado; cuando vengan
-// nuevas (conciliación, archivo a enviar, etc.) se suman acá.
-type Tab = "titulos_mercado";
+// Tabs del Back Office. Por ahora Títulos / Mercado + Acreencias Clientes;
+// cuando vengan nuevas (archivo a enviar, etc.) se suman acá.
+type Tab = "titulos_mercado" | "acreencias";
 
 export function BackOfficeShell() {
   const [tab, setTab] = useState<Tab>("titulos_mercado");
@@ -19,10 +20,17 @@ export function BackOfficeShell() {
         >
           Títulos / Mercado
         </TabBtn>
+        <TabBtn
+          active={tab === "acreencias"}
+          onClick={() => setTab("acreencias")}
+        >
+          Acreencias Clientes
+        </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0">
         {tab === "titulos_mercado" && <TitulosMercadoView />}
+        {tab === "acreencias" && <AcreenciasView />}
       </div>
     </div>
   );
