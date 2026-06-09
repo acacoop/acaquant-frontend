@@ -3125,7 +3125,7 @@ function TabOnsSegmentar() {
 
 interface ONPrefill { asset?: string; emisor?: string; moneda_flujo?: string }
 
-function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
+function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?: () => void }) {
   const empty = { asset: "", emisor: "", moneda_flujo: "USD", tasa_cupon: "", vencimiento: "", sector: "otros", tkARS: "", tkUSD: "" };
   // prefill viene del conciliador (botón "dar de alta"); el padre fuerza remount
   // con key, así el initializer lo toma sin efectos.
@@ -3220,6 +3220,7 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
       if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
       setMsg({ kind: "ok", text: `Guardada. Sync: ${d.sync?.sincronizadas} en Curvas.` });
       fetch("/api/manager/ons").then((x) => x.json()).then((d2: { ons: ONMaster[] }) => setExistentes(d2.ons || [])).catch(() => {});
+      onSaved?.();  // avisa al padre → refresca el conciliador (el bono ya no falta)
     } catch (e) {
       setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
     } finally { setSaving(false); }
@@ -3417,9 +3418,9 @@ function TabONs() {
         <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "conciliador" && <TabOnsConciliador onDarDeAlta={darDeAlta} />}
+        {sub === "conciliador" && <TabOnsConciliador key={prefillKey} onDarDeAlta={darDeAlta} />}
         {sub === "segmentar" && <TabOnsSegmentar />}
-        {sub === "alta" && <TabOnsAlta key={prefillKey} prefill={prefill} />}
+        {sub === "alta" && <TabOnsAlta key={prefillKey} prefill={prefill} onSaved={() => { if (prefill) setSub("conciliador"); }} />}
       </div>
     </div>
   );
