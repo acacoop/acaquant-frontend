@@ -55,6 +55,8 @@ export function AgroView() {
   const [hasta, setHasta] = useState("");
   const [selComm, setSelComm] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
+  const [nivel5, setNivel5] = useState("");
+  const [niveles5, setNiveles5] = useState<string[]>([]);
   const [chartTab, setChartTab] = useState<ChartTab>("volumen");
   const [shareModo, setShareModo] = useState<ShareModo>("commodity");
   const [shareCommTab, setShareCommTab] = useState<ShareTab>("SOJA");
@@ -77,6 +79,14 @@ export function AgroView() {
     })();
   }, []);
 
+  // Valores de nivel_5 (Comitentes) para el filtro.
+  useEffect(() => {
+    fetch("/api/operaciones/ops/niveles5", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (Array.isArray(d?.niveles5)) setNiveles5(d.niveles5); })
+      .catch(() => {});
+  }, []);
+
   // Tablas Y series (chart de volumen) = rango [desde,hasta]: el toolbar Desde/Hasta
   // maneja el gráfico (su "ALL" = el rango). serie_cuenta sólo viene si hay cuenta.
   useEffect(() => {
@@ -84,11 +94,12 @@ export function AgroView() {
     setLoading(true);
     const qs = `desde=${desde}&hasta=${hasta}&agg=DIARIO`
       + (selComm ? `&commodity=${selComm}` : "")
-      + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "");
+      + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
+      + (nivel5 ? `&nivel5=${encodeURIComponent(nivel5)}` : "");
     fetch(`/api/operaciones/ops/agro?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [desde, hasta, selComm, selCuenta]);
+  }, [desde, hasta, selComm, selCuenta, nivel5]);
 
   const series = useMemo(() => COMMS.filter((c) => !selComm || selComm === c.key), [selComm]);
   const serieGlobal = useMemo(() => toSerieRows(data?.serie ?? []), [data]);
@@ -135,6 +146,12 @@ export function AgroView() {
         {bounds && hasta && (
           <DatePickerCompact value={hasta} onChange={setHasta} min={desde || bounds.min} max={bounds.max} />
         )}
+        {/* Filtro nivel_5 (Clientes.Comitentes) */}
+        <select value={nivel5} onChange={(e) => setNivel5(e.target.value)}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark] max-w-[200px]">
+          <option value="">Todos los nivel 5</option>
+          {niveles5.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
         <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
           {nBoletos} boletos · TOTAL: <span className="text-[var(--t-text)] font-semibold">{fmtTon(totGral)} t</span>
           {loading ? " · cargando…" : ""}
