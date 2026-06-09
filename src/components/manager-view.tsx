@@ -3216,8 +3216,10 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
       const r = await fetch("/api/manager/ons", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
+      const txt = await r.text();
+      let d: { detail?: string; sync?: { sincronizadas?: number } } = {};
+      try { d = JSON.parse(txt); } catch { /* respuesta no-JSON (ej. 500 HTML) */ }
+      if (!r.ok) throw new Error(d.detail || txt.slice(0, 300) || `HTTP ${r.status}`);
       setMsg({ kind: "ok", text: `Guardada. Sync: ${d.sync?.sincronizadas} en Curvas.` });
       fetch("/api/manager/ons").then((x) => x.json()).then((d2: { ons: ONMaster[] }) => setExistentes(d2.ons || [])).catch(() => {});
       onSaved?.();  // avisa al padre → refresca el conciliador (el bono ya no falta)
@@ -3280,6 +3282,13 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
           <button type="button" onClick={() => setShowPaste((s) => !s)} className={_onInput + " w-auto"}>
             {showPaste ? "ocultar" : "o pegar texto"}
           </button>
+          {(flujos.length > 0 || flujosText) && (
+            <button type="button"
+              onClick={() => { setFlujos([]); setFlujosText(""); setFileName(""); setFormato(""); }}
+              className="px-2 py-0.5 text-[11px] text-red-500 border border-[var(--t-border)] hover:bg-red-500/10">
+              limpiar flujos
+            </button>
+          )}
         </div>
         {showPaste && (
           <textarea
@@ -3300,7 +3309,7 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
             <div className="max-h-40 overflow-auto border border-[var(--t-border)]">
               <table>
                 <thead>
-                  <tr><th>#</th><th>Fecha</th><th className="text-right">Amort.</th><th className="text-right">Interés</th><th className="text-right">Residual</th></tr>
+                  <tr><th>#</th><th>Fecha</th><th className="text-right">Amort.</th><th className="text-right">Interés</th><th className="text-right">Residual</th><th></th></tr>
                 </thead>
                 <tbody>
                   {flujos.map((f, i) => (
@@ -3310,6 +3319,11 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
                       <td className="text-right tabular-nums">{f.amortizacion}</td>
                       <td className="text-right tabular-nums">{f.interes}</td>
                       <td className="text-right tabular-nums">{f.valor_residual}</td>
+                      <td className="text-center">
+                        <button type="button" title="borrar este flujo"
+                          onClick={() => setFlujos((fs) => fs.filter((_, j) => j !== i))}
+                          className="text-red-500 hover:bg-red-500/10 px-1">×</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
