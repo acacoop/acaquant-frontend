@@ -3426,21 +3426,28 @@ function TabONs() {
   );
 }
 
-// TÍTULOS: Instrumentos + Assets + ONs.
-function TitulosGroup() {
+// TÍTULOS: Instrumentos (solo lectura) + Assets + ONs (edición maestro).
+// Gate fino: INSTRUMENTOS → manager_instrumentos; ASSETS/ONs → manager_titulos.
+// Así asistente_comercial (manager_instrumentos) ve solo Instrumentos.
+function TitulosGroup({ modules }: { modules?: string[] | null }) {
   const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons">("manager.titulos.sub", "instrumentos");
+  const has = (m: string) => modules == null || modules.includes(m);
+  const canInstr = has("manager") || has("manager_instrumentos");
+  const canMaestro = has("manager") || has("manager_titulos");
+  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons") && canMaestro);
+  const eff = subVisible ? sub : (canInstr ? "instrumentos" : "assets");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
         <span className={GROUP_TITLE}>TÍTULOS</span>
-        <Pill label="INSTRUMENTOS" active={sub === "instrumentos"} onClick={() => setSub("instrumentos")} />
-        <Pill label="ASSETS" active={sub === "assets"} onClick={() => setSub("assets")} />
-        <Pill label="ONs" active={sub === "ons"} onClick={() => setSub("ons")} />
+        {canInstr && <Pill label="INSTRUMENTOS" active={eff === "instrumentos"} onClick={() => setSub("instrumentos")} />}
+        {canMaestro && <Pill label="ASSETS" active={eff === "assets"} onClick={() => setSub("assets")} />}
+        {canMaestro && <Pill label="ONs" active={eff === "ons"} onClick={() => setSub("ons")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "instrumentos" && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
-        {sub === "assets"       && <TabAssets />}
-        {sub === "ons"          && <TabONs />}
+        {eff === "instrumentos" && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
+        {eff === "assets"       && canMaestro && <TabAssets />}
+        {eff === "ons"          && canMaestro && <TabONs />}
       </div>
     </div>
   );
@@ -3689,7 +3696,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   diagnostico:  ["manager"],
   jobs:         ["manager"],
   validaciones: ["manager"],
-  titulos:      ["manager", "manager_titulos"],
+  titulos:      ["manager", "manager_titulos", "manager_instrumentos"],
   comercial:    ["manager", "manager_comercial"],
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
@@ -3846,7 +3853,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "diagnostico"  && <DiagnosticoGroup />}
         {tab === "jobs"         && <JobsRunsPanel />}
         {tab === "validaciones" && <ValidacionesGroup />}
-        {tab === "titulos"      && <TitulosGroup />}
+        {tab === "titulos"      && <TitulosGroup modules={modules} />}
         {tab === "comercial"    && <ComercialPanel />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "contrapartes" && <TabContrapartes />}
