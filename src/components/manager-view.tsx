@@ -3019,13 +3019,16 @@ function _onNum(s: string): number {
 const _onInput =
   "bg-[var(--t-surface-2)] border border-[var(--t-border)] px-1.5 py-0.5 text-[11px] w-full";
 
-/** Construye los tickers ROFEX completos desde el código corto: 'YM40O' (o
- * 'YM40' / 'YM40D') → ARS 'MERV - XMEV - YM40O - 24hs' · USD '...YM40D...'. */
-function buildTickers(asset: string): { tkARS: string; tkUSD: string } {
-  const code = (asset || "").trim().toUpperCase();
-  const base = code.length >= 3 && ["O", "D", "C"].includes(code.slice(-1)) ? code.slice(0, -1) : code;
-  if (!base) return { tkARS: "", tkUSD: "" };
-  return { tkARS: `MERV - XMEV - ${base}O - 24hs`, tkUSD: `MERV - XMEV - ${base}D - 24hs` };
+// Tickers ROFEX: el usuario tipea SOLO el código (ej. 'YM40O'); el
+// 'MERV - XMEV - … - 24hs' se arma solo alrededor.
+function wrapTicker(code: string): string | undefined {
+  const c = (code || "").trim().toUpperCase();
+  return c ? `MERV - XMEV - ${c} - 24hs` : undefined;
+}
+function unwrapTicker(full?: string | null): string {
+  if (!full) return "";
+  const parts = full.split(" - ");
+  return parts.length >= 3 ? parts[2] : full;
 }
 
 function OnField({ label, children }: { label: string; children: ReactNode }) {
@@ -3128,14 +3131,13 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
   // con key, así el initializer lo toma sin efectos.
   const [form, setForm] = useState({
     ...empty,
-    ...(prefill ? { asset: prefill.asset || "", emisor: prefill.emisor || "", moneda_flujo: prefill.moneda_flujo || "USD", ...buildTickers(prefill.asset || "") } : {}),
+    ...(prefill ? { asset: prefill.asset || "", emisor: prefill.emisor || "", moneda_flujo: prefill.moneda_flujo || "USD", tkARS: prefill.asset || "" } : {}),
   });
   const [flujosText, setFlujosText] = useState("");
   const [flujos, setFlujos] = useState<ONFlujo[]>([]);
   const [formato, setFormato] = useState<string>("");
   const [fileName, setFileName] = useState("");
   const [showPaste, setShowPaste] = useState(false);
-  const [tickersManual, setTickersManual] = useState(false);
   const [existentes, setExistentes] = useState<ONMaster[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -3188,7 +3190,7 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
     setForm({
       asset: o.asset, emisor: o.emisor || "", moneda_flujo: (o.moneda_flujo || "USD").toUpperCase(),
       tasa_cupon: o.tasa_cupon != null ? String(o.tasa_cupon) : "", vencimiento: (o.vencimiento || "").slice(0, 10),
-      sector: (o.sector || "otros").toLowerCase(), tkARS: o.tickers?.ARS || "", tkUSD: o.tickers?.USD || "",
+      sector: (o.sector || "otros").toLowerCase(), tkARS: unwrapTicker(o.tickers?.ARS), tkUSD: unwrapTicker(o.tickers?.USD),
     });
     const txt = (o.flujos || []).map((f) => `${f.fecha}\t${f.amortizacion ?? 0}\t${f.interes ?? 0}\t${f.valor_residual ?? 100}`).join("\n");
     setFlujosText(txt);
@@ -3207,7 +3209,7 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
       tasa_cupon: form.tasa_cupon ? _onNum(form.tasa_cupon) : undefined,
       vencimiento: form.vencimiento || undefined,
       sector: form.sector,
-      tickers: { ARS: form.tkARS.trim() || undefined, USD: form.tkUSD.trim() || undefined },
+      tickers: { ARS: wrapTicker(form.tkARS), USD: wrapTicker(form.tkUSD) },
       flujos: flujos.length ? flujos : undefined,
     };
     try {
@@ -3234,7 +3236,7 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
       </div>
 
       <div className="grid grid-cols-4 gap-2">
-        <OnField label="Asset (ticker corto)"><input className={_onInput} value={form.asset} onChange={(e) => { const asset = e.target.value; setForm((f) => ({ ...f, asset, ...(tickersManual ? {} : buildTickers(asset)) })); }} placeholder="YM40O" /></OnField>
+        <OnField label="Asset (ticker corto)"><input className={_onInput} value={form.asset} onChange={(e) => setForm({ ...form, asset: e.target.value })} placeholder="YM40O" /></OnField>
         <OnField label="Emisor"><input className={_onInput} value={form.emisor} onChange={(e) => setForm({ ...form, emisor: e.target.value })} placeholder="YPF" /></OnField>
         <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option>USD</option><option>ARS</option></select></OnField>
         <OnField label="Sector"><select className={_onInput} value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>{ON_SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}</select></OnField>
@@ -3242,24 +3244,24 @@ function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
         <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.vencimiento} onChange={(e) => setForm({ ...form, vencimiento: e.target.value })} /></OnField>
       </div>
 
-      {/* Tickers ROFEX — se arman solos desde el asset (MERV - XMEV - <cód> - 24hs). */}
-      <div>
-        <div className="flex items-center gap-2 text-[10px] flex-wrap">
-          <span className="text-[var(--t-text-dim)] uppercase tracking-wide">Tickers (auto):</span>
-          <span className="text-[var(--t-text)]">{form.tkARS || "—"}</span>
-          <span className="text-[var(--t-text-dim)]">·</span>
-          <span className="text-[var(--t-text)]">{form.tkUSD || "—"}</span>
-          <button type="button" onClick={() => setTickersManual((m) => !m)}
-            className="px-1.5 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
-            {tickersManual ? "volver a auto" : "editar manual"}
-          </button>
-        </div>
-        {tickersManual && (
-          <div className="grid grid-cols-2 gap-2 mt-1">
-            <input className={_onInput} value={form.tkARS} onChange={(e) => setForm({ ...form, tkARS: e.target.value })} placeholder="Ticker ARS completo" />
-            <input className={_onInput} value={form.tkUSD} onChange={(e) => setForm({ ...form, tkUSD: e.target.value })} placeholder="Ticker USD completo" />
+      {/* Tickers ROFEX: el usuario pone SOLO el código; el MERV-XMEV-…-24hs va fijo. */}
+      <div className="grid grid-cols-2 gap-2">
+        <OnField label="Ticker ARS (solo el código)">
+          <div className="flex items-center gap-1 text-[11px]">
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">MERV - XMEV -</span>
+            <input className={_onInput + " text-center font-semibold"} value={form.tkARS}
+              onChange={(e) => setForm({ ...form, tkARS: e.target.value.toUpperCase() })} placeholder="YM40O" />
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">- 24hs</span>
           </div>
-        )}
+        </OnField>
+        <OnField label="Ticker USD (solo el código)">
+          <div className="flex items-center gap-1 text-[11px]">
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">MERV - XMEV -</span>
+            <input className={_onInput + " text-center font-semibold"} value={form.tkUSD}
+              onChange={(e) => setForm({ ...form, tkUSD: e.target.value.toUpperCase() })} placeholder="YM40D" />
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">- 24hs</span>
+          </div>
+        </OnField>
       </div>
 
       <div>
