@@ -18,7 +18,7 @@ function shortTicker(full: string): string {
 function zscoreColor(z: number): { bg: string; fg: string } {
   if (z <= -2)        return { bg: "#1f8a3e", fg: "#ffffff" };  // verde intenso
   if (z <= -1)        return { bg: "#3fbf6f", fg: "#000000" };  // verde suave
-  if (z < 1)          return { bg: "#1a1a1a", fg: "#a0a0a0" };  // neutro
+  if (z < 1)          return { bg: "var(--t-surface)", fg: "var(--t-text-dim)" };  // neutro (adapta al tema)
   if (z < 2)          return { bg: "#d97706", fg: "#000000" };  // naranja suave
   return                     { bg: "#c0271a", fg: "#ffffff" };  // rojo intenso
 }
