@@ -34,7 +34,7 @@ interface CanjeResp {
   error?: string;
 }
 
-export const PARES = ["AL30", "GD30"] as const;
+export const PARES = ["AL30"] as const;
 export type Par = (typeof PARES)[number];
 
 const POLL_MS = 300_000; // 5 min
@@ -162,7 +162,7 @@ export function CanjeTab({ par }: { par: Par }) {
                 labelFormatter={(v) => fmtFechaCorta(String(v))}
                 formatter={(v) => [`${Number(v).toFixed(2)}%`, "Canje"]}
               />
-              <Line type="monotone" dataKey="canjePct" stroke="#ff9900" strokeWidth={1.6} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="canjePct" stroke="var(--t-accent)" strokeWidth={1.6} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         )}
