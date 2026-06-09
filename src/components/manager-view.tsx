@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
@@ -2995,19 +2995,291 @@ function ValidacionesGroup() {
   );
 }
 
-// TÍTULOS: Instrumentos + Assets.
+// ── ONs (Trading.BondsMaster) — segmentar + alta/edición con flujos ──
+interface ONFlujo { fecha: string; amortizacion: number; interes: number; valor_residual: number }
+interface ONMaster {
+  asset: string;
+  emisor?: string | null;
+  moneda_flujo?: string | null;
+  tasa_cupon?: number | null;
+  vencimiento?: string | null;
+  sector?: string | null;
+  tickers?: { ARS?: string | null; USD?: string | null } | null;
+  flujos?: ONFlujo[] | null;
+}
+
+const ON_SECTORES = ["energia", "finanzas", "otros"];
+
+function _onNum(s: string): number {
+  let t = (s || "").replace(/\s/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", "."); // formato es-AR
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : 0;
+}
+function _onFecha(s: string): string {
+  const t = (s || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+  const m = t.match(/^(\d{1,2})[/](\d{1,2})[/](\d{2,4})/);
+  if (m) {
+    const y = m[3].length === 2 ? "20" + m[3] : m[3];
+    return `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  return "";
+}
+/** Parsea una tabla pegada de Excel (tab-separada): fecha, amort, interés, residual. */
+function parseFlujosExcel(text: string): ONFlujo[] {
+  const out: ONFlujo[] = [];
+  for (const raw of (text || "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    let cols = line.split("\t").map((c) => c.trim());
+    if (cols.length < 2) cols = line.split(/\s+/);
+    const fecha = _onFecha(cols[0] || "");
+    if (!fecha) continue; // saltea encabezados / filas sin fecha válida
+    out.push({
+      fecha,
+      amortizacion: _onNum(cols[1] || "0"),
+      interes: _onNum(cols[2] || "0"),
+      valor_residual: cols[3] != null && cols[3] !== "" ? _onNum(cols[3]) : 100,
+    });
+  }
+  return out;
+}
+
+const _onInput =
+  "bg-[var(--t-surface-2)] border border-[var(--t-border)] px-1.5 py-0.5 text-[11px] w-full";
+
+function OnField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function TabOnsSegmentar() {
+  const [ons, setOns] = useState<ONMaster[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState<Record<string, RowState>>({});
+
+  const fetchOns = () => {
+    setLoading(true);
+    fetch("/api/manager/ons")
+      .then((r) => r.json())
+      .then((d: { ons: ONMaster[] }) => setOns(d.ons || []))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/ons")
+      .then((r) => r.json())
+      .then((d: { ons: ONMaster[] }) => { if (alive) setOns(d.ons || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const setSector = async (asset: string, sector: string) => {
+    setOns((prev) => prev.map((o) => (o.asset === asset ? { ...o, sector } : o)));
+    setState((s) => ({ ...s, [asset]: { kind: "saving" } }));
+    try {
+      const r = await fetch("/api/manager/ons/sector", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asset, sector }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setState((s) => ({ ...s, [asset]: { kind: "saved" } }));
+      setTimeout(() => setState((s) => ({ ...s, [asset]: { kind: "idle" } })), 1200);
+    } catch (e) {
+      setState((s) => ({ ...s, [asset]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[11px] text-[var(--t-text-muted)]">
+          {ons.length} ONs · cambiar el sector se refleja en la vista al instante
+        </span>
+        <button type="button" onClick={fetchOns} className={_onInput + " w-auto"}>↻</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Asset</th><th>Emisor</th><th>Mon</th><th>Vto</th><th>Sector</th><th></th></tr>
+        </thead>
+        <tbody>
+          {ons.map((o) => {
+            const st = state[o.asset] || { kind: "idle" };
+            return (
+              <tr key={o.asset}>
+                <td className="font-semibold">{o.asset}</td>
+                <td className="text-[var(--t-text-muted)]">{o.emisor || "--"}</td>
+                <td className="text-[var(--t-text-muted)]">{o.moneda_flujo || "--"}</td>
+                <td className="text-[var(--t-text-muted)] tabular-nums">{(o.vencimiento || "").slice(0, 7) || "--"}</td>
+                <td>
+                  <select
+                    value={(o.sector || "otros").toLowerCase()}
+                    onChange={(e) => setSector(o.asset, e.target.value)}
+                    className={_onInput}
+                  >
+                    {ON_SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </td>
+                <td className="text-[10px]">
+                  {st.kind === "saving" && <span className="text-[var(--t-text-muted)]">…</span>}
+                  {st.kind === "saved" && <span className="text-emerald-500">✓</span>}
+                  {st.kind === "error" && <span className="text-red-500" title={st.msg}>✗</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
+    </div>
+  );
+}
+
+function TabOnsAlta() {
+  const empty = { asset: "", emisor: "", moneda_flujo: "USD", tasa_cupon: "", vencimiento: "", sector: "otros", tkARS: "", tkUSD: "" };
+  const [form, setForm] = useState({ ...empty });
+  const [flujosText, setFlujosText] = useState("");
+  const [existentes, setExistentes] = useState<ONMaster[]>([]);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/manager/ons").then((r) => r.json()).then((d: { ons: ONMaster[] }) => setExistentes(d.ons || [])).catch(() => {});
+  }, []);
+
+  const flujos = useMemo(() => parseFlujosExcel(flujosText), [flujosText]);
+  const sumAmort = flujos.reduce((s, f) => s + f.amortizacion, 0);
+
+  const cargarExistente = (asset: string) => {
+    const o = existentes.find((x) => x.asset === asset);
+    if (!o) { setForm({ ...empty }); setFlujosText(""); return; }
+    setForm({
+      asset: o.asset, emisor: o.emisor || "", moneda_flujo: (o.moneda_flujo || "USD").toUpperCase(),
+      tasa_cupon: o.tasa_cupon != null ? String(o.tasa_cupon) : "", vencimiento: (o.vencimiento || "").slice(0, 10),
+      sector: (o.sector || "otros").toLowerCase(), tkARS: o.tickers?.ARS || "", tkUSD: o.tickers?.USD || "",
+    });
+    setFlujosText((o.flujos || []).map((f) => `${f.fecha}\t${f.amortizacion ?? 0}\t${f.interes ?? 0}\t${f.valor_residual ?? 100}`).join("\n"));
+    setMsg(null);
+  };
+
+  const guardar = async () => {
+    if (!form.asset.trim()) { setMsg({ kind: "err", text: "Falta el asset (ticker corto)" }); return; }
+    setSaving(true); setMsg(null);
+    const body = {
+      asset: form.asset.trim(),
+      emisor: form.emisor.trim() || undefined,
+      moneda_flujo: form.moneda_flujo,
+      tasa_cupon: form.tasa_cupon ? _onNum(form.tasa_cupon) : undefined,
+      vencimiento: form.vencimiento || undefined,
+      sector: form.sector,
+      tickers: { ARS: form.tkARS.trim() || undefined, USD: form.tkUSD.trim() || undefined },
+      flujos: flujos.length ? flujos : undefined,
+    };
+    try {
+      const r = await fetch("/api/manager/ons", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d?.detail || `HTTP ${r.status}`);
+      setMsg({ kind: "ok", text: `Guardada. Sync: ${d.sync?.sincronizadas} en Curvas.` });
+      fetch("/api/manager/ons").then((x) => x.json()).then((d2: { ons: ONMaster[] }) => setExistentes(d2.ons || [])).catch(() => {});
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="h-full overflow-auto p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Editar existente</span>
+        <select className={_onInput + " w-auto"} value={form.asset} onChange={(e) => cargarExistente(e.target.value)}>
+          <option value="">— nueva ON —</option>
+          {existentes.map((o) => <option key={o.asset} value={o.asset}>{o.asset} · {o.emisor}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2">
+        <OnField label="Asset (ticker corto)"><input className={_onInput} value={form.asset} onChange={(e) => setForm({ ...form, asset: e.target.value })} placeholder="YM40O" /></OnField>
+        <OnField label="Emisor"><input className={_onInput} value={form.emisor} onChange={(e) => setForm({ ...form, emisor: e.target.value })} placeholder="YPF" /></OnField>
+        <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option>USD</option><option>ARS</option></select></OnField>
+        <OnField label="Sector"><select className={_onInput} value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>{ON_SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}</select></OnField>
+        <OnField label="Tasa cupón (ej 0.075)"><input className={_onInput} value={form.tasa_cupon} onChange={(e) => setForm({ ...form, tasa_cupon: e.target.value })} placeholder="0.075" /></OnField>
+        <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.vencimiento} onChange={(e) => setForm({ ...form, vencimiento: e.target.value })} /></OnField>
+        <OnField label="Ticker ARS"><input className={_onInput} value={form.tkARS} onChange={(e) => setForm({ ...form, tkARS: e.target.value })} placeholder="MERV - XMEV - YM40O - 24hs" /></OnField>
+        <OnField label="Ticker USD"><input className={_onInput} value={form.tkUSD} onChange={(e) => setForm({ ...form, tkUSD: e.target.value })} placeholder="MERV - XMEV - YM40D - 24hs" /></OnField>
+      </div>
+
+      <div>
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+          Flujos — pegá de Excel (columnas: fecha · amortización · interés · residual)
+        </span>
+        <textarea
+          className={_onInput + " font-mono h-28 mt-0.5"}
+          value={flujosText}
+          onChange={(e) => setFlujosText(e.target.value)}
+          placeholder={"2026-02-27\t0\t1.89\t100\n2026-08-28\t0\t1.89\t100\n2028-08-28\t100\t1.89\t100"}
+        />
+        {flujos.length > 0 && (
+          <div className="text-[10px] text-[var(--t-text-muted)] mt-1">
+            {flujos.length} flujos parseados · Σ amort {sumAmort.toFixed(0)}
+            {sumAmort < 95 || sumAmort > 105 ? <span className="text-amber-500"> ⚠ debería sumar ~100</span> : <span className="text-emerald-500"> ✓</span>}
+            <span> · primer pago {flujos[0].fecha} · último {flujos[flujos.length - 1].fecha}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={guardar} disabled={saving}
+          className="px-3 py-1 text-[11px] font-semibold bg-[#094293] text-white disabled:opacity-50">
+          {saving ? "Guardando…" : "GUARDAR ON"}
+        </button>
+        {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
+      </div>
+      <p className="text-[10px] text-[var(--t-text-muted)]">
+        Al guardar se sincroniza Curvas → la ON aparece en la vista con su metadata.
+        Para que COTICE en vivo (precio/TEA) hay que reiniciar los motores (o esperar el reload).
+      </p>
+    </div>
+  );
+}
+
+function TabONs() {
+  const [sub, setSub] = usePersistedState<"segmentar" | "alta">("manager.ons.sub", "segmentar");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+        <Pill label="SEGMENTAR" active={sub === "segmentar"} onClick={() => setSub("segmentar")} />
+        <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "segmentar" && <TabOnsSegmentar />}
+        {sub === "alta" && <TabOnsAlta />}
+      </div>
+    </div>
+  );
+}
+
+// TÍTULOS: Instrumentos + Assets + ONs.
 function TitulosGroup() {
-  const [sub, setSub] = usePersistedState<"instrumentos" | "assets">("manager.titulos.sub", "instrumentos");
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons">("manager.titulos.sub", "instrumentos");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
         <span className={GROUP_TITLE}>TÍTULOS</span>
         <Pill label="INSTRUMENTOS" active={sub === "instrumentos"} onClick={() => setSub("instrumentos")} />
         <Pill label="ASSETS" active={sub === "assets"} onClick={() => setSub("assets")} />
+        <Pill label="ONs" active={sub === "ons"} onClick={() => setSub("ons")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "instrumentos" && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
         {sub === "assets"       && <TabAssets />}
+        {sub === "ons"          && <TabONs />}
       </div>
     </div>
   );
