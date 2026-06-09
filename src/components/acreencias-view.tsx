@@ -8,10 +8,11 @@ interface Pago {
   ticker: string; emisor: string | null; moneda: string; cantidad: number; monto: number;
 }
 
-const HORIZONTES = [
-  { d: 30, l: "30 días" }, { d: 90, l: "90 días" },
-  { d: 180, l: "6 meses" }, { d: 365, l: "1 año" },
+const PRESETS = [
+  { d: 7, l: "7d" }, { d: 30, l: "30d" }, { d: 90, l: "90d" },
+  { d: 180, l: "6m" }, { d: 365, l: "1 año" },
 ];
+const _inp = "bg-[var(--t-surface-2)] border border-[var(--t-border)] px-1.5 py-0.5 text-[11px]";
 
 function fmt(n?: number): string {
   return n == null ? "--" : new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -21,21 +22,25 @@ function isoPlus(days: number): string { const d = new Date(); d.setDate(d.getDa
 function fmtFecha(iso: string): string { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y.slice(2)}`; }
 
 export function AcreenciasView() {
-  const [horizonte, setHorizonte] = useState(90);
+  const [desde, setDesde] = useState(isoToday());
+  const [hasta, setHasta] = useState(isoPlus(90));
   const [dias, setDias] = useState<DiaAgg[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<Pago[]>([]);
-  const [vacio, setVacio] = useState(false);
+  const [estado, setEstado] = useState<"loading" | "ok" | "vacio" | "error">("loading");
 
   useEffect(() => {
     let alive = true;
-    const desde = isoToday(), hasta = isoPlus(horizonte);
     fetch(`/api/back-office/acreencias/por-dia?desde=${desde}&hasta=${hasta}`)
       .then((r) => r.json())
-      .then((d) => { if (alive) { const arr = Array.isArray(d) ? d : []; setDias(arr); setVacio(arr.length === 0); } })
-      .catch(() => { if (alive) setDias([]); });
+      .then((d) => {
+        if (!alive) return;
+        if (Array.isArray(d)) { setDias(d); setEstado(d.length ? "ok" : "vacio"); }
+        else { setDias([]); setEstado("error"); }
+      })
+      .catch(() => { if (alive) { setDias([]); setEstado("error"); } });
     return () => { alive = false; };
-  }, [horizonte]);
+  }, [desde, hasta]);
 
   useEffect(() => {
     if (!sel) return;
@@ -47,33 +52,46 @@ export function AcreenciasView() {
     return () => { alive = false; };
   }, [sel]);
 
-  // Totales del horizonte por moneda.
   const totales = useMemo(() => {
     const t: Record<string, number> = {};
     for (const d of dias) for (const [m, v] of Object.entries(d.por_moneda)) t[m] = (t[m] || 0) + v;
     return t;
   }, [dias]);
 
+  const preset = (n: number) => { setDesde(isoToday()); setHasta(isoPlus(n)); setSel(null); };
+
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-2">
-      <div className="flex items-center gap-3 flex-wrap shrink-0">
-        <span className="text-[11px] text-[var(--t-text-dim)]">Horizonte:</span>
-        {HORIZONTES.map((h) => (
-          <button key={h.d} type="button" onClick={() => { setHorizonte(h.d); setSel(null); }}
-            className={"px-2 py-0.5 text-[10px] font-semibold border " +
-              (horizonte === h.d ? "text-[var(--t-accent)] border-[var(--t-accent)]" : "text-[var(--t-text-dim)] border-[var(--t-border)] hover:text-[var(--t-text)]")}>
-            {h.l}
+      {/* Filtros: desde / hasta + atajos */}
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <label className="flex items-center gap-1 text-[11px] text-[var(--t-text-dim)]">
+          Desde <input type="date" value={desde} max={hasta} onChange={(e) => { setDesde(e.target.value); setSel(null); }} className={_inp + " text-[var(--t-text)]"} />
+        </label>
+        <label className="flex items-center gap-1 text-[11px] text-[var(--t-text-dim)]">
+          Hasta <input type="date" value={hasta} min={desde} onChange={(e) => { setHasta(e.target.value); setSel(null); }} className={_inp + " text-[var(--t-text)]"} />
+        </label>
+        <span className="text-[10px] text-[var(--t-text-dim)] ml-1">atajos:</span>
+        {PRESETS.map((p) => (
+          <button key={p.d} type="button" onClick={() => preset(p.d)}
+            className={"px-1.5 py-0.5 text-[10px] font-semibold border border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"}>
+            {p.l}
           </button>
         ))}
         <span className="ml-auto text-[11px] text-[var(--t-text)]">
           {Object.entries(totales).map(([m, v]) => `${m} ${fmt(v)}`).join("  ·  ") || "—"}
-          <span className="text-[var(--t-text-dim)]"> a cobrar en el período</span>
+          <span className="text-[var(--t-text-dim)]"> a cobrar</span>
         </span>
       </div>
 
-      {vacio && (
+      {estado === "vacio" && (
         <p className="text-[12px] text-amber-500">
-          No hay acreencias precomputadas. Corré <code>python -m jobs.acreencias --commit</code> en el Droplet.
+          No hay acreencias en ese rango. Si nunca corriste el precompute:
+          <code className="mx-1">python -m jobs.acreencias --commit</code> en el Droplet (post-AuM).
+        </p>
+      )}
+      {estado === "error" && (
+        <p className="text-[12px] text-red-500">
+          No se pudo leer acreencias. ¿Reiniciaste api.service tras el deploy?
         </p>
       )}
 
@@ -102,7 +120,7 @@ export function AcreenciasView() {
         {/* Detalle del día */}
         <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)]">
           {!sel ? (
-            <p className="text-[12px] text-[var(--t-text-dim)] p-3">Elegí un día para ver quién cobra y cuánto.</p>
+            <p className="text-[12px] text-[var(--t-text-dim)] p-3">Elegí un día (izquierda) para ver quién cobra y cuánto.</p>
           ) : (
             <>
               <div className="px-3 py-1.5 text-[11px] font-semibold border-b border-[var(--t-border)] sticky top-0 bg-[var(--t-panel)]">
