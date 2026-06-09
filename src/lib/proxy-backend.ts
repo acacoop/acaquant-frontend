@@ -11,7 +11,7 @@
  * handlers de Next que tienen que conservar la semántica HTTP del backend.
  */
 
-import { trustedEmail } from "./cf-access";
+import { isGuestRequest, trustedEmail } from "./cf-access";
 
 const API_URL = process.env.API_URL || "https://api.acaquant.com";
 const API_KEY = process.env.API_KEY || "";
@@ -45,6 +45,12 @@ export async function proxyToBackend(
   if (email) {
     headers["cf-access-authenticated-user-email"] = email;
     headers["x-acaquant-user-email"] = email;
+  }
+
+  // Portal invitado: si el sello firmado de CF tiene el aud de www, el backend
+  // fuerza rol `invitado` (default-deny en todo lo gated). No spoofeable.
+  if (await isGuestRequest((n) => req.headers.get(n))) {
+    headers["x-acaquant-portal"] = "guest";
   }
 
   if (opts.body) headers["Content-Type"] = "application/json";

@@ -20,7 +20,7 @@
  *               no cachea para evitar cambios no deseados en rutas viejas.
  */
 import { headers as nextHeaders } from "next/headers";
-import { trustedEmail } from "./cf-access";
+import { isGuestRequest, trustedEmail } from "./cf-access";
 
 const API_URL = process.env.API_URL || "https://api.acaquant.com";
 const API_KEY = process.env.API_KEY || "";
@@ -37,6 +37,18 @@ async function _readUserEmail(): Promise<string | null> {
     return (await trustedEmail((n) => h.get(n))) || null;
   } catch {
     return null;
+  }
+}
+
+async function _isGuest(): Promise<boolean> {
+  // Portal invitado (www): el aud del sello firmado de CF identifica al invitado.
+  // Cierra la única fuga del rol default `sales` (back-office) → el backend lo
+  // fuerza a `invitado` cuando ve este header. Ver lib/cf-access.ts.
+  try {
+    const h = await nextHeaders();
+    return await isGuestRequest((n) => h.get(n));
+  } catch {
+    return false;
   }
 }
 
@@ -72,6 +84,9 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   if (userEmail) {
     headers["cf-access-authenticated-user-email"] = userEmail;
     headers["x-acaquant-user-email"] = userEmail;
+  }
+  if (await _isGuest()) {
+    headers["x-acaquant-portal"] = "guest";
   }
   if (opts.body) {
     headers["Content-Type"] = "application/json";

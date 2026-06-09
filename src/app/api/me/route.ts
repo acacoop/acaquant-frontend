@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { trustedEmail } from "@/lib/cf-access";
+import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 
 // Proxy a /api/me del backend FastAPI — identidad del caller
 // (email + role + modules + is_admin). Consumido por el layout y por proxy.ts.
@@ -24,6 +24,10 @@ export async function GET(req: Request) {
     if (CF_CLIENT_ID && CF_CLIENT_SECRET) {
       headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
       headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
+    }
+    // Portal invitado (www): el backend devuelve rol `invitado` + nav de mercado.
+    if (await isGuestRequest((n) => req.headers.get(n))) {
+      headers["x-acaquant-portal"] = "guest";
     }
     const res = await fetch(`${API_URL}/api/me`, { headers, cache: "no-store" });
     const text = await res.text();

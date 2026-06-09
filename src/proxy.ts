@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { trustedEmail } from "./lib/cf-access";
+import { isGuestRequest, trustedEmail } from "./lib/cf-access";
 
 /**
  * Proxy (Next.js 16+) — antes se llamaba middleware.
@@ -66,6 +66,11 @@ export async function proxy(request: NextRequest) {
   // Email de confianza: con validación CF activa sale del sello firmado
   // (no spoofeable); si no, del header de texto plano. Ver lib/cf-access.ts.
   const email = (await trustedEmail((n) => request.headers.get(n))).toLowerCase();
+  // Portal invitado (www): el aud del sello firmado de CF identifica al invitado.
+  // Sin esto, /api/me devolvería el rol del email (sales) → un invitado tipeando
+  // /back-office entraría (sales lo tiene). Con el header, /api/me da `invitado`
+  // (sin back-office) → lo redirige a home.
+  const guest = await isGuestRequest((n) => request.headers.get(n));
 
   // Sanitización: borramos cualquier email que venga en el request entrante
   // (spoofeado si alguien saltea Cloudflare) y seteamos SOLO el verificado. Así
@@ -105,6 +110,7 @@ export async function proxy(request: NextRequest) {
     headers["CF-Access-Client-Id"] = cfId;
     headers["CF-Access-Client-Secret"] = cfSecret;
   }
+  if (guest) headers["x-acaquant-portal"] = "guest";
 
   // En prod (API_URL definido) si el fetch a /api/me falla cerramos por
   // defecto: redirigimos al home en vez de dejar pasar. El comentario
@@ -116,7 +122,10 @@ export async function proxy(request: NextRequest) {
   // por un instante. Fail-closed evita ese flash.
   try {
     // Cache hit: evita el round-trip al backend en navegaciones seguidas.
-    const cached = email ? meCache.get(email) : undefined;
+    // Key separada por portal: el mismo email vía www (invitado) y vía trading
+    // (su rol real) no debe compartir módulos cacheados.
+    const meKey = guest ? `guest:${email}` : email;
+    const cached = meKey ? meCache.get(meKey) : undefined;
     let modules: string[];
     if (cached && cached.exp > Date.now()) {
       modules = cached.modules;
@@ -129,7 +138,7 @@ export async function proxy(request: NextRequest) {
       }
       const me = (await res.json()) as { modules: string[] };
       modules = me.modules ?? [];
-      if (email) meCache.set(email, { modules, exp: Date.now() + ME_TTL_MS });
+      if (meKey) meCache.set(meKey, { modules, exp: Date.now() + ME_TTL_MS });
     }
     const ok = requiredModules.some((m) => modules.includes(m));
     if (!ok) {

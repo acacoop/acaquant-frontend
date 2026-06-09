@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { headers } from "next/headers";
-import { trustedEmail } from "./cf-access";
+import { isGuestRequest, trustedEmail } from "./cf-access";
 
 export type Me = {
   email: string;
@@ -44,6 +44,10 @@ export const getMe = cache(async function getMe(): Promise<Me | null> {
   if (CF_ID && CF_SECRET) {
     authHeaders["CF-Access-Client-Id"] = CF_ID;
     authHeaders["CF-Access-Client-Secret"] = CF_SECRET;
+  }
+  // Portal invitado (www): el backend devuelve rol `invitado` + nav de mercado.
+  if (await isGuestRequest((n) => hdrs.get(n))) {
+    authHeaders["x-acaquant-portal"] = "guest";
   }
 
   try {

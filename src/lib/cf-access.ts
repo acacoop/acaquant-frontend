@@ -14,6 +14,11 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 // exacto de iss/aud y rechazaba sellos legítimos.
 const TEAM = (process.env.CF_ACCESS_TEAM_DOMAIN || "").trim();
 const AUD = (process.env.CF_ACCESS_AUD || "").trim();
+// AUD de la app de Access del PORTAL DE INVITADOS (www.acaquant.com). Si está
+// seteada, un JWT con ese aud identifica a un invitado de forma NO spoofeable
+// (lo firma CF). El deploy queda inerte hasta agregarla en Vercel:
+//   CF_ACCESS_AUD_GUEST = <AUD tag de la app de Access de www.acaquant.com>
+const AUD_GUEST = (process.env.CF_ACCESS_AUD_GUEST || "").trim();
 
 export function cfAccessEnforced(): boolean {
   return Boolean(TEAM && AUD);
@@ -27,18 +32,47 @@ function jwks() {
   return _jwks;
 }
 
+// Verifica el sello contra CUALQUIERA de los aud conocidos (trading + invitado),
+// así el mismo código valida usuarios de los dos portales.
+function verifyAnyAud(jwt: string) {
+  const auds = [AUD, AUD_GUEST].filter(Boolean);
+  return jwtVerify(jwt, jwks(), {
+    issuer: `https://${TEAM}`,
+    ...(auds.length ? { audience: auds } : {}),
+  });
+}
+
 /** Email verificado desde el sello firmado de CF, o null si falta / no valida. */
 export async function verifiedEmailFromJwt(jwt: string | null | undefined): Promise<string | null> {
   if (!jwt) return null;
   try {
-    const { payload } = await jwtVerify(jwt, jwks(), {
-      issuer: `https://${TEAM}`,
-      audience: AUD,
-    });
+    const { payload } = await verifyAnyAud(jwt);
     const email = typeof payload.email === "string" ? payload.email : "";
     return email ? email.toLowerCase().trim() : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * True si el request entró por la app de Access del portal de invitados (www) —
+ * el `aud` del sello firmado coincide con CF_ACCESS_AUD_GUEST. No spoofeable: lo
+ * firma Cloudflare. Inerte (siempre false) hasta que se configure el aud de www.
+ * Lo usan getMe() y proxyToBackend() para mandar `x-acaquant-portal: guest`.
+ */
+export async function isGuestRequest(
+  getHeader: (name: string) => string | null | undefined,
+): Promise<boolean> {
+  if (!AUD_GUEST || !TEAM) return false;
+  const jwt = getHeader("cf-access-jwt-assertion");
+  if (!jwt) return false;
+  try {
+    const { payload } = await verifyAnyAud(jwt);
+    const aud = payload.aud;
+    const list = Array.isArray(aud) ? aud : aud ? [aud] : [];
+    return list.includes(AUD_GUEST);
+  } catch {
+    return false;
   }
 }
 
