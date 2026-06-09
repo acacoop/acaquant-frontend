@@ -3244,7 +3244,7 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
       <div className="grid grid-cols-4 gap-2">
         <OnField label="Asset (ticker corto)"><input className={_onInput} value={form.asset} onChange={(e) => setForm({ ...form, asset: e.target.value })} placeholder="YM40O" /></OnField>
         <OnField label="Emisor"><input className={_onInput} value={form.emisor} onChange={(e) => setForm({ ...form, emisor: e.target.value })} placeholder="YPF" /></OnField>
-        <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option>USD</option><option>ARS</option></select></OnField>
+        <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option value="USD">USD (hard dollar)</option><option value="DL">DL (dólar linked)</option><option value="ARS">ARS (peso)</option></select></OnField>
         <OnField label="Sector"><select className={_onInput} value={form.sector} onChange={(e) => setForm({ ...form, sector: e.target.value })}>{ON_SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}</select></OnField>
         <OnField label="Tasa cupón (ej 0.075)"><input className={_onInput} value={form.tasa_cupon} onChange={(e) => setForm({ ...form, tasa_cupon: e.target.value })} placeholder="0.075" /></OnField>
         <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.vencimiento} onChange={(e) => setForm({ ...form, vencimiento: e.target.value })} /></OnField>
@@ -3422,7 +3422,7 @@ function TabONs() {
   const [prefillKey, setPrefillKey] = useState(0);
 
   const darDeAlta = (g: ONGap) => {
-    setPrefill({ asset: g.ticker || "", emisor: g.emisor || "", moneda_flujo: g.cartera === "DL" ? "ARS" : "USD" });
+    setPrefill({ asset: g.ticker || "", emisor: g.emisor || "", moneda_flujo: g.cartera === "DL" ? "DL" : "USD" });
     setPrefillKey((k) => k + 1);
     setSub("alta");
   };
