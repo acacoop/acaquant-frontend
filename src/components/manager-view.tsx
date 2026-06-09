@@ -3016,36 +3016,6 @@ function _onNum(s: string): number {
   const n = parseFloat(t);
   return Number.isFinite(n) ? n : 0;
 }
-function _onFecha(s: string): string {
-  const t = (s || "").trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
-  const m = t.match(/^(\d{1,2})[/](\d{1,2})[/](\d{2,4})/);
-  if (m) {
-    const y = m[3].length === 2 ? "20" + m[3] : m[3];
-    return `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-  }
-  return "";
-}
-/** Parsea una tabla pegada de Excel (tab-separada): fecha, amort, interés, residual. */
-function parseFlujosExcel(text: string): ONFlujo[] {
-  const out: ONFlujo[] = [];
-  for (const raw of (text || "").split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    let cols = line.split("\t").map((c) => c.trim());
-    if (cols.length < 2) cols = line.split(/\s+/);
-    const fecha = _onFecha(cols[0] || "");
-    if (!fecha) continue; // saltea encabezados / filas sin fecha válida
-    out.push({
-      fecha,
-      amortizacion: _onNum(cols[1] || "0"),
-      interes: _onNum(cols[2] || "0"),
-      valor_residual: cols[3] != null && cols[3] !== "" ? _onNum(cols[3]) : 100,
-    });
-  }
-  return out;
-}
-
 const _onInput =
   "bg-[var(--t-surface-2)] border border-[var(--t-border)] px-1.5 py-0.5 text-[11px] w-full";
 
@@ -3141,30 +3111,63 @@ function TabOnsSegmentar() {
   );
 }
 
-function TabOnsAlta() {
+interface ONPrefill { asset?: string; emisor?: string; moneda_flujo?: string }
+
+function TabOnsAlta({ prefill }: { prefill?: ONPrefill | null }) {
   const empty = { asset: "", emisor: "", moneda_flujo: "USD", tasa_cupon: "", vencimiento: "", sector: "otros", tkARS: "", tkUSD: "" };
-  const [form, setForm] = useState({ ...empty });
+  // prefill viene del conciliador (botón "dar de alta"); el padre fuerza remount
+  // con key, así el initializer lo toma sin efectos.
+  const [form, setForm] = useState({
+    ...empty,
+    ...(prefill ? { asset: prefill.asset || "", emisor: prefill.emisor || "", moneda_flujo: prefill.moneda_flujo || "USD" } : {}),
+  });
   const [flujosText, setFlujosText] = useState("");
+  const [flujos, setFlujos] = useState<ONFlujo[]>([]);
+  const [formato, setFormato] = useState<string>("");
   const [existentes, setExistentes] = useState<ONMaster[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch("/api/manager/ons").then((r) => r.json()).then((d: { ons: ONMaster[] }) => setExistentes(d.ons || [])).catch(() => {});
+    let alive = true;
+    fetch("/api/manager/ons").then((r) => r.json())
+      .then((d: { ons: ONMaster[] }) => { if (alive) setExistentes(d.ons || []); }).catch(() => {});
+    return () => { alive = false; };
   }, []);
 
-  const flujos = useMemo(() => parseFlujosExcel(flujosText), [flujosText]);
   const sumAmort = flujos.reduce((s, f) => s + f.amortizacion, 0);
+
+  // Parsea el texto pegado en el server (entiende el formato oficial BYMA/IAMC).
+  const parsear = async (texto: string) => {
+    if (!texto.trim()) { setFlujos([]); setFormato(""); return; }
+    try {
+      const r = await fetch("/api/manager/ons/parse-flujos", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto }),
+      });
+      const d = await r.json();
+      setFlujos(d.flujos || []);
+      setFormato(d.formato || "");
+      // Auto-completa tasa/vto si vinieron en la descarga y el form está vacío.
+      setForm((f) => ({
+        ...f,
+        tasa_cupon: f.tasa_cupon || (d.tasa_cupon != null ? String(d.tasa_cupon) : ""),
+        vencimiento: f.vencimiento || (d.vencimiento || ""),
+      }));
+    } catch { /* deja el preview vacío */ }
+  };
 
   const cargarExistente = (asset: string) => {
     const o = existentes.find((x) => x.asset === asset);
-    if (!o) { setForm({ ...empty }); setFlujosText(""); return; }
+    if (!o) { setForm({ ...empty }); setFlujosText(""); setFlujos([]); return; }
     setForm({
       asset: o.asset, emisor: o.emisor || "", moneda_flujo: (o.moneda_flujo || "USD").toUpperCase(),
       tasa_cupon: o.tasa_cupon != null ? String(o.tasa_cupon) : "", vencimiento: (o.vencimiento || "").slice(0, 10),
       sector: (o.sector || "otros").toLowerCase(), tkARS: o.tickers?.ARS || "", tkUSD: o.tickers?.USD || "",
     });
-    setFlujosText((o.flujos || []).map((f) => `${f.fecha}\t${f.amortizacion ?? 0}\t${f.interes ?? 0}\t${f.valor_residual ?? 100}`).join("\n"));
+    const txt = (o.flujos || []).map((f) => `${f.fecha}\t${f.amortizacion ?? 0}\t${f.interes ?? 0}\t${f.valor_residual ?? 100}`).join("\n");
+    setFlujosText(txt);
+    setFlujos((o.flujos || []).map((f) => ({ fecha: f.fecha, amortizacion: f.amortizacion ?? 0, interes: f.interes ?? 0, valor_residual: f.valor_residual ?? 100 })));
+    setFormato("");
     setMsg(null);
   };
 
@@ -3217,21 +3220,25 @@ function TabOnsAlta() {
 
       <div>
         <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
-          Flujos — pegá de Excel (columnas: fecha · amortización · interés · residual)
+          Flujos — pegá de Excel / la descarga oficial (se parsea solo al salir del campo)
         </span>
         <textarea
           className={_onInput + " font-mono h-28 mt-0.5"}
           value={flujosText}
           onChange={(e) => setFlujosText(e.target.value)}
-          placeholder={"2026-02-27\t0\t1.89\t100\n2026-08-28\t0\t1.89\t100\n2028-08-28\t100\t1.89\t100"}
+          onBlur={() => parsear(flujosText)}
+          placeholder={"Pegá la tabla de la descarga (con encabezados) o: fecha\tamort\tinterés\tresidual"}
         />
-        {flujos.length > 0 && (
-          <div className="text-[10px] text-[var(--t-text-muted)] mt-1">
-            {flujos.length} flujos parseados · Σ amort {sumAmort.toFixed(0)}
-            {sumAmort < 95 || sumAmort > 105 ? <span className="text-amber-500"> ⚠ debería sumar ~100</span> : <span className="text-emerald-500"> ✓</span>}
-            <span> · primer pago {flujos[0].fecha} · último {flujos[flujos.length - 1].fecha}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 mt-1">
+          <button type="button" onClick={() => parsear(flujosText)} className={_onInput + " w-auto"}>Parsear</button>
+          {flujos.length > 0 && (
+            <span className="text-[10px] text-[var(--t-text-muted)]">
+              {flujos.length} flujos{formato ? ` (${formato})` : ""} · Σ amort {sumAmort.toFixed(0)}
+              {sumAmort < 95 || sumAmort > 105 ? <span className="text-amber-500"> ⚠ ~100</span> : <span className="text-emerald-500"> ✓</span>}
+              <span> · {flujos[0].fecha} → {flujos[flujos.length - 1].fecha}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
@@ -3242,24 +3249,100 @@ function TabOnsAlta() {
         {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
       </div>
       <p className="text-[10px] text-[var(--t-text-muted)]">
-        Al guardar se sincroniza Curvas → la ON aparece en la vista con su metadata.
-        Para que COTICE en vivo (precio/TEA) hay que reiniciar los motores (o esperar el reload).
+        Al guardar se sincroniza Curvas → la ON aparece en la vista. Para que COTICE
+        en vivo (precio/TEA) hay que reiniciar los motores.
       </p>
     </div>
   );
 }
 
+interface ONGap { unidad: string; ticker: string | null; emisor: string | null; cartera: string }
+interface ONConcil { gap: ONGap[]; resumen: { total: number; cubiertas: number; faltan: number; ignoradas: number; snapshot: string | null } }
+
+function TabOnsConciliador({ onDarDeAlta }: { onDarDeAlta: (g: ONGap) => void }) {
+  const [data, setData] = useState<ONConcil | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const cargar = () => {
+    setLoading(true);
+    fetch("/api/manager/ons/conciliar").then((r) => r.json()).then(setData).finally(() => setLoading(false));
+  };
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/ons/conciliar").then((r) => r.json()).then((d) => { if (alive) setData(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const ignorar = async (ticker: string | null) => {
+    if (!ticker) return;
+    await fetch("/api/manager/ons/ignorar", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }),
+    }).catch(() => {});
+    cargar();
+  };
+
+  const r = data?.resumen;
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-3 mb-2 text-[11px]">
+        <span className="text-[var(--t-text-muted)]">
+          {r ? `HD/DL de clientes: ${r.total} · en Curvas: ${r.cubiertas} · faltan: ` : "cargando…"}
+          {r && <span className="text-amber-500 font-semibold">{r.faltan}</span>}
+          {r && r.ignoradas ? <span className="text-[var(--t-text-muted)]"> · ignoradas: {r.ignoradas}</span> : null}
+        </span>
+        <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
+      </div>
+      <table>
+        <thead>
+          <tr><th>Ticker</th><th>Emisor</th><th>Cartera</th><th>Unidad (Aunesa)</th><th></th></tr>
+        </thead>
+        <tbody>
+          {(data?.gap || []).map((g) => (
+            <tr key={g.unidad}>
+              <td className="font-semibold">{g.ticker || "--"}</td>
+              <td className="text-[var(--t-text-muted)]">{g.emisor || "--"}</td>
+              <td className="text-[var(--t-text-muted)]">{g.cartera}</td>
+              <td className="text-[var(--t-text-muted)] text-[10px] truncate max-w-[200px]" title={g.unidad}>{g.unidad}</td>
+              <td className="whitespace-nowrap">
+                <button type="button" onClick={() => onDarDeAlta(g)}
+                  className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">dar de alta</button>
+                <button type="button" onClick={() => ignorar(g.ticker)}
+                  className="px-1.5 py-0.5 text-[10px] text-[var(--t-text-muted)] border border-[var(--t-border)]">ignorar</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {data && data.gap.length === 0 && (
+        <p className="text-[11px] text-emerald-500 mt-2">✓ No falta ninguna HD/DL — todo lo que tienen los clientes está en Curvas.</p>
+      )}
+    </div>
+  );
+}
+
 function TabONs() {
-  const [sub, setSub] = usePersistedState<"segmentar" | "alta">("manager.ons.sub", "segmentar");
+  const [sub, setSub] = usePersistedState<"conciliador" | "segmentar" | "alta">("manager.ons.sub", "conciliador");
+  const [prefill, setPrefill] = useState<ONPrefill | null>(null);
+  const [prefillKey, setPrefillKey] = useState(0);
+
+  const darDeAlta = (g: ONGap) => {
+    setPrefill({ asset: g.ticker || "", emisor: g.emisor || "", moneda_flujo: g.cartera === "DL" ? "ARS" : "USD" });
+    setPrefillKey((k) => k + 1);
+    setSub("alta");
+  };
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+        <Pill label="CONCILIADOR" active={sub === "conciliador"} onClick={() => setSub("conciliador")} />
         <Pill label="SEGMENTAR" active={sub === "segmentar"} onClick={() => setSub("segmentar")} />
         <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "conciliador" && <TabOnsConciliador onDarDeAlta={darDeAlta} />}
         {sub === "segmentar" && <TabOnsSegmentar />}
-        {sub === "alta" && <TabOnsAlta />}
+        {sub === "alta" && <TabOnsAlta key={prefillKey} prefill={prefill} />}
       </div>
     </div>
   );
