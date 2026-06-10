@@ -66,8 +66,8 @@ export function ScannerView({
           </div>
         </div>
 
-        {/* DERECHA: 40% MÉTRICAS arriba + 60% CHART abajo */}
-        <div className="min-w-0 min-h-0 grid grid-rows-[2fr_3fr] gap-3">
+        {/* DERECHA: 50% MÉTRICAS arriba + 50% CHART abajo (alinea con la izquierda) */}
+        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
           <Panel title="MÉTRICAS" expandable>
             <PivotPointsPanel ticker={selectedTicker} />
           </Panel>
