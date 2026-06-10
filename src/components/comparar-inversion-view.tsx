@@ -20,7 +20,7 @@ import {
  * (tabla de métricas izq, gráfico de cupones der) ocupando todo el espacio.
  */
 
-interface BonoSeleccionable {
+export interface BonoSeleccionable {
   id: string;
   ticker: string;
   ticker_corto: string;
@@ -231,8 +231,8 @@ function MetricRow({
 const COLOR_A = "#ff9900";
 const COLOR_B = "#3fbf6f";
 
-export function CompararInversionView() {
-  const [bonos, setBonos] = useState<BonoSeleccionable[]>([]);
+export function CompararInversionView({ bonos }: { bonos: BonoSeleccionable[] }) {
+  // La lista de bonos llega filtrada por curva desde el contenedor (Estrategia).
   const [aId, setAId] = useState("");
   const [bId, setBId] = useState("");
   const [monto, setMonto] = useState("1000000");
@@ -246,13 +246,6 @@ export function CompararInversionView() {
   const [data, setData] = useState<CompararResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/comparar/bonos", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((j) => setBonos(j as BonoSeleccionable[]))
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
 
   useEffect(() => {
     if (!aId || !bId) {
