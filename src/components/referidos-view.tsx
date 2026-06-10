@@ -172,7 +172,7 @@ export function ReferidosView() {
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
           {/* IZQUIERDA */}
           <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
-            <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
               <div className={HDR}>
                 <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{isRend ? "Rendimiento (TWR)" : "Valuación / AUM"} · {moneda}</span>
                 <span className="text-[9px] text-[var(--t-text-muted)] truncate">{sel ? (selCli?.denominacion || sel) : "Todo el referido"}</span>
@@ -202,7 +202,7 @@ export function ReferidosView() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
               <div className={HDR}>
                 <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes referidos</span>
                 <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
@@ -240,7 +240,7 @@ export function ReferidosView() {
           {/* DERECHA: sin cliente → posición del referido; con cliente → detalle + PnL */}
           <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
             {!sel ? (
-              <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
                 <div className={HDR}>
                   <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición del referido · {moneda}</span>
                   <span className="text-[9px] text-[var(--t-text-muted)]">{data?.posiciones?.length ?? 0} títulos</span>
@@ -268,7 +268,7 @@ export function ReferidosView() {
               <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-dim)]">cargando…</div>
             ) : (
               <>
-                <div className="shrink-0 border border-[var(--t-border)] overflow-hidden">
+                <div className="shrink-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
                   <div className={HDR}>
                     <span className="text-[11px] font-semibold truncate" title={selCli.denominacion}>{selCli.denominacion}</span>
                     <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tabular-nums">Cuenta {selCli.id_cuenta}</span>
@@ -283,7 +283,7 @@ export function ReferidosView() {
                   </div>
                 </div>
 
-                <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
                   <div className={HDR}>
                     <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición & PnL títulos · {moneda}</span>
                   </div>
