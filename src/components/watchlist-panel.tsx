@@ -43,13 +43,17 @@ function fmtTna(v: number | null | undefined): string {
   return `${v.toFixed(2)}%`;
 }
 
-// Hora de última actualización (HH:MM:SS local) a partir de un ISO.
+// Hora de última actualización SIEMPRE en hora Argentina (las fuentes mezclan
+// timestamps con y sin timezone → si no trae tz, asumimos UTC, que es lo que
+// escriben los motores/jobs; y forzamos el display a ART sin importar el browser).
 function fmtAct(ts: string | null | undefined): string {
   if (!ts) return "—";
-  const d = new Date(ts);
+  const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(ts);
+  const d = new Date(hasTz ? ts : ts + "Z");
   if (isNaN(d.getTime())) return "—";
   return d.toLocaleTimeString("es-AR", {
     hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    timeZone: "America/Argentina/Buenos_Aires",
   });
 }
 
