@@ -55,7 +55,7 @@
   --t-border-2: #aab6c9;  /* borde fuerte / inputs */
   --t-text: #0d1830;      /* texto principal casi-negro azulado */
   --t-text-dim: #44546f;  /* texto secundario */
-  --t-text-muted: #8190a6;/* texto apagado / labels */
+  --t-text-muted: #5f6d86;/* texto apagado / labels (oscurecido: en blanco el gris claro se leía flojo) */
   --t-accent: #094293;    /* acento = azul de empresa (en claro no es naranja) */
   --t-brand: #094293;
   --t-on-accent: #ffffff; /* texto sobre el acento = BLANCO (sobre azul empresa) */
@@ -81,6 +81,16 @@
 .light .font-medium,
 .light .tabular-nums {
   font-weight: 600;
+}
+
+/* Modo claro: ejes/ticks de los gráficos recharts en oscuro + negrita. Sobre
+   blanco los ticks en gris (fill var(--t-text-dim/muted)) se leían flojos. El
+   fill inline del tick necesita !important para ganarle. SOLO claro. */
+.light .recharts-cartesian-axis-tick-value,
+.light .recharts-label,
+.light .recharts-text {
+  fill: var(--t-text) !important;
+  font-weight: 700;
 }
 
 /* Marca de agua: logo de empresa de fondo, MUY tenue, SOLO en modo claro.

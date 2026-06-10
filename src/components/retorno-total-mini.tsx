@@ -246,7 +246,7 @@ export function RetornoTotalMini({
     const el = containerRef.current;
     if (!el || tickers.length === 0) return;
 
-    const txt = isLight ? "#5a6678" : "#8a8a8a";
+    const txt = isLight ? "#16203a" : "#8a8a8a";
     const grid = isLight ? "#eef2f7" : "#141414";
     const border = isLight ? "#aab6c9" : "#2a2a2a";
     const bg = isLight ? "#ffffff" : "#080808";
