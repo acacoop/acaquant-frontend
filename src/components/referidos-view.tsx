@@ -1,29 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { fmtMoney } from "@/lib/fmt-money";
 
 /**
- * /referidos — vista para la EMPRESA referidora. Solo le importan SUS cuentas:
- * cuánto operan, su AuM, los rendimientos/valuación (estilo CARTERAS) y los
- * aranceles que generaron. SIN operador/segmento/ficha.
+ * /referidos — vista para la EMPRESA referidora. Solo sus cuentas: cuánto operan,
+ * AuM, rendimientos/valuación (estilo CARTERAS) y aranceles. Sin operador/segmento.
  *
- * Layout 50/50:
- *   · Izq: chart valuación/AUM (scope o cliente) + tabla de clientes referidos.
- *   · Der: cliente elegido → detalle vol/arancel (mes/año) + posición & PnL títulos.
- * Reusa /comercial/serie (chart), /comercial/referido-clientes (tabla, nuevo),
- * /aum-pnl (posición+PnL). Switch ARS/USD.
+ * Izq: chart valuación (GUITA) o rendimiento (TWR, por cliente) + tabla de clientes.
+ * Der: sin cliente → posición agregada del referido; con cliente → vol/arancel +
+ * posición & PnL de títulos. Switch ARS/USD.
  */
 
 type ClienteRow = {
   id_cuenta: string; denominacion: string; aum: number;
   vol_mes: number; vol_ano: number; arancel_mes: number; arancel_total: number;
 };
+type Posicion = { unidad: string; valuacion: number; pct: number };
 type Resumen = { n_clientes: number; aum_total: number; vol_mes: number; vol_ano: number; arancel_mes: number; arancel_total: number };
-type RefResp = { referido: string; moneda: string; clientes: ClienteRow[]; resumen: Resumen };
+type RefResp = { referido: string; moneda: string; clientes: ClienteRow[]; posiciones: Posicion[]; resumen: Resumen };
 type SeriePt = { fecha: string; valor: number };
+type MensualRow = { mes: string; twr_base100: number; twr_base100_usd: number };
+type MensualResp = { meses: MensualRow[] };
 type PnLRow = {
   ticker: string; display_name?: string;
   valor_actual_aum: number; valor_actual_usd?: number | null;
@@ -35,6 +35,7 @@ type PnLResp = { rows: PnLRow[]; totales: Record<string, number> };
 const TODOS = "__todos__";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
 const pnlColor = (v: number | null | undefined) => (v == null ? "var(--t-text-muted)" : v >= 0 ? "var(--t-pos)" : "var(--t-neg)");
+const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2";
 
 async function getJson<T>(url: string): Promise<T | null> {
   try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
@@ -44,13 +45,14 @@ export function ReferidosView() {
   const [referidos, setReferidos] = useState<{ ref: string; n: number }[]>([]);
   const [referido, setReferido] = usePersistedState<string>("referidos.ref", "");
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("referidos.moneda", "ARS");
+  const [chartMetric, setChartMetric] = usePersistedState<"guita" | "rend">("referidos.metric", "guita");
   const [data, setData] = useState<RefResp | null>(null);
   const [serie, setSerie] = useState<SeriePt[]>([]);
+  const [mensual, setMensual] = useState<MensualResp | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [pnl, setPnl] = useState<PnLResp | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Lista de referidos (distinct de /comercial/dimensiones).
   useEffect(() => {
     void (async () => {
       const d = await getJson<{ combos: { referido: string | null; n_cuentas: number }[] }>("/api/operaciones/comercial/dimensiones");
@@ -61,11 +63,9 @@ export function ReferidosView() {
     })();
   }, []);
 
-  // Clientes + resumen del referido.
   useEffect(() => {
     if (!referido) { setData(null); setSel(null); return; }
-    let alive = true;
-    setLoading(true);
+    let alive = true; setLoading(true);
     void (async () => {
       const d = await getJson<RefResp>(`/api/operaciones/comercial/referido-clientes?referido=${encodeURIComponent(referido)}&moneda=${moneda}`);
       if (alive) { setData(d); setSel(null); setLoading(false); }
@@ -73,7 +73,7 @@ export function ReferidosView() {
     return () => { alive = false; };
   }, [referido, moneda]);
 
-  // Serie valuación/AUM: scope (referido) o cliente seleccionado.
+  // GUITA: serie valuación/AUM (scope o cliente).
   useEffect(() => {
     if (!referido) { setSerie([]); return; }
     let alive = true;
@@ -87,7 +87,18 @@ export function ReferidosView() {
     return () => { alive = false; };
   }, [referido, sel, moneda]);
 
-  // PnL + posición del cliente seleccionado.
+  // RENDIMIENTO (TWR): mensual del cliente (como CARTERAS). Solo con cliente.
+  useEffect(() => {
+    if (chartMetric !== "rend" || !sel) { setMensual(null); return; }
+    let alive = true;
+    void (async () => {
+      const d = await getJson<MensualResp>(`/api/valuaciones/${encodeURIComponent(sel)}/mensual`);
+      if (alive) setMensual(d);
+    })();
+    return () => { alive = false; };
+  }, [chartMetric, sel]);
+
+  // PnL + posición del cliente.
   useEffect(() => {
     if (!sel) { setPnl(null); return; }
     let alive = true;
@@ -102,15 +113,37 @@ export function ReferidosView() {
   const res = data?.resumen;
   const usd = moneda === "USD";
   const selCli = clientes.find((c) => c.id_cuenta === sel) || null;
+  const isRend = chartMetric === "rend";
+
+  // Datos del chart: rendimiento % (TWR) o valuación clampeada a >= 0.
+  const chartData = useMemo<SeriePt[]>(() => {
+    if (isRend) {
+      if (!sel || !mensual) return [];
+      return [...mensual.meses].reverse().map((m) => ({ fecha: m.mes, valor: (usd ? m.twr_base100_usd : m.twr_base100) - 100 }));
+    }
+    return serie.map((p) => ({ fecha: p.fecha, valor: Math.max(0, p.valor) }));
+  }, [isRend, sel, mensual, serie, usd]);
+
+  // Eje Y: rendimiento auto (puede ser negativo); valuación con piso ~0 (una cuenta
+  // nunca vale negativo; la base queda apenas debajo de 0 para que no quede pegado).
+  const yDomain = useMemo<[number | string, number | string]>(() => {
+    if (isRend) return ["auto", "auto"];
+    const vals = chartData.map((d) => d.valor);
+    if (!vals.length) return [0, "auto"];
+    const maxV = Math.max(...vals, 1);
+    const minV = Math.min(...vals);
+    const floor = minV > 0 ? minV * 0.9 : -(maxV * 0.04);
+    return [floor, maxV * 1.06];
+  }, [isRend, chartData]);
+
   const pnlValor = (r: PnLRow) => (usd ? r.valor_actual_usd ?? null : r.valor_actual_aum);
   const pnlNoReal = (r: PnLRow) => (usd ? r.pnl_no_realizado_usd ?? null : r.pnl_no_realizado);
   const pnlTot = (r: PnLRow) => (usd ? r.pnl_total_usd ?? null : r.pnl_total);
-
   const selCls = "bg-[var(--t-surface)] border text-[var(--t-text)] text-[11px] px-2 py-1 font-mono outline-none";
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex-wrap">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Referidos</span>
         <select value={referido} onChange={(e) => setReferido(e.target.value)} className={selCls + " border-[var(--t-accent)] max-w-[260px]"}>
           <option value="">— Elegí un referido —</option>
@@ -140,20 +173,29 @@ export function ReferidosView() {
           {/* IZQUIERDA */}
           <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
             <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-              <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Valuación / AUM · {moneda}</span>
+              <div className={HDR}>
+                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{isRend ? "Rendimiento (TWR)" : "Valuación / AUM"} · {moneda}</span>
                 <span className="text-[9px] text-[var(--t-text-muted)] truncate">{sel ? (selCli?.denominacion || sel) : "Todo el referido"}</span>
+                <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                  {([["guita", "Guita"], ["rend", "Rendim."]] as [("guita" | "rend"), string][]).map(([k, l]) => (
+                    <button key={k} onClick={() => setChartMetric(k)} className={"px-1.5 py-0.5 text-[9px] font-semibold " + (chartMetric === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{l}</button>
+                  ))}
+                </div>
               </div>
               <div className="flex-1 min-h-0 p-1">
-                {serie.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin serie.</p> : (
+                {isRend && !sel ? (
+                  <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un cliente para ver el rendimiento (TWR), como en Carteras.</p>
+                ) : chartData.length === 0 ? (
+                  <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin serie.</p>
+                ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={serie} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                      <defs><linearGradient id="ref-aum" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.4} /><stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.03} /></linearGradient></defs>
+                    <AreaChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                      <defs><linearGradient id="ref-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.4} /><stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.03} /></linearGradient></defs>
                       <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" />
                       <XAxis dataKey="fecha" tickFormatter={fmtFecha} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={28} />
-                      <YAxis tickFormatter={(v) => fmtMoney(v as number)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={54} />
-                      <Tooltip contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }} labelFormatter={(l) => fmtFecha(String(l))} formatter={(v) => [`${moneda} ${fmtMoney(Number(v))}`, "Valuación"]} />
-                      <Area type="monotone" dataKey="valor" stroke="var(--t-accent)" strokeWidth={2} fill="url(#ref-aum)" isAnimationActive={false} dot={false} />
+                      <YAxis domain={yDomain} tickFormatter={(v) => (isRend ? `${(v as number).toFixed(0)}%` : fmtMoney(v as number))} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={isRend ? 40 : 54} />
+                      <Tooltip contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }} labelFormatter={(l) => fmtFecha(String(l))} formatter={(v) => [isRend ? `${Number(v) >= 0 ? "+" : ""}${Number(v).toFixed(2)}%` : `${moneda} ${fmtMoney(Number(v))}`, isRend ? "Rendimiento" : "Valuación"]} />
+                      <Area type="monotone" dataKey="valor" stroke="var(--t-accent)" strokeWidth={2} fill="url(#ref-area)" isAnimationActive={false} dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -161,7 +203,7 @@ export function ReferidosView() {
             </div>
 
             <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-              <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
+              <div className={HDR}>
                 <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes referidos</span>
                 <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
               </div>
@@ -195,16 +237,45 @@ export function ReferidosView() {
             </div>
           </div>
 
-          {/* DERECHA */}
+          {/* DERECHA: sin cliente → posición del referido; con cliente → detalle + PnL */}
           <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
-            {!sel || !selCli ? (
-              <div className="flex-1 flex items-center justify-center border border-[var(--t-border)] p-3 text-center text-[11px] text-[var(--t-text-dim)]">Elegí un cliente para ver su detalle, posición y PnL de títulos.</div>
+            {!sel ? (
+              <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+                <div className={HDR}>
+                  <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición del referido · {moneda}</span>
+                  <span className="text-[9px] text-[var(--t-text-muted)]">{data?.posiciones?.length ?? 0} títulos</span>
+                </div>
+                <div className="flex-1 min-h-0 overflow-auto">
+                  {(data?.posiciones?.length ?? 0) === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posición.</p> : (
+                    <table className="w-full text-[10px]">
+                      <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                        <th className="text-left !px-2">Título</th><th className="text-right !px-2">Valuación</th><th className="text-right !px-2">%</th>
+                      </tr></thead>
+                      <tbody>
+                        {(data?.posiciones ?? []).map((p, i) => (
+                          <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
+                            <td className="!px-2 truncate max-w-[200px]" title={p.unidad}>{p.unidad}</td>
+                            <td className="!px-2 text-right tabular-nums">{fmtMoney(p.valuacion)}</td>
+                            <td className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">{p.pct.toFixed(1)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            ) : !selCli ? (
+              <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-dim)]">cargando…</div>
             ) : (
               <>
-                <div className="shrink-0 border border-[var(--t-border)] p-3">
-                  <div className="text-[12px] font-semibold truncate" title={selCli.denominacion}>{selCli.denominacion}</div>
-                  <div className="text-[9px] text-[var(--t-text-muted)] tabular-nums mb-2">Cuenta {selCli.id_cuenta} · AuM {moneda} {fmtMoney(selCli.aum)}</div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono">
+                <div className="shrink-0 border border-[var(--t-border)] overflow-hidden">
+                  <div className={HDR}>
+                    <span className="text-[11px] font-semibold truncate" title={selCli.denominacion}>{selCli.denominacion}</span>
+                    <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tabular-nums">Cuenta {selCli.id_cuenta}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono p-3">
+                    <Det label={`AuM ${moneda}`} value={fmtMoney(selCli.aum)} />
+                    <Det label="" value="" />
                     <Det label={`Vol mes ${moneda}`} value={fmtMoney(selCli.vol_mes)} />
                     <Det label={`Vol año ${moneda}`} value={fmtMoney(selCli.vol_ano)} />
                     <Det label={`Arancel mes ${moneda}`} value={fmtMoney(selCli.arancel_mes)} accent />
@@ -213,7 +284,7 @@ export function ReferidosView() {
                 </div>
 
                 <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-                  <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+                  <div className={HDR}>
                     <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición & PnL títulos · {moneda}</span>
                   </div>
                   <div className="flex-1 min-h-0 overflow-auto">
@@ -255,6 +326,7 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
 }
 
 function Det({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  if (!label) return <div />;
   return (
     <div className="flex justify-between gap-2">
       <span className="text-[var(--t-text-muted)]">{label}</span>
