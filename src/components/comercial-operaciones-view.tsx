@@ -19,6 +19,7 @@ import { fmtMoney } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 import { ComercialInforme } from "./comercial-informe-view";
+import { CobrosFuturosView } from "./cobros-futuros-view";
 
 // Vista COMERCIAL (en OPERACIONES) — lente por operador.
 // Layout:
@@ -202,7 +203,7 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
 ];
 
 // Sub-vistas de COMERCIAL (sub-nav arriba-izquierda).
-type SubView = "portfolio" | "analisis" | "informe";
+type SubView = "portfolio" | "analisis" | "informe" | "cobros_futuros";
 
 // Estado comercial: color + label para las badges de la vista Análisis.
 const ESTADO_COLOR: Record<string, string> = {
@@ -481,7 +482,7 @@ export function ComercialOperacionesView(
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["informe", "Informe"]] as [SubView, string][]).map(
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"]] as [SubView, string][]).map(
             ([v, label]) => (
               <button
                 key={v}
@@ -510,6 +511,7 @@ export function ComercialOperacionesView(
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {subview === "informe" && <ComercialInforme moneda={moneda} />}
+      {subview === "cobros_futuros" && <CobrosFuturosView operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
       {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
