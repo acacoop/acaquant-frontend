@@ -8,41 +8,39 @@ import type {
   Companeros,
   DayTradingResp,
   DayTradingRow,
-  MinuteBar,
   TapeTrade,
 } from "@/lib/types-estrategia";
 import { AccionChip } from "./estrategia-shared";
 import { TableHelp } from "./help-tooltip";
+import { Panel } from "./panel";
+import { TickerChartPanel } from "./ticker-chart-panel";
 
 /**
  * TRADE LAB — asistente de day-trading intradía de CEDEARs.
  *
- * La pregunta que responde: "quiero capturar 0.5/1% comprando y vendiendo
- * en el día — ¿qué papel me lo está dando HOY, ahora?". Rankea el universo
- * por VUELTAS (movimientos completos ≥ objetivo que el papel ya hizo hoy,
- * medidos sobre el tape por minuto del motor), muestra dónde está parado
- * cada papel en su rango del día, el spread que te come, y dispara ALERTAS
- * cuando un papel toca piso/techo o arranca.
+ * Layout 50/50: tabla consolidada a la IZQUIERDA (ranking por vueltas),
+ * DERECHA el chart del papel seleccionado (reusa TickerChartPanel del
+ * Scanner: LIVE con nuestro feed / histórico TradingView / retornos) +
+ * el detalle (LA CUENTA, idea, se mueve con/contra, tape). Sin selección,
+ * la derecha muestra el manual rápido en criollo.
  *
  * Backend: GET /api/scanner/day-trading (api/services/day_trading.py) +
- * /api/scanner/companeros/{t} + /api/scanner/cedears/{trades,intraday}.
+ * /api/scanner/companeros/{t} + /api/scanner/cedears/trades.
  */
 
 const GLOSARIO = [
   { label: "VUELTAS",       text: "Cuántas veces HOY el papel ya hizo un movimiento completo del tamaño que buscás (subida o bajada — long y short valen igual). Es LA columna: un papel con 6 vueltas de 0.5% viene dando seis chances en el día; uno con 0, ninguna. Se mide sobre los precios por minuto del tape." },
-  { label: "COSTUMBRE",     text: "Cuántas vueltas de ese tamaño hace EN PROMEDIO por rueda (últimas ~20 ruedas). El día puede mentir; la costumbre no: un papel que da 4 vueltas por día es tu cancha, uno que da 0.5 no. Se acumula desde que el cron nocturno empezó a guardar el resumen diario." },
-  { label: "AHORA",         text: "La pata en curso: cuánto lleva recorrido el movimiento ACTUAL desde el último pivote. Si buscás 0.5% y la pata va +0.4%, estás llegando tarde para sumarte — o cerca de que pague el fade. Verde sube, rojo baja." },
+  { label: "PROM (COSTUMBRE)", text: "Cuántas vueltas de ese tamaño hace EN PROMEDIO por rueda (últimas ~20 ruedas). El día puede mentir; la costumbre no: un papel que da 4 vueltas por día es tu cancha, uno que da 0.5 no. Se acumula desde que el cron nocturno empezó a guardar el resumen diario." },
+  { label: "AHORA",         text: "La pata en curso: cuánto lleva recorrido el movimiento ACTUAL desde el último pivote. Si buscás 0.5% y la pata va +0.4%, estás llegando tarde para sumarte — o cerca de que pague el fade. Verde sube, rojo baja. El tooltip agrega el movimiento de los últimos 15' y el lado del VWAP." },
   { label: "FLUJO",         text: "De toda la plata operada hoy con lado conocido, qué % fue COMPRA (agresor comprador). Arriba de ~60% los compradores dominan; abajo de ~40%, los vendedores. El tooltip muestra el flujo de los últimos 30 minutos — el ahora." },
-  { label: "RANGO HOY",     text: "Distancia entre el mínimo y el máximo del día, en %. La barrita muestra dónde está parado AHORA el precio dentro de ese rango: pegado a la izquierda = en los pisos del día, pegado a la derecha = en los techos." },
+  { label: "RANGO",         text: "La barrita es el recorrido del día (mínimo → máximo) y la marca naranja es dónde está parado AHORA: pegado a la izquierda = en los pisos del día, a la derecha = en los techos. El tooltip trae los precios y el ancho del rango en %." },
   { label: "HOY %",         text: "Variación contra el cierre de ayer. Te dice si el papel viene verde o rojo en el día." },
-  { label: "15 MIN",        text: "Cuánto se movió en los últimos 15 minutos. Es el 'ahora mismo': un papel planchado hace horas puede estar arrancando acá." },
-  { label: "VWAP",          text: "Precio promedio del día ponderado por volumen. Si el papel opera ARRIBA del VWAP, los compradores vienen mandando; abajo, los vendedores. Cruzar el VWAP suele ser señal de cambio de mano." },
   { label: "SPREAD",        text: "La diferencia entre la punta compradora y la vendedora, en %. Es lo que pagás por entrar y salir YA (comprás caro al offer, vendés barato al bid). REGLA DE ORO: si el spread es más de la mitad de tu objetivo, el trade nace perdiendo — por eso se pinta rojo." },
-  { label: "$ HOY",         text: "Plata total operada hoy en ese papel. Si tu monto es grande comparado con esto, te va a costar entrar y salir sin mover el precio (el lab te avisa)." },
-  { label: "SI LA EMBOCÁS", text: "Tu monto × el objetivo = lo que ganás si capturás un movimiento completo. Al lado, lo que el spread te come de ese premio." },
+  { label: "💤 DORMIDO",    text: "El papel no opera hace más de 10 minutos: la fila se atenúa. Por buena que sea su estadística, sin trades no hay quién te compre ni te venda AHORA." },
+  { label: "SI LA EMBOCÁS", text: "Tu monto × el objetivo = lo que ganás si capturás un movimiento completo. En el detalle del papel está la cuenta completa: premio, lo que te come el spread, y lo que te queda." },
   { label: "IDEA",          text: "Sugerencia orientativa con su porqué (pasá el mouse): cerca del piso del día → LONG de rebote; cerca del techo → SHORT; empujando fuerte con VWAP a favor → seguir el impulso. NO es recomendación: es para mirar primero los candidatos con sentido." },
   { label: "SE MUEVE CON",  text: "Papeles que históricamente acompañan (o van al revés de) el elegido, según los cierres diarios del último año. Útil para no abrir dos trades que son LA MISMA apuesta, o para buscar el espejo short de un long." },
-  { label: "ALERTAS",       text: "Avisos en el navegador cuando un papel toca el piso/techo del día, se mueve fuerte en 15 minutos o cruza el VWAP. Funcionan mientras la pestaña esté abierta. Activá el permiso de notificaciones para verlas aunque estés en otra ventana." },
+  { label: "ALERTAS",       text: "Avisos cuando un papel toca el piso/techo del día, se mueve fuerte en 15', cruza el VWAP o ARRANCA UNA PATA del tamaño que buscás. Funcionan con la pestaña abierta; activá el permiso de notificaciones para verlas desde otra ventana." },
 ];
 
 const OBJETIVOS = [0.5, 0.75, 1, 1.5];
@@ -54,7 +52,7 @@ const MONTO_PRESETS = [
 ];
 const POLL_MS = 10_000;
 
-type SortKey = "vueltas" | "prom_vueltas" | "rango_pct" | "dia_pct" | "mom15_pct" | "spread_pct" | "total_money" | "flujo_compra_pct";
+type SortKey = "vueltas" | "prom_vueltas" | "rango_pct" | "dia_pct" | "spread_pct" | "flujo_compra_pct";
 
 // ── Alertas ──────────────────────────────────────────────────────────
 
@@ -133,14 +131,14 @@ function evaluarAlertas(
 
 // ── Helpers visuales ─────────────────────────────────────────────────
 
-function pctClass(v: number | null | undefined): string {
-  if (v == null) return "text-[var(--t-text-muted)]";
-  return v >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
-}
-
 function fmtPctS(v: number | null | undefined, dec = 2): string {
   if (v == null || !isFinite(v)) return "--";
   return `${v >= 0 ? "+" : ""}${v.toFixed(dec)}%`;
+}
+
+function pctClass(v: number | null | undefined): string {
+  if (v == null) return "text-[var(--t-text-muted)]";
+  return v >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
 }
 
 /** Barra low→high con el marcador de dónde está el precio ahora. */
@@ -149,37 +147,13 @@ function RangoBar({ r }: { r: DayTradingRow }) {
   return (
     <span
       className="relative inline-block w-full h-[8px] bg-[var(--t-border)] align-middle"
-      title={`mín $${r.low ?? "?"} · máx $${r.high ?? "?"} — está al ${r.posicion.toFixed(0)}% del rango`}
+      title={`rango hoy ${r.rango_pct ?? "?"}% · mín $${r.low ?? "?"} · máx $${r.high ?? "?"} — está al ${r.posicion.toFixed(0)}%`}
     >
       <span
         className="absolute top-[-2px] h-[12px] w-[3px] bg-[var(--t-accent)]"
         style={{ left: `calc(${r.posicion}% - 1px)` }}
       />
     </span>
-  );
-}
-
-function Sparkline({ bars }: { bars: MinuteBar[] }) {
-  const closes = bars.map((b) => b.c).filter((c): c is number => c != null && c > 0);
-  if (closes.length < 2) {
-    return <p className="text-[var(--t-text-muted)] text-[10px] py-2 text-center">Sin barras de hoy.</p>;
-  }
-  const w = 260, h = 48;
-  const min = Math.min(...closes), max = Math.max(...closes);
-  const span = max - min || 1;
-  const pts = closes
-    .map((c, i) => `${(i / (closes.length - 1)) * w},${h - ((c - min) / span) * (h - 4) - 2}`)
-    .join(" ");
-  const up = closes[closes.length - 1] >= closes[0];
-  return (
-    <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="block">
-      <polyline
-        points={pts}
-        fill="none"
-        stroke={up ? "var(--t-pos)" : "var(--t-neg)"}
-        strokeWidth="1.5"
-      />
-    </svg>
   );
 }
 
@@ -254,7 +228,7 @@ export function TradeLabView() {
     <th
       onClick={() => setSort((s) => ({ key, dir: s.key === key ? (s.dir === -1 ? 1 : -1) : -1 }))}
       title={title}
-      className="!px-2 !py-1 text-right text-[9px] tracking-wider cursor-pointer hover:text-[var(--t-accent)]"
+      className="!px-1.5 !py-1 text-right text-[9px] tracking-wider cursor-pointer hover:text-[var(--t-accent)]"
     >
       {label}{sort.key === key ? (sort.dir === -1 ? " ▼" : " ▲") : ""}
     </th>
@@ -263,7 +237,7 @@ export function TradeLabView() {
   const gananciaObjetivo = monto * objetivo / 100;
 
   return (
-    <div className="h-full min-h-0 flex flex-col p-3 gap-2 overflow-y-auto">
+    <div className="h-full min-h-0 flex flex-col p-3 gap-2">
       {/* ── Controles ───────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap shrink-0">
         <span className="flex items-center gap-1">
@@ -325,7 +299,7 @@ export function TradeLabView() {
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
           placeholder="buscar papel…"
-          className="w-[110px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
+          className="w-[100px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
         />
 
         <button
@@ -362,26 +336,23 @@ export function TradeLabView() {
         />
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 flex-1 min-h-0">
-        {/* ── Ranking ─────────────────────────────────────────────────── */}
-        <div className={`${sel ? "xl:col-span-8" : "xl:col-span-12"} border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-[300px]`}>
+      {/* ── 50/50: tabla | chart + detalle ──────────────────────────── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 flex-1 min-h-0">
+        {/* IZQUIERDA: ranking consolidado */}
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-[320px] overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto">
             <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-[var(--t-panel)] border-b border-[var(--t-border-2)] z-10">
                 <tr className="text-[var(--t-text-muted)]">
-                  <th className="!px-2 !py-1 text-left text-[9px] tracking-wider">PAPEL</th>
-                  <th className="!px-2 !py-1 text-right text-[9px] tracking-wider">ÚLTIMO</th>
+                  <th className="!px-1.5 !py-1 text-left text-[9px] tracking-wider">PAPEL</th>
                   {th("HOY", "dia_pct", "Variación vs cierre de ayer")}
-                  {th("RANGO", "rango_pct", "Mín→máx del día y dónde está parado ahora")}
-                  <th className="!px-1 !py-1 w-[80px]"></th>
-                  {th(`VUELTAS ≥${objetivo}%`, "vueltas", "Movimientos completos del tamaño buscado que YA hizo hoy")}
-                  {th("PROM", "prom_vueltas", "Costumbre: vueltas promedio por rueda (últimas ~20 ruedas)")}
-                  <th className="!px-2 !py-1 text-right text-[9px] tracking-wider" title="Pata en curso: cuánto lleva recorrido el movimiento ACTUAL desde el último pivote">AHORA</th>
-                  <th className="!px-2 !py-1 text-right text-[9px] tracking-wider" title="Arriba o abajo del precio promedio del día">VWAP</th>
-                  {th("FLUJO", "flujo_compra_pct", "% de la plata de hoy que fue COMPRA (agresor) — el tooltip de cada celda muestra los últimos 30'")}
+                  {th("RANGO", "rango_pct", "Mín→máx del día; la marca naranja es dónde está AHORA")}
+                  {th(`V≥${objetivo}%`, "vueltas", "VUELTAS: movimientos completos del tamaño buscado que YA hizo hoy")}
+                  {th("PROM", "prom_vueltas", "Costumbre: vueltas promedio por rueda (~20 ruedas)")}
+                  <th className="!px-1.5 !py-1 text-right text-[9px] tracking-wider" title="Pata en curso: cuánto lleva recorrido el movimiento ACTUAL">AHORA</th>
+                  {th("FLUJO", "flujo_compra_pct", "% de la plata de hoy que fue COMPRA — tooltip: últimos 30' y VWAP")}
                   {th("SPREAD", "spread_pct", "Lo que te come entrar y salir — rojo si es más de la mitad del objetivo")}
-                  {th("$ HOY", "total_money", "Plata operada hoy en el papel")}
-                  <th className="!px-2 !py-1 text-center text-[9px] tracking-wider">IDEA</th>
+                  <th className="!px-1.5 !py-1 text-center text-[9px] tracking-wider">IDEA</th>
                 </tr>
               </thead>
               <tbody>
@@ -395,56 +366,56 @@ export function TradeLabView() {
                       className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)] ${sel === r.ticker ? "bg-[var(--t-accent)]/10" : ""} ${dormido ? "opacity-50" : ""}`}
                       title={dormido ? `Sin operar hace ${r.min_sin_operar}' — ojo con la liquidez ahora` : undefined}
                     >
-                      <td className="!px-2 !py-1 font-mono font-semibold text-[var(--t-accent)]" title={r.nombre ?? undefined}>
+                      <td
+                        className="!px-1.5 !py-1 font-mono font-semibold text-[var(--t-accent)]"
+                        title={`${r.nombre ?? ""}${r.last != null ? ` · último $${r.last.toLocaleString("es-AR")}` : ""}${r.total_money != null ? ` · operó ${fmtMoney(r.total_money)} hoy` : ""}`}
+                      >
                         {r.ticker}
                         {dormido && <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">💤{r.min_sin_operar}{"'"}</span>}
                       </td>
-                      <td className="!px-2 !py-1 text-right font-mono tabular-nums">
-                        {r.last != null ? `$${r.last.toLocaleString("es-AR")}` : "--"}
-                      </td>
-                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${pctClass(r.dia_pct)}`}>
+                      <td className={`!px-1.5 !py-1 text-right font-mono tabular-nums ${pctClass(r.dia_pct)}`}>
                         {fmtPctS(r.dia_pct)}
                       </td>
-                      <td className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text)]">
-                        {r.rango_pct != null ? `${r.rango_pct.toFixed(2)}%` : "--"}
-                      </td>
-                      <td className="!px-1 !py-1"><RangoBar r={r} /></td>
-                      <td className="!px-2 !py-1 text-right"
-                          title={r.mejor_vuelta_pct != null ? `Mejor pata del día: ${r.mejor_vuelta_pct}%${r.vueltas_hora != null ? ` · ritmo ~${r.vueltas_hora}/hora` : ""}` : undefined}>
+                      <td className="!px-1 !py-1 w-[72px]"><RangoBar r={r} /></td>
+                      <td
+                        className="!px-1.5 !py-1 text-right"
+                        title={r.mejor_vuelta_pct != null ? `Mejor pata del día: ${r.mejor_vuelta_pct}%${r.vueltas_hora != null ? ` · ritmo ~${r.vueltas_hora}/hora` : ""}` : undefined}
+                      >
                         <span className={`font-mono tabular-nums font-bold text-[13px] ${
                           r.vueltas >= 4 ? "text-[var(--t-pos)]" : r.vueltas >= 2 ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"
                         }`}>
                           {r.vueltas}
                         </span>
                       </td>
-                      <td className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text-dim)]"
-                          title={r.prom_dias ? `Promedio sobre ${r.prom_dias} ruedas` : "Todavía sin historial — el cron nocturno lo va acumulando"}>
+                      <td
+                        className="!px-1.5 !py-1 text-right font-mono tabular-nums text-[var(--t-text-dim)]"
+                        title={r.prom_dias ? `Promedio sobre ${r.prom_dias} ruedas` : "Todavía sin historial — el cron nocturno lo va acumulando"}
+                      >
                         {r.prom_vueltas != null ? r.prom_vueltas.toFixed(1) : "--"}
                       </td>
-                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${r.pata ? (r.pata.pct >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]") : "text-[var(--t-text-muted)]"}`}
-                          title={r.pata ? `Pata ${r.pata.dir === "long" ? "alcista" : "bajista"} en curso${r.mom15_pct != null ? ` · 15': ${fmtPctS(r.mom15_pct)}` : ""}` : undefined}>
+                      <td
+                        className={`!px-1.5 !py-1 text-right font-mono tabular-nums ${r.pata ? (r.pata.pct >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]") : "text-[var(--t-text-muted)]"}`}
+                        title={r.pata ? `Pata ${r.pata.dir === "long" ? "alcista" : "bajista"} en curso${r.mom15_pct != null ? ` · 15': ${fmtPctS(r.mom15_pct)}` : ""}${r.vs_vwap_pct != null ? ` · VWAP ${r.vs_vwap_pct >= 0 ? "↑" : "↓"}${Math.abs(r.vs_vwap_pct).toFixed(2)}%` : ""}` : undefined}
+                      >
                         {r.pata ? fmtPctS(r.pata.pct) : "--"}
                       </td>
-                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${pctClass(r.vs_vwap_pct)}`}>
-                        {r.vs_vwap_pct == null ? "--" : r.vs_vwap_pct >= 0 ? "↑" : "↓"}
-                        {r.vs_vwap_pct != null ? ` ${Math.abs(r.vs_vwap_pct).toFixed(2)}%` : ""}
-                      </td>
-                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${
-                        r.flujo_compra_pct == null ? "text-[var(--t-text-muted)]"
-                        : r.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]"
-                        : r.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"
-                      }`}
-                          title={r.flujo30_compra_pct != null ? `Últimos 30': ${r.flujo30_compra_pct.toFixed(0)}% compra` : undefined}>
+                      <td
+                        className={`!px-1.5 !py-1 text-right font-mono tabular-nums ${
+                          r.flujo_compra_pct == null ? "text-[var(--t-text-muted)]"
+                          : r.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]"
+                          : r.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"
+                        }`}
+                        title={`${r.flujo30_compra_pct != null ? `Últimos 30': ${r.flujo30_compra_pct.toFixed(0)}% compra` : ""}${r.vs_vwap_pct != null ? ` · VWAP ${r.vs_vwap_pct >= 0 ? "↑ arriba" : "↓ abajo"}` : ""}`}
+                      >
                         {r.flujo_compra_pct != null ? `${r.flujo_compra_pct.toFixed(0)}%C` : "--"}
                       </td>
-                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${spreadMalo ? "text-[var(--t-neg)] font-semibold" : "text-[var(--t-text)]"}`}
-                          title={spreadMalo ? "El spread se come más de la mitad del objetivo — el trade nace perdiendo" : undefined}>
+                      <td
+                        className={`!px-1.5 !py-1 text-right font-mono tabular-nums ${spreadMalo ? "text-[var(--t-neg)] font-semibold" : "text-[var(--t-text)]"}`}
+                        title={spreadMalo ? "El spread se come más de la mitad del objetivo — el trade nace perdiendo" : undefined}
+                      >
                         {r.spread_pct != null ? `${r.spread_pct.toFixed(2)}%` : "--"}
                       </td>
-                      <td className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text-dim)]" title={fmtMoneyFull(r.total_money)}>
-                        {r.total_money != null ? fmtMoney(r.total_money) : "--"}
-                      </td>
-                      <td className="!px-2 !py-1 text-center" title={r.idea?.motivo}>
+                      <td className="!px-1.5 !py-1 text-center" title={r.idea?.motivo}>
                         {r.idea ? <AccionChip accion={r.idea.lado} /> : <span className="text-[var(--t-text-muted)]">—</span>}
                       </td>
                     </tr>
@@ -462,16 +433,48 @@ export function TradeLabView() {
           </div>
         </div>
 
-        {/* ── Detalle del papel ───────────────────────────────────────── */}
-        {sel && (
-          <DetallePapel
-            row={selRow}
-            ticker={sel}
-            monto={monto}
-            objetivo={objetivo}
-            onClose={() => setSel(null)}
-          />
-        )}
+        {/* DERECHA: chart + detalle (o el manual si no hay selección) */}
+        <div className="min-h-0 grid grid-rows-[3fr_2fr] gap-2">
+          <Panel title={sel ? `CHART — ${sel}` : "CHART"} expandable fill>
+            <TickerChartPanel ticker={sel} />
+          </Panel>
+          {sel ? (
+            <DetallePapel
+              row={selRow}
+              ticker={sel}
+              monto={monto}
+              objetivo={objetivo}
+              onClose={() => setSel(null)}
+            />
+          ) : (
+            <ManualRapido />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Manual rápido (cuando no hay papel seleccionado) ─────────────────
+
+function ManualRapido() {
+  return (
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 text-[11px] font-semibold text-[var(--t-accent)] tracking-wide shrink-0">
+        CÓMO SE USA — 30 SEGUNDOS
+      </div>
+      <div className="p-3 text-[11px] text-[var(--t-text-dim)] leading-relaxed flex flex-col gap-1.5">
+        <p><span className="text-[var(--t-accent)] font-semibold">1.</span> Poné <span className="text-[var(--t-text)]">tu monto</span> y el movimiento que <span className="text-[var(--t-text)]">buscás capturar</span> (0.5%, 1%…).</p>
+        <p><span className="text-[var(--t-accent)] font-semibold">2.</span> La tabla rankea por <span className="text-[var(--t-text)]">VUELTAS</span>: cuántas veces HOY cada papel ya hizo un movimiento de ese tamaño. <span className="text-[var(--t-text)]">PROM</span> es su costumbre histórica.</p>
+        <p><span className="text-[var(--t-accent)] font-semibold">3.</span> Mirá <span className="text-[var(--t-text)]">AHORA</span> (la pata en curso) y <span className="text-[var(--t-text)]">FLUJO</span> (quién empuja: compra o venta). La barrita de RANGO te dice si está en los pisos o techos del día.</p>
+        <p><span className="text-[var(--t-accent)] font-semibold">4.</span> <span className="text-[var(--t-neg)]">SPREAD en rojo = no hay trade</span>: te come más de la mitad del premio. Activá SOLO OPERABLES para esconderlos. 💤 = no opera hace +10&apos;.</p>
+        <p><span className="text-[var(--t-accent)] font-semibold">5.</span> Click en un papel → chart en vivo + LA CUENTA (cuánto ganás, cuánto te come el spread) + con qué papeles se mueve + el tape.</p>
+        <p><span className="text-[var(--t-accent)] font-semibold">6.</span> Armá <span className="text-[var(--t-text)]">🔔 ALERTAS</span> (&quot;arranca una pata&quot;, &quot;toca el piso&quot;, &quot;cruza el VWAP&quot;) y dejá que el lab mire por vos.</p>
+        <p className="text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)] pt-1.5 mt-1">
+          La IDEA (LONG/SHORT) es orientativa, no recomendación. Todo sale de nuestro feed
+          BYMA en vivo; el ranking solo tiene datos en horario de rueda. El glosario completo
+          está en el <span className="text-[var(--t-accent)]">?</span> de arriba.
+        </p>
       </div>
     </div>
   );
@@ -490,7 +493,7 @@ function AlertasPanel({
   tickers: string[];
 }) {
   const [tk, setTk] = useState("*");
-  const [tipo, setTipo] = useState<AlertaTipo>("mueve15");
+  const [tipo, setTipo] = useState<AlertaTipo>("pata");
   const [umbral, setUmbral] = useState("0.5");
 
   return (
@@ -593,7 +596,6 @@ function DetallePapel({
 }) {
   const [comp, setComp] = useState<Companeros | null>(null);
   const [tape, setTape] = useState<TapeTrade[]>([]);
-  const [bars, setBars] = useState<MinuteBar[]>([]);
 
   // Compañeros (correlación EOD) — 1 fetch por selección, backend cachea 300s.
   useEffect(() => {
@@ -607,17 +609,13 @@ function DetallePapel({
     return () => { alive = false; };
   }, [ticker]);
 
-  // Tape + barras del día — poll liviano mientras está seleccionado.
+  // Tape — poll liviano mientras está seleccionado.
   useEffect(() => {
     let alive = true;
     const load = () => {
-      fetch(`/api/scanner/cedears/trades?ticker=${encodeURIComponent(ticker)}&limite=14`, { cache: "no-store" })
+      fetch(`/api/scanner/cedears/trades?ticker=${encodeURIComponent(ticker)}&limite=10`, { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : []))
         .then((j: TapeTrade[]) => { if (alive) setTape(j ?? []); })
-        .catch(() => {});
-      fetch(`/api/scanner/cedears/intraday?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((j: MinuteBar[]) => { if (alive) setBars(j ?? []); })
         .catch(() => {});
     };
     load();
@@ -630,16 +628,24 @@ function DetallePapel({
   const pesoEnElDia = row?.total_money ? (monto / row.total_money) * 100 : null;
 
   return (
-    <div className="xl:col-span-4 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-[300px] overflow-y-auto">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
       <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center gap-2 shrink-0">
         <span className="font-mono font-bold text-[13px] text-[var(--t-accent)]">{ticker}</span>
         {row?.nombre && <span className="text-[10px] text-[var(--t-text-dim)] truncate">{row.nombre}</span>}
+        {row?.last != null && (
+          <span className="text-[10px] font-mono tabular-nums text-[var(--t-text)]">
+            ${row.last.toLocaleString("es-AR")}
+          </span>
+        )}
+        {row?.vs_vwap_pct != null && (
+          <span className={`text-[9px] font-mono ${pctClass(row.vs_vwap_pct)}`}>
+            VWAP {row.vs_vwap_pct >= 0 ? "↑" : "↓"}{Math.abs(row.vs_vwap_pct).toFixed(2)}%
+          </span>
+        )}
         <button onClick={onClose} className="ml-auto text-[var(--t-text-muted)] hover:text-[var(--t-neg)] text-[12px]">✕</button>
       </div>
 
-      <div className="p-3 flex flex-col gap-3 text-[11px]">
-        <Sparkline bars={bars} />
-
+      <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
         {/* La cuenta en criollo */}
         <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1">
           <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">LA CUENTA</div>
@@ -667,7 +673,7 @@ function DetallePapel({
           )}
           {row?.prom_vueltas != null && (
             <div className="flex justify-between">
-              <span className="text-[var(--t-text-dim)]">Costumbre del papel ({row.prom_dias ?? "?"} ruedas)</span>
+              <span className="text-[var(--t-text-dim)]">Costumbre ({row.prom_dias ?? "?"} ruedas)</span>
               <span className="font-mono tabular-nums text-[var(--t-text)]">
                 ~{row.prom_vueltas.toFixed(1)} vueltas/día
               </span>
@@ -675,7 +681,7 @@ function DetallePapel({
           )}
           {row?.flujo_compra_pct != null && (
             <div className="flex justify-between">
-              <span className="text-[var(--t-text-dim)]">Flujo de hoy (compra vs venta)</span>
+              <span className="text-[var(--t-text-dim)]">Flujo de hoy</span>
               <span className={`font-mono tabular-nums ${row.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]" : row.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text)]"}`}>
                 {row.flujo_compra_pct.toFixed(0)}% compra{row.flujo30_compra_pct != null ? ` · 30': ${row.flujo30_compra_pct.toFixed(0)}%` : ""}
               </span>
@@ -687,74 +693,70 @@ function DetallePapel({
               puede costarte entrar y salir sin mover el precio.
             </div>
           )}
+          {row?.idea && (
+            <div className="flex items-start gap-2 border-t border-[var(--t-border)] pt-1">
+              <AccionChip accion={row.idea.lado} />
+              <p className="text-[10px] text-[var(--t-text-dim)] leading-snug">{row.idea.motivo}</p>
+            </div>
+          )}
         </div>
 
-        {row?.idea && (
-          <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">IDEA</span>
-              <AccionChip accion={row.idea.lado} />
-            </div>
-            <p className="text-[10px] text-[var(--t-text-dim)] leading-snug">{row.idea.motivo}</p>
-          </div>
-        )}
-
-        {/* Se mueve con / contra */}
-        {comp && (comp.con.length > 0 || comp.contra.length > 0) && (
-          <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1.5">
-            <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">
-              SE MUEVE CON / CONTRA
-              <span className="ml-1 normal-case tracking-normal font-normal">(cierres diarios, último año)</span>
-            </div>
-            {comp.con.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                <span className="text-[#ff7766] text-[9px] w-[38px]">CON</span>
-                {comp.con.map((c) => (
-                  <span key={c.ticker} className="px-1.5 py-0.5 border border-[#ff7766]/30 font-mono text-[10px]" title={`ρ ${c.rho}`}>
-                    {c.ticker} <span className="text-[var(--t-text-muted)]">{c.rho}</span>
-                  </span>
-                ))}
+        {/* Se mueve con / contra + tape */}
+        <div className="flex flex-col gap-2 min-w-0">
+          {comp && (comp.con.length > 0 || comp.contra.length > 0) && (
+            <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1.5">
+              <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">
+                SE MUEVE CON / CONTRA
               </div>
-            )}
-            {comp.contra.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap">
-                <span className="text-[#6699ff] text-[9px] w-[38px]">CONTRA</span>
-                {comp.contra.map((c) => (
-                  <span key={c.ticker} className="px-1.5 py-0.5 border border-[#6699ff]/30 font-mono text-[10px]" title={`ρ ${c.rho}`}>
-                    {c.ticker} <span className="text-[var(--t-text-muted)]">{c.rho}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+              {comp.con.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[#ff7766] text-[9px] w-[38px]">CON</span>
+                  {comp.con.slice(0, 4).map((c) => (
+                    <span key={c.ticker} className="px-1.5 py-0.5 border border-[#ff7766]/30 font-mono text-[10px]" title={`ρ ${c.rho}`}>
+                      {c.ticker} <span className="text-[var(--t-text-muted)]">{c.rho}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {comp.contra.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[#6699ff] text-[9px] w-[38px]">CONTRA</span>
+                  {comp.contra.slice(0, 4).map((c) => (
+                    <span key={c.ticker} className="px-1.5 py-0.5 border border-[#6699ff]/30 font-mono text-[10px]" title={`ρ ${c.rho}`}>
+                      {c.ticker} <span className="text-[var(--t-text-muted)]">{c.rho}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Tape */}
-        {tape.length > 0 && (
-          <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2">
-            <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold mb-1">ÚLTIMOS TRADES</div>
-            <table className="w-full text-[10px] font-mono tabular-nums">
-              <tbody>
-                {tape.map((t, i) => (
-                  <tr key={i}>
-                    <td className="text-[var(--t-text-muted)] !py-px">
-                      {t.timestamp ? new Date(t.timestamp).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--"}
-                    </td>
-                    <td className={`text-right !py-px ${t.side === "BUY" ? "text-[var(--t-pos)]" : t.side === "SELL" ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
-                      {t.side === "BUY" ? "compra" : t.side === "SELL" ? "venta" : "—"}
-                    </td>
-                    <td className="text-right !py-px text-[var(--t-text)]">
-                      {t.price != null ? `$${t.price.toLocaleString("es-AR")}` : "--"}
-                    </td>
-                    <td className="text-right !py-px text-[var(--t-text-dim)]" title={fmtMoneyFull(t.money)}>
-                      {t.money != null ? fmtMoney(t.money) : "--"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          {tape.length > 0 && (
+            <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex-1 min-h-0 overflow-y-auto">
+              <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold mb-1">ÚLTIMOS TRADES</div>
+              <table className="w-full text-[10px] font-mono tabular-nums">
+                <tbody>
+                  {tape.map((t, i) => (
+                    <tr key={i}>
+                      <td className="text-[var(--t-text-muted)] !py-px">
+                        {t.timestamp ? new Date(t.timestamp).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--"}
+                      </td>
+                      <td className={`text-right !py-px ${t.side === "BUY" ? "text-[var(--t-pos)]" : t.side === "SELL" ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
+                        {t.side === "BUY" ? "compra" : t.side === "SELL" ? "venta" : "—"}
+                      </td>
+                      <td className="text-right !py-px text-[var(--t-text)]">
+                        {t.price != null ? `$${t.price.toLocaleString("es-AR")}` : "--"}
+                      </td>
+                      <td className="text-right !py-px text-[var(--t-text-dim)]" title={fmtMoneyFull(t.money)}>
+                        {t.money != null ? fmtMoney(t.money) : "--"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
