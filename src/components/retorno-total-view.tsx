@@ -1,39 +1,62 @@
 "use client";
 
+import { useState } from "react";
 import { SensibilidadTable } from "./sensibilidad-table";
 import { DescomposicionTab } from "./descomposicion-tab";
 import { CompararInversionView } from "./comparar-inversion-view";
-import { Panel } from "./panel";
 
-// ESTRATEGIA — vista partida 50/50.
-//   Izquierda  : Comparar Inversión (selección + tabs Comparación/Flujo).
-//   Derecha    : arriba Análisis de Sensibilidad; abajo-izq Descomposición de
-//                Retorno; abajo-der queda reservado para una herramienta futura.
-// Cada panel se expande a pantalla completa con el botón ⤢ (Escape cierra).
+// "RETORNO TOTAL" y "CANJE" se migraron a la HOME. Acá quedan las 3 herramientas
+// de estrategia, cada una como tab a pantalla completa.
+type EstrategiaTab = "comparar" | "sensibilidad" | "descomposicion";
+
 export function RetornoTotalView() {
-  return (
-    <div className="h-full min-h-0 grid grid-cols-2 gap-3 p-3">
-      {/* Izquierda — Comparar Inversión (alto completo) */}
-      <Panel title="Comparar Inversión" fill expandable>
-        <CompararInversionView />
-      </Panel>
+  const [tab, setTab] = useState<EstrategiaTab>("comparar");
 
-      {/* Derecha — Sensibilidad (arriba) + Descomposición/Próximamente (abajo) */}
-      <div className="grid grid-rows-2 gap-3 min-h-0">
-        <Panel title="Análisis de Sensibilidad" fill expandable>
-          <SensibilidadTable compact />
-        </Panel>
-        <div className="grid grid-cols-2 gap-3 min-h-0">
-          <Panel title="Descomposición de Retorno" fill expandable>
-            <DescomposicionTab />
-          </Panel>
-          <Panel title="Próximamente">
-            <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-[11px] italic">
-              Próximamente
-            </div>
-          </Panel>
-        </div>
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest mr-3">
+          ESTRATEGIA
+        </span>
+        <TabPill
+          label="COMPARAR INVERSIÓN"
+          active={tab === "comparar"}
+          onClick={() => setTab("comparar")}
+        />
+        <TabPill
+          label="ANÁLISIS SENSIBILIDAD"
+          active={tab === "sensibilidad"}
+          onClick={() => setTab("sensibilidad")}
+        />
+        <TabPill
+          label="DESCOMPOSICIÓN"
+          active={tab === "descomposicion"}
+          onClick={() => setTab("descomposicion")}
+        />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {tab === "comparar" && <CompararInversionView />}
+        {/* Sensibilidad sin el panel de cálculos/explicación (se migra a Manager → Debug). */}
+        {tab === "sensibilidad" && <SensibilidadTable compact />}
+        {tab === "descomposicion" && <DescomposicionTab />}
       </div>
     </div>
+  );
+}
+
+function TabPill({
+  label, active, onClick,
+}: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 text-[11px] font-semibold tracking-wide border ${
+        active
+          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+      }`}
+    >
+      {label}
+    </button>
   );
 }

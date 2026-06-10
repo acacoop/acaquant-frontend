@@ -246,7 +246,6 @@ function grupoCurva(curva: string): string {
 export function CompararInversionView() {
   const [bonos, setBonos] = useState<BonoSeleccionable[]>([]);
   const [curva, setCurva] = useState<string>("Todas");
-  const [subtab, setSubtab] = useState<"comparacion" | "flujo">("comparacion");
   const [aId, setAId] = useState("");
   const [bId, setBId] = useState("");
   const [monto, setMonto] = useState("1000000");
@@ -407,28 +406,10 @@ export function CompararInversionView() {
         </div>
       </div>
 
-      {/* Tabs: Comparación (métricas) / Flujo (gráfico) */}
-      <div className="flex items-center gap-1 shrink-0">
-        {([["comparacion", "COMPARACIÓN"], ["flujo", "FLUJO"]] as const).map(([k, lbl]) => (
-          <button
-            key={k}
-            onClick={() => setSubtab(k)}
-            className={`px-3 py-0.5 text-[10px] font-semibold border ${
-              subtab === k
-                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
-            }`}
-          >
-            {lbl}
-          </button>
-        ))}
-      </div>
-
-      {/* Cuerpo: Comparación (tabla) o Flujo (gráfico) según subtab */}
-      <div className="flex-1 min-h-0">
-        {/* Tab Comparación: tabla de métricas */}
-        {subtab === "comparacion" && (
-        <div className="h-full border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
+      {/* Cuerpo: tabla izq + gráfico der */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-2">
+        {/* Tabla de métricas */}
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
           {data ? (
             <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
@@ -522,11 +503,9 @@ export function CompararInversionView() {
             </div>
           )}
         </div>
-        )}
 
-        {/* Tab Flujo: gráfico de flujos (por mes / acumulado) */}
-        {subtab === "flujo" && (
-        <div className="h-full border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 flex flex-col">
+        {/* Gráfico */}
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-2 pt-1.5 shrink-0">
             <span className="text-[9px] text-[var(--t-accent)] tracking-widest">
               FLUJOS
@@ -660,7 +639,6 @@ export function CompararInversionView() {
             )}
           </div>
         </div>
-        )}
       </div>
 
       {/* Warnings */}
