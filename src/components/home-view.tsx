@@ -54,8 +54,12 @@ function RetornoCanjeBox() {
   const [view, setView] = useState<"retorno" | "carry" | "canje">("retorno");
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [ventana, setVentana] = useState<Ventana>("MTD");
+  // Fecha base libre. Cuando está seteada, pisa al preset (7D/14D/MTD) y el
+  // retorno/carry se mide desde ese día. Vacío = usa el preset.
+  const [desdeCustom, setDesdeCustom] = useState<string>("");
   const [par, setPar] = useState<Par>("AL30");
   const esRetorno = view === "retorno" || view === "carry";
+  const setPreset = (v: Ventana) => { setVentana(v); setDesdeCustom(""); };
 
   return (
     <div className="h-full min-h-0 min-w-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
@@ -73,9 +77,29 @@ function RetornoCanjeBox() {
               <Pill active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>HARD DÓLAR</Pill>
             </div>
             <div className="flex items-center gap-1 ml-auto">
-              <Pill active={ventana === "7D"} onClick={() => setVentana("7D")}>7D</Pill>
-              <Pill active={ventana === "14D"} onClick={() => setVentana("14D")}>14D</Pill>
-              <Pill active={ventana === "MTD"} onClick={() => setVentana("MTD")}>MTD</Pill>
+              <Pill active={!desdeCustom && ventana === "7D"} onClick={() => setPreset("7D")}>7D</Pill>
+              <Pill active={!desdeCustom && ventana === "14D"} onClick={() => setPreset("14D")}>14D</Pill>
+              <Pill active={!desdeCustom && ventana === "MTD"} onClick={() => setPreset("MTD")}>MTD</Pill>
+              <input
+                type="date"
+                value={desdeCustom}
+                onChange={(e) => setDesdeCustom(e.target.value)}
+                title="Fecha base libre (desde): mide el retorno/carry desde ese día"
+                className={`px-1 py-0.5 text-[10px] font-semibold border bg-transparent ${
+                  desdeCustom
+                    ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-[var(--t-border-2)] text-[var(--t-text-muted)]"
+                }`}
+              />
+              {desdeCustom && (
+                <button
+                  onClick={() => setDesdeCustom("")}
+                  title="Volver al preset"
+                  className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px] px-0.5"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </>
         ) : (
@@ -90,7 +114,12 @@ function RetornoCanjeBox() {
         {view === "canje" ? (
           <CanjeTab par={par} />
         ) : (
-          <RetornoTotalMini curva={curva} ventana={ventana} mode={view === "carry" ? "carry" : "retorno"} />
+          <RetornoTotalMini
+            curva={curva}
+            ventana={ventana}
+            mode={view === "carry" ? "carry" : "retorno"}
+            desdeOverride={desdeCustom || undefined}
+          />
         )}
       </div>
     </div>

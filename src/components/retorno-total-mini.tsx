@@ -69,10 +69,13 @@ export function RetornoTotalMini({
   curva,
   ventana,
   mode,
+  desdeOverride,
 }: {
   curva: Curva;
   ventana: Ventana;
   mode: Mode;
+  // Fecha base libre (YYYY-MM-DD). Si viene, pisa al preset de ventana.
+  desdeOverride?: string;
 }) {
   const [byCurva, setByCurva] = useState<Record<string, RetornoData>>({});
   const [loading, setLoading] = useState(false);
@@ -134,7 +137,11 @@ export function RetornoTotalMini({
     [rows],
   );
   const ultima = fechas.length ? fechas[fechas.length - 1] : "";
-  const fechaDesde = ultima ? desdeForVentana(ventana, ultima) : "";
+  // Fecha base: la libre (desdeOverride) si está seteada y es <= última;
+  // si no, el preset de ventana. Una fecha futura/​inválida cae al preset.
+  const fechaDesde = ultima
+    ? (desdeOverride && desdeOverride <= ultima ? desdeOverride : desdeForVentana(ventana, ultima))
+    : "";
   const fechaHasta = ultima;
 
   // Serie de retorno % por ticker en la ventana. base = precio as-of fechaDesde,
