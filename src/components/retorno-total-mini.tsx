@@ -40,6 +40,19 @@ interface RetornoData {
   mep?: Record<string, number>;
 }
 
+// Desglose por ticker para auditar el número que muestra la leyenda/chart.
+interface AuditRow {
+  tk: string;
+  baseFecha: string;
+  basePrice: number;
+  finalFecha: string;
+  finalPrice: number;
+  flujos: number;
+  mepBase: number | null;
+  mepFinal: number | null;
+  retorno: number;
+}
+
 export type Curva = "tasa_fija" | "cer" | "soberanos";
 export type Ventana = "7D" | "14D" | "MTD";
 export type Mode = "retorno" | "carry";
@@ -82,6 +95,8 @@ export function RetornoTotalMini({
   const [error, setError] = useState<string | null>(null);
   // Bonos destildados en la lista → se ocultan del chart (no se borran).
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Modal de auditoría (tabla con el desglose de cada retorno/carry).
+  const [showTabla, setShowTabla] = useState(false);
 
   // Cada curva tiene sus propios bonos → al cambiar de curva, mostrar todos.
   useEffect(() => {
@@ -147,8 +162,12 @@ export function RetornoTotalMini({
   // Serie de retorno % por ticker en la ventana. base = precio as-of fechaDesde,
   // retorno = (precio + Σflujos cobrados) / base − 1. En modo "carry" cada valor
   // se mide en USD dividiendo por el MEP del día (descuenta el carry del dólar).
-  const { tickers, data } = useMemo(() => {
-    const vacio = { tickers: [] as string[], data: {} as Record<string, Array<{ time: Time; value: number }>> };
+  const { tickers, data, auditoria } = useMemo(() => {
+    const vacio = {
+      tickers: [] as string[],
+      data: {} as Record<string, Array<{ time: Time; value: number }>>,
+      auditoria: [] as AuditRow[],
+    };
     if (!rows.length || !fechaDesde || !fechaHasta) return vacio;
 
     const serieByTicker: Record<string, Array<{ fecha: string; price: number }>> = {};
@@ -192,6 +211,7 @@ export function RetornoTotalMini({
 
     const out: Record<string, Array<{ time: Time; value: number }>> = {};
     const tickersConDatos: string[] = [];
+    const auditoria: AuditRow[] = [];
     for (const tk of Object.keys(serieByTicker).sort()) {
       const serie = serieByTicker[tk];
       let base: { fecha: string; price: number } | null = null;
@@ -203,6 +223,8 @@ export function RetornoTotalMini({
       if (!base || base.price <= 0) continue;
 
       const pts: Array<{ time: Time; value: number }> = [];
+      let finalFecha = base.fecha;
+      let finalPrice = base.price;
       for (const pt of serie) {
         if (pt.fecha < base.fecha || pt.fecha < fechaDesde || pt.fecha > fechaHasta) continue;
         const tot = pt.price + sumaFlujos(tk, base.fecha, pt.fecha);
@@ -215,13 +237,26 @@ export function RetornoTotalMini({
           ret = (tot / base.price - 1) * 100;
         }
         pts.push({ time: pt.fecha as Time, value: +ret.toFixed(3) });
+        finalFecha = pt.fecha;
+        finalPrice = pt.price;
       }
       if (pts.length >= 2) {
         out[tk] = pts;
         tickersConDatos.push(tk);
+        auditoria.push({
+          tk,
+          baseFecha: base.fecha,
+          basePrice: base.price,
+          finalFecha,
+          finalPrice,
+          flujos: sumaFlujos(tk, base.fecha, finalFecha),
+          mepBase: mep[base.fecha] ?? null,
+          mepFinal: mep[finalFecha] ?? null,
+          retorno: pts[pts.length - 1].value,
+        });
       }
     }
-    return { tickers: tickersConDatos, data: out };
+    return { tickers: tickersConDatos, data: out, auditoria };
   }, [rows, flujos, mep, mode, fechaDesde, fechaHasta]);
 
   // Color estable por ticker (orden alfabético de `tickers`).
@@ -387,6 +422,16 @@ export function RetornoTotalMini({
             TC: MEP ${mepUsado.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
           </div>
         )}
+        {/* Auditar: abre la tabla con el desglose de cada retorno/carry. */}
+        {hayDatos && (
+          <button
+            onClick={() => setShowTabla(true)}
+            title="Ver tabla de datos — auditar de dónde sale cada retorno/carry"
+            className="absolute top-1 right-1 z-10 px-1.5 py-0.5 text-[9px] font-mono bg-[var(--t-panel)]/85 border border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] rounded-[2px]"
+          >
+            ⊞ tabla
+          </button>
+        )}
       </div>
 
       {/* Lista de retornos = leyenda + selector (tildar/destildar) */}
@@ -425,6 +470,70 @@ export function RetornoTotalMini({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de AUDITORÍA — desglose de cada retorno/carry para verificarlo a mano. */}
+      {showTabla && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setShowTabla(false)}
+        >
+          <div
+            className="bg-[var(--t-panel)] border border-[var(--t-accent)] w-[92vw] max-w-[820px] max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 shrink-0 flex-wrap">
+              <span className="text-[11px] font-semibold text-[var(--t-accent)] uppercase tracking-wide">
+                Auditoría · {mode === "carry" ? "Carry (USD)" : "Retorno Total"} · {curva}
+              </span>
+              <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
+                {mode === "carry"
+                  ? "ret = (Pxf/MEPf) / (Pxb/MEPb) − 1"
+                  : "ret = (Pxf + Σflujos) / Pxb − 1"}
+              </span>
+              <button
+                onClick={() => setShowTabla(false)}
+                className="ml-auto text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[14px] leading-none px-1"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[10px] font-mono">
+                <thead className="sticky top-0 bg-[var(--t-panel)]">
+                  <tr className="text-[var(--t-text-muted)] uppercase tracking-wide text-[9px]">
+                    <th className="px-2 py-1 text-left">Ticker</th>
+                    <th className="px-2 py-1 text-left">Desde</th>
+                    <th className="px-2 py-1 text-right">Px base</th>
+                    <th className="px-2 py-1 text-left">Hasta</th>
+                    <th className="px-2 py-1 text-right">Px final</th>
+                    <th className="px-2 py-1 text-right">Σ Flujos</th>
+                    {mode === "carry" && <th className="px-2 py-1 text-right">MEP des.</th>}
+                    {mode === "carry" && <th className="px-2 py-1 text-right">MEP fin.</th>}
+                    <th className="px-2 py-1 text-right">Retorno</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...auditoria].sort((a, b) => b.retorno - a.retorno).map((a) => (
+                    <tr key={a.tk} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                      <td className="px-2 py-0.5 font-semibold" style={{ color: colorOf[a.tk] }}>{a.tk}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{a.baseFecha}</td>
+                      <td className="px-2 py-0.5 text-right tabular-nums">{a.basePrice.toFixed(2)}</td>
+                      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{a.finalFecha}</td>
+                      <td className="px-2 py-0.5 text-right tabular-nums">{a.finalPrice.toFixed(2)}</td>
+                      <td className="px-2 py-0.5 text-right tabular-nums text-[var(--t-text-dim)]">{a.flujos ? a.flujos.toFixed(2) : "—"}</td>
+                      {mode === "carry" && <td className="px-2 py-0.5 text-right tabular-nums text-[var(--t-text-dim)]">{a.mepBase != null ? a.mepBase.toFixed(2) : "—"}</td>}
+                      {mode === "carry" && <td className="px-2 py-0.5 text-right tabular-nums text-[var(--t-text-dim)]">{a.mepFinal != null ? a.mepFinal.toFixed(2) : "—"}</td>}
+                      <td className="px-2 py-0.5 text-right tabular-nums font-semibold" style={{ color: a.retorno >= 0 ? "var(--t-pos)" : "var(--t-neg)" }}>
+                        {a.retorno >= 0 ? "+" : ""}{a.retorno.toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
