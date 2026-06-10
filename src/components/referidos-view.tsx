@@ -2,16 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { fmtMoney } from "@/lib/fmt-money";
 
 /**
  * /referidos — vista para la EMPRESA referidora. Solo sus cuentas: cuánto operan,
- * AuM, rendimientos/valuación (estilo CARTERAS) y aranceles. Sin operador/segmento.
- *
- * Izq: chart valuación (GUITA) o rendimiento (TWR, por cliente) + tabla de clientes.
- * Der: sin cliente → posición agregada del referido; con cliente → vol/arancel +
- * posición & PnL de títulos. Switch ARS/USD.
+ * AuM, rendimientos/valuación (estilo CARTERAS), volumen y aranceles. Reusa los
+ * endpoints /comercial/* + /valuaciones/{id}/mensual + /aum-pnl. Switch ARS/USD.
  */
 
 type ClienteRow = {
@@ -38,18 +35,20 @@ type PnLRow = {
 };
 type PnLResp = { rows: PnLRow[]; totales: Record<string, number> };
 type Operacion = {
-  fecha: string; categoria: string; op: string | null; ticker: string | null;
-  importe: number | null; moneda: string | null;
+  fecha: string; comprobante: string; categoria: string; op: string | null;
+  ticker: string | null; importe: number | null; moneda: string | null;
 };
+type Metric = "valuacion" | "rend" | "volumen";
 
 const OP_LABEL: Record<string, string> = {
   compra: "Compra", venta: "Venta", suscripcion_fci: "Susc FCI", rescate_fci: "Resc FCI",
   solicitud_suscripcion_fci: "Sol. susc", solicitud_rescate_fci: "Sol. resc",
   caucion_colocadora: "Cauc. col", caucion_tomadora: "Cauc. tom",
 };
+const RANGOS = ["MTD", "1M", "3M", "YTD", "1A", "ALL"] as const;
 
 const TODOS = "__todos__";
-const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
+const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : `${m}/${y.slice(2)}`; };
 const pnlColor = (v: number | null | undefined) => (v == null ? "var(--t-text-muted)" : v >= 0 ? "var(--t-pos)" : "var(--t-neg)");
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2";
 
@@ -57,11 +56,28 @@ async function getJson<T>(url: string): Promise<T | null> {
   try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
 }
 
+// Filtra una serie (asc) por rango, contando desde su última fecha.
+function filtrarRango(data: SeriePt[], rango: string): SeriePt[] {
+  if (!data.length || rango === "ALL") return data;
+  const last = data[data.length - 1].fecha;
+  const lastD = new Date((last.length === 7 ? `${last}-01` : last) + "T00:00:00Z");
+  let cutoff: Date;
+  if (rango === "MTD") cutoff = new Date(Date.UTC(lastD.getUTCFullYear(), lastD.getUTCMonth(), 1));
+  else if (rango === "YTD") cutoff = new Date(Date.UTC(lastD.getUTCFullYear(), 0, 1));
+  else {
+    const days = rango === "1M" ? 30 : rango === "3M" ? 90 : 365;
+    cutoff = new Date(lastD.getTime() - days * 86400000);
+  }
+  const cstr = cutoff.toISOString().slice(0, last.length);
+  return data.filter((d) => d.fecha >= cstr);
+}
+
 export function ReferidosView() {
   const [referidos, setReferidos] = useState<{ ref: string; n: number }[]>([]);
   const [referido, setReferido] = usePersistedState<string>("referidos.ref", "");
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("referidos.moneda", "ARS");
-  const [chartMetric, setChartMetric] = usePersistedState<"guita" | "rend">("referidos.metric", "guita");
+  const [metric, setMetric] = usePersistedState<Metric>("referidos.metric2", "valuacion");
+  const [rango, setRango] = usePersistedState<string>("referidos.rango", "YTD");
   const [data, setData] = useState<RefResp | null>(null);
   const [serie, setSerie] = useState<SeriePt[]>([]);
   const [mensual, setMensual] = useState<MensualResp | null>(null);
@@ -91,22 +107,20 @@ export function ReferidosView() {
     return () => { alive = false; };
   }, [referido, moneda]);
 
-  // GUITA: serie valuación/AUM (scope o cliente).
+  // Serie del chart: valuación (AUM) o volumen operado. Rendimiento usa `mensual`.
   useEffect(() => {
-    if (!referido) { setSerie([]); return; }
+    if (!referido || metric === "rend") { setSerie([]); return; }
     let alive = true;
-    const q = sel
-      ? `operador=${TODOS}&metric=aum&moneda=${moneda}&id_cuenta=${encodeURIComponent(sel)}`
-      : `operador=${TODOS}&metric=aum&moneda=${moneda}&referido=${encodeURIComponent(referido)}`;
+    const metricApi = metric === "volumen" ? "volumen" : "aum";
+    const scope = sel ? `&id_cuenta=${encodeURIComponent(sel)}` : `&referido=${encodeURIComponent(referido)}`;
     void (async () => {
-      const d = await getJson<{ serie: SeriePt[] }>(`/api/operaciones/comercial/serie?${q}`);
+      const d = await getJson<{ serie: SeriePt[] }>(`/api/operaciones/comercial/serie?operador=${TODOS}&metric=${metricApi}&moneda=${moneda}${scope}`);
       if (alive) setSerie(d?.serie ?? []);
     })();
     return () => { alive = false; };
-  }, [referido, sel, moneda]);
+  }, [referido, sel, moneda, metric]);
 
-  // Mensual del cliente (CARTERAS): alimenta el chart RENDIMIENTO (TWR) y la tabla
-  // mes a mes (valuación / flujos / TEA). Se trae siempre que haya cliente.
+  // Mensual del cliente (CARTERAS): chart rendimiento (TWR) + tabla mes a mes.
   useEffect(() => {
     if (!sel) { setMensual(null); return; }
     let alive = true;
@@ -117,7 +131,6 @@ export function ReferidosView() {
     return () => { alive = false; };
   }, [sel]);
 
-  // PnL + posición del cliente.
   useEffect(() => {
     if (!sel) { setPnl(null); return; }
     let alive = true;
@@ -128,7 +141,6 @@ export function ReferidosView() {
     return () => { alive = false; };
   }, [sel]);
 
-  // Operaciones del cliente (recientes primero, cubre el año). Reusa el endpoint comercial.
   useEffect(() => {
     if (!sel) { setOps([]); return; }
     let alive = true;
@@ -143,33 +155,34 @@ export function ReferidosView() {
   const res = data?.resumen;
   const usd = moneda === "USD";
   const selCli = clientes.find((c) => c.id_cuenta === sel) || null;
-  const isRend = chartMetric === "rend";
+  const isRend = metric === "rend";
+  const isBar = metric === "volumen";
 
-  // Datos del chart: rendimiento % (TWR) o valuación clampeada a >= 0.
-  const chartData = useMemo<SeriePt[]>(() => {
+  const rawChart = useMemo<SeriePt[]>(() => {
     if (isRend) {
       if (!sel || !mensual) return [];
       return [...mensual.meses].reverse().map((m) => ({ fecha: m.mes, valor: (usd ? m.twr_base100_usd : m.twr_base100) - 100 }));
     }
     return serie.map((p) => ({ fecha: p.fecha, valor: Math.max(0, p.valor) }));
   }, [isRend, sel, mensual, serie, usd]);
+  const chartData = useMemo(() => filtrarRango(rawChart, rango), [rawChart, rango]);
 
-  // Eje Y: rendimiento auto (puede ser negativo); valuación con piso ~0 (una cuenta
-  // nunca vale negativo; la base queda apenas debajo de 0 para que no quede pegado).
   const yDomain = useMemo<[number | string, number | string]>(() => {
     if (isRend) return ["auto", "auto"];
     const vals = chartData.map((d) => d.valor);
     if (!vals.length) return [0, "auto"];
     const maxV = Math.max(...vals, 1);
     const minV = Math.min(...vals);
+    if (isBar) return [0, maxV * 1.06];
     const floor = minV > 0 ? minV * 0.9 : -(maxV * 0.04);
     return [floor, maxV * 1.06];
-  }, [isRend, chartData]);
+  }, [isRend, isBar, chartData]);
 
   const pnlValor = (r: PnLRow) => (usd ? r.valor_actual_usd ?? null : r.valor_actual_aum);
   const pnlNoReal = (r: PnLRow) => (usd ? r.pnl_no_realizado_usd ?? null : r.pnl_no_realizado);
   const pnlTot = (r: PnLRow) => (usd ? r.pnl_total_usd ?? null : r.pnl_total);
   const selCls = "bg-[var(--t-surface)] border text-[var(--t-text)] text-[11px] px-2 py-1 font-mono outline-none";
+  const tituloChart = isRend ? "Rendimiento (TWR)" : isBar ? "Volumen operado" : "Valuación / AUM";
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -185,11 +198,13 @@ export function ReferidosView() {
           ))}
         </div>
         {res && (
-          <div className="flex items-center gap-3 text-[10px] font-mono flex-wrap">
-            <span className="text-[var(--t-accent)] font-semibold text-[11px]">{res.n_clientes} clientes</span>
-            <span className="text-[var(--t-text-dim)]">AuM {fmtMoney(res.aum_total)}</span>
-            <span className="text-[var(--t-text-dim)]">Vol m/a {fmtMoney(res.vol_mes)} / {fmtMoney(res.vol_ano)}</span>
-            <span className="text-[var(--t-text-dim)]">Aran. m/a {fmtMoney(res.arancel_mes)} / {fmtMoney(res.arancel_total)}</span>
+          <div className="flex items-center gap-4 text-[11px] flex-wrap">
+            <Stat label="Clientes" value={String(res.n_clientes)} accent />
+            <Stat label="AuM" value={fmtMoney(res.aum_total)} />
+            <Stat label="Volumen mes" value={fmtMoney(res.vol_mes)} />
+            <Stat label="Volumen año" value={fmtMoney(res.vol_ano)} />
+            <Stat label="Arancel mes" value={fmtMoney(res.arancel_mes)} />
+            <Stat label="Arancel año" value={fmtMoney(res.arancel_total)} />
           </div>
         )}
       </div>
@@ -197,205 +212,224 @@ export function ReferidosView() {
       {!referido ? (
         <div className="flex-1 flex items-center justify-center text-[12px] text-[var(--t-text-dim)]">Elegí un referido para ver sus cuentas, operatoria, rendimientos y aranceles.</div>
       ) : (
-        <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
-          {/* IZQUIERDA */}
-          <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
-            <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-              <div className={HDR}>
-                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{isRend ? "Rendimiento (TWR)" : "Valuación / AUM"} · {moneda}</span>
-                <span className="text-[9px] text-[var(--t-text-muted)] truncate">{sel ? (selCli?.denominacion || sel) : "Todo el referido"}</span>
-                <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-                  {([["guita", "Valuación"], ["rend", "Rendim."]] as [("guita" | "rend"), string][]).map(([k, l]) => (
-                    <button key={k} onClick={() => setChartMetric(k)} className={"px-1.5 py-0.5 text-[9px] font-semibold " + (chartMetric === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{l}</button>
-                  ))}
+        <div className="flex-1 min-h-0 flex flex-col gap-3 p-3 overflow-hidden">
+          {/* Card del cliente — franja full-width arriba (así izq/der quedan alineadas). */}
+          {sel && selCli && (
+            <div className="shrink-0 border border-[var(--t-border)] bg-[var(--t-accent)]/10 px-3 py-2 flex items-center gap-4 flex-wrap">
+              <span className="text-[12px] font-bold">{selCli.denominacion}</span>
+              <span className="text-[9px] text-[var(--t-text-muted)] tabular-nums">#{selCli.id_cuenta}</span>
+              <div className="ml-auto flex items-center gap-4 text-[11px]">
+                <Stat label={`AuM ${moneda}`} value={fmtMoney(selCli.aum)} />
+                <Stat label="Volumen mes" value={fmtMoney(selCli.vol_mes)} />
+                <Stat label="Volumen año" value={fmtMoney(selCli.vol_ano)} />
+                <Stat label="Arancel mes" value={fmtMoney(selCli.arancel_mes)} />
+                <Stat label="Arancel año" value={fmtMoney(selCli.arancel_total)} />
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
+            {/* IZQUIERDA */}
+            <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+              <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+                <div className={HDR + " flex-wrap"}>
+                  <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{tituloChart} · {moneda}</span>
+                  <span className="text-[9px] text-[var(--t-text-muted)] truncate">{sel ? (selCli?.denominacion || sel) : "Todo el referido"}</span>
+                  <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                    {([["valuacion", "Valuación"], ["rend", "Rendim."], ["volumen", "Volumen"]] as [Metric, string][]).map(([k, l]) => (
+                      <button key={k} onClick={() => setMetric(k)} className={"px-1.5 py-0.5 text-[9px] font-semibold " + (metric === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{l}</button>
+                    ))}
+                  </div>
+                  <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                    {RANGOS.map((r) => (
+                      <button key={r} onClick={() => setRango(r)} className={"px-1.5 py-0.5 text-[9px] font-semibold " + (rango === r ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{r}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0 p-1">
+                  {isRend && !sel ? (
+                    <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un cliente para ver el rendimiento (TWR), como en Carteras.</p>
+                  ) : chartData.length === 0 ? (
+                    <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin datos en el rango.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      {isBar ? (
+                        <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                          <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" vertical={false} />
+                          <XAxis dataKey="fecha" tickFormatter={fmtFecha} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={16} />
+                          <YAxis domain={yDomain} tickFormatter={(v) => fmtMoney(v as number)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={54} />
+                          <Tooltip cursor={{ fill: "var(--t-border)", opacity: 0.3 }} contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }} labelFormatter={(l) => fmtFecha(String(l))} formatter={(v) => [`${moneda} ${fmtMoney(Number(v))}`, "Volumen"]} />
+                          <Bar dataKey="valor" fill="var(--t-accent)" fillOpacity={0.9} />
+                        </BarChart>
+                      ) : (
+                        <AreaChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                          <defs><linearGradient id="ref-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.4} /><stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.03} /></linearGradient></defs>
+                          <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" />
+                          <XAxis dataKey="fecha" tickFormatter={fmtFecha} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={28} />
+                          <YAxis domain={yDomain} tickFormatter={(v) => (isRend ? `${(v as number).toFixed(0)}%` : fmtMoney(v as number))} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={isRend ? 40 : 54} />
+                          <Tooltip contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }} labelFormatter={(l) => fmtFecha(String(l))} formatter={(v) => [isRend ? `${Number(v) >= 0 ? "+" : ""}${Number(v).toFixed(2)}%` : `${moneda} ${fmtMoney(Number(v))}`, isRend ? "Rendimiento" : "Valuación"]} />
+                          <Area type="monotone" dataKey="valor" stroke="var(--t-accent)" strokeWidth={2} fill="url(#ref-area)" isAnimationActive={false} dot={false} />
+                        </AreaChart>
+                      )}
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
-              <div className="flex-1 min-h-0 p-1">
-                {isRend && !sel ? (
-                  <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un cliente para ver el rendimiento (TWR), como en Carteras.</p>
-                ) : chartData.length === 0 ? (
-                  <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin serie.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                      <defs><linearGradient id="ref-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.4} /><stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.03} /></linearGradient></defs>
-                      <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" />
-                      <XAxis dataKey="fecha" tickFormatter={fmtFecha} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={28} />
-                      <YAxis domain={yDomain} tickFormatter={(v) => (isRend ? `${(v as number).toFixed(0)}%` : fmtMoney(v as number))} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={isRend ? 40 : 54} />
-                      <Tooltip contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }} labelFormatter={(l) => fmtFecha(String(l))} formatter={(v) => [isRend ? `${Number(v) >= 0 ? "+" : ""}${Number(v).toFixed(2)}%` : `${moneda} ${fmtMoney(Number(v))}`, isRend ? "Rendimiento" : "Valuación"]} />
-                      <Area type="monotone" dataKey="valor" stroke="var(--t-accent)" strokeWidth={2} fill="url(#ref-area)" isAnimationActive={false} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
 
-            <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-              <div className={HDR}>
-                <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes referidos</span>
-                <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
-              </div>
-              <div className="flex-1 min-h-0 overflow-auto">
-                {loading ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : clientes.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin clientes para este referido.</p> : (
-                  <table className="w-full text-[10px]">
-                    <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                      <th className="text-left !px-2">Cliente</th><th className="text-left !px-2">Cuenta</th>
-                      <th className="text-right !px-2">AuM</th><th className="text-right !px-2">Vol mes</th><th className="text-right !px-2">Vol año</th>
-                      <th className="text-right !px-2">Aran. mes</th><th className="text-right !px-2">Aran. año</th>
-                    </tr></thead>
-                    <tbody>
-                      {clientes.map((c) => {
-                        const on = c.id_cuenta === sel;
-                        return (
-                          <tr key={c.id_cuenta} onClick={() => setSel(on ? null : c.id_cuenta)} className={`cursor-pointer ${on ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-border)]"}`}>
-                            <td className="!px-2 truncate max-w-[150px]" title={c.denominacion}>{c.denominacion}</td>
-                            <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{c.id_cuenta}</td>
-                            <td className="!px-2 text-right tabular-nums">{fmtMoney(c.aum)}</td>
-                            <td className="!px-2 text-right tabular-nums">{fmtMoney(c.vol_mes)}</td>
-                            <td className="!px-2 text-right tabular-nums">{fmtMoney(c.vol_ano)}</td>
-                            <td className="!px-2 text-right tabular-nums text-[var(--t-accent)]">{fmtMoney(c.arancel_mes)}</td>
-                            <td className="!px-2 text-right tabular-nums text-[var(--t-accent)]">{fmtMoney(c.arancel_total)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* DERECHA: sin cliente → posición del referido; con cliente → detalle + PnL */}
-          <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
-            {!sel ? (
               <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
                 <div className={HDR}>
-                  <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición del referido · {moneda}</span>
-                  <span className="text-[9px] text-[var(--t-text-muted)]">{data?.posiciones?.length ?? 0} títulos</span>
+                  <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes referidos</span>
+                  <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
                 </div>
                 <div className="flex-1 min-h-0 overflow-auto">
-                  {(data?.posiciones?.length ?? 0) === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posición.</p> : (
+                  {loading ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : clientes.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin clientes para este referido.</p> : (
                     <table className="w-full text-[10px]">
                       <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                        <th className="text-left !px-2">Título</th><th className="text-right !px-2">Valuación</th><th className="text-right !px-2">%</th>
+                        <th className="text-left !px-2">Cliente</th><th className="text-left !px-2">Cuenta</th>
+                        <th className="text-right !px-2">AuM</th><th className="text-right !px-2">Vol mes</th><th className="text-right !px-2">Vol año</th>
+                        <th className="text-right !px-2">Aran. mes</th><th className="text-right !px-2">Aran. año</th>
                       </tr></thead>
                       <tbody>
-                        {(data?.posiciones ?? []).map((p, i) => (
-                          <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
-                            <td className="!px-2 truncate max-w-[200px]" title={p.unidad}>{p.unidad}</td>
-                            <td className="!px-2 text-right tabular-nums">{fmtMoney(p.valuacion)}</td>
-                            <td className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">{p.pct.toFixed(1)}%</td>
-                          </tr>
-                        ))}
+                        {clientes.map((c) => {
+                          const on = c.id_cuenta === sel;
+                          return (
+                            <tr key={c.id_cuenta} onClick={() => setSel(on ? null : c.id_cuenta)} className={`cursor-pointer ${on ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-border)]"}`}>
+                              <td className="!px-2">{c.denominacion}</td>
+                              <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{c.id_cuenta}</td>
+                              <td className="!px-2 text-right tabular-nums">{fmtMoney(c.aum)}</td>
+                              <td className="!px-2 text-right tabular-nums">{fmtMoney(c.vol_mes)}</td>
+                              <td className="!px-2 text-right tabular-nums">{fmtMoney(c.vol_ano)}</td>
+                              <td className="!px-2 text-right tabular-nums text-[var(--t-accent)]">{fmtMoney(c.arancel_mes)}</td>
+                              <td className="!px-2 text-right tabular-nums text-[var(--t-accent)]">{fmtMoney(c.arancel_total)}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
                 </div>
               </div>
-            ) : !selCli ? (
-              <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-dim)]">cargando…</div>
-            ) : (
-              <>
-                <div className="shrink-0 border border-[var(--t-border)] bg-[var(--t-accent)]/10 px-3 py-1.5 flex items-center gap-3 flex-wrap">
-                  <span className="text-[11px] font-semibold truncate max-w-[170px]" title={selCli.denominacion}>{selCli.denominacion}</span>
-                  <span className="text-[9px] text-[var(--t-text-muted)] tabular-nums">#{selCli.id_cuenta}</span>
-                  <div className="ml-auto flex items-center gap-3 text-[10px] font-mono">
-                    <Kpi label={`AuM ${moneda}`} value={fmtMoney(selCli.aum)} />
-                    <Kpi label="Vol mes" value={fmtMoney(selCli.vol_mes)} />
-                    <Kpi label="Vol año" value={fmtMoney(selCli.vol_ano)} />
-                    <Kpi label="Aran mes" value={fmtMoney(selCli.arancel_mes)} accent />
-                    <Kpi label="Aran año" value={fmtMoney(selCli.arancel_total)} accent />
-                  </div>
-                </div>
+            </div>
 
+            {/* DERECHA */}
+            <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+              {!sel ? (
                 <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
                   <div className={HDR}>
-                    <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Mes a mes · {moneda}</span>
-                    {mensual && mensual.meses.length > 0 && (() => {
-                      const rt = (usd ? mensual.meses[0].twr_base100_usd : mensual.meses[0].twr_base100) - 100;
-                      return <span className="ml-auto text-[9px] font-mono" style={{ color: pnlColor(rt) }}>Rend. acum {rt >= 0 ? "+" : ""}{rt.toFixed(1)}%</span>;
-                    })()}
+                    <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición del referido · {moneda}</span>
+                    <span className="text-[9px] text-[var(--t-text-muted)]">{data?.posiciones?.length ?? 0} títulos</span>
                   </div>
                   <div className="flex-1 min-h-0 overflow-auto">
-                    {!mensual ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : mensual.meses.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin histórico mensual.</p> : (
+                    {(data?.posiciones?.length ?? 0) === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posición.</p> : (
                       <table className="w-full text-[10px]">
                         <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                          <th className="text-left !px-2">Mes</th><th className="text-right !px-2">Valuación</th><th className="text-right !px-2">Flujo</th><th className="text-right !px-2">TEA mes</th><th className="text-right !px-2">Rend. acum</th>
+                          <th className="text-left !px-2">Título</th><th className="text-right !px-2">Valuación</th><th className="text-right !px-2">%</th>
                         </tr></thead>
                         <tbody>
-                          {mensual.meses.map((m) => {
-                            const val = usd ? m.valuacion_cierre_usd : m.valuacion_cierre;
-                            const flj = usd ? m.flujo_neto_usd : m.flujo_neto;
-                            const tea = usd ? m.tea_mensual_usd : m.tea_mensual;
-                            const rend = (usd ? m.twr_base100_usd : m.twr_base100) - 100;
-                            return (
-                              <tr key={m.mes} className="hover:bg-[var(--t-border)]">
-                                <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{m.mes}</td>
-                                <td className="!px-2 text-right tabular-nums">{fmtMoney(val)}</td>
-                                <td className="!px-2 text-right tabular-nums" style={{ color: flj ? pnlColor(flj) : undefined }}>{flj ? fmtMoney(flj) : "—"}</td>
-                                <td className="!px-2 text-right tabular-nums" style={{ color: pnlColor(tea) }}>{tea != null ? `${(tea * 100).toFixed(1)}%` : "—"}</td>
-                                <td className="!px-2 text-right tabular-nums font-semibold" style={{ color: pnlColor(rend) }}>{rend >= 0 ? "+" : ""}{rend.toFixed(1)}%</td>
-                              </tr>
-                            );
-                          })}
+                          {(data?.posiciones ?? []).map((p, i) => (
+                            <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
+                              <td className="!px-2">{p.unidad}</td>
+                              <td className="!px-2 text-right tabular-nums">{fmtMoney(p.valuacion)}</td>
+                              <td className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">{p.pct.toFixed(1)}%</td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     )}
                   </div>
                 </div>
-
-                <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-                  <div className={HDR}>
-                    <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-                      {([["pnl", "Posición & PnL"], ["ops", "Operaciones"]] as [("pnl" | "ops"), string][]).map(([k, l]) => (
-                        <button key={k} onClick={() => setDetTab(k)} className={"px-2 py-0.5 text-[9px] font-semibold " + (detTab === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{l}</button>
-                      ))}
+              ) : (
+                <>
+                  <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+                    <div className={HDR}>
+                      <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Mes a mes · {moneda}</span>
+                      {mensual && mensual.meses.length > 0 && (() => {
+                        const rt = (usd ? mensual.meses[0].twr_base100_usd : mensual.meses[0].twr_base100) - 100;
+                        return <span className="ml-auto text-[9px] font-mono font-semibold" style={{ color: pnlColor(rt) }}>Rend. acum {rt >= 0 ? "+" : ""}{rt.toFixed(1)}%</span>;
+                      })()}
                     </div>
-                    <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{moneda}</span>
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-auto">
-                    {detTab === "pnl" ? (
-                      !pnl ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : (pnl.rows?.length ?? 0) === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posición.</p> : (
+                    <div className="flex-1 min-h-0 overflow-auto">
+                      {!mensual ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : mensual.meses.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin histórico mensual.</p> : (
                         <table className="w-full text-[10px]">
                           <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                            <th className="text-left !px-2">Ticker</th><th className="text-right !px-2">Valor</th><th className="text-right !px-2">PnL no real.</th><th className="text-right !px-2">PnL total</th>
+                            <th className="text-left !px-2">Mes</th><th className="text-right !px-2">Valuación</th><th className="text-right !px-2">Flujo</th><th className="text-right !px-2">TEA mes</th><th className="text-right !px-2">Rend. acum</th>
                           </tr></thead>
                           <tbody>
-                            {pnl.rows.map((r, i) => (
-                              <tr key={`${r.ticker}-${i}`} className="hover:bg-[var(--t-border)]">
-                                <td className="!px-2 font-semibold">{r.display_name || r.ticker}</td>
-                                <td className="!px-2 text-right tabular-nums">{fmtMoney(pnlValor(r) ?? undefined)}</td>
-                                <td className="!px-2 text-right tabular-nums" style={{ color: pnlColor(pnlNoReal(r)) }}>{fmtMoney(pnlNoReal(r) ?? undefined)}</td>
-                                <td className="!px-2 text-right tabular-nums font-semibold" style={{ color: pnlColor(pnlTot(r)) }}>{fmtMoney(pnlTot(r) ?? undefined)}</td>
-                              </tr>
-                            ))}
+                            {mensual.meses.map((m) => {
+                              const val = usd ? m.valuacion_cierre_usd : m.valuacion_cierre;
+                              const flj = usd ? m.flujo_neto_usd : m.flujo_neto;
+                              const tea = usd ? m.tea_mensual_usd : m.tea_mensual;
+                              const rend = (usd ? m.twr_base100_usd : m.twr_base100) - 100;
+                              return (
+                                <tr key={m.mes} className="hover:bg-[var(--t-border)]">
+                                  <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{m.mes}</td>
+                                  <td className="!px-2 text-right tabular-nums">{fmtMoney(val)}</td>
+                                  <td className="!px-2 text-right tabular-nums" style={{ color: flj ? pnlColor(flj) : undefined }}>{flj ? fmtMoney(flj) : "—"}</td>
+                                  <td className="!px-2 text-right tabular-nums" style={{ color: pnlColor(tea) }}>{tea != null ? `${(tea * 100).toFixed(1)}%` : "—"}</td>
+                                  <td className="!px-2 text-right tabular-nums font-semibold" style={{ color: pnlColor(rend) }}>{rend >= 0 ? "+" : ""}{rend.toFixed(1)}%</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
-                      )
-                    ) : (
-                      ops.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin operaciones.</p> : (
-                        <table className="w-full text-[10px]">
-                          <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                            <th className="text-left !px-2">Fecha</th><th className="text-left !px-2">Tipo</th><th className="text-left !px-2">Ticker</th><th className="text-right !px-2">Importe</th><th className="text-center !px-2">Mon</th>
-                          </tr></thead>
-                          <tbody>
-                            {ops.map((o, i) => (
-                              <tr key={`${o.fecha}-${i}`} className="hover:bg-[var(--t-border)]">
-                                <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{o.fecha}</td>
-                                <td className="!px-2">{OP_LABEL[o.categoria] || o.categoria}</td>
-                                <td className="!px-2 font-semibold">{o.ticker || "—"}</td>
-                                <td className="!px-2 text-right tabular-nums">{o.importe != null ? fmtMoney(Math.abs(o.importe)) : "—"}</td>
-                                <td className="!px-2 text-center text-[var(--t-text-dim)]">{o.moneda || "—"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      )
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+
+                  <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+                    <div className={HDR}>
+                      <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                        {([["pnl", "Posición & PnL"], ["ops", "Operaciones"]] as [("pnl" | "ops"), string][]).map(([k, l]) => (
+                          <button key={k} onClick={() => setDetTab(k)} className={"px-2 py-0.5 text-[9px] font-semibold " + (detTab === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{l}</button>
+                        ))}
+                      </div>
+                      <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{moneda}</span>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-auto">
+                      {detTab === "pnl" ? (
+                        !pnl ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : (pnl.rows?.length ?? 0) === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posición.</p> : (
+                          <table className="w-full text-[10px]">
+                            <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                              <th className="text-left !px-2">Ticker</th><th className="text-right !px-2">Valor</th><th className="text-right !px-2">PnL no real.</th><th className="text-right !px-2">PnL total</th>
+                            </tr></thead>
+                            <tbody>
+                              {pnl.rows.map((r, i) => (
+                                <tr key={`${r.ticker}-${i}`} className="hover:bg-[var(--t-border)]">
+                                  <td className="!px-2 font-semibold">{r.display_name || r.ticker}</td>
+                                  <td className="!px-2 text-right tabular-nums">{fmtMoney(pnlValor(r) ?? undefined)}</td>
+                                  <td className="!px-2 text-right tabular-nums" style={{ color: pnlColor(pnlNoReal(r)) }}>{fmtMoney(pnlNoReal(r) ?? undefined)}</td>
+                                  <td className="!px-2 text-right tabular-nums font-semibold" style={{ color: pnlColor(pnlTot(r)) }}>{fmtMoney(pnlTot(r) ?? undefined)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )
+                      ) : (
+                        ops.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin operaciones.</p> : (
+                          <table className="w-full text-[10px]">
+                            <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                              <th className="text-left !px-2">Fecha</th><th className="text-left !px-2">Boleto</th><th className="text-left !px-2">Tipo</th><th className="text-left !px-2">Ticker</th><th className="text-right !px-2">Importe</th><th className="text-center !px-2">Mon</th>
+                            </tr></thead>
+                            <tbody>
+                              {ops.map((o, i) => (
+                                <tr key={`${o.comprobante}-${i}`} className="hover:bg-[var(--t-border)]">
+                                  <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{o.fecha}</td>
+                                  <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{o.comprobante}</td>
+                                  <td className="!px-2">{OP_LABEL[o.categoria] || o.categoria}</td>
+                                  <td className="!px-2 font-semibold">{o.ticker || "—"}</td>
+                                  <td className="!px-2 text-right tabular-nums">{o.importe != null ? fmtMoney(Math.abs(o.importe)) : "—"}</td>
+                                  <td className="!px-2 text-center text-[var(--t-text-dim)]">{o.moneda || "—"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -403,12 +437,11 @@ export function ReferidosView() {
   );
 }
 
-function Kpi({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="flex flex-col items-end">
-      <span className="text-[8px] uppercase tracking-wide text-[var(--t-text-muted)]">{label}</span>
-      <span className={"font-semibold " + (accent ? "text-[var(--t-accent)]" : "text-[var(--t-text)]")}>{value}</span>
-    </div>
+    <span className="inline-flex items-baseline gap-1">
+      <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{label}</span>
+      <span className={"font-bold tabular-nums " + (accent ? "text-[var(--t-accent)]" : "text-[var(--t-text)]")}>{value}</span>
+    </span>
   );
 }
-
