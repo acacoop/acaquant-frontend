@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { TableHelp } from "./help-tooltip";
 import type { TickerReturns } from "@/lib/types-scanner";
 
@@ -16,22 +25,24 @@ import type { TickerReturns } from "@/lib/types-scanner";
  * Re-fetcha/re-monta cuando cambia el ticker.
  */
 
-type Tab = "chart" | "returns";
+type Tab = "live" | "chart" | "returns";
 
 const TAB_ORDER: { key: Tab; label: string }[] = [
-  { key: "chart",   label: "CHART" },
+  { key: "live",    label: "LIVE" },
+  { key: "chart",   label: "HISTÓRICO" },
   { key: "returns", label: "RETORNOS DIARIOS" },
 ];
 
 const GLOSSARY = [
-  { label: "CHART",            text: "Gráfico de TradingView embebido para el ticker seleccionado. Está bloqueado a ese símbolo — no podés buscar otros desde acá (para eso, seleccioná otro ticker en la tabla)." },
+  { label: "LIVE",             text: "Gráfico intradía en vivo armado con NUESTRO feed (BYMA vía pyRofex) — el mismo que la tabla y el Time & Sales. Sin el delay de TradingView: coincide con los precios live. Solo muestra la rueda de hoy (se arma desde el primer trade)." },
+  { label: "HISTÓRICO",        text: "Gráfico de TradingView embebido (datos diarios, con delay del proveedor) para ver años de historia. Bloqueado al ticker seleccionado — para cambiar, elegí otro en la tabla." },
   { label: "RETORNOS DIARIOS", text: "Histograma de los retornos diarios aritméticos del último año (~252 días). Cada barra muestra cuántos días el activo se movió dentro de ese rango. La línea naranja marca el retorno del último día disponible — visualiza cuán raro/normal es ese movimiento vs su historia." },
   { label: "Media",            text: "Promedio simple de los retornos diarios de la ventana — debería estar cerca de 0 en activos sanos." },
   { label: "σ",                text: "Desvío estándar de los retornos diarios. Da una idea de cuánto típicamente se mueve el activo (66% de los días cae en ±1σ, 95% en ±2σ)." },
 ];
 
 export function TickerChartPanel({ ticker }: { ticker: string | null }) {
-  const [tab, setTab] = useState<Tab>("chart");
+  const [tab, setTab] = useState<Tab>("live");
   const [returns, setReturns] = useState<TickerReturns | null>(null);
 
   // Fetch retornos solo cuando el tab activo es 'returns' (lazy).
@@ -82,13 +93,78 @@ export function TickerChartPanel({ ticker }: { ticker: string | null }) {
 
       {/* Contenido */}
       <div className="flex-1 min-h-0">
-        {tab === "chart" ? (
+        {tab === "live" ? (
+          <LiveIntradayChart ticker={ticker} />
+        ) : tab === "chart" ? (
           <TradingViewChart ticker={ticker} />
         ) : (
           <ReturnsHistogram data={returns} />
         )}
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Chart LIVE intradía — nuestro feed (Trading.CedearsTimeSales por minuto)
+// ─────────────────────────────────────────────────────────────────────
+
+function LiveIntradayChart({ ticker }: { ticker: string }) {
+  const [data, setData] = useState<{ t: string; c: number }[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    const fetchSerie = async () => {
+      try {
+        const r = await fetch(`/api/scanner/cedears/intraday?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (alive) setData(Array.isArray(j) ? j : []);
+      } catch {
+        /* transitorio */
+      }
+    };
+    fetchSerie();
+    const id = setInterval(fetchSerie, 3000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [ticker]);
+
+  const fmtHora = (iso: string) =>
+    new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const fmtPx = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+
+  if (data.length === 0) {
+    return (
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center px-3">
+        Sin operaciones en la rueda de hoy todavía. El chart LIVE se arma con nuestro
+        feed intradía (mismo que la tabla y el Time & Sales) desde el primer trade.
+      </p>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+        <defs>
+          <linearGradient id="cv-live-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.4} />
+            <stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.03} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" />
+        <XAxis dataKey="t" tickFormatter={fmtHora} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={32} />
+        <YAxis domain={["auto", "auto"]} tickFormatter={(v) => fmtPx(v as number)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={56} />
+        <Tooltip
+          contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }}
+          labelFormatter={(l) => fmtHora(String(l))}
+          formatter={(v) => [fmtPx(Number(v)), "Precio"]}
+        />
+        <Area type="monotone" dataKey="c" stroke="var(--t-accent)" strokeWidth={1.5} fill="url(#cv-live-grad)" isAnimationActive={false} dot={false} />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 
