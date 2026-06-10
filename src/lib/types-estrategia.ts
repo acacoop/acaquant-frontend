@@ -47,50 +47,67 @@ export interface TradeAnalysis {
   nota?: string;
 }
 
-export interface BookPosicion {
-  ticker: string;
-  notional: number;     // >0 long, <0 short
-  direccion: Direccion;
-  sector: string;
-  region: string;
-}
-
-export interface ExposicionGrupo {
-  grupo: string;
-  neto: number;
-  bruto: number;
-  pct_bruto: number;
-}
-
-export interface BookAnalysis {
-  book: { posiciones: BookPosicion[]; gross: number; net: number; n: number };
-  exposicion: { por_sector: ExposicionGrupo[]; por_region: ExposicionGrupo[] };
-  concentracion: { pct_top5?: number; hhi?: number };
-  riesgo: {
-    vol_anual_book_pct?: number | null;
-    var_1d_95?: number | null;
-    exposicion_mercado_usd?: { spy: number | null; qqq: number | null };
-    n_obs?: number;
-  };
-  contribucion_riesgo: { ticker: string; notional: number; contrib_pct: number }[];
-  excluidos: string[];
-  nota?: string;
-}
-
-export interface CorrelationMatrix {
-  tickers: string[];
-  excluidos: string[];
-  n_obs: number;
-  fecha_desde: string | null;
-  fecha_hasta: string | null;
-  ventana_dias: number;
-  matriz: (number | null)[][];
-  vol_anual: Record<string, number | null>;
-}
-
 /** Item del universo para el buscador de tickers (de /api/scanner/cedears). */
 export interface UniversoItem {
   ticker: string;       // ticker_corto BYMA
   nombre: string | null;
   sector: string | null;
+}
+
+// ── TRADE LAB intradía (day-trading de CEDEARs) ──────────────────────
+
+/** Fila de `GET /api/scanner/day-trading` (api/services/day_trading.py). */
+export interface DayTradingRow {
+  ticker: string;
+  nombre: string | null;
+  sector: string | null;
+  last: number | null;          // ARS
+  dia_pct: number | null;       // vs cierre previo
+  intradia_pct: number | null;  // vs apertura
+  rango_pct: number | null;     // (high-low)/low
+  low: number | null;
+  high: number | null;
+  posicion: number | null;      // 0=piso del día, 100=techo
+  vueltas: number;              // patas zigzag >= objetivo hechas HOY
+  mejor_vuelta_pct: number | null;
+  mom15_pct: number | null;     // retorno últimos 15'
+  vs_vwap_pct: number | null;
+  spread_pct: number | null;    // (offer-bid)/last
+  total_money: number | null;   // ARS operados hoy
+  idea: { lado: Direccion; motivo: string } | null;
+  n_minutos: number;
+}
+
+export interface DayTradingResp {
+  objetivo_pct: number;
+  generado: string;
+  en_rueda: boolean;
+  rows: DayTradingRow[];
+}
+
+/** `GET /api/scanner/companeros/{ticker}` — con qué papeles se mueve. */
+export interface Companeros {
+  ticker: string;
+  con: { ticker: string; rho: number }[];
+  contra: { ticker: string; rho: number }[];
+  n_obs: number;
+}
+
+/** `GET /api/scanner/cedears/trades` — tape intradía. */
+export interface TapeTrade {
+  timestamp: string | null;
+  price: number | null;
+  size: number | null;
+  side: "BUY" | "SELL" | "MID" | null;
+  money: number | null;
+}
+
+/** `GET /api/scanner/cedears/intraday` — barra por minuto. */
+export interface MinuteBar {
+  t: string;
+  o: number | null;
+  h: number | null;
+  l: number | null;
+  c: number | null;
+  vol: number | null;
 }

@@ -5,25 +5,36 @@ import { SensibilidadTable } from "./sensibilidad-table";
 import { DescomposicionTab } from "./descomposicion-tab";
 import { CompararInversionView } from "./comparar-inversion-view";
 import { TradeLabView } from "./trade-lab-view";
-import { BookLabView } from "./book-lab-view";
-import { CorrelacionesView } from "./correlaciones-view";
+import { CoberturasView } from "./coberturas-view";
 
-// Vista ESTRATEGIA (MERCADOS → Estrategia). Dos familias de tabs:
-//   Mesa de Estrategia RV: TRADE LAB · BOOK & RIESGO · CORRELACIONES
-//     (caracterización de riesgo, hedge-finder, exposición de book, matriz ρ
-//      — backend api/services/rv_motor.py vía /api/scanner/*).
+// Vista ESTRATEGIA (MERCADOS → Estrategia). Tabs:
+//   TRADE LAB    — asistente de day-trading intradía de CEDEARs (vueltas,
+//                  rango, spread, alertas — /api/scanner/day-trading).
+//   COBERTURAS   — riesgo de un trade puntual + buscador de coberturas
+//                  por correlación (/api/scanner/trade-analysis).
 //   Herramientas RF: COMPARAR INVERSIÓN · ANÁLISIS SENSIBILIDAD · DESCOMPOSICIÓN.
-// "RETORNO TOTAL" y "CANJE" se migraron a la HOME.
+// "RETORNO TOTAL" y "CANJE" se migraron a la HOME. La tab BOOK & RIESGO se
+// eliminó (2026-06-10) y CORRELACIONES se integró al TRADE LAB ("se mueve
+// con/contra") — pedido del user.
 type EstrategiaTab =
   | "tradelab"
-  | "book"
-  | "correlaciones"
+  | "coberturas"
   | "comparar"
   | "sensibilidad"
   | "descomposicion";
 
+const TABS: { key: EstrategiaTab; label: string }[] = [
+  { key: "tradelab",       label: "TRADE LAB" },
+  { key: "coberturas",     label: "COBERTURAS" },
+  { key: "comparar",       label: "COMPARAR INVERSIÓN" },
+  { key: "sensibilidad",   label: "ANÁLISIS SENSIBILIDAD" },
+  { key: "descomposicion", label: "DESCOMPOSICIÓN" },
+];
+
 export function RetornoTotalView() {
-  const [tab, setTab] = usePersistedState<EstrategiaTab>("estrategia.tab", "tradelab");
+  const [tabRaw, setTab] = usePersistedState<EstrategiaTab>("estrategia.tab", "tradelab");
+  // Valores persistidos de tabs eliminadas (book/correlaciones) → default.
+  const tab: EstrategiaTab = TABS.some((t) => t.key === tabRaw) ? tabRaw : "tradelab";
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -31,42 +42,16 @@ export function RetornoTotalView() {
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest mr-3">
           ESTRATEGIA
         </span>
-        <TabPill
-          label="TRADE LAB"
-          active={tab === "tradelab"}
-          onClick={() => setTab("tradelab")}
-        />
-        <TabPill
-          label="BOOK & RIESGO"
-          active={tab === "book"}
-          onClick={() => setTab("book")}
-        />
-        <TabPill
-          label="CORRELACIONES"
-          active={tab === "correlaciones"}
-          onClick={() => setTab("correlaciones")}
-        />
-        <span className="h-4 w-px bg-[var(--t-border-2)] mx-1.5" />
-        <TabPill
-          label="COMPARAR INVERSIÓN"
-          active={tab === "comparar"}
-          onClick={() => setTab("comparar")}
-        />
-        <TabPill
-          label="ANÁLISIS SENSIBILIDAD"
-          active={tab === "sensibilidad"}
-          onClick={() => setTab("sensibilidad")}
-        />
-        <TabPill
-          label="DESCOMPOSICIÓN"
-          active={tab === "descomposicion"}
-          onClick={() => setTab("descomposicion")}
-        />
+        {TABS.map((t, i) => (
+          <span key={t.key} className="flex items-center gap-1">
+            {i === 2 && <span className="h-4 w-px bg-[var(--t-border-2)] mx-1.5" />}
+            <TabPill label={t.label} active={tab === t.key} onClick={() => setTab(t.key)} />
+          </span>
+        ))}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "tradelab" && <TradeLabView />}
-        {tab === "book" && <BookLabView />}
-        {tab === "correlaciones" && <CorrelacionesView />}
+        {tab === "coberturas" && <CoberturasView />}
         {tab === "comparar" && <CompararInversionView />}
         {/* Sensibilidad sin el panel de cálculos/explicación (se migra a Manager → Debug). */}
         {tab === "sensibilidad" && <SensibilidadTable compact />}

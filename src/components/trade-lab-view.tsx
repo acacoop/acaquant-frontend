@@ -1,183 +1,269 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import type { Direccion, TradeAnalysis, UniversoItem } from "@/lib/types-estrategia";
-import {
-  AccionChip,
-  CorrBar,
-  KpiCard,
-  MiniBar,
-  TickerSearch,
-  fmtNum,
-  fmtPct,
-  useDebounced,
-  useUniverso,
-  zClass,
-} from "./estrategia-shared";
+import { usePoll } from "@/lib/use-poll";
+import type {
+  Companeros,
+  DayTradingResp,
+  DayTradingRow,
+  MinuteBar,
+  TapeTrade,
+} from "@/lib/types-estrategia";
+import { AccionChip } from "./estrategia-shared";
 import { TableHelp } from "./help-tooltip";
 
 /**
- * TRADE LAB — Módulo 1 de la Mesa de Estrategia.
+ * TRADE LAB — asistente de day-trading intradía de CEDEARs.
  *
- * Caracteriza el riesgo de un trade individual (vol, beta, z-score, VaR,
- * peor mes) y rankea TODO el universo como candidato de cobertura
- * (hedge-finder por correlación, con ratio de mínima varianza).
+ * La pregunta que responde: "quiero capturar 0.5/1% comprando y vendiendo
+ * en el día — ¿qué papel me lo está dando HOY, ahora?". Rankea el universo
+ * por VUELTAS (movimientos completos ≥ objetivo que el papel ya hizo hoy,
+ * medidos sobre el tape por minuto del motor), muestra dónde está parado
+ * cada papel en su rango del día, el spread que te come, y dispara ALERTAS
+ * cuando un papel toca piso/techo o arranca.
  *
- * Backend: GET /api/scanner/trade-analysis (api/services/rv_motor.py).
- * Serie base: Trading.PreciosAcciones (EOD USD del subyacente).
+ * Backend: GET /api/scanner/day-trading (api/services/day_trading.py) +
+ * /api/scanner/companeros/{t} + /api/scanner/cedears/{trades,intraday}.
  */
 
 const GLOSARIO = [
-  { label: "VOL REALIZADA",       text: "Volatilidad histórica anualizada: stdev(retornos diarios) × √252. Cuánto se movió de verdad el activo. Es el insumo del sizing y del VaR." },
-  { label: "BETA (β)",            text: "Sensibilidad al benchmark: β = cov(activo, bench) / var(bench). β=1 se mueve igual que el mercado; β=2 amplifica ×2; β<0 se mueve al revés. Ventana 60 ruedas." },
-  { label: "Z-SCORE HOY",         text: "Cuán raro es el movimiento de HOY vs los días previos: z = (r_hoy − μ) / σ. |z|>2 es atípico (~5% de probabilidad); |z|>3 extremo. Candidato a mean-reversion." },
-  { label: "VaR 1 DÍA (95%)",     text: "Pérdida máxima esperada en 1 día con 95% de confianza, asumiendo normalidad: monto × 1.645 × σ_diaria. 1 de cada 20 ruedas la pérdida puede SUPERAR este número." },
-  { label: "PEOR MES (1σ)",       text: "Movimiento mensual de 1 desvío: monto × σ_anual / √12. Orden de magnitud de un mes malo 'normal' (no un crash)." },
-  { label: "EXPOSICIÓN EQUIV.",   text: "monto × β = cuántos dólares de mercado (SPY/QQQ) 'son' este trade. Un long de $1M con β 1.5 se mueve como $1.5M de SPY." },
-  { label: "HEDGE DIRECTO",       text: "Neutralizar el riesgo de mercado operando el benchmark en sentido contrario por la exposición equivalente. Lo que queda después es riesgo idiosincrático del activo." },
-  { label: "ρ (CORRELACIÓN)",     text: "Pearson entre retornos diarios. Rojo (ρ>0): se mueven juntos — se cubre con la posición CONTRARIA. Azul (ρ<0): se mueven opuestos — se cubre con la MISMA dirección." },
-  { label: "HEDGE RATIO",         text: "Ratio de mínima varianza: h = ρ × σ_activo / σ_candidato. Cuántos USD del candidato por cada USD del trade minimizan la varianza del combo." },
-  { label: "REDUCC. VOL",         text: "Cuánta volatilidad elimina la cobertura óptima con ese candidato: 1 − √(1 − ρ²). Con ρ=0.9 reducís ~56% de la vol; con ρ=0.5 apenas ~13% — la cobertura buena exige |ρ| alta." },
+  { label: "VUELTAS",       text: "Cuántas veces HOY el papel ya hizo un movimiento completo del tamaño que buscás (subida o bajada — long y short valen igual). Es LA columna: un papel con 6 vueltas de 0.5% viene dando seis chances en el día; uno con 0, ninguna. Se mide sobre los precios por minuto del tape." },
+  { label: "RANGO HOY",     text: "Distancia entre el mínimo y el máximo del día, en %. La barrita muestra dónde está parado AHORA el precio dentro de ese rango: pegado a la izquierda = en los pisos del día, pegado a la derecha = en los techos." },
+  { label: "HOY %",         text: "Variación contra el cierre de ayer. Te dice si el papel viene verde o rojo en el día." },
+  { label: "15 MIN",        text: "Cuánto se movió en los últimos 15 minutos. Es el 'ahora mismo': un papel planchado hace horas puede estar arrancando acá." },
+  { label: "VWAP",          text: "Precio promedio del día ponderado por volumen. Si el papel opera ARRIBA del VWAP, los compradores vienen mandando; abajo, los vendedores. Cruzar el VWAP suele ser señal de cambio de mano." },
+  { label: "SPREAD",        text: "La diferencia entre la punta compradora y la vendedora, en %. Es lo que pagás por entrar y salir YA (comprás caro al offer, vendés barato al bid). REGLA DE ORO: si el spread es más de la mitad de tu objetivo, el trade nace perdiendo — por eso se pinta rojo." },
+  { label: "$ HOY",         text: "Plata total operada hoy en ese papel. Si tu monto es grande comparado con esto, te va a costar entrar y salir sin mover el precio (el lab te avisa)." },
+  { label: "SI LA EMBOCÁS", text: "Tu monto × el objetivo = lo que ganás si capturás un movimiento completo. Al lado, lo que el spread te come de ese premio." },
+  { label: "IDEA",          text: "Sugerencia orientativa con su porqué (pasá el mouse): cerca del piso del día → LONG de rebote; cerca del techo → SHORT; empujando fuerte con VWAP a favor → seguir el impulso. NO es recomendación: es para mirar primero los candidatos con sentido." },
+  { label: "SE MUEVE CON",  text: "Papeles que históricamente acompañan (o van al revés de) el elegido, según los cierres diarios del último año. Útil para no abrir dos trades que son LA MISMA apuesta, o para buscar el espejo short de un long." },
+  { label: "ALERTAS",       text: "Avisos en el navegador cuando un papel toca el piso/techo del día, se mueve fuerte en 15 minutos o cruza el VWAP. Funcionan mientras la pestaña esté abierta. Activá el permiso de notificaciones para verlas aunque estés en otra ventana." },
 ];
 
+const OBJETIVOS = [0.5, 0.75, 1, 1.5];
 const MONTO_PRESETS = [
-  { label: "100k", value: 100_000 },
-  { label: "250k", value: 250_000 },
   { label: "500k", value: 500_000 },
   { label: "1M",   value: 1_000_000 },
+  { label: "3M",   value: 3_000_000 },
   { label: "5M",   value: 5_000_000 },
 ];
+const POLL_MS = 10_000;
 
-const QUICK_PICKS = ["NVDA", "AAPL", "TSLA", "MELI", "GGAL", "YPFD"];
-const TOP_N = 25;
-const REFRESH_MS = 300_000; // serie EOD + last cada 15 min → 5 min sobra
+type SortKey = "vueltas" | "rango_pct" | "dia_pct" | "mom15_pct" | "spread_pct" | "total_money";
+
+// ── Alertas ──────────────────────────────────────────────────────────
+
+type AlertaTipo = "piso" | "techo" | "mueve15" | "vwap";
+
+interface ReglaAlerta {
+  id: string;
+  ticker: string; // "*" = todos
+  tipo: AlertaTipo;
+  umbral?: number; // solo mueve15 (en %)
+}
+
+interface AlertaDisparada {
+  hora: string;
+  ticker: string;
+  msg: string;
+}
+
+const TIPO_LABEL: Record<AlertaTipo, string> = {
+  piso:    "toca el PISO del día",
+  techo:   "toca el TECHO del día",
+  mueve15: "se mueve fuerte en 15'",
+  vwap:    "cruza el VWAP",
+};
+
+function evaluarAlertas(
+  reglas: ReglaAlerta[],
+  rows: DayTradingRow[],
+  prev: Map<string, DayTradingRow>,
+): AlertaDisparada[] {
+  const out: AlertaDisparada[] = [];
+  const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  for (const r of rows) {
+    const p = prev.get(r.ticker);
+    if (!p) continue; // primera pasada: solo armar estado, no disparar
+    for (const reg of reglas) {
+      if (reg.ticker !== "*" && reg.ticker !== r.ticker) continue;
+      if (reg.tipo === "piso" && r.posicion != null && p.posicion != null
+          && r.posicion <= 3 && p.posicion > 3) {
+        out.push({ hora, ticker: r.ticker, msg: `${r.ticker} tocó el PISO del día ($${r.last ?? "?"})` });
+      }
+      if (reg.tipo === "techo" && r.posicion != null && p.posicion != null
+          && r.posicion >= 97 && p.posicion < 97) {
+        out.push({ hora, ticker: r.ticker, msg: `${r.ticker} tocó el TECHO del día ($${r.last ?? "?"})` });
+      }
+      if (reg.tipo === "mueve15" && r.mom15_pct != null && p.mom15_pct != null) {
+        const u = reg.umbral ?? 0.5;
+        if (Math.abs(r.mom15_pct) >= u && Math.abs(p.mom15_pct) < u) {
+          out.push({
+            hora, ticker: r.ticker,
+            msg: `${r.ticker} ${r.mom15_pct > 0 ? "subió" : "bajó"} ${Math.abs(r.mom15_pct).toFixed(2)}% en 15'`,
+          });
+        }
+      }
+      if (reg.tipo === "vwap" && r.vs_vwap_pct != null && p.vs_vwap_pct != null
+          && Math.sign(r.vs_vwap_pct) !== Math.sign(p.vs_vwap_pct)
+          && Math.abs(r.vs_vwap_pct) >= 0.05) {
+        out.push({
+          hora, ticker: r.ticker,
+          msg: `${r.ticker} cruzó el VWAP hacia ${r.vs_vwap_pct > 0 ? "ARRIBA (compradores)" : "ABAJO (vendedores)"}`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+// ── Helpers visuales ─────────────────────────────────────────────────
+
+function pctClass(v: number | null | undefined): string {
+  if (v == null) return "text-[var(--t-text-muted)]";
+  return v >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
+}
+
+function fmtPctS(v: number | null | undefined, dec = 2): string {
+  if (v == null || !isFinite(v)) return "--";
+  return `${v >= 0 ? "+" : ""}${v.toFixed(dec)}%`;
+}
+
+/** Barra low→high con el marcador de dónde está el precio ahora. */
+function RangoBar({ r }: { r: DayTradingRow }) {
+  if (r.posicion == null) return <span className="text-[var(--t-text-muted)]">--</span>;
+  return (
+    <span
+      className="relative inline-block w-full h-[8px] bg-[var(--t-border)] align-middle"
+      title={`mín $${r.low ?? "?"} · máx $${r.high ?? "?"} — está al ${r.posicion.toFixed(0)}% del rango`}
+    >
+      <span
+        className="absolute top-[-2px] h-[12px] w-[3px] bg-[var(--t-accent)]"
+        style={{ left: `calc(${r.posicion}% - 1px)` }}
+      />
+    </span>
+  );
+}
+
+function Sparkline({ bars }: { bars: MinuteBar[] }) {
+  const closes = bars.map((b) => b.c).filter((c): c is number => c != null && c > 0);
+  if (closes.length < 2) {
+    return <p className="text-[var(--t-text-muted)] text-[10px] py-2 text-center">Sin barras de hoy.</p>;
+  }
+  const w = 260, h = 48;
+  const min = Math.min(...closes), max = Math.max(...closes);
+  const span = max - min || 1;
+  const pts = closes
+    .map((c, i) => `${(i / (closes.length - 1)) * w},${h - ((c - min) / span) * (h - 4) - 2}`)
+    .join(" ");
+  const up = closes[closes.length - 1] >= closes[0];
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="block">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={up ? "var(--t-pos)" : "var(--t-neg)"}
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+// ── Vista principal ──────────────────────────────────────────────────
 
 export function TradeLabView() {
-  const { universo } = useUniverso();
-  const [ticker, setTicker] = usePersistedState<string | null>("estrategia.tl.ticker", null);
-  const [monto, setMonto] = usePersistedState<number>("estrategia.tl.monto", 1_000_000);
-  const [direccion, setDireccion] = usePersistedState<Direccion>("estrategia.tl.dir", "long");
-
-  const [data, setData] = useState<TradeAnalysis | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const [monto, setMonto] = usePersistedState<number>("estrategia.tl.montoArs", 1_000_000);
+  const [objetivo, setObjetivo] = usePersistedState<number>("estrategia.tl.objetivo", 0.5);
+  const [soloOperables, setSoloOperables] = usePersistedState<boolean>("estrategia.tl.operables", false);
   const [filtro, setFiltro] = useState("");
-  const [verTodos, setVerTodos] = useState(false);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "vueltas", dir: -1 });
+  const [sel, setSel] = usePersistedState<string | null>("estrategia.tl.sel", null);
 
-  const montoDeb = useDebounced(monto, 400);
+  const endpoint = `/api/scanner/day-trading?objetivo=${objetivo}`;
+  const initial = useMemo<DayTradingResp>(
+    () => ({ objetivo_pct: objetivo, generado: "", en_rueda: false, rows: [] }),
+    [objetivo],
+  );
+  const { data, lastAt } = usePoll<DayTradingResp>(endpoint, initial, POLL_MS, { fetchOnMount: true });
 
-  // Fetch del análisis — debounced sobre monto, inmediato sobre ticker/dirección.
-  // No se resetea `data` acá: la vigencia se deriva en render (`vista`) para
-  // evitar setState sincrónico en el effect (react-hooks/set-state-in-effect).
+  // ── Alertas ────────────────────────────────────────────────────────
+  const [reglas, setReglas] = usePersistedState<ReglaAlerta[]>("estrategia.tl.reglas", []);
+  const [disparadas, setDisparadas] = useState<AlertaDisparada[]>([]);
+  const [alertasOpen, setAlertasOpen] = useState(false);
+  const [notifOk, setNotifOk] = useState(false);
+  const prevRowsRef = useRef<Map<string, DayTradingRow>>(new Map());
+  const reglasRef = useRef(reglas);
+  reglasRef.current = reglas;
+
   useEffect(() => {
-    if (!ticker || !montoDeb) return;
-    let alive = true;
-    const load = (spinner: boolean) => {
-      if (spinner) setLoading(true);
-      const qs = new URLSearchParams({
-        ticker,
-        monto: String(montoDeb),
-        direccion,
-      });
-      fetch(`/api/scanner/trade-analysis?${qs}`, { cache: "no-store" })
-        .then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        })
-        .then((j: TradeAnalysis) => {
-          if (!alive) return;
-          setData(j);
-          setError(null);
-          setLoading(false);
-        })
-        .catch((e: unknown) => {
-          if (!alive) return;
-          setError(e instanceof Error ? e.message : "error");
-          setLoading(false);
-        });
-    };
-    load(true);
-    const id = setInterval(() => load(false), REFRESH_MS);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [ticker, montoDeb, direccion]);
+    setNotifOk(typeof Notification !== "undefined" && Notification.permission === "granted");
+  }, []);
 
-  // Dato vigente: solo si corresponde al ticker seleccionado (stale-while-
-  // revalidate sobre monto/dirección — el número viejo se pisa al llegar el
-  // nuevo; sobre cambio de ticker se oculta hasta el fetch fresco).
-  const vista = ticker && data && data.trade.ticker === ticker ? data : null;
+  useEffect(() => {
+    if (!data.rows.length) return;
+    const nuevas = evaluarAlertas(reglasRef.current, data.rows, prevRowsRef.current);
+    prevRowsRef.current = new Map(data.rows.map((r) => [r.ticker, r]));
+    if (!nuevas.length) return;
+    setDisparadas((prev) => [...nuevas, ...prev].slice(0, 50));
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      for (const a of nuevas) new Notification("TRADE LAB", { body: a.msg });
+    }
+  }, [data]);
 
-  const meta: UniversoItem | undefined = useMemo(
-    () => universo.find((u) => u.ticker === ticker),
-    [universo, ticker],
-  );
-
-  const sectorPor = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const u of universo) m.set(u.ticker, u.sector ?? "—");
-    return m;
-  }, [universo]);
-
-  const candidatos = useMemo(() => {
-    if (!vista) return [];
+  // ── Filtrado + orden ───────────────────────────────────────────────
+  const rows = useMemo(() => {
+    let r = data.rows;
+    if (soloOperables) {
+      r = r.filter(
+        (x) => x.spread_pct != null && x.spread_pct <= objetivo / 2 && (x.total_money ?? 0) > 0,
+      );
+    }
     const q = filtro.trim().toUpperCase();
-    const base = q
-      ? vista.hedge_finder.filter(
-          (c) => c.ticker.includes(q) || (sectorPor.get(c.ticker) ?? "").toUpperCase().includes(q),
-        )
-      : vista.hedge_finder;
-    return verTodos ? base : base.slice(0, TOP_N);
-  }, [vista, filtro, verTodos, sectorPor]);
+    if (q) {
+      r = r.filter(
+        (x) => x.ticker.includes(q) || (x.nombre ?? "").toUpperCase().includes(q)
+          || (x.sector ?? "").toUpperCase().includes(q),
+      );
+    }
+    const { key, dir } = sort;
+    return [...r].sort((a, b) => {
+      const va = a[key], vb = b[key];
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return (Number(va) - Number(vb)) * dir;
+    });
+  }, [data.rows, soloOperables, filtro, sort, objetivo]);
 
-  const c = vista?.caracterizacion;
-  const z60 = c?.zscore?.d60 ?? null;
-  const expoMax = Math.max(
-    Math.abs(c?.exposicion_mercado_equiv.spy ?? 0),
-    Math.abs(c?.exposicion_mercado_equiv.qqq ?? 0),
-    montoDeb,
+  const selRow = useMemo(() => data.rows.find((r) => r.ticker === sel) ?? null, [data.rows, sel]);
+
+  const th = (label: string, key: SortKey, title?: string) => (
+    <th
+      onClick={() => setSort((s) => ({ key, dir: s.key === key ? (s.dir === -1 ? 1 : -1) : -1 }))}
+      title={title}
+      className="!px-2 !py-1 text-right text-[9px] tracking-wider cursor-pointer hover:text-[var(--t-accent)]"
+    >
+      {label}{sort.key === key ? (sort.dir === -1 ? " ▼" : " ▲") : ""}
+    </th>
   );
+
+  const gananciaObjetivo = monto * objetivo / 100;
 
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-2 overflow-y-auto">
-      {/* ── Barra de control ─────────────────────────────────────── */}
+      {/* ── Controles ───────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap shrink-0">
-        {ticker ? (
-          <span className="flex items-center gap-2 border border-[var(--t-accent)]/40 bg-[var(--t-accent)]/10 px-2 py-1">
-            <span className="font-mono font-bold text-[13px] text-[var(--t-accent)]">{ticker}</span>
-            {meta?.nombre && (
-              <span className="text-[10px] text-[var(--t-text-dim)] max-w-[180px] truncate">{meta.nombre}</span>
-            )}
-            {meta?.sector && (
-              <span className="text-[9px] text-[var(--t-text-muted)] uppercase">{meta.sector}</span>
-            )}
-            <button
-              onClick={() => setTicker(null)}
-              className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)] text-[11px] leading-none"
-              title="Cambiar ticker"
-            >
-              ✕
-            </button>
-          </span>
-        ) : (
-          <TickerSearch universo={universo} onSelect={setTicker} placeholder="TICKER…" autoFocus />
-        )}
-
-        {/* Monto */}
         <span className="flex items-center gap-1">
-          <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">USD</span>
+          <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">TU MONTO $</span>
           <input
             value={monto ? monto.toLocaleString("es-AR") : ""}
             onChange={(e) => {
-              const digits = e.target.value.replace(/[^\d]/g, "");
-              setMonto(digits ? Number(digits) : 0);
+              const d = e.target.value.replace(/[^\d]/g, "");
+              setMonto(d ? Number(d) : 0);
             }}
             inputMode="numeric"
-            className="w-[110px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-right font-mono text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
+            className="w-[100px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 text-[11px] text-right font-mono text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
           />
           {MONTO_PRESETS.map((p) => (
             <button
@@ -194,253 +280,438 @@ export function TradeLabView() {
           ))}
         </span>
 
-        {/* Dirección */}
-        <span className="flex border border-[var(--t-border-2)]">
-          {(["long", "short"] as const).map((d) => (
+        <span className="flex items-center gap-1 pl-2 border-l border-[var(--t-border)]">
+          <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">BUSCO</span>
+          {OBJETIVOS.map((o) => (
             <button
-              key={d}
-              onClick={() => setDireccion(d)}
-              className={`px-3 py-1 text-[10px] font-bold tracking-widest transition-colors ${
-                direccion === d
-                  ? d === "long"
-                    ? "bg-[var(--t-pos)]/20 text-[var(--t-pos)]"
-                    : "bg-[var(--t-neg)]/20 text-[var(--t-neg)]"
-                  : "text-[var(--t-text-muted)] hover:text-[var(--t-text)]"
+              key={o}
+              onClick={() => setObjetivo(o)}
+              className={`px-2 py-1 text-[10px] font-bold tabular-nums border transition-colors ${
+                objetivo === o
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
               }`}
             >
-              {d.toUpperCase()}
+              {o}%
             </button>
           ))}
         </span>
 
+        <button
+          onClick={() => setSoloOperables((v) => !v)}
+          title="Esconde los papeles cuyo spread se come más de la mitad del objetivo o que no operaron plata hoy"
+          className={`px-2 py-1 text-[9px] font-semibold tracking-wider border transition-colors ${
+            soloOperables
+              ? "text-[var(--t-pos)] border-[var(--t-pos)]/50 bg-[var(--t-pos)]/10"
+              : "text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-text)]"
+          }`}
+        >
+          SOLO OPERABLES
+        </button>
+
+        <input
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          placeholder="buscar papel…"
+          className="w-[110px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
+        />
+
+        <button
+          onClick={() => setAlertasOpen((v) => !v)}
+          className={`px-2 py-1 text-[9px] font-semibold tracking-wider border transition-colors ${
+            alertasOpen || reglas.length
+              ? "text-[var(--t-accent)] border-[var(--t-accent)]/50"
+              : "text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+          }`}
+        >
+          🔔 ALERTAS{reglas.length ? ` (${reglas.length})` : ""}
+        </button>
+
         <TableHelp entries={GLOSARIO} />
 
-        <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tracking-wide">
-          {loading
-            ? "calculando…"
-            : error
-            ? <span className="text-[var(--t-neg)]">⚠ {error}</span>
-            : vista
-            ? "serie EOD USD · ventana 60 ruedas · σ 30/60d"
-            : ""}
+        <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tabular-nums">
+          {!data.en_rueda && lastAt > 0
+            ? "sin rueda en curso — el tape arranca con el mercado"
+            : lastAt > 0
+            ? `live · si la embocás: +$${Math.round(gananciaObjetivo).toLocaleString("es-AR")} por vuelta`
+            : "cargando…"}
         </span>
       </div>
 
-      {/* ── Sin ticker: estado vacío con accesos rápidos ─────────── */}
-      {!ticker && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-          <div className="text-[var(--t-text-muted)] text-[11px] tracking-[0.3em] font-semibold">
-            TRADE LAB
-          </div>
-          <p className="text-[var(--t-text-dim)] text-xs max-w-[420px]">
-            Elegí un ticker para caracterizar el riesgo del trade (vol, beta, z-score,
-            VaR) y rankear todo el universo como cobertura.
-          </p>
-          <div className="flex gap-1.5 flex-wrap justify-center">
-            {QUICK_PICKS.filter((t) => universo.some((u) => u.ticker === t)).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTicker(t)}
-                className="px-2.5 py-1 text-[11px] font-mono font-semibold border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] transition-colors"
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* ── Panel de alertas ────────────────────────────────────────── */}
+      {alertasOpen && (
+        <AlertasPanel
+          reglas={reglas}
+          setReglas={setReglas}
+          disparadas={disparadas}
+          notifOk={notifOk}
+          setNotifOk={setNotifOk}
+          tickers={data.rows.map((r) => r.ticker)}
+        />
       )}
 
-      {/* ── Resultados ───────────────────────────────────────────── */}
-      {ticker && vista && c && (
-        <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 shrink-0">
-            <KpiCard
-              label="Último (USD)"
-              value={c.last != null ? `$${c.last.toFixed(2)}` : "--"}
-              sub={meta?.sector ?? undefined}
-            />
-            <KpiCard
-              label="Vol 30d (anual)"
-              value={c.vol_anual.d30 != null ? fmtPct(c.vol_anual.d30 * 100) : "--"}
-              sub={`60d ${c.vol_anual.d60 != null ? fmtPct(c.vol_anual.d60 * 100) : "--"}`}
-            />
-            <KpiCard
-              label="Beta SPY"
-              value={fmtNum(c.beta.spy)}
-              sub={`QQQ ${fmtNum(c.beta.qqq)}`}
-            />
-            <KpiCard
-              label="Z-score hoy"
-              value={z60 != null ? `${z60 >= 0 ? "+" : ""}${z60.toFixed(2)} σ` : "--"}
-              sub={`30d ${c.zscore?.d30 != null ? `${c.zscore.d30 >= 0 ? "+" : ""}${c.zscore.d30.toFixed(2)} σ` : "--"}`}
-              valueClass={zClass(z60)}
-            />
-            <KpiCard
-              label="VaR 1 día (95%)"
-              value={c.var_1d_95 != null ? `−${fmtMoney(c.var_1d_95)}` : "--"}
-              sub={c.var_1d_95_pct != null ? `−${c.var_1d_95_pct.toFixed(2)}% del notional` : undefined}
-              valueClass="text-[var(--t-neg)]"
-            />
-            <KpiCard
-              label="Peor mes (1σ)"
-              value={c.peor_mes_1sigma != null ? `−${fmtMoney(c.peor_mes_1sigma)}` : "--"}
-              valueClass="text-[var(--t-neg)]"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 flex-1 min-h-0">
-            {/* Exposición de mercado + hedge directo */}
-            <div className="xl:col-span-4 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-[220px]">
-              <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 text-[11px] font-semibold text-[var(--t-accent)] tracking-wide">
-                EXPOSICIÓN DE MERCADO
-              </div>
-              <div className="p-3 flex flex-col gap-3 text-[11px]">
-                {(["spy", "qqq"] as const).map((b) => {
-                  const beta = c.beta[b];
-                  const equiv = c.exposicion_mercado_equiv[b];
-                  const hedge = vista.hedge_beta.find(
-                    (h) => h.benchmark.toLowerCase() === b,
-                  );
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-2 flex-1 min-h-0">
+        {/* ── Ranking ─────────────────────────────────────────────────── */}
+        <div className={`${sel ? "xl:col-span-8" : "xl:col-span-12"} border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-[300px]`}>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <table className="w-full text-[11px]">
+              <thead className="sticky top-0 bg-[var(--t-panel)] border-b border-[var(--t-border-2)] z-10">
+                <tr className="text-[var(--t-text-muted)]">
+                  <th className="!px-2 !py-1 text-left text-[9px] tracking-wider">PAPEL</th>
+                  <th className="!px-2 !py-1 text-right text-[9px] tracking-wider">ÚLTIMO</th>
+                  {th("HOY", "dia_pct", "Variación vs cierre de ayer")}
+                  {th("RANGO", "rango_pct", "Mín→máx del día y dónde está parado ahora")}
+                  <th className="!px-1 !py-1 w-[80px]"></th>
+                  {th(`VUELTAS ≥${objetivo}%`, "vueltas", "Movimientos completos del tamaño buscado que YA hizo hoy")}
+                  {th("15'", "mom15_pct", "Cuánto se movió en los últimos 15 minutos")}
+                  <th className="!px-2 !py-1 text-right text-[9px] tracking-wider" title="Arriba o abajo del precio promedio del día">VWAP</th>
+                  {th("SPREAD", "spread_pct", "Lo que te come entrar y salir — rojo si es más de la mitad del objetivo")}
+                  {th("$ HOY", "total_money", "Plata operada hoy en el papel")}
+                  <th className="!px-2 !py-1 text-center text-[9px] tracking-wider">IDEA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const spreadMalo = r.spread_pct != null && r.spread_pct > objetivo / 2;
                   return (
-                    <div key={b} className="flex flex-col gap-1">
-                      <div className="flex items-baseline justify-between">
-                        <span className="font-mono font-semibold text-[var(--t-text)]">
-                          {b.toUpperCase()}
-                          <span className="ml-2 text-[var(--t-text-dim)] font-normal">
-                            β {fmtNum(beta)}
-                          </span>
+                    <tr
+                      key={r.ticker}
+                      onClick={() => setSel(r.ticker === sel ? null : r.ticker)}
+                      className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)] ${sel === r.ticker ? "bg-[var(--t-accent)]/10" : ""}`}
+                    >
+                      <td className="!px-2 !py-1 font-mono font-semibold text-[var(--t-accent)]" title={r.nombre ?? undefined}>
+                        {r.ticker}
+                      </td>
+                      <td className="!px-2 !py-1 text-right font-mono tabular-nums">
+                        {r.last != null ? `$${r.last.toLocaleString("es-AR")}` : "--"}
+                      </td>
+                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${pctClass(r.dia_pct)}`}>
+                        {fmtPctS(r.dia_pct)}
+                      </td>
+                      <td className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text)]">
+                        {r.rango_pct != null ? `${r.rango_pct.toFixed(2)}%` : "--"}
+                      </td>
+                      <td className="!px-1 !py-1"><RangoBar r={r} /></td>
+                      <td className="!px-2 !py-1 text-right">
+                        <span className={`font-mono tabular-nums font-bold text-[13px] ${
+                          r.vueltas >= 4 ? "text-[var(--t-pos)]" : r.vueltas >= 2 ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"
+                        }`}>
+                          {r.vueltas}
                         </span>
-                        <span
-                          className="font-mono tabular-nums text-[var(--t-text)]"
-                          title={fmtMoneyFull(equiv)}
-                        >
-                          {equiv != null ? fmtMoney(equiv) : "--"}
-                        </span>
-                      </div>
-                      <MiniBar value={equiv ?? 0} max={expoMax} />
-                      {hedge && (
-                        <div className="flex items-center gap-1.5 text-[10px] text-[var(--t-text-dim)]">
-                          <span className="text-[var(--t-text-muted)]">hedge directo:</span>
-                          <AccionChip accion={hedge.accion} />
-                          <span className="font-mono tabular-nums" title={fmtMoneyFull(hedge.notional)}>
-                            {fmtMoney(hedge.notional)} {hedge.benchmark}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                        {r.mejor_vuelta_pct != null && (
+                          <span className="text-[9px] text-[var(--t-text-muted)] ml-1">máx {r.mejor_vuelta_pct}%</span>
+                        )}
+                      </td>
+                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${pctClass(r.mom15_pct)}`}>
+                        {fmtPctS(r.mom15_pct)}
+                      </td>
+                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${pctClass(r.vs_vwap_pct)}`}>
+                        {r.vs_vwap_pct == null ? "--" : r.vs_vwap_pct >= 0 ? "↑" : "↓"}
+                        {r.vs_vwap_pct != null ? ` ${Math.abs(r.vs_vwap_pct).toFixed(2)}%` : ""}
+                      </td>
+                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${spreadMalo ? "text-[var(--t-neg)] font-semibold" : "text-[var(--t-text)]"}`}
+                          title={spreadMalo ? "El spread se come más de la mitad del objetivo — el trade nace perdiendo" : undefined}>
+                        {r.spread_pct != null ? `${r.spread_pct.toFixed(2)}%` : "--"}
+                      </td>
+                      <td className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text-dim)]" title={fmtMoneyFull(r.total_money)}>
+                        {r.total_money != null ? fmtMoney(r.total_money) : "--"}
+                      </td>
+                      <td className="!px-2 !py-1 text-center" title={r.idea?.motivo}>
+                        {r.idea ? <AccionChip accion={r.idea.lado} /> : <span className="text-[var(--t-text-muted)]">—</span>}
+                      </td>
+                    </tr>
                   );
                 })}
-                <p className="text-[9px] text-[var(--t-text-muted)] leading-snug border-t border-[var(--t-border)] pt-2">
-                  Un {direccion.toUpperCase()} de {fmtMoney(montoDeb)} en {ticker} se mueve
-                  como esa cantidad de dólares del benchmark. El hedge directo neutraliza
-                  el mercado: lo que queda es riesgo propio del activo.
-                </p>
-              </div>
-            </div>
-
-            {/* Hedge finder */}
-            <div className="xl:col-span-8 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-[260px]">
-              <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide">
-                  HEDGE FINDER
-                </span>
-                <span className="text-[9px] text-[var(--t-text-muted)]">
-                  universo rankeado por |ρ| · {vista.hedge_finder.length} candidatos
-                </span>
-                <input
-                  value={filtro}
-                  onChange={(e) => setFiltro(e.target.value)}
-                  placeholder="filtrar…"
-                  className="ml-auto w-[120px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-0.5 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
-                />
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                {vista.hedge_finder.length === 0 ? (
-                  <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
-                    Sin candidatos — el ticker no tiene serie suficiente en la matriz de
-                    correlación (mín. 30 ruedas comunes).
-                  </p>
-                ) : (
-                  <table className="w-full text-[11px]">
-                    <thead className="sticky top-0 bg-[var(--t-panel)] border-b border-[var(--t-border-2)]">
-                      <tr className="text-[var(--t-text-muted)] text-[9px] tracking-wider">
-                        <th className="!px-2 !py-1 text-left">#</th>
-                        <th className="!px-2 !py-1 text-left">TICKER</th>
-                        <th className="!px-2 !py-1 text-left hidden md:table-cell">SECTOR</th>
-                        <th className="!px-2 !py-1 text-right">ρ</th>
-                        <th className="!px-2 !py-1 w-[90px]"></th>
-                        <th className="!px-2 !py-1 text-right">RATIO</th>
-                        <th className="!px-2 !py-1 text-right">NOTIONAL</th>
-                        <th className="!px-2 !py-1 text-center">ACCIÓN</th>
-                        <th className="!px-2 !py-1 text-right">−VOL</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {candidatos.map((h, i) => (
-                        <tr
-                          key={h.ticker}
-                          className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]"
-                        >
-                          <td className="!px-2 !py-1 text-[var(--t-text-muted)] tabular-nums">{i + 1}</td>
-                          <td className="!px-2 !py-1 font-mono font-semibold text-[var(--t-accent)]">{h.ticker}</td>
-                          <td className="!px-2 !py-1 text-[var(--t-text-dim)] text-[10px] hidden md:table-cell">
-                            {sectorPor.get(h.ticker) ?? "—"}
-                          </td>
-                          <td className={`!px-2 !py-1 text-right font-mono tabular-nums font-semibold ${h.correlacion >= 0 ? "text-[#ff7766]" : "text-[#6699ff]"}`}>
-                            {h.correlacion >= 0 ? "+" : ""}{h.correlacion.toFixed(2)}
-                          </td>
-                          <td className="!px-1 !py-1"><CorrBar value={h.correlacion} /></td>
-                          <td className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text)]">
-                            {h.hedge_ratio != null ? h.hedge_ratio.toFixed(2) : "--"}
-                          </td>
-                          <td
-                            className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text)]"
-                            title={fmtMoneyFull(h.notional_hedge)}
-                          >
-                            {h.notional_hedge != null ? fmtMoney(h.notional_hedge) : "--"}
-                          </td>
-                          <td className="!px-2 !py-1 text-center"><AccionChip accion={h.accion} /></td>
-                          <td className="!px-2 !py-1 text-right">
-                            <span className="font-mono tabular-nums text-[var(--t-text)] mr-1">
-                              {h.reduccion_vol_pct.toFixed(0)}%
-                            </span>
-                            <span className="inline-block w-[36px] align-middle">
-                              <MiniBar value={h.reduccion_vol_pct} max={100} className="bg-[var(--t-pos)]/60" />
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-                {!verTodos && vista.hedge_finder.length > TOP_N && !filtro && (
-                  <button
-                    onClick={() => setVerTodos(true)}
-                    className="w-full py-1.5 text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
-                  >
-                    VER TODOS ({vista.hedge_finder.length})
-                  </button>
-                )}
-              </div>
-            </div>
+              </tbody>
+            </table>
+            {lastAt > 0 && rows.length === 0 && (
+              <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
+                {data.en_rueda
+                  ? "Ningún papel pasa los filtros — probá sacando SOLO OPERABLES o bajando el objetivo."
+                  : "Sin rueda en curso: el ranking se arma con los trades del día (13:20–20:00 UTC, L-V)."}
+              </p>
+            )}
           </div>
-        </>
+        </div>
+
+        {/* ── Detalle del papel ───────────────────────────────────────── */}
+        {sel && (
+          <DetallePapel
+            row={selRow}
+            ticker={sel}
+            monto={monto}
+            objetivo={objetivo}
+            onClose={() => setSel(null)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Panel de alertas ─────────────────────────────────────────────────
+
+function AlertasPanel({
+  reglas, setReglas, disparadas, notifOk, setNotifOk, tickers,
+}: {
+  reglas: ReglaAlerta[];
+  setReglas: React.Dispatch<React.SetStateAction<ReglaAlerta[]>>;
+  disparadas: AlertaDisparada[];
+  notifOk: boolean;
+  setNotifOk: (v: boolean) => void;
+  tickers: string[];
+}) {
+  const [tk, setTk] = useState("*");
+  const [tipo, setTipo] = useState<AlertaTipo>("mueve15");
+  const [umbral, setUmbral] = useState("0.5");
+
+  return (
+    <div className="border border-[var(--t-accent)]/30 bg-[var(--t-accent)]/5 p-2 flex flex-col gap-2 shrink-0 text-[10px]">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[var(--t-accent)] font-semibold tracking-wider">NUEVA ALERTA:</span>
+        <select
+          value={tk}
+          onChange={(e) => setTk(e.target.value)}
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] font-mono text-[var(--t-text)]"
+        >
+          <option value="*">CUALQUIER PAPEL</option>
+          {tickers.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value as AlertaTipo)}
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] text-[var(--t-text)]"
+        >
+          {(Object.keys(TIPO_LABEL) as AlertaTipo[]).map((t) => (
+            <option key={t} value={t}>{TIPO_LABEL[t]}</option>
+          ))}
+        </select>
+        {tipo === "mueve15" && (
+          <span className="flex items-center gap-1">
+            ≥
+            <input
+              value={umbral}
+              onChange={(e) => setUmbral(e.target.value.replace(/[^\d.,]/g, ""))}
+              className="w-[44px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] text-right font-mono text-[var(--t-text)]"
+            />
+            %
+          </span>
+        )}
+        <button
+          onClick={() => {
+            const u = Number(umbral.replace(",", ".")) || 0.5;
+            setReglas((prev) => [
+              ...prev,
+              { id: `${Date.now()}`, ticker: tk, tipo, ...(tipo === "mueve15" ? { umbral: u } : {}) },
+            ]);
+          }}
+          className="px-2 py-0.5 font-semibold border border-[var(--t-accent)]/50 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 transition-colors"
+        >
+          AGREGAR
+        </button>
+        {!notifOk && typeof Notification !== "undefined" && (
+          <button
+            onClick={() => {
+              void Notification.requestPermission().then((p) => setNotifOk(p === "granted"));
+            }}
+            className="px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
+            title="Para ver los avisos aunque estés en otra ventana"
+          >
+            ACTIVAR NOTIFICACIONES
+          </button>
+        )}
+      </div>
+
+      {reglas.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {reglas.map((r) => (
+            <span key={r.id} className="flex items-center gap-1 px-1.5 py-0.5 border border-[var(--t-border-2)] font-mono">
+              {r.ticker === "*" ? "TODOS" : r.ticker} · {TIPO_LABEL[r.tipo]}{r.tipo === "mueve15" ? ` ≥${r.umbral}%` : ""}
+              <button
+                onClick={() => setReglas((prev) => prev.filter((x) => x.id !== r.id))}
+                className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)]"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
       )}
 
-      {/* Loading sin data previa */}
-      {ticker && !vista && loading && (
-        <div className="flex-1 flex items-center justify-center">
-          <span className="text-[var(--t-text-muted)] text-xs animate-pulse">
-            Calculando matriz de correlación del universo…
-          </span>
+      {disparadas.length > 0 && (
+        <div className="max-h-[90px] overflow-y-auto border-t border-[var(--t-border)] pt-1 flex flex-col gap-0.5">
+          {disparadas.map((a, i) => (
+            <div key={i} className="flex gap-2 font-mono tabular-nums">
+              <span className="text-[var(--t-text-muted)]">{a.hora}</span>
+              <span className="text-[var(--t-text)]">{a.msg}</span>
+            </div>
+          ))}
         </div>
       )}
-      {ticker && !vista && !loading && error && (
-        <div className="flex-1 flex items-center justify-center">
-          <span className="text-[var(--t-neg)] text-xs">⚠ {error}</span>
+    </div>
+  );
+}
+
+// ── Detalle del papel seleccionado ───────────────────────────────────
+
+function DetallePapel({
+  row, ticker, monto, objetivo, onClose,
+}: {
+  row: DayTradingRow | null;
+  ticker: string;
+  monto: number;
+  objetivo: number;
+  onClose: () => void;
+}) {
+  const [comp, setComp] = useState<Companeros | null>(null);
+  const [tape, setTape] = useState<TapeTrade[]>([]);
+  const [bars, setBars] = useState<MinuteBar[]>([]);
+
+  // Compañeros (correlación EOD) — 1 fetch por selección, backend cachea 300s.
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/scanner/companeros/${encodeURIComponent(ticker)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: Companeros | null) => {
+        if (alive) setComp(j);
+      })
+      .catch(() => { if (alive) setComp(null); });
+    return () => { alive = false; };
+  }, [ticker]);
+
+  // Tape + barras del día — poll liviano mientras está seleccionado.
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch(`/api/scanner/cedears/trades?ticker=${encodeURIComponent(ticker)}&limite=14`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((j: TapeTrade[]) => { if (alive) setTape(j ?? []); })
+        .catch(() => {});
+      fetch(`/api/scanner/cedears/intraday?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((j: MinuteBar[]) => { if (alive) setBars(j ?? []); })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 15_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [ticker]);
+
+  const ganancia = monto * objetivo / 100;
+  const costoSpread = row?.spread_pct != null ? monto * row.spread_pct / 100 : null;
+  const pesoEnElDia = row?.total_money ? (monto / row.total_money) * 100 : null;
+
+  return (
+    <div className="xl:col-span-4 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-[300px] overflow-y-auto">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center gap-2 shrink-0">
+        <span className="font-mono font-bold text-[13px] text-[var(--t-accent)]">{ticker}</span>
+        {row?.nombre && <span className="text-[10px] text-[var(--t-text-dim)] truncate">{row.nombre}</span>}
+        <button onClick={onClose} className="ml-auto text-[var(--t-text-muted)] hover:text-[var(--t-neg)] text-[12px]">✕</button>
+      </div>
+
+      <div className="p-3 flex flex-col gap-3 text-[11px]">
+        <Sparkline bars={bars} />
+
+        {/* La cuenta en criollo */}
+        <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1">
+          <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">LA CUENTA</div>
+          <div className="flex justify-between">
+            <span className="text-[var(--t-text-dim)]">Si capturás {objetivo}% con ${monto.toLocaleString("es-AR")}</span>
+            <span className="font-mono tabular-nums text-[var(--t-pos)] font-semibold">
+              +${Math.round(ganancia).toLocaleString("es-AR")}
+            </span>
+          </div>
+          {costoSpread != null && (
+            <div className="flex justify-between">
+              <span className="text-[var(--t-text-dim)]">El spread te come (entrar + salir)</span>
+              <span className="font-mono tabular-nums text-[var(--t-neg)]">
+                −${Math.round(costoSpread).toLocaleString("es-AR")}
+              </span>
+            </div>
+          )}
+          {costoSpread != null && (
+            <div className="flex justify-between border-t border-[var(--t-border)] pt-1">
+              <span className="text-[var(--t-text)]">Te queda</span>
+              <span className={`font-mono tabular-nums font-bold ${ganancia - costoSpread > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
+                {ganancia - costoSpread > 0 ? "+" : ""}${Math.round(ganancia - costoSpread).toLocaleString("es-AR")}
+              </span>
+            </div>
+          )}
+          {pesoEnElDia != null && pesoEnElDia > 5 && (
+            <div className="text-[9px] text-[var(--t-accent)] leading-snug pt-1">
+              ⚠ Tu monto es el {pesoEnElDia.toFixed(0)}% de TODO lo operado hoy en este papel —
+              puede costarte entrar y salir sin mover el precio.
+            </div>
+          )}
         </div>
-      )}
+
+        {row?.idea && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">IDEA</span>
+              <AccionChip accion={row.idea.lado} />
+            </div>
+            <p className="text-[10px] text-[var(--t-text-dim)] leading-snug">{row.idea.motivo}</p>
+          </div>
+        )}
+
+        {/* Se mueve con / contra */}
+        {comp && (comp.con.length > 0 || comp.contra.length > 0) && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1.5">
+            <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">
+              SE MUEVE CON / CONTRA
+              <span className="ml-1 normal-case tracking-normal font-normal">(cierres diarios, último año)</span>
+            </div>
+            {comp.con.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[#ff7766] text-[9px] w-[38px]">CON</span>
+                {comp.con.map((c) => (
+                  <span key={c.ticker} className="px-1.5 py-0.5 border border-[#ff7766]/30 font-mono text-[10px]" title={`ρ ${c.rho}`}>
+                    {c.ticker} <span className="text-[var(--t-text-muted)]">{c.rho}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            {comp.contra.length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[#6699ff] text-[9px] w-[38px]">CONTRA</span>
+                {comp.contra.map((c) => (
+                  <span key={c.ticker} className="px-1.5 py-0.5 border border-[#6699ff]/30 font-mono text-[10px]" title={`ρ ${c.rho}`}>
+                    {c.ticker} <span className="text-[var(--t-text-muted)]">{c.rho}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tape */}
+        {tape.length > 0 && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2">
+            <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold mb-1">ÚLTIMOS TRADES</div>
+            <table className="w-full text-[10px] font-mono tabular-nums">
+              <tbody>
+                {tape.map((t, i) => (
+                  <tr key={i}>
+                    <td className="text-[var(--t-text-muted)] !py-px">
+                      {t.timestamp ? new Date(t.timestamp).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "--"}
+                    </td>
+                    <td className={`text-right !py-px ${t.side === "BUY" ? "text-[var(--t-pos)]" : t.side === "SELL" ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
+                      {t.side === "BUY" ? "compra" : t.side === "SELL" ? "venta" : "—"}
+                    </td>
+                    <td className="text-right !py-px text-[var(--t-text)]">
+                      {t.price != null ? `$${t.price.toLocaleString("es-AR")}` : "--"}
+                    </td>
+                    <td className="text-right !py-px text-[var(--t-text-dim)]" title={fmtMoneyFull(t.money)}>
+                      {t.money != null ? fmtMoney(t.money) : "--"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
