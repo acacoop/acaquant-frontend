@@ -33,6 +33,7 @@ const PATH_MODULES: [string, string[]][] = [
   // + /contrapartes (contrapartes + flujo vs aum) — todas módulo `operaciones`
   ["/operaciones", ["operaciones"]],
   ["/operadores", ["operaciones"]],
+  ["/referidos", ["operaciones"]],
   ["/contrapartes", ["operaciones"]],
   ["/api/operaciones", ["operaciones"]],
   ["/api/cuentas", ["operaciones"]],
@@ -164,6 +165,7 @@ export const config = {
     "/manager/:path*",
     "/operaciones/:path*",
     "/operadores/:path*",
+    "/referidos/:path*",
     "/contrapartes/:path*",
     "/operar/:path*",
     "/aum/:path*",
