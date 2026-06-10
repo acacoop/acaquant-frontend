@@ -233,6 +233,15 @@ export function RetornoTotalMini({
     [tickers, data, colorOf],
   );
 
+  // TC usado en el carry = el MEP con el que se mide en USD (siempre MEP, nunca
+  // oficial). Tomamos el último MEP disponible en la ventana para mostrarlo.
+  const mepUsado = useMemo<number | null>(() => {
+    if (mode !== "carry") return null;
+    if (fechaHasta && mep[fechaHasta]) return mep[fechaHasta];
+    const ultimaFechaMep = Object.keys(mep).sort().at(-1);
+    return ultimaFechaMep ? mep[ultimaFechaMep] : null;
+  }, [mode, mep, fechaHasta]);
+
   // ── Chart (lightweight-charts) ────────────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -361,6 +370,15 @@ export function RetornoTotalMini({
           <Centro>sin datos suficientes en la ventana</Centro>
         ) : (
           <div ref={containerRef} className="absolute inset-0" />
+        )}
+        {/* TC usado en modo carry: siempre MEP (no oficial). */}
+        {mode === "carry" && mepUsado != null && hayDatos && (
+          <div
+            className="absolute top-1 left-1 z-10 px-1.5 py-0.5 text-[9px] font-mono bg-[var(--t-panel)]/85 border border-[var(--t-border)] text-[var(--t-text-dim)] rounded-[2px] pointer-events-none"
+            title="Tipo de cambio usado para medir el carry en USD (último MEP de la ventana)"
+          >
+            TC: MEP ${mepUsado.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
+          </div>
         )}
       </div>
 

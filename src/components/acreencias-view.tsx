@@ -128,12 +128,13 @@ export function AcreenciasView() {
               </div>
               <table>
                 <thead>
-                  <tr><th>Cliente</th><th>Ticker</th><th>Emisor</th><th>Mon</th><th className="text-right">VN</th><th className="text-right">Monto</th></tr>
+                  <tr><th>Cliente</th><th>Cuenta</th><th>Ticker</th><th>Emisor</th><th>Mon</th><th className="text-right">VN</th><th className="text-right">Monto</th></tr>
                 </thead>
                 <tbody>
                   {detalle.map((p, i) => (
                     <tr key={`${p.id_cuenta}-${p.ticker}-${i}`}>
                       <td>{p.cliente || p.id_cuenta}</td>
+                      <td className="tabular-nums text-[var(--t-text-dim)]">{p.id_cuenta}</td>
                       <td className="font-semibold">{p.ticker}</td>
                       <td className="text-[var(--t-text-dim)]">{p.emisor || "--"}</td>
                       <td>{p.moneda}</td>
