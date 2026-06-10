@@ -51,6 +51,32 @@ const fmtFecha = (s: string) => {
 
 const monKey = (m: string | null): "ars" | "usd" => (m === "USD" ? "usd" : "ars");
 
+// Agregación temporal del gráfico (solo el gráfico — las tablas no se tocan).
+type Agg = "DIA" | "SEM" | "MES" | "ANIO";
+const AGGS: [Agg, string][] = [["DIA", "Día"], ["SEM", "Sem"], ["MES", "Mes"], ["ANIO", "Año"]];
+const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+function lunesDeSemana(fechaIso: string): string {
+  const d = new Date(fechaIso + "T00:00:00Z");
+  const dow = d.getUTCDay();
+  const off = dow === 0 ? -6 : 1 - dow;
+  return new Date(d.getTime() + off * 86400000).toISOString().slice(0, 10);
+}
+function bucketKey(fecha: string, agg: Agg): string {
+  if (agg === "ANIO") return fecha.slice(0, 4);
+  if (agg === "MES") return fecha.slice(0, 7);
+  if (agg === "SEM") return lunesDeSemana(fecha);
+  return fecha;
+}
+function bucketLabel(key: string, agg: Agg): string {
+  if (agg === "ANIO") return key;
+  if (agg === "MES") {
+    const [y, m] = key.split("-");
+    return `${MESES[Number(m) - 1]} ${y.slice(2)}`;
+  }
+  return fmtFecha(key); // DIA y SEM (lunes de la semana)
+}
+
 export function CobrosFuturosView({
   operador,
   moneda = "ARS",
@@ -76,7 +102,9 @@ export function CobrosFuturosView({
   const [sel, setSel] = useState<string | null>(null);
   const [detalle, setDetalle] = useState<ClienteResp | null>(null);
   const [selTicker, setSelTicker] = useState<string | null>(null);
-  const [selFecha, setSelFecha] = useState<string | null>(null);
+  const [selBucket, setSelBucket] = useState<string | null>(null);
+  const [agg, setAgg] = useState<Agg>("MES");
+  const [escala, setEscala] = useState<"lin" | "log">("lin");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -95,7 +123,7 @@ export function CobrosFuturosView({
         setSel(null);
         setDetalle(null);
         setSelTicker(null);
-        setSelFecha(null);
+        setSelBucket(null);
       } catch (e) {
         if (!cancel) setErr(e instanceof Error ? e.message : "error");
       } finally {
@@ -115,7 +143,7 @@ export function CobrosFuturosView({
     }
     let cancel = false;
     setSelTicker(null);
-    setSelFecha(null);
+    setSelBucket(null);
     (async () => {
       try {
         const d = await getJson<ClienteResp>(
@@ -131,6 +159,9 @@ export function CobrosFuturosView({
     };
   }, [sel]);
 
+  // Cambiar la agregación temporal limpia la barra seleccionada (cambian los buckets).
+  useEffect(() => setSelBucket(null), [agg]);
+
   const clientes = useMemo(() => {
     const list = scope?.clientes ?? [];
     return [...list].sort((a, b) => (mk === "usd" ? b.total_usd - a.total_usd : b.total_ars - a.total_ars));
@@ -140,20 +171,24 @@ export function CobrosFuturosView({
   //  · sin cliente → serie del scope.
   //  · con cliente → sus títulos (filtrados por moneda y, si hay, por ticker).
   const chartData = useMemo(() => {
+    const map: Record<string, number> = {};
     if (sel && detalle) {
-      const map: Record<string, number> = {};
       for (const t of detalle.titulos) {
         if (monKey(t.moneda) !== mk) continue;
         if (selTicker && t.ticker !== selTicker) continue;
-        map[t.fecha_pago] = (map[t.fecha_pago] || 0) + t.monto;
+        const k = bucketKey(t.fecha_pago, agg);
+        map[k] = (map[k] || 0) + t.monto;
       }
-      return Object.keys(map).sort().map((f) => ({ fecha: f, monto: map[f] }));
+    } else {
+      for (const p of scope?.serie ?? []) {
+        const k = bucketKey(p.fecha, agg);
+        map[k] = (map[k] || 0) + (mk === "usd" ? p.usd : p.ars);
+      }
     }
-    const serie = scope?.serie ?? [];
-    return [...serie]
-      .sort((a, b) => a.fecha.localeCompare(b.fecha))
-      .map((p) => ({ fecha: p.fecha, monto: mk === "usd" ? p.usd : p.ars }));
-  }, [sel, detalle, scope, mk, selTicker]);
+    return Object.keys(map)
+      .sort()
+      .map((k) => ({ bucket: k, monto: map[k] }));
+  }, [sel, detalle, scope, mk, selTicker, agg]);
 
   // Sumatoria POR TÍTULO del cliente (moneda activa).
   const porTitulo = useMemo(() => {
@@ -175,10 +210,10 @@ export function CobrosFuturosView({
         (t) =>
           monKey(t.moneda) === mk &&
           (!selTicker || t.ticker === selTicker) &&
-          (!selFecha || t.fecha_pago === selFecha),
+          (!selBucket || bucketKey(t.fecha_pago, agg) === selBucket),
       )
       .sort((a, b) => a.fecha_pago.localeCompare(b.fecha_pago) || b.monto - a.monto);
-  }, [sel, detalle, mk, selTicker, selFecha]);
+  }, [sel, detalle, mk, selTicker, selBucket, agg]);
 
   const totalScope = mk === "usd" ? scope?.total_usd ?? 0 : scope?.total_ars ?? 0;
   const totalCli = detalle ? (mk === "usd" ? detalle.total_usd : detalle.total_ars) : 0;
@@ -235,12 +270,29 @@ export function CobrosFuturosView({
 
         {/* GRÁFICO DE BARRAS POR FECHA */}
         <div className="flex-[3_1_0%] min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Cobros por fecha · {mon}</span>
+          <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">A cobrar · {mon}</span>
             <span className="text-[9px] text-[var(--t-text-muted)] truncate">
               {sel && detalle ? detalle.cliente || sel : "Todo el scope"}
               {selTicker ? ` · ${selTicker}` : ""}
             </span>
+            <div className="ml-auto flex items-center gap-1">
+              <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                {AGGS.map(([a, label]) => (
+                  <button key={a} onClick={() => setAgg(a)}
+                    className={"px-1.5 py-0.5 text-[9px] font-semibold " + (agg === a ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setEscala((e) => (e === "log" ? "lin" : "log"))}
+                title="Escala logarítmica: comprime el vencimiento gigante para ver los cobros chicos"
+                className={"px-1.5 py-0.5 text-[9px] font-semibold border " + (escala === "log" ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]")}
+              >
+                LOG
+              </button>
+            </div>
           </div>
           <div className="flex-1 min-h-0 p-1">
             {chartData.length === 0 ? (
@@ -249,27 +301,34 @@ export function CobrosFuturosView({
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
                   <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" vertical={false} />
-                  <XAxis dataKey="fecha" tickFormatter={fmtFecha} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={16} />
-                  <YAxis tickFormatter={(v) => fmtMoney(v as number)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={54} />
+                  <XAxis dataKey="bucket" tickFormatter={(k) => bucketLabel(String(k), agg)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={16} />
+                  <YAxis
+                    tickFormatter={(v) => fmtMoney(v as number)}
+                    tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
+                    width={54}
+                    scale={escala === "log" ? "log" : "auto"}
+                    domain={escala === "log" ? [1, "auto"] : [0, "auto"]}
+                    allowDataOverflow={escala === "log"}
+                  />
                   <Tooltip
                     cursor={{ fill: "var(--t-border)", opacity: 0.3 }}
                     contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }}
-                    labelFormatter={(l) => fmtFecha(String(l))}
+                    labelFormatter={(l) => bucketLabel(String(l), agg)}
                     formatter={(v) => [`${mon} ${fmtMoney(Number(v))}`, "A cobrar"]}
                   />
                   <Bar
                     dataKey="monto"
                     onClick={(d) => {
-                      const f = (d as { fecha?: string })?.fecha ?? null;
-                      setSelFecha((prev) => (prev === f ? null : f));
+                      const k = (d as { bucket?: string })?.bucket ?? null;
+                      setSelBucket((prev) => (prev === k ? null : k));
                     }}
                     cursor="pointer"
                   >
                     {chartData.map((d) => (
                       <Cell
-                        key={d.fecha}
-                        fill={selFecha === d.fecha ? "var(--t-accent)" : "var(--t-accent)"}
-                        fillOpacity={selFecha && selFecha !== d.fecha ? 0.35 : 0.9}
+                        key={d.bucket}
+                        fill="var(--t-accent)"
+                        fillOpacity={selBucket && selBucket !== d.bucket ? 0.35 : 0.9}
                       />
                     ))}
                   </Bar>
@@ -339,15 +398,15 @@ export function CobrosFuturosView({
             <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
               <div className="px-3 py-1 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
                 <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Detalle por fecha</span>
-                {(selTicker || selFecha) && (
+                {(selTicker || selBucket) && (
                   <button
                     onClick={() => {
                       setSelTicker(null);
-                      setSelFecha(null);
+                      setSelBucket(null);
                     }}
                     className="text-[9px] text-[var(--t-accent)] hover:underline"
                   >
-                    {selTicker ? `Ticker ${selTicker}` : ""}{selTicker && selFecha ? " · " : ""}{selFecha ? fmtFecha(selFecha) : ""} ✕
+                    {selTicker ? `Ticker ${selTicker}` : ""}{selTicker && selBucket ? " · " : ""}{selBucket ? bucketLabel(selBucket, agg) : ""} ✕
                   </button>
                 )}
               </div>
