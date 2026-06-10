@@ -37,6 +37,16 @@ type PnLRow = {
   pnl_total: number; pnl_total_usd?: number | null;
 };
 type PnLResp = { rows: PnLRow[]; totales: Record<string, number> };
+type Operacion = {
+  fecha: string; categoria: string; op: string | null; ticker: string | null;
+  importe: number | null; moneda: string | null;
+};
+
+const OP_LABEL: Record<string, string> = {
+  compra: "Compra", venta: "Venta", suscripcion_fci: "Susc FCI", rescate_fci: "Resc FCI",
+  solicitud_suscripcion_fci: "Sol. susc", solicitud_rescate_fci: "Sol. resc",
+  caucion_colocadora: "Cauc. col", caucion_tomadora: "Cauc. tom",
+};
 
 const TODOS = "__todos__";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
@@ -57,6 +67,8 @@ export function ReferidosView() {
   const [mensual, setMensual] = useState<MensualResp | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [pnl, setPnl] = useState<PnLResp | null>(null);
+  const [ops, setOps] = useState<Operacion[]>([]);
+  const [detTab, setDetTab] = usePersistedState<"pnl" | "ops">("referidos.detTab", "pnl");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -116,6 +128,17 @@ export function ReferidosView() {
     return () => { alive = false; };
   }, [sel]);
 
+  // Operaciones del cliente (recientes primero, cubre el año). Reusa el endpoint comercial.
+  useEffect(() => {
+    if (!sel) { setOps([]); return; }
+    let alive = true;
+    void (async () => {
+      const d = await getJson<{ operaciones: Operacion[] }>(`/api/operaciones/comercial/operaciones?id_cuenta=${encodeURIComponent(sel)}`);
+      if (alive) setOps(d?.operaciones ?? []);
+    })();
+    return () => { alive = false; };
+  }, [sel]);
+
   const clientes = data?.clientes ?? [];
   const res = data?.resumen;
   const usd = moneda === "USD";
@@ -162,13 +185,11 @@ export function ReferidosView() {
           ))}
         </div>
         {res && (
-          <div className="ml-auto flex items-center gap-3 text-[10px] font-mono">
-            <Kpi label="Clientes" value={String(res.n_clientes)} />
-            <Kpi label={`AuM ${moneda}`} value={fmtMoney(res.aum_total)} />
-            <Kpi label="Vol mes" value={fmtMoney(res.vol_mes)} />
-            <Kpi label="Vol año" value={fmtMoney(res.vol_ano)} />
-            <Kpi label="Aran. mes" value={fmtMoney(res.arancel_mes)} accent />
-            <Kpi label="Aran. año" value={fmtMoney(res.arancel_total)} accent />
+          <div className="flex items-center gap-3 text-[10px] font-mono flex-wrap">
+            <span className="text-[var(--t-accent)] font-semibold text-[11px]">{res.n_clientes} clientes</span>
+            <span className="text-[var(--t-text-dim)]">AuM {fmtMoney(res.aum_total)}</span>
+            <span className="text-[var(--t-text-dim)]">Vol m/a {fmtMoney(res.vol_mes)} / {fmtMoney(res.vol_ano)}</span>
+            <span className="text-[var(--t-text-dim)]">Aran. m/a {fmtMoney(res.arancel_mes)} / {fmtMoney(res.arancel_total)}</span>
           </div>
         )}
       </div>
@@ -275,18 +296,15 @@ export function ReferidosView() {
               <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-dim)]">cargando…</div>
             ) : (
               <>
-                <div className="shrink-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
-                  <div className={HDR}>
-                    <span className="text-[11px] font-semibold truncate" title={selCli.denominacion}>{selCli.denominacion}</span>
-                    <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tabular-nums">Cuenta {selCli.id_cuenta}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono p-3">
-                    <Det label={`AuM ${moneda}`} value={fmtMoney(selCli.aum)} />
-                    <Det label="" value="" />
-                    <Det label={`Vol mes ${moneda}`} value={fmtMoney(selCli.vol_mes)} />
-                    <Det label={`Vol año ${moneda}`} value={fmtMoney(selCli.vol_ano)} />
-                    <Det label={`Arancel mes ${moneda}`} value={fmtMoney(selCli.arancel_mes)} accent />
-                    <Det label={`Arancel año ${moneda}`} value={fmtMoney(selCli.arancel_total)} accent />
+                <div className="shrink-0 border border-[var(--t-border)] bg-[var(--t-accent)]/10 px-3 py-1.5 flex items-center gap-3 flex-wrap">
+                  <span className="text-[11px] font-semibold truncate max-w-[170px]" title={selCli.denominacion}>{selCli.denominacion}</span>
+                  <span className="text-[9px] text-[var(--t-text-muted)] tabular-nums">#{selCli.id_cuenta}</span>
+                  <div className="ml-auto flex items-center gap-3 text-[10px] font-mono">
+                    <Kpi label={`AuM ${moneda}`} value={fmtMoney(selCli.aum)} />
+                    <Kpi label="Vol mes" value={fmtMoney(selCli.vol_mes)} />
+                    <Kpi label="Vol año" value={fmtMoney(selCli.vol_ano)} />
+                    <Kpi label="Aran mes" value={fmtMoney(selCli.arancel_mes)} accent />
+                    <Kpi label="Aran año" value={fmtMoney(selCli.arancel_total)} accent />
                   </div>
                 </div>
 
@@ -328,25 +346,51 @@ export function ReferidosView() {
 
                 <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
                   <div className={HDR}>
-                    <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición & PnL títulos · {moneda}</span>
+                    <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+                      {([["pnl", "Posición & PnL"], ["ops", "Operaciones"]] as [("pnl" | "ops"), string][]).map(([k, l]) => (
+                        <button key={k} onClick={() => setDetTab(k)} className={"px-2 py-0.5 text-[9px] font-semibold " + (detTab === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{l}</button>
+                      ))}
+                    </div>
+                    <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{moneda}</span>
                   </div>
                   <div className="flex-1 min-h-0 overflow-auto">
-                    {!pnl ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : (pnl.rows?.length ?? 0) === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posición.</p> : (
-                      <table className="w-full text-[10px]">
-                        <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                          <th className="text-left !px-2">Ticker</th><th className="text-right !px-2">Valor</th><th className="text-right !px-2">PnL no real.</th><th className="text-right !px-2">PnL total</th>
-                        </tr></thead>
-                        <tbody>
-                          {pnl.rows.map((r, i) => (
-                            <tr key={`${r.ticker}-${i}`} className="hover:bg-[var(--t-border)]">
-                              <td className="!px-2 font-semibold">{r.display_name || r.ticker}</td>
-                              <td className="!px-2 text-right tabular-nums">{fmtMoney(pnlValor(r) ?? undefined)}</td>
-                              <td className="!px-2 text-right tabular-nums" style={{ color: pnlColor(pnlNoReal(r)) }}>{fmtMoney(pnlNoReal(r) ?? undefined)}</td>
-                              <td className="!px-2 text-right tabular-nums font-semibold" style={{ color: pnlColor(pnlTot(r)) }}>{fmtMoney(pnlTot(r) ?? undefined)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    {detTab === "pnl" ? (
+                      !pnl ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : (pnl.rows?.length ?? 0) === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posición.</p> : (
+                        <table className="w-full text-[10px]">
+                          <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                            <th className="text-left !px-2">Ticker</th><th className="text-right !px-2">Valor</th><th className="text-right !px-2">PnL no real.</th><th className="text-right !px-2">PnL total</th>
+                          </tr></thead>
+                          <tbody>
+                            {pnl.rows.map((r, i) => (
+                              <tr key={`${r.ticker}-${i}`} className="hover:bg-[var(--t-border)]">
+                                <td className="!px-2 font-semibold">{r.display_name || r.ticker}</td>
+                                <td className="!px-2 text-right tabular-nums">{fmtMoney(pnlValor(r) ?? undefined)}</td>
+                                <td className="!px-2 text-right tabular-nums" style={{ color: pnlColor(pnlNoReal(r)) }}>{fmtMoney(pnlNoReal(r) ?? undefined)}</td>
+                                <td className="!px-2 text-right tabular-nums font-semibold" style={{ color: pnlColor(pnlTot(r)) }}>{fmtMoney(pnlTot(r) ?? undefined)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )
+                    ) : (
+                      ops.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin operaciones.</p> : (
+                        <table className="w-full text-[10px]">
+                          <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                            <th className="text-left !px-2">Fecha</th><th className="text-left !px-2">Tipo</th><th className="text-left !px-2">Ticker</th><th className="text-right !px-2">Importe</th><th className="text-center !px-2">Mon</th>
+                          </tr></thead>
+                          <tbody>
+                            {ops.map((o, i) => (
+                              <tr key={`${o.fecha}-${i}`} className="hover:bg-[var(--t-border)]">
+                                <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{o.fecha}</td>
+                                <td className="!px-2">{OP_LABEL[o.categoria] || o.categoria}</td>
+                                <td className="!px-2 font-semibold">{o.ticker || "—"}</td>
+                                <td className="!px-2 text-right tabular-nums">{o.importe != null ? fmtMoney(Math.abs(o.importe)) : "—"}</td>
+                                <td className="!px-2 text-center text-[var(--t-text-dim)]">{o.moneda || "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )
                     )}
                   </div>
                 </div>
@@ -368,12 +412,3 @@ function Kpi({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
-function Det({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  if (!label) return <div />;
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="text-[var(--t-text-muted)]">{label}</span>
-      <span className={"tabular-nums font-semibold " + (accent ? "text-[var(--t-accent)]" : "")}>{value}</span>
-    </div>
-  );
-}
