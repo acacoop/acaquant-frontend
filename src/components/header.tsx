@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useIsGuest } from "@/lib/use-is-guest";
+
 // Cada vista gateada por su `module` (coincide con core/roles.py::MODULES).
 // La nav agrupa las vistas: links sueltos (HOME, OPERAR, CARTERAS, BACK OFFICE,
 // MANAGER) + dropdowns (MERCADOS, NEGOCIO). Un grupo aparece solo si el user
@@ -65,17 +67,30 @@ function hasModule(modules: string[] | null, module: string): boolean {
 
 export function Header({ modules = null }: { modules?: string[] | null }) {
   const pathname = usePathname();
+  // Portal invitado (www): el menú de mercado va como entradas sueltas (sin el
+  // dropdown MERCADOS). El portal interno mantiene el dropdown. Solo UX.
+  const isGuest = useIsGuest();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
   // Filtrado RBAC: links por su módulo; grupos quedan con sus items visibles
-  // y se ocultan si no queda ninguno.
-  const entries: Entry[] = NAV.map((e) => {
-    if (e.kind === "link") return hasModule(modules, e.module) ? e : null;
+  // y se ocultan si no queda ninguno. Para el invitado, MERCADOS se aplana a
+  // links top-level.
+  const entries: Entry[] = [];
+  for (const e of NAV) {
+    if (e.kind === "link") {
+      if (hasModule(modules, e.module)) entries.push(e);
+      continue;
+    }
     const items = e.items.filter((it) => hasModule(modules, it.module));
-    return items.length ? { ...e, items } : null;
-  }).filter((e): e is Entry => e !== null);
+    if (!items.length) continue;
+    if (isGuest && e.label === "MERCADOS") {
+      for (const it of items) entries.push({ kind: "link", ...it });
+    } else {
+      entries.push({ ...e, items });
+    }
+  }
 
   const linkClass = (active: boolean) =>
     "px-3 py-1 text-[11px] font-semibold tracking-wide transition-colors " +
