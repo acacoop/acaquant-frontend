@@ -70,10 +70,18 @@ export interface DayTradingRow {
   posicion: number | null;      // 0=piso del día, 100=techo
   vueltas: number;              // patas zigzag >= objetivo hechas HOY
   mejor_vuelta_pct: number | null;
-  mom15_pct: number | null;     // retorno últimos 15'
+  vueltas_hora: number | null;  // ritmo: vueltas / hora de operatoria
+  pata: { dir: Direccion; pct: number } | null; // pata zigzag EN CURSO
+  mom15_pct: number | null;     // retorno últimos 15' (por reloj)
   vs_vwap_pct: number | null;
   spread_pct: number | null;    // (offer-bid)/last
   total_money: number | null;   // ARS operados hoy
+  flujo_compra_pct: number | null;   // % de la plata del día que fue COMPRA
+  flujo30_compra_pct: number | null; // ídem últimos 30'
+  min_sin_operar: number | null;     // minutos desde el último trade
+  prom_vueltas: number | null;  // costumbre: vueltas promedio (~20 ruedas)
+  prom_rango: number | null;
+  prom_dias: number | null;
   idea: { lado: Direccion; motivo: string } | null;
   n_minutos: number;
 }

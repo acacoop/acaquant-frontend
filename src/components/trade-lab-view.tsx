@@ -30,6 +30,9 @@ import { TableHelp } from "./help-tooltip";
 
 const GLOSARIO = [
   { label: "VUELTAS",       text: "Cuántas veces HOY el papel ya hizo un movimiento completo del tamaño que buscás (subida o bajada — long y short valen igual). Es LA columna: un papel con 6 vueltas de 0.5% viene dando seis chances en el día; uno con 0, ninguna. Se mide sobre los precios por minuto del tape." },
+  { label: "COSTUMBRE",     text: "Cuántas vueltas de ese tamaño hace EN PROMEDIO por rueda (últimas ~20 ruedas). El día puede mentir; la costumbre no: un papel que da 4 vueltas por día es tu cancha, uno que da 0.5 no. Se acumula desde que el cron nocturno empezó a guardar el resumen diario." },
+  { label: "AHORA",         text: "La pata en curso: cuánto lleva recorrido el movimiento ACTUAL desde el último pivote. Si buscás 0.5% y la pata va +0.4%, estás llegando tarde para sumarte — o cerca de que pague el fade. Verde sube, rojo baja." },
+  { label: "FLUJO",         text: "De toda la plata operada hoy con lado conocido, qué % fue COMPRA (agresor comprador). Arriba de ~60% los compradores dominan; abajo de ~40%, los vendedores. El tooltip muestra el flujo de los últimos 30 minutos — el ahora." },
   { label: "RANGO HOY",     text: "Distancia entre el mínimo y el máximo del día, en %. La barrita muestra dónde está parado AHORA el precio dentro de ese rango: pegado a la izquierda = en los pisos del día, pegado a la derecha = en los techos." },
   { label: "HOY %",         text: "Variación contra el cierre de ayer. Te dice si el papel viene verde o rojo en el día." },
   { label: "15 MIN",        text: "Cuánto se movió en los últimos 15 minutos. Es el 'ahora mismo': un papel planchado hace horas puede estar arrancando acá." },
@@ -51,11 +54,11 @@ const MONTO_PRESETS = [
 ];
 const POLL_MS = 10_000;
 
-type SortKey = "vueltas" | "rango_pct" | "dia_pct" | "mom15_pct" | "spread_pct" | "total_money";
+type SortKey = "vueltas" | "prom_vueltas" | "rango_pct" | "dia_pct" | "mom15_pct" | "spread_pct" | "total_money" | "flujo_compra_pct";
 
 // ── Alertas ──────────────────────────────────────────────────────────
 
-type AlertaTipo = "piso" | "techo" | "mueve15" | "vwap";
+type AlertaTipo = "piso" | "techo" | "mueve15" | "vwap" | "pata";
 
 interface ReglaAlerta {
   id: string;
@@ -75,12 +78,14 @@ const TIPO_LABEL: Record<AlertaTipo, string> = {
   techo:   "toca el TECHO del día",
   mueve15: "se mueve fuerte en 15'",
   vwap:    "cruza el VWAP",
+  pata:    "arranca una pata ≥ objetivo",
 };
 
 function evaluarAlertas(
   reglas: ReglaAlerta[],
   rows: DayTradingRow[],
   prev: Map<string, DayTradingRow>,
+  objetivo: number,
 ): AlertaDisparada[] {
   const out: AlertaDisparada[] = [];
   const hora = new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -105,6 +110,13 @@ function evaluarAlertas(
             msg: `${r.ticker} ${r.mom15_pct > 0 ? "subió" : "bajó"} ${Math.abs(r.mom15_pct).toFixed(2)}% en 15'`,
           });
         }
+      }
+      if (reg.tipo === "pata" && r.pata && Math.abs(r.pata.pct) >= objetivo
+          && (!p.pata || Math.abs(p.pata.pct) < objetivo || p.pata.dir !== r.pata.dir)) {
+        out.push({
+          hora, ticker: r.ticker,
+          msg: `${r.ticker} está haciendo una pata de ${r.pata.pct > 0 ? "+" : ""}${r.pata.pct.toFixed(2)}% AHORA`,
+        });
       }
       if (reg.tipo === "vwap" && r.vs_vwap_pct != null && p.vs_vwap_pct != null
           && Math.sign(r.vs_vwap_pct) !== Math.sign(p.vs_vwap_pct)
@@ -203,7 +215,7 @@ export function TradeLabView() {
 
   useEffect(() => {
     if (!data.rows.length) return;
-    const nuevas = evaluarAlertas(reglasRef.current, data.rows, prevRowsRef.current);
+    const nuevas = evaluarAlertas(reglasRef.current, data.rows, prevRowsRef.current, data.objetivo_pct);
     prevRowsRef.current = new Map(data.rows.map((r) => [r.ticker, r]));
     if (!nuevas.length) return;
     setDisparadas((prev) => [...nuevas, ...prev].slice(0, 50));
@@ -363,8 +375,10 @@ export function TradeLabView() {
                   {th("RANGO", "rango_pct", "Mín→máx del día y dónde está parado ahora")}
                   <th className="!px-1 !py-1 w-[80px]"></th>
                   {th(`VUELTAS ≥${objetivo}%`, "vueltas", "Movimientos completos del tamaño buscado que YA hizo hoy")}
-                  {th("15'", "mom15_pct", "Cuánto se movió en los últimos 15 minutos")}
+                  {th("PROM", "prom_vueltas", "Costumbre: vueltas promedio por rueda (últimas ~20 ruedas)")}
+                  <th className="!px-2 !py-1 text-right text-[9px] tracking-wider" title="Pata en curso: cuánto lleva recorrido el movimiento ACTUAL desde el último pivote">AHORA</th>
                   <th className="!px-2 !py-1 text-right text-[9px] tracking-wider" title="Arriba o abajo del precio promedio del día">VWAP</th>
+                  {th("FLUJO", "flujo_compra_pct", "% de la plata de hoy que fue COMPRA (agresor) — el tooltip de cada celda muestra los últimos 30'")}
                   {th("SPREAD", "spread_pct", "Lo que te come entrar y salir — rojo si es más de la mitad del objetivo")}
                   {th("$ HOY", "total_money", "Plata operada hoy en el papel")}
                   <th className="!px-2 !py-1 text-center text-[9px] tracking-wider">IDEA</th>
@@ -373,14 +387,17 @@ export function TradeLabView() {
               <tbody>
                 {rows.map((r) => {
                   const spreadMalo = r.spread_pct != null && r.spread_pct > objetivo / 2;
+                  const dormido = r.min_sin_operar != null && r.min_sin_operar > 10;
                   return (
                     <tr
                       key={r.ticker}
                       onClick={() => setSel(r.ticker === sel ? null : r.ticker)}
-                      className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)] ${sel === r.ticker ? "bg-[var(--t-accent)]/10" : ""}`}
+                      className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)] ${sel === r.ticker ? "bg-[var(--t-accent)]/10" : ""} ${dormido ? "opacity-50" : ""}`}
+                      title={dormido ? `Sin operar hace ${r.min_sin_operar}' — ojo con la liquidez ahora` : undefined}
                     >
                       <td className="!px-2 !py-1 font-mono font-semibold text-[var(--t-accent)]" title={r.nombre ?? undefined}>
                         {r.ticker}
+                        {dormido && <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">💤{r.min_sin_operar}{"'"}</span>}
                       </td>
                       <td className="!px-2 !py-1 text-right font-mono tabular-nums">
                         {r.last != null ? `$${r.last.toLocaleString("es-AR")}` : "--"}
@@ -392,22 +409,33 @@ export function TradeLabView() {
                         {r.rango_pct != null ? `${r.rango_pct.toFixed(2)}%` : "--"}
                       </td>
                       <td className="!px-1 !py-1"><RangoBar r={r} /></td>
-                      <td className="!px-2 !py-1 text-right">
+                      <td className="!px-2 !py-1 text-right"
+                          title={r.mejor_vuelta_pct != null ? `Mejor pata del día: ${r.mejor_vuelta_pct}%${r.vueltas_hora != null ? ` · ritmo ~${r.vueltas_hora}/hora` : ""}` : undefined}>
                         <span className={`font-mono tabular-nums font-bold text-[13px] ${
                           r.vueltas >= 4 ? "text-[var(--t-pos)]" : r.vueltas >= 2 ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"
                         }`}>
                           {r.vueltas}
                         </span>
-                        {r.mejor_vuelta_pct != null && (
-                          <span className="text-[9px] text-[var(--t-text-muted)] ml-1">máx {r.mejor_vuelta_pct}%</span>
-                        )}
                       </td>
-                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${pctClass(r.mom15_pct)}`}>
-                        {fmtPctS(r.mom15_pct)}
+                      <td className="!px-2 !py-1 text-right font-mono tabular-nums text-[var(--t-text-dim)]"
+                          title={r.prom_dias ? `Promedio sobre ${r.prom_dias} ruedas` : "Todavía sin historial — el cron nocturno lo va acumulando"}>
+                        {r.prom_vueltas != null ? r.prom_vueltas.toFixed(1) : "--"}
+                      </td>
+                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${r.pata ? (r.pata.pct >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]") : "text-[var(--t-text-muted)]"}`}
+                          title={r.pata ? `Pata ${r.pata.dir === "long" ? "alcista" : "bajista"} en curso${r.mom15_pct != null ? ` · 15': ${fmtPctS(r.mom15_pct)}` : ""}` : undefined}>
+                        {r.pata ? fmtPctS(r.pata.pct) : "--"}
                       </td>
                       <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${pctClass(r.vs_vwap_pct)}`}>
                         {r.vs_vwap_pct == null ? "--" : r.vs_vwap_pct >= 0 ? "↑" : "↓"}
                         {r.vs_vwap_pct != null ? ` ${Math.abs(r.vs_vwap_pct).toFixed(2)}%` : ""}
+                      </td>
+                      <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${
+                        r.flujo_compra_pct == null ? "text-[var(--t-text-muted)]"
+                        : r.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]"
+                        : r.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"
+                      }`}
+                          title={r.flujo30_compra_pct != null ? `Últimos 30': ${r.flujo30_compra_pct.toFixed(0)}% compra` : undefined}>
+                        {r.flujo_compra_pct != null ? `${r.flujo_compra_pct.toFixed(0)}%C` : "--"}
                       </td>
                       <td className={`!px-2 !py-1 text-right font-mono tabular-nums ${spreadMalo ? "text-[var(--t-neg)] font-semibold" : "text-[var(--t-text)]"}`}
                           title={spreadMalo ? "El spread se come más de la mitad del objetivo — el trade nace perdiendo" : undefined}>
@@ -634,6 +662,22 @@ function DetallePapel({
               <span className="text-[var(--t-text)]">Te queda</span>
               <span className={`font-mono tabular-nums font-bold ${ganancia - costoSpread > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
                 {ganancia - costoSpread > 0 ? "+" : ""}${Math.round(ganancia - costoSpread).toLocaleString("es-AR")}
+              </span>
+            </div>
+          )}
+          {row?.prom_vueltas != null && (
+            <div className="flex justify-between">
+              <span className="text-[var(--t-text-dim)]">Costumbre del papel ({row.prom_dias ?? "?"} ruedas)</span>
+              <span className="font-mono tabular-nums text-[var(--t-text)]">
+                ~{row.prom_vueltas.toFixed(1)} vueltas/día
+              </span>
+            </div>
+          )}
+          {row?.flujo_compra_pct != null && (
+            <div className="flex justify-between">
+              <span className="text-[var(--t-text-dim)]">Flujo de hoy (compra vs venta)</span>
+              <span className={`font-mono tabular-nums ${row.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]" : row.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text)]"}`}>
+                {row.flujo_compra_pct.toFixed(0)}% compra{row.flujo30_compra_pct != null ? ` · 30': ${row.flujo30_compra_pct.toFixed(0)}%` : ""}
               </span>
             </div>
           )}
