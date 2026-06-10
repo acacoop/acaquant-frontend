@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
-import { fmtPrice } from "./ui";
+import { fmtPrice, fmtVol } from "./ui";
 
 /**
  * Tabla del Scanner — switch CEDEAR / ADR.
@@ -18,7 +18,8 @@ type View = "cedear" | "adr";
 
 type CedearSortKey =
   | "ticker_corto" | "nombre" | "sector"
-  | "last" | "intraday_pct" | "vs_1d_pct" | "vs_1d_usd_pct";
+  | "last" | "intraday_pct" | "vs_1d_pct" | "vs_1d_usd_pct"
+  | "vwap" | "spread_pct" | "volume";
 
 type AdrSortKey =
   | "ticker_corto" | "nombre" | "sector"
@@ -153,6 +154,9 @@ export function CedearsScannerTable({
                 <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
                 <SortableTh label="1D"     col="vs_1d_pct"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Variación ARS vs cierre día anterior" />
                 <SortableTh label="USD"    col="vs_1d_usd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Retorno USD real descontando variación CCL" />
+                <SortableTh label="VWAP"   col="vwap"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Precio promedio ponderado por volumen (EV/NV)" />
+                <SortableTh label="SPREAD" col="spread_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Spread de puntas: (offer − bid) / mid × 100" />
+                <SortableTh label="VOL"    col="volume"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Volumen nominal operado en el día" />
               </tr>
             ) : (
               <tr className="text-[#5a8aa3]">
@@ -170,7 +174,7 @@ export function CedearsScannerTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+                <td colSpan={10} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                   SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
                 </td>
               </tr>
@@ -207,6 +211,9 @@ export function CedearsScannerTable({
                         <PctCell v={r.intraday_pct} />
                         <PctCell v={r.vs_1d_pct} />
                         <PctCell v={r.vs_1d_usd_pct} />
+                        <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtPrice(r.vwap ?? undefined)}</td>
+                        <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{r.spread_pct != null ? `${r.spread_pct.toFixed(2)}%` : "--"}</td>
+                        <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtVol(r.volume ?? undefined)}</td>
                       </>
                     ) : (
                       <>

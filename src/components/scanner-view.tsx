@@ -21,10 +21,12 @@ import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
  * Click en row de la tabla izquierda → setea ticker seleccionado y el
  * panel PIVOT se recalcula automáticamente.
  *
- * CCL: polling acá (10s) y se pasa a la tabla para mostrar inline.
+ * CCL: polling acá y se pasa a la tabla para mostrar inline.
  */
-const POLL_MS = 10_000;
-const CCL_POLL_MS = 10_000;
+// Real-time: el motor escribe CedearsSnapshot cada 1s y el service cachea 2s.
+// Pollear a 2s mantiene la tabla viva sin pegarle al cache viejo.
+const POLL_MS = 2_000;
+const CCL_POLL_MS = 5_000;
 
 export function ScannerView({
   initial,

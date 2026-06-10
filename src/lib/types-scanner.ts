@@ -99,6 +99,13 @@ export interface CedearScannerRow {
   intraday_pct:  number | null;  // (last/open − 1) × 100 — variación ARS intradía
   vs_1d_pct:     number | null;  // (last/close − 1) × 100 — variación ARS vs cierre ayer
   vs_1d_usd_pct: number | null;  // retorno USD real: vs_1d_pct descontando variación CCL
+  // Datos de trading (live desde el motor): puntas, spread, VWAP, VOL.
+  bid:        number | null;
+  offer:      number | null;
+  spread:     number | null;     // offer − bid (ARS)
+  spread_pct: number | null;     // spread / mid × 100
+  vwap:       number | null;     // EV / NV (precio promedio ponderado por volumen)
+  volume:     number | null;     // NOMINAL_VOLUME acumulado del día
   // ADR (USD del underlying, EOD desde Trading.PreciosAcciones)
   adr_last:        number | null;
   adr_fecha:       string | null;
