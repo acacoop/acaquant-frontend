@@ -31,7 +31,7 @@ const TABS: { key: EstrategiaTab; label: string }[] = [
   { key: "descomposicion", label: "DESCOMPOSICIÓN" },
 ];
 
-export function RetornoTotalView() {
+export function RetornoTotalView({ puedeOperar = false }: { puedeOperar?: boolean }) {
   const [tabRaw, setTab] = usePersistedState<EstrategiaTab>("estrategia.tab", "tradelab");
   // Valores persistidos de tabs eliminadas (book/correlaciones) → default.
   const tab: EstrategiaTab = TABS.some((t) => t.key === tabRaw) ? tabRaw : "tradelab";
@@ -50,7 +50,7 @@ export function RetornoTotalView() {
         ))}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "tradelab" && <TradeLabView />}
+        {tab === "tradelab" && <TradeLabView puedeOperar={puedeOperar} />}
         {tab === "coberturas" && <CoberturasView />}
         {tab === "comparar" && <CompararInversionView />}
         {/* Sensibilidad sin el panel de cálculos/explicación (se migra a Manager → Debug). */}

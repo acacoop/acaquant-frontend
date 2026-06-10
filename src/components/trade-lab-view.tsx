@@ -12,6 +12,7 @@ import type {
 } from "@/lib/types-estrategia";
 import { AccionChip } from "./estrategia-shared";
 import { TableHelp } from "./help-tooltip";
+import { DerivadosOperar } from "./derivados-operar";
 import { Panel } from "./panel";
 import { TickerChartPanel } from "./ticker-chart-panel";
 
@@ -37,7 +38,8 @@ const GLOSARIO = [
   { label: "HOY %",         text: "Variación contra el cierre de ayer. Te dice si el papel viene verde o rojo en el día." },
   { label: "SPREAD",        text: "La diferencia entre la punta compradora y la vendedora, en %. Es lo que pagás por entrar y salir YA (comprás caro al offer, vendés barato al bid). REGLA DE ORO: si el spread es más de la mitad de tu objetivo, el trade nace perdiendo — por eso se pinta rojo." },
   { label: "💤 DORMIDO",    text: "El papel no opera hace más de 10 minutos: la fila se atenúa. Por buena que sea su estadística, sin trades no hay quién te compre ni te venda AHORA." },
-  { label: "SI LA EMBOCÁS", text: "Tu monto × el objetivo = lo que ganás si capturás un movimiento completo. En el detalle del papel está la cuenta completa: premio, lo que te come el spread, y lo que te queda." },
+  { label: "TU MONTO",      text: "El tamaño que pensás operar. El lab lo usa para avisarte si tu monto es grande contra lo que el papel operó hoy (si sos el 20% del volumen, entrar y salir te va a mover el precio en contra)." },
+  { label: "OPERAR",        text: "Si tenés permiso de operar (módulo admin), al elegir un papel aparece el book en vivo con la boleta: click en una punta carga precio y tamaño, elegís cuenta y mandás la orden ahí mismo. Es el mismo motor de órdenes del módulo OPERAR." },
   { label: "IDEA",          text: "Sugerencia orientativa con su porqué (pasá el mouse): cerca del piso del día → LONG de rebote; cerca del techo → SHORT; empujando fuerte con VWAP a favor → seguir el impulso. NO es recomendación: es para mirar primero los candidatos con sentido." },
   { label: "SE MUEVE CON",  text: "Papeles que históricamente acompañan (o van al revés de) el elegido, según los cierres diarios del último año. Útil para no abrir dos trades que son LA MISMA apuesta, o para buscar el espejo short de un long." },
   { label: "ALERTAS",       text: "Avisos cuando un papel toca el piso/techo del día, se mueve fuerte en 15', cruza el VWAP o ARRANCA UNA PATA del tamaño que buscás. Funcionan con la pestaña abierta; activá el permiso de notificaciones para verlas desde otra ventana." },
@@ -159,7 +161,7 @@ function RangoBar({ r }: { r: DayTradingRow }) {
 
 // ── Vista principal ──────────────────────────────────────────────────
 
-export function TradeLabView() {
+export function TradeLabView({ puedeOperar = false }: { puedeOperar?: boolean }) {
   const [monto, setMonto] = usePersistedState<number>("estrategia.tl.montoArs", 1_000_000);
   const [objetivo, setObjetivo] = usePersistedState<number>("estrategia.tl.objetivo", 0.5);
   const [soloOperables, setSoloOperables] = usePersistedState<boolean>("estrategia.tl.operables", false);
@@ -233,8 +235,6 @@ export function TradeLabView() {
       {label}{sort.key === key ? (sort.dir === -1 ? " ▼" : " ▲") : ""}
     </th>
   );
-
-  const gananciaObjetivo = monto * objetivo / 100;
 
   return (
     <div className="h-full min-h-0 flex flex-col p-3 gap-2">
@@ -315,12 +315,11 @@ export function TradeLabView() {
 
         <TableHelp entries={GLOSARIO} />
 
-        <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tabular-nums">
-          {!data.en_rueda && lastAt > 0
-            ? "sin rueda en curso — el tape arranca con el mercado"
-            : lastAt > 0
-            ? `live · si la embocás: +$${Math.round(gananciaObjetivo).toLocaleString("es-AR")} por vuelta`
-            : "cargando…"}
+        <span className="ml-auto flex items-center gap-2">
+          <span className="text-[9px] text-[var(--t-text-muted)] tabular-nums">
+            {!data.en_rueda && lastAt > 0 ? "sin rueda en curso" : lastAt > 0 ? "● live" : "cargando…"}
+          </span>
+          <ComoSeUsa puedeOperar={puedeOperar} />
         </span>
       </div>
 
@@ -443,11 +442,11 @@ export function TradeLabView() {
               row={selRow}
               ticker={sel}
               monto={monto}
-              objetivo={objetivo}
+              puedeOperar={puedeOperar}
               onClose={() => setSel(null)}
             />
           ) : (
-            <ManualRapido />
+            <ManualRapido puedeOperar={puedeOperar} />
           )}
         </div>
       </div>
@@ -455,28 +454,85 @@ export function TradeLabView() {
   );
 }
 
-// ── Manual rápido (cuando no hay papel seleccionado) ─────────────────
+// ── Manual: contenido compartido (panel derecho + modal CÓMO SE USA) ──
 
-function ManualRapido() {
+function ManualContenido({ puedeOperar }: { puedeOperar: boolean }) {
+  return (
+    <div className="p-3 text-[11px] text-[var(--t-text-dim)] leading-relaxed flex flex-col gap-1.5">
+      <p><span className="text-[var(--t-accent)] font-semibold">1.</span> Poné <span className="text-[var(--t-text)]">tu monto</span> y el movimiento que <span className="text-[var(--t-text)]">buscás capturar</span> (0.5%, 1%…).</p>
+      <p><span className="text-[var(--t-accent)] font-semibold">2.</span> La tabla rankea por <span className="text-[var(--t-text)]">VUELTAS</span>: cuántas veces HOY cada papel ya hizo un movimiento de ese tamaño. <span className="text-[var(--t-text)]">PROM</span> es su costumbre histórica.</p>
+      <p><span className="text-[var(--t-accent)] font-semibold">3.</span> Mirá <span className="text-[var(--t-text)]">AHORA</span> (la pata en curso) y <span className="text-[var(--t-text)]">FLUJO</span> (quién empuja: compra o venta). La barrita de RANGO te dice si está en los pisos o techos del día.</p>
+      <p><span className="text-[var(--t-accent)] font-semibold">4.</span> <span className="text-[var(--t-neg)]">SPREAD en rojo = no hay trade</span>: te come más de la mitad del premio. Activá SOLO OPERABLES para esconderlos. 💤 = no opera hace +10&apos;.</p>
+      <p><span className="text-[var(--t-accent)] font-semibold">5.</span> Click en un papel → chart en vivo{puedeOperar ? <>, <span className="text-[var(--t-text)]">el book con la boleta para mandar la orden ahí mismo</span> (click en una punta carga precio y tamaño)</> : ""}, con qué papeles se mueve y el tape.</p>
+      <p><span className="text-[var(--t-accent)] font-semibold">6.</span> Armá <span className="text-[var(--t-text)]">🔔 ALERTAS</span> (&quot;arranca una pata&quot;, &quot;toca el piso&quot;, &quot;cruza el VWAP&quot;) y dejá que el lab mire por vos.</p>
+      <p className="text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)] pt-1.5 mt-1">
+        La IDEA (LONG/SHORT) es orientativa, no recomendación. Todo sale de nuestro feed
+        BYMA en vivo; el ranking solo tiene datos en horario de rueda. El glosario completo
+        está en el <span className="text-[var(--t-accent)]">?</span> de arriba.
+      </p>
+    </div>
+  );
+}
+
+function ManualRapido({ puedeOperar }: { puedeOperar: boolean }) {
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
       <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 text-[11px] font-semibold text-[var(--t-accent)] tracking-wide shrink-0">
-        CÓMO SE USA — 30 SEGUNDOS
+        CÓMO SE USA
       </div>
-      <div className="p-3 text-[11px] text-[var(--t-text-dim)] leading-relaxed flex flex-col gap-1.5">
-        <p><span className="text-[var(--t-accent)] font-semibold">1.</span> Poné <span className="text-[var(--t-text)]">tu monto</span> y el movimiento que <span className="text-[var(--t-text)]">buscás capturar</span> (0.5%, 1%…).</p>
-        <p><span className="text-[var(--t-accent)] font-semibold">2.</span> La tabla rankea por <span className="text-[var(--t-text)]">VUELTAS</span>: cuántas veces HOY cada papel ya hizo un movimiento de ese tamaño. <span className="text-[var(--t-text)]">PROM</span> es su costumbre histórica.</p>
-        <p><span className="text-[var(--t-accent)] font-semibold">3.</span> Mirá <span className="text-[var(--t-text)]">AHORA</span> (la pata en curso) y <span className="text-[var(--t-text)]">FLUJO</span> (quién empuja: compra o venta). La barrita de RANGO te dice si está en los pisos o techos del día.</p>
-        <p><span className="text-[var(--t-accent)] font-semibold">4.</span> <span className="text-[var(--t-neg)]">SPREAD en rojo = no hay trade</span>: te come más de la mitad del premio. Activá SOLO OPERABLES para esconderlos. 💤 = no opera hace +10&apos;.</p>
-        <p><span className="text-[var(--t-accent)] font-semibold">5.</span> Click en un papel → chart en vivo + LA CUENTA (cuánto ganás, cuánto te come el spread) + con qué papeles se mueve + el tape.</p>
-        <p><span className="text-[var(--t-accent)] font-semibold">6.</span> Armá <span className="text-[var(--t-text)]">🔔 ALERTAS</span> (&quot;arranca una pata&quot;, &quot;toca el piso&quot;, &quot;cruza el VWAP&quot;) y dejá que el lab mire por vos.</p>
-        <p className="text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)] pt-1.5 mt-1">
-          La IDEA (LONG/SHORT) es orientativa, no recomendación. Todo sale de nuestro feed
-          BYMA en vivo; el ranking solo tiene datos en horario de rueda. El glosario completo
-          está en el <span className="text-[var(--t-accent)]">?</span> de arriba.
-        </p>
-      </div>
+      <ManualContenido puedeOperar={puedeOperar} />
     </div>
+  );
+}
+
+/** Botón "CÓMO SE USA" de la barra superior → abre el manual en un modal. */
+function ComoSeUsa({ puedeOperar }: { puedeOperar: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="px-2 py-1 text-[9px] font-semibold tracking-wider border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] transition-colors"
+      >
+        CÓMO SE USA
+      </button>
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--t-panel)]/50"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] max-w-[560px] w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--t-border)] sticky top-0 bg-[var(--t-surface)]">
+              <span className="text-[11px] tracking-wide uppercase text-[var(--t-accent)] font-semibold">
+                Cómo se usa
+              </span>
+              <button
+                onClick={() => setOpen(false)}
+                className="text-[var(--t-text-dim)] hover:text-[#ffffff] text-[14px] leading-none px-1 transition-colors"
+                aria-label="Cerrar"
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+            <ManualContenido puedeOperar={puedeOperar} />
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -586,12 +642,12 @@ function AlertasPanel({
 // ── Detalle del papel seleccionado ───────────────────────────────────
 
 function DetallePapel({
-  row, ticker, monto, objetivo, onClose,
+  row, ticker, monto, puedeOperar, onClose,
 }: {
   row: DayTradingRow | null;
   ticker: string;
   monto: number;
-  objetivo: number;
+  puedeOperar: boolean;
   onClose: () => void;
 }) {
   const [comp, setComp] = useState<Companeros | null>(null);
@@ -623,9 +679,8 @@ function DetallePapel({
     return () => { alive = false; clearInterval(id); };
   }, [ticker]);
 
-  const ganancia = monto * objetivo / 100;
-  const costoSpread = row?.spread_pct != null ? monto * row.spread_pct / 100 : null;
-  const pesoEnElDia = row?.total_money ? (monto / row.total_money) * 100 : null;
+  const pesoEnElDia = row?.total_money && monto ? (monto / row.total_money) * 100 : null;
+  const conBoleta = puedeOperar && !!row?.ticker_full;
 
   return (
     <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-y-auto">
@@ -642,67 +697,57 @@ function DetallePapel({
             VWAP {row.vs_vwap_pct >= 0 ? "↑" : "↓"}{Math.abs(row.vs_vwap_pct).toFixed(2)}%
           </span>
         )}
+        {conBoleta && (
+          <span className="text-[8px] tracking-widest text-[var(--t-pos)] border border-[var(--t-pos)]/40 px-1">
+            OPERAR
+          </span>
+        )}
         <button onClick={onClose} className="ml-auto text-[var(--t-text-muted)] hover:text-[var(--t-neg)] text-[12px]">✕</button>
       </div>
 
-      <div className="p-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
-        {/* La cuenta en criollo */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1">
-          <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">LA CUENTA</div>
-          <div className="flex justify-between">
-            <span className="text-[var(--t-text-dim)]">Si capturás {objetivo}% con ${monto.toLocaleString("es-AR")}</span>
-            <span className="font-mono tabular-nums text-[var(--t-pos)] font-semibold">
-              +${Math.round(ganancia).toLocaleString("es-AR")}
-            </span>
+      <div className={`p-2 grid grid-cols-1 ${conBoleta ? "md:grid-cols-2" : ""} gap-2 text-[11px] flex-1 min-h-0`}>
+        {/* Book L2 + boleta — SOLO módulo operar (admin). Reusa la pieza de
+            Derivados: mismos endpoints /api/operar/order-book + /api/ordenes,
+            cuenta recordada, click en punta carga el ticket. */}
+        {conBoleta && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-surface)] min-h-[300px] flex flex-col">
+            <DerivadosOperar instrumento={row!.ticker_full!} last={row?.last ?? undefined} />
           </div>
-          {costoSpread != null && (
-            <div className="flex justify-between">
-              <span className="text-[var(--t-text-dim)]">El spread te come (entrar + salir)</span>
-              <span className="font-mono tabular-nums text-[var(--t-neg)]">
-                −${Math.round(costoSpread).toLocaleString("es-AR")}
-              </span>
-            </div>
-          )}
-          {costoSpread != null && (
-            <div className="flex justify-between border-t border-[var(--t-border)] pt-1">
-              <span className="text-[var(--t-text)]">Te queda</span>
-              <span className={`font-mono tabular-nums font-bold ${ganancia - costoSpread > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
-                {ganancia - costoSpread > 0 ? "+" : ""}${Math.round(ganancia - costoSpread).toLocaleString("es-AR")}
-              </span>
-            </div>
-          )}
-          {row?.prom_vueltas != null && (
-            <div className="flex justify-between">
-              <span className="text-[var(--t-text-dim)]">Costumbre ({row.prom_dias ?? "?"} ruedas)</span>
-              <span className="font-mono tabular-nums text-[var(--t-text)]">
-                ~{row.prom_vueltas.toFixed(1)} vueltas/día
-              </span>
-            </div>
-          )}
-          {row?.flujo_compra_pct != null && (
-            <div className="flex justify-between">
-              <span className="text-[var(--t-text-dim)]">Flujo de hoy</span>
-              <span className={`font-mono tabular-nums ${row.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]" : row.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text)]"}`}>
-                {row.flujo_compra_pct.toFixed(0)}% compra{row.flujo30_compra_pct != null ? ` · 30': ${row.flujo30_compra_pct.toFixed(0)}%` : ""}
-              </span>
-            </div>
-          )}
-          {pesoEnElDia != null && pesoEnElDia > 5 && (
-            <div className="text-[9px] text-[var(--t-accent)] leading-snug pt-1">
-              ⚠ Tu monto es el {pesoEnElDia.toFixed(0)}% de TODO lo operado hoy en este papel —
-              puede costarte entrar y salir sin mover el precio.
-            </div>
-          )}
-          {row?.idea && (
-            <div className="flex items-start gap-2 border-t border-[var(--t-border)] pt-1">
-              <AccionChip accion={row.idea.lado} />
-              <p className="text-[10px] text-[var(--t-text-dim)] leading-snug">{row.idea.motivo}</p>
-            </div>
-          )}
-        </div>
+        )}
 
-        {/* Se mueve con / contra + tape */}
-        <div className="flex flex-col gap-2 min-w-0">
+        {/* Info del papel: idea + contexto + compañeros + tape */}
+        <div className="flex flex-col gap-2 min-w-0 min-h-0">
+          {(row?.idea || row?.prom_vueltas != null || row?.flujo_compra_pct != null || (pesoEnElDia != null && pesoEnElDia > 5)) && (
+            <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1">
+              {row?.idea && (
+                <div className="flex items-start gap-2">
+                  <AccionChip accion={row.idea.lado} />
+                  <p className="text-[10px] text-[var(--t-text-dim)] leading-snug">{row.idea.motivo}</p>
+                </div>
+              )}
+              {row?.prom_vueltas != null && (
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-[var(--t-text-dim)]">Costumbre ({row.prom_dias ?? "?"} ruedas)</span>
+                  <span className="font-mono tabular-nums text-[var(--t-text)]">~{row.prom_vueltas.toFixed(1)} vueltas/día</span>
+                </div>
+              )}
+              {row?.flujo_compra_pct != null && (
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-[var(--t-text-dim)]">Flujo de hoy</span>
+                  <span className={`font-mono tabular-nums ${row.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]" : row.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text)]"}`}>
+                    {row.flujo_compra_pct.toFixed(0)}% compra{row.flujo30_compra_pct != null ? ` · 30': ${row.flujo30_compra_pct.toFixed(0)}%` : ""}
+                  </span>
+                </div>
+              )}
+              {pesoEnElDia != null && pesoEnElDia > 5 && (
+                <div className="text-[9px] text-[var(--t-accent)] leading-snug">
+                  ⚠ Tu monto es el {pesoEnElDia.toFixed(0)}% de lo operado hoy en este papel —
+                  puede costarte entrar y salir sin mover el precio.
+                </div>
+              )}
+            </div>
+          )}
+
           {comp && (comp.con.length > 0 || comp.contra.length > 0) && (
             <div className="border border-[var(--t-border)] bg-[var(--t-surface)] p-2 flex flex-col gap-1.5">
               <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] font-semibold">

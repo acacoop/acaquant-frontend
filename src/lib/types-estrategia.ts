@@ -59,6 +59,7 @@ export interface UniversoItem {
 /** Fila de `GET /api/scanner/day-trading` (api/services/day_trading.py). */
 export interface DayTradingRow {
   ticker: string;
+  ticker_full: string | null;  // símbolo BYMA completo (book L2 / órdenes)
   nombre: string | null;
   sector: string | null;
   last: number | null;          // ARS
