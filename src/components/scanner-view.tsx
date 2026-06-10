@@ -5,7 +5,7 @@ import { usePoll } from "@/lib/use-poll";
 import { Panel } from "./panel";
 import { CedearsScannerTable } from "./cedears-scanner-table";
 import { CedearsTimeSalesPanel } from "./cedears-timesales-panel";
-import { PivotPointsPanel } from "./pivot-points-panel";
+import { MetricasPanel } from "./metricas-panel";
 import { TickerChartPanel } from "./ticker-chart-panel";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
@@ -69,7 +69,7 @@ export function ScannerView({
         {/* DERECHA: 50% MÉTRICAS arriba + 50% CHART abajo (alinea con la izquierda) */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
           <Panel title="MÉTRICAS" expandable>
-            <PivotPointsPanel ticker={selectedTicker} />
+            <MetricasPanel rows={rows} ticker={selectedTicker} />
           </Panel>
           <Panel title="CHART & RETORNOS" expandable>
             <TickerChartPanel ticker={selectedTicker} />

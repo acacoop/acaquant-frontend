@@ -106,6 +106,7 @@ export interface CedearScannerRow {
   spread_pct: number | null;     // spread / mid × 100
   vwap:       number | null;     // EV / NV (precio promedio ponderado por volumen)
   volume:     number | null;     // NOMINAL_VOLUME acumulado del día
+  total_money: number | null;    // TRADE_EFFECTIVE_VOLUME ($ operado en el día)
   // ADR (USD del underlying, EOD desde Trading.PreciosAcciones)
   adr_last:        number | null;
   adr_fecha:       string | null;
