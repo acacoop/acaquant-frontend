@@ -166,6 +166,25 @@ function ONsTable({ rows }: { rows: ONRow[] }) {
   );
 }
 
+// Dominio Y robusto: la escala la fija la MAYORÍA (mediana ± k·MAD), no el
+// outlier. Un bono con TEA rota (−25%, +120%) no puede estirar el eje ni
+// romper el gráfico que ve el cliente. Devuelve [lo, hi] de la banda sana.
+function dominioRobusto(ys: number[]): [number, number] {
+  if (!ys.length) return [0, 10];
+  const s = [...ys].sort((a, b) => a - b);
+  const med = s[Math.floor(s.length / 2)];
+  const devs = s.map((v) => Math.abs(v - med)).sort((a, b) => a - b);
+  const mad = devs[Math.floor(devs.length / 2)] || 0;
+  const span = Math.max(mad * 5, 3); // banda mínima ±3 pts
+  const dentro = s.filter((v) => v >= med - span && v <= med + span);
+  let lo = dentro.length ? Math.min(...dentro) : med - span;
+  let hi = dentro.length ? Math.max(...dentro) : med + span;
+  const pad = (hi - lo) * 0.1 || 1;
+  lo -= pad;
+  hi += pad;
+  return [Math.floor(lo), Math.ceil(hi)];
+}
+
 // ── Curva: scatter TEA(y) vs duration(x) del sector seleccionado ──
 function ONsCurva({ rows }: { rows: ONRow[] }) {
   const puntos = useMemo(
@@ -184,7 +203,11 @@ function ONsCurva({ rows }: { rows: ONRow[] }) {
   const conDatos = useMemo(() => new Set(puntos.map((p) => p.bucket)), [puntos]);
   const [sel, setSel] = useState<Bucket | null>(null);
   const active: Bucket = sel ?? TABS.find((t) => conDatos.has(t.key))?.key ?? "energia";
-  const data = puntos.filter((p) => p.bucket === active);
+  const delSector = puntos.filter((p) => p.bucket === active);
+  // La escala la fija la mayoría; los outliers no se grafican (siguen en la tabla).
+  const [yLo, yHi] = dominioRobusto(delSector.map((p) => p.y));
+  const data = delSector.filter((p) => p.y >= yLo && p.y <= yHi);
+  const ocultos = delSector.length - data.length;
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -203,7 +226,15 @@ function ONsCurva({ rows }: { rows: ONRow[] }) {
                 tick={{ fontSize: 10, fill: "var(--t-text-dim)" }}
                 label={{ value: "Duration (años)", position: "insideBottom", offset: -8, fontSize: 11, fill: "var(--t-text)", fontWeight: 600 }}
               />
-              <YAxis type="number" dataKey="y" name="TEA" unit="%" tick={{ fontSize: 10, fill: "var(--t-text-dim)" }} />
+              <YAxis
+                type="number"
+                dataKey="y"
+                name="TEA"
+                unit="%"
+                domain={[yLo, yHi]}
+                allowDataOverflow
+                tick={{ fontSize: 10, fill: "var(--t-text-dim)" }}
+              />
               <Tooltip
                 cursor={{ strokeDasharray: "3 3" }}
                 content={({ payload }) => {
@@ -227,6 +258,11 @@ function ONsCurva({ rows }: { rows: ONRow[] }) {
           </ResponsiveContainer>
         )}
       </div>
+      {ocultos > 0 && (
+        <div className="mt-1 text-[10px] text-[var(--t-text-muted)] text-right">
+          {ocultos} fuera de rango (no graficados, siguen en la tabla)
+        </div>
+      )}
     </div>
   );
 }
