@@ -50,7 +50,9 @@ function fmtPctAbs(v: number | null | undefined, d = 2): string {
   return `${(v * 100).toFixed(d)}%`;
 }
 
-export function SensibilidadTable() {
+export function SensibilidadTable({ compact = false }: { compact?: boolean }) {
+  // compact (Estrategia): oculta el panel de cálculos/debug y la leyenda
+  // explicativa — se migran a Manager → Debug. La tabla queda full width.
   const [modo, setModo] = useState<Modo>("absoluta");
   const [tirsAbs, setTirsAbs] = useState("4,5,6,7,8,9,10,11");
   const [tirsRel, setTirsRel] = useState("-4,-3,-2,-1,0,1,2,3,4");
@@ -281,7 +283,7 @@ export function SensibilidadTable() {
         </div>
       )}
 
-      {/* Tabla + panel de debug lateral */}
+      {/* Tabla (+ panel de cálculos/debug salvo en compact) */}
       <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
       <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
         <table className="w-full text-[11px] font-mono border-collapse">
@@ -363,8 +365,9 @@ export function SensibilidadTable() {
         </table>
       </div>
 
-      {/* Panel de debug lateral — colapsable. Cerrado = rail con label
-          vertical clickeable. Abierto = panel con detalle. */}
+      {/* Panel de cálculos/debug — oculto en compact (Estrategia); se migra a
+          Manager → Debug. */}
+      {!compact && (
       <aside
         className={`shrink-0 border border-[var(--t-border)] bg-[var(--t-panel)] text-[10px] font-mono transition-[width] duration-150 flex flex-col ${
           debugOpen ? "w-72" : "w-8"
@@ -524,10 +527,11 @@ export function SensibilidadTable() {
         </div>
         )}
       </aside>
+      )}
       </div>
 
-      {/* Leyenda compacta — siempre visible, explica la fórmula y la
-           interpretación del modo activo. */}
+      {/* Leyenda/explicación — oculta en compact (Estrategia). */}
+      {!compact && (
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-3 text-[10px] font-mono">
         <div>
           <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
@@ -575,6 +579,7 @@ export function SensibilidadTable() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

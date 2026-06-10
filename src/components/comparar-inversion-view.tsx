@@ -231,8 +231,22 @@ function MetricRow({
 const COLOR_A = "#ff9900";
 const COLOR_B = "#3fbf6f";
 
-export function CompararInversionView({ bonos }: { bonos: BonoSeleccionable[] }) {
-  // La lista de bonos llega filtrada por curva desde el contenedor (Estrategia).
+// Agrupa el campo `curva` crudo en familias amigables para el filtro previo de
+// selección (Soberanos / CER / Tasa Fija / ONs / Dólar-Linked / …).
+function grupoCurva(curva: string): string {
+  const c = (curva || "").toLowerCase();
+  if (c.startsWith("on")) return "ONs";
+  if (c === "cer") return "CER";
+  if (c === "tasa_fija") return "Tasa Fija";
+  if (c === "dolar_linked") return "Dólar-Linked";
+  if (c === "globales" || c === "bonares" || c === "soberanos") return "Soberanos";
+  return curva ? curva.charAt(0).toUpperCase() + curva.slice(1) : "Otros";
+}
+
+export function CompararInversionView() {
+  const [bonos, setBonos] = useState<BonoSeleccionable[]>([]);
+  const [curva, setCurva] = useState<string>("Todas");
+  const [subtab, setSubtab] = useState<"comparacion" | "flujo">("comparacion");
   const [aId, setAId] = useState("");
   const [bId, setBId] = useState("");
   const [monto, setMonto] = useState("1000000");
@@ -246,6 +260,24 @@ export function CompararInversionView({ bonos }: { bonos: BonoSeleccionable[] })
   const [data, setData] = useState<CompararResp | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/comparar/bonos", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((j) => setBonos(j as BonoSeleccionable[]))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
+
+  // Familias presentes (no hardcodeado) + "Todas"; el filtro achica el universo
+  // de A/B (antes era una lista plana mezclada).
+  const grupos = useMemo(() => {
+    const set = new Set(bonos.map((b) => grupoCurva(b.curva)));
+    return ["Todas", ...Array.from(set).sort()];
+  }, [bonos]);
+  const bonosFiltrados = useMemo(
+    () => (curva === "Todas" ? bonos : bonos.filter((b) => grupoCurva(b.curva) === curva)),
+    [bonos, curva],
+  );
 
   useEffect(() => {
     if (!aId || !bId) {
@@ -322,8 +354,25 @@ export function CompararInversionView({ bonos }: { bonos: BonoSeleccionable[] })
 
   return (
     <div className="h-full min-h-0 flex flex-col p-2 gap-2">
-      {/* Toolbar: monto + moneda + selectores */}
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex items-end gap-3 flex-wrap">
+      {/* Selección: filtro de curva + monto/moneda + A/B */}
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-2 shrink-0 flex flex-col gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[9px] text-[var(--t-text-muted)] uppercase tracking-wide mr-1">Curva:</span>
+          {grupos.map((g) => (
+            <button
+              key={g}
+              onClick={() => setCurva(g)}
+              className={`px-2 py-0.5 text-[10px] font-semibold border ${
+                curva === g
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-end gap-3 flex-wrap">
         <div>
           <div className="text-[8px] text-[var(--t-text-muted)] uppercase mb-0.5">Monto a invertir</div>
           <div className="flex items-stretch">
@@ -349,18 +398,37 @@ export function CompararInversionView({ bonos }: { bonos: BonoSeleccionable[] })
             </div>
           </div>
         </div>
-        <div className="flex-1 min-w-[260px] flex flex-col gap-1">
-          <BonoSelector label="A" bonos={bonos} selected={aId} onChange={setAId} color={COLOR_A} />
-          <BonoSelector label="B" bonos={bonos} selected={bId} onChange={setBId} color={COLOR_B} />
+        <div className="flex-1 min-w-[220px] flex flex-col gap-1">
+          <BonoSelector label="A" bonos={bonosFiltrados} selected={aId} onChange={setAId} color={COLOR_A} />
+          <BonoSelector label="B" bonos={bonosFiltrados} selected={bId} onChange={setBId} color={COLOR_B} />
         </div>
         {loading && <span className="text-[10px] text-[var(--t-text-muted)] italic">cargando…</span>}
         {error && <span className="text-[10px] text-[var(--t-neg)] italic">{error}</span>}
+        </div>
       </div>
 
-      {/* Cuerpo: tabla izq + gráfico der */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-2">
-        {/* Tabla de métricas */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
+      {/* Tabs: Comparación (métricas) / Flujo (gráfico) */}
+      <div className="flex items-center gap-1 shrink-0">
+        {([["comparacion", "COMPARACIÓN"], ["flujo", "FLUJO"]] as const).map(([k, lbl]) => (
+          <button
+            key={k}
+            onClick={() => setSubtab(k)}
+            className={`px-3 py-0.5 text-[10px] font-semibold border ${
+              subtab === k
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+            }`}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      {/* Cuerpo: Comparación (tabla) o Flujo (gráfico) según subtab */}
+      <div className="flex-1 min-h-0">
+        {/* Tab Comparación: tabla de métricas */}
+        {subtab === "comparacion" && (
+        <div className="h-full border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 overflow-y-auto">
           {data ? (
             <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
@@ -454,9 +522,11 @@ export function CompararInversionView({ bonos }: { bonos: BonoSeleccionable[] })
             </div>
           )}
         </div>
+        )}
 
-        {/* Gráfico */}
-        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 flex flex-col">
+        {/* Tab Flujo: gráfico de flujos (por mes / acumulado) */}
+        {subtab === "flujo" && (
+        <div className="h-full border border-[var(--t-border)] bg-[var(--t-panel)] min-h-0 flex flex-col">
           <div className="flex items-center gap-2 px-2 pt-1.5 shrink-0">
             <span className="text-[9px] text-[var(--t-accent)] tracking-widest">
               FLUJOS
@@ -590,6 +660,7 @@ export function CompararInversionView({ bonos }: { bonos: BonoSeleccionable[] })
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Warnings */}
