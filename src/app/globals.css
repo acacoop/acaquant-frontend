@@ -245,6 +245,10 @@ body {
     text-align: left;
     padding: 4px 8px;
     color: var(--t-accent);
+    /* Fondo SÓLIDO por defecto (oscuro = panel). Sin esto, los headers sticky
+       de tablas con border-collapse no pintan sobre las filas al scrollear y
+       se ve el fondo de atrás (bug "header blanco" en modo oscuro). */
+    background-color: var(--t-panel);
     font-weight: 600;
     text-transform: uppercase;
     font-size: 10px;
@@ -252,9 +256,9 @@ body {
     border-bottom: 1px solid var(--t-border-2);
     white-space: nowrap;
   }
-  /* Banda gris en los títulos de tabla (solo modo claro) para que no queden
-     lavados sobre el panel blanco. En oscuro el th sigue transparente. Las
-     utilidades bg-[...] de Tailwind igual ganan donde un th setea su fondo. */
+  /* En modo claro, banda gris sutil para que el título no quede lavado sobre el
+     panel blanco. Las utilidades bg-[...] de Tailwind igual ganan donde un th
+     setea su propio fondo. */
   .light th {
     background-color: var(--t-surface-2);
   }
