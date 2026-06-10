@@ -76,7 +76,8 @@ export interface DayTradingRow {
   mom15_pct: number | null;     // retorno últimos 15' (por reloj)
   vs_vwap_pct: number | null;
   spread_pct: number | null;    // (offer-bid)/last
-  total_money: number | null;   // ARS operados hoy
+  total_money: number | null;      // ARS operados hoy (cash)
+  volumen_nominal: number | null;  // unidades operadas hoy (nominales)
   flujo_compra_pct: number | null;   // % de la plata del día que fue COMPRA
   flujo30_compra_pct: number | null; // ídem últimos 30'
   min_sin_operar: number | null;     // minutos desde el último trade

@@ -367,7 +367,7 @@ export function TradeLabView({ puedeOperar = false }: { puedeOperar?: boolean })
                     >
                       <td
                         className="!px-1.5 !py-1 font-mono font-semibold text-[var(--t-accent)]"
-                        title={`${r.nombre ?? ""}${r.last != null ? ` · último $${r.last.toLocaleString("es-AR")}` : ""}${r.total_money != null ? ` · operó ${fmtMoney(r.total_money)} hoy` : ""}`}
+                        title={`${r.nombre ?? ""}${r.last != null ? ` · último $${r.last.toLocaleString("es-AR")}` : ""}${r.total_money != null ? ` · operó ${fmtMoney(r.total_money)}` : ""}${r.volumen_nominal != null ? ` · ${Math.round(r.volumen_nominal).toLocaleString("es-AR")} nominales` : ""}`}
                       >
                         {r.ticker}
                         {dormido && <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">💤{r.min_sin_operar}{"'"}</span>}
@@ -697,6 +697,15 @@ function DetallePapel({
             VWAP {row.vs_vwap_pct >= 0 ? "↑" : "↓"}{Math.abs(row.vs_vwap_pct).toFixed(2)}%
           </span>
         )}
+        {(row?.total_money != null || row?.volumen_nominal != null) && (
+          <span
+            className="text-[9px] font-mono tabular-nums text-[var(--t-text-dim)]"
+            title={`Volumen del día${row?.total_money != null ? ` · cash ${fmtMoneyFull(row.total_money)}` : ""}${row?.volumen_nominal != null ? ` · ${Math.round(row.volumen_nominal).toLocaleString("es-AR")} nominales` : ""}`}
+          >
+            VOL {row?.total_money != null ? fmtMoney(row.total_money) : "--"}
+            {row?.volumen_nominal != null ? ` · ${Math.round(row.volumen_nominal).toLocaleString("es-AR")} nom` : ""}
+          </span>
+        )}
         {conBoleta && (
           <span className="text-[8px] tracking-widest text-[var(--t-pos)] border border-[var(--t-pos)]/40 px-1">
             OPERAR
@@ -736,6 +745,15 @@ function DetallePapel({
                   <span className="text-[var(--t-text-dim)]">Flujo de hoy</span>
                   <span className={`font-mono tabular-nums ${row.flujo_compra_pct >= 60 ? "text-[var(--t-pos)]" : row.flujo_compra_pct <= 40 ? "text-[var(--t-neg)]" : "text-[var(--t-text)]"}`}>
                     {row.flujo_compra_pct.toFixed(0)}% compra{row.flujo30_compra_pct != null ? ` · 30': ${row.flujo30_compra_pct.toFixed(0)}%` : ""}
+                  </span>
+                </div>
+              )}
+              {(row?.total_money != null || row?.volumen_nominal != null) && (
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-[var(--t-text-dim)]">Volumen hoy</span>
+                  <span className="font-mono tabular-nums text-[var(--t-text)]" title={fmtMoneyFull(row?.total_money)}>
+                    {row?.total_money != null ? fmtMoney(row.total_money) : "--"}
+                    {row?.volumen_nominal != null ? ` · ${Math.round(row.volumen_nominal).toLocaleString("es-AR")} nom` : ""}
                   </span>
                 </div>
               )}
