@@ -22,7 +22,13 @@ type Posicion = { unidad: string; valuacion: number; pct: number };
 type Resumen = { n_clientes: number; aum_total: number; vol_mes: number; vol_ano: number; arancel_mes: number; arancel_total: number };
 type RefResp = { referido: string; moneda: string; clientes: ClienteRow[]; posiciones: Posicion[]; resumen: Resumen };
 type SeriePt = { fecha: string; valor: number };
-type MensualRow = { mes: string; twr_base100: number; twr_base100_usd: number };
+type MensualRow = {
+  mes: string;
+  valuacion_cierre: number; valuacion_cierre_usd: number;
+  flujo_neto: number; flujo_neto_usd: number;
+  tea_mensual: number | null; tea_mensual_usd: number | null;
+  twr_base100: number; twr_base100_usd: number;
+};
 type MensualResp = { meses: MensualRow[] };
 type PnLRow = {
   ticker: string; display_name?: string;
@@ -87,16 +93,17 @@ export function ReferidosView() {
     return () => { alive = false; };
   }, [referido, sel, moneda]);
 
-  // RENDIMIENTO (TWR): mensual del cliente (como CARTERAS). Solo con cliente.
+  // Mensual del cliente (CARTERAS): alimenta el chart RENDIMIENTO (TWR) y la tabla
+  // mes a mes (valuación / flujos / TEA). Se trae siempre que haya cliente.
   useEffect(() => {
-    if (chartMetric !== "rend" || !sel) { setMensual(null); return; }
+    if (!sel) { setMensual(null); return; }
     let alive = true;
     void (async () => {
       const d = await getJson<MensualResp>(`/api/valuaciones/${encodeURIComponent(sel)}/mensual`);
       if (alive) setMensual(d);
     })();
     return () => { alive = false; };
-  }, [chartMetric, sel]);
+  }, [sel]);
 
   // PnL + posición del cliente.
   useEffect(() => {
@@ -177,7 +184,7 @@ export function ReferidosView() {
                 <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{isRend ? "Rendimiento (TWR)" : "Valuación / AUM"} · {moneda}</span>
                 <span className="text-[9px] text-[var(--t-text-muted)] truncate">{sel ? (selCli?.denominacion || sel) : "Todo el referido"}</span>
                 <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-                  {([["guita", "Guita"], ["rend", "Rendim."]] as [("guita" | "rend"), string][]).map(([k, l]) => (
+                  {([["guita", "Valuación"], ["rend", "Rendim."]] as [("guita" | "rend"), string][]).map(([k, l]) => (
                     <button key={k} onClick={() => setChartMetric(k)} className={"px-1.5 py-0.5 text-[9px] font-semibold " + (chartMetric === k ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{l}</button>
                   ))}
                 </div>
@@ -280,6 +287,42 @@ export function ReferidosView() {
                     <Det label={`Vol año ${moneda}`} value={fmtMoney(selCli.vol_ano)} />
                     <Det label={`Arancel mes ${moneda}`} value={fmtMoney(selCli.arancel_mes)} accent />
                     <Det label={`Arancel año ${moneda}`} value={fmtMoney(selCli.arancel_total)} accent />
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+                  <div className={HDR}>
+                    <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Mes a mes · {moneda}</span>
+                    {mensual && mensual.meses.length > 0 && (() => {
+                      const rt = (usd ? mensual.meses[0].twr_base100_usd : mensual.meses[0].twr_base100) - 100;
+                      return <span className="ml-auto text-[9px] font-mono" style={{ color: pnlColor(rt) }}>Rend. acum {rt >= 0 ? "+" : ""}{rt.toFixed(1)}%</span>;
+                    })()}
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-auto">
+                    {!mensual ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p> : mensual.meses.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin histórico mensual.</p> : (
+                      <table className="w-full text-[10px]">
+                        <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                          <th className="text-left !px-2">Mes</th><th className="text-right !px-2">Valuación</th><th className="text-right !px-2">Flujo</th><th className="text-right !px-2">TEA mes</th><th className="text-right !px-2">Rend. acum</th>
+                        </tr></thead>
+                        <tbody>
+                          {mensual.meses.map((m) => {
+                            const val = usd ? m.valuacion_cierre_usd : m.valuacion_cierre;
+                            const flj = usd ? m.flujo_neto_usd : m.flujo_neto;
+                            const tea = usd ? m.tea_mensual_usd : m.tea_mensual;
+                            const rend = (usd ? m.twr_base100_usd : m.twr_base100) - 100;
+                            return (
+                              <tr key={m.mes} className="hover:bg-[var(--t-border)]">
+                                <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{m.mes}</td>
+                                <td className="!px-2 text-right tabular-nums">{fmtMoney(val)}</td>
+                                <td className="!px-2 text-right tabular-nums" style={{ color: flj ? pnlColor(flj) : undefined }}>{flj ? fmtMoney(flj) : "—"}</td>
+                                <td className="!px-2 text-right tabular-nums" style={{ color: pnlColor(tea) }}>{tea != null ? `${(tea * 100).toFixed(1)}%` : "—"}</td>
+                                <td className="!px-2 text-right tabular-nums font-semibold" style={{ color: pnlColor(rend) }}>{rend >= 0 ? "+" : ""}{rend.toFixed(1)}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
 
