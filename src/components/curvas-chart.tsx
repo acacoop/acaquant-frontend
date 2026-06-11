@@ -211,7 +211,7 @@ export function CurvasChart({
   const metricaUsada: Metrica =
     curva === "cer" || curva === "soberanos" ? "TEA" : metrica;
 
-  const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
+  const { puntosPorTipo, fitPorTipo, fitOficial, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
     const puntosPorTipo: Record<string, Punto[]> = {};
     const pushPunto = (tipo: string | null | undefined, p: Punto) => {
       const t = (tipo || "default").toLowerCase();
@@ -297,7 +297,19 @@ export function CurvasChart({
       }
     }
 
-    // Sort por duration y calcular fit log para cada tipo.
+    // Curva a dibujar: si el BACKEND ya ajustó la curva oficial del día
+    // (fair value: TEA = β0 + β1·dur + β2·dur², jobs.fair_value), se dibuja
+    // ESA — el front no recalcula matemática que el back ya resolvió
+    // ("el front pinta, el back piensa"). El logFit local queda SOLO como
+    // tendencia visual para los combos sin fit oficial (TEM/TNA, histórico,
+    // soberanos, dolar_linked).
+    const fv = modo === "live" && metricaUsada === "TEA"
+      && (curva === "tasa_fija" || curva === "cer")
+      ? fairValueInicial?.[curva] : undefined;
+    const betasOficiales = fv && (fv.n_bonos_universo ?? 0) > 0
+      && (fv.beta1 !== 0 || fv.beta2 !== 0)
+      ? { b0: fv.beta0, b1: fv.beta1, b2: fv.beta2 } : null;
+
     const fitPorTipo: Record<string, { Duration: number; y: number }[] | null> = {};
     const allY: number[] = [];
     const allX: number[] = [];
@@ -311,24 +323,39 @@ export function CurvasChart({
 
       let fitArr: { Duration: number; y: number }[] | null = null;
       if (xs.length >= 2) {
-        const fitted = logFit(xs, ys);
-        if (fitted) {
-          const xA = xs[0];
-          const xB = xs[xs.length - 1];
-          const steps = 100;
+        const xA = xs[0];
+        const xB = xs[xs.length - 1];
+        const steps = 100;
+        if (betasOficiales) {
+          // Cuadrática oficial (β en TEA decimal → ×100 para el eje en %).
+          const { b0, b1, b2 } = betasOficiales;
           fitArr = [];
           for (let i = 0; i <= steps; i++) {
             const x = xA + ((xB - xA) * i) / steps;
             fitArr.push({
               Duration: +x.toFixed(4),
-              y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4),
+              y: +((b0 + b1 * x + b2 * x * x) * 100).toFixed(4),
             });
           }
           allY.push(...fitArr.map((p) => p.y));
+        } else {
+          const fitted = logFit(xs, ys);
+          if (fitted) {
+            fitArr = [];
+            for (let i = 0; i <= steps; i++) {
+              const x = xA + ((xB - xA) * i) / steps;
+              fitArr.push({
+                Duration: +x.toFixed(4),
+                y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4),
+              });
+            }
+            allY.push(...fitArr.map((p) => p.y));
+          }
         }
       }
       fitPorTipo[t] = fitArr;
     }
+    const fitOficial = betasOficiales !== null;
 
     const yScale = allY.length
       ? niceScale(Math.min(...allY), Math.max(...allY), 6)
@@ -342,6 +369,7 @@ export function CurvasChart({
     return {
       puntosPorTipo,
       fitPorTipo,
+      fitOficial,
       tipos,
       yMin: yScale.min,
       yMax: yScale.max,
@@ -350,7 +378,7 @@ export function CurvasChart({
       xMax: xScale.max,
       xTicks: xScale.ticks,
     };
-  }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel, snapshotByCurva]);
+  }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel, snapshotByCurva, fairValueInicial]);
 
   // Construir el dataset combinado: cada punto tiene un campo dinámico
   // por tipo (scatterY_<tipo> y fitY_<tipo>) para que recharts pueda
@@ -487,7 +515,19 @@ export function CurvasChart({
           <FairValueView key={curva} curva={curva} initialDoc={fairValueInicial?.[curva]} />
         </div>
       ) : totalPuntos >= 2 ? (
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 relative">
+          {/* Qué línea se dibuja: la curva OFICIAL del backend (β del fair
+              value, jobs.fair_value) o una tendencia log local (solo visual,
+              para combos sin fit oficial). Evita confundir dos "curvas
+              teóricas" distintas en la misma pantalla. */}
+          <span
+            className="absolute top-0 right-1 z-10 text-[8px] tracking-widest text-[var(--t-text-muted)]"
+            title={fitOficial
+              ? "Línea = curva oficial del fair value (β del cierre, jobs.fair_value) — la misma que usa la tabla FAIR VALUE"
+              : "Línea = tendencia logarítmica local (solo visual; sin fit oficial para esta métrica/curva/modo)"}
+          >
+            {fitOficial ? "CURVA FAIR VALUE" : "TENDENCIA (LOG)"}
+          </span>
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
             <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
               <XAxis
