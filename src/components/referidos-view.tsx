@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { fmtMoney } from "@/lib/fmt-money";
+import { exportToXlsx, timestampSuffix, type ColumnDef } from "@/lib/xlsx-export";
+import { ReferidoFciTable } from "@/components/referido-fci-table";
 
 /**
  * /referidos — vista para la EMPRESA referidora. Solo sus cuentas: cuánto operan,
@@ -36,7 +38,7 @@ type PnLRow = {
 type PnLResp = { rows: PnLRow[]; totales: Record<string, number> };
 type Operacion = {
   fecha: string; comprobante: string; categoria: string; op: string | null;
-  ticker: string | null; importe: number | null; moneda: string | null;
+  ticker: string | null; importe: number | null; moneda: string | null; arancel: number | null;
 };
 type Metric = "valuacion" | "rend" | "volumen";
 
@@ -184,6 +186,60 @@ export function ReferidosView() {
   const selCls = "bg-[var(--t-surface)] border text-[var(--t-text)] text-[11px] px-2 py-1 font-mono outline-none";
   const tituloChart = isRend ? "Rendimiento (TWR)" : isBar ? "Volumen operado" : "Valuación / AUM";
 
+  // Descarga a Excel — una hoja por tabla.
+  const dl = (tabla: string, rows: readonly unknown[], columns: ColumnDef[]) =>
+    void exportToXlsx({
+      sheets: [{ name: tabla.slice(0, 31), title: `Referido: ${referido}${sel ? ` · Cuenta ${sel}` : ""} (${moneda})`, rows, columns }],
+      filename: `referidos-${(referido || "todos").replace(/\W+/g, "_")}-${tabla}-${timestampSuffix()}.xlsx`,
+    });
+  const dlClientes = () => dl("Clientes", clientes, [
+    { header: "Cliente", key: "denominacion", format: "text", width: 30 },
+    { header: "Cuenta", key: "id_cuenta", format: "text" },
+    { header: `AuM ${moneda}`, key: "aum", format: "number" },
+    { header: "Vol mes", key: "vol_mes", format: "number" },
+    { header: "Vol año", key: "vol_ano", format: "number" },
+    { header: "Arancel mes", key: "arancel_mes", format: "number" },
+    { header: "Arancel año", key: "arancel_total", format: "number" },
+  ]);
+  const dlOps = () => dl("Operaciones", ops.map((o) => ({
+    fecha: o.fecha, boleto: o.comprobante, tipo: OP_LABEL[o.categoria] || o.categoria,
+    ticker: o.ticker, importe: o.importe != null ? Math.abs(o.importe) : null, moneda: o.moneda, arancel: o.arancel,
+  })), [
+    { header: "Fecha", key: "fecha", format: "date" },
+    { header: "Boleto", key: "boleto", format: "text" },
+    { header: "Tipo", key: "tipo", format: "text" },
+    { header: "Ticker", key: "ticker", format: "text" },
+    { header: "Importe", key: "importe", format: "number" },
+    { header: "Moneda", key: "moneda", format: "text" },
+    { header: "Arancel", key: "arancel", format: "number" },
+  ]);
+  const dlPnl = () => dl("PnL", (pnl?.rows ?? []).map((r) => ({
+    ticker: r.display_name || r.ticker, valor: pnlValor(r), pnl_no_real: pnlNoReal(r), pnl_total: pnlTot(r),
+  })), [
+    { header: "Ticker", key: "ticker", format: "text", width: 22 },
+    { header: `Valor ${moneda}`, key: "valor", format: "number" },
+    { header: "PnL no realizado", key: "pnl_no_real", format: "number" },
+    { header: "PnL total", key: "pnl_total", format: "number" },
+  ]);
+  const dlPosicion = () => dl("Posicion", data?.posiciones ?? [], [
+    { header: "Título", key: "unidad", format: "text", width: 32 },
+    { header: `Valuación ${moneda}`, key: "valuacion", format: "number" },
+    { header: "%", key: "pct", format: "percent" },
+  ]);
+  const dlMesAMes = () => dl("MesAMes", (mensual?.meses ?? []).map((m) => ({
+    mes: m.mes,
+    valuacion: usd ? m.valuacion_cierre_usd : m.valuacion_cierre,
+    flujo: usd ? m.flujo_neto_usd : m.flujo_neto,
+    tea_pct: (usd ? m.tea_mensual_usd : m.tea_mensual) != null ? (usd ? m.tea_mensual_usd! : m.tea_mensual!) * 100 : null,
+    rend: (usd ? m.twr_base100_usd : m.twr_base100) - 100,
+  })), [
+    { header: "Mes", key: "mes", format: "text" },
+    { header: `Valuación ${moneda}`, key: "valuacion", format: "number" },
+    { header: "Flujo neto", key: "flujo", format: "number" },
+    { header: "TEA mes %", key: "tea_pct", format: "percent" },
+    { header: "Rend. acum %", key: "rend", format: "percent" },
+  ]);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex-wrap">
@@ -314,6 +370,8 @@ export function ReferidosView() {
             {/* DERECHA */}
             <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
               {!sel ? (
+                <>
+                <ReferidoFciTable referido={referido} moneda={moneda} />
                 <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
                   <div className={HDR}>
                     <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posición del referido · {moneda}</span>
@@ -338,6 +396,7 @@ export function ReferidosView() {
                     )}
                   </div>
                 </div>
+                </>
               ) : (
                 <>
                   <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
