@@ -1297,6 +1297,8 @@ type AssetGap = {
   CALIFICACION?: string | null;
   TICKER?: string | null;
   VENCIMIENTO?: string | null;
+  // Fee de administración del FCI: FRACCIÓN decimal (0.01 = 1%). Solo FCI.
+  FEE_ADMIN?: number | null;
   actualizado_por?: string | null;
   actualizado_at?: string | null;
 };
@@ -1343,6 +1345,9 @@ function TabAssets() {
   const [error, setError] = useState<string | null>(null);
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [drafts, setDrafts] = useState<Record<string, AssetDraft>>({});
+  // FEE_ADMIN editado por unidad (string mientras se tipea; numérico al guardar).
+  // Aparte de `drafts` porque es numérico — no contamina la maquinaria de strings.
+  const [feeDrafts, setFeeDrafts] = useState<Record<string, string>>({});
   // Valores únicos por campo (dropdown cerrado / datalist editable).
   const [valueOpts, setValueOpts] = useState<Record<AssetCampo, string[]>>(emptyOpts);
   // Filtros de la query backend.
@@ -1369,8 +1374,13 @@ function TabAssets() {
       .then((d: { assets: AssetGap[] }) => {
         setAssets(d.assets || []);
         const initial: Record<string, AssetDraft> = {};
-        for (const a of d.assets || []) initial[a.unidad] = draftFromAsset(a);
+        const feeInit: Record<string, string> = {};
+        for (const a of d.assets || []) {
+          initial[a.unidad] = draftFromAsset(a);
+          feeInit[a.unidad] = a.FEE_ADMIN != null ? String(a.FEE_ADMIN) : "";
+        }
         setDrafts(initial);
+        setFeeDrafts(feeInit);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -1458,6 +1468,40 @@ function TabAssets() {
     }
   };
 
+  // Guarda el fee del FCI (numérico, fracción 0.01 = 1%). Independiente de
+  // saveRow (que solo manda los campos string). Vacío = no tocar.
+  const saveFee = async (a: AssetGap) => {
+    const raw = (feeDrafts[a.unidad] ?? "").trim();
+    if (raw === "") return;
+    const num = Number(raw);
+    if (!Number.isFinite(num)) {
+      setRowState((s) => ({ ...s, [a.unidad]: { kind: "error", msg: "fee inválido" } }));
+      return;
+    }
+    if (a.FEE_ADMIN != null && num === a.FEE_ADMIN) return; // sin cambio
+    setRowState((s) => ({ ...s, [a.unidad]: { kind: "saving" } }));
+    try {
+      const r = await fetch(`/api/manager/assets`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unidad: a.unidad, FEE_ADMIN: num }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* texto plano */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      const updated: AssetGap = await r.json();
+      setAssets((prev) => prev.map((x) => (x.unidad === a.unidad ? updated : x)));
+      setFeeDrafts((prev) => ({ ...prev, [a.unidad]: updated.FEE_ADMIN != null ? String(updated.FEE_ADMIN) : "" }));
+      setRowState((s) => ({ ...s, [a.unidad]: { kind: "saved" } }));
+      setTimeout(() => setRowState((s) => ({ ...s, [a.unidad]: { kind: "idle" } })), 1500);
+    } catch (e) {
+      setRowState((s) => ({ ...s, [a.unidad]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
   // Campos abiertos (input editable): datalist con valores existentes.
   // Los campos cerrados (CARTERA, CLASE_ACTIVO) van como <select> y no usan list.
   const camposAbiertos = ASSET_CAMPOS.filter((c) => !ASSET_CAMPOS_CERRADOS.includes(c));
@@ -1528,6 +1572,7 @@ function TabAssets() {
               <tr className="text-left text-[var(--t-text-dim)] tracking-widest text-[9px]">
                 <th className="px-3 py-2">UNIDAD</th>
                 {ASSET_CAMPOS.map((c) => <th key={c} className="px-2 py-2">{c}</th>)}
+                <th className="px-2 py-2">FEE ADMIN<span className="text-[var(--t-text-muted)]"> (frac.)</span></th>
                 <th className="px-3 py-2">EDITADO</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -1586,6 +1631,25 @@ function TabAssets() {
                         </td>
                       );
                     })}
+                    <td className="px-2 py-1.5">
+                      {(a.CARTERA || "").toUpperCase().includes("FCI") ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number" step="0.0001" min="0" max="1"
+                            value={feeDrafts[a.unidad] ?? ""}
+                            onChange={(e) => setFeeDrafts((p) => ({ ...p, [a.unidad]: e.target.value }))}
+                            onBlur={() => saveFee(a)}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                            placeholder="—"
+                            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[78px]"
+                          />
+                          <span className="text-[9px] text-[var(--t-text-muted)] tabular-nums w-[52px]">
+                            {feeDrafts[a.unidad] && Number.isFinite(Number(feeDrafts[a.unidad]))
+                              ? `= ${(Number(feeDrafts[a.unidad]) * 100).toFixed(2)}%` : ""}
+                          </span>
+                        </div>
+                      ) : <span className="text-[var(--t-text-muted)]">—</span>}
+                    </td>
                     <td className="px-3 py-1.5 text-[var(--t-text-muted)] text-[10px] whitespace-nowrap">
                       {a.actualizado_at ? (
                         <>
