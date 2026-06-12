@@ -264,9 +264,10 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
     (t.valor_actual_usd ?? 0) > 0 || data.rows.some((r) => (r.valor_actual_usd ?? 0) > 0);
 
   // Export "DESCARGAR TODO" de la cuenta: un solo Excel con 2 hojas —
-  // (1) Posiciones y (2) Movimientos (TODOS los boletos de TODAS las
-  // posiciones, cada uno etiquetado con su ticker). Así el analista baja la
-  // cuenta entera de una y no tiene que ir posición por posición.
+  // (1) Posiciones y (2) Movimientos. Trae EXACTAMENTE lo que muestra la
+  // página: por cada posición, los boletos del STOCK ACTUAL (los mismos que
+  // se ven en el detalle y que entran al cálculo del PnL). Es para VALIDAR el
+  // PnL → tiene que reconciliar 1:1 con la pantalla, no traer histórico.
   // Los importes van como número nativo (number-format de Excel por celda).
   const exportarTodo = async () => {
     // Hoja 1 — Posiciones (en la moneda seleccionada ARS/USD).
@@ -292,9 +293,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
     // Hoja 2 — Movimientos: aplanamos los boletos de cada posición. Marcamos
     // con `en_stock_actual` los que pertenecen al período del stock vivo (los
     // que se ven en el detalle) vs los históricos ya compensados.
-    const movimientos = filasOrdenadas.flatMap((r) => {
-      const activos = new Set(_filtrarPeriodoActual(r.boletos));
-      return r.boletos.map((b) => ({
+    const movimientos = filasOrdenadas.flatMap((r) =>
+      _filtrarPeriodoActual(r.boletos).map((b) => ({
         ticker: r.display_name || r.ticker,
         unidad: r.unidad,
         fecha: b.fecha,
@@ -306,9 +306,8 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
         moneda: b.moneda,
         mep: b.mep,
         importe_ars: b.importe_ars,
-        en_stock_actual: activos.has(b) ? "Sí" : "No",
-      }));
-    });
+      })),
+    );
 
     await exportToXlsx({
       filename: `pnl-titulos-${idCuenta}-${moneda}-${timestampSuffix()}.xlsx`,
@@ -347,7 +346,6 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
             { header: "Moneda", key: "moneda", format: "text", width: 8 },
             { header: "MEP", key: "mep", format: "number", width: 10 },
             { header: "Importe ARS", key: "importe_ars", format: "number", width: 16 },
-            { header: "En Stock Actual", key: "en_stock_actual", format: "text", width: 14 },
           ],
         },
       ],
