@@ -234,17 +234,17 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
       {err && <div className="text-[11px] text-[var(--t-neg)] shrink-0">Error: {err}</div>}
 
       <div className="flex-1 min-h-0 flex gap-3">
-        {/* IZQUIERDA 50%: resumen | detalle */}
-        <div className="w-1/2 flex gap-2 min-h-0">
+        {/* IZQUIERDA 50%: resumen (arriba) / detalle (abajo) */}
+        <div className="w-1/2 flex flex-col gap-2 min-h-0">
           {/* resumen */}
-          <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto min-h-0">
+          <div className="h-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-auto min-h-0">
             <table className="w-full text-[10px] font-mono">
               <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10 text-[8px] tracking-widest text-[var(--t-text-dim)]">
                 <tr>
                   <th className="px-2 py-1.5 text-left">MES</th>
                   {COLUMNAS.map((c) => (
                     <th key={c} onClick={() => seleccionar(c, null)} title={`Detalle ${c}`}
-                      className={`px-1 py-1.5 text-right cursor-pointer hover:text-[var(--t-accent)] ${selCat === c && !selMes ? "text-[var(--t-accent)]" : ""}`}>{c.slice(0, 4)}</th>
+                      className={`px-1 py-1.5 text-right cursor-pointer hover:text-[var(--t-accent)] ${selCat === c && !selMes ? "text-[var(--t-accent)]" : ""}`}>{c}</th>
                   ))}
                   <th className="px-2 py-1.5 text-right">NETO</th>
                 </tr>
@@ -266,7 +266,7 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
             </table>
           </div>
           {/* detalle */}
-          <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
+          <div className="h-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
             {!selCat ? (
               <div className="h-full flex items-center justify-center text-center text-[var(--t-text-muted)] text-[10px] px-3">Tocá una categoría para ver/excluir sus movimientos.</div>
             ) : (
