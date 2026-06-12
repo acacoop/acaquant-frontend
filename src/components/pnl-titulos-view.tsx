@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
+
+import { DownloadButton } from "./download-button";
+
 // ── Types ─────────────────────────────────────────────────────────────────
 
 export interface BoletoDetalle {
@@ -259,6 +263,52 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   const usdDisponible =
     (t.valor_actual_usd ?? 0) > 0 || data.rows.some((r) => (r.valor_actual_usd ?? 0) > 0);
 
+  // Export de la tabla de POSICIONES a Excel. Los importes van como número
+  // nativo (el helper aplica el number-format de Excel por celda; se pueden
+  // sumar/filtrar). Exporta lo mostrado en la moneda seleccionada (ARS/USD).
+  const exportarPosiciones = async () => {
+    await exportToXlsx({
+      filename: `pnl-titulos-${idCuenta}-${moneda}-${timestampSuffix()}.xlsx`,
+      sheets: [
+        {
+          name: "Posiciones",
+          title: `PnL Títulos · cuenta ${idCuenta} · ${moneda}${data.fecha_actual ? ` · al ${data.fecha_actual}` : ""}`,
+          rows: filasOrdenadas.map((r) => {
+            const costoRow = costoVista(r, esUSD);
+            const valorRow = valVista(r, esUSD);
+            const total = totalView(r);
+            return {
+              ticker: r.display_name || r.ticker,
+              unidad: r.unidad,
+              cantidad: r.qty_aum,
+              costo: costoRow,
+              valor: valorRow,
+              pnl_no_real: esUSD ? (r.pnl_no_realizado_usd ?? null) : r.pnl_no_realizado,
+              pnl_cobros: esUSD ? (r.pnl_pasivo_usd ?? 0) : r.pnl_pasivo,
+              pnl_total: total,
+              gan_pct: costoRow > 0 ? (total / costoRow) * 100 : null,
+              fuente: r.valor_actual_source ?? "",
+              estado: r.completeness,
+            };
+          }),
+          columns: [
+            { header: "Ticker", key: "ticker", format: "text", width: 28 },
+            { header: "Unidad", key: "unidad", format: "text", width: 24 },
+            { header: "Cantidad", key: "cantidad", format: "number", width: 16 },
+            { header: `Costo (${moneda})`, key: "costo", format: "number", width: 16 },
+            { header: `Valor (${moneda})`, key: "valor", format: "number", width: 16 },
+            { header: `PnL No Realizado (${moneda})`, key: "pnl_no_real", format: "number", width: 20 },
+            { header: `PnL Cobros (${moneda})`, key: "pnl_cobros", format: "number", width: 18 },
+            { header: `PnL Total (${moneda})`, key: "pnl_total", format: "number", width: 18 },
+            { header: "Gan %", key: "gan_pct", format: "percent", width: 10 },
+            { header: "Fuente Valor", key: "fuente", format: "text", width: 12 },
+            { header: "Estado", key: "estado", format: "text", width: 12 },
+          ],
+        },
+      ],
+    });
+  };
+
   return (
     <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
       {/* KPIs — solo Valor Actual + PnL No Realizado (el resto confunde) */}
@@ -303,6 +353,9 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
           {filasOrdenadas.length} tickers
           {data.fecha_actual ? ` · al ${data.fecha_actual}` : ""}
         </span>
+        {filasOrdenadas.length > 0 && (
+          <DownloadButton onClick={exportarPosiciones} title="Descargar posiciones (Excel)" />
+        )}
       </div>
 
       {/* Split layout: posiciones (izq) + detalle de la seleccionada (der) */}
@@ -436,6 +489,42 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
   const pnlTot  = (noReal ?? 0) + pasivo + realDia;
   const ganPct = costo > 0 ? (pnlTot / costo) * 100 : null;
 
+  // Export de la tabla de BOLETOS del stock actual a Excel. Importe / precio /
+  // MEP van como número nativo (en su moneda original — IMPORTE ARS pesificado).
+  const exportarBoletos = async () => {
+    await exportToXlsx({
+      filename: `boletos-${(row.display_name || row.ticker).replace(/[^\w.-]+/g, "_")}-${timestampSuffix()}.xlsx`,
+      sheets: [
+        {
+          name: "Boletos",
+          title: `Boletos del stock actual · ${row.display_name || row.ticker} · ${row.unidad}`,
+          rows: boletosPeriodo.map((b) => ({
+            fecha: b.fecha,
+            op: b.op || b.categoria,
+            categoria: b.categoria,
+            cantidad: b.cantidad,
+            precio: b.precio,
+            importe: b.importe,
+            moneda: b.moneda,
+            mep: b.mep,
+            importe_ars: b.importe_ars,
+          })),
+          columns: [
+            { header: "Fecha", key: "fecha", format: "date", width: 12 },
+            { header: "Op", key: "op", format: "text", width: 18 },
+            { header: "Categoría", key: "categoria", format: "text", width: 16 },
+            { header: "Cantidad", key: "cantidad", format: "number", width: 14 },
+            { header: "Precio", key: "precio", format: "number", width: 14 },
+            { header: "Importe", key: "importe", format: "number", width: 16 },
+            { header: "Moneda", key: "moneda", format: "text", width: 8 },
+            { header: "MEP", key: "mep", format: "number", width: 10 },
+            { header: "Importe ARS", key: "importe_ars", format: "number", width: 16 },
+          ],
+        },
+      ],
+    });
+  };
+
   return (
     <div className="p-3 text-[10px] text-[var(--t-text-dim)]">
       {/* Header del ticker */}
@@ -507,12 +596,15 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
       {/* Tabla de boletos del período activo */}
       {boletosPeriodo.length > 0 && (
         <div className="mt-3 border-t border-[var(--t-border)] pt-2">
-          <div className="text-[var(--t-text-muted)] tracking-widest mb-1">
-            BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
-            {row.boletos.length > boletosPeriodo.length && (
-              <span className="text-[var(--t-text-muted)]"> · {row.boletos.length - boletosPeriodo.length} históricos ocultos</span>
-            )}
-            ):
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[var(--t-text-muted)] tracking-widest">
+              BOLETOS DEL STOCK ACTUAL ({boletosPeriodo.length}
+              {row.boletos.length > boletosPeriodo.length && (
+                <span className="text-[var(--t-text-muted)]"> · {row.boletos.length - boletosPeriodo.length} históricos ocultos</span>
+              )}
+              ):
+            </div>
+            <DownloadButton onClick={exportarBoletos} title="Descargar boletos (Excel)" />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[10px] font-mono">
