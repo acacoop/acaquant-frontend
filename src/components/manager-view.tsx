@@ -1297,6 +1297,8 @@ type AssetGap = {
   CALIFICACION?: string | null;
   TICKER?: string | null;
   VENCIMIENTO?: string | null;
+  // Código CNV del instrumento (string; puede tener ceros a la izquierda).
+  CODIGO_CNV?: string | null;
   // Fee de administración del FCI: FRACCIÓN decimal (0.01 = 1%). Solo FCI.
   FEE_ADMIN?: number | null;
   actualizado_por?: string | null;
@@ -1312,7 +1314,7 @@ type RowState =
 // Campos UPPERCASE editables — define el orden de columnas de la tabla.
 const ASSET_CAMPOS = [
   "CARTERA", "EMISOR", "CLASE_ACTIVO", "CALIFICACION",
-  "TICKER", "VENCIMIENTO", "INSTRUMENTO",
+  "TICKER", "VENCIMIENTO", "INSTRUMENTO", "CODIGO_CNV",
 ] as const;
 type AssetCampo = (typeof ASSET_CAMPOS)[number];
 type AssetDraft = Record<AssetCampo, string>;
@@ -1324,13 +1326,13 @@ const ASSET_CAMPOS_CERRADOS: readonly AssetCampo[] = ["CARTERA", "CLASE_ACTIVO"]
 function emptyDraft(): AssetDraft {
   return {
     CARTERA: "", EMISOR: "", CLASE_ACTIVO: "", CALIFICACION: "",
-    TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "",
+    TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "", CODIGO_CNV: "",
   };
 }
 function emptyOpts(): Record<AssetCampo, string[]> {
   return {
     CARTERA: [], EMISOR: [], CLASE_ACTIVO: [], CALIFICACION: [],
-    TICKER: [], VENCIMIENTO: [], INSTRUMENTO: [],
+    TICKER: [], VENCIMIENTO: [], INSTRUMENTO: [], CODIGO_CNV: [],
   };
 }
 function draftFromAsset(a: AssetGap): AssetDraft {
