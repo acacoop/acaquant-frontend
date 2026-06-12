@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
-// Proxy GET /api/valuaciones-flujo/movimientos?id_cuenta&categoria&desde&hasta&mes → backend.
+// Proxy GET /api/valuaciones-flujo/resumen?id_cuenta&desde&hasta → backend (matriz agregada).
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -9,8 +9,8 @@ const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function GET(req: Request) {
   try {
-    const qs = new URL(req.url).search; // reenvía todos los params tal cual
-    const data = await apiFetch<unknown>(`/api/valuaciones-flujo/movimientos${qs}`, {
+    const qs = new URL(req.url).search;
+    const data = await apiFetch<unknown>(`/api/valuaciones-flujo/resumen${qs}`, {
       revalidate: 0,
     });
     return NextResponse.json(data, { headers: NO_STORE });
