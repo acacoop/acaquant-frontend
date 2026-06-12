@@ -41,6 +41,9 @@ const PATH_MODULES: [string, string[]][] = [
   ["/valuaciones", ["portfolios"]],
   ["/api/portfolio", ["portfolios"]],
   ["/api/titulos", ["portfolios"]],
+  // Valuaciones (flujo directo) — solo admin + asistente_comercial.
+  ["/valuaciones-flujo", ["valuaciones-flujo"]],
+  ["/api/valuaciones-flujo", ["valuaciones-flujo"]],
   ["/back-office", ["back-office"]],
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
   ["/renta-variable", ["renta-variable"]],
@@ -170,6 +173,7 @@ export const config = {
     "/operar/:path*",
     "/aum/:path*",
     "/valuaciones/:path*",
+    "/valuaciones-flujo/:path*",
     "/back-office/:path*",
     "/api/manager/:path*",
     "/api/operaciones/:path*",
@@ -180,5 +184,6 @@ export const config = {
     "/api/cuentas/:path*",
     "/api/portfolio/:path*",
     "/api/titulos/:path*",
+    "/api/valuaciones-flujo/:path*",
   ],
 };

@@ -53,6 +53,7 @@ const NAV: Entry[] = [
       { href: "/operaciones",  label: "Operaciones",  module: "operaciones" },
       { href: "/operadores",   label: "Operadores",   module: "operaciones" },
       { href: "/referidos",    label: "Referidos",    module: "operaciones" },
+      { href: "/valuaciones-flujo", label: "Valuaciones", module: "valuaciones-flujo" },
     ],
   },
   { kind: "link", href: "/back-office", label: "BACK OFFICE", module: "back-office" },
