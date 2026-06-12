@@ -42,7 +42,8 @@ function fmtC(n: number): string {
   if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(1)}K`;
   return `${s}$${a.toFixed(0)}`;
 }
-const fmtN = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+const fmtN = (n: number | null | undefined) =>
+  (n ?? 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 function pct(v: number | null): string {
   if (v == null) return "—";
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -305,7 +306,7 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
           {/* mensual estilo Carteras */}
           <div className="h-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
             <div className="px-2 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex items-center gap-2 shrink-0">
-              <span className="text-[9px] tracking-widest text-[var(--t-text-dim)]">MENSUAL · TEA/TEM (XIRR con flujo = neto movs)</span>
+              <span className="text-[9px] tracking-widest text-[var(--t-text-dim)]">MENSUAL</span>
               <div className="ml-auto flex gap-1">
                 {(["ARS", "USD"] as const).map((m) => (
                   <button key={m} onClick={() => setEsUSD(m === "USD")}
@@ -374,7 +375,7 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
                       <tr key={`${p.ticker}-${i}`} className="border-b border-[var(--t-border)]">
                         <td className="px-2 py-1 text-[var(--t-text)] truncate max-w-[180px]" title={p.ticker}>{p.ticker}</td>
                         <td className="px-1 py-1 text-right text-[var(--t-text-dim)]">{fmtN(p.cantidad)}</td>
-                        <td className="px-1 py-1 text-right text-[var(--t-text-dim)]">{p.precio.toLocaleString("es-AR", { maximumFractionDigits: 2 })}</td>
+                        <td className="px-1 py-1 text-right text-[var(--t-text-dim)]">{(p.precio ?? 0).toLocaleString("es-AR", { maximumFractionDigits: 2 })}</td>
                         <td className="px-2 py-1 text-right text-[var(--t-text)]">{fmtC(p.valuacion)}</td>
                       </tr>
                     ))}
