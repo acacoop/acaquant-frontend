@@ -139,12 +139,25 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
   const [tenFecha, setTenFecha] = useState<string | null>(null);
   const [tenencias, setTenencias] = useState<TenenciasResp | null>(null);
 
+  // Filtro maestro por CARTERA (afecta todo: movs, tenencias, mensual).
+  const [cartera, setCartera] = useState<string>("");
+  const [carteras, setCarteras] = useState<string[]>([]);
+  useEffect(() => {
+    fetch("/api/valuaciones-flujo/carteras", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { carteras: string[] }) => setCarteras(d.carteras || []))
+      .catch(() => {});
+  }, []);
+  // Al cambiar la cartera, limpiar el detalle abierto (queda stale).
+  useEffect(() => { setSelCat(null); setDetalle([]); }, [cartera]);
+
   const qs = useMemo(() => {
     const p = new URLSearchParams({ id_cuenta: idCuenta });
     if (desde) p.set("desde", desde);
     if (hasta) p.set("hasta", hasta);
+    if (cartera) p.set("cartera", cartera);
     return p.toString();
-  }, [idCuenta, desde, hasta]);
+  }, [idCuenta, desde, hasta, cartera]);
 
   const cargarResumen = useCallback(() => {
     setErr(null);
@@ -155,27 +168,31 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
   }, [qs]);
 
   const cargarMensual = useCallback(() => {
-    fetch(`/api/valuaciones-flujo/mensual?id_cuenta=${encodeURIComponent(idCuenta)}`, { cache: "no-store" })
+    const p = new URLSearchParams({ id_cuenta: idCuenta });
+    if (cartera) p.set("cartera", cartera);
+    fetch(`/api/valuaciones-flujo/mensual?${p.toString()}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d: MensualResp) => {
         const ms = d.meses || [];
         setMensual(ms);
-        if (ms.length && !tenFecha) setTenFecha(ms[0].ultimo_dia);
+        setTenFecha(ms.length ? ms[0].ultimo_dia : null);
       })
       .catch(() => setMensual([]));
-  }, [idCuenta, tenFecha]);
+  }, [idCuenta, cartera]);
 
   useEffect(() => { cargarResumen(); }, [cargarResumen]);
-  useEffect(() => { setTenFecha(null); cargarMensual(); /* eslint-disable-next-line */ }, [idCuenta]);
+  useEffect(() => { cargarMensual(); }, [cargarMensual]);
 
-  // tenencias al cambiar el mes elegido
+  // tenencias al cambiar el mes elegido / la cartera
   useEffect(() => {
     if (!tenFecha) { setTenencias(null); return; }
-    fetch(`/api/valuaciones-flujo/tenencias?id_cuenta=${encodeURIComponent(idCuenta)}&fecha=${tenFecha}`, { cache: "no-store" })
+    const p = new URLSearchParams({ id_cuenta: idCuenta, fecha: tenFecha });
+    if (cartera) p.set("cartera", cartera);
+    fetch(`/api/valuaciones-flujo/tenencias?${p.toString()}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
       .then((d: TenenciasResp) => setTenencias(d))
       .catch(() => setTenencias(null));
-  }, [idCuenta, tenFecha]);
+  }, [idCuenta, tenFecha, cartera]);
 
   const cargarDetalle = useCallback((cat: Categoria, mes: string | null) => {
     setDetLoading(true);
@@ -183,12 +200,13 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
     if (desde) p.set("desde", desde);
     if (hasta) p.set("hasta", hasta);
     if (mes) p.set("mes", mes);
+    if (cartera) p.set("cartera", cartera);
     fetch(`/api/valuaciones-flujo/movimientos?${p.toString()}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
       .then((d: { movimientos: Mov[] }) => setDetalle(d.movimientos || []))
       .catch(() => setDetalle([]))
       .finally(() => setDetLoading(false));
-  }, [idCuenta, desde, hasta]);
+  }, [idCuenta, desde, hasta, cartera]);
 
   const seleccionar = (cat: Categoria, mes: string | null) => { setSelCat(cat); setSelMes(mes); cargarDetalle(cat, mes); };
 
@@ -230,6 +248,12 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
         <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[var(--t-text)]" />
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">HASTA</span>
         <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[var(--t-text)]" />
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)] ml-2">CARTERA</span>
+        <select value={cartera} onChange={(e) => setCartera(e.target.value)}
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[var(--t-text)] max-w-[180px]">
+          <option value="">Todas</option>
+          {carteras.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
         {resumen && <span className="ml-auto text-[9px] text-[var(--t-text-muted)] font-mono">NETO flujo: <span className="text-[var(--t-accent)] font-semibold">{fmtC(resumen.neto_total)}</span></span>}
       </div>
       {err && <div className="text-[11px] text-[var(--t-neg)] shrink-0">Error: {err}</div>}
