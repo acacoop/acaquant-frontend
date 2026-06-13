@@ -377,6 +377,10 @@ export function AumView() {
       }))
       .sort((a, b) => b.valuacion - a.valuacion);
     if (cq && !cuentaSel) rows = rows.filter((r) => r.cuenta.toLowerCase().includes(cq));
+    // Cuenta seleccionada → la lista se aísla a esa sola (el share sigue
+    // siendo % del contexto completo). Click de nuevo sobre ella la
+    // deselecciona y vuelven todas. Evita el "marqué una pero siguen todas".
+    if (cuentaSel) rows = rows.filter((r) => r.cuenta === cuentaSel);
     return rows;
   }, [snapshotByCartera, unidadSel, cuentaSel, cuentaQuery, unidadQuery]);
 
@@ -402,6 +406,8 @@ export function AumView() {
       }))
       .sort((a, b) => b.valuacion - a.valuacion);
     if (uq && !unidadSel) rows = rows.filter((r) => r.ticker.toLowerCase().includes(uq));
+    // Simétrico a POR CUENTA: asset seleccionado → la lista se aísla a ese.
+    if (unidadSel) rows = rows.filter((r) => r.ticker === unidadSel);
     return rows;
   }, [snapshotByCartera, cuentaSel, unidadSel, cuentaQuery, unidadQuery]);
 
