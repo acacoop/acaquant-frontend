@@ -3557,7 +3557,7 @@ function UsuariosGroup() {
 }
 
 function AunesaGroup() {
-  const [sub, setSub] = usePersistedState<"flujo" | "aum" | "posicion" | "boletos">("manager.aunesa.sub", "flujo");
+  const [sub, setSub] = usePersistedState<"flujo" | "aum" | "posicion" | "boletos" | "importar">("manager.aunesa.sub", "flujo");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
@@ -3566,12 +3566,14 @@ function AunesaGroup() {
         <Pill label="AUM" active={sub === "aum"} onClick={() => setSub("aum")} />
         <Pill label="POSICIÓN" active={sub === "posicion"} onClick={() => setSub("posicion")} />
         <Pill label="BOLETOS" active={sub === "boletos"} onClick={() => setSub("boletos")} />
+        <Pill label="IMPORTAR AUM" active={sub === "importar"} onClick={() => setSub("importar")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "flujo"    && <AunesaExplorarPanel />}
         {sub === "aum"      && <AunesaAumPanel />}
         {sub === "posicion" && <AunesaPosicionPanel />}
         {sub === "boletos"  && <AunesaBoletosPanel />}
+        {sub === "importar" && <ImportTenenciaPanel />}
       </div>
     </div>
   );
@@ -3765,6 +3767,215 @@ function OperacionesBackfillPanel() {
           )}
           {msg && <div className={msg.ok ? "text-green-400" : "text-red-400"}>{msg.text}</div>}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── IMPORTAR TENENCIA: pisa Valuaciones.AuM con el Excel del contable ─────────
+// Parsea el Excel en el cliente, PREVISUALIZA contra el backend (commit=false) y
+// recién con confirmación explícita APLICA (commit=true). Pisa por (fecha,cuenta),
+// idempotente. Pensado para corregir los fines de mes que el job dejó mal.
+type ImportPreview = {
+  ok: boolean; error?: string;
+  n_filas: number; n_validas: number; n_errores: number;
+  errores: { fila: number; detalle: string }[];
+  cuentas: string[]; n_cuentas: number; fechas: string[];
+  total_valuacion: number; especies_sin_match_en_assets: string[];
+  aplicado?: boolean; borrados?: number; insertados?: number;
+};
+
+const _normH = (h: string) =>
+  h.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const _IMPORT_ALIASES: Record<string, string[]> = {
+  fecha:     ["fecha"],
+  id_cuenta: ["idcuenta", "id"],
+  cuenta:    ["cuenta", "denominacion", "comitente"],
+  unidad:    ["especie", "unidad", "ticker", "instrumento"],
+  cantidad:  ["cantidad", "nominales", "nominal", "vn"],
+  precio:    ["precio", "preciovaluacion"],
+  valuacion: ["valuacion", "valorizado", "valorvaluado", "valor", "importe"],
+  moneda:    ["moneda"],
+};
+
+function _buildHeaderMap(headers: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const [key, aliases] of Object.entries(_IMPORT_ALIASES)) {
+    const hit = headers.find((h) => aliases.includes(_normH(h)))
+      ?? headers.find((h) => aliases.some((a) => _normH(h).startsWith(a)));
+    if (hit) map[key] = hit;
+  }
+  return map;
+}
+
+function _mapImportRow(r: Record<string, unknown>, hmap: Record<string, string>): Record<string, unknown> {
+  const g = (k: string) => (hmap[k] ? r[hmap[k]] : "");
+  let idc = String(g("id_cuenta") ?? "").trim();
+  const cuentaRaw = String(g("cuenta") ?? "").trim();
+  if (!idc && cuentaRaw) { const m = cuentaRaw.match(/\d+/); idc = m ? m[0] : cuentaRaw; }
+  return {
+    fecha:     g("fecha"),
+    id_cuenta: idc,
+    cuenta:    cuentaRaw || undefined,
+    unidad:    String(g("unidad") ?? "").trim(),
+    cantidad:  g("cantidad"),
+    precio:    g("precio"),
+    valuacion: g("valuacion"),
+    moneda:    String(g("moneda") ?? "").trim() || undefined,
+  };
+}
+
+function ImportTenenciaPanel() {
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [hmap, setHmap] = useState<Record<string, string>>({});
+  const [prev, setPrev] = useState<ImportPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const descargarPlantilla = async () => {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["fecha", "id_cuenta", "cuenta", "especie", "cantidad", "precio", "valuacion", "moneda"],
+      ["2026-05-29", "805", "[805] MOLLO NICOLAS", "AO28", 8294, 139850, 11599159, "ARS"],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "tenencia");
+    XLSX.writeFile(wb, "plantilla_tenencia.xlsx");
+  };
+
+  const onFile = async (file: File) => {
+    setMsg(null); setPrev(null); setRows([]); setFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const isCsv = /\.csv$/i.test(file.name);
+      const wb = isCsv
+        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
+        : XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
+      const headers = Object.keys(json[0]).filter((h) => h.trim() !== "");
+      const m = _buildHeaderMap(headers);
+      const faltan = ["fecha", "id_cuenta", "unidad", "valuacion"].filter((k) => !m[k]);
+      if (faltan.length) {
+        setMsg({ ok: false, text: `Faltan columnas en el Excel: ${faltan.join(", ")}. Bajá la plantilla.` });
+        return;
+      }
+      setHmap(m);
+      setRows(json);
+    } catch (e) {
+      setMsg({ ok: false, text: `No se pudo leer el archivo: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
+
+  const enviar = async (commit: boolean) => {
+    if (busy || !rows.length) return;
+    setBusy(true); setMsg(null);
+    try {
+      const payload = rows.map((r) => _mapImportRow(r, hmap));
+      const res = await fetch("/api/manager/import-tenencia", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: payload, commit }),
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+        throw new Error(detail);
+      }
+      const j: ImportPreview = await res.json();
+      setPrev(j);
+      if (j.aplicado) {
+        setMsg({ ok: true, text: `✓ Aplicado: ${j.insertados} filas insertadas, ${j.borrados} viejas reemplazadas.` });
+      } else if (!commit) {
+        setMsg({ ok: true, text: "Previsualización lista. Revisá y confirmá para aplicar." });
+      }
+    } catch (e) {
+      setMsg({ ok: false, text: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="h-full overflow-y-auto p-4 text-[12px] text-[var(--t-text)]">
+      <div className="max-w-[820px] space-y-4">
+        <div>
+          <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">IMPORTAR TENENCIA (corrige AuM)</h2>
+          <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
+            Subí un Excel con la tenencia correcta del sistema contable. Pisa{" "}
+            <code className="text-[var(--t-text)]">Valuaciones.AuM</code> SOLO en las fechas/cuentas
+            del archivo (idempotente: re-subir reemplaza, no duplica). Columnas:{" "}
+            <code className="text-[var(--t-text)]">fecha · id_cuenta · cuenta · especie · cantidad · precio · valuacion · moneda</code>.
+            La valuación se importa tal cual (no se recalcula).
+          </p>
+          <button onClick={descargarPlantilla}
+            className="mt-2 px-2 py-1 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]">
+            ↓ DESCARGAR PLANTILLA
+          </button>
+        </div>
+
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+          <label className="inline-block px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]">
+            ELEGIR ARCHIVO (.xlsx / .csv)
+            <input type="file" accept=".csv,.xlsx,.xls"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
+              className="hidden" />
+          </label>
+          {fileName && rows.length > 0 && (
+            <div className="text-[var(--t-text-muted)]">
+              <span className="text-[var(--t-text)]">{fileName}</span> · {rows.length.toLocaleString("es-AR")} filas
+            </div>
+          )}
+          {rows.length > 0 && (
+            <div className="flex gap-2">
+              <button onClick={() => enviar(false)} disabled={busy}
+                className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-50">
+                {busy ? "…" : "1) PREVISUALIZAR"}
+              </button>
+              {prev && prev.n_validas > 0 && !prev.aplicado && (
+                <button onClick={() => enviar(true)} disabled={busy}
+                  className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-50">
+                  {busy ? "Aplicando…" : `2) CONFIRMAR E IMPORTAR (${prev.n_validas})`}
+                </button>
+              )}
+            </div>
+          )}
+          {msg && <div className={msg.ok ? "text-green-400" : "text-red-400"}>{msg.text}</div>}
+        </div>
+
+        {prev && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-2">
+            <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">PREVISUALIZACIÓN</div>
+            <div className="flex flex-wrap gap-6">
+              <OpsStat label="FILAS OK" value={prev.n_validas.toLocaleString("es-AR")} />
+              <OpsStat label="ERRORES" value={prev.n_errores.toLocaleString("es-AR")} />
+              <OpsStat label="CUENTAS" value={String(prev.n_cuentas)} />
+              <OpsStat label="VALUACIÓN TOTAL" value={"$" + prev.total_valuacion.toLocaleString("es-AR", { maximumFractionDigits: 0 })} />
+            </div>
+            <div className="text-[var(--t-text-muted)]">
+              <span className="text-[var(--t-text-dim)]">Fechas a pisar:</span> {prev.fechas.join(", ") || "—"}
+            </div>
+            {prev.especies_sin_match_en_assets.length > 0 && (
+              <div className="text-[var(--t-accent)] text-[11px]">
+                ⚠ {prev.especies_sin_match_en_assets.length} especie(s) sin match en Assets (van a agrupar como
+                &quot;OTROS&quot; hasta cargarlas en TÍTULOS → ASSETS): {prev.especies_sin_match_en_assets.slice(0, 15).join(", ")}
+                {prev.especies_sin_match_en_assets.length > 15 ? "…" : ""}
+              </div>
+            )}
+            {prev.errores.length > 0 && (
+              <div className="text-red-400 text-[11px]">
+                <div className="font-semibold">Filas con error (no se importan):</div>
+                {prev.errores.slice(0, 20).map((e) => (
+                  <div key={e.fila}>fila {e.fila}: {e.detalle}</div>
+                ))}
+                {prev.errores.length > 20 ? <div>… +{prev.errores.length - 20} más</div> : null}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
