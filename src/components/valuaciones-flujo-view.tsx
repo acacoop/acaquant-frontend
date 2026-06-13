@@ -383,26 +383,12 @@ function FlujoView({ idCuenta }: { idCuenta: string }) {
           {/* tenencias al mes */}
           <div className="h-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-h-0 overflow-hidden">
             <div className="px-2 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex items-center gap-2 shrink-0 text-[9px] tracking-widest text-[var(--t-text-dim)]">
-              <span>TENENCIAS</span>
-              <input
-                type="date"
-                value={tenFecha ?? ""}
-                onChange={(e) => setTenFecha(e.target.value || null)}
-                title="Buscar tenencia a una fecha (si no hay dato exacto, usa el cierre más cercano anterior)"
-                className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[var(--t-text)] tracking-normal focus:border-[var(--t-accent)] focus:outline-none"
-              />
-              {tenencias?.fecha && tenencias.fecha !== tenFecha && (
-                <span className="text-[var(--t-accent)] normal-case" title="No había dato exacto: se muestra el cierre disponible más cercano">
-                  → {tenencias.fecha}
-                </span>
-              )}
+              TENENCIAS {tenencias?.fecha ? `· ${tenencias.fecha}` : ""}
               {tenencias && <span className="ml-auto font-mono text-[var(--t-text)]">{fmtC(tenencias.total)}</span>}
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               {!tenencias ? (
-                <div className="p-3 text-[10px] text-[var(--t-text-muted)]">Tocá un mes (o elegí una fecha arriba) para ver las tenencias al cierre.</div>
-              ) : tenencias.posiciones.length === 0 ? (
-                <div className="p-3 text-[10px] text-[var(--t-text-muted)]">Sin tenencia para esa fecha (ni en días anteriores con datos).</div>
+                <div className="p-3 text-[10px] text-[var(--t-text-muted)]">Tocá un mes para ver las tenencias al cierre.</div>
               ) : (
                 <table className="w-full text-[10px] font-mono">
                   <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10 text-[8px] tracking-widest text-[var(--t-text-dim)]">

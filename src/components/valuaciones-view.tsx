@@ -970,9 +970,20 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
             {!selectedFecha ? "actual" : "histórica"}
           </span>
+          {/* Buscador por fecha: ver la tenencia a cualquier día con datos. Si
+              ese día no tiene snapshot, el backend resuelve al cierre más
+              cercano anterior (asof) y `ultimoSnap` muestra la fecha real. */}
+          <input
+            type="date"
+            value={selectedFecha ?? ""}
+            onChange={(e) => setSelectedFecha(e.target.value || null)}
+            title="Ver tenencia a una fecha (si no hay dato exacto, usa el cierre más cercano anterior)"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[9px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          />
           {ultimoSnap && (
-            <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
-              {fmtFechaCorta(ultimoSnap)}
+            <span className="text-[9px] text-[var(--t-text-muted)] font-mono"
+              title={selectedFecha && ultimoSnap !== selectedFecha ? "No había dato exacto: cierre más cercano anterior" : undefined}>
+              {selectedFecha && ultimoSnap !== selectedFecha ? "→ " : ""}{fmtFechaCorta(ultimoSnap)}
             </span>
           )}
           {/* Tabs Posiciones / Variación */}
