@@ -3787,6 +3787,15 @@ type ImportResp = {
   borrados?: number; insertados?: number;            // modo aum (commit)
 };
 
+// Paso 2: recalcular valuación (precio×cantidad, /100 renta fija). Divisor por CARTERA.
+type RecalcResp = {
+  ok: boolean; error?: string; aplicado?: boolean; filas_actualizadas?: number;
+  n_recalculadas?: number; total_antes?: number; total_despues?: number;
+  carteras?: { cartera: string; divisor: number; n: number;
+               total_antes: number; total_despues: number; delta: number }[];
+  sin_clasificar?: { cartera: string; n: number; total_antes: number }[];
+};
+
 function ImportTenenciaPanel() {
   const [modo, setModo] = useState<"precios" | "aum">("precios");
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
@@ -3794,9 +3803,11 @@ function ImportTenenciaPanel() {
   const [prev, setPrev] = useState<ImportResp | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [recalc, setRecalc] = useState<RecalcResp | null>(null);
+  const [recalcBusy, setRecalcBusy] = useState(false);
 
   const cambiarModo = (m: "precios" | "aum") => {
-    setModo(m); setRows([]); setFileName(""); setPrev(null); setMsg(null);
+    setModo(m); setRows([]); setFileName(""); setPrev(null); setMsg(null); setRecalc(null);
   };
 
   const descargarPlantilla = async () => {
@@ -3812,7 +3823,7 @@ function ImportTenenciaPanel() {
   };
 
   const onFile = async (file: File) => {
-    setMsg(null); setPrev(null); setRows([]); setFileName(file.name);
+    setMsg(null); setPrev(null); setRecalc(null); setRows([]); setFileName(file.name);
     try {
       const buf = await file.arrayBuffer();
       const XLSX = await import("xlsx");
@@ -3833,7 +3844,7 @@ function ImportTenenciaPanel() {
 
   const enviar = async (commit: boolean) => {
     if (busy || !rows.length) return;
-    setBusy(true); setMsg(null);
+    setBusy(true); setMsg(null); setRecalc(null);
     const url = modo === "precios"
       ? "/api/manager/import-precios-sql" : "/api/manager/import-aum-sql";
     try {
@@ -3862,6 +3873,34 @@ function ImportTenenciaPanel() {
       setBusy(false);
     }
   };
+
+  // Paso 2 — recalcular valuación de las fechas recién importadas (divisor por cartera).
+  const recalcularValuacion = async (commit: boolean) => {
+    const fechas = prev?.fechas ?? [];
+    if (recalcBusy || !fechas.length) return;
+    setRecalcBusy(true);
+    try {
+      const res = await fetch("/api/manager/recalcular-valuacion-sql", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fechas, commit }),
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+        throw new Error(detail);
+      }
+      const j: RecalcResp = await res.json();
+      setRecalc(j);
+      if (j.aplicado) setMsg({ ok: true, text: `✓ ${j.filas_actualizadas ?? 0} valuaciones recalculadas.` });
+    } catch (e) {
+      setMsg({ ok: false, text: `Error recalculando: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setRecalcBusy(false);
+    }
+  };
+
+  const money = (n: number | undefined) =>
+    "$" + (n ?? 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
   return (
     <div className="h-full overflow-y-auto p-4 text-[12px] text-[var(--t-text)]">
@@ -3954,6 +3993,75 @@ function ImportTenenciaPanel() {
                   <div key={e.fila}>fila {e.fila}: {e.detalle}</div>
                 ))}
                 {prev.errores.length > 20 ? <div>… +{prev.errores.length - 20} más</div> : null}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── PASO 2: recalcular valuación (sólo tras importar PRECIOS) ── */}
+        {modo === "precios" && prev?.aplicado && (prev.fechas?.length ?? 0) > 0 && (
+          <div className="border border-[var(--t-accent)]/40 bg-[var(--t-panel)] p-3 space-y-3">
+            <div>
+              <h3 className="text-[12px] font-semibold text-[var(--t-accent)] tracking-wide">
+                PASO 2 → RECALCULAR VALUACIÓN
+              </h3>
+              <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
+                <code className="text-[var(--t-text)]">valuación = cantidad × precio</code> (÷100 para renta fija:
+                carteras HD · DL · ARS). FCI · RENTA VARIABLE · MONEDAS · DERIVADOS van directo. Las carteras
+                sin regla (ej. FINANCIAMIENTO) <span className="text-[var(--t-text)]">NO se tocan</span>.
+                Fechas: {(prev.fechas ?? []).join(", ")}.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => recalcularValuacion(false)} disabled={recalcBusy}
+                className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-50">
+                {recalcBusy ? "…" : "PREVISUALIZAR ANTES/DESPUÉS"}
+              </button>
+              {recalc && (recalc.n_recalculadas ?? 0) > 0 && !recalc.aplicado && (
+                <button onClick={() => recalcularValuacion(true)} disabled={recalcBusy}
+                  className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-50">
+                  {recalcBusy ? "Aplicando…" : `APLICAR (${recalc.n_recalculadas})`}
+                </button>
+              )}
+            </div>
+
+            {recalc && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-6">
+                  <OpsStat label="VALUACIÓN ANTES" value={money(recalc.total_antes)} />
+                  <OpsStat label="VALUACIÓN DESPUÉS" value={money(recalc.total_despues)} />
+                  <OpsStat label="Δ" value={money((recalc.total_despues ?? 0) - (recalc.total_antes ?? 0))} />
+                </div>
+                {recalc.carteras && recalc.carteras.length > 0 && (
+                  <table className="w-full text-[11px]">
+                    <thead className="text-[var(--t-text-muted)] text-left">
+                      <tr>
+                        <th className="py-1">CARTERA</th><th>÷</th><th className="text-right">FILAS</th>
+                        <th className="text-right">ANTES</th><th className="text-right">DESPUÉS</th><th className="text-right">Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recalc.carteras.map((c) => (
+                        <tr key={c.cartera} className="border-t border-[var(--t-border)]">
+                          <td className="py-1 text-[var(--t-text)]">{c.cartera}</td>
+                          <td className="text-[var(--t-text-dim)]">{c.divisor}</td>
+                          <td className="text-right">{c.n.toLocaleString("es-AR")}</td>
+                          <td className="text-right text-[var(--t-text-dim)]">{money(c.total_antes)}</td>
+                          <td className="text-right text-[var(--t-text)]">{money(c.total_despues)}</td>
+                          <td className={"text-right " + (c.delta >= 0 ? "text-green-400" : "text-red-400")}>{money(c.delta)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {recalc.sin_clasificar && recalc.sin_clasificar.length > 0 && (
+                  <div className="text-[11px] text-amber-400">
+                    <div className="font-semibold">Carteras SIN regla (no se tocan — definí el divisor):</div>
+                    {recalc.sin_clasificar.map((s) => (
+                      <div key={s.cartera}>{s.cartera}: {s.n.toLocaleString("es-AR")} filas · {money(s.total_antes)}</div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
