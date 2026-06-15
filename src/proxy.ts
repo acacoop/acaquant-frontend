@@ -30,7 +30,7 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/operar", ["operar"]],
   ["/api/risk", ["operar"]],
   // /operaciones (movimientos, depósitos, intraday) + /operadores (ex comercial)
-  // + /contrapartes (contrapartes + flujo vs aum) — todas módulo `operaciones`
+  // + /contrapartes — todas módulo `operaciones`
   ["/operaciones", ["operaciones"]],
   ["/operadores", ["operaciones"]],
   ["/referidos", ["operaciones"]],
