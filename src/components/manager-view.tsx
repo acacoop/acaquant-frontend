@@ -3774,6 +3774,7 @@ type ImportResp = {
   errores?: { fila: number; detalle: string }[];
   fechas?: string[]; cuentas?: string[]; n_cuentas?: number;
   total_valuacion?: number;
+  columnas_detectadas?: string[];                    // headers que leyó del Excel
   matchean?: number; sin_match?: number;             // modo precios (preview)
   aplicado?: boolean; filas_actualizadas?: number;   // modo precios (commit)
   borrados?: number; insertados?: number;            // modo aum (commit)
@@ -3978,6 +3979,12 @@ function ImportTenenciaPanel() {
             <div className="text-[var(--t-text-muted)]">
               <span className="text-[var(--t-text-dim)]">Fechas:</span> {(prev.fechas ?? []).join(", ") || "—"}
             </div>
+            {prev.columnas_detectadas && prev.columnas_detectadas.length > 0 && (
+              <div className="text-[var(--t-text-muted)] text-[10px]">
+                <span className="text-[var(--t-text-dim)]">Columnas detectadas:</span>{" "}
+                {prev.columnas_detectadas.map((c) => `"${c}"`).join(" · ")}
+              </div>
+            )}
             {prev.errores && prev.errores.length > 0 && (
               <div className="text-red-400 text-[11px]">
                 <div className="font-semibold">Filas con error (no se importan):</div>
