@@ -12,13 +12,10 @@ import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { GruposPanel } from "./grupos-panel";
-import { ComercialPanel } from "./comercial-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { ManagerDebugTeaPanel } from "./manager-debug-tea";
-import { ManagerDebugSegmentoPanel } from "./manager-debug-segmento";
-import { ManagerDebugComercialPanel } from "./manager-debug-comercial";
 import { RecursosPanel } from "./recursos-panel";
 import { RolesPanel } from "./roles-panel";
 import { UsuariosPanel } from "./usuarios-panel";
@@ -569,8 +566,6 @@ function TabValidaciones() {
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-2">
-
-      <ManagerDebugComercialPanel />
 
       <CheckPanel title="Curvas Pendientes — docs sin duration en TimeSales">
         <RunBtn onClick={runCp} loading={cpLoading} />
@@ -3002,7 +2997,6 @@ type Tab =
   | "jobs"
   | "validaciones"
   | "titulos"
-  | "comercial"
   | "clientes"
   | "contrapartes"
   | "compliance"
@@ -3042,7 +3036,7 @@ function DiagnosticoGroup() {
 
 // VALIDACIONES: checks + Opciones Vto (relocalizado de Backfills) + Debug XIRR.
 function ValidacionesGroup() {
-  const [sub, setSub] = usePersistedState<"checks" | "opciones" | "xirr" | "segmento" | "tea">("manager.valid.sub", "checks");
+  const [sub, setSub] = usePersistedState<"checks" | "opciones" | "xirr" | "tea">("manager.valid.sub", "checks");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -3051,14 +3045,12 @@ function ValidacionesGroup() {
         <Pill label="OPCIONES VTO" active={sub === "opciones"} onClick={() => setSub("opciones")} />
         <Pill label="DEBUG XIRR" active={sub === "xirr"} onClick={() => setSub("xirr")} />
         <Pill label="DEBUG TEA" active={sub === "tea"} onClick={() => setSub("tea")} />
-        <Pill label="DEBUG SEGMENTO" active={sub === "segmento"} onClick={() => setSub("segmento")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "checks"   && <TabValidaciones />}
         {sub === "opciones" && <div className="h-full overflow-y-auto p-3"><OpcionesExpiriesPanel /></div>}
         {sub === "xirr"     && <ManagerDebugXirrPanel />}
         {sub === "tea"      && <ManagerDebugTeaPanel />}
-        {sub === "segmento" && <ManagerDebugSegmentoPanel />}
       </div>
     </div>
   );
@@ -4081,7 +4073,6 @@ const TAB_MODULES: Record<Tab, string[]> = {
   jobs:         ["manager"],
   validaciones: ["manager"],
   titulos:      ["manager", "manager_titulos", "manager_instrumentos"],
-  comercial:    ["manager", "manager_comercial"],
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
   compliance:   ["manager", "manager_compliance"],
@@ -4200,7 +4191,6 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "titulos",      label: "TÍTULOS"      },
-    { id: "comercial",    label: "COMERCIAL"    },
     { id: "clientes",     label: "CLIENTES"     },
     { id: "contrapartes", label: "CONTRAPARTES" },
     { id: "compliance",   label: "COMPLIANCE"   },
@@ -4220,7 +4210,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     modules === null ||
     modules.includes("manager") ||
     modules.includes("manager_clientes_bulk");
-  const [tab, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "comercial");
+  const [tab, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "clientes");
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -4238,7 +4228,6 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "jobs"         && <JobsRunsPanel />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
-        {tab === "comercial"    && <ComercialPanel />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "contrapartes" && <TabContrapartes />}
         {tab === "compliance"   && <ComplianceGroup />}

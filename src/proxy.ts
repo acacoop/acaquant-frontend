@@ -21,8 +21,8 @@ import { isGuestRequest, trustedEmail } from "./lib/cf-access";
 // sub-módulos (asistente_comercial = manager_comercial + manager_clientes).
 // Coincide con require_any_module() del backend en api/auth.py.
 const PATH_MODULES: [string, string[]][] = [
-  ["/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
-  ["/api/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
+  ["/manager", ["manager", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
+  ["/api/manager", ["manager", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
   ["/operar", ["operar"]],
   ["/api/ordenes", ["operar"]],
@@ -41,9 +41,6 @@ const PATH_MODULES: [string, string[]][] = [
   ["/valuaciones", ["portfolios"]],
   ["/api/portfolio", ["portfolios"]],
   ["/api/titulos", ["portfolios"]],
-  // Valuaciones (flujo directo) — solo admin + asistente_comercial.
-  ["/valuaciones-flujo", ["valuaciones-flujo"]],
-  ["/api/valuaciones-flujo", ["valuaciones-flujo"]],
   ["/back-office", ["back-office"]],
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
   ["/renta-variable", ["renta-variable"]],
@@ -173,7 +170,6 @@ export const config = {
     "/operar/:path*",
     "/aum/:path*",
     "/valuaciones/:path*",
-    "/valuaciones-flujo/:path*",
     "/back-office/:path*",
     "/api/manager/:path*",
     "/api/operaciones/:path*",
@@ -184,6 +180,5 @@ export const config = {
     "/api/cuentas/:path*",
     "/api/portfolio/:path*",
     "/api/titulos/:path*",
-    "/api/valuaciones-flujo/:path*",
   ],
 };
