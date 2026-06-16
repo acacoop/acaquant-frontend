@@ -63,6 +63,10 @@ export function ArancelesView() {
   const [serieFull, setSerieFull] = useState(false);
 
   const fecha = fechas[0]?.fecha ?? "";   // ancla = fecha más reciente
+  // Rango de DATOS (fechas viene DESC: [0]=última, [last]=primera). Los date inputs se
+  // acotan a esto — NO uno al otro (eso deadlockeaba el hasta en modo ULTIMA).
+  const minFecha = fechas.length ? fechas[fechas.length - 1].fecha : undefined;
+  const maxFecha = fechas.length ? fechas[0].fecha : undefined;
   const rango = useMemo(() => {
     if (!fechas.length) return { desde: "", hasta: "" };
     const ultima = fechas[0].fecha;
@@ -100,7 +104,9 @@ export function ArancelesView() {
   useEffect(() => {
     if (!rango.desde || !rango.hasta) return;
     setLoading(true);
-    const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO&dim=${dim}`
+    // Normalizar por si quedó desde > hasta (ahora los inputs son libres dentro del rango de datos).
+    const [qDesde, qHasta] = rango.desde <= rango.hasta ? [rango.desde, rango.hasta] : [rango.hasta, rango.desde];
+    const qs = `moneda=${moneda}&desde=${qDesde}&hasta=${qHasta}&agg=DIARIO&dim=${dim}`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
       + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
       + (selDim ? `&sel_dim=${encodeURIComponent(selDim)}` : "")
@@ -129,11 +135,11 @@ export function ArancelesView() {
           <button key={m} onClick={() => setModo(m)} className={"px-2 py-0.5 border text-[11px] font-semibold " + (modo === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]")}>{m}</button>
         ))}
         <div className="inline-flex items-center border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          <input type="date" value={rango.desde} max={rango.hasta || undefined} disabled={!fechas.length}
+          <input type="date" value={rango.desde} min={minFecha} max={maxFecha} disabled={!fechas.length}
             onChange={(e) => onDesde(e.target.value)}
             className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
           <span className="px-1 text-[var(--t-text-dim)]">→</span>
-          <input type="date" value={rango.hasta} min={rango.desde || undefined} disabled={!fechas.length}
+          <input type="date" value={rango.hasta} min={minFecha} max={maxFecha} disabled={!fechas.length}
             onChange={(e) => onHasta(e.target.value)}
             className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
         </div>
