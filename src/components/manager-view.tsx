@@ -3548,24 +3548,28 @@ function UsuariosGroup() {
   );
 }
 
-function AunesaGroup() {
+function AunesaGroup({ modules }: { modules?: string[] | null }) {
+  const has = (m: string) => modules == null || modules.includes(m);
+  // `manager` (admin) ve todas las sub-vistas; `manager_aunesa` (asistente_comercial) SOLO Importar.
+  const full = has("manager");
   const [sub, setSub] = usePersistedState<"flujo" | "aum" | "posicion" | "boletos" | "importar">("manager.aunesa.sub", "flujo");
+  const subEff = full ? sub : "importar";
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2">AUNESA</span>
-        <Pill label="FLUJO" active={sub === "flujo"} onClick={() => setSub("flujo")} />
-        <Pill label="AUM" active={sub === "aum"} onClick={() => setSub("aum")} />
-        <Pill label="POSICIÓN" active={sub === "posicion"} onClick={() => setSub("posicion")} />
-        <Pill label="BOLETOS" active={sub === "boletos"} onClick={() => setSub("boletos")} />
-        <Pill label="IMPORTAR AUM" active={sub === "importar"} onClick={() => setSub("importar")} />
+        {full && <Pill label="FLUJO" active={subEff === "flujo"} onClick={() => setSub("flujo")} />}
+        {full && <Pill label="AUM" active={subEff === "aum"} onClick={() => setSub("aum")} />}
+        {full && <Pill label="POSICIÓN" active={subEff === "posicion"} onClick={() => setSub("posicion")} />}
+        {full && <Pill label="BOLETOS" active={subEff === "boletos"} onClick={() => setSub("boletos")} />}
+        <Pill label="IMPORTAR AUM" active={subEff === "importar"} onClick={() => setSub("importar")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "flujo"    && <AunesaExplorarPanel />}
-        {sub === "aum"      && <AunesaAumPanel />}
-        {sub === "posicion" && <AunesaPosicionPanel />}
-        {sub === "boletos"  && <AunesaBoletosPanel />}
-        {sub === "importar" && <ImportTenenciaPanel />}
+        {full && subEff === "flujo"    && <AunesaExplorarPanel />}
+        {full && subEff === "aum"      && <AunesaAumPanel />}
+        {full && subEff === "posicion" && <AunesaPosicionPanel />}
+        {full && subEff === "boletos"  && <AunesaBoletosPanel />}
+        {subEff === "importar" && <ImportTenenciaPanel />}
       </div>
     </div>
   );
@@ -4083,7 +4087,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
   compliance:   ["manager", "manager_compliance"],
-  aunesa:       ["manager"],
+  aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
   usuarios:     ["manager"],
 };
@@ -4238,7 +4242,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "contrapartes" && <TabContrapartes />}
         {tab === "compliance"   && <ComplianceGroup />}
-        {tab === "aunesa"       && <AunesaGroup />}
+        {tab === "aunesa"       && <AunesaGroup modules={modules} />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
         {tab === "usuarios"     && <UsuariosGroup />}
       </div>
