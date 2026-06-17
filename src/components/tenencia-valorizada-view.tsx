@@ -15,7 +15,10 @@ const CUENTAS = ["100", "255", "256"] as const;
 type Cuenta = (typeof CUENTAS)[number];
 
 type DiaRow = { fecha: string; tc: number | null; total: number } & Record<Cuenta, number>;
-type PosRow = { unidad: string; total: number } & Record<Cuenta, number>;
+type PosRow = {
+  unidad: string; total: number;
+  precio?: number | null; cant?: Record<Cuenta, number>; total_cant?: number;
+} & Record<Cuenta, number>;
 type DiasResp = { cuentas: string[]; dias: DiaRow[]; ultima_fecha: string | null };
 type PosResp = { fecha: string; tc: number | null; total: number; posiciones: PosRow[] };
 
@@ -24,6 +27,8 @@ const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${
 // Número completo, sin abreviar (separador de miles es-AR), 0 decimales.
 const fmtFull = (v: number | null | undefined) => (v == null ? "—" : Math.round(v).toLocaleString("es-AR"));
 const fmtTC = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+// Cantidad nominal: hasta 2 decimales, sin abreviar.
+const fmtNum = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: 2 }));
 
 async function getJson<T>(url: string): Promise<T | null> {
   try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
@@ -36,6 +41,12 @@ export function TenenciaValorizadaView() {
   const [loading, setLoading] = useState(true);
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("tenencia.moneda", "USD");
   const usd = moneda === "USD";
+  const [vista, setVista] = usePersistedState<"dinero" | "nominal">("tenencia.vista", "dinero");
+  const nominal = vista === "nominal";
+  const [edUnidad, setEdUnidad] = useState("");
+  const [edPrecio, setEdPrecio] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [edMsg, setEdMsg] = useState<string | null>(null);
 
   // Convierte un valor ARS a la moneda elegida usando el TC (MEP) de ESE día.
   const cv = (ars: number | null | undefined, tc: number | null): number | null => {
@@ -62,6 +73,33 @@ export function TenenciaValorizadaView() {
     })();
     return () => { alive = false; };
   }, [sel]);
+
+  // Pre-cargar el precio actual al elegir una unidad en el editor.
+  useEffect(() => {
+    const p = pos?.posiciones.find((x) => x.unidad === edUnidad);
+    setEdPrecio(p?.precio != null ? String(p.precio) : "");
+    setEdMsg(null);
+  }, [edUnidad, pos]);
+
+  const guardarPrecio = async () => {
+    if (!sel || !edUnidad || edPrecio.trim() === "") return;
+    const precio = Number(edPrecio.replace(",", "."));
+    if (!isFinite(precio)) { setEdMsg("precio inválido"); return; }
+    setSaving(true); setEdMsg(null);
+    try {
+      const r = await fetch("/api/back-office/tenencia-hd/precio", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fecha: sel, unidad: edUnidad, precio }),
+      });
+      const j = await r.json();
+      if (j?.ok) {
+        setEdMsg(`✓ ${edUnidad} actualizado`);
+        setPos(await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}`));
+        setDias((await getJson<DiasResp>("/api/back-office/tenencia-hd"))?.dias ?? []);
+      } else { setEdMsg(j?.error ?? "error"); }
+    } catch { setEdMsg("error de red"); }
+    finally { setSaving(false); }
+  };
 
   return (
     <div className="h-full min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
@@ -107,35 +145,93 @@ export function TenenciaValorizadaView() {
         </div>
       </div>
 
-      {/* DERECHA — posiciones del día seleccionado */}
-      <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className={HDR}>
-          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones HD · {sel ? fmtFecha(sel) : "—"} · {moneda}</span>
-          {pos && <span className="ml-auto text-[9px] font-mono text-[var(--t-text-muted)]">TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.total, pos.tc))}</span></span>}
-        </div>
-        <div className="flex-1 min-h-0 overflow-auto">
-          {!sel ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un día a la izquierda.</p>
-            : !pos ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
-            : usd && !pos.tc ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin TC para ese día — no se puede dolarizar.</p>
-            : pos.posiciones.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posiciones HD ese día.</p>
-            : (
-              <table className="w-full text-[10px]">
-                <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                  <th className="text-left !px-2">Título</th>
-                  {CUENTAS.map((c) => <th key={c} className="text-right !px-2">{c}</th>)}
-                  <th className="text-right !px-2">Total</th>
-                </tr></thead>
-                <tbody>
-                  {pos.posiciones.map((p, i) => (
-                    <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
-                      <td className="!px-2">{p.unidad}</td>
-                      {CUENTAS.map((c) => <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">{p[c] ? fmtFull(cv(p[c], pos.tc)) : "—"}</td>)}
-                      <td className="!px-2 text-right tabular-nums font-semibold">{fmtFull(cv(p.total, pos.tc))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* DERECHA — arriba posiciones (DINERO/NOMINAL), abajo editor de precio */}
+      <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+        {/* ARRIBA — posiciones del día */}
+        <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+          <div className={HDR}>
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones HD · {sel ? fmtFecha(sel) : "—"} · {nominal ? "NOMINAL" : moneda}</span>
+            <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {([["dinero", "DINERO"], ["nominal", "NOMINAL"]] as const).map(([v, lbl]) => (
+                <button key={v} onClick={() => setVista(v)}
+                  className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === v ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
+              ))}
+            </div>
+            {pos && (
+              <span className="w-full text-[9px] font-mono text-[var(--t-text-muted)]">
+                {nominal
+                  ? <>Total nominal <span className="font-semibold text-[var(--t-accent)]">{fmtNum(pos.posiciones.reduce((a, p) => a + (p.total_cant ?? 0), 0))}</span></>
+                  : <>TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.total, pos.tc))}</span></>}
+              </span>
             )}
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {!sel ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un día a la izquierda.</p>
+              : !pos ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
+              : !nominal && usd && !pos.tc ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin TC para ese día — no se puede dolarizar.</p>
+              : pos.posiciones.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posiciones HD ese día.</p>
+              : (
+                <table className="w-full text-[10px]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                    <th className="text-left !px-2">Título</th>
+                    {CUENTAS.map((c) => <th key={c} className="text-right !px-2">{c}</th>)}
+                    <th className="text-right !px-2">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {pos.posiciones.map((p, i) => (
+                      <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
+                        <td className="!px-2">{p.unidad}</td>
+                        {CUENTAS.map((c) => (
+                          <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">
+                            {nominal ? fmtNum(p.cant?.[c]) : (p[c] ? fmtFull(cv(p[c], pos.tc)) : "—")}
+                          </td>
+                        ))}
+                        <td className="!px-2 text-right tabular-nums font-semibold">
+                          {nominal ? fmtNum(p.total_cant) : fmtFull(cv(p.total, pos.tc))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+          </div>
+        </div>
+
+        {/* ABAJO — editor manual de precio (recalcula la valuación HD) */}
+        <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+          <div className={HDR}>
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Editar precio</span>
+            <span className="text-[9px] text-[var(--t-text-muted)]">valuación = cantidad × precio / 100 (HD)</span>
+          </div>
+          <div className="p-3 flex flex-col gap-2 text-[11px] overflow-auto">
+            <label className="flex items-center gap-2">
+              <span className="w-14 text-[var(--t-text-muted)]">Día</span>
+              <select value={sel ?? ""} onChange={(e) => setSel(e.target.value)}
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 text-[var(--t-text)] [color-scheme:dark]">
+                {dias.map((d) => <option key={d.fecha} value={d.fecha}>{fmtFecha(d.fecha)}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-14 text-[var(--t-text-muted)]">Unidad</span>
+              <select value={edUnidad} onChange={(e) => setEdUnidad(e.target.value)}
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 text-[var(--t-text)] [color-scheme:dark]">
+                <option value="">— elegí —</option>
+                {(pos?.posiciones ?? []).map((p) => <option key={p.unidad} value={p.unidad}>{p.unidad}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-14 text-[var(--t-text-muted)]">Precio</span>
+              <input value={edPrecio} onChange={(e) => setEdPrecio(e.target.value)} inputMode="decimal" placeholder="precio nuevo"
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 font-mono text-[var(--t-text)]" />
+            </label>
+            <div className="flex items-center gap-2">
+              <button onClick={guardarPrecio} disabled={saving || !sel || !edUnidad || edPrecio.trim() === ""}
+                className="px-3 py-1 text-[11px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40">
+                {saving ? "Guardando…" : "Guardar"}
+              </button>
+              {edMsg && <span className={"text-[10px] " + (edMsg.startsWith("✓") ? "text-[var(--t-pos)]" : "text-red-400")}>{edMsg}</span>}
+            </div>
+          </div>
         </div>
       </div>
     </div>
