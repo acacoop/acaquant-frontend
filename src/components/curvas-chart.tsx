@@ -211,7 +211,7 @@ export function CurvasChart({
   const metricaUsada: Metrica =
     curva === "cer" || curva === "soberanos" ? "TEA" : metrica;
 
-  const { puntosPorTipo, fitPorTipo, fitOficial, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
+  const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
     const puntosPorTipo: Record<string, Punto[]> = {};
     const pushPunto = (tipo: string | null | undefined, p: Punto) => {
       const t = (tipo || "default").toLowerCase();
@@ -516,18 +516,6 @@ export function CurvasChart({
         </div>
       ) : totalPuntos >= 2 ? (
         <div className="flex-1 min-h-0 relative">
-          {/* Qué línea se dibuja: la curva OFICIAL del backend (β del fair
-              value, jobs.fair_value) o una tendencia log local (solo visual,
-              para combos sin fit oficial). Evita confundir dos "curvas
-              teóricas" distintas en la misma pantalla. */}
-          <span
-            className="absolute top-0 right-1 z-10 text-[8px] tracking-widest text-[var(--t-text-muted)]"
-            title={fitOficial
-              ? "Línea = curva oficial del fair value (β del cierre, jobs.fair_value) — la misma que usa la tabla FAIR VALUE"
-              : "Línea = tendencia logarítmica local (solo visual; sin fit oficial para esta métrica/curva/modo)"}
-          >
-            {fitOficial ? "CURVA FAIR VALUE" : "TENDENCIA (LOG)"}
-          </span>
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
             <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
               <XAxis
