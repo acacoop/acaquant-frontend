@@ -4138,6 +4138,30 @@ function ComplianceGroup() {
 
   const filas = (data?.filas ?? []).filter((f) => !soloDif || f.difiere);
 
+  // Descarga la conciliación visible a Excel. CSV con BOM UTF-8 + separador ';'
+  // (Excel es-AR lo abre en columnas directo) + comillas (denominaciones con coma).
+  const descargarExcel = () => {
+    if (!filas.length) return;
+    const esc = (v: string | null | undefined) => `"${(v ?? "").toString().replace(/"/g, '""')}"`;
+    const header = ["CUENTA", "DENOMINACIÓN", "OPERADOR (NUESTRO)", "MAIL (NUESTRO)",
+                    "OPERADOR (AUNESA)", "MAIL (AUNESA)", "ESTADO"];
+    const lineas = [header.map(esc).join(";")];
+    for (const f of filas) {
+      lineas.push([f.id_cuenta, f.denominacion, f.nuestro_nombre, f.nuestro_email,
+                   f.aunesa_nombre, f.aunesa_email, _CMP_LABEL[f.categoria] ?? f.categoria]
+                  .map(esc).join(";"));
+    }
+    const blob = new Blob(["﻿" + lineas.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `conciliacion_operadores_${soloDif ? "difs_" : ""}${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-2">
       <div className="flex items-center gap-3 shrink-0">
@@ -4153,8 +4177,12 @@ function ComplianceGroup() {
           <input type="checkbox" checked={soloDif} onChange={(e) => setSoloDif(e.target.checked)} />
           solo diferencias
         </label>
-        <button onClick={cargar} disabled={loading}
+        <button onClick={descargarExcel} disabled={loading || filas.length === 0}
           className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          ⬇ Excel
+        </button>
+        <button onClick={cargar} disabled={loading}
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
           {loading ? "Consultando Aunesa…" : "↻ Re-consultar"}
         </button>
       </div>
