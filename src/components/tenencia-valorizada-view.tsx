@@ -47,6 +47,7 @@ export function TenenciaValorizadaView() {
   const [edPrecio, setEdPrecio] = useState("");
   const [saving, setSaving] = useState(false);
   const [edMsg, setEdMsg] = useState<string | null>(null);
+  const [div100, setDiv100] = useState(true);   // ÷100 (paridad HD) on/off para el cálculo
 
   // Convierte un valor ARS a la moneda elegida usando el TC (MEP) de ESE día.
   const cv = (ars: number | null | undefined, tc: number | null): number | null => {
@@ -89,7 +90,7 @@ export function TenenciaValorizadaView() {
     try {
       const r = await fetch("/api/back-office/tenencia-hd/precio", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fecha: sel, unidad: edUnidad, precio }),
+        body: JSON.stringify({ fecha: sel, unidad: edUnidad, precio, dividir_100: div100 }),
       });
       const txt = await r.text();
       let j: { ok?: boolean; error?: string } | null = null;
@@ -110,7 +111,7 @@ export function TenenciaValorizadaView() {
   const precioNum = Number(edPrecio.replace(",", "."));
   const valNuevaBase =
     selPos && selPos.total_cant != null && edPrecio.trim() !== "" && isFinite(precioNum)
-      ? (selPos.total_cant * precioNum) / 100
+      ? (selPos.total_cant * precioNum) / (div100 ? 100 : 1)
       : null;
 
   return (
@@ -238,6 +239,10 @@ export function TenenciaValorizadaView() {
             </label>
             {selPos && (
               <div className="rounded border border-[var(--t-border-2)] bg-[var(--t-surface)]/40 p-2 flex flex-col gap-1 text-[10px]">
+                <label className="flex items-center justify-between cursor-pointer pb-1 mb-0.5 border-b border-[var(--t-border-2)]">
+                  <span className="text-[var(--t-text-muted)]">Dividir ÷100 (paridad)</span>
+                  <input type="checkbox" checked={div100} onChange={(e) => setDiv100(e.target.checked)} />
+                </label>
                 <div className="flex justify-between">
                   <span className="text-[var(--t-text-muted)]">Cantidad (nominal)</span>
                   <span className="font-mono tabular-nums">{fmtNum(selPos.total_cant)}</span>
@@ -255,6 +260,9 @@ export function TenenciaValorizadaView() {
                   <span className="font-mono tabular-nums font-semibold text-[var(--t-accent)]">
                     {valNuevaBase != null ? `${fmtFull(cv(valNuevaBase, pos?.tc ?? null))} ${moneda}` : "—"}
                   </span>
+                </div>
+                <div className="text-[9px] text-[var(--t-text-muted)] text-right">
+                  cantidad × precio{div100 ? " ÷ 100" : ""}
                 </div>
               </div>
             )}
