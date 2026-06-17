@@ -91,13 +91,17 @@ export function TenenciaValorizadaView() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fecha: sel, unidad: edUnidad, precio }),
       });
-      const j = await r.json();
-      if (j?.ok) {
+      const txt = await r.text();
+      let j: { ok?: boolean; error?: string } | null = null;
+      try { j = txt ? JSON.parse(txt) : null; } catch { /* respuesta no-JSON (405/HTML) */ }
+      if (r.ok && j?.ok) {
         setEdMsg(`✓ ${edUnidad} actualizado`);
         setPos(await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}`));
         setDias((await getJson<DiasResp>("/api/back-office/tenencia-hd"))?.dias ?? []);
-      } else { setEdMsg(j?.error ?? "error"); }
-    } catch { setEdMsg("error de red"); }
+      } else {
+        setEdMsg(j?.error ?? `HTTP ${r.status}${txt ? ": " + txt.slice(0, 100) : ""}`);
+      }
+    } catch (e) { setEdMsg("error de red: " + (e instanceof Error ? e.message : String(e))); }
     finally { setSaving(false); }
   };
 
