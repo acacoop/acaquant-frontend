@@ -101,6 +101,14 @@ export function TenenciaValorizadaView() {
     finally { setSaving(false); }
   };
 
+  // Preview en vivo del editor: posición elegida + valuación nueva = cantidad × precio / 100 (HD).
+  const selPos = pos?.posiciones.find((x) => x.unidad === edUnidad) ?? null;
+  const precioNum = Number(edPrecio.replace(",", "."));
+  const valNuevaBase =
+    selPos && selPos.total_cant != null && edPrecio.trim() !== "" && isFinite(precioNum)
+      ? (selPos.total_cant * precioNum) / 100
+      : null;
+
   return (
     <div className="h-full min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
       {/* IZQUIERDA — serie diaria por cuenta */}
@@ -224,6 +232,28 @@ export function TenenciaValorizadaView() {
               <input value={edPrecio} onChange={(e) => setEdPrecio(e.target.value)} inputMode="decimal" placeholder="precio nuevo"
                 className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 font-mono text-[var(--t-text)]" />
             </label>
+            {selPos && (
+              <div className="rounded border border-[var(--t-border-2)] bg-[var(--t-surface)]/40 p-2 flex flex-col gap-1 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-[var(--t-text-muted)]">Cantidad (nominal)</span>
+                  <span className="font-mono tabular-nums">{fmtNum(selPos.total_cant)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--t-text-muted)]">Precio actual</span>
+                  <span className="font-mono tabular-nums">{selPos.precio != null ? fmtNum(selPos.precio) : "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--t-text-muted)]">Valuación actual</span>
+                  <span className="font-mono tabular-nums">{fmtFull(cv(selPos.total, pos?.tc ?? null))} {moneda}</span>
+                </div>
+                <div className="flex justify-between border-t border-[var(--t-border-2)] pt-1">
+                  <span className="text-[var(--t-accent)] font-semibold">Valuación nueva</span>
+                  <span className="font-mono tabular-nums font-semibold text-[var(--t-accent)]">
+                    {valNuevaBase != null ? `${fmtFull(cv(valNuevaBase, pos?.tc ?? null))} ${moneda}` : "—"}
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button onClick={guardarPrecio} disabled={saving || !sel || !edUnidad || edPrecio.trim() === ""}
                 className="px-3 py-1 text-[11px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40">
