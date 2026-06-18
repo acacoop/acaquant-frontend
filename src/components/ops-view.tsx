@@ -180,15 +180,17 @@ export function OpsView() {
             {meta.ultima_ingesta && <> · Últ. ingesta: <span className="text-[var(--t-text)] font-mono">{formatTime(meta.ultima_ingesta)}</span></>}
           </span>
         )}
-        {(selOp || selDenom || selInstr) && (
-          <button onClick={() => { setSelOp(null); setSelDenom(null); setSelInstr(null); setSearch(""); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ filtro: {selOp || selDenom || selInstr}</button>
-        )}
+        {/* Filtros cruzados activos: se ACUMULAN (cuenta + op + título). Cada chip
+            se saca solo, sin borrar los otros → podés ver "qué operó tal cuenta". */}
+        {selDenom && <FiltroChip label={`cuenta: ${selDenom}`} onClear={() => { setSelDenom(null); setSearch(""); }} />}
+        {selOp && <FiltroChip label={`op: ${selOp}`} onClear={() => setSelOp(null)} />}
+        {selInstr && <FiltroChip label={`título: ${selInstr}`} onClear={() => setSelInstr(null)} />}
         {/* Buscador por cuenta/denominación */}
         <input list="ops-cuentas" value={search}
           onChange={(e) => {
             const v = e.target.value; setSearch(v);
             const hit = cuentasList.find((c) => c.denominacion === v || c.cuenta === v);
-            if (hit) { setSelDenom(hit.denominacion); setSelOp(null); }
+            if (hit) setSelDenom(hit.denominacion);  // acumula con el resto de filtros
           }}
           placeholder="Buscar cuenta…"
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)] outline-none w-[170px]" />
@@ -233,19 +235,28 @@ export function OpsView() {
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Operación</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {porOp.map((r) => {
                     const act = selOp === r.operacion;
                     return (
-                      <tr key={r.operacion} onClick={() => { setSelOp(act ? null : r.operacion); setSelDenom(null); }}
+                      <tr key={r.operacion} onClick={() => setSelOp(act ? null : r.operacion)}
                         className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1">{r.operacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n.toLocaleString("es-AR")}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{total ? ((r.bruto / total) * 100).toFixed(0) : "0"}%</td>
                       </tr>
                     );
                   })}
-                  {!porOp.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porOp.length && <tr><td colSpan={4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -277,7 +288,7 @@ export function OpsView() {
                   {porDenom.map((r) => {
                     const act = selDenom === r.denominacion;
                     return (
-                      <tr key={r.denominacion} onClick={() => { setSelDenom(act ? null : r.denominacion); setSelOp(null); }}
+                      <tr key={r.denominacion} onClick={() => setSelDenom(act ? null : r.denominacion)}
                         className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
@@ -325,6 +336,15 @@ export function OpsView() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FiltroChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <button onClick={onClear} title="Quitar este filtro"
+      className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5 max-w-[220px] truncate">
+      ✕ {label}
+    </button>
   );
 }
 
