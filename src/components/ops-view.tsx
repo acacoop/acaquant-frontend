@@ -67,6 +67,10 @@ export function OpsView() {
   const [operador, setOperador] = usePersistedState<string>("ops.operador", "");
   const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>([]);
   const [search, setSearch] = usePersistedState<string>("ops.search", "");
+  // Cuentas ocultas (por denominación). localStorage → preferencia que persiste
+  // entre sesiones, no un filtro transitorio. Se excluyen server-side: tablas,
+  // gráfico y totales descuentan estas cuentas.
+  const [excluidas, setExcluidas] = usePersistedState<string[]>("ops.excluidas", [], "local");
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
   const [modo, setModo] = usePersistedState<Modo>("ops.modo", "ULTIMA");
   // Rango custom (modo RANGO). Vacío = se cae al ancla (última fecha con datos).
@@ -104,7 +108,15 @@ export function OpsView() {
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
     + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
     + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "")
-    + (operador ? `&operador=${encodeURIComponent(operador)}` : "");
+    + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
+    + (excluidas.length ? `&excluir=${encodeURIComponent(excluidas.join("\n"))}` : "");
+
+  // Ocultar / restaurar cuentas (por denominación).
+  const ocultarCuenta = (d: string) => {
+    setExcluidas((prev) => (prev.includes(d) ? prev : [...prev, d]));
+    if (selDenom === d) setSelDenom(null);  // si era la elegida, soltarla
+  };
+  const mostrarCuenta = (d: string) => setExcluidas((prev) => prev.filter((x) => x !== d));
 
   const cargarFechas = useCallback(async () => {
     const f = await getJSON<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas");
@@ -197,6 +209,19 @@ export function OpsView() {
         {selDenom && <FiltroChip label={`cuenta: ${selDenom}`} onClear={() => { setSelDenom(null); setSearch(""); }} />}
         {selOp && <FiltroChip label={`op: ${selOp}`} onClear={() => setSelOp(null)} />}
         {selInstr && <FiltroChip label={`título: ${selInstr}`} onClear={() => setSelInstr(null)} />}
+        {/* Cuentas ocultas (excluidas server-side). Cada chip las restaura. */}
+        {excluidas.length > 0 && (
+          <>
+            <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)] ml-1">🚫 {excluidas.length} ocultas:</span>
+            {excluidas.map((d) => (
+              <button key={d} onClick={() => mostrarCuenta(d)} title="Volver a mostrar esta cuenta"
+                className="text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] px-2 py-0.5 max-w-[180px] truncate hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]">
+                👁 {d}
+              </button>
+            ))}
+            <button onClick={() => setExcluidas([])} className="text-[10px] text-[var(--t-accent)] underline">mostrar todas</button>
+          </>
+        )}
         {/* Buscador por cuenta/denominación */}
         <input list="ops-cuentas" value={search}
           onChange={(e) => {
@@ -296,6 +321,7 @@ export function OpsView() {
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Denominación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                    <th className="px-1 py-1.5 border-b border-[var(--t-border)] w-6"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,14 +329,22 @@ export function OpsView() {
                     const act = selDenom === r.denominacion;
                     return (
                       <tr key={r.denominacion} onClick={() => setSelDenom(act ? null : r.denominacion)}
-                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
+                        className={"group border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                        <td className="px-1 py-1 text-center">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); ocultarCuenta(r.denominacion); }}
+                            title="Ocultar esta cuenta de toda la vista"
+                            className="text-[11px] text-[var(--t-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--t-accent)]">
+                            🚫
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
-                  {!denomRows.length && <tr><td colSpan={3} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!denomRows.length && <tr><td colSpan={4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
