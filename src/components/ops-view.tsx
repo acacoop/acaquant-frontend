@@ -252,6 +252,7 @@ export function OpsView() {
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Operación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Prom./boleto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
                   </tr>
                 </thead>
@@ -264,11 +265,12 @@ export function OpsView() {
                         <td className="px-3 py-1">{r.operacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n.toLocaleString("es-AR")}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n ? fmtCompact(r.bruto / r.n) : "—"}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{total ? ((r.bruto / total) * 100).toFixed(0) : "0"}%</td>
                       </tr>
                     );
                   })}
-                  {!porOp.length && <tr><td colSpan={4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porOp.length && <tr><td colSpan={5} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
