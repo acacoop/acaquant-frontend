@@ -154,6 +154,18 @@ export function OpsView() {
     })();
   }, [modo, fecha, moneda, rangoFecha.desde, rangoFecha.hasta, selQS, fechas.length]);
 
+  // Elegir una cuenta = TODO se adapta a esa cuenta. "Por operación", "Por título"
+  // y el gráfico ya filtran por denominacion (backend); acá colapsamos "Por cuenta"
+  // a esa sola fila para que quede a la vista (antes se perdía en el scroll).
+  const denomRows = useMemo(
+    () => (selDenom ? porDenom.filter((r) => r.denominacion === selDenom) : porDenom),
+    [porDenom, selDenom],
+  );
+  const denomTotal = useMemo(
+    () => (selDenom ? denomRows.reduce((a, r) => a + r.bruto, 0) : total),
+    [denomRows, selDenom, total],
+  );
+
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* ── Filtros ───────────────────────────────────────────── */}
@@ -272,8 +284,8 @@ export function OpsView() {
           {/* ARRIBA: por cuenta */}
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cuenta</span>
-              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{porDenom.length} · Σ {fmtCompact(total)} {MONEDA_UNIDAD[moneda]}</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cuenta{selDenom ? " (filtrada)" : ""}</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{denomRows.length} · Σ {fmtCompact(denomTotal)} {MONEDA_UNIDAD[moneda]}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
@@ -285,7 +297,7 @@ export function OpsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {porDenom.map((r) => {
+                  {denomRows.map((r) => {
                     const act = selDenom === r.denominacion;
                     return (
                       <tr key={r.denominacion} onClick={() => setSelDenom(act ? null : r.denominacion)}
@@ -296,7 +308,7 @@ export function OpsView() {
                       </tr>
                     );
                   })}
-                  {!porDenom.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!denomRows.length && <tr><td colSpan={3} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
