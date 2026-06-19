@@ -3474,10 +3474,19 @@ function TabONs() {
 
 // ── BONOS (tasa_fija / CER / soberanos) — editor directo a Trading.Curvas ──
 // Gemelo de ONs pero para bonos que viven directo en Curvas (sin BondsMaster).
-const BONO_CURVAS = ["tasa_fija", "cer", "soberanos", "dolar_linked", "tamar", "dual"];
+// Tipos de bono de Trading.Curvas — cada uno habilita sus campos y la shape de flujo
+// (replica EXACTA de Curvas, no se inventa). bullet = solo flujo_vencimiento (sin array).
+const BONO_TIPOS: { tipo: string; label: string; curva: string; bullet?: boolean; cols?: { k: string; label: string }[]; cer?: boolean; cupon?: boolean; tasaRef?: boolean }[] = [
+  { tipo: "lecap",    label: "Lecap (bullet)",     curva: "tasa_fija", bullet: true },
+  { tipo: "boncap",   label: "Boncap (bullet)",    curva: "tasa_fija", bullet: true },
+  { tipo: "bono",     label: "Tasa fija c/ cupón", curva: "tasa_fija", cols: [{ k: "amortizacion", label: "Amort." }, { k: "interes", label: "Interés" }] },
+  { tipo: "cer",      label: "CER",                curva: "cer",       cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }, { k: "residual_previo_pct", label: "Resid. previo %" }], cer: true, cupon: true },
+  { tipo: "dual",     label: "Dual / TAMAR",       curva: "tamar",     cols: [{ k: "amortizacion_pct", label: "Amort. %" }], tasaRef: true },
+  { tipo: "soberano", label: "Soberano (USD)",     curva: "soberanos", cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }] },
+];
 
 interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; fuente: string; accion: string; motivo: string; en_cartera: boolean }
-interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; flujo_vencimiento?: number; flujos?: ONFlujo[] }
+interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_emision?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; cupon_anual?: number; tasa_referencia?: string; flujo_vencimiento?: number; flujos?: Record<string, unknown>[] }
 interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string }
 
 interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuente?: { curvas: number; bondsmaster: number; ninguna: number }; titulos: BonoSinFlujo[] }
@@ -3527,62 +3536,65 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
 }
 
 function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSaved?: () => void }) {
-  const empty = { ticker_corto: "", tkCode: "", curva: "tasa_fija", tipo: "", moneda_flujo: "ARS", fecha_vencimiento: "", valor_nominal: "100", cer_emision: "", flujo_vencimiento: "" };
-  const [form, setForm] = useState({ ...empty, ...(prefill ? { ticker_corto: prefill.ticker_corto || "", tkCode: prefill.ticker ? unwrapTicker(prefill.ticker) : (prefill.ticker_corto || ""), curva: prefill.curva || "tasa_fija" } : {}) });
-  const [modo, setModo] = useState<"bullet" | "cronograma">("bullet");
-  const [flujosText, setFlujosText] = useState("");
-  const [flujos, setFlujos] = useState<ONFlujo[]>([]);
-  const [formato, setFormato] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [showPaste, setShowPaste] = useState(false);
+  const tipoFromCurva = (c?: string) => c === "cer" ? "cer" : c === "soberanos" ? "soberano" : c === "tamar" ? "dual" : "lecap";
+  const [tipo, setTipo] = useState(prefill ? tipoFromCurva(prefill.curva) : "lecap");
+  const cfg = BONO_TIPOS.find((t) => t.tipo === tipo) || BONO_TIPOS[0];
+  const empty = { ticker_corto: "", tkCode: "", moneda_flujo: "ARS", fecha_emision: "", fecha_vencimiento: "", valor_nominal: "100", cer_emision: "", cupon_anual: "0", tasa_referencia: "TAMAR", flujo_vencimiento: "" };
+  const [form, setForm] = useState({ ...empty, ...(prefill ? { ticker_corto: prefill.ticker_corto || "", tkCode: prefill.ticker ? unwrapTicker(prefill.ticker) : (prefill.ticker_corto || "") } : {}) });
+  const [flujos, setFlujos] = useState<Record<string, string>[]>([]);
   const [existentes, setExistentes] = useState<BonoMaster[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { let alive = true; fetch("/api/manager/bonos").then(r => r.json()).then((d: { bonos: BonoMaster[] }) => { if (alive) setExistentes(d.bonos || []); }).catch(() => {}); return () => { alive = false; }; }, []);
 
-  const sumAmort = flujos.reduce((s, f) => s + f.amortizacion, 0);
-  const parsear = async (texto: string) => {
-    if (!texto.trim()) { setFlujos([]); setFormato(""); return; }
-    try {
-      const r = await fetch("/api/manager/ons/parse-flujos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto }) });
-      const d = await r.json();
-      setFlujos(d.flujos || []); setFormato(d.formato || "");
-      setForm((f) => ({ ...f, fecha_vencimiento: f.fecha_vencimiento || (d.vencimiento || "") }));
-    } catch { /* deja preview vacío */ }
-  };
-  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return; setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => { const text = String(reader.result || ""); setFlujosText(text); parsear(text); };
-    reader.readAsText(file);
-  };
   const cargarExistente = (tc: string) => {
     const b = existentes.find((x) => x.ticker_corto === tc);
-    if (!b) { setForm({ ...empty }); setFlujos([]); setFlujosText(""); return; }
-    setForm({ ticker_corto: b.ticker_corto, tkCode: b.ticker ? unwrapTicker(b.ticker) : b.ticker_corto, curva: b.curva || "tasa_fija", tipo: b.tipo || "", moneda_flujo: (b.moneda_flujo || "ARS").toUpperCase(), fecha_vencimiento: (b.fecha_vencimiento || "").slice(0, 10), valor_nominal: String(b.valor_nominal ?? 100), cer_emision: b.cer_emision != null ? String(b.cer_emision) : "", flujo_vencimiento: b.flujo_vencimiento != null ? String(b.flujo_vencimiento) : "" });
-    if (b.flujos?.length) {
-      setModo("cronograma");
-      setFlujos(b.flujos.map((f) => ({ fecha: f.fecha, amortizacion: f.amortizacion ?? 0, interes: f.interes ?? 0, valor_residual: f.valor_residual ?? 100 })));
-      setFlujosText(b.flujos.map((f) => `${f.fecha}\t${f.amortizacion ?? 0}\t${f.interes ?? 0}\t${f.valor_residual ?? 100}`).join("\n"));
-    } else { setModo("bullet"); setFlujos([]); setFlujosText(""); }
-    setFormato(""); setMsg(null);
+    if (!b) { setForm({ ...empty }); setFlujos([]); return; }
+    setTipo(b.tipo && BONO_TIPOS.some((x) => x.tipo === b.tipo) ? b.tipo : tipoFromCurva(b.curva));
+    setForm({
+      ticker_corto: b.ticker_corto, tkCode: b.ticker ? unwrapTicker(b.ticker) : b.ticker_corto,
+      moneda_flujo: (b.moneda_flujo || "ARS").toUpperCase(),
+      fecha_emision: (b.fecha_emision || "").slice(0, 10), fecha_vencimiento: (b.fecha_vencimiento || "").slice(0, 10),
+      valor_nominal: String(b.valor_nominal ?? 100), cer_emision: b.cer_emision != null ? String(b.cer_emision) : "",
+      cupon_anual: b.cupon_anual != null ? String(b.cupon_anual) : "0", tasa_referencia: b.tasa_referencia || "TAMAR",
+      flujo_vencimiento: b.flujo_vencimiento != null ? String(b.flujo_vencimiento) : "",
+    });
+    setFlujos((b.flujos || []).map((f) => {
+      const row: Record<string, string> = { fecha: String(f.fecha ?? "") };
+      ["amortizacion", "interes", "valor_residual", "amortizacion_pct", "cupon_sobre_residual", "residual_previo_pct", "cupon_anual"]
+        .forEach((k) => { if (f[k] != null) row[k] = String(f[k]); });
+      return row;
+    }));
+    setMsg(null);
   };
+  const setCell = (i: number, k: string, v: string) => setFlujos((fs) => fs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+
   const guardar = async () => {
     if (!form.ticker_corto.trim()) { setMsg({ kind: "err", text: "Falta el ticker corto" }); return; }
     setSaving(true); setMsg(null);
     const body: Record<string, unknown> = {
       ticker_corto: form.ticker_corto.trim(),
       ticker: wrapTicker(form.tkCode || form.ticker_corto),
-      curva: form.curva,
-      tipo: form.tipo.trim() || undefined,
+      curva: cfg.curva, tipo,
       moneda_flujo: form.moneda_flujo || undefined,
+      fecha_emision: form.fecha_emision || undefined,
       fecha_vencimiento: form.fecha_vencimiento || undefined,
       valor_nominal: form.valor_nominal ? _onNum(form.valor_nominal) : undefined,
-      cer_emision: form.cer_emision ? _onNum(form.cer_emision) : undefined,
     };
-    if (modo === "bullet") body.flujo_vencimiento = form.flujo_vencimiento ? _onNum(form.flujo_vencimiento) : undefined;
-    else body.flujos = flujos.length ? flujos : undefined;
+    if (cfg.cer) body.cer_emision = form.cer_emision ? _onNum(form.cer_emision) : undefined;
+    if (cfg.cupon) body.cupon_anual = form.cupon_anual !== "" ? _onNum(form.cupon_anual) : undefined;
+    if (cfg.tasaRef) body.tasa_referencia = form.tasa_referencia || undefined;
+    if (cfg.bullet) {
+      body.flujo_vencimiento = form.flujo_vencimiento ? _onNum(form.flujo_vencimiento) : undefined;
+    } else {
+      const rows = flujos.filter((r) => r.fecha).map((r) => {
+        const o: Record<string, unknown> = { fecha: r.fecha };
+        (cfg.cols || []).forEach((c) => { if (r[c.k] != null && r[c.k] !== "") o[c.k] = _onNum(r[c.k]); });
+        return o;
+      });
+      body.flujos = rows.length ? rows : undefined;
+    }
     try {
       const r = await fetch("/api/manager/bonos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const txt = await r.text(); let d: { detail?: string } = {}; try { d = JSON.parse(txt); } catch { /* no-JSON */ }
@@ -3596,57 +3608,63 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
 
   return (
     <div className="h-full overflow-auto p-3 space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Editar existente</span>
         <select className={_onInput + " w-auto"} value={form.ticker_corto} onChange={(e) => cargarExistente(e.target.value)}>
           <option value="">— nuevo bono —</option>
-          {existentes.map((b) => <option key={b.ticker_corto} value={b.ticker_corto}>{b.ticker_corto} · {b.curva}</option>)}
+          {existentes.map((b) => <option key={b.ticker_corto} value={b.ticker_corto}>{b.ticker_corto} · {b.tipo || b.curva}</option>)}
         </select>
       </div>
 
+      <OnField label="Tipo de bono — define los campos y la shape del flujo">
+        <select className={_onInput} value={tipo} onChange={(e) => { setTipo(e.target.value); setFlujos([]); }}>
+          {BONO_TIPOS.map((t) => <option key={t.tipo} value={t.tipo}>{t.label}</option>)}
+        </select>
+      </OnField>
+
       <div className="grid grid-cols-4 gap-2">
-        <OnField label="Ticker corto"><input className={_onInput} value={form.ticker_corto} onChange={(e) => setForm({ ...form, ticker_corto: e.target.value.toUpperCase() })} placeholder="T30J6" /></OnField>
-        <OnField label="Curva"><select className={_onInput} value={form.curva} onChange={(e) => setForm({ ...form, curva: e.target.value })}>{BONO_CURVAS.map((c) => <option key={c} value={c}>{c}</option>)}</select></OnField>
-        <OnField label="Tipo (ej boncap)"><input className={_onInput} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} placeholder="boncap" /></OnField>
-        <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option></select></OnField>
-        <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.fecha_vencimiento} onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value })} /></OnField>
-        <OnField label="Valor nominal"><input className={_onInput} value={form.valor_nominal} onChange={(e) => setForm({ ...form, valor_nominal: e.target.value })} placeholder="100" /></OnField>
-        {form.curva === "cer" && <OnField label="CER emisión"><input className={_onInput} value={form.cer_emision} onChange={(e) => setForm({ ...form, cer_emision: e.target.value })} placeholder="ej 25.34" /></OnField>}
+        <OnField label="Ticker corto"><input className={_onInput} value={form.ticker_corto} onChange={(e) => setForm({ ...form, ticker_corto: e.target.value.toUpperCase() })} placeholder="TX26" /></OnField>
         <OnField label="Ticker ROFEX (código)">
           <div className="flex items-center gap-1 text-[11px]">
             <span className="text-[var(--t-text-dim)] whitespace-nowrap">MERV - XMEV -</span>
-            <input className={_onInput + " text-center font-semibold"} value={form.tkCode} onChange={(e) => setForm({ ...form, tkCode: e.target.value.toUpperCase() })} placeholder="T30J6" />
+            <input className={_onInput + " text-center font-semibold"} value={form.tkCode} onChange={(e) => setForm({ ...form, tkCode: e.target.value.toUpperCase() })} placeholder="TX26" />
             <span className="text-[var(--t-text-dim)] whitespace-nowrap">- 24hs</span>
           </div>
         </OnField>
+        <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option></select></OnField>
+        <OnField label="Valor nominal"><input className={_onInput} value={form.valor_nominal} onChange={(e) => setForm({ ...form, valor_nominal: e.target.value })} placeholder="100" /></OnField>
+        <OnField label="Fecha emisión"><input type="date" className={_onInput} value={form.fecha_emision} onChange={(e) => setForm({ ...form, fecha_emision: e.target.value })} /></OnField>
+        <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.fecha_vencimiento} onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value })} /></OnField>
+        {cfg.cer && <OnField label="CER emisión"><input className={_onInput} value={form.cer_emision} onChange={(e) => setForm({ ...form, cer_emision: e.target.value })} placeholder="659.6789" /></OnField>}
+        {cfg.cupon && <OnField label="Cupón anual"><input className={_onInput} value={form.cupon_anual} onChange={(e) => setForm({ ...form, cupon_anual: e.target.value })} placeholder="0" /></OnField>}
+        {cfg.tasaRef && <OnField label="Tasa referencia"><input className={_onInput} value={form.tasa_referencia} onChange={(e) => setForm({ ...form, tasa_referencia: e.target.value })} placeholder="TAMAR" /></OnField>}
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujo:</span>
-        <Pill label="BULLET (al vto)" active={modo === "bullet"} onClick={() => setModo("bullet")} />
-        <Pill label="CRONOGRAMA (archivo)" active={modo === "cronograma"} onClick={() => setModo("cronograma")} />
-      </div>
-
-      {modo === "bullet" ? (
-        <OnField label="Flujo de vencimiento (por 100 VN, pago único al vto — ej Boncap/Lecap)">
-          <input className={_onInput} value={form.flujo_vencimiento} onChange={(e) => setForm({ ...form, flujo_vencimiento: e.target.value })} placeholder="144.896" />
+      {cfg.bullet ? (
+        <OnField label="Flujo de vencimiento (por 100 VN, pago único al vto — Lecap/Boncap)">
+          <input className={_onInput} value={form.flujo_vencimiento} onChange={(e) => setForm({ ...form, flujo_vencimiento: e.target.value })} placeholder="135.278" />
         </OnField>
       ) : (
         <div>
-          <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos — subí el archivo (BYMA/IAMC)</span>
-          <div className="flex items-center gap-3 mt-1">
-            <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-[#094293] text-white cursor-pointer hover:opacity-90">📁 EXAMINAR ARCHIVO<input type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" /></label>
-            {fileName ? <span className="text-[11px] truncate max-w-[240px]" title={fileName}>{fileName}</span> : <span className="text-[11px] text-[var(--t-text-dim)]">ningún archivo</span>}
-            <button type="button" onClick={() => setShowPaste((s) => !s)} className={_onInput + " w-auto"}>{showPaste ? "ocultar" : "o pegar texto"}</button>
-            {(flujos.length > 0 || flujosText) && <button type="button" onClick={() => { setFlujos([]); setFlujosText(""); setFileName(""); setFormato(""); }} className="px-2 py-0.5 text-[11px] text-red-500 border border-[var(--t-border)]">limpiar</button>}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos (carga manual, shape {tipo})</span>
+            <button type="button" onClick={() => setFlujos((fs) => [...fs, { fecha: "" }])} className="px-2 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">+ fila</button>
           </div>
-          {showPaste && <textarea className={_onInput + " font-mono h-24 mt-1"} value={flujosText} onChange={(e) => setFlujosText(e.target.value)} onBlur={() => parsear(flujosText)} placeholder={"fecha\tamort\tinterés\tresidual"} />}
-          {flujos.length > 0 && (
-            <div className="mt-1.5">
-              <div className="text-[10px] text-[var(--t-text-dim)] mb-1">{flujos.length} flujos{formato ? ` · ${formato}` : ""} · Σ amort {sumAmort.toFixed(0)} · vto {flujos[flujos.length - 1].fecha}</div>
-              <div className="max-h-40 overflow-auto border border-[var(--t-border)]"><table><thead><tr><th>#</th><th>Fecha</th><th className="text-right">Amort.</th><th className="text-right">Interés</th><th className="text-right">Residual</th><th></th></tr></thead><tbody>{flujos.map((f, i) => (<tr key={i}><td className="text-[var(--t-text-dim)]">{i + 1}</td><td className="tabular-nums">{f.fecha}</td><td className="text-right tabular-nums">{f.amortizacion}</td><td className="text-right tabular-nums">{f.interes}</td><td className="text-right tabular-nums">{f.valor_residual}</td><td className="text-center"><button type="button" onClick={() => setFlujos((fs) => fs.filter((_, j) => j !== i))} className="text-red-500 px-1">×</button></td></tr>))}</tbody></table></div>
-            </div>
-          )}
+          <div className="max-h-52 overflow-auto border border-[var(--t-border)]">
+            <table>
+              <thead><tr><th>Fecha</th>{(cfg.cols || []).map((c) => <th key={c.k} className="text-right">{c.label}</th>)}<th></th></tr></thead>
+              <tbody>
+                {flujos.map((r, i) => (
+                  <tr key={i}>
+                    <td><input type="date" className={_onInput} value={r.fecha || ""} onChange={(e) => setCell(i, "fecha", e.target.value)} /></td>
+                    {(cfg.cols || []).map((c) => <td key={c.k}><input className={_onInput + " text-right"} value={r[c.k] || ""} onChange={(e) => setCell(i, c.k, e.target.value)} placeholder="0" /></td>)}
+                    <td className="text-center"><button type="button" onClick={() => setFlujos((fs) => fs.filter((_, j) => j !== i))} className="text-red-500 px-1">×</button></td>
+                  </tr>
+                ))}
+                {flujos.length === 0 && <tr><td colSpan={(cfg.cols?.length || 0) + 2} className="text-[10px] text-[var(--t-text-dim)] p-2">Sin flujos — agregá filas con &quot;+ fila&quot;.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -3654,7 +3672,7 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
         <button type="button" onClick={guardar} disabled={saving} className="px-3 py-1 text-[11px] font-semibold bg-[#094293] text-white disabled:opacity-50">{saving ? "Guardando…" : "GUARDAR BONO"}</button>
         {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
       </div>
-      <p className="text-[10px] text-[var(--t-text-muted)]">Al guardar se escribe Trading.Curvas → el bono proyecta cobros y aparece en la vista. Para que COTICE en vivo (precio/TEA) hay que reiniciar los motores.</p>
+      <p className="text-[10px] text-[var(--t-text-muted)]">Escribe Trading.Curvas con la shape del tipo elegido. Para que cotice en vivo (precio/TEA) hay que reiniciar los motores.</p>
     </div>
   );
 }
