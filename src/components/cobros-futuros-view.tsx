@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fmtMoney } from "@/lib/fmt-money";
+import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 
 /**
  * COBROS FUTUROS (tab de OPERADORES, dentro de NEGOCIO).
@@ -228,7 +228,7 @@ export function CobrosFuturosView({
             <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes · cobros futuros</span>
             <MonToggle mon={mon} onChange={setMon} />
             <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
-            <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoney(totalScope)}</span>
+            <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoneyFull(totalScope)}</span>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             {loading ? (
@@ -258,7 +258,7 @@ export function CobrosFuturosView({
                       >
                         <td className="!px-2 truncate max-w-[180px]" title={c.cliente ?? ""}>{c.cliente || c.id_cuenta}</td>
                         <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{c.id_cuenta}</td>
-                        <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoney(tot)}</td>
+                        <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(tot)}</td>
                       </tr>
                     );
                   })}
@@ -314,7 +314,7 @@ export function CobrosFuturosView({
                     cursor={{ fill: "var(--t-border)", opacity: 0.3 }}
                     contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }}
                     labelFormatter={(l) => bucketLabel(String(l), agg)}
-                    formatter={(v) => [`${mon} ${fmtMoney(Number(v))}`, "A cobrar"]}
+                    formatter={(v) => [`${mon} ${fmtMoneyFull(Number(v))}`, "A cobrar"]}
                   />
                   <Bar
                     dataKey="monto"
@@ -357,7 +357,7 @@ export function CobrosFuturosView({
                     {detalle.cliente || detalle.id_cuenta}
                   </div>
                   <span className="ml-auto text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Σ {mon}</span>
-                  <span className="font-mono font-semibold text-[var(--t-accent)] text-[12px]">{fmtMoney(totalCli)}</span>
+                  <span className="font-mono font-semibold text-[var(--t-accent)] text-[12px]">{fmtMoneyFull(totalCli)}</span>
                 </div>
                 <div className="text-[9px] text-[var(--t-text-muted)] tabular-nums">Cuenta {detalle.id_cuenta} · sumatoria por título</div>
               </div>
@@ -384,7 +384,7 @@ export function CobrosFuturosView({
                           >
                             <td className="!px-2 font-semibold">{t.ticker}</td>
                             <td className="!px-2 text-[var(--t-text-dim)] truncate max-w-[140px]" title={t.emisor ?? ""}>{t.emisor || "--"}</td>
-                            <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoney(t.total)}</td>
+                            <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(t.total)}</td>
                           </tr>
                         );
                       })}
@@ -429,7 +429,7 @@ export function CobrosFuturosView({
                           <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{fmtFecha(t.fecha_pago)}</td>
                           <td className="!px-2 font-semibold">{t.ticker || "--"}</td>
                           <td className="!px-2 text-[var(--t-text-dim)] truncate max-w-[140px]" title={t.emisor ?? ""}>{t.emisor || "--"}</td>
-                          <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoney(t.monto)}</td>
+                          <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(t.monto)}</td>
                         </tr>
                       ))}
                     </tbody>
