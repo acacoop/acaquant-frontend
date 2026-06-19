@@ -3506,9 +3506,7 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
               <td className="text-[10px] uppercase text-[var(--t-text-dim)]">{t.fuente}</td>
               <td className="text-[10px] text-[var(--t-text-dim)]">{t.motivo}</td>
               <td className="whitespace-nowrap">
-                {t.accion === "editar_curvas"
-                  ? <button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">cargar flujo</button>
-                  : <span className="text-[10px] text-[var(--t-text-muted)] mr-1" title="Se da de alta / edita en la pestaña ONs (BondsMaster)">→ ONs</span>}
+                <button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">{t.fuente === "ninguna" ? "dar de alta" : "editar"}</button>
                 <button type="button" onClick={() => ignorar(t.ticker)} className="px-1.5 py-0.5 text-[10px] text-[var(--t-text-muted)] border border-[var(--t-border)]">ignorar</button>
               </td>
             </tr>
@@ -3653,13 +3651,61 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
   );
 }
 
+interface TituloPrefill { codigo: string; ticker?: string | null; destino: "curvas" | "bondsmaster"; curva?: string; emisor?: string | null; moneda?: string }
+
+// Editor UNIFICADO: elegís la BASE (Curvas = Renta Fija · BondsMaster = ONs), te
+// marca dónde YA está, y carga el form de esa base. El conciliador entra acá directo
+// con la base preseleccionada (Curvas si está en Curvas; BondsMaster si es ON/nuevo).
+function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; onSaved?: () => void }) {
+  const [destino, setDestino] = useState<"curvas" | "bondsmaster">(prefill?.destino ?? "curvas");
+  const [bonos, setBonos] = useState<BonoMaster[]>([]);
+  const [ons, setOns] = useState<ONMaster[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/bonos").then((r) => r.json()).then((d: { bonos: BonoMaster[] }) => { if (alive) setBonos(d.bonos || []); }).catch(() => {});
+    fetch("/api/manager/ons").then((r) => r.json()).then((d: { ons: ONMaster[] }) => { if (alive) setOns(d.ons || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const code = (prefill?.codigo || "").toUpperCase();
+  const enCurvas = !!code && bonos.some((b) => (b.ticker_corto || "").toUpperCase() === code);
+  const enBm = !!code && ons.some((o) => (o.asset || "").toUpperCase() === code);
+  const bonoPrefill: BonoPrefill | null = prefill ? { ticker_corto: prefill.codigo, ticker: prefill.ticker ?? undefined, curva: prefill.curva || "tasa_fija" } : null;
+  const onPrefill: ONPrefill | null = prefill ? { asset: prefill.codigo, emisor: prefill.emisor ?? "", moneda_flujo: prefill.moneda === "DL" ? "DL" : (prefill.moneda || "USD") } : null;
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Base destino</span>
+        <Pill label="CURVAS · Renta Fija" active={destino === "curvas"} onClick={() => setDestino("curvas")} />
+        <Pill label="BONDSMASTER · ONs" active={destino === "bondsmaster"} onClick={() => setDestino("bondsmaster")} />
+        {code && (
+          <span className="text-[10px] ml-2 text-[var(--t-text-dim)]">
+            {code}:{" "}
+            {enCurvas ? <span className="text-emerald-500 font-semibold">✓ en Curvas </span> : null}
+            {enBm ? <span className="text-emerald-500 font-semibold">✓ en BondsMaster </span> : null}
+            {!enCurvas && !enBm ? <span className="text-amber-500 font-semibold">nuevo (no está en ninguna)</span> : null}
+          </span>
+        )}
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {destino === "curvas"
+          ? <TabBonosAlta prefill={bonoPrefill} onSaved={onSaved} />
+          : <TabOnsAlta prefill={onPrefill} onSaved={onSaved} />}
+      </div>
+    </div>
+  );
+}
+
 function TabBonos() {
   const [sub, setSub] = usePersistedState<"control" | "alta">("manager.bonos.sub", "control");
-  const [prefill, setPrefill] = useState<BonoPrefill | null>(null);
+  const [prefill, setPrefill] = useState<TituloPrefill | null>(null);
   const [prefillKey, setPrefillKey] = useState(0);
   const darDeAlta = (b: BonoSinFlujo) => {
-    const guessCurva = b.cartera === "HD" || b.cartera === "DL" ? "soberanos" : "tasa_fija";
-    setPrefill({ ticker_corto: b.ticker || b.unidad, ticker: b.ticker || undefined, curva: guessCurva });
+    const destino = b.accion === "editar_curvas" ? "curvas" : "bondsmaster";
+    setPrefill({
+      codigo: b.ticker || b.unidad, ticker: b.ticker, destino,
+      curva: b.cartera === "ARS" ? "tasa_fija" : "soberanos",
+      emisor: b.emisor, moneda: b.cartera,
+    });
     setPrefillKey((k) => k + 1); setSub("alta");
   };
   return (
@@ -3670,7 +3716,7 @@ function TabBonos() {
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "control" && <TabBonosControl key={prefillKey} onDarDeAlta={darDeAlta} />}
-        {sub === "alta" && <TabBonosAlta key={prefillKey} prefill={prefill} onSaved={() => { if (prefill) setSub("control"); }} />}
+        {sub === "alta" && <TabAltaTitulo key={prefillKey} prefill={prefill} onSaved={() => { if (prefill) setSub("control"); }} />}
       </div>
     </div>
   );
