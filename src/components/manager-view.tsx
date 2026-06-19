@@ -571,7 +571,7 @@ function TabValidaciones() {
   };
   const runTsf = () => {
     setTsfLoading(true);
-    fetch("/api/manager/checks/titulos-sin-flujo")
+    fetch("/api/manager/bonos/sin-flujo")
       .then(r => r.json()).then(setTsfData).finally(() => setTsfLoading(false));
   };
 
@@ -3549,8 +3549,8 @@ interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string }
 function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => void }) {
   const [data, setData] = useState<{ total: number; en_cartera: number; ok: boolean; titulos: BonoSinFlujo[] } | null>(null);
   const [loading, setLoading] = useState(false);
-  const cargar = () => { setLoading(true); fetch("/api/manager/checks/titulos-sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); };
-  useEffect(() => { let alive = true; fetch("/api/manager/checks/titulos-sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, []);
+  const cargar = () => { setLoading(true); fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); };
+  useEffect(() => { let alive = true; fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, []);
   return (
     <div className="h-full overflow-auto p-3">
       <div className="flex items-center gap-3 mb-2 text-[11px]">
