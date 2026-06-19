@@ -505,6 +505,14 @@ function TabValidaciones() {
   const [pvLoading, setPvLoading] = useState(false);
   const [pvData, setPvData] = useState<PivotDebugResp | null>(null);
 
+  // Control: títulos (bonos ARS/HD/DL) sin flujo en Curvas
+  const [tsfLoading, setTsfLoading] = useState(false);
+  const [tsfData, setTsfData] = useState<{
+    total: number; en_cartera: number; ok: boolean;
+    titulos: { unidad: string; ticker: string | null; cartera: string;
+               emisor: string | null; motivo: string; en_cartera: boolean }[];
+  } | null>(null);
+
   useEffect(() => {
     fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
       setTickers(d);
@@ -561,11 +569,40 @@ function TabValidaciones() {
       .catch((e) => { setSobData(null); setSobError(e instanceof Error ? e.message : String(e)); })
       .finally(() => setSobLoading(false));
   };
+  const runTsf = () => {
+    setTsfLoading(true);
+    fetch("/api/manager/checks/titulos-sin-flujo")
+      .then(r => r.json()).then(setTsfData).finally(() => setTsfLoading(false));
+  };
 
   const ESTADO_LABEL: Record<string, string> = { ok: "✅ En vista", sin_posicion: "⚠️ Sin posición", sin_assets: "❌ Sin Assets" };
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-2">
+
+      <CheckPanel title="Títulos sin flujo — bonos ARS/HD/DL sin flujo en Curvas">
+        <RunBtn onClick={runTsf} loading={tsfLoading} />
+        {tsfData && (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <StatusBadge ok={tsfData.ok} label={tsfData.ok ? "Todos con flujo" : `${tsfData.total} sin flujo · ${tsfData.en_cartera} en cartera`} />
+            </div>
+            {!tsfData.ok && (
+              <table><thead><tr><th>CART</th><th>UNIDAD</th><th>TICKER</th><th>HOY</th><th>MOTIVO</th></tr></thead>
+                <tbody>{tsfData.titulos.map(t => (
+                  <tr key={t.unidad}>
+                    <td>{t.cartera}</td>
+                    <td className="text-[var(--t-accent)]">{t.unidad}</td>
+                    <td className="font-mono">{t.ticker ?? "—"}</td>
+                    <td className="text-center">{t.en_cartera ? "🔴" : "·"}</td>
+                    <td className="text-[var(--t-text-dim)]">{t.motivo}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </>
+        )}
+      </CheckPanel>
 
       <CheckPanel title="Curvas Pendientes — docs sin duration en TimeSales">
         <RunBtn onClick={runCp} loading={cpLoading} />
