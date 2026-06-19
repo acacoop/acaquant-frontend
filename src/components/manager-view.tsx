@@ -3542,7 +3542,7 @@ function TabONs() {
 // Gemelo de ONs pero para bonos que viven directo en Curvas (sin BondsMaster).
 const BONO_CURVAS = ["tasa_fija", "cer", "soberanos", "dolar_linked", "tamar", "dual"];
 
-interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; motivo: string; en_cartera: boolean }
+interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; fuente: string; accion: string; motivo: string; en_cartera: boolean }
 interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; flujo_vencimiento?: number; flujos?: ONFlujo[] }
 interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string }
 
@@ -3561,7 +3561,7 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
         {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
       </div>
       <table>
-        <thead><tr><th>Cart</th><th>Unidad</th><th>Ticker</th><th>Hoy</th><th>Motivo</th><th></th></tr></thead>
+        <thead><tr><th>Cart</th><th>Unidad</th><th>Ticker</th><th>Hoy</th><th>Fuente</th><th>Motivo</th><th></th></tr></thead>
         <tbody>
           {(data?.titulos || []).map((t) => (
             <tr key={t.unidad}>
@@ -3569,8 +3569,11 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
               <td className="text-[var(--t-accent)]">{t.unidad}</td>
               <td className="font-mono">{t.ticker ?? "—"}</td>
               <td className="text-center">{t.en_cartera ? "🔴" : "·"}</td>
+              <td className="text-[10px] uppercase text-[var(--t-text-dim)]">{t.fuente}</td>
               <td className="text-[10px] text-[var(--t-text-dim)]">{t.motivo}</td>
-              <td><button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">cargar flujo</button></td>
+              <td>{t.accion === "editar_curvas"
+                ? <button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">cargar flujo</button>
+                : <span className="text-[10px] text-[var(--t-text-muted)]" title="Se da de alta / edita en la pestaña ONs (BondsMaster)">→ ONs</span>}</td>
             </tr>
           ))}
         </tbody>
