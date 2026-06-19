@@ -3446,93 +3446,19 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
   );
 }
 
-interface ONGap { unidad: string; ticker: string | null; emisor: string | null; cartera: string }
-interface ONConcil { gap: ONGap[]; resumen: { total: number; cubiertas: number; faltan: number; ignoradas: number; snapshot: string | null } }
-
-function TabOnsConciliador({ onDarDeAlta }: { onDarDeAlta: (g: ONGap) => void }) {
-  const [data, setData] = useState<ONConcil | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const cargar = () => {
-    setLoading(true);
-    fetch("/api/manager/ons/conciliar").then((r) => r.json()).then(setData).finally(() => setLoading(false));
-  };
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/manager/ons/conciliar").then((r) => r.json()).then((d) => { if (alive) setData(d); }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  const ignorar = async (ticker: string | null) => {
-    if (!ticker) return;
-    await fetch("/api/manager/ons/ignorar", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }),
-    }).catch(() => {});
-    cargar();
-  };
-
-  const r = data?.resumen;
-  return (
-    <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-3 mb-2 text-[11px]">
-        <span className="text-[var(--t-text-dim)]">
-          {r ? `HD/DL de clientes: ${r.total} · en Curvas: ${r.cubiertas} · faltan: ` : "cargando…"}
-          {r && <span className="text-amber-500 font-semibold">{r.faltan}</span>}
-          {r && r.ignoradas ? <span> · ignoradas: {r.ignoradas}</span> : null}
-        </span>
-        <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
-        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
-      </div>
-      <table>
-        <thead>
-          <tr><th>Ticker</th><th>Emisor</th><th>Cartera</th><th>Unidad (Aunesa)</th><th></th></tr>
-        </thead>
-        <tbody>
-          {(data?.gap || []).map((g) => (
-            <tr key={g.unidad}>
-              <td className="font-semibold">{g.ticker || "--"}</td>
-              <td>{g.emisor || "--"}</td>
-              <td>{g.cartera}</td>
-              <td className="text-[10px] text-[var(--t-text-dim)] truncate max-w-[200px]" title={g.unidad}>{g.unidad}</td>
-              <td className="whitespace-nowrap">
-                <button type="button" onClick={() => onDarDeAlta(g)}
-                  className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">dar de alta</button>
-                <button type="button" onClick={() => ignorar(g.ticker)}
-                  className="px-1.5 py-0.5 text-[10px] text-[var(--t-text-muted)] border border-[var(--t-border)]">ignorar</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {data && data.gap.length === 0 && (
-        <p className="text-[11px] text-emerald-500 mt-2">✓ No falta ninguna HD/DL — todo lo que tienen los clientes está en Curvas.</p>
-      )}
-    </div>
-  );
-}
-
+// El CONCILIADOR se unificó en la sub-tab BONOS (cubre Curvas + BondsMaster). Acá
+// quedan SEGMENTAR (sector) y ALTA / EDICIÓN de ONs (BondsMaster, 2 monedas).
 function TabONs() {
-  const [sub, setSub] = usePersistedState<"conciliador" | "segmentar" | "alta">("manager.ons.sub", "conciliador");
-  const [prefill, setPrefill] = useState<ONPrefill | null>(null);
-  const [prefillKey, setPrefillKey] = useState(0);
-
-  const darDeAlta = (g: ONGap) => {
-    setPrefill({ asset: g.ticker || "", emisor: g.emisor || "", moneda_flujo: g.cartera === "DL" ? "DL" : "USD" });
-    setPrefillKey((k) => k + 1);
-    setSub("alta");
-  };
-
+  const [sub, setSub] = usePersistedState<"segmentar" | "alta">("manager.ons.sub.v2", "alta");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-        <Pill label="CONCILIADOR" active={sub === "conciliador"} onClick={() => setSub("conciliador")} />
         <Pill label="SEGMENTAR" active={sub === "segmentar"} onClick={() => setSub("segmentar")} />
         <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "conciliador" && <TabOnsConciliador key={prefillKey} onDarDeAlta={darDeAlta} />}
         {sub === "segmentar" && <TabOnsSegmentar />}
-        {sub === "alta" && <TabOnsAlta key={prefillKey} prefill={prefill} onSaved={() => { if (prefill) setSub("conciliador"); }} />}
+        {sub === "alta" && <TabOnsAlta onSaved={() => {}} />}
       </div>
     </div>
   );
@@ -3546,16 +3472,24 @@ interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string;
 interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; flujo_vencimiento?: number; flujos?: ONFlujo[] }
 interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string }
 
+interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuente?: { curvas: number; bondsmaster: number; ninguna: number }; titulos: BonoSinFlujo[] }
+
 function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => void }) {
-  const [data, setData] = useState<{ total: number; en_cartera: number; ok: boolean; titulos: BonoSinFlujo[] } | null>(null);
+  const [data, setData] = useState<ConcilResp | null>(null);
   const [loading, setLoading] = useState(false);
   const cargar = () => { setLoading(true); fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); };
   useEffect(() => { let alive = true; fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, []);
+  const ignorar = async (ticker: string | null) => {
+    if (!ticker) return;
+    await fetch("/api/manager/ons/ignorar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }) }).catch(() => {});
+    cargar();
+  };
+  const pf = data?.por_fuente;
   return (
     <div className="h-full overflow-auto p-3">
       <div className="flex items-center gap-3 mb-2 text-[11px]">
         <span className="text-[var(--t-text-dim)]">
-          {data ? <>Bonos ARS/HD/DL sin flujo: <span className="text-amber-500 font-semibold">{data.total}</span> · en cartera hoy: <span className="text-red-500 font-semibold">{data.en_cartera}</span></> : "cargando…"}
+          {data ? <>Faltan/incompletos: <span className="text-amber-500 font-semibold">{data.total}</span> · en cartera: <span className="text-red-500 font-semibold">{data.en_cartera}</span>{pf ? <> · Curvas {pf.curvas} · BondsMaster {pf.bondsmaster} · nuevos {pf.ninguna}</> : null}</> : "cargando…"}
         </span>
         <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
         {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
@@ -3571,14 +3505,17 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
               <td className="text-center">{t.en_cartera ? "🔴" : "·"}</td>
               <td className="text-[10px] uppercase text-[var(--t-text-dim)]">{t.fuente}</td>
               <td className="text-[10px] text-[var(--t-text-dim)]">{t.motivo}</td>
-              <td>{t.accion === "editar_curvas"
-                ? <button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">cargar flujo</button>
-                : <span className="text-[10px] text-[var(--t-text-muted)]" title="Se da de alta / edita en la pestaña ONs (BondsMaster)">→ ONs</span>}</td>
+              <td className="whitespace-nowrap">
+                {t.accion === "editar_curvas"
+                  ? <button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">cargar flujo</button>
+                  : <span className="text-[10px] text-[var(--t-text-muted)] mr-1" title="Se da de alta / edita en la pestaña ONs (BondsMaster)">→ ONs</span>}
+                <button type="button" onClick={() => ignorar(t.ticker)} className="px-1.5 py-0.5 text-[10px] text-[var(--t-text-muted)] border border-[var(--t-border)]">ignorar</button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todos los bonos ARS/HD/DL tienen flujo.</p>}
+      {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todo lo de cartera ARS/DL/HD tiene flujo (Curvas o BondsMaster).</p>}
     </div>
   );
 }
@@ -3728,7 +3665,7 @@ function TabBonos() {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-        <Pill label="CONTROL (sin flujo)" active={sub === "control"} onClick={() => setSub("control")} />
+        <Pill label="CONCILIADOR" active={sub === "control"} onClick={() => setSub("control")} />
         <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
