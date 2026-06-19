@@ -3538,15 +3538,213 @@ function TabONs() {
   );
 }
 
-// TÍTULOS: Instrumentos (solo lectura) + Assets + ONs (edición maestro).
-// Gate fino: INSTRUMENTOS → manager_instrumentos; ASSETS/ONs → manager_titulos.
+// ── BONOS (tasa_fija / CER / soberanos) — editor directo a Trading.Curvas ──
+// Gemelo de ONs pero para bonos que viven directo en Curvas (sin BondsMaster).
+const BONO_CURVAS = ["tasa_fija", "cer", "soberanos", "dolar_linked", "tamar", "dual"];
+
+interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; motivo: string; en_cartera: boolean }
+interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; flujo_vencimiento?: number; flujos?: ONFlujo[] }
+interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string }
+
+function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => void }) {
+  const [data, setData] = useState<{ total: number; en_cartera: number; ok: boolean; titulos: BonoSinFlujo[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const cargar = () => { setLoading(true); fetch("/api/manager/checks/titulos-sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); };
+  useEffect(() => { let alive = true; fetch("/api/manager/checks/titulos-sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, []);
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-3 mb-2 text-[11px]">
+        <span className="text-[var(--t-text-dim)]">
+          {data ? <>Bonos ARS/HD/DL sin flujo: <span className="text-amber-500 font-semibold">{data.total}</span> · en cartera hoy: <span className="text-red-500 font-semibold">{data.en_cartera}</span></> : "cargando…"}
+        </span>
+        <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
+      </div>
+      <table>
+        <thead><tr><th>Cart</th><th>Unidad</th><th>Ticker</th><th>Hoy</th><th>Motivo</th><th></th></tr></thead>
+        <tbody>
+          {(data?.titulos || []).map((t) => (
+            <tr key={t.unidad}>
+              <td>{t.cartera}</td>
+              <td className="text-[var(--t-accent)]">{t.unidad}</td>
+              <td className="font-mono">{t.ticker ?? "—"}</td>
+              <td className="text-center">{t.en_cartera ? "🔴" : "·"}</td>
+              <td className="text-[10px] text-[var(--t-text-dim)]">{t.motivo}</td>
+              <td><button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">cargar flujo</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todos los bonos ARS/HD/DL tienen flujo.</p>}
+    </div>
+  );
+}
+
+function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSaved?: () => void }) {
+  const empty = { ticker_corto: "", tkCode: "", curva: "tasa_fija", tipo: "", moneda_flujo: "ARS", fecha_vencimiento: "", valor_nominal: "100", cer_emision: "", flujo_vencimiento: "" };
+  const [form, setForm] = useState({ ...empty, ...(prefill ? { ticker_corto: prefill.ticker_corto || "", tkCode: prefill.ticker ? unwrapTicker(prefill.ticker) : (prefill.ticker_corto || ""), curva: prefill.curva || "tasa_fija" } : {}) });
+  const [modo, setModo] = useState<"bullet" | "cronograma">("bullet");
+  const [flujosText, setFlujosText] = useState("");
+  const [flujos, setFlujos] = useState<ONFlujo[]>([]);
+  const [formato, setFormato] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
+  const [existentes, setExistentes] = useState<BonoMaster[]>([]);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { let alive = true; fetch("/api/manager/bonos").then(r => r.json()).then((d: { bonos: BonoMaster[] }) => { if (alive) setExistentes(d.bonos || []); }).catch(() => {}); return () => { alive = false; }; }, []);
+
+  const sumAmort = flujos.reduce((s, f) => s + f.amortizacion, 0);
+  const parsear = async (texto: string) => {
+    if (!texto.trim()) { setFlujos([]); setFormato(""); return; }
+    try {
+      const r = await fetch("/api/manager/ons/parse-flujos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto }) });
+      const d = await r.json();
+      setFlujos(d.flujos || []); setFormato(d.formato || "");
+      setForm((f) => ({ ...f, fecha_vencimiento: f.fecha_vencimiento || (d.vencimiento || "") }));
+    } catch { /* deja preview vacío */ }
+  };
+  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return; setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => { const text = String(reader.result || ""); setFlujosText(text); parsear(text); };
+    reader.readAsText(file);
+  };
+  const cargarExistente = (tc: string) => {
+    const b = existentes.find((x) => x.ticker_corto === tc);
+    if (!b) { setForm({ ...empty }); setFlujos([]); setFlujosText(""); return; }
+    setForm({ ticker_corto: b.ticker_corto, tkCode: b.ticker ? unwrapTicker(b.ticker) : b.ticker_corto, curva: b.curva || "tasa_fija", tipo: b.tipo || "", moneda_flujo: (b.moneda_flujo || "ARS").toUpperCase(), fecha_vencimiento: (b.fecha_vencimiento || "").slice(0, 10), valor_nominal: String(b.valor_nominal ?? 100), cer_emision: b.cer_emision != null ? String(b.cer_emision) : "", flujo_vencimiento: b.flujo_vencimiento != null ? String(b.flujo_vencimiento) : "" });
+    if (b.flujos?.length) {
+      setModo("cronograma");
+      setFlujos(b.flujos.map((f) => ({ fecha: f.fecha, amortizacion: f.amortizacion ?? 0, interes: f.interes ?? 0, valor_residual: f.valor_residual ?? 100 })));
+      setFlujosText(b.flujos.map((f) => `${f.fecha}\t${f.amortizacion ?? 0}\t${f.interes ?? 0}\t${f.valor_residual ?? 100}`).join("\n"));
+    } else { setModo("bullet"); setFlujos([]); setFlujosText(""); }
+    setFormato(""); setMsg(null);
+  };
+  const guardar = async () => {
+    if (!form.ticker_corto.trim()) { setMsg({ kind: "err", text: "Falta el ticker corto" }); return; }
+    setSaving(true); setMsg(null);
+    const body: Record<string, unknown> = {
+      ticker_corto: form.ticker_corto.trim(),
+      ticker: wrapTicker(form.tkCode || form.ticker_corto),
+      curva: form.curva,
+      tipo: form.tipo.trim() || undefined,
+      moneda_flujo: form.moneda_flujo || undefined,
+      fecha_vencimiento: form.fecha_vencimiento || undefined,
+      valor_nominal: form.valor_nominal ? _onNum(form.valor_nominal) : undefined,
+      cer_emision: form.cer_emision ? _onNum(form.cer_emision) : undefined,
+    };
+    if (modo === "bullet") body.flujo_vencimiento = form.flujo_vencimiento ? _onNum(form.flujo_vencimiento) : undefined;
+    else body.flujos = flujos.length ? flujos : undefined;
+    try {
+      const r = await fetch("/api/manager/bonos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const txt = await r.text(); let d: { detail?: string } = {}; try { d = JSON.parse(txt); } catch { /* no-JSON */ }
+      if (!r.ok) throw new Error(d.detail || txt.slice(0, 300) || `HTTP ${r.status}`);
+      setMsg({ kind: "ok", text: "Guardado en Curvas." });
+      fetch("/api/manager/bonos").then((x) => x.json()).then((d2: { bonos: BonoMaster[] }) => setExistentes(d2.bonos || [])).catch(() => {});
+      onSaved?.();
+    } catch (e) { setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="h-full overflow-auto p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Editar existente</span>
+        <select className={_onInput + " w-auto"} value={form.ticker_corto} onChange={(e) => cargarExistente(e.target.value)}>
+          <option value="">— nuevo bono —</option>
+          {existentes.map((b) => <option key={b.ticker_corto} value={b.ticker_corto}>{b.ticker_corto} · {b.curva}</option>)}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-4 gap-2">
+        <OnField label="Ticker corto"><input className={_onInput} value={form.ticker_corto} onChange={(e) => setForm({ ...form, ticker_corto: e.target.value.toUpperCase() })} placeholder="T30J6" /></OnField>
+        <OnField label="Curva"><select className={_onInput} value={form.curva} onChange={(e) => setForm({ ...form, curva: e.target.value })}>{BONO_CURVAS.map((c) => <option key={c} value={c}>{c}</option>)}</select></OnField>
+        <OnField label="Tipo (ej boncap)"><input className={_onInput} value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} placeholder="boncap" /></OnField>
+        <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option></select></OnField>
+        <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.fecha_vencimiento} onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value })} /></OnField>
+        <OnField label="Valor nominal"><input className={_onInput} value={form.valor_nominal} onChange={(e) => setForm({ ...form, valor_nominal: e.target.value })} placeholder="100" /></OnField>
+        {form.curva === "cer" && <OnField label="CER emisión"><input className={_onInput} value={form.cer_emision} onChange={(e) => setForm({ ...form, cer_emision: e.target.value })} placeholder="ej 25.34" /></OnField>}
+        <OnField label="Ticker ROFEX (código)">
+          <div className="flex items-center gap-1 text-[11px]">
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">MERV - XMEV -</span>
+            <input className={_onInput + " text-center font-semibold"} value={form.tkCode} onChange={(e) => setForm({ ...form, tkCode: e.target.value.toUpperCase() })} placeholder="T30J6" />
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">- 24hs</span>
+          </div>
+        </OnField>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujo:</span>
+        <Pill label="BULLET (al vto)" active={modo === "bullet"} onClick={() => setModo("bullet")} />
+        <Pill label="CRONOGRAMA (archivo)" active={modo === "cronograma"} onClick={() => setModo("cronograma")} />
+      </div>
+
+      {modo === "bullet" ? (
+        <OnField label="Flujo de vencimiento (por 100 VN, pago único al vto — ej Boncap/Lecap)">
+          <input className={_onInput} value={form.flujo_vencimiento} onChange={(e) => setForm({ ...form, flujo_vencimiento: e.target.value })} placeholder="144.896" />
+        </OnField>
+      ) : (
+        <div>
+          <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos — subí el archivo (BYMA/IAMC)</span>
+          <div className="flex items-center gap-3 mt-1">
+            <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold bg-[#094293] text-white cursor-pointer hover:opacity-90">📁 EXAMINAR ARCHIVO<input type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" /></label>
+            {fileName ? <span className="text-[11px] truncate max-w-[240px]" title={fileName}>{fileName}</span> : <span className="text-[11px] text-[var(--t-text-dim)]">ningún archivo</span>}
+            <button type="button" onClick={() => setShowPaste((s) => !s)} className={_onInput + " w-auto"}>{showPaste ? "ocultar" : "o pegar texto"}</button>
+            {(flujos.length > 0 || flujosText) && <button type="button" onClick={() => { setFlujos([]); setFlujosText(""); setFileName(""); setFormato(""); }} className="px-2 py-0.5 text-[11px] text-red-500 border border-[var(--t-border)]">limpiar</button>}
+          </div>
+          {showPaste && <textarea className={_onInput + " font-mono h-24 mt-1"} value={flujosText} onChange={(e) => setFlujosText(e.target.value)} onBlur={() => parsear(flujosText)} placeholder={"fecha\tamort\tinterés\tresidual"} />}
+          {flujos.length > 0 && (
+            <div className="mt-1.5">
+              <div className="text-[10px] text-[var(--t-text-dim)] mb-1">{flujos.length} flujos{formato ? ` · ${formato}` : ""} · Σ amort {sumAmort.toFixed(0)} · vto {flujos[flujos.length - 1].fecha}</div>
+              <div className="max-h-40 overflow-auto border border-[var(--t-border)]"><table><thead><tr><th>#</th><th>Fecha</th><th className="text-right">Amort.</th><th className="text-right">Interés</th><th className="text-right">Residual</th><th></th></tr></thead><tbody>{flujos.map((f, i) => (<tr key={i}><td className="text-[var(--t-text-dim)]">{i + 1}</td><td className="tabular-nums">{f.fecha}</td><td className="text-right tabular-nums">{f.amortizacion}</td><td className="text-right tabular-nums">{f.interes}</td><td className="text-right tabular-nums">{f.valor_residual}</td><td className="text-center"><button type="button" onClick={() => setFlujos((fs) => fs.filter((_, j) => j !== i))} className="text-red-500 px-1">×</button></td></tr>))}</tbody></table></div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={guardar} disabled={saving} className="px-3 py-1 text-[11px] font-semibold bg-[#094293] text-white disabled:opacity-50">{saving ? "Guardando…" : "GUARDAR BONO"}</button>
+        {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
+      </div>
+      <p className="text-[10px] text-[var(--t-text-muted)]">Al guardar se escribe Trading.Curvas → el bono proyecta cobros y aparece en la vista. Para que COTICE en vivo (precio/TEA) hay que reiniciar los motores.</p>
+    </div>
+  );
+}
+
+function TabBonos() {
+  const [sub, setSub] = usePersistedState<"control" | "alta">("manager.bonos.sub", "control");
+  const [prefill, setPrefill] = useState<BonoPrefill | null>(null);
+  const [prefillKey, setPrefillKey] = useState(0);
+  const darDeAlta = (b: BonoSinFlujo) => {
+    const guessCurva = b.cartera === "HD" || b.cartera === "DL" ? "soberanos" : "tasa_fija";
+    setPrefill({ ticker_corto: b.ticker || b.unidad, ticker: b.ticker || undefined, curva: guessCurva });
+    setPrefillKey((k) => k + 1); setSub("alta");
+  };
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+        <Pill label="CONTROL (sin flujo)" active={sub === "control"} onClick={() => setSub("control")} />
+        <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "control" && <TabBonosControl key={prefillKey} onDarDeAlta={darDeAlta} />}
+        {sub === "alta" && <TabBonosAlta key={prefillKey} prefill={prefill} onSaved={() => { if (prefill) setSub("control"); }} />}
+      </div>
+    </div>
+  );
+}
+
+// TÍTULOS: Instrumentos (solo lectura) + Assets + ONs + Bonos (edición maestro).
+// Gate fino: INSTRUMENTOS → manager_instrumentos; ASSETS/ONs/BONOS → manager_titulos.
 // Así asistente_comercial (manager_instrumentos) ve solo Instrumentos.
 function TitulosGroup({ modules }: { modules?: string[] | null }) {
-  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons">("manager.titulos.sub", "instrumentos");
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons" | "bonos">("manager.titulos.sub", "instrumentos");
   const has = (m: string) => modules == null || modules.includes(m);
   const canInstr = has("manager") || has("manager_instrumentos");
   const canMaestro = has("manager") || has("manager_titulos");
-  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons") && canMaestro);
+  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons" || sub === "bonos") && canMaestro);
   const eff = subVisible ? sub : (canInstr ? "instrumentos" : "assets");
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -3555,11 +3753,13 @@ function TitulosGroup({ modules }: { modules?: string[] | null }) {
         {canInstr && <Pill label="INSTRUMENTOS" active={eff === "instrumentos"} onClick={() => setSub("instrumentos")} />}
         {canMaestro && <Pill label="ASSETS" active={eff === "assets"} onClick={() => setSub("assets")} />}
         {canMaestro && <Pill label="ONs" active={eff === "ons"} onClick={() => setSub("ons")} />}
+        {canMaestro && <Pill label="BONOS" active={eff === "bonos"} onClick={() => setSub("bonos")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {eff === "instrumentos" && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
         {eff === "assets"       && canMaestro && <TabAssets />}
         {eff === "ons"          && canMaestro && <TabONs />}
+        {eff === "bonos"        && canMaestro && <TabBonos />}
       </div>
     </div>
   );
