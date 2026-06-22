@@ -3102,7 +3102,6 @@ interface ONMaster {
   tasa_cupon?: number | null;
   vencimiento?: string | null;
   sector?: string | null;
-  es_on?: boolean | null;
   tickers?: { ARS?: string | null; USD?: string | null } | null;
   flujos?: ONFlujo[] | null;
 }
@@ -3225,7 +3224,7 @@ function TabOnsSegmentar() {
 interface ONPrefill { asset?: string; emisor?: string; moneda_flujo?: string }
 
 function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?: () => void }) {
-  const empty = { asset: "", emisor: "", moneda_flujo: "USD", tasa_cupon: "", vencimiento: "", sector: "otros", tkARS: "", tkUSD: "", es_on: true };
+  const empty = { asset: "", emisor: "", moneda_flujo: "USD", tasa_cupon: "", vencimiento: "", sector: "otros", tkARS: "", tkUSD: "" };
   // prefill viene del conciliador (botón "dar de alta"); el padre fuerza remount
   // con key, así el initializer lo toma sin efectos.
   const [form, setForm] = useState({
@@ -3290,7 +3289,6 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
       asset: o.asset, emisor: o.emisor || "", moneda_flujo: (o.moneda_flujo || "USD").toUpperCase(),
       tasa_cupon: o.tasa_cupon != null ? String(o.tasa_cupon) : "", vencimiento: (o.vencimiento || "").slice(0, 10),
       sector: (o.sector || "otros").toLowerCase(), tkARS: unwrapTicker(o.tickers?.ARS), tkUSD: unwrapTicker(o.tickers?.USD),
-      es_on: o.es_on !== false,
     });
     const txt = (o.flujos || []).map((f) => `${f.fecha}\t${f.amortizacion ?? 0}\t${f.interes ?? 0}\t${f.valor_residual ?? 100}`).join("\n");
     setFlujosText(txt);
@@ -3311,7 +3309,6 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
       sector: form.sector,
       tickers: { ARS: wrapTicker(form.tkARS), USD: wrapTicker(form.tkUSD) },
       flujos: flujos.length ? flujos : undefined,
-      es_on: form.es_on,
     };
     try {
       const r = await fetch("/api/manager/ons", {
@@ -3347,11 +3344,6 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
         <OnField label="Tasa cupón (ej 0.075)"><input className={_onInput} value={form.tasa_cupon} onChange={(e) => setForm({ ...form, tasa_cupon: e.target.value })} placeholder="0.075" /></OnField>
         <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.vencimiento} onChange={(e) => setForm({ ...form, vencimiento: e.target.value })} /></OnField>
       </div>
-
-      <label className="flex items-center gap-2 text-[11px] text-[var(--t-text)]">
-        <input type="checkbox" checked={form.es_on} onChange={(e) => setForm({ ...form, es_on: e.target.checked })} />
-        <span>Mostrar en la vista <b>ONs</b> de Mercados (sincroniza a Curvas). <span className="text-[var(--t-text-dim)]">Destildá si es un bono común — queda solo como base de flujos, no aparece en ONs.</span></span>
-      </label>
 
       {/* Tickers ROFEX: el usuario pone SOLO el código; el MERV-XMEV-…-24hs va fijo. */}
       <div className="grid grid-cols-2 gap-2">
@@ -3489,7 +3481,7 @@ interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string;
 interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_emision?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; cupon_anual?: number; tasa_referencia?: string; flujo_vencimiento?: number; flujos?: Record<string, unknown>[] }
 interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string }
 
-interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuente?: { curvas: number; bondsmaster: number; ninguna: number }; titulos: BonoSinFlujo[] }
+interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuente?: { curvas: number; on: number; ninguna: number }; titulos: BonoSinFlujo[] }
 
 function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => void }) {
   const [data, setData] = useState<ConcilResp | null>(null);
@@ -3506,7 +3498,7 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
     <div className="h-full overflow-auto p-3">
       <div className="flex items-center gap-3 mb-2 text-[11px]">
         <span className="text-[var(--t-text-dim)]">
-          {data ? <>Faltan/incompletos: <span className="text-amber-500 font-semibold">{data.total}</span> · en cartera: <span className="text-red-500 font-semibold">{data.en_cartera}</span>{pf ? <> · Curvas {pf.curvas} · BondsMaster {pf.bondsmaster} · nuevos {pf.ninguna}</> : null}</> : "cargando…"}
+          {data ? <>Faltan/incompletos: <span className="text-amber-500 font-semibold">{data.total}</span> · en cartera: <span className="text-red-500 font-semibold">{data.en_cartera}</span>{pf ? <> · Renta Fija {pf.curvas} · ONs {pf.on} · nuevos {pf.ninguna}</> : null}</> : "cargando…"}
         </span>
         <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
         {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
@@ -3726,7 +3718,7 @@ function TabBonos() {
   const [prefill, setPrefill] = useState<TituloPrefill | null>(null);
   const [prefillKey, setPrefillKey] = useState(0);
   const darDeAlta = (b: BonoSinFlujo) => {
-    const destino = b.accion === "editar_curvas" ? "curvas" : "bondsmaster";
+    const destino = b.accion === "editar_on" ? "bondsmaster" : "curvas";
     setPrefill({
       codigo: b.ticker || b.unidad, ticker: b.ticker, destino,
       curva: b.cartera === "ARS" ? "tasa_fija" : "soberanos",
