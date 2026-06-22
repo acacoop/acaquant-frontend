@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
 /**
- * Back Office → Tenencia Valorizada. Cartera HD de las cuentas propias 100/255/256.
- * Izquierda (50%): 1 fila por día (fecha snapshot) × AuM HD de cada cuenta + total,
- * con el TC (MEP) usado ese día. Derecha (50%): posiciones HD por título del día
- * seleccionado. Switch ARS/USD (USD = ARS ÷ TC congelado del día). Números completos
- * (sin abreviar). Lee Valuaciones.TenenciaHD vía /api/back-office/tenencia-hd.
+ * Back Office → Tenencia Valorizada. Cuentas propias 100/255/256.
+ * Filtro CARTERA arriba (USD = HD hard-dollar / ARS = todo lo no-HD): adapta toda la vista.
+ * Izquierda (50%): 1 fila por día (fecha snapshot) × AuM de cada cuenta + total, con el
+ * TC (MEP) usado ese día. Derecha (50%): posiciones por título del día seleccionado.
+ * Switch ARS/USD = moneda de DISPLAY (USD = ARS ÷ TC congelado del día). Números completos
+ * (sin abreviar). Lee SQL portafolio.tenencia vía /api/back-office/tenencia-hd?cartera=.
  */
 
 const CUENTAS = ["100", "255", "256"] as const;
@@ -19,8 +20,8 @@ type PosRow = {
   unidad: string; total: number;
   precio?: number | null; cant?: Record<Cuenta, number>; total_cant?: number;
 } & Record<Cuenta, number>;
-type DiasResp = { cuentas: string[]; dias: DiaRow[]; ultima_fecha: string | null };
-type PosResp = { fecha: string; tc: number | null; total: number; posiciones: PosRow[] };
+type DiasResp = { cuentas: string[]; cartera?: string; dias: DiaRow[]; ultima_fecha: string | null };
+type PosResp = { fecha: string; cartera?: string; tc: number | null; total: number; posiciones: PosRow[] };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
@@ -39,6 +40,8 @@ export function TenenciaValorizadaView() {
   const [sel, setSel] = useState<string | null>(null);
   const [pos, setPos] = useState<PosResp | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cartera, setCartera] = usePersistedState<"HD" | "ARS">("tenencia.cartera", "HD");
+  const carteraNom = cartera === "HD" ? "USD" : "ARS";   // etiqueta de la cartera elegida
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("tenencia.moneda", "USD");
   const usd = moneda === "USD";
   const [vista, setVista] = usePersistedState<"dinero" | "nominal">("tenencia.vista", "dinero");
@@ -57,23 +60,27 @@ export function TenenciaValorizadaView() {
   };
 
   useEffect(() => {
+    let alive = true;
+    setLoading(true);
     void (async () => {
-      const d = await getJson<DiasResp>("/api/back-office/tenencia-hd");
+      const d = await getJson<DiasResp>(`/api/back-office/tenencia-hd?cartera=${cartera}`);
+      if (!alive) return;
       setDias(d?.dias ?? []);
       setSel(d?.ultima_fecha ?? null);
       setLoading(false);
     })();
-  }, []);
+    return () => { alive = false; };
+  }, [cartera]);
 
   useEffect(() => {
     if (!sel) { setPos(null); return; }
     let alive = true;
     void (async () => {
-      const d = await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}`);
+      const d = await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}&cartera=${cartera}`);
       if (alive) setPos(d);
     })();
     return () => { alive = false; };
-  }, [sel]);
+  }, [sel, cartera]);
 
   // Pre-cargar el precio actual al elegir una unidad en el editor.
   useEffect(() => {
@@ -90,15 +97,15 @@ export function TenenciaValorizadaView() {
     try {
       const r = await fetch("/api/back-office/tenencia-hd/precio", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fecha: sel, unidad: edUnidad, precio, dividir_100: div100 }),
+        body: JSON.stringify({ fecha: sel, unidad: edUnidad, precio, dividir_100: div100, cartera }),
       });
       const txt = await r.text();
       let j: { ok?: boolean; error?: string } | null = null;
       try { j = txt ? JSON.parse(txt) : null; } catch { /* respuesta no-JSON (405/HTML) */ }
       if (r.ok && j?.ok) {
         setEdMsg(`✓ ${edUnidad} actualizado`);
-        setPos(await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}`));
-        setDias((await getJson<DiasResp>("/api/back-office/tenencia-hd"))?.dias ?? []);
+        setPos(await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}&cartera=${cartera}`));
+        setDias((await getJson<DiasResp>(`/api/back-office/tenencia-hd?cartera=${cartera}`))?.dias ?? []);
       } else {
         setEdMsg(j?.error ?? `HTTP ${r.status}${txt ? ": " + txt.slice(0, 100) : ""}`);
       }
@@ -115,11 +122,27 @@ export function TenenciaValorizadaView() {
       : null;
 
   return (
-    <div className="h-full min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col gap-3 p-3 overflow-hidden">
+      {/* TOP — filtro de CARTERA: adapta toda la vista (USD = HD / ARS = todo lo no-HD) */}
+      <div className="shrink-0 flex items-center gap-3 border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex-wrap">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Cartera</span>
+        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          {([["HD", "CARTERA USD"], ["ARS", "CARTERA ARS"]] as const).map(([c, lbl]) => (
+            <button key={c} onClick={() => setCartera(c)}
+              className={"px-3 py-1 text-[10px] font-semibold " + (cartera === c ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
+          ))}
+        </div>
+        <span className="text-[9px] text-[var(--t-text-muted)]">
+          {cartera === "HD" ? "Hard-dollar (HD)" : "Pesos — todo lo que no es HD"} · cuentas 100 / 255 / 256
+        </span>
+      </div>
+
+      {/* GRID — izquierda serie diaria · derecha posiciones + editor */}
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
       {/* IZQUIERDA — serie diaria por cuenta */}
       <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className={HDR}>
-          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Tenencia HD por día · {moneda}</span>
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Tenencia Cartera {carteraNom} por día · {moneda}</span>
           <span className="text-[9px] text-[var(--t-text-muted)]">{dias.length} días · 100 / 255 / 256</span>
           <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
             {(["ARS", "USD"] as const).map((m) => (
@@ -163,7 +186,7 @@ export function TenenciaValorizadaView() {
         {/* ARRIBA — posiciones del día */}
         <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className={HDR}>
-            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones HD · {sel ? fmtFecha(sel) : "—"} · {nominal ? "NOMINAL" : moneda}</span>
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones {carteraNom} · {sel ? fmtFecha(sel) : "—"} · {nominal ? "NOMINAL" : moneda}</span>
             <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {([["dinero", "DINERO"], ["nominal", "NOMINAL"]] as const).map(([v, lbl]) => (
                 <button key={v} onClick={() => setVista(v)}
@@ -182,7 +205,7 @@ export function TenenciaValorizadaView() {
             {!sel ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un día a la izquierda.</p>
               : !pos ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
               : !nominal && usd && !pos.tc ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin TC para ese día — no se puede dolarizar.</p>
-              : pos.posiciones.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posiciones HD ese día.</p>
+              : pos.posiciones.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posiciones {carteraNom} ese día.</p>
               : (
                 <table className="w-full text-[10px]">
                   <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
@@ -214,7 +237,7 @@ export function TenenciaValorizadaView() {
         <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className={HDR}>
             <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Editar precio</span>
-            <span className="text-[9px] text-[var(--t-text-muted)]">valuación = cantidad × precio / 100 (HD)</span>
+            <span className="text-[9px] text-[var(--t-text-muted)]">valuación = cantidad × precio{div100 ? " ÷ 100 (paridad)" : " (pleno)"}</span>
           </div>
           <div className="p-3 flex flex-col gap-2 text-[11px] overflow-auto">
             <label className="flex items-center gap-2">
@@ -275,6 +298,7 @@ export function TenenciaValorizadaView() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
