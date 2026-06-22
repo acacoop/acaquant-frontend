@@ -105,39 +105,19 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
   // vwap memo removido junto con el chart — ya no se grafica la línea VWAP.
 
   const { todayTrades, sessionLabel } = useMemo(() => {
-    if (trades.length === 0) return { todayTrades: [], sessionLabel: "" };
-
-    const sorted = [...trades].sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-
+    // SOLO trades de HOY — sin fallback a sesiones viejas (pedido de la mesa). Si un
+    // bono no operó hoy, el tape queda vacío.
+    if (trades.length === 0) return { todayTrades: [], sessionLabel: "HOY" };
     const now = new Date();
     const startOfDay = new Date(
       now.getFullYear(),
       now.getMonth(),
       now.getDate()
     ).getTime();
-    const today = sorted.filter(
-      (t) => new Date(t.timestamp).getTime() >= startOfDay
-    );
-    if (today.length > 0) return { todayTrades: today, sessionLabel: "HOY" };
-
-    const lastTs = new Date(sorted[sorted.length - 1].timestamp);
-    const lastDayStart = new Date(
-      lastTs.getFullYear(),
-      lastTs.getMonth(),
-      lastTs.getDate()
-    ).getTime();
-    const lastDayEnd = lastDayStart + 86_400_000;
-    const lastSession = sorted.filter((t) => {
-      const ts = new Date(t.timestamp).getTime();
-      return ts >= lastDayStart && ts < lastDayEnd;
-    });
-    const label = `${String(lastTs.getDate()).padStart(2, "0")}/${String(
-      lastTs.getMonth() + 1
-    ).padStart(2, "0")}`;
-    return { todayTrades: lastSession, sessionLabel: label };
+    const today = trades
+      .filter((t) => new Date(t.timestamp).getTime() >= startOfDay)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    return { todayTrades: today, sessionLabel: "HOY" };
   }, [trades]);
 
   const tapeTrades = useMemo(() => {
