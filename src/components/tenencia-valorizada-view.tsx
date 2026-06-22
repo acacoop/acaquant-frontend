@@ -137,8 +137,8 @@ export function TenenciaValorizadaView() {
         </span>
       </div>
 
-      {/* GRID — izquierda serie diaria (~10% más angosta) · derecha posiciones + editor */}
-      <div className="flex-1 min-h-0 grid grid-cols-[0.9fr_1.1fr] gap-3 overflow-hidden">
+      {/* GRID — izquierda serie diaria (más angosta) · derecha posiciones + editor */}
+      <div className="flex-1 min-h-0 grid grid-cols-[0.8fr_1.2fr] gap-3 overflow-hidden">
       {/* IZQUIERDA — serie diaria por cuenta */}
       <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className={HDR}>
