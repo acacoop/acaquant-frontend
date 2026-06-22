@@ -3315,10 +3315,10 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const txt = await r.text();
-      let d: { detail?: string; sync?: { sincronizadas?: number } } = {};
+      let d: { detail?: string } = {};
       try { d = JSON.parse(txt); } catch { /* respuesta no-JSON (ej. 500 HTML) */ }
       if (!r.ok) throw new Error(d.detail || txt.slice(0, 300) || `HTTP ${r.status}`);
-      setMsg({ kind: "ok", text: `Guardada. Sync: ${d.sync?.sincronizadas} en Curvas.` });
+      setMsg({ kind: "ok", text: "Guardada en Curvas (on_*)." });
       fetch("/api/manager/ons").then((x) => x.json()).then((d2: { ons: ONMaster[] }) => setExistentes(d2.ons || [])).catch(() => {});
       onSaved?.();  // avisa al padre → refresca el conciliador (el bono ya no falta)
     } catch (e) {
