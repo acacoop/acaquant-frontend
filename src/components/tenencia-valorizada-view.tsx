@@ -41,9 +41,9 @@ export function TenenciaValorizadaView() {
   const [pos, setPos] = useState<PosResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [cartera, setCartera] = usePersistedState<"HD" | "ARS">("tenencia.cartera", "HD");
-  const carteraNom = cartera === "HD" ? "USD" : "ARS";   // etiqueta de la cartera elegida
-  const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("tenencia.moneda", "USD");
-  const usd = moneda === "USD";
+  // La moneda la define la CARTERA: USD (HD) se muestra en USD (ARS ÷ TC); ARS en ARS.
+  const carteraNom = cartera === "HD" ? "USD" : "ARS";
+  const usd = cartera === "HD";
   const [vista, setVista] = usePersistedState<"dinero" | "nominal">("tenencia.vista", "dinero");
   const nominal = vista === "nominal";
   const [edUnidad, setEdUnidad] = useState("");
@@ -137,19 +137,13 @@ export function TenenciaValorizadaView() {
         </span>
       </div>
 
-      {/* GRID — izquierda serie diaria · derecha posiciones + editor */}
-      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 overflow-hidden">
+      {/* GRID — izquierda serie diaria (~10% más angosta) · derecha posiciones + editor */}
+      <div className="flex-1 min-h-0 grid grid-cols-[0.9fr_1.1fr] gap-3 overflow-hidden">
       {/* IZQUIERDA — serie diaria por cuenta */}
       <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className={HDR}>
-          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Tenencia Cartera {carteraNom} por día · {moneda}</span>
-          <span className="text-[9px] text-[var(--t-text-muted)]">{dias.length} días · 100 / 255 / 256</span>
-          <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-            {(["ARS", "USD"] as const).map((m) => (
-              <button key={m} onClick={() => setMoneda(m)}
-                className={"px-2 py-0.5 text-[10px] font-semibold " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
-            ))}
-          </div>
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Tenencia Cartera {carteraNom} por día</span>
+          <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{dias.length} días · 100 / 255 / 256 · en {carteraNom}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-auto">
           {loading ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
@@ -186,7 +180,7 @@ export function TenenciaValorizadaView() {
         {/* ARRIBA — posiciones del día */}
         <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className={HDR}>
-            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones {carteraNom} · {sel ? fmtFecha(sel) : "—"} · {nominal ? "NOMINAL" : moneda}</span>
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones {carteraNom} · {sel ? fmtFecha(sel) : "—"} · {nominal ? "NOMINAL" : carteraNom}</span>
             <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {([["dinero", "DINERO"], ["nominal", "NOMINAL"]] as const).map(([v, lbl]) => (
                 <button key={v} onClick={() => setVista(v)}
@@ -276,12 +270,12 @@ export function TenenciaValorizadaView() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[var(--t-text-muted)]">Valuación actual</span>
-                  <span className="font-mono tabular-nums">{fmtFull(cv(selPos.total, pos?.tc ?? null))} {moneda}</span>
+                  <span className="font-mono tabular-nums">{fmtFull(cv(selPos.total, pos?.tc ?? null))} {carteraNom}</span>
                 </div>
                 <div className="flex justify-between border-t border-[var(--t-border-2)] pt-1">
                   <span className="text-[var(--t-accent)] font-semibold">Valuación nueva</span>
                   <span className="font-mono tabular-nums font-semibold text-[var(--t-accent)]">
-                    {valNuevaBase != null ? `${fmtFull(cv(valNuevaBase, pos?.tc ?? null))} ${moneda}` : "—"}
+                    {valNuevaBase != null ? `${fmtFull(cv(valNuevaBase, pos?.tc ?? null))} ${carteraNom}` : "—"}
                   </span>
                 </div>
                 <div className="text-[9px] text-[var(--t-text-muted)] text-right">
