@@ -204,6 +204,7 @@ export function TenenciaValorizadaView() {
                 <table className="w-full text-[10px]">
                   <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
                     <th className="text-left !px-2">Título</th>
+                    <th className="text-right !px-2">PX</th>
                     {CUENTAS.map((c) => <th key={c} className="text-right !px-2">{c}</th>)}
                     <th className="text-right !px-2">Total</th>
                   </tr></thead>
@@ -211,6 +212,7 @@ export function TenenciaValorizadaView() {
                     {pos.posiciones.map((p, i) => (
                       <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
                         <td className="!px-2">{p.unidad}</td>
+                        <td className="!px-2 text-right tabular-nums text-[var(--t-text-muted)]">{fmtNum(p.precio)}</td>
                         {CUENTAS.map((c) => (
                           <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">
                             {nominal ? fmtNum(p.cant?.[c]) : (p[c] ? fmtFull(cv(p[c], pos.tc)) : "—")}
