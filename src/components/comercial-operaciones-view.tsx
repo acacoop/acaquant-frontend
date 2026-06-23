@@ -1033,6 +1033,8 @@ function AnalisisComercial(
 
   const sortArrow = (col: SortCol) => (sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : "");
   const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 30, dormida: 90 });
+  // "Foto al día X": vacío = hoy (live). Con fecha, todo se recalcula como estaba ese día.
+  const [fecha, setFecha] = useState<string>("");
 
   useEffect(() => {
     if (!operador) { setClientes([]); return; }
@@ -1043,8 +1045,9 @@ function AnalisisComercial(
     setEstadoSel(null);
     void (async () => {
       try {
+        const fQS = fecha ? `&fecha=${fecha}` : "";
         const d = await getJson<{ clientes: AnalisisCliente[]; dias_activa?: number; dias_dormida?: number }>(
-          `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}`,
+          `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}${fQS}`,
         );
         if (cancelled) return;
         setUmbral({ activa: d.dias_activa ?? 30, dormida: d.dias_dormida ?? 90 });
@@ -1056,7 +1059,7 @@ function AnalisisComercial(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS]);
+  }, [operador, moneda, nQS, fecha]);
 
   const nivelDe = (c: AnalisisCliente) => c.nivel_1 || "(sin segmentar)";
 
@@ -1265,6 +1268,15 @@ function AnalisisComercial(
 
         {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. */}
         <div className="ml-auto flex items-center gap-2">
+          {/* Foto al día X: recalcula estado/activas/sin-operar/cuentas por nivel/AuM a esa
+              fecha. El cupo queda en su valor ACTUAL (todavía no es histórico). Vacío = hoy. */}
+          <div className={"border bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5 " + (fecha ? "border-[var(--t-accent)]" : "border-[var(--t-border)]")} title="Foto al día X: la vista se recalcula como estaba esa fecha. El cupo queda en valor actual. Vacío = hoy.">
+            <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">
+              Al día {fecha && <button onClick={() => setFecha("")} className="text-[var(--t-accent)] hover:underline ml-1 normal-case">(volver a hoy)</button>}
+            </span>
+            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} max={new Date().toISOString().slice(0, 10)}
+              className="bg-transparent text-[13px] font-semibold tabular-nums text-[var(--t-text)] leading-tight outline-none" />
+          </div>
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo transaccional asignado por el custodio (suma USD).">
             <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">Cupo trans.</span>
             <span className="text-[15px] font-semibold tabular-nums text-[var(--t-text)] leading-tight">{fmtUsd(cupoTotales.trans)}</span>
