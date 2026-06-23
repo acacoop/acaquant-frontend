@@ -41,9 +41,11 @@ export function TenenciaValorizadaView() {
   const [pos, setPos] = useState<PosResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [cartera, setCartera] = usePersistedState<"HD" | "ARS">("tenencia.cartera", "HD");
-  // La moneda la define la CARTERA: USD (HD) se muestra en USD (ARS ÷ TC); ARS en ARS.
-  const carteraNom = cartera === "HD" ? "USD" : "ARS";
-  const usd = cartera === "HD";
+  // La cartera USD (HD) se puede ver en USD (ARS ÷ TC del día) o PESIFICADA (ARS crudo).
+  // La cartera ARS siempre se muestra en ARS (el toggle no aplica).
+  const [pesificarHD, setPesificarHD] = usePersistedState<boolean>("tenencia.pesificarHD", false);
+  const usd = cartera === "HD" && !pesificarHD;
+  const carteraNom = usd ? "USD" : "ARS";
   const [vista, setVista] = usePersistedState<"dinero" | "nominal">("tenencia.vista", "dinero");
   const nominal = vista === "nominal";
   const [edUnidad, setEdUnidad] = useState("");
@@ -132,6 +134,15 @@ export function TenenciaValorizadaView() {
               className={"px-3 py-1 text-[10px] font-semibold " + (cartera === c ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
           ))}
         </div>
+        {/* Solo cartera USD: ver en USD (÷TC) o PESIFICADA (ARS crudo). */}
+        {cartera === "HD" && (
+          <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+            {([[false, "USD"], [true, "ARS (pesif.)"]] as const).map(([p, lbl]) => (
+              <button key={String(p)} onClick={() => setPesificarHD(p)}
+                className={"px-3 py-1 text-[10px] font-semibold " + (pesificarHD === p ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
+            ))}
+          </div>
+        )}
         <span className="text-[9px] text-[var(--t-text-muted)]">
           {cartera === "HD" ? "Hard-dollar (HD)" : "Pesos — todo lo que no es HD"} · cuentas 100 / 255 / 256
         </span>
