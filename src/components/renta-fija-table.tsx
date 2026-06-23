@@ -90,7 +90,13 @@ export function RentaFijaTable({
       </div>
 
       {vista === "libro" ? (
-        <LibroPanel data={data} />
+        // Solo bonos VIVOS: los que están en `flujos` (tickerCurvaMap). Los vencidos
+        // (ej. S12J6) siguen en market_snapshot pero ya no están en la curva → la tabla
+        // los excluye y el libro debe hacer lo mismo, o arranca el tape en un vencido
+        // (sin trades) y queda vacío.
+        <LibroPanel
+          data={data.filter((r) => tickerCurvaMap[shortTicker(r.instrumento)])}
+        />
       ) : sorted.length > 0 ? (
         // Sin overflow propio: el componente Panel padre ya scrolea
         // (overflow-y-auto en su content). El wrapper antiguo con altura
