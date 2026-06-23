@@ -98,10 +98,18 @@ export function OpsView() {
     return { desde: ultima, hasta: ultima };  // ULTIMA = solo el último día
   }, [modo, fechas, rDesde, rHasta]);
 
-  // Editar cualquiera de los dos date inputs salta a modo RANGO, sembrando el
-  // otro extremo con el valor vigente del rango actual (así no queda a medias).
-  const onDesde = (v: string) => { setRHasta(rHasta || rangoFecha.hasta); setRDesde(v); setModo("RANGO"); };
-  const onHasta = (v: string) => { setRDesde(rDesde || rangoFecha.desde); setRHasta(v); setModo("RANGO"); };
+  // Editar cualquiera de los dos date inputs salta a modo RANGO. Seedea el otro extremo con
+  // el valor vigente, pero lo CLAMPEA si quedó invertido (desde>hasta) — así no se traba: si
+  // elegís un `hasta` en el pasado, el `desde` se baja a esa fecha en vez de quedar en hoy
+  // (posterior e inválido). Después podés mover cada extremo libremente.
+  const onDesde = (v: string) => {
+    const h = rHasta || rangoFecha.hasta;
+    setRDesde(v); setRHasta(h && h >= v ? h : v); setModo("RANGO");
+  };
+  const onHasta = (v: string) => {
+    const d = rDesde || rangoFecha.desde;
+    setRHasta(v); setRDesde(d && d <= v ? d : v); setModo("RANGO");
+  };
 
   const selQS = (selOp ? `&operacion=${encodeURIComponent(selOp)}` : "")
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
