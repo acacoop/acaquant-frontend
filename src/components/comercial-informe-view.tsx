@@ -26,6 +26,7 @@ type SegmentoResp = {
 type Comercial = {
   rank: number; operador_email: string | null; operador_nombre: string;
   vol_total: number; vol_mes: number; ar_total: number; ar_mes: number; ticket_promedio: number;
+  ctas_ops: number;  // cuentas distintas que operaron en el mes del corte
 };
 type ArancelSeg = {
   segmento: string; ar_total: number; ar_mes: number; n_cuentas: number; ticket_promedio: number;
@@ -149,8 +150,9 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
     (a, c) => ({
       vol_total: a.vol_total + c.vol_total, vol_mes: a.vol_mes + c.vol_mes,
       ar_total: a.ar_total + c.ar_total, ar_mes: a.ar_mes + c.ar_mes,
+      ctas_ops: a.ctas_ops + c.ctas_ops,
     }),
-    { vol_total: 0, vol_mes: 0, ar_total: 0, ar_mes: 0 },
+    { vol_total: 0, vol_mes: 0, ar_total: 0, ar_mes: 0, ctas_ops: 0 },
   );
   // Fila de total: si hay un comercial elegido, muestra SU sumatoria; sino el total global.
   const selRow = selComercial
@@ -176,6 +178,7 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
     sheets: [{ name: "Ranking comercial", rows: informe?.comerciales ?? [], columns: [
       { header: "#", key: "rank", format: "integer", width: 5 },
       { header: "Comercial", key: "operador_nombre", format: "text", width: 28 },
+      { header: "Ctas Ops", key: "ctas_ops", format: "integer", width: 10 },
       { header: "Ticket prom.", key: "ticket_promedio", format: "currency" },
       { header: "Vol. total", key: "vol_total", format: "currency", width: 18 },
       { header: "Vol. mes", key: "vol_mes", format: "currency", width: 18 },
@@ -283,6 +286,7 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-2 py-2">#</th>
               <th className="text-left px-1">COMERCIAL</th>
+              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes del corte (acumulado del mes, ≥1 op)">CTAS OPS</th>
               <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">VOL. TOTAL</th>
               <th className="text-right px-2">VOL. MES</th>
@@ -311,6 +315,7 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
                 <td className="px-1 py-1.5 text-[var(--t-text)] truncate max-w-[160px]" title={c.operador_nombre}>
                   {c.operador_nombre}
                 </td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-text)]">{c.ctas_ops}</td>
                 <td className="text-right px-2 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
                 <td className="text-right px-2 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
@@ -323,6 +328,7 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
             <tfoot className="sticky bottom-0 bg-[var(--t-surface)]">
               <tr className="border-t-2 border-[var(--t-border-2)] font-semibold text-[var(--t-text)]">
                 <td className="px-2 py-1.5 truncate max-w-[180px]" colSpan={2}>{selRow ? `Σ ${selRow.operador_nombre}` : "TOTAL"}</td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-text)]">{totMostrado.ctas_ops}</td>
                 <td className="text-right px-2 text-[var(--t-text-muted)]">{selRow ? fmtAum(selRow.ticket_promedio) : "—"}</td>
                 <td className="text-right px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totMostrado.vol_total)}>{fmtMoney(totMostrado.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totMostrado.vol_mes)}>{fmtMoney(totMostrado.vol_mes)}</td>
