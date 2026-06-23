@@ -248,6 +248,8 @@ export function ComercialOperacionesView(
 ) {
   const nQS = nivelQS(nivel1, nivel3, referido);
   const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
+  // Fecha de corte ÚNICA de la vista (Informe + Análisis). Vacío = hoy (live).
+  const [fechaCorte, setFechaCorte] = useState<string>("");
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
@@ -299,8 +301,9 @@ export function ComercialOperacionesView(
     setSelCuenta(null);
     void (async () => {
       try {
+        const fQS = fechaCorte ? `&fecha=${fechaCorte}` : "";
         const d = await getJson<OperadorResp>(
-          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}`,
+          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}${fQS}`,
         );
         if (cancelled) return;
         setResumen(d.resumen);
@@ -315,7 +318,7 @@ export function ComercialOperacionesView(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS]);
+  }, [operador, moneda, nQS, fechaCorte]);
 
   // Serie del gráfico: operador completo o, si hay cliente, esa cuenta.
   useEffect(() => {
@@ -497,6 +500,14 @@ export function ComercialOperacionesView(
             ),
           )}
         </div>
+        {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy. */}
+        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + (fechaCorte ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Foto al día X: toda la vista comercial (Informe + Análisis) se recalcula a esta fecha. TOTAL acumula hasta el corte, MES = mes del corte. Vacío = hoy.">
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Al día</span>
+          <input type="date" value={fechaCorte} max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setFechaCorte(e.target.value)}
+            className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
+          {fechaCorte && <button onClick={() => setFechaCorte("")} title="Volver a hoy" className="text-[10px] text-[var(--t-accent)] hover:underline">hoy</button>}
+        </label>
         {loading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
         {subview !== "informe" && (
@@ -510,9 +521,9 @@ export function ComercialOperacionesView(
       </div>
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
-      {subview === "informe" && <ComercialInforme moneda={moneda} />}
+      {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} />}
       {subview === "cobros_futuros" && <CobrosFuturosView operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
-      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
+      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} fecha={fechaCorte} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
@@ -1003,8 +1014,8 @@ function Field({ label, value }: { label: string; value: string | null }) {
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
 function AnalisisComercial(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string },
+  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "", fecha = "" }:
+  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string; fecha?: string },
 ) {
   const nQS = nivelQS(nivel1, nivel3, referido);
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
@@ -1033,8 +1044,6 @@ function AnalisisComercial(
 
   const sortArrow = (col: SortCol) => (sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : "");
   const [umbral, setUmbral] = useState<{ activa: number; dormida: number }>({ activa: 30, dormida: 90 });
-  // "Foto al día X": vacío = hoy (live). Con fecha, todo se recalcula como estaba ese día.
-  const [fecha, setFecha] = useState<string>("");
 
   useEffect(() => {
     if (!operador) { setClientes([]); return; }
@@ -1266,17 +1275,9 @@ function AnalisisComercial(
           <span className="font-semibold tabular-nums text-[var(--t-text)]">{sinOperarYtd}</span>
         </button>
 
-        {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. */}
+        {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. El selector de
+            fecha de corte vive en el header global de la vista (maneja Informe + Análisis). */}
         <div className="ml-auto flex items-center gap-2">
-          {/* Foto al día X: recalcula estado/activas/sin-operar/cuentas por nivel/AuM a esa
-              fecha. El cupo queda en su valor ACTUAL (todavía no es histórico). Vacío = hoy. */}
-          <div className={"border bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5 " + (fecha ? "border-[var(--t-accent)]" : "border-[var(--t-border)]")} title="Foto al día X: la vista se recalcula como estaba esa fecha. El cupo queda en valor actual. Vacío = hoy.">
-            <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">
-              Al día {fecha && <button onClick={() => setFecha("")} className="text-[var(--t-accent)] hover:underline ml-1 normal-case">(volver a hoy)</button>}
-            </span>
-            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} max={new Date().toISOString().slice(0, 10)}
-              className="bg-transparent text-[13px] font-semibold tabular-nums text-[var(--t-text)] leading-tight outline-none" />
-          </div>
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo transaccional asignado por el custodio (suma USD).">
             <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">Cupo trans.</span>
             <span className="text-[15px] font-semibold tabular-nums text-[var(--t-text)] leading-tight">{fmtUsd(cupoTotales.trans)}</span>

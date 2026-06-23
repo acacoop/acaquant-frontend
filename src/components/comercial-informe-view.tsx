@@ -63,11 +63,6 @@ const ymLabel = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
   return `${MESES[m - 1]} ${y}`;
 };
-const ymAdd = (ym: string, delta: number) => {
-  const [y, m] = ym.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
 
 async function getJson<T>(url: string, fallback: T): Promise<T> {
   try {
@@ -93,7 +88,7 @@ function Panel({ title, extra, children, fill }: { title: string; extra?: React.
   );
 }
 
-export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" }) {
+export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS" | "USD"; fecha?: string }) {
   const [informe, setInforme] = useState<InformeResp | null>(null);
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
   const [mes, setMes] = useState<string | null>(null);
@@ -104,31 +99,33 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
   const [q1mode, setQ1mode] = useState<"cuentas" | "aranceles">("cuentas");
 
-  useEffect(() => {
-    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}`, null).then(setInforme);
-  }, [moneda]);
+  const fQS = fecha ? `&fecha=${fecha}` : "";
 
-  // Q1 (cuentas por segmento) — se re-scopea al comercial elegido (item 7).
+  useEffect(() => {
+    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}${fQS}`, null).then(setInforme);
+  }, [moneda, fQS]);
+
+  // Q1 (cuentas por segmento) — corte por la fecha GLOBAL de la vista + re-scope al comercial.
   useEffect(() => {
     const params = new URLSearchParams();
-    if (mes) params.set("hasta", mes);
+    if (fecha) params.set("fecha", fecha);
     if (selComercial) params.set("operador", selComercial);
     const q = params.toString() ? `?${params.toString()}` : "";
     void getJson<SegmentoResp | null>(`/api/operaciones/comercial/informe-segmento${q}`, null).then((d) => {
       setSeg(d);
-      if (d && !mes) setMes(d.mes); // primer load → fija el mes actual
+      if (d) setMes(d.mes); // refleja el mes del corte (solo display)
     });
-  }, [mes, selComercial]);
+  }, [fecha, selComercial]);
 
   // Q3 re-scopeada: aranceles por segmento del comercial elegido.
   useEffect(() => {
     if (!selComercial) { setSegScoped(null); return; }
     setSegScoped(null);
     void getJson<{ aranceles_segmento: ArancelSeg[] } | null>(
-      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}`,
+      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}${fQS}`,
       null,
     ).then((d) => setSegScoped(d?.aranceles_segmento ?? []));
-  }, [selComercial, moneda]);
+  }, [selComercial, moneda, fQS]);
 
   // Detalle (Q4): por defecto TODOS los segmentos; al elegir uno en Q3, filtra.
   // Respeta el comercial elegido en Q2.
@@ -142,8 +139,6 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     ).then(setDetalle);
   }, [selSeg, selComercial, moneda]);
 
-  const canPrev = !!(seg && mes && mes > seg.mes_min);
-  const canNext = !!(seg && mes && mes < seg.mes_actual);
   const comercialNombre = selComercial
     ? (informe?.comerciales.find((c) => c.operador_email === selComercial)?.operador_nombre ?? selComercial)
     : null;
@@ -237,11 +232,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
             </div>
             {q1mode === "cuentas" && (
               <>
-                <button disabled={!canPrev} onClick={() => mes && setMes(ymAdd(mes, -1))}
-                  className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]">◀</button>
-                <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center">{mes ? ymLabel(mes) : "…"}</span>
-                <button disabled={!canNext} onClick={() => mes && setMes(ymAdd(mes, 1))}
-                  className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]">▶</button>
+                <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center" title="Mes del corte (fijado por la fecha 'Al día' del header)">{mes ? ymLabel(mes) : "…"}</span>
                 <DownloadBtn onClick={dlCuentasSeg} />
               </>
             )}
