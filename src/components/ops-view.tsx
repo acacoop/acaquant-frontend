@@ -185,6 +185,13 @@ export function OpsView() {
     () => (selDenom ? denomRows.reduce((a, r) => a + r.bruto, 0) : total),
     [denomRows, selDenom, total],
   );
+  // El gráfico se fetchea completo (ops/serie) → lo recorto al rango elegido para que
+  // acompañe el filtro (igual que el resumen). Comparación de strings ISO (YYYY-MM-DD).
+  const serieFiltrada = useMemo(() => {
+    const { desde, hasta } = rangoFecha;
+    if (!desde || !hasta) return serie;
+    return serie.filter((r) => r.fecha >= desde && r.fecha <= hasta);
+  }, [serie, rangoFecha.desde, rangoFecha.hasta]);
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
@@ -309,7 +316,7 @@ export function OpsView() {
             </div>
           </div>
           {/* Gráfico */}
-          <OpsBarChart serie={serie} fmt={fmtCompact} unidad={MONEDA_UNIDAD[moneda]} defaultAgg="DIARIO"
+          <OpsBarChart serie={serieFiltrada} fmt={fmtCompact} unidad={MONEDA_UNIDAD[moneda]} defaultAgg="DIARIO"
             focoFecha={modo === "ULTIMA" ? fecha : null}
             series={[{ key: "bruto", label: "Bruto", color: "var(--t-brand)" }]} />
         </div>
