@@ -3740,15 +3740,252 @@ function TabBonos() {
   );
 }
 
-// TÍTULOS: Instrumentos (solo lectura) + Assets + ONs + Bonos (edición maestro).
-// Gate fino: INSTRUMENTOS → manager_instrumentos; ASSETS/ONs/BONOS → manager_titulos.
+// ── Sub-tab: Renta Variable (CEDEARs — rubro + es_ia) ─────────────────────────
+// Editor en grilla del catálogo de clasificación de CEDEARs. Espejo de la
+// segmentación de clientes: el `rubro` NO se escribe libre — se elige del
+// catálogo (/rubros) o se crea con POST /rubro. PATCH inmediato por fila.
+// Endpoints (SQL-native, gate manager_titulos):
+//   GET   /api/manager/renta-variable          → grid de CEDEARs
+//   GET   /api/manager/renta-variable/rubros    → catálogo de rubros (dropdown)
+//   POST  /api/manager/renta-variable/rubro     → crear rubro
+//   PATCH /api/manager/renta-variable           → setear rubro/es_ia de un CEDEAR
+interface CedearRow {
+  ticker: string;            // ticker BYMA completo (PK)
+  ticker_corto: string;
+  underlying: string | null;
+  activo: boolean | null;
+  rubro: string | null;
+  es_ia: boolean | null;
+  nombre: string | null;
+}
+interface RubroRow { rubro: string; es_ia_def: boolean }
+
+function TabRentaVariable() {
+  const [rows, setRows] = useState<CedearRow[]>([]);
+  const [rubros, setRubros] = useState<RubroRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rowState, setRowState] = useState<Record<string, RowState>>({});
+  const [q, setQ] = useState("");
+  // Alta de rubro nuevo (input inline → POST /rubro)
+  const [nuevoRubro, setNuevoRubro] = useState("");
+  const [nuevoRubroIa, setNuevoRubroIa] = useState(false);
+  const [creandoRubro, setCreandoRubro] = useState(false);
+  const [rubroMsg, setRubroMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const fetchCedears = () => {
+    setLoading(true);
+    setError(null);
+    fetch("/api/manager/renta-variable", { cache: "no-store" })
+      .then(async (r) => {
+        if (!r.ok) {
+          const txt = await r.text().catch(() => "");
+          throw new Error(`HTTP ${r.status} — ${txt.slice(0, 200) || r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((d: CedearRow[]) => setRows(Array.isArray(d) ? d : []))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  };
+
+  const fetchRubros = () => {
+    fetch("/api/manager/renta-variable/rubros", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((d: RubroRow[]) => setRubros(Array.isArray(d) ? d : []))
+      .catch(() => { /* silencioso */ });
+  };
+
+  useEffect(() => { fetchCedears(); fetchRubros(); }, []);
+
+  // Filtro en cliente por ticker / nombre / rubro (lista de ~70-160 filas).
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return rows;
+    return rows.filter((c) =>
+      (c.ticker_corto ?? "").toLowerCase().includes(t) ||
+      (c.nombre ?? "").toLowerCase().includes(t) ||
+      (c.underlying ?? "").toLowerCase().includes(t) ||
+      (c.rubro ?? "").toLowerCase().includes(t));
+  }, [rows, q]);
+
+  // PATCH inmediato (optimista) de un campo de la fila.
+  const patchRow = async (c: CedearRow, patch: { rubro?: string | null; es_ia?: boolean }) => {
+    setRowState((s) => ({ ...s, [c.ticker]: { kind: "saving" } }));
+    // Optimista: aplicar local antes de la respuesta.
+    setRows((prev) => prev.map((x) => (x.ticker === c.ticker ? { ...x, ...patch } : x)));
+    try {
+      const r = await fetch("/api/manager/renta-variable", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: c.ticker, ...patch }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* texto plano */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      setRowState((s) => ({ ...s, [c.ticker]: { kind: "saved" } }));
+      setTimeout(() => setRowState((s) => ({ ...s, [c.ticker]: { kind: "idle" } })), 1500);
+    } catch (e) {
+      // Revertir el optimismo recargando del backend (estado real).
+      fetchCedears();
+      setRowState((s) => ({ ...s, [c.ticker]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
+  const crearRubro = async () => {
+    const rub = nuevoRubro.trim();
+    if (!rub) return;
+    setCreandoRubro(true);
+    setRubroMsg(null);
+    try {
+      const r = await fetch("/api/manager/renta-variable/rubro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rubro: rub, es_ia_def: nuevoRubroIa }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      setNuevoRubro("");
+      setNuevoRubroIa(false);
+      setRubroMsg({ ok: true, text: `Rubro "${rub}" creado.` });
+      fetchRubros();
+    } catch (e) {
+      setRubroMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCreandoRubro(false);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">RENTA VARIABLE</span>
+        <span className="text-[10px] text-[var(--t-text-muted)]">{filtered.length} de {rows.length} CEDEARs</span>
+
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="buscar ticker, nombre o rubro…"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[210px]"
+        />
+
+        {/* Alta de rubro nuevo (igual que la segmentación: catálogo controlado). */}
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)] ml-2">+ CREAR RUBRO</span>
+        <input
+          value={nuevoRubro}
+          onChange={(e) => setNuevoRubro(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") crearRubro(); }}
+          placeholder="nombre del rubro…"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[150px]"
+        />
+        <label className="flex items-center gap-1 text-[10px] text-[var(--t-text-muted)] cursor-pointer" title="Default es_ia del rubro nuevo">
+          <input type="checkbox" checked={nuevoRubroIa} onChange={(e) => setNuevoRubroIa(e.target.checked)} />
+          IA
+        </label>
+        <button onClick={crearRubro} disabled={creandoRubro || !nuevoRubro.trim()}
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          {creandoRubro ? "Creando…" : "+ Crear"}
+        </button>
+
+        <button onClick={fetchCedears} disabled={loading}
+          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          {loading ? "Cargando…" : "↻ Recargar"}
+        </button>
+      </div>
+
+      {rubroMsg && (
+        <div className={`px-3 py-1.5 text-[10px] border-b border-[var(--t-border)] shrink-0 ${rubroMsg.ok ? "bg-[var(--t-tint-green)] text-green-400" : "bg-[var(--t-tint-red)] text-red-400"}`}>
+          {rubroMsg.text}
+          <button onClick={() => setRubroMsg(null)} className="ml-2 text-[var(--t-text-dim)] hover:text-white">✕</button>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
+        {!error && loading && rows.length === 0 && <div className="p-3 text-[11px] text-[var(--t-text-muted)]">Cargando…</div>}
+        {!error && !loading && filtered.length === 0 && <div className="p-3 text-[11px] text-[var(--t-text-muted)]">Sin resultados.</div>}
+        {filtered.length > 0 && (
+          <table className="text-[11px] font-mono">
+            <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)]">
+              <tr className="text-left text-[var(--t-text-dim)] tracking-widest text-[9px]">
+                <th className="px-3 py-2">TICKER</th>
+                <th className="px-2 py-2">NOMBRE</th>
+                <th className="px-2 py-2">UNDERLYING</th>
+                <th className="px-2 py-2">RUBRO</th>
+                <th className="px-2 py-2 text-center">ES IA</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => {
+                const state: RowState = rowState[c.ticker] || { kind: "idle" };
+                return (
+                  <tr key={c.ticker} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
+                    <td className="px-3 py-1.5 text-[var(--t-accent)] whitespace-nowrap">{c.ticker_corto}</td>
+                    <td className="px-2 py-1.5 text-[var(--t-text)] whitespace-nowrap max-w-[240px] truncate" title={c.nombre ?? ""}>{c.nombre ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-[var(--t-text-dim)] whitespace-nowrap">{c.underlying ?? "—"}</td>
+                    <td className="px-2 py-1.5">
+                      <select
+                        value={c.rubro ?? ""}
+                        onChange={(e) => patchRow(c, { rubro: e.target.value || null })}
+                        title={c.rubro ?? "sin rubro"}
+                        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none min-w-[150px]"
+                      >
+                        <option value="">— sin rubro —</option>
+                        {/* Si la fila tiene un rubro que ya no está en el catálogo, igual lo mostramos. */}
+                        {c.rubro && !rubros.some((r) => r.rubro === c.rubro) && (
+                          <option value={c.rubro}>{c.rubro}</option>
+                        )}
+                        {rubros.map((r) => (
+                          <option key={r.rubro} value={r.rubro}>{r.rubro}{r.es_ia_def ? " (IA)" : ""}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      <button
+                        onClick={() => patchRow(c, { es_ia: !c.es_ia })}
+                        className={`px-2 py-0.5 text-[10px] font-semibold border transition-colors ${
+                          c.es_ia
+                            ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                            : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+                        }`}
+                      >
+                        {c.es_ia ? "SÍ" : "NO"}
+                      </button>
+                    </td>
+                    <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
+                      {state.kind === "saving" && <span className="text-[var(--t-accent)]">Guardando…</span>}
+                      {state.kind === "saved" && <span className="text-green-400">✓ guardado</span>}
+                      {state.kind === "error" && <span className="text-red-400 cursor-help" title={state.msg}>✗ {state.msg.length > 40 ? state.msg.slice(0, 40) + "…" : state.msg}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// TÍTULOS: Instrumentos (solo lectura) + Assets + ONs + Bonos + Renta Variable
+// (edición maestro). Gate fino: INSTRUMENTOS → manager_instrumentos;
+// ASSETS/ONs/BONOS/RENTA VARIABLE → manager_titulos.
 // Así asistente_comercial (manager_instrumentos) ve solo Instrumentos.
 function TitulosGroup({ modules }: { modules?: string[] | null }) {
-  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons" | "bonos">("manager.titulos.sub", "instrumentos");
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons" | "bonos" | "renta_variable">("manager.titulos.sub", "instrumentos");
   const has = (m: string) => modules == null || modules.includes(m);
   const canInstr = has("manager") || has("manager_instrumentos");
   const canMaestro = has("manager") || has("manager_titulos");
-  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons" || sub === "bonos") && canMaestro);
+  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons" || sub === "bonos" || sub === "renta_variable") && canMaestro);
   const eff = subVisible ? sub : (canInstr ? "instrumentos" : "assets");
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -3758,12 +3995,14 @@ function TitulosGroup({ modules }: { modules?: string[] | null }) {
         {canMaestro && <Pill label="ASSETS" active={eff === "assets"} onClick={() => setSub("assets")} />}
         {canMaestro && <Pill label="ONs" active={eff === "ons"} onClick={() => setSub("ons")} />}
         {canMaestro && <Pill label="BONOS" active={eff === "bonos"} onClick={() => setSub("bonos")} />}
+        {canMaestro && <Pill label="RENTA VARIABLE" active={eff === "renta_variable"} onClick={() => setSub("renta_variable")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {eff === "instrumentos" && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
-        {eff === "assets"       && canMaestro && <TabAssets />}
-        {eff === "ons"          && canMaestro && <TabONs />}
-        {eff === "bonos"        && canMaestro && <TabBonos />}
+        {eff === "instrumentos"   && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
+        {eff === "assets"         && canMaestro && <TabAssets />}
+        {eff === "ons"            && canMaestro && <TabONs />}
+        {eff === "bonos"          && canMaestro && <TabBonos />}
+        {eff === "renta_variable" && canMaestro && <TabRentaVariable />}
       </div>
     </div>
   );

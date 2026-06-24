@@ -6,25 +6,94 @@ import { fmtMoney } from "@/lib/fmt-money";
 import { PivotPointsPanel } from "./pivot-points-panel";
 
 /**
- * Panel MÉTRICAS del Scanner — 2 tabs:
- *   PULSO   → pulso del mercado por SECTOR (default). $ operado + %1D/INTRA/USD
- *             ponderados por $ operado + breadth (▲/▼). Real-time: se recalcula
- *             con cada poll de la tabla (rows), sin fetch propio.
- *   PIVOTS  → lo de antes (pivot points / zonas / volatilidad del ticker elegido).
+ * Panel MÉTRICAS del Scanner — 3 tabs:
+ *   PULSO     → pulso del mercado por RUBRO (default). $ operado + %1D/INTRA/USD
+ *               ponderados por $ operado + breadth (▲/▼). Real-time: se recalcula
+ *               con cada poll de la tabla (rows), sin fetch propio.
+ *   CADENA IA → mapa de la cadena de valor de IA: agrupa las empresas es_ia=true
+ *               por su rubro, ORDENADO como cadena (diseño de chips → fabricación
+ *               → foundry → … → aplicación final). Muestra empresas + $op/%día.
+ *   PIVOTS    → lo de antes (pivot points / zonas / volatilidad del ticker elegido).
+ *
+ * Filtro "SOLO IA" (toggle en el header): cuando está activo filtra rows a
+ * es_ia=true ANTES de calcular el pulso. es_ia NO se muestra como columna en la
+ * tabla — es solo un filtro general (pedido explícito).
  *
  * Por qué ponderar por $ OPERADO y no sumar volumen nominal: sumar acciones de
  * tickers con precios distintos mezcla peras con manzanas; el cash operado
  * (total_money) sí es comparable y refleja dónde está la plata.
+ *
+ * Por qué agrupar por RUBRO y no por sector: el rubro (mercado.cedears) es la
+ * clasificación de negocio nueva, más granular que el sector legacy del master.
  */
 
-type Tab = "pulso" | "pivots";
+type Tab = "pulso" | "cadena" | "pivots";
+
+// Estos dos campos viven en mercado.cedears (columnas) y los expone el path SQL
+// del scanner (api/services/scanner_sql.py). El tipo CedearScannerRow en
+// src/lib/types-scanner.ts ya los declara opcionales; acá los leemos vía un
+// helper para no castear en cada uso. Si el path Mongo (legacy) no los trae,
+// quedan null/undefined y todo cae al grupo "—" sin romper.
+type RowConClasificacion = CedearScannerRow & {
+  rubro?: string | null;
+  es_ia?: boolean | null;
+};
+
+const SIN_RUBRO = "—";
+
+function rubroDe(r: CedearScannerRow): string {
+  const v = (r as RowConClasificacion).rubro;
+  return v && v.trim() ? v : SIN_RUBRO;
+}
+
+function esIA(r: CedearScannerRow): boolean {
+  return (r as RowConClasificacion).es_ia === true;
+}
+
+// Orden de la CADENA DE VALOR de IA. Son los rubros que en el catálogo
+// (docs/cedears_clasificado_final.csv) están marcados es_ia=SI, ordenados de
+// "abajo" (silicio / fierros) hacia "arriba" (software / aplicación final).
+// El orden es editorial (cómo querés contar la historia de la cadena); cualquier
+// rubro IA que no esté en esta lista cae al final, en orden alfabético.
+const CADENA_IA_ORDEN: string[] = [
+  "Diseno de chips",
+  "Equipos de fabricacion",
+  "Foundry",
+  "Aceleradores y chips",
+  "Memoria y storage",
+  "Redes e interconexion",
+  "Servers y hardware",
+  "Neoclouds",
+  "Cloud hyperscalers",
+  "Energia datacenters",
+  "Software y modelos",
+  "Aplicacion final",
+  "Ciberseguridad",
+  "Cuantica",
+  "Drones y edge",
+  "Indice / ETF",
+];
+
+function ordenCadena(rubro: string): number {
+  const i = CADENA_IA_ORDEN.indexOf(rubro);
+  return i === -1 ? CADENA_IA_ORDEN.length : i;
+}
 
 export function MetricasPanel({ rows, ticker }: { rows: CedearScannerRow[]; ticker: string | null }) {
   const [tab, setTab] = useState<Tab>("pulso");
+  const [soloIA, setSoloIA] = useState(false);
+
+  // Filtro general "SOLO IA": afecta PULSO (no la CADENA, que por definición ya
+  // es IA, ni PIVOTS, que es por ticker). El toggle se muestra en pulso/cadena.
+  const rowsFiltradas = useMemo(
+    () => (soloIA ? rows.filter(esIA) : rows),
+    [rows, soloIA],
+  );
+
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="flex items-center gap-1 mb-1 shrink-0">
-        {([["pulso", "PULSO"], ["pivots", "PIVOTS / VOL"]] as [Tab, string][]).map(([k, l]) => (
+        {([["pulso", "PULSO"], ["cadena", "CADENA IA"], ["pivots", "PIVOTS / VOL"]] as [Tab, string][]).map(([k, l]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -37,23 +106,42 @@ export function MetricasPanel({ rows, ticker }: { rows: CedearScannerRow[]; tick
             {l}
           </button>
         ))}
+        {tab === "pulso" && (
+          <button
+            onClick={() => setSoloIA((v) => !v)}
+            title="Filtrar a empresas del ecosistema IA (es_ia)"
+            className={`ml-auto px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+              soloIA
+                ? "bg-[#5fb3d4] text-black border-[#5fb3d4]"
+                : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[#5fb3d4] hover:border-[#5fb3d4]"
+            }`}
+          >
+            SOLO IA
+          </button>
+        )}
         {tab === "pivots" && <span className="ml-auto text-[10px] text-[var(--t-text-dim)]">{ticker || "—"}</span>}
       </div>
       <div className="flex-1 min-h-0">
-        {tab === "pulso" ? <PulsoSectoresPanel rows={rows} /> : <PivotPointsPanel ticker={ticker} />}
+        {tab === "pulso" ? (
+          <PulsoRubrosPanel rows={rowsFiltradas} />
+        ) : tab === "cadena" ? (
+          <CadenaValorIAPanel rows={rows} />
+        ) : (
+          <PivotPointsPanel ticker={ticker} />
+        )}
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// PULSO por sector
+// PULSO por rubro
 // ─────────────────────────────────────────────────────────────────────
 
-type SortKey = "sector" | "money" | "p1d" | "intra" | "usd" | "breadth";
+type SortKey = "rubro" | "money" | "p1d" | "intra" | "usd" | "breadth";
 
-interface SectorAgg {
-  sector: string;
+interface RubroAgg {
+  rubro: string;
   money: number;
   p1d: number | null;
   intra: number | null;
@@ -79,24 +167,23 @@ function wavg(items: { pct: number | null; w: number }[]): number | null {
   return n > 0 ? sp / n : null;
 }
 
-function PulsoSectoresPanel({ rows }: { rows: CedearScannerRow[] }) {
+function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("money");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  const { sectores, total } = useMemo(() => {
-    const bySector: Record<string, CedearScannerRow[]> = {};
+  const { rubros, total } = useMemo(() => {
+    const byRubro: Record<string, CedearScannerRow[]> = {};
     for (const r of rows) {
-      const s = r.sector || "—";
-      (bySector[s] ??= []).push(r);
+      (byRubro[rubroDe(r)] ??= []).push(r);
     }
-    const sectores: SectorAgg[] = Object.entries(bySector).map(([sector, rs]) => {
+    const rubros: RubroAgg[] = Object.entries(byRubro).map(([rubro, rs]) => {
       let up = 0, down = 0;
       for (const r of rs) {
         if (r.vs_1d_pct != null && r.vs_1d_pct > 0) up++;
         else if (r.vs_1d_pct != null && r.vs_1d_pct < 0) down++;
       }
       return {
-        sector,
+        rubro,
         money: rs.reduce((a, r) => a + (r.total_money || 0), 0),
         p1d: wavg(rs.map((r) => ({ pct: r.vs_1d_pct, w: r.total_money || 0 }))),
         intra: wavg(rs.map((r) => ({ pct: r.intraday_pct, w: r.total_money || 0 }))),
@@ -111,30 +198,30 @@ function PulsoSectoresPanel({ rows }: { rows: CedearScannerRow[] }) {
       up: rows.filter((r) => r.vs_1d_pct != null && r.vs_1d_pct > 0).length,
       down: rows.filter((r) => r.vs_1d_pct != null && r.vs_1d_pct < 0).length,
     };
-    return { sectores, total };
+    return { rubros, total };
   }, [rows]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
-    const get = (s: SectorAgg): number | string =>
-      sortKey === "sector" ? s.sector
+    const get = (s: RubroAgg): number | string =>
+      sortKey === "rubro" ? s.rubro
         : sortKey === "money" ? s.money
         : sortKey === "p1d" ? (s.p1d ?? -Infinity)
         : sortKey === "intra" ? (s.intra ?? -Infinity)
         : sortKey === "usd" ? (s.usd ?? -Infinity)
         : s.up - s.down;
-    return [...sectores].sort((a, b) => {
+    return [...rubros].sort((a, b) => {
       const av = get(a), bv = get(b);
       if (typeof av === "string" && typeof bv === "string") return dir * av.localeCompare(bv);
       return dir * ((av as number) - (bv as number));
     });
-  }, [sectores, sortKey, sortDir]);
+  }, [rubros, sortKey, sortDir]);
 
   const toggle = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSortKey(k);
-      setSortDir(k === "sector" ? "asc" : "desc");
+      setSortDir(k === "rubro" ? "asc" : "desc");
     }
   };
 
@@ -159,7 +246,7 @@ function PulsoSectoresPanel({ rows }: { rows: CedearScannerRow[] }) {
         <table className="w-full text-[10px]">
           <thead className="sticky top-0 bg-[var(--t-panel)]">
             <tr className="text-[var(--t-text-muted)]">
-              <Th label="SECTOR" k="sector" sk={sortKey} sd={sortDir} on={toggle} align="left" />
+              <Th label="RUBRO" k="rubro" sk={sortKey} sd={sortDir} on={toggle} align="left" />
               <Th label="$OP" k="money" sk={sortKey} sd={sortDir} on={toggle} />
               <Th label="%1D" k="p1d" sk={sortKey} sd={sortDir} on={toggle} />
               <Th label="INTRA" k="intra" sk={sortKey} sd={sortDir} on={toggle} />
@@ -169,8 +256,8 @@ function PulsoSectoresPanel({ rows }: { rows: CedearScannerRow[] }) {
           </thead>
           <tbody>
             {sorted.map((s) => (
-              <tr key={s.sector} className="hover:bg-[var(--t-border)]">
-                <td className="!px-2 truncate max-w-[120px]" title={s.sector}>{s.sector}</td>
+              <tr key={s.rubro} className="hover:bg-[var(--t-border)]">
+                <td className="!px-2 truncate max-w-[120px]" title={s.rubro}>{s.rubro}</td>
                 <td className="!px-2 text-right tabular-nums">{fmtMoney(s.money)}</td>
                 <td className="!px-2 text-right"><Pct v={s.p1d} /></td>
                 <td className="!px-2 text-right"><Pct v={s.intra} /></td>
@@ -184,6 +271,124 @@ function PulsoSectoresPanel({ rows }: { rows: CedearScannerRow[] }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// CADENA DE VALOR IA — empresas es_ia=true agrupadas por rubro, ordenadas
+// como cadena (silicio → fierros → cloud → software → aplicación). El objetivo
+// no es un flag suelto: es VER el mapa de la cadena, capa por capa, con dónde
+// está la plata ($op) y cómo se movió hoy (%día) en cada eslabón.
+// ─────────────────────────────────────────────────────────────────────
+
+interface EmpresaIA {
+  ticker: string;
+  nombre: string | null;
+  money: number;
+  p1d: number | null;
+}
+
+interface CapaIA {
+  rubro: string;
+  money: number;
+  p1d: number | null;       // ponderado por $op
+  up: number;
+  down: number;
+  empresas: EmpresaIA[];     // ordenadas por $op desc
+}
+
+function CadenaValorIAPanel({ rows }: { rows: CedearScannerRow[] }) {
+  const { capas, total } = useMemo(() => {
+    const ia = rows.filter(esIA);
+    const byRubro: Record<string, CedearScannerRow[]> = {};
+    for (const r of ia) {
+      (byRubro[rubroDe(r)] ??= []).push(r);
+    }
+    const capas: CapaIA[] = Object.entries(byRubro).map(([rubro, rs]) => {
+      let up = 0, down = 0;
+      for (const r of rs) {
+        if (r.vs_1d_pct != null && r.vs_1d_pct > 0) up++;
+        else if (r.vs_1d_pct != null && r.vs_1d_pct < 0) down++;
+      }
+      const empresas: EmpresaIA[] = rs
+        .map((r) => ({
+          ticker: r.ticker_corto,
+          nombre: r.nombre,
+          money: r.total_money || 0,
+          p1d: r.vs_1d_pct,
+        }))
+        .sort((a, b) => b.money - a.money);
+      return {
+        rubro,
+        money: rs.reduce((a, r) => a + (r.total_money || 0), 0),
+        p1d: wavg(rs.map((r) => ({ pct: r.vs_1d_pct, w: r.total_money || 0 }))),
+        up,
+        down,
+        empresas,
+      };
+    });
+    // Orden de la cadena: por el orden editorial de rubros; los no-mapeados al
+    // final, alfabéticos.
+    capas.sort((a, b) => {
+      const oa = ordenCadena(a.rubro), ob = ordenCadena(b.rubro);
+      return oa !== ob ? oa - ob : a.rubro.localeCompare(b.rubro);
+    });
+    const total = {
+      money: ia.reduce((a, r) => a + (r.total_money || 0), 0),
+      n: ia.length,
+    };
+    return { capas, total };
+  }, [rows]);
+
+  if (capas.length === 0) {
+    return (
+      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+        Sin empresas IA clasificadas (es_ia).
+      </p>
+    );
+  }
+
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 text-[10px] font-mono">
+        <span className="text-[#5fb3d4] uppercase tracking-widest">Cadena IA</span>
+        <span className="text-[var(--t-text-dim)]">{total.n} empresas</span>
+        <span className="text-[var(--t-text-dim)]">$op {fmtMoney(total.money)}</span>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">
+        {capas.map((c, i) => (
+          <div key={c.rubro} className="border-b border-[var(--t-border)]">
+            {/* Cabecera de la capa */}
+            <div className="px-2 py-1 flex items-center gap-2 text-[10px] font-mono bg-[var(--t-surface)]">
+              <span className="text-[#5fb3d4] tabular-nums w-4 shrink-0">{i + 1}</span>
+              <span className="text-[var(--t-text)] font-semibold truncate" title={c.rubro}>{c.rubro}</span>
+              <span className="ml-auto text-[var(--t-text-dim)] tabular-nums">{fmtMoney(c.money)}</span>
+              <Pct v={c.p1d} />
+              <span className="tabular-nums shrink-0">
+                <span className="text-[var(--t-pos)]">{c.up}</span>
+                <span className="text-[var(--t-text-dim)]">/</span>
+                <span className="text-[var(--t-neg)]">{c.down}</span>
+              </span>
+            </div>
+            {/* Empresas de la capa */}
+            <table className="w-full text-[10px]">
+              <tbody>
+                {c.empresas.map((e) => (
+                  <tr key={e.ticker} className="hover:bg-[var(--t-border)]">
+                    <td className="!px-2 !pl-6 font-semibold text-[var(--t-accent)] w-[60px]">{e.ticker}</td>
+                    <td className="!px-2 text-[var(--t-text-dim)] truncate max-w-[140px]" title={e.nombre ?? ""}>
+                      {e.nombre || "--"}
+                    </td>
+                    <td className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">{fmtMoney(e.money)}</td>
+                    <td className="!px-2 text-right"><Pct v={e.p1d} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
       </div>
     </div>
   );
