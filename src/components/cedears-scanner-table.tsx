@@ -34,11 +34,15 @@ export function CedearsScannerTable({
   selectedTicker,
   onSelect,
   ccl,
+  rubroFiltro,
+  onClearRubro,
 }: {
   data: CedearScannerRow[];
   selectedTicker?: string | null;
   onSelect?: (ticker: string) => void;
   ccl?: CclLive;
+  rubroFiltro?: string | null;
+  onClearRubro?: () => void;
 }) {
   const [view, setView] = useState<View>("cedear");
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
@@ -112,6 +116,16 @@ export function CedearsScannerTable({
             title="Limpiar búsqueda"
           >
             ✕
+          </button>
+        )}
+        {rubroFiltro && (
+          <button
+            onClick={onClearRubro}
+            title="Quitar filtro de rubro (tocá otro en el Pulso para cambiarlo)"
+            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] transition-colors"
+          >
+            <span className="truncate max-w-[130px]">{rubroFiltro}</span>
+            <span>✕</span>
           </button>
         )}
         {ccl && (

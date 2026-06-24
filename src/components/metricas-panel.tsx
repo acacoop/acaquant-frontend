@@ -42,7 +42,7 @@ type RowConClasificacion = CedearScannerRow & {
 
 const SIN_RUBRO = "—";
 
-function rubroDe(r: CedearScannerRow): string {
+export function rubroDe(r: CedearScannerRow): string {
   const v = (r as RowConClasificacion).rubro;
   return v && v.trim() ? v : SIN_RUBRO;
 }
@@ -80,7 +80,14 @@ function ordenCadena(rubro: string): number {
   return i === -1 ? CADENA_IA_ORDEN.length : i;
 }
 
-export function MetricasPanel({ rows, ticker }: { rows: CedearScannerRow[]; ticker: string | null }) {
+export function MetricasPanel({
+  rows, ticker, selectedRubro = null, onRubroSelect,
+}: {
+  rows: CedearScannerRow[];
+  ticker: string | null;
+  selectedRubro?: string | null;
+  onRubroSelect?: (rubro: string | null) => void;
+}) {
   const [tab, setTab] = useState<Tab>("pulso");
   const [soloIA, setSoloIA] = useState(false);
 
@@ -124,7 +131,7 @@ export function MetricasPanel({ rows, ticker }: { rows: CedearScannerRow[]; tick
       </div>
       <div className="flex-1 min-h-0">
         {tab === "pulso" ? (
-          <PulsoRubrosPanel rows={rowsFiltradas} />
+          <PulsoRubrosPanel rows={rowsFiltradas} selected={selectedRubro} onSelect={onRubroSelect} />
         ) : tab === "cadena" ? (
           <CadenaValorIAPanel rows={rows} />
         ) : (
@@ -169,7 +176,13 @@ function wavg(items: { pct: number | null; w: number }[]): number | null {
   return n > 0 ? sp / n : null;
 }
 
-function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
+function PulsoRubrosPanel({
+  rows, selected = null, onSelect,
+}: {
+  rows: CedearScannerRow[];
+  selected?: string | null;
+  onSelect?: (rubro: string | null) => void;
+}) {
   const [sortKey, setSortKey] = useState<SortKey>("vol");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -261,7 +274,16 @@ function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
           </thead>
           <tbody>
             {sorted.map((s) => (
-              <tr key={s.rubro} className="hover:bg-[var(--t-border)]">
+              <tr
+                key={s.rubro}
+                onClick={() => onSelect?.(s.rubro === selected ? null : s.rubro)}
+                title={`Filtrar la tabla a ${s.rubro}${s.rubro === selected ? " (click para quitar)" : ""}`}
+                className={`cursor-pointer ${
+                  s.rubro === selected
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                    : "hover:bg-[var(--t-border)]"
+                }`}
+              >
                 <td className="!px-2 truncate max-w-[120px]" title={s.rubro}>{s.rubro}</td>
                 <td className="!px-2 text-right tabular-nums">{fmtMoney(s.vol)}</td>
                 <td className="!px-2 text-right"><Pct v={s.p1d} /></td>
