@@ -23,7 +23,7 @@ type CedearSortKey =
 
 type AdrSortKey =
   | "ticker_corto" | "nombre" | "sector"
-  | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct"
+  | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct" | "adr_ret_15r_pct"
   | "adr_ret_mtd_pct" | "adr_ret_ytd_pct";
 
 type SortKey = CedearSortKey | AdrSortKey;
@@ -180,6 +180,7 @@ export function CedearsScannerTable({
                 <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ, Trading.PreciosAcciones)" />
                 <SortableTh label="1D"      col="adr_vs_1d_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / prev close − 1) × 100" />
                 <SortableTh label="7D"      col="adr_ret_7d_pct"  sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close ~7d atrás − 1) × 100" />
+                <SortableTh label="15R"     col="adr_ret_15r_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: retorno de las últimas 15 ruedas (last / close 15 ruedas atrás − 1) × 100" />
                 <SortableTh label="MTD"     col="adr_ret_mtd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del mes − 1) × 100" />
                 <SortableTh label="YTD"     col="adr_ret_ytd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del año − 1) × 100" />
               </tr>
@@ -246,6 +247,7 @@ export function CedearsScannerTable({
                         </td>
                         <PctCell v={r.adr_vs_1d_pct} />
                         <PctCell v={r.adr_ret_7d_pct} />
+                        <PctCell v={r.adr_ret_15r_pct} />
                         <PctCell v={r.adr_ret_mtd_pct} />
                         <PctCell v={r.adr_ret_ytd_pct} />
                       </>

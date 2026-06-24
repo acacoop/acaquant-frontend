@@ -116,6 +116,7 @@ export interface CedearScannerRow {
   adr_vs_1d_pct:   number | null;
   adr_ret_wtd_pct: number | null;  // week-to-date (vs cierre del viernes previo)
   adr_ret_7d_pct:  number | null;
+  adr_ret_15r_pct: number | null;  // retorno últimas 15 ruedas
   adr_ret_mtd_pct: number | null;
   adr_ret_ytd_pct: number | null;
   adr_dollar_vol:  number | null;  // volumen USD del ADR (cierre × volumen último EOD) — peso del Pulso
