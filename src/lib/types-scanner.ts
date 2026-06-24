@@ -114,8 +114,10 @@ export interface CedearScannerRow {
   // null = sin dato. El frontend marca con "CIERRE" cuando no es intradía.
   adr_intraday:    boolean | null;
   adr_vs_1d_pct:   number | null;
+  adr_ret_wtd_pct: number | null;  // week-to-date (vs cierre del viernes previo)
   adr_ret_7d_pct:  number | null;
   adr_ret_mtd_pct: number | null;
   adr_ret_ytd_pct: number | null;
+  adr_dollar_vol:  number | null;  // volumen USD del ADR (cierre × volumen último EOD) — peso del Pulso
   updated_at:    string | null;
 }

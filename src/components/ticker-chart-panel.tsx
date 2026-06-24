@@ -42,7 +42,7 @@ const GLOSSARY = [
 ];
 
 export function TickerChartPanel({ ticker }: { ticker: string | null }) {
-  const [tab, setTab] = useState<Tab>("live");
+  const [tab, setTab] = useState<Tab>("chart");
   const [returns, setReturns] = useState<TickerReturns | null>(null);
 
   // Fetch retornos solo cuando el tab activo es 'returns' (lazy).

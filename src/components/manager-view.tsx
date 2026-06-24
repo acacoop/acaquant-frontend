@@ -3835,6 +3835,29 @@ function TabRentaVariable() {
     }
   };
 
+  // Borrar un CEDEAR del universo (deja de suscribirse). DELETE master Mongo + SQL.
+  const borrarCedear = async (c: CedearRow) => {
+    if (!window.confirm(
+      `¿Sacar ${c.ticker_corto} del universo de Renta Variable?\n\n` +
+      `Deja de suscribirse en el motor y se borra del master. ` +
+      `Reversible solo volviéndolo a dar de alta.`)) return;
+    setRowState((s) => ({ ...s, [c.ticker]: { kind: "saving" } }));
+    try {
+      const r = await fetch(`/api/manager/renta-variable?ticker=${encodeURIComponent(c.ticker)}`, {
+        method: "DELETE",
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      setRows((prev) => prev.filter((x) => x.ticker !== c.ticker));
+    } catch (e) {
+      setRowState((s) => ({ ...s, [c.ticker]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
   const crearRubro = async () => {
     const rub = nuevoRubro.trim();
     if (!rub) return;
@@ -3964,6 +3987,13 @@ function TabRentaVariable() {
                       {state.kind === "saving" && <span className="text-[var(--t-accent)]">Guardando…</span>}
                       {state.kind === "saved" && <span className="text-green-400">✓ guardado</span>}
                       {state.kind === "error" && <span className="text-red-400 cursor-help" title={state.msg}>✗ {state.msg.length > 40 ? state.msg.slice(0, 40) + "…" : state.msg}</span>}
+                      <button
+                        onClick={() => borrarCedear(c)}
+                        title="Sacar del universo (deja de suscribirse)"
+                        className="ml-2 px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-red-400 hover:text-red-400 transition-colors"
+                      >
+                        🗑
+                      </button>
                     </td>
                   </tr>
                 );

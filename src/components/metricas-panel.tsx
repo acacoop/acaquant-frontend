@@ -7,21 +7,22 @@ import { PivotPointsPanel } from "./pivot-points-panel";
 
 /**
  * Panel MÉTRICAS del Scanner — 3 tabs:
- *   PULSO     → pulso del mercado por RUBRO (default). $ operado + %1D/INTRA/USD
- *               ponderados por $ operado + breadth (▲/▼). Real-time: se recalcula
- *               con cada poll de la tabla (rows), sin fetch propio.
+ *   PULSO     → pulso del mercado por RUBRO (default). Retornos 1D/WTD/MTD/YTD del
+ *               ADR (USD del subyacente) ponderados por volumen USD del ADR +
+ *               breadth (▲/▼). Real-time: se recalcula con cada poll de la tabla.
  *   CADENA IA → mapa de la cadena de valor de IA: agrupa las empresas es_ia=true
  *               por su rubro, ORDENADO como cadena (diseño de chips → fabricación
- *               → foundry → … → aplicación final). Muestra empresas + $op/%día.
+ *               → foundry → … → aplicación final). Muestra empresas + vol/%1D ADR.
  *   PIVOTS    → lo de antes (pivot points / zonas / volatilidad del ticker elegido).
  *
  * Filtro "SOLO IA" (toggle en el header): cuando está activo filtra rows a
  * es_ia=true ANTES de calcular el pulso. es_ia NO se muestra como columna en la
  * tabla — es solo un filtro general (pedido explícito).
  *
- * Por qué ponderar por $ OPERADO y no sumar volumen nominal: sumar acciones de
- * tickers con precios distintos mezcla peras con manzanas; el cash operado
- * (total_money) sí es comparable y refleja dónde está la plata.
+ * Acá NO se usan más métricas del CEDEAR (ARS): todo sale del ADR del subyacente.
+ * Los retornos vienen de adr_* (1D/WTD/MTD/YTD) y el PESO es el volumen USD del ADR
+ * (adr_dollar_vol = cierre × volumen del último EOD) — la "size" pura del subyacente.
+ * Sumar volumen nominal mezclaría peras con manzanas; el volumen en USD es comparable.
  *
  * Por qué agrupar por RUBRO y no por sector: el rubro (mercado.cedears) es la
  * clasificación de negocio nueva, más granular que el sector legacy del master.
@@ -138,20 +139,21 @@ export function MetricasPanel({ rows, ticker }: { rows: CedearScannerRow[]; tick
 // PULSO por rubro
 // ─────────────────────────────────────────────────────────────────────
 
-type SortKey = "rubro" | "money" | "p1d" | "intra" | "usd" | "breadth";
+type SortKey = "rubro" | "vol" | "p1d" | "wtd" | "mtd" | "ytd" | "breadth";
 
 interface RubroAgg {
   rubro: string;
-  money: number;
+  vol: number;
   p1d: number | null;
-  intra: number | null;
-  usd: number | null;
+  wtd: number | null;
+  mtd: number | null;
+  ytd: number | null;
   up: number;
   down: number;
 }
 
-// Promedio ponderado por $ operado. Si el sector aún no operó ($=0), cae a
-// promedio simple para no dejar la fila vacía pre-volumen.
+// Promedio ponderado por volumen USD del ADR. Si el rubro no tiene volumen (w=0),
+// cae a promedio simple para no dejar la fila vacía.
 function wavg(items: { pct: number | null; w: number }[]): number | null {
   let sw = 0, swp = 0, n = 0, sp = 0;
   for (const it of items) {
@@ -168,7 +170,7 @@ function wavg(items: { pct: number | null; w: number }[]): number | null {
 }
 
 function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
-  const [sortKey, setSortKey] = useState<SortKey>("money");
+  const [sortKey, setSortKey] = useState<SortKey>("vol");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const { rubros, total } = useMemo(() => {
@@ -179,24 +181,25 @@ function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
     const rubros: RubroAgg[] = Object.entries(byRubro).map(([rubro, rs]) => {
       let up = 0, down = 0;
       for (const r of rs) {
-        if (r.vs_1d_pct != null && r.vs_1d_pct > 0) up++;
-        else if (r.vs_1d_pct != null && r.vs_1d_pct < 0) down++;
+        if (r.adr_vs_1d_pct != null && r.adr_vs_1d_pct > 0) up++;
+        else if (r.adr_vs_1d_pct != null && r.adr_vs_1d_pct < 0) down++;
       }
       return {
         rubro,
-        money: rs.reduce((a, r) => a + (r.total_money || 0), 0),
-        p1d: wavg(rs.map((r) => ({ pct: r.vs_1d_pct, w: r.total_money || 0 }))),
-        intra: wavg(rs.map((r) => ({ pct: r.intraday_pct, w: r.total_money || 0 }))),
-        usd: wavg(rs.map((r) => ({ pct: r.vs_1d_usd_pct, w: r.total_money || 0 }))),
+        vol: rs.reduce((a, r) => a + (r.adr_dollar_vol || 0), 0),
+        p1d: wavg(rs.map((r) => ({ pct: r.adr_vs_1d_pct, w: r.adr_dollar_vol || 0 }))),
+        wtd: wavg(rs.map((r) => ({ pct: r.adr_ret_wtd_pct, w: r.adr_dollar_vol || 0 }))),
+        mtd: wavg(rs.map((r) => ({ pct: r.adr_ret_mtd_pct, w: r.adr_dollar_vol || 0 }))),
+        ytd: wavg(rs.map((r) => ({ pct: r.adr_ret_ytd_pct, w: r.adr_dollar_vol || 0 }))),
         up,
         down,
       };
     });
     const total = {
-      money: rows.reduce((a, r) => a + (r.total_money || 0), 0),
-      p1d: wavg(rows.map((r) => ({ pct: r.vs_1d_pct, w: r.total_money || 0 }))),
-      up: rows.filter((r) => r.vs_1d_pct != null && r.vs_1d_pct > 0).length,
-      down: rows.filter((r) => r.vs_1d_pct != null && r.vs_1d_pct < 0).length,
+      vol: rows.reduce((a, r) => a + (r.adr_dollar_vol || 0), 0),
+      p1d: wavg(rows.map((r) => ({ pct: r.adr_vs_1d_pct, w: r.adr_dollar_vol || 0 }))),
+      up: rows.filter((r) => r.adr_vs_1d_pct != null && r.adr_vs_1d_pct > 0).length,
+      down: rows.filter((r) => r.adr_vs_1d_pct != null && r.adr_vs_1d_pct < 0).length,
     };
     return { rubros, total };
   }, [rows]);
@@ -205,10 +208,11 @@ function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
     const dir = sortDir === "asc" ? 1 : -1;
     const get = (s: RubroAgg): number | string =>
       sortKey === "rubro" ? s.rubro
-        : sortKey === "money" ? s.money
+        : sortKey === "vol" ? s.vol
         : sortKey === "p1d" ? (s.p1d ?? -Infinity)
-        : sortKey === "intra" ? (s.intra ?? -Infinity)
-        : sortKey === "usd" ? (s.usd ?? -Infinity)
+        : sortKey === "wtd" ? (s.wtd ?? -Infinity)
+        : sortKey === "mtd" ? (s.mtd ?? -Infinity)
+        : sortKey === "ytd" ? (s.ytd ?? -Infinity)
         : s.up - s.down;
     return [...rubros].sort((a, b) => {
       const av = get(a), bv = get(b);
@@ -234,8 +238,8 @@ function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
       {/* Resumen del mercado entero */}
       <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 text-[10px] font-mono">
         <span className="text-[var(--t-accent)] uppercase tracking-widest">Mercado</span>
-        <span className="text-[var(--t-text-dim)]">$op {fmtMoney(total.money)}</span>
-        <Pct v={total.p1d} suffix=" pond" />
+        <span className="text-[var(--t-text-dim)]">$vol {fmtMoney(total.vol)}</span>
+        <Pct v={total.p1d} suffix=" 1D" />
         <span className="ml-auto tabular-nums">
           <span className="text-[var(--t-pos)]">{total.up}▲</span>
           {" / "}
@@ -247,10 +251,11 @@ function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
           <thead className="sticky top-0 bg-[var(--t-panel)]">
             <tr className="text-[var(--t-text-muted)]">
               <Th label="RUBRO" k="rubro" sk={sortKey} sd={sortDir} on={toggle} align="left" />
-              <Th label="$OP" k="money" sk={sortKey} sd={sortDir} on={toggle} />
-              <Th label="%1D" k="p1d" sk={sortKey} sd={sortDir} on={toggle} />
-              <Th label="INTRA" k="intra" sk={sortKey} sd={sortDir} on={toggle} />
-              <Th label="USD" k="usd" sk={sortKey} sd={sortDir} on={toggle} />
+              <Th label="$VOL" k="vol" sk={sortKey} sd={sortDir} on={toggle} />
+              <Th label="1D" k="p1d" sk={sortKey} sd={sortDir} on={toggle} />
+              <Th label="WTD" k="wtd" sk={sortKey} sd={sortDir} on={toggle} />
+              <Th label="MTD" k="mtd" sk={sortKey} sd={sortDir} on={toggle} />
+              <Th label="YTD" k="ytd" sk={sortKey} sd={sortDir} on={toggle} />
               <Th label="▲/▼" k="breadth" sk={sortKey} sd={sortDir} on={toggle} />
             </tr>
           </thead>
@@ -258,10 +263,11 @@ function PulsoRubrosPanel({ rows }: { rows: CedearScannerRow[] }) {
             {sorted.map((s) => (
               <tr key={s.rubro} className="hover:bg-[var(--t-border)]">
                 <td className="!px-2 truncate max-w-[120px]" title={s.rubro}>{s.rubro}</td>
-                <td className="!px-2 text-right tabular-nums">{fmtMoney(s.money)}</td>
+                <td className="!px-2 text-right tabular-nums">{fmtMoney(s.vol)}</td>
                 <td className="!px-2 text-right"><Pct v={s.p1d} /></td>
-                <td className="!px-2 text-right"><Pct v={s.intra} /></td>
-                <td className="!px-2 text-right"><Pct v={s.usd} /></td>
+                <td className="!px-2 text-right"><Pct v={s.wtd} /></td>
+                <td className="!px-2 text-right"><Pct v={s.mtd} /></td>
+                <td className="!px-2 text-right"><Pct v={s.ytd} /></td>
                 <td className="!px-2 text-right tabular-nums">
                   <span className="text-[var(--t-pos)]">{s.up}</span>
                   <span className="text-[var(--t-text-dim)]">/</span>
@@ -309,21 +315,21 @@ function CadenaValorIAPanel({ rows }: { rows: CedearScannerRow[] }) {
     const capas: CapaIA[] = Object.entries(byRubro).map(([rubro, rs]) => {
       let up = 0, down = 0;
       for (const r of rs) {
-        if (r.vs_1d_pct != null && r.vs_1d_pct > 0) up++;
-        else if (r.vs_1d_pct != null && r.vs_1d_pct < 0) down++;
+        if (r.adr_vs_1d_pct != null && r.adr_vs_1d_pct > 0) up++;
+        else if (r.adr_vs_1d_pct != null && r.adr_vs_1d_pct < 0) down++;
       }
       const empresas: EmpresaIA[] = rs
         .map((r) => ({
           ticker: r.ticker_corto,
           nombre: r.nombre,
-          money: r.total_money || 0,
-          p1d: r.vs_1d_pct,
+          money: r.adr_dollar_vol || 0,
+          p1d: r.adr_vs_1d_pct,
         }))
         .sort((a, b) => b.money - a.money);
       return {
         rubro,
-        money: rs.reduce((a, r) => a + (r.total_money || 0), 0),
-        p1d: wavg(rs.map((r) => ({ pct: r.vs_1d_pct, w: r.total_money || 0 }))),
+        money: rs.reduce((a, r) => a + (r.adr_dollar_vol || 0), 0),
+        p1d: wavg(rs.map((r) => ({ pct: r.adr_vs_1d_pct, w: r.adr_dollar_vol || 0 }))),
         up,
         down,
         empresas,
@@ -336,7 +342,7 @@ function CadenaValorIAPanel({ rows }: { rows: CedearScannerRow[] }) {
       return oa !== ob ? oa - ob : a.rubro.localeCompare(b.rubro);
     });
     const total = {
-      money: ia.reduce((a, r) => a + (r.total_money || 0), 0),
+      money: ia.reduce((a, r) => a + (r.adr_dollar_vol || 0), 0),
       n: ia.length,
     };
     return { capas, total };
@@ -355,7 +361,7 @@ function CadenaValorIAPanel({ rows }: { rows: CedearScannerRow[] }) {
       <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 text-[10px] font-mono">
         <span className="text-[#5fb3d4] uppercase tracking-widest">Cadena IA</span>
         <span className="text-[var(--t-text-dim)]">{total.n} empresas</span>
-        <span className="text-[var(--t-text-dim)]">$op {fmtMoney(total.money)}</span>
+        <span className="text-[var(--t-text-dim)]">$vol {fmtMoney(total.money)}</span>
       </div>
       <div className="flex-1 min-h-0 overflow-auto">
         {capas.map((c, i) => (
