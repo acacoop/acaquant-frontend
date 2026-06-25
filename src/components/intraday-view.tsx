@@ -4,10 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 
 // Monitor intradía de renta variable. Sube el CSV de boletos del día (export
 // ROFEX/Aunesa, formato AR) y el backend (api/services/intraday.py) consolida
-// por (cuenta, especie): posición neta FIFO, precio ponderado de lo abierto,
-// PnL realizado/no-realizado (mark live), intereses + IVA → PnL neto.
-// Cauciones (PESOS/DOLARES) se excluyen. Persiste en sessionStorage.
+// por (cuenta, especie) con FIFO. Acá: filtro por cuenta, mark editable a mano
+// (cuando el feed no tiene la especie), costo en book, detalle de operaciones
+// por posición y un simulador de precio. Persiste en sessionStorage.
 
+interface Trade {
+  hora: string;
+  lado: string;
+  precio: number;
+  cantidad: number;
+  monto: number;
+}
 interface Posicion {
   cuenta: string;
   especie: string;
@@ -21,37 +28,22 @@ interface Posicion {
   mark: number;
   mark_source: "live" | "csv";
   mark_updated_at: string | null;
-  monto_abierto: number;
-  valor_actual: number;
   pnl_realizado: number;
-  pnl_no_realizado: number;
-  pnl_bruto: number;
   intereses: number;
   iva: number;
-  pnl_neto: number;
+  trades: Trade[];
 }
-
-interface Totales {
-  pnl_realizado: number;
-  pnl_no_realizado: number;
-  pnl_bruto: number;
-  intereses: number;
-  iva: number;
-  pnl_neto: number;
-  abiertas: number;
-  cerradas: number;
-}
-
 interface Resultado {
   archivo: string | null;
   filas_validas: number;
   posiciones: Posicion[];
-  totales: Totales;
   timestamp: number;
 }
 
 const STORAGE_KEY = "intraday_fifo_v2";
 const PASOS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+
+const keyOf = (p: Posicion) => `${p.especie}|${p.cuenta}`;
 
 function fmtNum(n: number | null | undefined, d = 2): string {
   if (n === null || n === undefined) return "—";
@@ -71,11 +63,25 @@ function estadoColor(e: string): string {
   return "#888";
 }
 
+// PnL derivado del mark EFECTIVO (override manual o el del backend).
+function derive(p: Posicion, mark: number) {
+  const abierta = Math.abs(p.qty_neta) > 1e-9;
+  const ponder = p.precio_ponderado ?? 0;
+  const noreal = abierta ? p.qty_neta * (mark - ponder) : 0;
+  const bruto = p.pnl_realizado + noreal;
+  const neto = bruto - p.intereses - p.iva;
+  const costo = abierta ? p.qty_neta * ponder : 0; // plata puesta (long +, short −)
+  return { noreal, bruto, neto, costo };
+}
+
 export function IntradayView() {
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
-  const [simSel, setSimSel] = useState<string>("__todas__"); // especie|cuenta o __todas__
+  const [cuentaFiltro, setCuentaFiltro] = useState<string>("todas");
+  const [simSel, setSimSel] = useState<string>("__todas__");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [markOv, setMarkOv] = useState<Record<string, number>>({});
 
   useEffect(() => {
     try {
@@ -85,7 +91,7 @@ export function IntradayView() {
         if (parsed?.posiciones && Array.isArray(parsed.posiciones)) setResultado(parsed);
       }
     } catch {
-      /* storage corrupto/disabled — no pasa nada */
+      /* storage corrupto/disabled */
     }
   }, []);
 
@@ -95,10 +101,8 @@ export function IntradayView() {
     setError(null);
     setCargando(true);
     try {
-      // El export viene en latin-1 (acentos: Operación, Caución). Decodifico
-      // explícito para no mandar mojibake al backend.
       const buf = await file.arrayBuffer();
-      const text = new TextDecoder("iso-8859-1").decode(buf);
+      const text = new TextDecoder("iso-8859-1").decode(buf); // export viene en latin-1
       const res = await fetch("/api/operaciones/intraday/analizar", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -111,10 +115,14 @@ export function IntradayView() {
       const data = (await res.json()) as Resultado;
       data.timestamp = Date.now();
       setResultado(data);
+      setMarkOv({});
+      setExpanded(new Set());
+      setCuentaFiltro("todas");
+      setSimSel("__todas__");
       try {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch {
-        /* quota — ignorar */
+        /* quota */
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -127,75 +135,107 @@ export function IntradayView() {
   const limpiar = () => {
     setResultado(null);
     setError(null);
+    setMarkOv({});
+    setExpanded(new Set());
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
+  const cuentas = useMemo(() => {
+    const s = new Set<string>();
+    (resultado?.posiciones ?? []).forEach((p) => s.add(p.cuenta));
+    return Array.from(s).sort();
+  }, [resultado]);
+
+  const posiciones = useMemo(() => {
+    const all = resultado?.posiciones ?? [];
+    return cuentaFiltro === "todas" ? all : all.filter((p) => p.cuenta === cuentaFiltro);
+  }, [resultado, cuentaFiltro]);
+
+  const effMark = (p: Posicion) => markOv[keyOf(p)] ?? p.mark;
+
   const abiertas = useMemo(
-    () => (resultado?.posiciones ?? []).filter((p) => p.estado !== "CERRADA"),
-    [resultado],
+    () => posiciones.filter((p) => p.estado !== "CERRADA"),
+    [posiciones],
   );
 
-  // Posición seleccionada para el simulador (o agregado de todas las abiertas).
+  // Totales (sobre lo filtrado, con marks efectivos).
+  const totales = useMemo(() => {
+    let real = 0, noreal = 0, fees = 0, neto = 0, costoBook = 0;
+    for (const p of posiciones) {
+      const d = derive(p, effMark(p));
+      real += p.pnl_realizado;
+      noreal += d.noreal;
+      fees += p.intereses + p.iva;
+      neto += d.neto;
+      if (p.estado !== "CERRADA") costoBook += d.costo;
+    }
+    return { real, noreal, fees, neto, costoBook };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posiciones, markOv]);
+
+  // Simulador con mark efectivo.
   const simData = useMemo(() => {
     if (!abiertas.length) return null;
+    const ladder = PASOS.flatMap((p) => [p, -p]).concat([0]).sort((a, b) => b - a);
     if (simSel === "__todas__") {
-      // Impacto al mover TODO el book abierto X% a la vez = Σ qty·mark·X%.
-      const filas = PASOS.flatMap((p) => [p, -p])
-        .concat([0])
-        .sort((a, b) => b - a)
-        .map((pct) => {
-          const delta = abiertas.reduce(
-            (acc, pos) => acc + pos.qty_neta * pos.mark * (pct / 100),
-            0,
-          );
-          return { pct, precio: null as number | null, delta };
-        });
-      return { titulo: "TODAS (abiertas)", filas, mark: null as number | null, qty: null };
+      const filas = ladder.map((pct) => ({
+        pct,
+        precio: null as number | null,
+        delta: abiertas.reduce((acc, pos) => acc + pos.qty_neta * effMark(pos) * (pct / 100), 0),
+      }));
+      return { filas, mark: null as number | null };
     }
-    const pos = abiertas.find((p) => `${p.especie}|${p.cuenta}` === simSel);
+    const pos = abiertas.find((p) => keyOf(p) === simSel);
     if (!pos) return null;
-    const filas = PASOS.flatMap((p) => [p, -p])
-      .concat([0])
-      .sort((a, b) => b - a)
-      .map((pct) => {
-        const precio = pos.mark * (1 + pct / 100);
-        const delta = pos.qty_neta * (precio - pos.mark);
-        return { pct, precio, delta };
-      });
-    return { titulo: `${pos.especie} · ${pos.estado} ${fmtNum(pos.qty_neta, 0)}`, filas, mark: pos.mark, qty: pos.qty_neta };
-  }, [abiertas, simSel]);
+    const m = effMark(pos);
+    const filas = ladder.map((pct) => {
+      const precio = m * (1 + pct / 100);
+      return { pct, precio, delta: pos.qty_neta * (precio - m) };
+    });
+    return { filas, mark: m };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abiertas, simSel, markOv]);
 
-  // Default: primera abierta cuando llega un resultado nuevo.
-  useEffect(() => {
-    if (abiertas.length && simSel !== "__todas__") {
-      const exists = abiertas.some((p) => `${p.especie}|${p.cuenta}` === simSel);
-      if (!exists) setSimSel("__todas__");
-    }
-  }, [abiertas, simSel]);
-
-  const t = resultado?.totales;
+  const toggleExpand = (p: Posicion) => {
+    const k = keyOf(p);
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+    if (p.estado !== "CERRADA") setSimSel(k);
+  };
 
   return (
-    <div className="h-full flex flex-col min-h-0 p-3 gap-3 overflow-hidden">
-      {/* Barra: upload + meta */}
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
-        <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] cursor-pointer transition-colors">
-          {cargando ? "PROCESANDO…" : "EXAMINAR CSV"}
+    <div className="h-full flex flex-col min-h-0 p-3 gap-2 overflow-hidden">
+      {/* Barra sobria: una línea */}
+      <div className="flex items-center gap-3 shrink-0 text-[11px]">
+        <label className="px-2.5 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] cursor-pointer transition-colors">
+          {cargando ? "…" : "Examinar"}
           <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFileChange} disabled={cargando} />
         </label>
-        <span className="text-[11px] text-[var(--t-text-dim)] font-mono truncate max-w-[280px]">
-          {resultado?.archivo || "Ningún archivo seleccionado"}
-        </span>
         {resultado && (
           <>
-            <button onClick={limpiar} className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline">
+            <span className="text-[10px] text-[var(--t-text-muted)] font-mono truncate max-w-[180px]">{resultado.archivo}</span>
+            <span className="text-[10px] text-[var(--t-text-muted)] font-mono">
+              {resultado.filas_validas} trades · {posiciones.filter((p) => p.estado !== "CERRADA").length} abiertas
+            </span>
+            {cuentas.length > 0 && (
+              <select
+                value={cuentaFiltro}
+                onChange={(e) => setCuentaFiltro(e.target.value)}
+                className="bg-[var(--t-surface-2)] border border-[var(--t-border-2)] text-[10px] px-1.5 py-0.5 text-[var(--t-text)]"
+              >
+                <option value="todas">Todas las cuentas</option>
+                {cuentas.map((c) => (
+                  <option key={c} value={c}>Cuenta {c}</option>
+                ))}
+              </select>
+            )}
+            <button onClick={limpiar} className="ml-auto text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline">
               limpiar
             </button>
-            <div className="ml-auto flex items-center gap-3 text-[10px] text-[var(--t-text-dim)] font-mono">
-              <span>{resultado.filas_validas} trades RV</span>
-              <span className="text-[var(--t-pos)]">{resultado.totales.abiertas} abiertas</span>
-              <span className="text-[var(--t-text-muted)]">{resultado.totales.cerradas} cerradas</span>
-            </div>
           </>
         )}
       </div>
@@ -213,82 +253,127 @@ export function IntradayView() {
         </div>
       )}
 
-      {t && (
+      {resultado && (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-5 gap-3 shrink-0">
-            <KpiBox label="PnL Realizado" val={t.pnl_realizado} />
-            <KpiBox label="PnL No Realizado" val={t.pnl_no_realizado} />
-            <KpiBox label="PnL Bruto" val={t.pnl_bruto} />
-            <KpiBox label="Intereses + IVA" val={-(t.intereses + t.iva)} />
-            <KpiBox label="PnL Neto" val={t.pnl_neto} big />
+          <div className="grid grid-cols-5 gap-2 shrink-0">
+            <KpiBox label="Costo en book" val={totales.costoBook} neutral />
+            <KpiBox label="Realizado" val={totales.real} />
+            <KpiBox label="No realizado" val={totales.noreal} />
+            <KpiBox label="Int. + IVA" val={-totales.fees} />
+            <KpiBox label="PnL Neto" val={totales.neto} big />
           </div>
 
-          <div className="flex-1 min-h-0 grid grid-cols-[1fr_380px] gap-3 overflow-hidden">
-            {/* Tabla de posiciones */}
+          {/* 60% tabla / 40% simulador */}
+          <div className="flex-1 min-h-0 grid grid-cols-[3fr_2fr] gap-3 overflow-hidden">
             <div className="overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
               <table className="w-full text-[11px] font-mono tabular-nums border-collapse">
                 <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-wide text-[var(--t-accent)]">
                   <tr className="border-b border-[var(--t-border)]">
                     <th className="!px-2 !py-1.5 text-left">Especie</th>
-                    <th className="!px-2 !py-1.5 text-center">Cta</th>
+                    {cuentaFiltro === "todas" && <th className="!px-2 !py-1.5 text-center">Cta</th>}
                     <th className="!px-2 !py-1.5 text-center">Estado</th>
-                    <th className="!px-2 !py-1.5 text-right">Ops</th>
-                    <th className="!px-2 !py-1.5 text-right">Qty neta</th>
+                    <th className="!px-2 !py-1.5 text-right">Qty</th>
+                    <th className="!px-2 !py-1.5 text-right">Costo</th>
                     <th className="!px-2 !py-1.5 text-right">Ponder.</th>
                     <th className="!px-2 !py-1.5 text-right">Mark</th>
-                    <th className="!px-2 !py-1.5 text-right">Realizado</th>
+                    <th className="!px-2 !py-1.5 text-right">Realiz.</th>
                     <th className="!px-2 !py-1.5 text-right">No real.</th>
-                    <th className="!px-2 !py-1.5 text-right">Int.+IVA</th>
                     <th className="!px-2 !py-1.5 text-right">Neto</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resultado!.posiciones.map((p) => {
-                    const sel = `${p.especie}|${p.cuenta}` === simSel && p.estado !== "CERRADA";
+                  {posiciones.map((p) => {
+                    const k = keyOf(p);
+                    const m = effMark(p);
+                    const d = derive(p, m);
+                    const sel = k === simSel && p.estado !== "CERRADA";
+                    const isOpen = expanded.has(k);
+                    const colSpan = cuentaFiltro === "todas" ? 10 : 9;
                     return (
-                      <tr
-                        key={`${p.especie}|${p.cuenta}`}
-                        onClick={() => p.estado !== "CERRADA" && setSimSel(`${p.especie}|${p.cuenta}`)}
-                        className={`border-b border-[var(--t-border)] ${
-                          p.estado !== "CERRADA" ? "cursor-pointer hover:bg-[var(--t-accent)]/5" : "opacity-70"
-                        } ${sel ? "bg-[var(--t-accent)]/15" : ""}`}
-                      >
-                        <td className="!px-2 !py-1 text-[var(--t-text)] font-semibold">{p.especie}</td>
-                        <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{p.cuenta}</td>
-                        <td className="!px-2 !py-1 text-center font-semibold" style={{ color: estadoColor(p.estado) }}>
-                          {p.estado}
-                        </td>
-                        <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{p.n_ops}</td>
-                        <td className="!px-2 !py-1 text-right">{fmtNum(p.qty_neta, 0)}</td>
-                        <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{fmtNum(p.precio_ponderado, 2)}</td>
-                        <td className="!px-2 !py-1 text-right" title={p.mark_source === "live" ? "live feed" : "último precio del CSV"}>
-                          {fmtNum(p.mark, 2)}
-                          <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">{p.mark_source === "live" ? "●" : "○"}</span>
-                        </td>
-                        <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(p.pnl_realizado) }}>
-                          {fmtNum(p.pnl_realizado, 0)}
-                        </td>
-                        <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(p.pnl_no_realizado) }}>
-                          {fmtNum(p.pnl_no_realizado, 0)}
-                        </td>
-                        <td className="!px-2 !py-1 text-right text-[var(--t-neg)]">{fmtNum(p.intereses + p.iva, 0)}</td>
-                        <td className="!px-2 !py-1 text-right font-semibold" style={{ color: pnlColor(p.pnl_neto) }}>
-                          {fmtNum(p.pnl_neto, 0)}
-                        </td>
-                      </tr>
+                      <FragmentRow key={k}>
+                        <tr
+                          onClick={() => toggleExpand(p)}
+                          className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-accent)]/5 ${
+                            sel ? "bg-[var(--t-accent)]/15" : ""
+                          } ${p.estado === "CERRADA" ? "opacity-75" : ""}`}
+                        >
+                          <td className="!px-2 !py-1 text-[var(--t-text)] font-semibold">
+                            <span className="text-[8px] text-[var(--t-text-muted)] mr-1">{isOpen ? "▾" : "▸"}</span>
+                            {p.especie}
+                          </td>
+                          {cuentaFiltro === "todas" && <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{p.cuenta}</td>}
+                          <td className="!px-2 !py-1 text-center font-semibold" style={{ color: estadoColor(p.estado) }}>{p.estado}</td>
+                          <td className="!px-2 !py-1 text-right">{fmtNum(p.qty_neta, 0)}</td>
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{p.estado === "CERRADA" ? "—" : fmtNum(d.costo, 0)}</td>
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{fmtNum(p.precio_ponderado, 2)}</td>
+                          <td className="!px-2 !py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                            <span className="inline-flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={Number.isFinite(m) ? m : ""}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value);
+                                  setMarkOv((prev) => ({ ...prev, [k]: isNaN(v) ? 0 : v }));
+                                }}
+                                className="w-16 bg-transparent text-right text-[11px] text-[var(--t-text)] border-b border-dashed border-[var(--t-border-2)] focus:border-[var(--t-accent)] focus:outline-none"
+                                title={p.mark_source === "live" ? "live feed (editable)" : "no mapeado — escribilo a mano"}
+                              />
+                              <span className="text-[8px]" style={{ color: markOv[k] !== undefined ? "var(--t-accent)" : p.mark_source === "live" ? "var(--t-pos)" : "var(--t-text-muted)" }}>
+                                {markOv[k] !== undefined ? "✎" : p.mark_source === "live" ? "●" : "○"}
+                              </span>
+                            </span>
+                          </td>
+                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(p.pnl_realizado) }}>{fmtNum(p.pnl_realizado, 0)}</td>
+                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(d.noreal) }}>{p.estado === "CERRADA" ? "—" : fmtNum(d.noreal, 0)}</td>
+                          <td className="!px-2 !py-1 text-right font-semibold" style={{ color: pnlColor(d.neto) }}>{fmtNum(d.neto, 0)}</td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="bg-[var(--t-bg)]">
+                            <td colSpan={colSpan} className="!px-2 !py-2">
+                              <div className="text-[8px] uppercase tracking-widest text-[var(--t-text-muted)] mb-1">
+                                {p.n_ops} operaciones · int.+IVA {fmtNum(p.intereses + p.iva, 0)}
+                              </div>
+                              <table className="w-full text-[10px] font-mono">
+                                <thead className="text-[8px] uppercase tracking-wide text-[var(--t-text-muted)]">
+                                  <tr>
+                                    <th className="!py-0.5 text-left">Hora</th>
+                                    <th className="!py-0.5 text-left">Lado</th>
+                                    <th className="!py-0.5 text-right">Precio</th>
+                                    <th className="!py-0.5 text-right">Cantidad</th>
+                                    <th className="!py-0.5 text-right">Monto</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {p.trades.map((tr, i) => (
+                                    <tr key={i} className="border-t border-[var(--t-border)]">
+                                      <td className="!py-0.5 text-[var(--t-text-dim)]">{tr.hora}</td>
+                                      <td className="!py-0.5 font-semibold" style={{ color: tr.lado === "Compra" ? "var(--t-pos)" : "var(--t-neg)" }}>{tr.lado}</td>
+                                      <td className="!py-0.5 text-right">{fmtNum(tr.precio, 2)}</td>
+                                      <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{fmtNum(tr.cantidad, 0)}</td>
+                                      <td className="!py-0.5 text-right">{fmtNum(tr.monto, 0)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </FragmentRow>
                     );
                   })}
+                  {!posiciones.length && (
+                    <tr><td colSpan={10} className="!px-2 !py-3 text-[var(--t-text-muted)]">sin posiciones para esta cuenta</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
             {/* Simulador */}
-            <div className="shrink-0 flex flex-col gap-2 overflow-hidden border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
-              <div className="flex items-center justify-between shrink-0">
-                <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">Simulador de precio</span>
-              </div>
-              {abiertas.length === 0 ? (
+            <div className="flex flex-col gap-2 overflow-hidden border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] shrink-0">Simulador de precio</span>
+              {!abiertas.length ? (
                 <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-muted)] text-center">
                   No hay posiciones abiertas para simular.
                 </div>
@@ -301,14 +386,12 @@ export function IntradayView() {
                   >
                     <option value="__todas__">TODAS (abiertas)</option>
                     {abiertas.map((p) => (
-                      <option key={`${p.especie}|${p.cuenta}`} value={`${p.especie}|${p.cuenta}`}>
-                        {p.especie} · {p.estado} {fmtNum(p.qty_neta, 0)}
-                      </option>
+                      <option key={keyOf(p)} value={keyOf(p)}>{p.especie} · {p.estado} {fmtNum(p.qty_neta, 0)}</option>
                     ))}
                   </select>
                   {simData?.mark != null && (
                     <div className="text-[10px] text-[var(--t-text-dim)] font-mono shrink-0">
-                      Mark actual: <span className="text-[var(--t-text)]">{fmtNum(simData.mark, 2)}</span>
+                      Mark: <span className="text-[var(--t-text)]">{fmtNum(simData.mark, 2)}</span>
                     </div>
                   )}
                   <div className="flex-1 overflow-auto">
@@ -324,16 +407,11 @@ export function IntradayView() {
                         {simData?.filas.map((f) => {
                           const isMark = f.pct === 0;
                           return (
-                            <tr
-                              key={f.pct}
-                              className={`border-t border-[var(--t-border)] ${isMark ? "bg-[var(--t-surface-2)]" : ""}`}
-                            >
+                            <tr key={f.pct} className={`border-t border-[var(--t-border)] ${isMark ? "bg-[var(--t-surface-2)]" : ""}`}>
                               <td className={`!py-1 ${isMark ? "text-[var(--t-accent)] font-semibold" : "text-[var(--t-text-dim)]"}`}>
                                 {isMark ? "actual" : `${fmtSigned(f.pct, 2)}%`}
                               </td>
-                              {simData?.mark != null && (
-                                <td className="!py-1 text-right text-[var(--t-text)]">{fmtNum(f.precio, 2)}</td>
-                              )}
+                              {simData?.mark != null && <td className="!py-1 text-right text-[var(--t-text)]">{fmtNum(f.precio, 2)}</td>}
                               <td className="!py-1 text-right font-semibold" style={{ color: isMark ? "#888" : pnlColor(f.delta) }}>
                                 {isMark ? "—" : fmtSigned(f.delta, 0)}
                               </td>
@@ -344,8 +422,7 @@ export function IntradayView() {
                     </table>
                   </div>
                   <div className="text-[9px] text-[var(--t-text-muted)] leading-relaxed shrink-0 pt-1 border-t border-[var(--t-border)]">
-                    P&amp;L Δ = impacto sobre el mark actual si el precio se mueve ese %.
-                    Para short, una suba es pérdida.
+                    Impacto sobre el mark si el precio se mueve ese %. Short: suba = pérdida.
                   </div>
                 </>
               )}
@@ -357,12 +434,17 @@ export function IntradayView() {
   );
 }
 
-function KpiBox({ label, val, big }: { label: string; val: number; big?: boolean }) {
+// Wrapper para devolver dos <tr> (fila + detalle) con una sola key.
+function FragmentRow({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
+
+function KpiBox({ label, val, big, neutral }: { label: string; val: number; big?: boolean; neutral?: boolean }) {
   return (
-    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-1.5">
       <div className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">{label}</div>
-      <div className={`font-mono font-bold ${big ? "text-[18px]" : "text-[14px]"}`} style={{ color: pnlColor(val) }}>
-        {fmtSigned(val, 0)}
+      <div className={`font-mono font-bold ${big ? "text-[17px]" : "text-[13px]"}`} style={{ color: neutral ? "var(--t-text)" : pnlColor(val) }}>
+        {neutral ? fmtNum(val, 0) : fmtSigned(val, 0)}
       </div>
     </div>
   );
