@@ -14,6 +14,10 @@ interface Trade {
   precio: number;
   cantidad: number;
   monto: number;
+  pos_acum: number;
+  ponderado_acum: number;
+  interes: number;
+  iva: number;
 }
 interface Posicion {
   cuenta: string;
@@ -343,6 +347,9 @@ export function IntradayView() {
                                     <th className="!py-0.5 text-right">Precio</th>
                                     <th className="!py-0.5 text-right">Cantidad</th>
                                     <th className="!py-0.5 text-right">Monto</th>
+                                    <th className="!py-0.5 text-right">Pos. acum.</th>
+                                    <th className="!py-0.5 text-right">Ponder.</th>
+                                    <th className="!py-0.5 text-right">Int.+IVA</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -353,6 +360,9 @@ export function IntradayView() {
                                       <td className="!py-0.5 text-right">{fmtNum(tr.precio, 2)}</td>
                                       <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{fmtNum(tr.cantidad, 0)}</td>
                                       <td className="!py-0.5 text-right">{fmtNum(tr.monto, 0)}</td>
+                                      <td className="!py-0.5 text-right font-semibold" style={{ color: Math.abs(tr.pos_acum) < 1e-9 ? "#888" : tr.pos_acum > 0 ? "var(--t-pos)" : "var(--t-neg)" }}>{fmtNum(tr.pos_acum, 0)}</td>
+                                      <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{Math.abs(tr.pos_acum) < 1e-9 ? "—" : fmtNum(tr.ponderado_acum, 2)}</td>
+                                      <td className="!py-0.5 text-right text-[var(--t-neg)]">{fmtNum(tr.interes + tr.iva, 0)}</td>
                                     </tr>
                                   ))}
                                 </tbody>
