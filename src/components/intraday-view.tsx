@@ -2,244 +2,90 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-// Herramienta de sesión: procesa el CSV 100% en el browser, persiste en
-// sessionStorage (sobrevive navegar y recargar, solo para el usuario que
-// subió). Para compartir entre usuarios haría falta un endpoint backend.
+// Monitor intradía de renta variable. Sube el CSV de boletos del día (export
+// ROFEX/Aunesa, formato AR) y el backend (api/services/intraday.py) consolida
+// por (cuenta, especie): posición neta FIFO, precio ponderado de lo abierto,
+// PnL realizado/no-realizado (mark live), intereses + IVA → PnL neto.
+// Cauciones (PESOS/DOLARES) se excluyen. Persiste en sessionStorage.
 
-interface ResumenFila {
-  simbolo: string;
+interface Posicion {
+  cuenta: string;
+  especie: string;
   moneda: string;
-  plazo: string;       // 'CI' | '24hs' | 'otro'
-  especie: string;     // ticker base sin sufijo D/C (ej AL30D → AL30)
-  cantidad_neta: number;
-  turnover_neto: number;
-  operaciones: number;
+  n_ops: number;
+  compras_qty: number;
+  ventas_qty: number;
+  qty_neta: number;
+  estado: "LONG" | "SHORT" | "CERRADA";
+  precio_ponderado: number | null;
+  mark: number;
+  mark_source: "live" | "csv";
+  mark_updated_at: string | null;
+  monto_abierto: number;
+  valor_actual: number;
+  pnl_realizado: number;
+  pnl_no_realizado: number;
+  pnl_bruto: number;
+  intereses: number;
+  iva: number;
+  pnl_neto: number;
+}
+
+interface Totales {
+  pnl_realizado: number;
+  pnl_no_realizado: number;
+  pnl_bruto: number;
+  intereses: number;
+  iva: number;
+  pnl_neto: number;
+  abiertas: number;
+  cerradas: number;
 }
 
 interface Resultado {
-  archivo: string;
+  archivo: string | null;
+  filas_validas: number;
+  posiciones: Posicion[];
+  totales: Totales;
   timestamp: number;
-  filasCrudas: number;
-  filasFiltradas: number;
-  resumen: ResumenFila[];
 }
 
-const CLIENT_ID_FILTRO = "255";
-const STORAGE_KEY = "intraday_consolidado_v1";
+const STORAGE_KEY = "intraday_fifo_v2";
+const PASOS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
-const ALIAS_COLS = {
-  clientId: ["Client ID"],
-  simbolo:  ["Symbol", "Simbolo", "Símbolo"],
-  punta:    ["Side", "Punta"],
-  cantEjec: ["Executed Size", "Cantidad Ejecutada"],
-  turnover: ["Turnover"],
-} as const;
-
-const COMPRAR_VALS = new Set(["COMPRAR", "COMPRA", "BUY", "B"]);
-const VENDER_VALS  = new Set(["VENDER", "VENTA", "SELL", "S"]);
-
-type FiltroPlazo = "todos" | "CI" | "24hs";
-
-function detectarMoneda(simbolo: string): string {
-  const s = (simbolo || "").toUpperCase();
-  if (s.includes("PESOS") || s.includes("ARS")) return "ARS";
-  if (s.includes("USD") || s.includes("DOLAR") || s.includes("DÓLAR")) return "USD";
-  return "otro";
+function fmtNum(n: number | null | undefined, d = 2): string {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-
-function detectarPlazo(simbolo: string): string {
-  const s = simbolo || "";
-  // Divisa (PESOS/DOLAR) siempre es CI, sin importar qué token traiga.
-  const u = s.toUpperCase();
-  if (u.includes("PESOS") || u.includes("DOLAR") || u.includes("DÓLAR")) return "CI";
-  if (s.includes("-0001-")) return "CI";
-  if (s.includes("-0002-")) return "24hs";
-  return "otro";
+function fmtSigned(n: number, d = 0): string {
+  const s = n.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+  return n > 0 ? `+${s}` : s;
 }
-
-function extraerEspecie(simbolo: string): string {
-  // Primer token antes del '-'. Si termina en 'D' o 'C' (sufijo de
-  // moneda en bonos soberanos: D=MEP/USD, C=CCL), lo saca. Ej:
-  //   AL30D-0001-C-CT-USD → AL30D → AL30
-  //   AL30-0001-C-CT-ARS  → AL30  → AL30
-  //   GGAL-...            → GGAL  → GGAL
-  const base = (simbolo || "").split("-")[0] || simbolo;
-  const last = base.slice(-1);
-  if ((last === "D" || last === "C") && base.length > 1) {
-    return base.slice(0, -1);
-  }
-  return base;
+function pnlColor(n: number): string {
+  if (Math.abs(n) < 1e-9) return "#888";
+  return n > 0 ? "var(--t-pos)" : "var(--t-neg)";
 }
-
-function parseNumero(s: string): number {
-  if (!s) return 0;
-  const clean = s.trim();
-  if (!clean) return 0;
-  const lastComma = clean.lastIndexOf(",");
-  const lastDot = clean.lastIndexOf(".");
-  let normalized: string;
-  if (lastComma > lastDot) {
-    normalized = clean.replace(/\./g, "").replace(",", ".");
-  } else if (lastDot > lastComma) {
-    normalized = clean.replace(/,/g, "");
-  } else {
-    normalized = clean;
-  }
-  const n = parseFloat(normalized);
-  return isNaN(n) ? 0 : n;
-}
-
-function stripQuotes(s: string): string {
-  const t = s.trim();
-  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
-    return t.slice(1, -1).trim();
-  }
-  return t;
-}
-
-function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
-  const firstLine = text.split(/\r?\n/)[0] || "";
-  const sep = firstLine.includes(";") ? ";" : ",";
-
-  const parseLine = (line: string): string[] => {
-    const out: string[] = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        inQuotes = !inQuotes;
-        continue;
-      }
-      if (c === sep && !inQuotes) {
-        out.push(cur);
-        cur = "";
-        continue;
-      }
-      cur += c;
-    }
-    out.push(cur);
-    return out.map((s) => s.trim());
-  };
-
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (lines.length === 0) return { headers: [], rows: [] };
-
-  const headers = parseLine(lines[0]).map(stripQuotes);
-  const rows: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseLine(lines[i]);
-    const row: Record<string, string> = {};
-    headers.forEach((h, j) => {
-      row[h] = stripQuotes(values[j] ?? "");
-    });
-    rows.push(row);
-  }
-  return { headers, rows };
-}
-
-function resolverCol(headers: string[], alias: readonly string[]): string | null {
-  for (const a of alias) {
-    if (headers.includes(a)) return a;
-  }
-  return null;
-}
-
-function consolidar(fileName: string, text: string): Resultado {
-  const { headers, rows } = parseCSV(text);
-
-  const colClient = resolverCol(headers, ALIAS_COLS.clientId);
-  const colSimb   = resolverCol(headers, ALIAS_COLS.simbolo);
-  const colPunta  = resolverCol(headers, ALIAS_COLS.punta);
-  const colCant   = resolverCol(headers, ALIAS_COLS.cantEjec);
-  const colTurn   = resolverCol(headers, ALIAS_COLS.turnover);
-
-  const faltantes = [
-    !colClient && ALIAS_COLS.clientId[0],
-    !colSimb && ALIAS_COLS.simbolo.join("/"),
-    !colPunta && ALIAS_COLS.punta.join("/"),
-    !colCant && ALIAS_COLS.cantEjec.join("/"),
-    !colTurn && ALIAS_COLS.turnover[0],
-  ].filter(Boolean) as string[];
-  if (faltantes.length > 0) {
-    throw new Error(
-      `Faltan columnas: ${faltantes.join(", ")}. Presentes: ${headers.join(", ")}`,
-    );
-  }
-
-  const filasFiltradas = rows.filter(
-    (r) => (r[colClient!] ?? "").trim() === CLIENT_ID_FILTRO,
-  );
-
-  const porSimbolo = new Map<string, ResumenFila>();
-  for (const r of filasFiltradas) {
-    const simbolo = r[colSimb!] || "";
-    const puntaRaw = (r[colPunta!] || "").toUpperCase().trim();
-    const signo = COMPRAR_VALS.has(puntaRaw) ? 1 : VENDER_VALS.has(puntaRaw) ? -1 : 0;
-    const cant = parseNumero(r[colCant!] || "");
-    const turn = parseNumero(r[colTurn!] || "");
-    const cantFirmada = cant * signo;
-    const turnFirmado = turn * -signo;
-
-    const prev = porSimbolo.get(simbolo);
-    if (prev) {
-      prev.cantidad_neta += cantFirmada;
-      prev.turnover_neto += turnFirmado;
-      prev.operaciones += 1;
-    } else {
-      porSimbolo.set(simbolo, {
-        simbolo,
-        moneda:  detectarMoneda(simbolo),
-        plazo:   detectarPlazo(simbolo),
-        especie: extraerEspecie(simbolo),
-        cantidad_neta: cantFirmada,
-        turnover_neto: turnFirmado,
-        operaciones: 1,
-      });
-    }
-  }
-
-  return {
-    archivo: fileName,
-    timestamp: Date.now(),
-    filasCrudas: rows.length,
-    filasFiltradas: filasFiltradas.length,
-    resumen: Array.from(porSimbolo.values()),
-  };
-}
-
-function fmtNum(n: number, d = 2): string {
-  return n.toLocaleString("es-AR", {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
-}
-
-function monedaColor(moneda: string): string {
-  if (moneda === "ARS") return "#4fc3f7";
-  if (moneda === "USD") return "var(--t-pos)";
+function estadoColor(e: string): string {
+  if (e === "LONG") return "var(--t-pos)";
+  if (e === "SHORT") return "var(--t-neg)";
   return "#888";
 }
-
-const MONEDA_ORDEN: Record<string, number> = { ARS: 0, USD: 1, otro: 2 };
 
 export function IntradayView() {
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<FiltroPlazo>("todos");
+  const [cargando, setCargando] = useState(false);
+  const [simSel, setSimSel] = useState<string>("__todas__"); // especie|cuenta o __todas__
 
-  // Al montar, restaurar el último consolidado de sessionStorage.
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Resultado;
-        if (parsed?.resumen && Array.isArray(parsed.resumen)) {
-          setResultado(parsed);
-        }
+        if (parsed?.posiciones && Array.isArray(parsed.posiciones)) setResultado(parsed);
       }
     } catch {
-      /* storage corrupto o disabled — no pasa nada */
+      /* storage corrupto/disabled — no pasa nada */
     }
   }, []);
 
@@ -247,19 +93,33 @@ export function IntradayView() {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
-
+    setCargando(true);
     try {
-      const text = await file.text();
-      const r = consolidar(file.name, text);
-      setResultado(r);
+      // El export viene en latin-1 (acentos: Operación, Caución). Decodifico
+      // explícito para no mandar mojibake al backend.
+      const buf = await file.arrayBuffer();
+      const text = new TextDecoder("iso-8859-1").decode(buf);
+      const res = await fetch("/api/operaciones/intraday/analizar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ csv: text, archivo: file.name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.detail || `Error ${res.status}`);
+      }
+      const data = (await res.json()) as Resultado;
+      data.timestamp = Date.now();
+      setResultado(data);
       try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch {
-        /* quota excedida o browser privado — fallamos silenciosamente */
+        /* quota — ignorar */
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      setCargando(false);
       e.target.value = "";
     }
   };
@@ -270,101 +130,71 @@ export function IntradayView() {
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
-  // Resumen filtrado por plazo + ordenado por (moneda, turnover desc).
-  const resumenFiltrado = useMemo(() => {
-    if (!resultado) return [];
-    const filtrado = filtro === "todos"
-      ? resultado.resumen
-      : resultado.resumen.filter((r) => r.plazo === filtro);
-    return [...filtrado].sort((a, b) => {
-      const ma = MONEDA_ORDEN[a.moneda] ?? 9;
-      const mb = MONEDA_ORDEN[b.moneda] ?? 9;
-      if (ma !== mb) return ma - mb;
-      return b.turnover_neto - a.turnover_neto;
-    });
-  }, [resultado, filtro]);
+  const abiertas = useMemo(
+    () => (resultado?.posiciones ?? []).filter((p) => p.estado !== "CERRADA"),
+    [resultado],
+  );
 
-  // Totales por moneda (sobre el filtrado).
-  const totalesPorMoneda = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of resumenFiltrado) {
-      map.set(r.moneda, (map.get(r.moneda) ?? 0) + r.turnover_neto);
+  // Posición seleccionada para el simulador (o agregado de todas las abiertas).
+  const simData = useMemo(() => {
+    if (!abiertas.length) return null;
+    if (simSel === "__todas__") {
+      // Impacto al mover TODO el book abierto X% a la vez = Σ qty·mark·X%.
+      const filas = PASOS.flatMap((p) => [p, -p])
+        .concat([0])
+        .sort((a, b) => b - a)
+        .map((pct) => {
+          const delta = abiertas.reduce(
+            (acc, pos) => acc + pos.qty_neta * pos.mark * (pct / 100),
+            0,
+          );
+          return { pct, precio: null as number | null, delta };
+        });
+      return { titulo: "TODAS (abiertas)", filas, mark: null as number | null, qty: null };
     }
-    return Array.from(map.entries())
-      .map(([moneda, turnoverTotal]) => ({ moneda, turnoverTotal }))
-      .sort((a, b) => (MONEDA_ORDEN[a.moneda] ?? 9) - (MONEDA_ORDEN[b.moneda] ?? 9));
-  }, [resumenFiltrado]);
+    const pos = abiertas.find((p) => `${p.especie}|${p.cuenta}` === simSel);
+    if (!pos) return null;
+    const filas = PASOS.flatMap((p) => [p, -p])
+      .concat([0])
+      .sort((a, b) => b - a)
+      .map((pct) => {
+        const precio = pos.mark * (1 + pct / 100);
+        const delta = pos.qty_neta * (precio - pos.mark);
+        return { pct, precio, delta };
+      });
+    return { titulo: `${pos.especie} · ${pos.estado} ${fmtNum(pos.qty_neta, 0)}`, filas, mark: pos.mark, qty: pos.qty_neta };
+  }, [abiertas, simSel]);
 
-  // Consolidado por especie (agrupa AL30/AL30D/AL30C → AL30).
-  // Usa la cantidad neta — sirve para chequear descalce de títulos
-  // independientemente de la moneda (si vendiste 100 AL30 ARS y
-  // compraste 100 AL30D USD, estás flat en especie).
-  const consolidadoPorEspecie = useMemo(() => {
-    const map = new Map<string, { especie: string; cantidad_neta: number }>();
-    for (const r of resumenFiltrado) {
-      const prev = map.get(r.especie);
-      if (prev) prev.cantidad_neta += r.cantidad_neta;
-      else map.set(r.especie, { especie: r.especie, cantidad_neta: r.cantidad_neta });
+  // Default: primera abierta cuando llega un resultado nuevo.
+  useEffect(() => {
+    if (abiertas.length && simSel !== "__todas__") {
+      const exists = abiertas.some((p) => `${p.especie}|${p.cuenta}` === simSel);
+      if (!exists) setSimSel("__todas__");
     }
-    return Array.from(map.values())
-      .sort((a, b) => Math.abs(b.cantidad_neta) - Math.abs(a.cantidad_neta));
-  }, [resumenFiltrado]);
+  }, [abiertas, simSel]);
 
-  const hayDatos = resultado && resultado.filasFiltradas > 0;
+  const t = resultado?.totales;
 
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-3 overflow-hidden">
-      {/* Upload + filtros */}
+      {/* Barra: upload + meta */}
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
         <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] cursor-pointer transition-colors">
-          EXAMINAR ARCHIVO
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={onFileChange}
-          />
+          {cargando ? "PROCESANDO…" : "EXAMINAR CSV"}
+          <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFileChange} disabled={cargando} />
         </label>
         <span className="text-[11px] text-[var(--t-text-dim)] font-mono truncate max-w-[280px]">
           {resultado?.archivo || "Ningún archivo seleccionado"}
         </span>
-
         {resultado && (
           <>
-            <div className="h-5 w-px bg-[var(--t-border-2)]" />
-
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)] mr-1">
-                Plazo:
-              </span>
-              {(["todos", "CI", "24hs"] as FiltroPlazo[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setFiltro(p)}
-                  className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
-                    filtro === p
-                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-                  }`}
-                >
-                  {p === "todos" ? "AMBOS" : p.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={limpiar}
-              className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline"
-              title="Borra el consolidado de la sesión"
-            >
+            <button onClick={limpiar} className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline">
               limpiar
             </button>
-
             <div className="ml-auto flex items-center gap-3 text-[10px] text-[var(--t-text-dim)] font-mono">
-              <span>{resultado.filasCrudas} filas totales</span>
-              <span className="text-[var(--t-accent)]">
-                {resultado.filasFiltradas} con Client ID {CLIENT_ID_FILTRO}
-              </span>
+              <span>{resultado.filas_validas} trades RV</span>
+              <span className="text-[var(--t-pos)]">{resultado.totales.abiertas} abiertas</span>
+              <span className="text-[var(--t-text-muted)]">{resultado.totales.cerradas} cerradas</span>
             </div>
           </>
         )}
@@ -378,137 +208,162 @@ export function IntradayView() {
 
       {!resultado && !error && (
         <div className="flex-1 flex items-center justify-center text-[var(--t-text-muted)] text-[12px] text-center px-6">
-          Cargá un CSV con las columnas: Client ID, Symbol/Símbolo, Side/Punta,
-          Executed Size/Cantidad Ejecutada, Turnover.
+          Cargá el CSV de boletos del día (Especie, Lado, Precio, Cantidad, Cuenta, Monto).
+          Las cauciones (PESOS/DOLARES) se excluyen automáticamente.
         </div>
       )}
 
-      {resultado && resultado.filasFiltradas === 0 && (
-        <div className="flex-1 flex items-center justify-center text-[var(--t-text-dim)] text-[12px]">
-          Sin operaciones con Client ID = {CLIENT_ID_FILTRO} en este archivo.
-        </div>
-      )}
-
-      {hayDatos && (
-        <div className="flex-1 min-h-0 grid grid-cols-[1fr_auto] gap-3 overflow-hidden">
-          {/* Tabla consolidada (agrupada visualmente por moneda). */}
-          <div className="overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
-            <table className="w-full text-[11px] font-mono border-collapse">
-              <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
-                <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[var(--t-accent)]">
-                  <th className="!px-2 !py-1.5 text-left">Símbolo</th>
-                  <th className="!px-2 !py-1.5 text-center">Moneda</th>
-                  <th className="!px-2 !py-1.5 text-center">Plazo</th>
-                  <th className="!px-2 !py-1.5 text-right">Ops</th>
-                  <th className="!px-2 !py-1.5 text-right">Cantidad neta</th>
-                  <th className="!px-2 !py-1.5 text-right">Turnover neto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumenFiltrado.map((r, i) => {
-                  const prev = resumenFiltrado[i - 1];
-                  const divisor = !prev || prev.moneda !== r.moneda;
-                  return (
-                    <tr
-                      key={r.simbolo}
-                      className={`border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5 ${
-                        divisor ? "border-t-2 border-t-[var(--t-border)]" : ""
-                      }`}
-                    >
-                      <td className="!px-2 !py-1 text-[var(--t-text)]">{r.simbolo}</td>
-                      <td
-                        className="!px-2 !py-1 text-center font-semibold"
-                        style={{ color: monedaColor(r.moneda) }}
-                      >
-                        {r.moneda}
-                      </td>
-                      <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{r.plazo}</td>
-                      <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
-                        {r.operaciones}
-                      </td>
-                      <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
-                        {fmtNum(r.cantidad_neta, 0)}
-                      </td>
-                      <td
-                        className="!px-2 !py-1 text-right font-semibold"
-                        style={{ color: r.turnover_neto >= 0 ? "var(--t-pos)" : "var(--t-neg)" }}
-                      >
-                        {fmtNum(r.turnover_neto)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {t && (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-5 gap-3 shrink-0">
+            <KpiBox label="PnL Realizado" val={t.pnl_realizado} />
+            <KpiBox label="PnL No Realizado" val={t.pnl_no_realizado} />
+            <KpiBox label="PnL Bruto" val={t.pnl_bruto} />
+            <KpiBox label="Intereses + IVA" val={-(t.intereses + t.iva)} />
+            <KpiBox label="PnL Neto" val={t.pnl_neto} big />
           </div>
 
-          {/* Sidebar derecho: totales + consolidado por especie */}
-          <div className="shrink-0 w-96 flex flex-col gap-3 overflow-hidden">
-            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col gap-2 shrink-0">
-              <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
-                Totales por moneda
-              </div>
-              {totalesPorMoneda.map((t) => (
-                <div key={t.moneda} className="flex items-baseline justify-between">
-                  <span
-                    className="text-[10px] uppercase tracking-wide font-semibold"
-                    style={{ color: monedaColor(t.moneda) }}
-                  >
-                    {t.moneda}
-                  </span>
-                  <span
-                    className="text-[13px] font-mono font-bold"
-                    style={{ color: t.turnoverTotal >= 0 ? "var(--t-pos)" : "var(--t-neg)" }}
-                  >
-                    {fmtNum(t.turnoverTotal)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Consolidado por especie (descalce de títulos) */}
-            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col overflow-hidden flex-1 min-h-0">
-              <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-2 shrink-0">
-                Consolidado por especie
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                <table className="w-full text-[10px] font-mono">
-                  <thead className="sticky top-0 bg-[var(--t-panel)]">
-                    <tr className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
-                      <th className="!py-1 text-left">Especie</th>
-                      <th className="!py-1 text-right">Neto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {consolidadoPorEspecie.map((e) => (
-                      <tr key={e.especie} className="border-t border-[var(--t-border)]">
-                        <td className="!py-1 text-[var(--t-text)]">{e.especie}</td>
-                        <td
-                          className="!py-1 text-right font-semibold"
-                          style={{
-                            color:
-                              e.cantidad_neta === 0
-                                ? "#888"
-                                : e.cantidad_neta > 0
-                                ? "var(--t-pos)"
-                                : "var(--t-neg)",
-                          }}
-                        >
-                          {fmtNum(e.cantidad_neta, 0)}
+          <div className="flex-1 min-h-0 grid grid-cols-[1fr_380px] gap-3 overflow-hidden">
+            {/* Tabla de posiciones */}
+            <div className="overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
+              <table className="w-full text-[11px] font-mono tabular-nums border-collapse">
+                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-wide text-[var(--t-accent)]">
+                  <tr className="border-b border-[var(--t-border)]">
+                    <th className="!px-2 !py-1.5 text-left">Especie</th>
+                    <th className="!px-2 !py-1.5 text-center">Cta</th>
+                    <th className="!px-2 !py-1.5 text-center">Estado</th>
+                    <th className="!px-2 !py-1.5 text-right">Ops</th>
+                    <th className="!px-2 !py-1.5 text-right">Qty neta</th>
+                    <th className="!px-2 !py-1.5 text-right">Ponder.</th>
+                    <th className="!px-2 !py-1.5 text-right">Mark</th>
+                    <th className="!px-2 !py-1.5 text-right">Realizado</th>
+                    <th className="!px-2 !py-1.5 text-right">No real.</th>
+                    <th className="!px-2 !py-1.5 text-right">Int.+IVA</th>
+                    <th className="!px-2 !py-1.5 text-right">Neto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resultado!.posiciones.map((p) => {
+                    const sel = `${p.especie}|${p.cuenta}` === simSel && p.estado !== "CERRADA";
+                    return (
+                      <tr
+                        key={`${p.especie}|${p.cuenta}`}
+                        onClick={() => p.estado !== "CERRADA" && setSimSel(`${p.especie}|${p.cuenta}`)}
+                        className={`border-b border-[var(--t-border)] ${
+                          p.estado !== "CERRADA" ? "cursor-pointer hover:bg-[var(--t-accent)]/5" : "opacity-70"
+                        } ${sel ? "bg-[var(--t-accent)]/15" : ""}`}
+                      >
+                        <td className="!px-2 !py-1 text-[var(--t-text)] font-semibold">{p.especie}</td>
+                        <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{p.cuenta}</td>
+                        <td className="!px-2 !py-1 text-center font-semibold" style={{ color: estadoColor(p.estado) }}>
+                          {p.estado}
+                        </td>
+                        <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{p.n_ops}</td>
+                        <td className="!px-2 !py-1 text-right">{fmtNum(p.qty_neta, 0)}</td>
+                        <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{fmtNum(p.precio_ponderado, 2)}</td>
+                        <td className="!px-2 !py-1 text-right" title={p.mark_source === "live" ? "live feed" : "último precio del CSV"}>
+                          {fmtNum(p.mark, 2)}
+                          <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">{p.mark_source === "live" ? "●" : "○"}</span>
+                        </td>
+                        <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(p.pnl_realizado) }}>
+                          {fmtNum(p.pnl_realizado, 0)}
+                        </td>
+                        <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(p.pnl_no_realizado) }}>
+                          {fmtNum(p.pnl_no_realizado, 0)}
+                        </td>
+                        <td className="!px-2 !py-1 text-right text-[var(--t-neg)]">{fmtNum(p.intereses + p.iva, 0)}</td>
+                        <td className="!px-2 !py-1 text-right font-semibold" style={{ color: pnlColor(p.pnl_neto) }}>
+                          {fmtNum(p.pnl_neto, 0)}
                         </td>
                       </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Simulador */}
+            <div className="shrink-0 flex flex-col gap-2 overflow-hidden border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
+              <div className="flex items-center justify-between shrink-0">
+                <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">Simulador de precio</span>
+              </div>
+              {abiertas.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-muted)] text-center">
+                  No hay posiciones abiertas para simular.
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={simSel}
+                    onChange={(e) => setSimSel(e.target.value)}
+                    className="bg-[var(--t-surface-2)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] shrink-0"
+                  >
+                    <option value="__todas__">TODAS (abiertas)</option>
+                    {abiertas.map((p) => (
+                      <option key={`${p.especie}|${p.cuenta}`} value={`${p.especie}|${p.cuenta}`}>
+                        {p.especie} · {p.estado} {fmtNum(p.qty_neta, 0)}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-2 pt-2 border-t border-[var(--t-border)] text-[9px] text-[var(--t-text-muted)] leading-relaxed shrink-0">
-                Agrupa AL30/AL30D/AL30C como AL30. Si el neto es 0, estás
-                flat en títulos más allá de la moneda.
-              </div>
+                  </select>
+                  {simData?.mark != null && (
+                    <div className="text-[10px] text-[var(--t-text-dim)] font-mono shrink-0">
+                      Mark actual: <span className="text-[var(--t-text)]">{fmtNum(simData.mark, 2)}</span>
+                    </div>
+                  )}
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-[11px] font-mono tabular-nums">
+                      <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+                        <tr>
+                          <th className="!py-1 text-left">Mov.</th>
+                          {simData?.mark != null && <th className="!py-1 text-right">Precio</th>}
+                          <th className="!py-1 text-right">P&amp;L Δ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {simData?.filas.map((f) => {
+                          const isMark = f.pct === 0;
+                          return (
+                            <tr
+                              key={f.pct}
+                              className={`border-t border-[var(--t-border)] ${isMark ? "bg-[var(--t-surface-2)]" : ""}`}
+                            >
+                              <td className={`!py-1 ${isMark ? "text-[var(--t-accent)] font-semibold" : "text-[var(--t-text-dim)]"}`}>
+                                {isMark ? "actual" : `${fmtSigned(f.pct, 2)}%`}
+                              </td>
+                              {simData?.mark != null && (
+                                <td className="!py-1 text-right text-[var(--t-text)]">{fmtNum(f.precio, 2)}</td>
+                              )}
+                              <td className="!py-1 text-right font-semibold" style={{ color: isMark ? "#888" : pnlColor(f.delta) }}>
+                                {isMark ? "—" : fmtSigned(f.delta, 0)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="text-[9px] text-[var(--t-text-muted)] leading-relaxed shrink-0 pt-1 border-t border-[var(--t-border)]">
+                    P&amp;L Δ = impacto sobre el mark actual si el precio se mueve ese %.
+                    Para short, una suba es pérdida.
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function KpiBox({ label, val, big }: { label: string; val: number; big?: boolean }) {
+  return (
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
+      <div className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">{label}</div>
+      <div className={`font-mono font-bold ${big ? "text-[18px]" : "text-[14px]"}`} style={{ color: pnlColor(val) }}>
+        {fmtSigned(val, 0)}
+      </div>
     </div>
   );
 }
