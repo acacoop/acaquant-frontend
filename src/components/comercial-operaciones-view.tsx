@@ -239,16 +239,21 @@ type AnalisisCliente = {
 // operaciones-view.tsx (margen superior derecho) → llega como prop.
 // Query-string de los filtros madre nivel_1/nivel_3/referido (vacío = sin filtro).
 // Se appendea a cada fetch comercial para que el backend cruce el scope.
-const nivelQS = (nivel1?: string, nivel3?: string, referido?: string) =>
-  (nivel1 ? `&nivel_1=${encodeURIComponent(nivel1)}` : "")
-  + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
-  + (referido ? `&referido=${encodeURIComponent(referido)}` : "");
+// Query-params REPETIDOS para un filtro multi-valor: ?key=a&key=b (= ANY en el backend).
+const arrQS = (key: string, vals: string[]) =>
+  (vals ?? []).map((v) => `&${key}=${encodeURIComponent(v)}`).join("");
+const nivelQS = (nivel1: string[], nivel3: string[], referido: string[],
+                 nivel4: string[] = [], nivel5: string[] = []) =>
+  arrQS("nivel_1", nivel1) + arrQS("nivel_3", nivel3) + arrQS("nivel_4", nivel4)
+  + arrQS("nivel_5", nivel5) + arrQS("referido", referido);
 
 export function ComercialOperacionesView(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string },
+  { operador, moneda = "ARS", nivel1 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [] }:
+  { operador: string[]; moneda?: "ARS" | "USD"; nivel1?: string[]; nivel3?: string[];
+    nivel4?: string[]; nivel5?: string[]; referido?: string[] },
 ) {
-  const nQS = nivelQS(nivel1, nivel3, referido);
+  const nQS = nivelQS(nivel1, nivel3, referido, nivel4, nivel5);
+  const opQS = arrQS("operador", operador);
   const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
   // Corte = HASTA de la vista (Informe + Análisis). Vacío = hoy (live).
   const [fechaCorte, setFechaCorte] = useState<string>("");
@@ -308,7 +313,7 @@ export function ComercialOperacionesView(
       try {
         const fQS = (fechaCorte ? `&fecha=${fechaCorte}` : "") + (desdeCorte ? `&desde=${desdeCorte}` : "");
         const d = await getJson<OperadorResp>(
-          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}${fQS}`,
+          `/api/operaciones/comercial/operador?moneda=${moneda}${opQS}${nQS}${fQS}`,
         );
         if (cancelled) return;
         setResumen(d.resumen);
@@ -323,7 +328,7 @@ export function ComercialOperacionesView(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS, fechaCorte, desdeCorte]);
+  }, [opQS, moneda, nQS, fechaCorte, desdeCorte]);
 
   // Serie del gráfico: operador completo o, si hay cliente, esa cuenta.
   useEffect(() => {
@@ -332,7 +337,7 @@ export function ComercialOperacionesView(
     setLoadingSerie(true);
     void (async () => {
       try {
-        let q = `operador=${encodeURIComponent(operador)}&metric=${metric}&moneda=${moneda}${nQS}`;
+        let q = `metric=${metric}&moneda=${moneda}${opQS}${nQS}`;
         if (selCuenta) q += `&id_cuenta=${encodeURIComponent(selCuenta)}`;
         const d = await getJson<{ serie: SeriePoint[] }>(`/api/operaciones/comercial/serie?${q}`);
         if (!cancelled) setSerie(Array.isArray(d.serie) ? d.serie : []);
@@ -343,7 +348,7 @@ export function ComercialOperacionesView(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, metric, selCuenta, moneda, nQS]);
+  }, [opQS, metric, selCuenta, moneda, nQS]);
 
   // Tenencia del cliente seleccionado.
   useEffect(() => {
@@ -413,7 +418,7 @@ export function ComercialOperacionesView(
     setLoadingPeriodo(true);
     void (async () => {
       try {
-        const q = `operador=${encodeURIComponent(operador)}&desde=${desde}&hasta=${hasta}&moneda=${moneda}${nQS}`;
+        const q = `desde=${desde}&hasta=${hasta}&moneda=${moneda}${opQS}${nQS}`;
         const d = await getJson<ClientesPeriodoResp>(`/api/operaciones/comercial/clientes-por-fecha?${q}`);
         setPeriodo(Array.isArray(d.clientes) ? d.clientes : []);
       } catch (e) {
@@ -531,8 +536,9 @@ export function ComercialOperacionesView(
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} desde={desdeCorte} />}
-      {subview === "cobros_futuros" && <CobrosFuturosView operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
-      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} fecha={fechaCorte} desde={desdeCorte} />}
+      {/* CobrosFuturos (acreencias, Mongo) sigue siendo single → toma el 1er valor de cada filtro. */}
+      {subview === "cobros_futuros" && <CobrosFuturosView operador={operador[0] ?? "__todos__"} moneda={moneda} nivel1={nivel1[0] ?? ""} nivel3={nivel3[0] ?? ""} referido={referido[0] ?? ""} />}
+      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} fecha={fechaCorte} desde={desdeCorte} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
@@ -1023,10 +1029,12 @@ function Field({ label, value }: { label: string; value: string | null }) {
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
 function AnalisisComercial(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "", fecha = "", desde = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string; fecha?: string; desde?: string },
+  { operador, moneda = "ARS", nivel1 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [], fecha = "", desde = "" }:
+  { operador: string[]; moneda?: "ARS" | "USD"; nivel1?: string[]; nivel3?: string[];
+    nivel4?: string[]; nivel5?: string[]; referido?: string[]; fecha?: string; desde?: string },
 ) {
-  const nQS = nivelQS(nivel1, nivel3, referido);
+  const nQS = nivelQS(nivel1, nivel3, referido, nivel4, nivel5);
+  const opQS = arrQS("operador", operador);
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
   type SortCol = "cuenta" | "estado" | "dias" | "aum" | "cupo_trans" | "cupo_usado";
@@ -1065,7 +1073,7 @@ function AnalisisComercial(
       try {
         const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
         const d = await getJson<{ clientes: AnalisisCliente[]; dias_activa?: number; dias_dormida?: number }>(
-          `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}${fQS}`,
+          `/api/operaciones/comercial/analisis?moneda=${moneda}${opQS}${nQS}${fQS}`,
         );
         if (cancelled) return;
         setUmbral({ activa: d.dias_activa ?? 30, dormida: d.dias_dormida ?? 90 });
@@ -1077,7 +1085,7 @@ function AnalisisComercial(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS, fecha, desde]);
+  }, [opQS, moneda, nQS, fecha, desde]);
 
   const nivelDe = (c: AnalisisCliente) => c.nivel_1 || "(sin segmentar)";
 

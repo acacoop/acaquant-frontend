@@ -1,33 +1,100 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { ComercialOperacionesView } from "./comercial-operaciones-view";
 
-// /operadores (ex tab COMERCIAL de /operaciones). Barra madre con 3 filtros que
-// se CRUZAN (operador / nivel_1 / nivel_3) + moneda. Elegir uno achica las
-// opciones de los otros dos y lo que se ve. Todo baja como prop a la vista.
+// /operadores. Barra madre con filtros MULTI-SELECT que se CRUZAN (operador / nivel_1 /
+// nivel_3 / nivel_4 / nivel_5 / referido) + moneda. Cada filtro acepta varios valores;
+// elegir en uno achica las opciones de los otros. Todo baja como array al backend (= ANY).
 
-// Un combo (operador, nivel_1, nivel_3) con su nº de cuentas — fuente única para
-// poblar y cruzar los 3 dropdowns (endpoint /comercial/dimensiones).
 type Combo = {
   operador_email: string;
   operador_nombre: string | null;
   nivel_1: string | null;
   nivel_3: string | null;
+  nivel_4: string | null;
+  nivel_5: string | null;
   referido: string | null;
   n_cuentas: number;
 };
 
-const TODOS = "__todos__";
+// ── Multi-select (dropdown con checkboxes) ────────────────────────────────
+type Opt = { value: string; label: string; n?: number };
+function MultiSelect({
+  label, options, selected, onChange, width = "max-w-[220px]",
+}: {
+  label: string;
+  options: Opt[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  width?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const sel = new Set(selected);
+  const toggle = (v: string) =>
+    onChange(sel.has(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+  const resumen = selected.length === 0
+    ? "— Todos —"
+    : selected.length === 1
+    ? (options.find((o) => o.value === selected[0])?.label ?? selected[0])
+    : `${selected.length} seleccionados`;
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={"flex items-center gap-1 bg-[var(--t-surface)] border text-[11px] px-2 py-1 font-mono outline-none " + width + " "
+          + (selected.length ? "border-[var(--t-accent)] text-[var(--t-text)]" : "border-[var(--t-border-2)] text-[var(--t-text-dim)]")}
+        title={selected.join(", ")}
+      >
+        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] mr-1">{label}</span>
+        <span className="truncate flex-1 text-left">{resumen}</span>
+        <span className="text-[8px] opacity-70">▼</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 min-w-[200px] max-h-[280px] overflow-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-xl">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--t-border)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+            <span>{label}</span>
+            {selected.length > 0 && (
+              <button onClick={() => onChange([])} className="text-[var(--t-accent)] hover:underline">limpiar</button>
+            )}
+          </div>
+          {options.length === 0 && <div className="px-2 py-2 text-[10px] text-[var(--t-text-muted)]">sin opciones</div>}
+          {options.map((o) => (
+            <label key={o.value} className="flex items-center gap-2 px-2 py-1 text-[11px] hover:bg-[var(--t-surface)] cursor-pointer">
+              <input type="checkbox" checked={sel.has(o.value)} onChange={() => toggle(o.value)}
+                className="accent-[var(--t-accent)]" />
+              <span className="truncate flex-1" title={o.label}>{o.label}</span>
+              {o.n != null && <span className="text-[9px] text-[var(--t-text-muted)]">({o.n})</span>}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function OperadoresView() {
   const [combos, setCombos] = useState<Combo[]>([]);
-  // Los 3 filtros + moneda persisten entre rutas. "" = sin filtro (Todos).
-  const [operador, setOperador] = usePersistedState<string>("operadores.operador", "");
-  const [nivel1, setNivel1] = usePersistedState<string>("operadores.nivel1", "");
-  const [nivel3, setNivel3] = usePersistedState<string>("operadores.nivel3", "");
-  const [referido, setReferido] = usePersistedState<string>("operadores.referido", "");
+  // Filtros multi (arrays) + moneda, persisten entre rutas. [] = sin filtro (Todos).
+  const [operador, setOperador] = usePersistedState<string[]>("operadores.operador", []);
+  const [nivel1, setNivel1] = usePersistedState<string[]>("operadores.nivel1", []);
+  const [nivel3, setNivel3] = usePersistedState<string[]>("operadores.nivel3", []);
+  const [nivel4, setNivel4] = usePersistedState<string[]>("operadores.nivel4", []);
+  const [nivel5, setNivel5] = usePersistedState<string[]>("operadores.nivel5", []);
+  const [referido, setReferido] = usePersistedState<string[]>("operadores.referido", []);
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("operadores.moneda", "ARS");
 
   useEffect(() => {
@@ -42,7 +109,7 @@ export function OperadoresView() {
         const cs = Array.isArray(d.combos) ? d.combos : [];
         setCombos(cs);
 
-        // Arranca en el operador logueado si está registrado; si no, en Todos.
+        // Arranca en el operador logueado si está registrado (y si no hay selección previa).
         let miEmail: string | null = null;
         if (rMe.ok) {
           try { miEmail = ((await rMe.json())?.email ?? null) as string | null; } catch { /* no-JSON */ }
@@ -50,63 +117,76 @@ export function OperadoresView() {
         const mio = miEmail
           ? cs.find((c) => c.operador_email?.toLowerCase() === miEmail!.toLowerCase())
           : undefined;
-        setOperador((s) => s || (mio?.operador_email ?? TODOS));
+        if (mio) setOperador((s) => (s.length ? s : [mio.operador_email]));
       } catch { /* la vista muestra su propio vacío/error */ }
     })();
   }, []);
 
-  // ── Cross-filter: cada dropdown ofrece SOLO lo compatible con los OTROS ──
-  const matchOp = (c: Combo) => operador === "" || operador === TODOS || c.operador_email === operador;
-  const matchN1 = (c: Combo) => nivel1 === "" || c.nivel_1 === nivel1;
-  const matchN3 = (c: Combo) => nivel3 === "" || c.nivel_3 === nivel3;
-  const matchRef = (c: Combo) => referido === "" || c.referido === referido;
+  // ── Cross-filter: cada dropdown ofrece SOLO lo compatible con los OTROS. ──
+  const S = (a: string[]) => new Set(a);
+  const opSet = S(operador), n1Set = S(nivel1), n3Set = S(nivel3),
+        n4Set = S(nivel4), n5Set = S(nivel5), refSet = S(referido);
+  const mOp  = (c: Combo) => opSet.size === 0 || (!!c.operador_email && opSet.has(c.operador_email));
+  const mN1  = (c: Combo) => n1Set.size === 0 || (!!c.nivel_1 && n1Set.has(c.nivel_1));
+  const mN3  = (c: Combo) => n3Set.size === 0 || (!!c.nivel_3 && n3Set.has(c.nivel_3));
+  const mN4  = (c: Combo) => n4Set.size === 0 || (!!c.nivel_4 && n4Set.has(c.nivel_4));
+  const mN5  = (c: Combo) => n5Set.size === 0 || (!!c.nivel_5 && n5Set.has(c.nivel_5));
+  const mRef = (c: Combo) => refSet.size === 0 || (!!c.referido && refSet.has(c.referido));
 
-  // Operadores compatibles con nivel_1/nivel_3/referido (con nº de cuentas sumado).
+  // Operadores compatibles con los OTROS filtros (con nº de cuentas sumado).
   const operadores = useMemo(() => {
     const m = new Map<string, { email: string; nombre: string | null; n: number }>();
     for (const c of combos) {
-      if (!matchN1(c) || !matchN3(c) || !matchRef(c)) continue;
+      if (!mN1(c) || !mN3(c) || !mN4(c) || !mN5(c) || !mRef(c)) continue;
+      if (!c.operador_email) continue;
       const cur = m.get(c.operador_email) ?? { email: c.operador_email, nombre: c.operador_nombre, n: 0 };
       cur.n += c.n_cuentas;
       m.set(c.operador_email, cur);
     }
     return [...m.values()].sort((a, b) => b.n - a.n);
-  }, [combos, nivel1, nivel3, referido]);
+  }, [combos, nivel1, nivel3, nivel4, nivel5, referido]);
 
-  // Cada dimensión ofrece solo lo compatible con las OTRAS tres (null/"" no es opción).
-  const niveles1 = useMemo(() => {
+  // Cada nivel/referido ofrece solo lo compatible con las OTRAS dimensiones.
+  const valoresDe = (campo: keyof Combo, omit: (c: Combo) => boolean) => {
     const s = new Set<string>();
-    for (const c of combos) if (matchOp(c) && matchN3(c) && matchRef(c) && c.nivel_1) s.add(c.nivel_1);
+    for (const c of combos) {
+      if (omit(c)) continue;
+      const v = c[campo];
+      if (typeof v === "string" && v) s.add(v);
+    }
     return [...s].sort();
-  }, [combos, operador, nivel3, referido]);
-  const niveles3 = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of combos) if (matchOp(c) && matchN1(c) && matchRef(c) && c.nivel_3) s.add(c.nivel_3);
-    return [...s].sort();
-  }, [combos, operador, nivel1, referido]);
-  const referidos = useMemo(() => {
-    const s = new Set<string>();
-    for (const c of combos) if (matchOp(c) && matchN1(c) && matchN3(c) && c.referido) s.add(c.referido);
-    return [...s].sort();
-  }, [combos, operador, nivel1, nivel3]);
+  };
+  const niveles1 = useMemo(() => valoresDe("nivel_1", (c) => !(mOp(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel3, nivel4, nivel5, referido]);
+  const niveles3 = useMemo(() => valoresDe("nivel_3", (c) => !(mOp(c) && mN1(c) && mN4(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel1, nivel4, nivel5, referido]);
+  const niveles4 = useMemo(() => valoresDe("nivel_4", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel1, nivel3, nivel5, referido]);
+  const niveles5 = useMemo(() => valoresDe("nivel_5", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN4(c) && mRef(c))),
+    [combos, operador, nivel1, nivel3, nivel4, referido]);
+  const referidos = useMemo(() => valoresDe("referido", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN4(c) && mN5(c))),
+    [combos, operador, nivel1, nivel3, nivel4, nivel5]);
 
-  // Si un filtro elegido deja de ser compatible (lo achicó otro), se resetea a Todos.
+  // Si una selección dejó de ser compatible (la achicó otra), la podamos.
+  const prune = (sel: string[], validos: string[], set: (v: string[]) => void) => {
+    if (sel.length && validos.length) {
+      const ok = new Set(validos);
+      const next = sel.filter((v) => ok.has(v));
+      if (next.length !== sel.length) set(next);
+    }
+  };
+  useEffect(() => { prune(nivel1, niveles1, setNivel1); }, [niveles1]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { prune(nivel3, niveles3, setNivel3); }, [niveles3]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { prune(nivel4, niveles4, setNivel4); }, [niveles4]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { prune(nivel5, niveles5, setNivel5); }, [niveles5]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { prune(referido, referidos, setReferido); }, [referidos]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (nivel1 && niveles1.length && !niveles1.includes(nivel1)) setNivel1("");
-  }, [niveles1, nivel1, setNivel1]);
-  useEffect(() => {
-    if (nivel3 && niveles3.length && !niveles3.includes(nivel3)) setNivel3("");
-  }, [niveles3, nivel3, setNivel3]);
-  useEffect(() => {
-    if (referido && referidos.length && !referidos.includes(referido)) setReferido("");
-  }, [referidos, referido, setReferido]);
-  useEffect(() => {
-    if (operador && operador !== TODOS && operadores.length
-      && !operadores.some((o) => o.email === operador)) setOperador(TODOS);
-  }, [operadores, operador, setOperador]);
-
-  const selectCls =
-    "bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none";
+    if (operador.length && operadores.length) {
+      const ok = new Set(operadores.map((o) => o.email));
+      const next = operador.filter((v) => ok.has(v));
+      if (next.length !== operador.length) setOperador(next);
+    }
+  }, [operadores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -116,35 +196,18 @@ export function OperadoresView() {
         </span>
         {combos.length > 0 && (
           <div className="ml-auto flex items-center gap-2 flex-wrap">
-            {/* OPERADOR */}
-            <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">OPERADOR</span>
-            <select value={operador} onChange={(e) => setOperador(e.target.value)} className={selectCls + " max-w-[240px]"}>
-              <option value={TODOS}>— Todos los operadores —</option>
-              {operadores.map((o) => (
-                <option key={o.email} value={o.email}>
-                  {(o.nombre || o.email)} ({o.n})
-                </option>
-              ))}
-            </select>
-            {/* NIVEL 1 */}
-            <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">NIVEL 1</span>
-            <select value={nivel1} onChange={(e) => setNivel1(e.target.value)} className={selectCls + " max-w-[180px]"}>
-              <option value="">— Todos —</option>
-              {niveles1.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            {/* NIVEL 3 */}
-            <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">NIVEL 3</span>
-            <select value={nivel3} onChange={(e) => setNivel3(e.target.value)} className={selectCls + " max-w-[180px]"}>
-              <option value="">— Todos —</option>
-              {niveles3.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            {/* REFERIDO */}
-            <span className="text-[9px] text-[var(--t-text-muted)] tracking-widest">REFERIDO</span>
-            <select value={referido} onChange={(e) => setReferido(e.target.value)} className={selectCls + " max-w-[180px]"}>
-              <option value="">— Todos —</option>
-              {referidos.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            {/* MONEDA */}
+            <MultiSelect label="Operador" selected={operador} onChange={setOperador}
+              options={operadores.map((o) => ({ value: o.email, label: o.nombre || o.email, n: o.n }))} width="max-w-[240px]" />
+            <MultiSelect label="Nivel 1" selected={nivel1} onChange={setNivel1}
+              options={niveles1.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
+            <MultiSelect label="Nivel 3" selected={nivel3} onChange={setNivel3}
+              options={niveles3.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
+            <MultiSelect label="Nivel 4" selected={nivel4} onChange={setNivel4}
+              options={niveles4.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
+            <MultiSelect label="Nivel 5" selected={nivel5} onChange={setNivel5}
+              options={niveles5.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
+            <MultiSelect label="Referido" selected={referido} onChange={setReferido}
+              options={referidos.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["ARS", "USD"] as const).map((m) => (
                 <button
@@ -163,10 +226,12 @@ export function OperadoresView() {
 
       <div className="flex-1 min-h-0 overflow-hidden">
         <ComercialOperacionesView
-          operador={operador || TODOS}
+          operador={operador}
           moneda={moneda}
           nivel1={nivel1}
           nivel3={nivel3}
+          nivel4={nivel4}
+          nivel5={nivel5}
           referido={referido}
         />
       </div>
