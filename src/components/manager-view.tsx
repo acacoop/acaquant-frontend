@@ -3519,11 +3519,18 @@ interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuent
 function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => void }) {
   const [data, setData] = useState<ConcilResp | null>(null);
   const [loading, setLoading] = useState(false);
-  const cargar = () => { setLoading(true); fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); };
-  useEffect(() => { let alive = true; fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); return () => { alive = false; }; }, []);
+  // Bonos ignorados (ocultados del gap) — para poder revertir un ignore por error.
+  const [ignoradas, setIgnoradas] = useState<{ ticker: string; ignorado_por?: string; at?: string }[]>([]);
+  const cargarIgnoradas = () => fetch("/api/manager/ons/ignoradas").then(r => r.json()).then(d => setIgnoradas(d.ignoradas || [])).catch(() => {});
+  const cargar = () => { setLoading(true); fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); cargarIgnoradas(); };
+  useEffect(() => { let alive = true; fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); cargarIgnoradas(); return () => { alive = false; }; }, []);
   const ignorar = async (ticker: string | null) => {
     if (!ticker) return;
     await fetch("/api/manager/ons/ignorar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }) }).catch(() => {});
+    cargar();
+  };
+  const restaurar = async (ticker: string) => {
+    await fetch(`/api/manager/ons/ignorar?ticker=${encodeURIComponent(ticker)}`, { method: "DELETE" }).catch(() => {});
     cargar();
   };
   const pf = data?.por_fuente;
@@ -3556,6 +3563,28 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
         </tbody>
       </table>
       {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todo lo de cartera ARS/DL/HD tiene flujo (Curvas o BondsMaster).</p>}
+
+      {/* Ignorados — bonos que sacaste del gap. "restaurar" los vuelve a conciliar
+          (útil si ignoraste uno por error). Lista desde Trading.OnsIgnoradas. */}
+      <div className="mt-4 border-t border-[var(--t-border)] pt-2">
+        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)] mb-1">
+          Ignorados ({ignoradas.length}) — “restaurar” los vuelve a mostrar en el conciliador
+        </div>
+        {ignoradas.length === 0 ? (
+          <p className="text-[10px] text-[var(--t-text-muted)]">Ninguno ignorado.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {ignoradas.map((g) => (
+              <span key={g.ticker} className="inline-flex items-center gap-1.5 border border-[var(--t-border-2)] px-2 py-0.5 text-[10px]">
+                <span className="font-mono text-[var(--t-text)]">{g.ticker}</span>
+                {g.at && <span className="text-[var(--t-text-muted)]">{g.at.slice(0, 10)}</span>}
+                <button type="button" onClick={() => restaurar(g.ticker)} title="Volver a mostrar en el conciliador"
+                  className="text-[var(--t-accent)] hover:underline">restaurar</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
