@@ -51,6 +51,10 @@ export function OpcionHistoricoChart({
   // 2º eje Y: spot del subyacente (GGAL) desde Opciones.VR-GGal, switch ARS/ADR.
   const [spotMoneda, setSpotMoneda] = useState<"ARS" | "ADR">("ARS");
   const [vrMap, setVrMap] = useState<Record<string, { local?: number; adr?: number }>>({});
+  // Ventana de zoom del brush (índices de bucket). Controlada → el dominio del
+  // eje X la sigue: arrastrar/mover el brush hace zoom+pan real sobre las fechas.
+  // `len` invalida el zoom cuando cambia la cantidad de puntos.
+  const [brush, setBrush] = useState<{ start: number; end: number; len: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +151,12 @@ export function OpcionHistoricoChart({
   }, [data, vrMap, spotMoneda]);
 
   const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
+
+  // El zoom vale solo mientras la serie no cambie de tamaño (otro contrato). Si
+  // cambió, volvemos a full — derivado en render, sin setState en un effect.
+  const startIdx = brush && brush.len === serie.length ? brush.start : 0;
+  const endIdx =
+    brush && brush.len === serie.length ? brush.end : Math.max(0, serie.length - 1);
 
   const stats = useMemo(() => {
     if (!serie.length) return null;
@@ -292,7 +302,8 @@ export function OpcionHistoricoChart({
             <XAxis
               dataKey="idx"
               type="number"
-              domain={[0, Math.max(0, serie.length - 1)]}
+              domain={[startIdx, endIdx]}
+              allowDataOverflow
               ticks={xTicks}
               tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
@@ -378,6 +389,15 @@ export function OpcionHistoricoChart({
               fill="#0a0a0a"
               travellerWidth={8}
               tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
+              startIndex={startIdx}
+              endIndex={endIdx}
+              onChange={(r) => {
+                const s = (r as { startIndex?: number }).startIndex;
+                const e = (r as { endIndex?: number }).endIndex;
+                if (typeof s === "number" && typeof e === "number") {
+                  setBrush({ start: s, end: e, len: serie.length });
+                }
+              }}
             />
           </LineChart>
         </ResponsiveContainer>
