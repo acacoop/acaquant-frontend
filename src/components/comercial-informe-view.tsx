@@ -19,9 +19,10 @@ import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 // operador). 4 cuadrantes. Consume /api/operaciones/comercial/informe[-segmento].
 // Ver docs/TABLERO_COMERCIAL.md [5].
 
-type SegCount = { segmento: string; n: number };
+type SegCount = { segmento: string; n: number; ctas_ops?: number };
 type SegmentoResp = {
-  mes: string; mes_min: string; mes_actual: string; total: number; segmentos: SegCount[];
+  mes: string; mes_min: string; mes_actual: string; total: number;
+  total_ctas_ops?: number; segmentos: SegCount[];
 };
 type Comercial = {
   rank: number; operador_email: string | null; operador_nombre: string;
@@ -98,7 +99,7 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
   const [q4tab, setQ4tab] = useState<"clientes" | "operaciones">("clientes");
   const [selComercial, setSelComercial] = useState<string | null>(null);
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
-  const [q1mode, setQ1mode] = useState<"cuentas" | "aranceles">("cuentas");
+  const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
 
   const fQS = fecha ? `&fecha=${fecha}` : "";
 
@@ -160,10 +161,16 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
     : null;
   const totMostrado = selRow ?? totRanking;
 
-  // Datos del gráfico Q1 según el modo (cuentas por segmento / aranceles por segmento).
+  // Datos del gráfico Q1 según el modo (cuentas / operativas / aranceles por segmento).
   const q1data = q1mode === "aranceles"
     ? (q3segs ?? []).map((s) => ({ segmento: s.segmento, valor: s.ar_total }))
+    : q1mode === "operativas"
+    ? (seg?.segmentos ?? [])
+        .map((s) => ({ segmento: s.segmento, valor: s.ctas_ops ?? 0 }))
+        .sort((a, b) => b.valor - a.valor)
     : (seg?.segmentos ?? []).map((s) => ({ segmento: s.segmento, valor: s.n }));
+  // Total para el % (share) del modo Operativas.
+  const q1total = q1data.reduce((a, d) => a + d.valor, 0);
 
   // ── Export a Excel (item 4) ──────────────────────────────────────────────
   const dlCuentasSeg = () => void exportToXlsx({
@@ -171,6 +178,7 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
     sheets: [{ name: "Cuentas x segmento", rows: seg?.segmentos ?? [], columns: [
       { header: "Segmento", key: "segmento", format: "text", width: 28 },
       { header: "Cuentas", key: "n", format: "integer" },
+      { header: "Operativas", key: "ctas_ops", format: "integer" },
     ] }],
   });
   const dlRanking = () => void exportToXlsx({
@@ -222,18 +230,18 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
       {/* Q1 — Cuentas / Aranceles por segmento (barras HORIZONTALES) + toggle */}
       <Panel
         fill
-        title={`${q1mode === "aranceles" ? "Aranceles" : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${q1mode === "cuentas" && seg ? ` · ${seg.total}` : ""}`}
+        title={`${q1mode === "aranceles" ? "Aranceles" : q1mode === "operativas" ? "Operativas" : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${q1mode === "cuentas" && seg ? ` · ${seg.total}` : q1mode === "operativas" ? ` · ${q1total}` : ""}`}
         extra={
           <div className="flex items-center gap-1">
             <div className="inline-flex border border-[var(--t-border-2)] mr-1">
-              {(["cuentas", "aranceles"] as const).map((m) => (
+              {(["cuentas", "operativas", "aranceles"] as const).map((m) => (
                 <button key={m} onClick={() => setQ1mode(m)}
                   className={"px-1.5 py-0.5 text-[9px] uppercase tracking-wider " + (q1mode === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
-                  {m === "cuentas" ? "Cuentas" : "Arancel"}
+                  {m === "cuentas" ? "Cuentas" : m === "operativas" ? "Operativas" : "Arancel"}
                 </button>
               ))}
             </div>
-            {q1mode === "cuentas" && (
+            {(q1mode === "cuentas" || q1mode === "operativas") && (
               <>
                 <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center" title="Mes del corte (fijado por la fecha 'Al día' del header)">{mes ? ymLabel(mes) : "…"}</span>
                 <DownloadBtn onClick={dlCuentasSeg} />
@@ -253,11 +261,21 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
                 axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} width={114} interval={0} />
               <Tooltip
                 contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                formatter={(v) => [q1mode === "aranceles" ? fmtMoney(Number(v)) : fmtN(Number(v)), q1mode === "aranceles" ? "Arancel" : "Cuentas"]}
+                formatter={(v) => {
+                  const n = Number(v);
+                  if (q1mode === "aranceles") return [fmtMoney(n), "Arancel"];
+                  if (q1mode === "operativas") return [`${fmtN(n)} (${q1total ? Math.round((n / q1total) * 100) : 0}%)`, "Operativas"];
+                  return [fmtN(n), "Cuentas"];
+                }}
                 cursor={{ fill: "color-mix(in srgb, var(--t-text) 10%, transparent)" }} />
               <Bar dataKey="valor" fill="var(--t-brand)" isAnimationActive={false}>
                 <LabelList dataKey="valor" position="right" fontSize={9} fill="var(--t-text)"
-                  formatter={(v) => (q1mode === "aranceles" ? fmtMoney(Number(v)) : fmtN(Number(v)))} />
+                  formatter={(v) => {
+                    const n = Number(v);
+                    if (q1mode === "aranceles") return fmtMoney(n);
+                    if (q1mode === "operativas") return `${fmtN(n)} · ${q1total ? Math.round((n / q1total) * 100) : 0}%`;
+                    return fmtN(n);
+                  }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
