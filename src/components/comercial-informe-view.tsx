@@ -90,7 +90,7 @@ function Panel({ title, extra, children, fill }: { title: string; extra?: React.
   );
 }
 
-export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS" | "USD"; fecha?: string }) {
+export function ComercialInforme({ moneda = "ARS", fecha = "", desde = "" }: { moneda?: "ARS" | "USD"; fecha?: string; desde?: string }) {
   const [informe, setInforme] = useState<InformeResp | null>(null);
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
   const [mes, setMes] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
   const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
 
-  const fQS = fecha ? `&fecha=${fecha}` : "";
+  const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
 
   useEffect(() => {
     void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}${fQS}`, null).then(setInforme);
@@ -111,13 +111,14 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
   useEffect(() => {
     const params = new URLSearchParams();
     if (fecha) params.set("fecha", fecha);
+    if (desde) params.set("desde", desde);
     if (selComercial) params.set("operador", selComercial);
     const q = params.toString() ? `?${params.toString()}` : "";
     void getJson<SegmentoResp | null>(`/api/operaciones/comercial/informe-segmento${q}`, null).then((d) => {
       setSeg(d);
       if (d) setMes(d.mes); // refleja el mes del corte (solo display)
     });
-  }, [fecha, selComercial]);
+  }, [fecha, desde, selComercial]);
 
   // Q3 re-scopeada: aranceles por segmento del comercial elegido.
   useEffect(() => {
@@ -136,10 +137,10 @@ export function ComercialInforme({ moneda = "ARS", fecha = "" }: { moneda?: "ARS
     const op = selComercial ? `&operador=${encodeURIComponent(selComercial)}` : "";
     const segParam = selSeg ?? "todos";
     void getJson<SegDetalle | null>(
-      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}`,
+      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}${fQS}`,
       null,
     ).then(setDetalle);
-  }, [selSeg, selComercial, moneda]);
+  }, [selSeg, selComercial, moneda, fQS]);
 
   const comercialNombre = selComercial
     ? (informe?.comerciales.find((c) => c.operador_email === selComercial)?.operador_nombre ?? selComercial)

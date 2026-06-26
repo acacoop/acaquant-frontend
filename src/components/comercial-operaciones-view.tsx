@@ -250,8 +250,11 @@ export function ComercialOperacionesView(
 ) {
   const nQS = nivelQS(nivel1, nivel3, referido);
   const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
-  // Fecha de corte ÚNICA de la vista (Informe + Análisis). Vacío = hoy (live).
+  // Corte = HASTA de la vista (Informe + Análisis). Vacío = hoy (live).
   const [fechaCorte, setFechaCorte] = useState<string>("");
+  // Inicio del período (Desde). Vacío = mes del corte (comportamiento viejo). Si se setea,
+  // las columnas MES (volumen/arancel/ctas ops) pasan a ser la suma de [Desde, Hasta].
+  const [desdeCorte, setDesdeCorte] = useState<string>("");
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
@@ -303,7 +306,7 @@ export function ComercialOperacionesView(
     setSelCuenta(null);
     void (async () => {
       try {
-        const fQS = fechaCorte ? `&fecha=${fechaCorte}` : "";
+        const fQS = (fechaCorte ? `&fecha=${fechaCorte}` : "") + (desdeCorte ? `&desde=${desdeCorte}` : "");
         const d = await getJson<OperadorResp>(
           `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}${fQS}`,
         );
@@ -320,7 +323,7 @@ export function ComercialOperacionesView(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS, fechaCorte]);
+  }, [operador, moneda, nQS, fechaCorte, desdeCorte]);
 
   // Serie del gráfico: operador completo o, si hay cliente, esa cuenta.
   useEffect(() => {
@@ -503,12 +506,16 @@ export function ComercialOperacionesView(
           )}
         </div>
         {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy. */}
-        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + (fechaCorte ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Foto al día X: toda la vista comercial (Informe + Análisis) se recalcula a esta fecha. TOTAL acumula hasta el corte, MES = mes del corte. Vacío = hoy.">
-          <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Al día</span>
-          <input type="date" value={fechaCorte} max={new Date().toISOString().slice(0, 10)}
+        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: TOTAL acumula hasta HASTA; las columnas MES (volumen/arancel/ctas ops) se calculan en [Desde, Hasta]. AuM = snapshot a HASTA. Vacío = hoy / mes del corte.">
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
+          <input type="date" value={desdeCorte} max={fechaCorte || new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setDesdeCorte(e.target.value)}
+            className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Hasta</span>
+          <input type="date" value={fechaCorte} min={desdeCorte || undefined} max={new Date().toISOString().slice(0, 10)}
             onChange={(e) => setFechaCorte(e.target.value)}
             className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
-          {fechaCorte && <button onClick={() => setFechaCorte("")} title="Volver a hoy" className="text-[10px] text-[var(--t-accent)] hover:underline">hoy</button>}
+          {(fechaCorte || desdeCorte) && <button onClick={() => { setFechaCorte(""); setDesdeCorte(""); }} title="Volver a hoy" className="text-[10px] text-[var(--t-accent)] hover:underline">hoy</button>}
         </label>
         {loading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
@@ -523,9 +530,9 @@ export function ComercialOperacionesView(
       </div>
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
-      {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} />}
+      {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} desde={desdeCorte} />}
       {subview === "cobros_futuros" && <CobrosFuturosView operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
-      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} fecha={fechaCorte} />}
+      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} fecha={fechaCorte} desde={desdeCorte} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
@@ -1016,8 +1023,8 @@ function Field({ label, value }: { label: string; value: string | null }) {
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
 function AnalisisComercial(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "", fecha = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string; fecha?: string },
+  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "", fecha = "", desde = "" }:
+  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string; fecha?: string; desde?: string },
 ) {
   const nQS = nivelQS(nivel1, nivel3, referido);
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
@@ -1056,7 +1063,7 @@ function AnalisisComercial(
     setEstadoSel(null);
     void (async () => {
       try {
-        const fQS = fecha ? `&fecha=${fecha}` : "";
+        const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
         const d = await getJson<{ clientes: AnalisisCliente[]; dias_activa?: number; dias_dormida?: number }>(
           `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}${fQS}`,
         );
@@ -1070,7 +1077,7 @@ function AnalisisComercial(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS, fecha]);
+  }, [operador, moneda, nQS, fecha, desde]);
 
   const nivelDe = (c: AnalisisCliente) => c.nivel_1 || "(sin segmentar)";
 
