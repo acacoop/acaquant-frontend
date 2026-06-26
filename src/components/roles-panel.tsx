@@ -24,6 +24,10 @@ export function RolesPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Roles creados localmente (todavía sin guardar). Se mergean con los del server
+  // para renderizar su columna; al GUARDAR el PATCH los crea en la matriz.
+  const [extraRoles, setExtraRoles] = useState<string[]>([]);
+  const [nuevoRol, setNuevoRol] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +59,27 @@ export function RolesPanel() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Roles a renderizar = los del server + los recién creados (sin duplicar).
+  const allRoles = useMemo(
+    () => (data ? [...data.roles, ...extraRoles.filter((r) => !data.roles.includes(r))] : []),
+    [data, extraRoles],
+  );
+
+  function addRol() {
+    // Normaliza a una key segura: "BACK OFFICE" → "back_office".
+    const name = nuevoRol.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!name) return;
+    if ((data?.roles ?? []).includes(name) || extraRoles.includes(name)) {
+      setError(`el rol "${name}" ya existe`);
+      return;
+    }
+    setError(null);
+    setExtraRoles((p) => [...p, name]);
+    // Arranca con HOME tildado; tildá los demás módulos en la columna y GUARDÁ.
+    setWorking((p) => ({ ...p, [name]: new Set(["home"]) }));
+    setNuevoRol("");
+  }
 
   function toggle(role: string, module: string) {
     setWorking((prev) => {
@@ -101,6 +126,7 @@ export function RolesPanel() {
           }),
         ),
       );
+      setExtraRoles([]);   // ya están en el server → se renderizan desde data.roles
       await load();
     } catch (e: unknown) {
       setError(String((e as Error).message || e));
@@ -138,8 +164,22 @@ export function RolesPanel() {
       {/* Header con save button */}
       <div className="flex items-center gap-3 shrink-0">
         <div className="text-[10px] text-[var(--t-text-dim)] tracking-wide">
-          {data.roles.length} roles × {data.modules.length} módulos
+          {allRoles.length} roles × {data.modules.length} módulos
         </div>
+        {/* Crear un rol nuevo: aparece como columna; tildás sus módulos y GUARDÁS. */}
+        <input
+          value={nuevoRol}
+          onChange={(e) => setNuevoRol(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addRol(); }}
+          placeholder="nuevo rol…"
+          className="w-[150px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none placeholder:text-[var(--t-text-muted)]"
+        />
+        <button
+          onClick={addRol}
+          disabled={!nuevoRol.trim()}
+          className="px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+          title="Crear un rol nuevo (arranca con HOME; tildá el resto y GUARDÁ)"
+        >➕ rol</button>
         {dirtyRoles.size > 0 && (
           <div className="text-[10px] text-[var(--t-accent)]">
             {dirtyRoles.size} {dirtyRoles.size === 1 ? "cambio pendiente" : "cambios pendientes"}
@@ -163,7 +203,7 @@ export function RolesPanel() {
               <th className="px-3 py-2 text-left text-[10px] text-[var(--t-text-dim)] font-semibold tracking-wide">
                 MÓDULO
               </th>
-              {data.roles.map((r) => (
+              {allRoles.map((r) => (
                 <th
                   key={r}
                   className={`px-3 py-2 text-center text-[10px] font-semibold tracking-wide ${
@@ -183,7 +223,7 @@ export function RolesPanel() {
                 className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
               >
                 <td className="px-3 py-1.5 text-[var(--t-text)]">{m}</td>
-                {data.roles.map((r) => {
+                {allRoles.map((r) => {
                   const checked = working[r]?.has(m) ?? false;
                   return (
                     <td key={r} className="px-3 py-1.5 text-center">
