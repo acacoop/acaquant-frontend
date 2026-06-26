@@ -17,12 +17,12 @@ import { fmtPrice, fmtVol } from "./ui";
 type View = "cedear" | "adr";
 
 type CedearSortKey =
-  | "ticker_corto" | "nombre" | "sector"
+  | "ticker_corto" | "nombre" | "rubro"
   | "last" | "intraday_pct" | "vs_1d_pct" | "vs_1d_usd_pct"
   | "vwap" | "spread_pct" | "volume";
 
 type AdrSortKey =
-  | "ticker_corto" | "nombre" | "sector"
+  | "ticker_corto" | "nombre" | "rubro"
   | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct" | "adr_ret_15r_pct"
   | "adr_ret_mtd_pct" | "adr_ret_ytd_pct";
 
@@ -54,7 +54,7 @@ export function CedearsScannerTable({
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "ticker_corto" || key === "sector" ? "asc" : "desc");
+      setSortDir(key === "ticker_corto" || key === "rubro" ? "asc" : "desc");
     }
   }
 
@@ -163,7 +163,7 @@ export function CedearsScannerTable({
               <tr className="text-[var(--t-text-muted)]">
                 <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                 <SortableTh label="NOMBRE" col="nombre"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
-                <SortableTh label="SECTOR" col="sector"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+                <SortableTh label="RUBRO"  col="rubro"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
                 <SortableTh label="LAST"   col="last"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                 <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
                 <SortableTh label="1D"     col="vs_1d_pct"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Variación ARS vs cierre día anterior" />
@@ -176,7 +176,7 @@ export function CedearsScannerTable({
               <tr className="text-[#5a8aa3]">
                 <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
                 <SortableTh label="NOMBRE"  col="nombre"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
-                <SortableTh label="SECTOR"  col="sector"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
+                <SortableTh label="RUBRO"   col="rubro"           sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
                 <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ, Trading.PreciosAcciones)" />
                 <SortableTh label="1D"      col="adr_vs_1d_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / prev close − 1) × 100" />
                 <SortableTh label="7D"      col="adr_ret_7d_pct"  sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close ~7d atrás − 1) × 100" />
@@ -215,7 +215,7 @@ export function CedearsScannerTable({
                       {r.nombre || "--"}
                     </td>
                     <td className="!px-1 text-[var(--t-text-dim)]">
-                      {r.sector || "--"}
+                      {r.rubro || "--"}
                     </td>
 
                     {view === "cedear" ? (

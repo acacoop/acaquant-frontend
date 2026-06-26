@@ -86,7 +86,9 @@ export interface CedearScannerRow {
   nombre:       string | null;
   underlying:   string | null;
   ratio_cedear: number | null;
-  sector:       string | null;
+  sector:       string | null;   // legacy (jsonb master Trading.Cedears) — casi siempre vacío
+  rubro:        string | null;   // clasificación de negocio viva (col SQL mercado.cedears, editable en Manager)
+  es_ia:        boolean | null;  // ecosistema IA (col SQL)
   industria:    string | null;
   region:       string | null;
   pais:         string | null;
