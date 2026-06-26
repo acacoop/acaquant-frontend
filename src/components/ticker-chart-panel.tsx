@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { TableHelp } from "./help-tooltip";
+import { CedearsTimeSalesPanel } from "./cedears-timesales-panel";
 import type { TickerReturns } from "@/lib/types-scanner";
 
 /**
@@ -25,16 +26,18 @@ import type { TickerReturns } from "@/lib/types-scanner";
  * Re-fetcha/re-monta cuando cambia el ticker.
  */
 
-type Tab = "live" | "chart" | "returns";
+type Tab = "live" | "timesales" | "chart" | "returns";
 
 const TAB_ORDER: { key: Tab; label: string }[] = [
-  { key: "live",    label: "LIVE" },
-  { key: "chart",   label: "HISTÓRICO" },
-  { key: "returns", label: "RETORNOS DIARIOS" },
+  { key: "live",      label: "LIVE" },
+  { key: "timesales", label: "TIME & SALES" },
+  { key: "chart",     label: "HISTÓRICO" },
+  { key: "returns",   label: "RETORNOS DIARIOS" },
 ];
 
 const GLOSSARY = [
   { label: "LIVE",             text: "Gráfico intradía en vivo armado con NUESTRO feed (BYMA vía pyRofex) — el mismo que la tabla y el Time & Sales. Sin el delay de TradingView: coincide con los precios live. Solo muestra la rueda de hoy (se arma desde el primer trade)." },
+  { label: "TIME & SALES",     text: "Tape intradía: cada operación (hora, precio, size, lado) del ticker seleccionado en la rueda de hoy. BUY verde, SELL rojo, MID gris. Se vacía al cierre." },
   { label: "HISTÓRICO",        text: "Gráfico de TradingView embebido (datos diarios, con delay del proveedor) para ver años de historia. Bloqueado al ticker seleccionado — para cambiar, elegí otro en la tabla." },
   { label: "RETORNOS DIARIOS", text: "Histograma de los retornos diarios aritméticos del último año (~252 días). Cada barra muestra cuántos días el activo se movió dentro de ese rango. La línea naranja marca el retorno del último día disponible — visualiza cuán raro/normal es ese movimiento vs su historia." },
   { label: "Media",            text: "Promedio simple de los retornos diarios de la ventana — debería estar cerca de 0 en activos sanos." },
@@ -95,6 +98,8 @@ export function TickerChartPanel({ ticker }: { ticker: string | null }) {
       <div className="flex-1 min-h-0">
         {tab === "live" ? (
           <LiveIntradayChart ticker={ticker} />
+        ) : tab === "timesales" ? (
+          <CedearsTimeSalesPanel ticker={ticker} />
         ) : tab === "chart" ? (
           <TradingViewChart ticker={ticker} />
         ) : (
