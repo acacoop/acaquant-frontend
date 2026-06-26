@@ -10,11 +10,18 @@ import { TenenciaValorizadaView } from "./tenencia-valorizada-view";
 type Tab = "titulos_mercado" | "acreencias" | "tenencia";
 
 export function BackOfficeShell() {
-  const [tab, setTab] = useState<Tab>("titulos_mercado");
+  // Default = Tenencia Valorizada (primera en la barra).
+  const [tab, setTab] = useState<Tab>("tenencia");
 
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-1 shrink-0">
+        <TabBtn
+          active={tab === "tenencia"}
+          onClick={() => setTab("tenencia")}
+        >
+          Tenencia Valorizada
+        </TabBtn>
         <TabBtn
           active={tab === "titulos_mercado"}
           onClick={() => setTab("titulos_mercado")}
@@ -26,12 +33,6 @@ export function BackOfficeShell() {
           onClick={() => setTab("acreencias")}
         >
           Acreencias Clientes
-        </TabBtn>
-        <TabBtn
-          active={tab === "tenencia"}
-          onClick={() => setTab("tenencia")}
-        >
-          Tenencia Valorizada
         </TabBtn>
       </div>
 
