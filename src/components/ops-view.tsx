@@ -185,14 +185,6 @@ export function OpsView() {
     () => (selDenom ? denomRows.reduce((a, r) => a + r.bruto, 0) : total),
     [denomRows, selDenom, total],
   );
-  // El gráfico se fetchea completo (ops/serie) → lo recorto al rango elegido para que
-  // acompañe el filtro (igual que el resumen). Comparación de strings ISO (YYYY-MM-DD).
-  const serieFiltrada = useMemo(() => {
-    const { desde, hasta } = rangoFecha;
-    if (!desde || !hasta) return serie;
-    return serie.filter((r) => r.fecha >= desde && r.fecha <= hasta);
-  }, [serie, rangoFecha.desde, rangoFecha.hasta]);
-
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* ── Filtros ───────────────────────────────────────────── */}
@@ -315,8 +307,11 @@ export function OpsView() {
               </table>
             </div>
           </div>
-          {/* Gráfico */}
-          <OpsBarChart serie={serieFiltrada} fmt={fmtCompact} unidad={MONEDA_UNIDAD[moneda]} defaultAgg="DIARIO"
+          {/* Gráfico — recibe la serie COMPLETA (no recortada al modo) y maneja su propio
+              rango con su toolbar; arranca en YTD por defecto (defaultRango="YTD" del componente)
+              → no queda en 1 sola barra cuando el selector de arriba está en ÚLTIMA. El filtro de
+              día (ÚLTIMA) solo resalta la barra del día vía focoFecha. */}
+          <OpsBarChart serie={serie} fmt={fmtCompact} unidad={MONEDA_UNIDAD[moneda]} defaultAgg="DIARIO"
             focoFecha={modo === "ULTIMA" ? fecha : null}
             series={[{ key: "bruto", label: "Bruto", color: "var(--t-brand)" }]} />
         </div>
