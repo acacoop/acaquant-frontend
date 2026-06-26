@@ -39,6 +39,7 @@ type Resumen = {
 };
 type Ficha = {
   denominacion: string | null;
+  operador_nombre: string | null;
   telefono: string | null;
   email: string | null;
   nivel_1: string | null;
@@ -195,6 +196,7 @@ function filtrarRango(serie: SeriePoint[], rango: RangoKey, offset = 0): SeriePo
 
 // Campos de la ficha (tab "Datos") — se muestran SIEMPRE, incluso null.
 const FICHA_DATOS: [keyof Ficha, string][] = [
+  ["operador_nombre", "Operador"],
   ["telefono", "Teléfono"], ["email", "Email"],
   ["nivel_1", "Nivel 1"], ["nivel_2", "Nivel 2"], ["nivel_3", "Nivel 3"],
   ["nivel_4", "Nivel 4"], ["nivel_5", "Nivel 5"],
