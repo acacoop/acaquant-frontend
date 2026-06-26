@@ -1389,6 +1389,9 @@ function TabAssets() {
   const [filtroEmisor, setFiltroEmisor] = useState<string>("");
   // "mostrar solo los que tienen este campo vacío". "" = sin filtro (todo).
   const [campoVacio, setCampoVacio] = useState<AssetCampo | "">("");
+  // Buscador por unidad — filtro en el CLIENTE sobre el catálogo ya cargado (instantáneo,
+  // sin pegarle al backend en cada tecla). Matchea substring case-insensitive.
+  const [buscaUnidad, setBuscaUnidad] = useState("");
 
   const fetchAssets = () => {
     setLoading(true);
@@ -1540,6 +1543,12 @@ function TabAssets() {
   // Los campos cerrados (CARTERA, CLASE_ACTIVO) van como <select> y no usan list.
   const camposAbiertos = ASSET_CAMPOS.filter((c) => !ASSET_CAMPOS_CERRADOS.includes(c));
 
+  // Filtro por unidad en el cliente (el catálogo entero ya está cargado por fetchAssets).
+  const qUnidad = buscaUnidad.trim().toUpperCase();
+  const assetsVisibles = qUnidad
+    ? assets.filter((a) => (a.unidad || "").toUpperCase().includes(qUnidad))
+    : assets;
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Datalists para autocomplete de los campos abiertos — via list="<campo>-options" */}
@@ -1550,7 +1559,26 @@ function TabAssets() {
       ))}
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">ASSETS</span>
-        <span className="text-[10px] text-[var(--t-text-muted)]">{assets.length} resultados</span>
+        <span className="text-[10px] text-[var(--t-text-muted)]">
+          {assetsVisibles.length}{qUnidad ? ` / ${assets.length}` : ""} resultados
+        </span>
+
+        {/* Buscador por unidad (filtra el catálogo ya cargado, en vivo mientras tipeás) */}
+        <input
+          value={buscaUnidad}
+          onChange={(e) => setBuscaUnidad(e.target.value)}
+          placeholder="Buscar unidad…"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-[180px]"
+        />
+        {buscaUnidad && (
+          <button
+            onClick={() => setBuscaUnidad("")}
+            className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px]"
+            title="Limpiar búsqueda"
+          >
+            ✕
+          </button>
+        )}
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CARTERA</span>
         <select
@@ -1612,7 +1640,12 @@ function TabAssets() {
               </tr>
             </thead>
             <tbody>
-              {assets.map((a) => {
+              {assetsVisibles.length === 0 && (
+                <tr><td colSpan={20} className="px-3 py-3 text-[11px] text-[var(--t-text-muted)]">
+                  Sin assets que matcheen “{buscaUnidad}”.
+                </td></tr>
+              )}
+              {assetsVisibles.map((a) => {
                 const draft = drafts[a.unidad] || emptyDraft();
                 const state: RowState = rowState[a.unidad] || { kind: "idle" };
                 const dirty = ASSET_CAMPOS.some((c) => draft[c] !== ((a[c] ?? "") as string));
