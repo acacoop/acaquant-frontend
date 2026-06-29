@@ -116,12 +116,10 @@ export function AccountPicker({
                 c.account_id === value ? "bg-[var(--t-border)] text-[var(--t-accent)]" : "text-[var(--t-text)]"
               }`}
             >
-              <span>{c.account_id}</span>
-              {c.activa && (
-                <span className="text-[8px] text-[var(--t-text-muted)]">
-                  {c.ars_disponible !== null
-                    ? `$${c.ars_disponible.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
-                    : ""}
+              <span className="shrink-0">{c.account_id}</span>
+              {c.nombre && (
+                <span className="text-[9px] text-[var(--t-text-muted)] truncate ml-2 text-right">
+                  {c.nombre}
                 </span>
               )}
             </button>
