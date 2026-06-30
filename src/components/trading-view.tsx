@@ -49,6 +49,34 @@ function saveCards(cards: Card[]): void {
   }
 }
 
+// Override manual de máx/mín/cierre, keyed por CEDEAR → persiste entre navegación
+// y recargas. {} = ninguno; presencia de un ticker = el usuario lo editó a mano.
+type Ov = { h: string; l: string; c: string };
+const LS_OVERRIDES = "trd-fx-trading-pivot-overrides-v1";
+
+function loadOverrides(): Record<string, Ov> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(LS_OVERRIDES);
+    if (raw) {
+      const o = JSON.parse(raw) as Record<string, Ov>;
+      if (o && typeof o === "object") return o;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
+function saveOverrides(ov: Record<string, Ov>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LS_OVERRIDES, JSON.stringify(ov));
+  } catch {
+    /* ignore */
+  }
+}
+
 // Pivot Floor Trader en el cliente (para que el editar máx/mín/cierre recalcule).
 function calcPivots(h: number, l: number, c: number): PivotLevels {
   const pp = (h + l + c) / 3;
@@ -104,6 +132,7 @@ export function TradingView() {
   const [cards, setCards] = useState<Card[]>(loadCards);
   const [universo, setUniverso] = useState<UniversoItem[]>([]);
   const [selected, setSelected] = useState<string>("");
+  const [overrides, setOverrides] = useState<Record<string, Ov>>(loadOverrides);
 
   // CEDEAR que manda el chart + time sales: la card marcada, o la primera con ticker.
   const shownTicker =
@@ -114,6 +143,19 @@ export function TradingView() {
   useEffect(() => {
     saveCards(cards);
   }, [cards]);
+
+  useEffect(() => {
+    saveOverrides(overrides);
+  }, [overrides]);
+
+  function setOverride(ticker: string, ov: Ov | null) {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      if (ov === null) delete next[ticker];
+      else next[ticker] = ov;
+      return next;
+    });
+  }
 
   // catálogo de CEDEARs para el selector (1 vez)
   useEffect(() => {
@@ -181,14 +223,17 @@ export function TradingView() {
         <div className="min-h-0 grid grid-cols-2 grid-rows-2 gap-2">
           {cards.map((c) => (
             <PivotCard
-              key={`${c.id}:${c.ticker}`}
+              key={c.id}
               ticker={c.ticker}
               row={c.ticker ? byTicker.get(c.ticker) : undefined}
               mode={mode}
               universo={universo}
               selected={!!c.ticker && c.ticker === shownTicker}
+              override={c.ticker ? overrides[c.ticker] : undefined}
               onPick={(tk) => setTicker(c.id, tk)}
               onSelect={() => c.ticker && setSelected(c.ticker)}
+              onEdit={(ov) => c.ticker && setOverride(c.ticker, ov)}
+              onResetEdit={() => c.ticker && setOverride(c.ticker, null)}
             />
           ))}
         </div>
@@ -243,30 +288,35 @@ function PivotCard({
   mode,
   universo,
   selected,
+  override,
   onPick,
   onSelect,
+  onEdit,
+  onResetEdit,
 }: {
   ticker: string;
   row: PivotRow | undefined;
   mode: PivotMode;
   universo: UniversoItem[];
   selected: boolean;
+  override: Ov | undefined;
   onPick: (ticker: string) => void;
   onSelect: () => void;
+  onEdit: (ov: Ov) => void;
+  onResetEdit: () => void;
 }) {
   const last = row?.last ?? null;
 
-  // máx/mín/cierre editables. `ov` = override del usuario (null → sigue al server).
-  // La card remonta al cambiar de ticker (key incluye el ticker) → ov se resetea.
-  const [ov, setOv] = useState<{ h: string; l: string; c: string } | null>(null);
-  const srv = {
+  // máx/mín/cierre: el override (editado a mano) lo guarda el padre y persiste en
+  // localStorage. Sin override → sigue al server. Editar → llama onEdit (persiste).
+  const srv: Ov = {
     h: row?.high != null ? String(row.high) : "",
     l: row?.low != null ? String(row.low) : "",
     c: row?.close != null ? String(row.close) : "",
   };
-  const eff = ov ?? srv;
+  const eff = override ?? srv;
   const setField = (k: "h" | "l" | "c", val: string) =>
-    setOv((o) => ({ ...(o ?? srv), [k]: val }));
+    onEdit({ ...(override ?? srv), [k]: val });
 
   const h = parseFloat(eff.h);
   const l = parseFloat(eff.l);
@@ -285,6 +335,16 @@ function PivotCard({
       {/* header: selector + last */}
       <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--t-border)] shrink-0">
         <CedearPicker value={ticker} universo={universo} onPick={onPick} />
+        {override && (
+          <button
+            type="button"
+            onClick={onResetEdit}
+            className="text-[8px] font-semibold text-[var(--t-accent)] hover:underline"
+            title="Editado a mano — volver a los valores reales del mercado"
+          >
+            editado ↺
+          </button>
+        )}
         <div className="flex items-baseline gap-1 ml-auto">
           <span className="text-[9px] text-[var(--t-text-muted)]">last</span>
           <span className="text-[var(--t-accent)] font-bold tabular-nums text-[12px]">
