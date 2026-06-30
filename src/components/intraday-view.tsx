@@ -45,9 +45,39 @@ interface Resultado {
 }
 
 const STORAGE_KEY = "intraday_fifo_v2";
+const EXCL_KEY = "intraday_excl_v1";
 const PASOS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
 const keyOf = (p: Posicion) => `${p.especie}|${p.cuenta}`;
+
+// Especies destildadas (no cuentan como daytrade). Persiste en sessionStorage.
+function loadExcl(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(EXCL_KEY);
+    if (raw) {
+      const a = JSON.parse(raw);
+      if (Array.isArray(a)) return new Set(a as string[]);
+    }
+  } catch {
+    /* ignore */
+  }
+  return new Set();
+}
+
+function loadResultado(): Resultado | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Resultado;
+      if (parsed?.posiciones && Array.isArray(parsed.posiciones)) return parsed;
+    }
+  } catch {
+    /* storage corrupto/disabled */
+  }
+  return null;
+}
 
 function fmtNum(n: number | null | undefined, d = 2): string {
   if (n === null || n === undefined) return "—";
@@ -79,25 +109,32 @@ function derive(p: Posicion, mark: number) {
 }
 
 export function IntradayView() {
-  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [resultado, setResultado] = useState<Resultado | null>(loadResultado);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
   const [cuentaFiltro, setCuentaFiltro] = useState<string>("todas");
   const [simSel, setSimSel] = useState<string>("__todas__");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [markOv, setMarkOv] = useState<Record<string, number>>({});
+  const [excluidas, setExcluidas] = useState<Set<string>>(loadExcl);
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Resultado;
-        if (parsed?.posiciones && Array.isArray(parsed.posiciones)) setResultado(parsed);
-      }
+      sessionStorage.setItem(EXCL_KEY, JSON.stringify([...excluidas]));
     } catch {
-      /* storage corrupto/disabled */
+      /* ignore */
     }
-  }, []);
+  }, [excluidas]);
+
+  const toggleIncl = (p: Posicion) => {
+    const k = keyOf(p);
+    setExcluidas((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  };
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -121,6 +158,7 @@ export function IntradayView() {
       setResultado(data);
       setMarkOv({});
       setExpanded(new Set());
+      setExcluidas(new Set());
       setCuentaFiltro("todas");
       setSimSel("__todas__");
       try {
@@ -141,6 +179,7 @@ export function IntradayView() {
     setError(null);
     setMarkOv({});
     setExpanded(new Set());
+    setExcluidas(new Set());
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
@@ -158,14 +197,15 @@ export function IntradayView() {
   const effMark = (p: Posicion) => markOv[keyOf(p)] ?? p.mark;
 
   const abiertas = useMemo(
-    () => posiciones.filter((p) => p.estado !== "CERRADA"),
-    [posiciones],
+    () => posiciones.filter((p) => p.estado !== "CERRADA" && !excluidas.has(keyOf(p))),
+    [posiciones, excluidas],
   );
 
   // Totales (sobre lo filtrado, con marks efectivos).
   const totales = useMemo(() => {
     let real = 0, noreal = 0, fees = 0, neto = 0, costoBook = 0;
     for (const p of posiciones) {
+      if (excluidas.has(keyOf(p))) continue; // solo lo tildado cuenta
       const d = derive(p, effMark(p));
       real += p.pnl_realizado;
       noreal += d.noreal;
@@ -175,7 +215,7 @@ export function IntradayView() {
     }
     return { real, noreal, fees, neto, costoBook };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posiciones, markOv]);
+  }, [posiciones, markOv, excluidas]);
 
   // Simulador con mark efectivo.
   const simData = useMemo(() => {
@@ -274,6 +314,7 @@ export function IntradayView() {
               <table className="w-full text-[11px] font-mono tabular-nums border-collapse">
                 <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-wide text-[var(--t-accent)]">
                   <tr className="border-b border-[var(--t-border)]">
+                    <th className="!px-1 !py-1.5 text-center" title="Contar como daytrade">✓</th>
                     <th className="!px-2 !py-1.5 text-left">Especie</th>
                     {cuentaFiltro === "todas" && <th className="!px-2 !py-1.5 text-center">Cta</th>}
                     <th className="!px-2 !py-1.5 text-center">Estado</th>
@@ -293,15 +334,25 @@ export function IntradayView() {
                     const d = derive(p, m);
                     const sel = k === simSel && p.estado !== "CERRADA";
                     const isOpen = expanded.has(k);
-                    const colSpan = cuentaFiltro === "todas" ? 10 : 9;
+                    const excl = excluidas.has(k);
+                    const colSpan = cuentaFiltro === "todas" ? 11 : 10;
                     return (
                       <FragmentRow key={k}>
                         <tr
                           onClick={() => toggleExpand(p)}
                           className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-accent)]/5 ${
                             sel ? "bg-[var(--t-accent)]/15" : ""
-                          } ${p.estado === "CERRADA" ? "opacity-75" : ""}`}
+                          } ${p.estado === "CERRADA" ? "opacity-75" : ""} ${excl ? "opacity-40" : ""}`}
                         >
+                          <td className="!px-1 !py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={!excl}
+                              onChange={() => toggleIncl(p)}
+                              className="cursor-pointer accent-[var(--t-accent)]"
+                              title={excl ? "No cuenta — clic para incluir" : "Cuenta como daytrade — clic para sacar"}
+                            />
+                          </td>
                           <td className="!px-2 !py-1 text-[var(--t-text)] font-semibold">
                             <span className="text-[8px] text-[var(--t-text-muted)] mr-1">{isOpen ? "▾" : "▸"}</span>
                             {p.especie}
@@ -374,7 +425,7 @@ export function IntradayView() {
                     );
                   })}
                   {!posiciones.length && (
-                    <tr><td colSpan={10} className="!px-2 !py-3 text-[var(--t-text-muted)]">sin posiciones para esta cuenta</td></tr>
+                    <tr><td colSpan={11} className="!px-2 !py-3 text-[var(--t-text-muted)]">sin posiciones para esta cuenta</td></tr>
                   )}
                 </tbody>
               </table>
