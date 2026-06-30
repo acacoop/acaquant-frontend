@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
+import { LiveVolumeChart } from "@/components/live-volume-chart";
 import { usePoll } from "@/lib/use-poll";
 import type {
   PivotLevels,
@@ -171,6 +172,7 @@ export function TradingView() {
             </button>
           ))}
         </div>
+        <MarketKpis />
       </div>
 
       {/* split 50 / 50 */}
@@ -214,9 +216,20 @@ export function TradingView() {
               <CedearsTimeSalesPanel ticker={shownTicker || null} compact />
             </div>
           </div>
-          {/* 40% abajo: vacío */}
-          <div className="min-h-0 border border-dashed border-[var(--t-border)] rounded-sm flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
-            (próximamente)
+          {/* 40% abajo: volumen (barras por minuto + acumulado) */}
+          <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
+            <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+              Volumen <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
+            </div>
+            <div className="flex-1 min-h-0">
+              {shownTicker ? (
+                <LiveVolumeChart ticker={shownTicker} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
+                  elegí una card
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -327,6 +340,57 @@ function PivotCard({
         </div>
       )}
     </div>
+  );
+}
+
+// ── KPIs del toolbar: CCL + SPY + QQQ (referencia de mercado) ─────────────────
+interface MarketQuote {
+  symbol: string;
+  last: number | null;
+  pct_day: number | null;
+}
+
+function MarketKpis() {
+  const { data: ccl } = usePoll<{ value: number | null; vs_1d_pct: number | null }>(
+    "/api/scanner/ccl",
+    { value: null, vs_1d_pct: null },
+    5_000,
+    { fetchOnMount: true },
+  );
+  const { data: quotes } = usePoll<MarketQuote[]>(
+    "/api/market/quotes?symbols=SPY,QQQ",
+    [],
+    15_000,
+    { fetchOnMount: true },
+  );
+  const spy = quotes?.find((q) => q.symbol === "SPY");
+  const qqq = quotes?.find((q) => q.symbol === "QQQ");
+  return (
+    <div className="flex items-center gap-3 ml-auto text-[11px]">
+      <Kpi label="CCL" value={ccl.value} pct={ccl.vs_1d_pct} />
+      <Kpi label="SPY" value={spy?.last ?? null} pct={spy?.pct_day ?? null} />
+      <Kpi label="QQQ" value={qqq?.last ?? null} pct={qqq?.pct_day ?? null} />
+    </div>
+  );
+}
+
+function Kpi({ label, value, pct }: { label: string; value: number | null; pct: number | null }) {
+  const cls =
+    pct == null
+      ? "text-[var(--t-text-muted)]"
+      : pct >= 0
+        ? "text-[var(--t-pos)]"
+        : "text-[var(--t-neg)]";
+  return (
+    <span className="flex items-baseline gap-1">
+      <span className="text-[var(--t-text-muted)] font-semibold">{label}</span>
+      <b className="tabular-nums">
+        {value != null ? value.toLocaleString("es-AR", { maximumFractionDigits: 2 }) : "—"}
+      </b>
+      <span className={"tabular-nums " + cls}>
+        {pct != null ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : "—"}
+      </span>
+    </span>
   );
 }
 
