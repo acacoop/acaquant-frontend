@@ -58,7 +58,7 @@ export async function verifiedEmailFromJwt(jwt: string | null | undefined): Prom
  * True si el request entró por la app de Access del portal de invitados (www) —
  * el `aud` del sello firmado coincide con CF_ACCESS_AUD_GUEST. No spoofeable: lo
  * firma Cloudflare. Inerte (siempre false) hasta que se configure el aud de www.
- * Lo usan getMe() y proxyToBackend() para mandar `x-acaquant-portal: guest`.
+ * Lo usa getMe() para mandar `x-acaquant-portal: guest`.
  */
 export async function isGuestRequest(
   getHeader: (name: string) => string | null | undefined,
