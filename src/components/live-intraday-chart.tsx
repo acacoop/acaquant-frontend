@@ -5,11 +5,25 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+
+import type { PivotLevels } from "@/lib/types-trading";
+
+// Niveles a dibujar como líneas horizontales (R verde, S rojo, PP gris).
+const NIVELES: { k: keyof PivotLevels; label: string; color: string }[] = [
+  { k: "r3", label: "R3", color: "var(--t-pos)" },
+  { k: "r2", label: "R2", color: "var(--t-pos)" },
+  { k: "r1", label: "R1", color: "var(--t-pos)" },
+  { k: "pp", label: "PP", color: "var(--t-text-muted)" },
+  { k: "s1", label: "S1", color: "var(--t-neg)" },
+  { k: "s2", label: "S2", color: "var(--t-neg)" },
+  { k: "s3", label: "S3", color: "var(--t-neg)" },
+];
 
 /**
  * Chart LIVE intradía — NUESTRO feed (mercado.cedears_time_sales por minuto, vía
@@ -18,7 +32,13 @@ import {
  *
  * Extraído de ticker-chart-panel.tsx para reusarlo en la vista TRADING.
  */
-export function LiveIntradayChart({ ticker }: { ticker: string }) {
+export function LiveIntradayChart({
+  ticker,
+  pivots,
+}: {
+  ticker: string;
+  pivots?: PivotLevels | null;
+}) {
   const [data, setData] = useState<{ t: string; c: number }[]>([]);
 
   useEffect(() => {
@@ -93,6 +113,24 @@ export function LiveIntradayChart({ ticker }: { ticker: string }) {
           isAnimationActive={false}
           dot={false}
         />
+        {/* Pivots como líneas horizontales. ifOverflow="hidden" → si caen fuera
+            del rango del precio, se recortan (NO estiran el eje). */}
+        {pivots &&
+          NIVELES.map((n) => {
+            const y = pivots[n.k];
+            if (y == null || !Number.isFinite(y)) return null;
+            return (
+              <ReferenceLine
+                key={n.k}
+                y={y}
+                stroke={n.color}
+                strokeDasharray="4 3"
+                strokeWidth={1}
+                ifOverflow="hidden"
+                label={{ value: n.label, position: "right", fontSize: 8, fill: n.color }}
+              />
+            );
+          })}
       </AreaChart>
     </ResponsiveContainer>
   );
