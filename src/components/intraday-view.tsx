@@ -65,6 +65,22 @@ function loadExcl(): Set<string> {
   return new Set();
 }
 
+const EXCT_KEY = "intraday_exct_v1";
+
+function loadExcT(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(EXCT_KEY);
+    if (raw) {
+      const a = JSON.parse(raw);
+      if (Array.isArray(a)) return new Set(a as string[]);
+    }
+  } catch {
+    /* ignore */
+  }
+  return new Set();
+}
+
 function loadResultado(): Resultado | null {
   if (typeof window === "undefined") return null;
   try {
@@ -136,6 +152,86 @@ export function IntradayView() {
     });
   };
 
+  // ── exclusión por-trade individual + recálculo FIFO en el backend ──
+  const [excTrades, setExcTrades] = useState<Set<string>>(loadExcT);
+  const [recomp, setRecomp] = useState<Record<string, Posicion>>({});
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(EXCT_KEY, JSON.stringify([...excTrades]));
+    } catch {
+      /* ignore */
+    }
+  }, [excTrades]);
+
+  const tradeKey = (p: Posicion, i: number) => `${keyOf(p)}#${i}`;
+  const excCount = (p: Posicion) =>
+    p.trades.reduce((n, _t, i) => (excTrades.has(tradeKey(p, i)) ? n + 1 : n), 0);
+  const toggleTrade = (p: Posicion, i: number) => {
+    const tk = tradeKey(p, i);
+    setExcTrades((prev) => {
+      const n = new Set(prev);
+      if (n.has(tk)) n.delete(tk);
+      else n.add(tk);
+      return n;
+    });
+  };
+
+  // Posición efectiva: null si NO cuenta (especie destildada o todos los trades
+  // fuera); `p` si no tiene exclusión por-trade; el recálculo del backend si tiene
+  // algunos trades fuera (cae a `p` mientras llega la respuesta).
+  const effPos = (p: Posicion): Posicion | null => {
+    if (excluidas.has(keyOf(p))) return null;
+    const exc = excCount(p);
+    if (exc === 0) return p;
+    if (exc >= p.trades.length) return null;
+    return recomp[keyOf(p)] ?? p;
+  };
+
+  // Recalcula (debounce) las posiciones con exclusión PARCIAL por-trade.
+  useEffect(() => {
+    const mods = (resultado?.posiciones ?? []).filter((p) => {
+      const exc = p.trades.reduce((n, _t, i) => (excTrades.has(`${keyOf(p)}#${i}`) ? n + 1 : n), 0);
+      return exc > 0 && exc < p.trades.length;
+    });
+    const ctrl = new AbortController();
+    const id = setTimeout(async () => {
+      if (!mods.length) {
+        setRecomp({});
+        return;
+      }
+      try {
+        const body = {
+          posiciones: mods.map((p) => ({
+            cuenta: p.cuenta,
+            especie: p.especie,
+            moneda: p.moneda,
+            trades: p.trades
+              .filter((_t, i) => !excTrades.has(`${keyOf(p)}#${i}`))
+              .map((t) => ({ hora: t.hora, lado: t.lado, precio: t.precio, cantidad: t.cantidad, monto: t.monto })),
+          })),
+        };
+        const r = await fetch("/api/operaciones/intraday/recalcular", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+        if (!r.ok) return;
+        const data = (await r.json()) as { posiciones: Posicion[] };
+        const m: Record<string, Posicion> = {};
+        for (const pos of data.posiciones) m[`${pos.especie}|${pos.cuenta}`] = pos;
+        setRecomp(m);
+      } catch {
+        /* abort / transitorio */
+      }
+    }, 300);
+    return () => {
+      clearTimeout(id);
+      ctrl.abort();
+    };
+  }, [excTrades, resultado]);
+
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -159,6 +255,8 @@ export function IntradayView() {
       setMarkOv({});
       setExpanded(new Set());
       setExcluidas(new Set());
+      setExcTrades(new Set());
+      setRecomp({});
       setCuentaFiltro("todas");
       setSimSel("__todas__");
       try {
@@ -180,6 +278,8 @@ export function IntradayView() {
     setMarkOv({});
     setExpanded(new Set());
     setExcluidas(new Set());
+    setExcTrades(new Set());
+    setRecomp({});
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
@@ -197,25 +297,30 @@ export function IntradayView() {
   const effMark = (p: Posicion) => markOv[keyOf(p)] ?? p.mark;
 
   const abiertas = useMemo(
-    () => posiciones.filter((p) => p.estado !== "CERRADA" && !excluidas.has(keyOf(p))),
-    [posiciones, excluidas],
+    () =>
+      posiciones
+        .map((p) => effPos(p))
+        .filter((p): p is Posicion => !!p && p.estado !== "CERRADA"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [posiciones, excluidas, excTrades, recomp],
   );
 
-  // Totales (sobre lo filtrado, con marks efectivos).
+  // Totales (sobre lo tildado, con marks efectivos y FIFO recalculado por-trade).
   const totales = useMemo(() => {
     let real = 0, noreal = 0, fees = 0, neto = 0, costoBook = 0;
     for (const p of posiciones) {
-      if (excluidas.has(keyOf(p))) continue; // solo lo tildado cuenta
-      const d = derive(p, effMark(p));
-      real += p.pnl_realizado;
+      const ep = effPos(p);
+      if (!ep) continue; // destildada (especie o todos los trades fuera)
+      const d = derive(ep, effMark(ep));
+      real += ep.pnl_realizado;
       noreal += d.noreal;
-      fees += p.intereses + p.iva;
+      fees += ep.intereses + ep.iva;
       neto += d.neto;
-      if (p.estado !== "CERRADA") costoBook += d.costo;
+      if (ep.estado !== "CERRADA") costoBook += d.costo;
     }
     return { real, noreal, fees, neto, costoBook };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posiciones, markOv, excluidas]);
+  }, [posiciones, markOv, excluidas, excTrades, recomp]);
 
   // Simulador con mark efectivo.
   const simData = useMemo(() => {
@@ -330,11 +435,15 @@ export function IntradayView() {
                 <tbody>
                   {posiciones.map((p) => {
                     const k = keyOf(p);
-                    const m = effMark(p);
-                    const d = derive(p, m);
-                    const sel = k === simSel && p.estado !== "CERRADA";
+                    const eff = effPos(p);          // efectiva (recalculada) o null si no cuenta
+                    const dp = eff ?? p;
+                    const m = effMark(dp);
+                    const d = derive(dp, m);
+                    const off = !eff;               // no cuenta (especie o todos los trades fuera)
+                    const hasTradeExc = excCount(p) > 0;
+                    const recalc = !!eff && hasTradeExc; // exclusión por-trade parcial
+                    const sel = !off && k === simSel && dp.estado !== "CERRADA";
                     const isOpen = expanded.has(k);
-                    const excl = excluidas.has(k);
                     const colSpan = cuentaFiltro === "todas" ? 11 : 10;
                     return (
                       <FragmentRow key={k}>
@@ -342,26 +451,27 @@ export function IntradayView() {
                           onClick={() => toggleExpand(p)}
                           className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-accent)]/5 ${
                             sel ? "bg-[var(--t-accent)]/15" : ""
-                          } ${p.estado === "CERRADA" ? "opacity-75" : ""} ${excl ? "opacity-40" : ""}`}
+                          } ${p.estado === "CERRADA" ? "opacity-75" : ""} ${off ? "opacity-40" : ""}`}
                         >
                           <td className="!px-1 !py-1 text-center" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
-                              checked={!excl}
+                              checked={!excluidas.has(k)}
                               onChange={() => toggleIncl(p)}
                               className="cursor-pointer accent-[var(--t-accent)]"
-                              title={excl ? "No cuenta — clic para incluir" : "Cuenta como daytrade — clic para sacar"}
+                              title={excluidas.has(k) ? "No cuenta — clic para incluir" : "Cuenta como daytrade — clic para sacar"}
                             />
                           </td>
                           <td className="!px-2 !py-1 text-[var(--t-text)] font-semibold">
                             <span className="text-[8px] text-[var(--t-text-muted)] mr-1">{isOpen ? "▾" : "▸"}</span>
                             {p.especie}
+                            {recalc && <span className="ml-1 text-[8px] text-[var(--t-accent)]" title="recalculado: hay trades sacados">✎</span>}
                           </td>
                           {cuentaFiltro === "todas" && <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{p.cuenta}</td>}
-                          <td className="!px-2 !py-1 text-center font-semibold" style={{ color: estadoColor(p.estado) }}>{p.estado}</td>
-                          <td className="!px-2 !py-1 text-right">{fmtNum(p.qty_neta, 0)}</td>
-                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{p.estado === "CERRADA" ? "—" : fmtNum(d.costo, 0)}</td>
-                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{fmtNum(p.precio_ponderado, 2)}</td>
+                          <td className="!px-2 !py-1 text-center font-semibold" style={{ color: estadoColor(dp.estado) }}>{eff ? eff.estado : "—"}</td>
+                          <td className="!px-2 !py-1 text-right">{eff ? fmtNum(eff.qty_neta, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{eff && eff.estado !== "CERRADA" ? fmtNum(d.costo, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{eff && eff.precio_ponderado != null ? fmtNum(eff.precio_ponderado, 2) : "—"}</td>
                           <td className="!px-2 !py-1 text-right" onClick={(e) => e.stopPropagation()}>
                             <span className="inline-flex items-center justify-end gap-1">
                               <input
@@ -373,16 +483,16 @@ export function IntradayView() {
                                   setMarkOv((prev) => ({ ...prev, [k]: isNaN(v) ? 0 : v }));
                                 }}
                                 className="w-16 bg-transparent text-right text-[11px] text-[var(--t-text)] border-b border-dashed border-[var(--t-border-2)] focus:border-[var(--t-accent)] focus:outline-none"
-                                title={p.mark_source === "live" ? "live feed (editable)" : "no mapeado — escribilo a mano"}
+                                title={dp.mark_source === "live" ? "live feed (editable)" : "no mapeado — escribilo a mano"}
                               />
-                              <span className="text-[8px]" style={{ color: markOv[k] !== undefined ? "var(--t-accent)" : p.mark_source === "live" ? "var(--t-pos)" : "var(--t-text-muted)" }}>
-                                {markOv[k] !== undefined ? "✎" : p.mark_source === "live" ? "●" : "○"}
+                              <span className="text-[8px]" style={{ color: markOv[k] !== undefined ? "var(--t-accent)" : dp.mark_source === "live" ? "var(--t-pos)" : "var(--t-text-muted)" }}>
+                                {markOv[k] !== undefined ? "✎" : dp.mark_source === "live" ? "●" : "○"}
                               </span>
                             </span>
                           </td>
-                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(p.pnl_realizado) }}>{fmtNum(p.pnl_realizado, 0)}</td>
-                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(d.noreal) }}>{p.estado === "CERRADA" ? "—" : fmtNum(d.noreal, 0)}</td>
-                          <td className="!px-2 !py-1 text-right font-semibold" style={{ color: pnlColor(d.neto) }}>{fmtNum(d.neto, 0)}</td>
+                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(eff ? eff.pnl_realizado : 0) }}>{eff ? fmtNum(eff.pnl_realizado, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(eff ? d.noreal : 0) }}>{eff && eff.estado !== "CERRADA" ? fmtNum(d.noreal, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right font-semibold" style={{ color: pnlColor(eff ? d.neto : 0) }}>{eff ? fmtNum(d.neto, 0) : "—"}</td>
                         </tr>
                         {isOpen && (
                           <tr className="bg-[var(--t-bg)]">
@@ -393,6 +503,7 @@ export function IntradayView() {
                               <table className="w-full text-[10px] font-mono">
                                 <thead className="text-[8px] uppercase tracking-wide text-[var(--t-text-muted)]">
                                   <tr>
+                                    <th className="!py-0.5 text-center" title="Contar este trade">✓</th>
                                     <th className="!py-0.5 text-left">Hora</th>
                                     <th className="!py-0.5 text-left">Lado</th>
                                     <th className="!py-0.5 text-right">Precio</th>
@@ -404,18 +515,31 @@ export function IntradayView() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {p.trades.map((tr, i) => (
-                                    <tr key={i} className="border-t border-[var(--t-border)]">
-                                      <td className="!py-0.5 text-[var(--t-text-dim)]">{tr.hora}</td>
-                                      <td className="!py-0.5 font-semibold" style={{ color: tr.lado === "Compra" ? "var(--t-pos)" : "var(--t-neg)" }}>{tr.lado}</td>
-                                      <td className="!py-0.5 text-right">{fmtNum(tr.precio, 2)}</td>
-                                      <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{fmtNum(tr.cantidad, 0)}</td>
-                                      <td className="!py-0.5 text-right">{fmtNum(tr.monto, 0)}</td>
-                                      <td className="!py-0.5 text-right font-semibold" style={{ color: Math.abs(tr.pos_acum) < 1e-9 ? "#888" : tr.pos_acum > 0 ? "var(--t-pos)" : "var(--t-neg)" }}>{fmtNum(tr.pos_acum, 0)}</td>
-                                      <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{Math.abs(tr.pos_acum) < 1e-9 ? "—" : fmtNum(tr.ponderado_acum, 2)}</td>
-                                      <td className="!py-0.5 text-right text-[var(--t-neg)]">{fmtNum(tr.interes + tr.iva, 0)}</td>
-                                    </tr>
-                                  ))}
+                                  {p.trades.map((tr, i) => {
+                                    const tExc = excTrades.has(tradeKey(p, i));
+                                    return (
+                                      <tr key={i} className={`border-t border-[var(--t-border)] ${tExc ? "opacity-40" : ""}`}>
+                                        <td className="!py-0.5 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={!tExc}
+                                            onChange={() => toggleTrade(p, i)}
+                                            className="cursor-pointer accent-[var(--t-accent)]"
+                                            title={tExc ? "No cuenta — clic para incluir" : "Cuenta — clic para sacar este trade"}
+                                          />
+                                        </td>
+                                        <td className="!py-0.5 text-[var(--t-text-dim)]">{tr.hora}</td>
+                                        <td className="!py-0.5 font-semibold" style={{ color: tr.lado === "Compra" ? "var(--t-pos)" : "var(--t-neg)" }}>{tr.lado}</td>
+                                        <td className="!py-0.5 text-right">{fmtNum(tr.precio, 2)}</td>
+                                        <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{fmtNum(tr.cantidad, 0)}</td>
+                                        <td className="!py-0.5 text-right">{fmtNum(tr.monto, 0)}</td>
+                                        {/* con trades sacados, el acumulado por-fila ya no aplica (ver totales recalculados arriba) */}
+                                        <td className="!py-0.5 text-right font-semibold" style={{ color: hasTradeExc ? "#888" : Math.abs(tr.pos_acum) < 1e-9 ? "#888" : tr.pos_acum > 0 ? "var(--t-pos)" : "var(--t-neg)" }}>{hasTradeExc ? "—" : fmtNum(tr.pos_acum, 0)}</td>
+                                        <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{hasTradeExc || Math.abs(tr.pos_acum) < 1e-9 ? "—" : fmtNum(tr.ponderado_acum, 2)}</td>
+                                        <td className="!py-0.5 text-right text-[var(--t-neg)]">{fmtNum(tr.interes + tr.iva, 0)}</td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </td>
