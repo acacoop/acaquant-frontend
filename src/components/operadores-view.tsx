@@ -5,13 +5,14 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { ComercialOperacionesView } from "./comercial-operaciones-view";
 
 // /operadores. Barra madre con filtros MULTI-SELECT que se CRUZAN (operador / nivel_1 /
-// nivel_3 / nivel_4 / nivel_5 / referido) + moneda. Cada filtro acepta varios valores;
-// elegir en uno achica las opciones de los otros. Todo baja como array al backend (= ANY).
+// nivel_2 / nivel_3 / nivel_4 / nivel_5 / referido) + moneda. Cada filtro acepta varios
+// valores; elegir en uno achica las opciones de los otros. Todo baja como array al backend (= ANY).
 
 type Combo = {
   operador_email: string;
   operador_nombre: string | null;
   nivel_1: string | null;
+  nivel_2: string | null;
   nivel_3: string | null;
   nivel_4: string | null;
   nivel_5: string | null;
@@ -91,6 +92,7 @@ export function OperadoresView() {
   // Filtros multi (arrays) + moneda, persisten entre rutas. [] = sin filtro (Todos).
   const [operador, setOperador] = usePersistedState<string[]>("operadores.operador", []);
   const [nivel1, setNivel1] = usePersistedState<string[]>("operadores.nivel1", []);
+  const [nivel2, setNivel2] = usePersistedState<string[]>("operadores.nivel2", []);
   const [nivel3, setNivel3] = usePersistedState<string[]>("operadores.nivel3", []);
   const [nivel4, setNivel4] = usePersistedState<string[]>("operadores.nivel4", []);
   const [nivel5, setNivel5] = usePersistedState<string[]>("operadores.nivel5", []);
@@ -124,10 +126,11 @@ export function OperadoresView() {
 
   // ── Cross-filter: cada dropdown ofrece SOLO lo compatible con los OTROS. ──
   const S = (a: string[]) => new Set(a);
-  const opSet = S(operador), n1Set = S(nivel1), n3Set = S(nivel3),
+  const opSet = S(operador), n1Set = S(nivel1), n2Set = S(nivel2), n3Set = S(nivel3),
         n4Set = S(nivel4), n5Set = S(nivel5), refSet = S(referido);
   const mOp  = (c: Combo) => opSet.size === 0 || (!!c.operador_email && opSet.has(c.operador_email));
   const mN1  = (c: Combo) => n1Set.size === 0 || (!!c.nivel_1 && n1Set.has(c.nivel_1));
+  const mN2  = (c: Combo) => n2Set.size === 0 || (!!c.nivel_2 && n2Set.has(c.nivel_2));
   const mN3  = (c: Combo) => n3Set.size === 0 || (!!c.nivel_3 && n3Set.has(c.nivel_3));
   const mN4  = (c: Combo) => n4Set.size === 0 || (!!c.nivel_4 && n4Set.has(c.nivel_4));
   const mN5  = (c: Combo) => n5Set.size === 0 || (!!c.nivel_5 && n5Set.has(c.nivel_5));
@@ -137,14 +140,14 @@ export function OperadoresView() {
   const operadores = useMemo(() => {
     const m = new Map<string, { email: string; nombre: string | null; n: number }>();
     for (const c of combos) {
-      if (!mN1(c) || !mN3(c) || !mN4(c) || !mN5(c) || !mRef(c)) continue;
+      if (!mN1(c) || !mN2(c) || !mN3(c) || !mN4(c) || !mN5(c) || !mRef(c)) continue;
       if (!c.operador_email) continue;
       const cur = m.get(c.operador_email) ?? { email: c.operador_email, nombre: c.operador_nombre, n: 0 };
       cur.n += c.n_cuentas;
       m.set(c.operador_email, cur);
     }
     return [...m.values()].sort((a, b) => b.n - a.n);
-  }, [combos, nivel1, nivel3, nivel4, nivel5, referido]);
+  }, [combos, nivel1, nivel2, nivel3, nivel4, nivel5, referido]);
 
   // Cada nivel/referido ofrece solo lo compatible con las OTRAS dimensiones.
   const valoresDe = (campo: keyof Combo, omit: (c: Combo) => boolean) => {
@@ -156,16 +159,18 @@ export function OperadoresView() {
     }
     return [...s].sort();
   };
-  const niveles1 = useMemo(() => valoresDe("nivel_1", (c) => !(mOp(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c))),
-    [combos, operador, nivel3, nivel4, nivel5, referido]);
-  const niveles3 = useMemo(() => valoresDe("nivel_3", (c) => !(mOp(c) && mN1(c) && mN4(c) && mN5(c) && mRef(c))),
-    [combos, operador, nivel1, nivel4, nivel5, referido]);
-  const niveles4 = useMemo(() => valoresDe("nivel_4", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN5(c) && mRef(c))),
-    [combos, operador, nivel1, nivel3, nivel5, referido]);
-  const niveles5 = useMemo(() => valoresDe("nivel_5", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN4(c) && mRef(c))),
-    [combos, operador, nivel1, nivel3, nivel4, referido]);
-  const referidos = useMemo(() => valoresDe("referido", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN4(c) && mN5(c))),
-    [combos, operador, nivel1, nivel3, nivel4, nivel5]);
+  const niveles1 = useMemo(() => valoresDe("nivel_1", (c) => !(mOp(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel2, nivel3, nivel4, nivel5, referido]);
+  const niveles2 = useMemo(() => valoresDe("nivel_2", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel1, nivel3, nivel4, nivel5, referido]);
+  const niveles3 = useMemo(() => valoresDe("nivel_3", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN4(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel1, nivel2, nivel4, nivel5, referido]);
+  const niveles4 = useMemo(() => valoresDe("nivel_4", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel1, nivel2, nivel3, nivel5, referido]);
+  const niveles5 = useMemo(() => valoresDe("nivel_5", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mRef(c))),
+    [combos, operador, nivel1, nivel2, nivel3, nivel4, referido]);
+  const referidos = useMemo(() => valoresDe("referido", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c))),
+    [combos, operador, nivel1, nivel2, nivel3, nivel4, nivel5]);
 
   // Si una selección dejó de ser compatible (la achicó otra), la podamos.
   const prune = (sel: string[], validos: string[], set: (v: string[]) => void) => {
@@ -176,6 +181,7 @@ export function OperadoresView() {
     }
   };
   useEffect(() => { prune(nivel1, niveles1, setNivel1); }, [niveles1]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { prune(nivel2, niveles2, setNivel2); }, [niveles2]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { prune(nivel3, niveles3, setNivel3); }, [niveles3]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { prune(nivel4, niveles4, setNivel4); }, [niveles4]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { prune(nivel5, niveles5, setNivel5); }, [niveles5]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -200,6 +206,8 @@ export function OperadoresView() {
               options={operadores.map((o) => ({ value: o.email, label: o.nombre || o.email, n: o.n }))} width="max-w-[240px]" />
             <MultiSelect label="Nivel 1" selected={nivel1} onChange={setNivel1}
               options={niveles1.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
+            <MultiSelect label="Nivel 2" selected={nivel2} onChange={setNivel2}
+              options={niveles2.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
             <MultiSelect label="Nivel 3" selected={nivel3} onChange={setNivel3}
               options={niveles3.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
             <MultiSelect label="Nivel 4" selected={nivel4} onChange={setNivel4}
@@ -229,6 +237,7 @@ export function OperadoresView() {
           operador={operador}
           moneda={moneda}
           nivel1={nivel1}
+          nivel2={nivel2}
           nivel3={nivel3}
           nivel4={nivel4}
           nivel5={nivel5}

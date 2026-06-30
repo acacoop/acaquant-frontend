@@ -33,8 +33,9 @@ type Titulo = { fecha_pago: string; ticker: string | null; emisor: string | null
 type ClienteResp = { id_cuenta: string; cliente: string | null; serie: SeriePt[]; titulos: Titulo[]; total_ars: number; total_usd: number };
 type Mon = "ARS" | "USD";
 
-const nivelQS = (n1?: string, n3?: string, ref?: string) =>
+const nivelQS = (n1?: string, n2?: string, n3?: string, ref?: string) =>
   (n1 ? `&nivel_1=${encodeURIComponent(n1)}` : "") +
+  (n2 ? `&nivel_2=${encodeURIComponent(n2)}` : "") +
   (n3 ? `&nivel_3=${encodeURIComponent(n3)}` : "") +
   (ref ? `&referido=${encodeURIComponent(ref)}` : "");
 
@@ -81,16 +82,18 @@ export function CobrosFuturosView({
   operador,
   moneda = "ARS",
   nivel1 = "",
+  nivel2 = "",
   nivel3 = "",
   referido = "",
 }: {
   operador: string;
   moneda?: Mon;
   nivel1?: string;
+  nivel2?: string;
   nivel3?: string;
   referido?: string;
 }) {
-  const nQS = nivelQS(nivel1, nivel3, referido);
+  const nQS = nivelQS(nivel1, nivel2, nivel3, referido);
 
   // Moneda LOCAL de la vista (arranca del filtro madre, pero el toggle de acá
   // manda y filtra todo: tabla, gráfico, sumatoria y detalle).
@@ -105,10 +108,14 @@ export function CobrosFuturosView({
   const [selBucket, setSelBucket] = useState<string | null>(null);
   const [agg, setAgg] = useState<Agg>("MES");
   const [escala, setEscala] = useState<"lin" | "log">("lin");
+  // Rango por FECHA DE COBRO (ISO 'YYYY-MM-DD'). Vacío = todo el futuro (default).
+  const [desde, setDesde] = useState<string>("");
+  const [hasta, setHasta] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const fechaQS = (desde ? `&desde=${desde}` : "") + (hasta ? `&hasta=${hasta}` : "");
 
-  // Scope (operador + filtros madre) → tabla + serie base. Reset selección.
+  // Scope (operador + filtros madre + rango de cobro) → tabla + serie base. Reset selección.
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -116,7 +123,7 @@ export function CobrosFuturosView({
         setLoading(true);
         setErr(null);
         const d = await getJson<ScopeResp>(
-          `/api/operaciones/comercial/cobros-futuros?operador=${encodeURIComponent(operador)}${nQS}`,
+          `/api/operaciones/comercial/cobros-futuros?operador=${encodeURIComponent(operador)}${nQS}${fechaQS}`,
         );
         if (cancel) return;
         setScope(d);
@@ -133,7 +140,7 @@ export function CobrosFuturosView({
     return () => {
       cancel = true;
     };
-  }, [operador, nQS]);
+  }, [operador, nQS, fechaQS]);
 
   // Detalle del cliente seleccionado (interactivo).
   useEffect(() => {
@@ -224,9 +231,21 @@ export function CobrosFuturosView({
       <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
         {/* TABLA CLIENTES */}
         <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
+          <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 flex-wrap">
             <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes · cobros futuros</span>
             <MonToggle mon={mon} onChange={setMon} />
+            {/* Rango por fecha de cobro. Vacío = todo el futuro. */}
+            <label className={"inline-flex items-center gap-1.5 border px-2 py-0.5 text-[10px] " + ((desde || hasta) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Filtrar por fecha de cobro. Vacío = todo el futuro.">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
+              <input type="date" value={desde} max={hasta || undefined}
+                onChange={(e) => setDesde(e.target.value)}
+                className="bg-transparent text-[10px] tabular-nums text-[var(--t-text)] outline-none" />
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Hasta</span>
+              <input type="date" value={hasta} min={desde || undefined}
+                onChange={(e) => setHasta(e.target.value)}
+                className="bg-transparent text-[10px] tabular-nums text-[var(--t-text)] outline-none" />
+              {(desde || hasta) && <button onClick={() => { setDesde(""); setHasta(""); }} title="Quitar filtro de fecha" className="text-[9px] text-[var(--t-accent)] hover:underline">todo</button>}
+            </label>
             <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
             <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoneyFull(totalScope)}</span>
           </div>
