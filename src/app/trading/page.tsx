@@ -1,26 +1,13 @@
-import { apiFetch } from "@/lib/api";
-import { TradingView } from "@/components/trading-view";
-import type { PanelResp } from "@/lib/types-trading";
+// Vista TRADING — cascarón vacío. La lógica se rediseña de cero.
+export const metadata = { title: "Trading" };
 
-export const dynamic = "force-dynamic";
-
-async function safeFetch<T>(path: string, fallback: T): Promise<T> {
-  try {
-    return await apiFetch<T>(path);
-  } catch {
-    return fallback;
-  }
-}
-
-export default async function TradingPage() {
-  const [wl, panel] = await Promise.all([
-    safeFetch<{ tickers: string[] }>("/api/trading/watchlist", { tickers: [] }),
-    safeFetch<PanelResp>("/api/trading/panel", {
-      generado_en: "",
-      ccl: { value: null, vs_1d_pct: null, ts: null },
-      rows: [],
-    }),
-  ]);
-
-  return <TradingView initialWatchlist={wl.tickers} initialPanel={panel} />;
+export default function TradingPage() {
+  return (
+    <div className="h-full flex items-center justify-center text-[var(--t-text-muted)]">
+      <div className="text-center">
+        <h1 className="text-sm font-bold tracking-wide text-[var(--t-text)]">TRADING</h1>
+        <p className="mt-2 text-[11px]">En construcción.</p>
+      </div>
+    </div>
+  );
 }
