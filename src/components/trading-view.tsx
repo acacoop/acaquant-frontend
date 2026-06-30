@@ -184,6 +184,19 @@ export function TradingView() {
     return m;
   }, [rows]);
 
+  // Pivots que van al chart: si el CEDEAR mostrado tiene override editado a mano,
+  // se calculan con esos valores → las líneas del gráfico siguen la edición de la card.
+  const shownPivots = useMemo(() => {
+    const ov = overrides[shownTicker];
+    if (ov) {
+      const h = parseFloat(ov.h);
+      const l = parseFloat(ov.l);
+      const c = parseFloat(ov.c);
+      if (Number.isFinite(h) && Number.isFinite(l) && Number.isFinite(c)) return calcPivots(h, l, c);
+    }
+    return byTicker.get(shownTicker)?.pivots ?? null;
+  }, [overrides, shownTicker, byTicker]);
+
   function setTicker(id: string, ticker: string) {
     setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ticker: ticker.toUpperCase() } : c)));
   }
@@ -248,7 +261,7 @@ export function TradingView() {
               </div>
               <div className="flex-1 min-h-0">
                 {shownTicker ? (
-                  <LiveIntradayChart ticker={shownTicker} pivots={byTicker.get(shownTicker)?.pivots} />
+                  <LiveIntradayChart ticker={shownTicker} pivots={shownPivots} />
                 ) : (
                   <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
                     elegí una card
