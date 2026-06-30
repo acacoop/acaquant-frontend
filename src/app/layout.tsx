@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { Header } from "@/components/header";
-import { PauseBanner } from "@/components/pause-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getMe } from "@/lib/me";
 import "./globals.css";
@@ -55,7 +54,6 @@ export default async function RootLayout({
       </head>
       <body className="h-full flex flex-col">
         <Header modules={modules} />
-        <PauseBanner />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
         <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">
           <ThemeToggle />
