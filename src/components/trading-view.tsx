@@ -123,8 +123,9 @@ function fmtPct(v: number): string {
 function valorNivel(p: number, last: number | null, mode: PivotMode): string {
   if (mode === "precio") return fmtPrecio(p);
   if (last === null) return "—";
-  if (mode === "dif") return fmtDif(last - p);
-  return p !== 0 ? fmtPct(((last - p) / p) * 100) : "—";
+  // pivot vs precio: cuánto está el NIVEL por encima (+) / debajo (−) del precio actual.
+  if (mode === "dif") return fmtDif(p - last);
+  return last !== 0 ? fmtPct(((p - last) / last) * 100) : "—";
 }
 
 export function TradingView() {
