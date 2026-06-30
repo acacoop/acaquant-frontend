@@ -305,9 +305,9 @@ function Detalle({ r }: { r: PanelRow }) {
         <span className="text-[12px] font-bold">{r.ticker}</span>
         <span className="text-[10px] text-[var(--t-text-muted)]">
           z {fmt(r.zscore)} · rango {fmt(r.rango_dia_pct)}% · volD {fmt(r.vol_diaria_pct)}% ·
-          OR {r.estado_OR ?? "--"} · cruces {r.vwap_crosses ?? "--"} ·
+          RVOL {fmt(r.rvol)} · OR {r.estado_OR ?? "--"} · cruces {r.vwap_crosses ?? "--"} ·
           distR {fmt(r.dist_R_pct)}% · distS {fmt(r.dist_S_pct)}%
-          {r.climax ? " · CLÍMAX" : ""}
+          {r.dia_volatil ? " · DÍA VOLÁTIL" : ""}{r.climax ? " · CLÍMAX" : ""}
         </span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-5 gap-1.5">
