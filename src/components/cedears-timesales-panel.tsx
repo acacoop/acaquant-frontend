@@ -25,14 +25,17 @@ const fmtHora = (iso: string) => {
 const fmtPx = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtSz = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
-export function CedearsTimeSalesPanel({ ticker }: { ticker: string | null }) {
+export function CedearsTimeSalesPanel({
+  ticker,
+  compact = false,
+}: {
+  ticker: string | null;
+  compact?: boolean;
+}) {
   const [trades, setTrades] = useState<Trade[]>([]);
 
   useEffect(() => {
-    if (!ticker) {
-      setTrades([]);
-      return;
-    }
+    if (!ticker) return;
     let alive = true;
     const fetchTrades = async () => {
       try {
@@ -70,8 +73,8 @@ export function CedearsTimeSalesPanel({ ticker }: { ticker: string | null }) {
               <tr className="text-[var(--t-text-muted)]">
                 <th className="text-left !px-2">HORA</th>
                 <th className="text-right !px-2">PRECIO</th>
-                <th className="text-right !px-2">SIZE</th>
-                <th className="text-center !px-2">SIDE</th>
+                {!compact && <th className="text-right !px-2">SIZE</th>}
+                {!compact && <th className="text-center !px-2">SIDE</th>}
               </tr>
             </thead>
             <tbody>
@@ -82,8 +85,8 @@ export function CedearsTimeSalesPanel({ ticker }: { ticker: string | null }) {
                   <tr key={`${t.timestamp}-${i}`} className="hover:bg-[var(--t-border)]">
                     <td className="!px-2 text-[var(--t-text-dim)]">{fmtHora(t.timestamp)}</td>
                     <td className={`!px-2 text-right font-semibold ${col}`}>{fmtPx(t.price)}</td>
-                    <td className="!px-2 text-right tabular-nums">{fmtSz(t.size)}</td>
-                    <td className={`!px-2 text-center ${col}`}>{t.side}</td>
+                    {!compact && <td className="!px-2 text-right tabular-nums">{fmtSz(t.size)}</td>}
+                    {!compact && <td className={`!px-2 text-center ${col}`}>{t.side}</td>}
                   </tr>
                 );
               })}

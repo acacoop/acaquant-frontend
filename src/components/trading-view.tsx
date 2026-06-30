@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
+import { LiveIntradayChart } from "@/components/live-intraday-chart";
 import { usePoll } from "@/lib/use-poll";
 import type {
   PivotLevels,
@@ -100,6 +102,13 @@ export function TradingView() {
   const [mode, setMode] = useState<PivotMode>("precio");
   const [cards, setCards] = useState<Card[]>(loadCards);
   const [universo, setUniverso] = useState<UniversoItem[]>([]);
+  const [selected, setSelected] = useState<string>("");
+
+  // CEDEAR que manda el chart + time sales: la card marcada, o la primera con ticker.
+  const shownTicker =
+    selected && cards.some((c) => c.ticker === selected)
+      ? selected
+      : cards.find((c) => c.ticker)?.ticker || "";
 
   useEffect(() => {
     saveCards(cards);
@@ -175,14 +184,40 @@ export function TradingView() {
               row={c.ticker ? byTicker.get(c.ticker) : undefined}
               mode={mode}
               universo={universo}
+              selected={!!c.ticker && c.ticker === shownTicker}
               onPick={(tk) => setTicker(c.id, tk)}
+              onSelect={() => c.ticker && setSelected(c.ticker)}
             />
           ))}
         </div>
 
-        {/* derecha: vacío por ahora (próximo paso: chart + time sales) */}
-        <div className="min-h-0 hidden lg:flex items-center justify-center border border-dashed border-[var(--t-border)] rounded-sm text-[11px] text-[var(--t-text-muted)]">
-          (próximamente: chart + time sales)
+        {/* derecha: 60% arriba (chart + tape) / 40% abajo (vacío) */}
+        <div className="min-h-0 hidden lg:grid grid-rows-[3fr_2fr] gap-2">
+          <div className="min-h-0 grid grid-cols-[3fr_2fr] gap-2">
+            {/* chart live */}
+            <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
+              <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+                Live <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
+              </div>
+              <div className="flex-1 min-h-0">
+                {shownTicker ? (
+                  <LiveIntradayChart ticker={shownTicker} />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
+                    elegí una card
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* time sales compacto (hora + precio) */}
+            <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+              <CedearsTimeSalesPanel ticker={shownTicker || null} compact />
+            </div>
+          </div>
+          {/* 40% abajo: vacío */}
+          <div className="min-h-0 border border-dashed border-[var(--t-border)] rounded-sm flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
+            (próximamente)
+          </div>
         </div>
       </div>
     </div>
@@ -194,13 +229,17 @@ function PivotCard({
   row,
   mode,
   universo,
+  selected,
   onPick,
+  onSelect,
 }: {
   ticker: string;
   row: PivotRow | undefined;
   mode: PivotMode;
   universo: UniversoItem[];
+  selected: boolean;
   onPick: (ticker: string) => void;
+  onSelect: () => void;
 }) {
   const last = row?.last ?? null;
 
@@ -223,7 +262,13 @@ function PivotCard({
     Number.isFinite(h) && Number.isFinite(l) && Number.isFinite(c) ? calcPivots(h, l, c) : null;
 
   return (
-    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-w-0 min-h-0 overflow-hidden">
+    <div
+      onMouseDown={onSelect}
+      className={
+        "bg-[var(--t-panel)] flex flex-col min-w-0 min-h-0 overflow-hidden border cursor-pointer " +
+        (selected ? "border-[var(--t-accent)]" : "border-[var(--t-border)]")
+      }
+    >
       {/* header: selector + last */}
       <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--t-border)] shrink-0">
         <CedearPicker value={ticker} universo={universo} onPick={onPick} />
