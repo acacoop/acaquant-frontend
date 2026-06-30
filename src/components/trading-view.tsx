@@ -46,6 +46,21 @@ function saveCards(cards: Card[]): void {
   }
 }
 
+// Pivot Floor Trader en el cliente (para que el editar máx/mín/cierre recalcule).
+function calcPivots(h: number, l: number, c: number): PivotLevels {
+  const pp = (h + l + c) / 3;
+  const rango = h - l;
+  return {
+    pp,
+    r1: 2 * pp - l,
+    s1: 2 * pp - h,
+    r2: pp + rango,
+    s2: pp - rango,
+    r3: h + 2 * (pp - l),
+    s3: l - 2 * (h - pp),
+  };
+}
+
 // Orden y tipo de cada nivel (resistencias verdes, soportes rojos, PP gris) — como la imagen.
 const NIVELES: { key: keyof PivotLevels; label: string; kind: "R" | "S" | "PP" }[] = [
   { key: "r3", label: "R3", kind: "R" },
@@ -58,9 +73,9 @@ const NIVELES: { key: keyof PivotLevels; label: string; kind: "R" | "S" | "PP" }
 ];
 
 const BG: Record<"R" | "S" | "PP", string> = {
-  R: "rgba(16,163,74,0.14)",
-  S: "rgba(220,38,38,0.14)",
-  PP: "rgba(130,130,130,0.18)",
+  R: "rgba(16,163,74,0.16)",
+  S: "rgba(220,38,38,0.16)",
+  PP: "rgba(130,130,130,0.20)",
 };
 
 // ── formato ──────────────────────────────────────────────────────────────────
@@ -74,8 +89,6 @@ function fmtDif(v: number): string {
 function fmtPct(v: number): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
-
-// Valor a mostrar para un nivel según el modo global.
 function valorNivel(p: number, last: number | null, mode: PivotMode): string {
   if (mode === "precio") return fmtPrecio(p);
   if (last === null) return "—";
@@ -88,7 +101,6 @@ export function TradingView() {
   const [cards, setCards] = useState<Card[]>(loadCards);
   const [universo, setUniverso] = useState<UniversoItem[]>([]);
 
-  // persistir cards al cambiar
   useEffect(() => {
     saveCards(cards);
   }, [cards]);
@@ -154,11 +166,11 @@ export function TradingView() {
 
       {/* split 50 / 50 */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* izquierda: 4 cards 2×2 */}
-        <div className="min-h-0 overflow-y-auto grid grid-cols-1 xl:grid-cols-2 gap-2 auto-rows-min content-start">
+        {/* izquierda: 4 cards en 2×2 que LLENAN el alto */}
+        <div className="min-h-0 grid grid-cols-2 grid-rows-2 gap-2">
           {cards.map((c) => (
             <PivotCard
-              key={c.id}
+              key={`${c.id}:${c.ticker}`}
               ticker={c.ticker}
               row={c.ticker ? byTicker.get(c.ticker) : undefined}
               mode={mode}
@@ -168,9 +180,9 @@ export function TradingView() {
           ))}
         </div>
 
-        {/* derecha: vacío por ahora */}
+        {/* derecha: vacío por ahora (próximo paso: chart + time sales) */}
         <div className="min-h-0 hidden lg:flex items-center justify-center border border-dashed border-[var(--t-border)] rounded-sm text-[11px] text-[var(--t-text-muted)]">
-          (próximamente)
+          (próximamente: chart + time sales)
         </div>
       </div>
     </div>
@@ -191,10 +203,29 @@ function PivotCard({
   onPick: (ticker: string) => void;
 }) {
   const last = row?.last ?? null;
+
+  // máx/mín/cierre editables. `ov` = override del usuario (null → sigue al server).
+  // La card remonta al cambiar de ticker (key incluye el ticker) → ov se resetea.
+  const [ov, setOv] = useState<{ h: string; l: string; c: string } | null>(null);
+  const srv = {
+    h: row?.high != null ? String(row.high) : "",
+    l: row?.low != null ? String(row.low) : "",
+    c: row?.close != null ? String(row.close) : "",
+  };
+  const eff = ov ?? srv;
+  const setField = (k: "h" | "l" | "c", val: string) =>
+    setOv((o) => ({ ...(o ?? srv), [k]: val }));
+
+  const h = parseFloat(eff.h);
+  const l = parseFloat(eff.l);
+  const c = parseFloat(eff.c);
+  const piv =
+    Number.isFinite(h) && Number.isFinite(l) && Number.isFinite(c) ? calcPivots(h, l, c) : null;
+
   return (
-    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-w-0 w-full">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col min-w-0 min-h-0 overflow-hidden">
       {/* header: selector + last */}
-      <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--t-border)]">
+      <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--t-border)] shrink-0">
         <CedearPicker value={ticker} universo={universo} onPick={onPick} />
         <div className="flex items-baseline gap-1 ml-auto">
           <span className="text-[9px] text-[var(--t-text-muted)]">last</span>
@@ -206,61 +237,51 @@ function PivotCard({
 
       {/* cuerpo */}
       {!ticker ? (
-        <div className="flex-1 flex items-center justify-center py-6 text-[10px] text-[var(--t-text-muted)]">
+        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
           elegí un CEDEAR
         </div>
-      ) : !row || row.sin_datos || !row.pivots ? (
-        <div className="flex-1 flex items-center justify-center py-6 text-[10px] text-[var(--t-text-muted)] text-center px-2">
+      ) : !piv && (!row || row.sin_datos) ? (
+        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-2">
           esperando la primera rueda guardada
           <br />
-          (los pivots aparecen tras el cierre)
+          (o cargá máx/mín/cierre a mano)
         </div>
       ) : (
-        <PivotBlock row={row} mode={mode} />
+        <div className="flex-1 overflow-y-auto">
+          <table className="w-full text-[11px] tabular-nums">
+            <tbody>
+              {/* máx / mín / cierre — EDITABLES */}
+              {([
+                ["máximo", "h"],
+                ["mínimo", "l"],
+                ["cierre", "c"],
+              ] as const).map(([label, k]) => (
+                <tr key={k} className="border-b border-[var(--t-border)]">
+                  <td className="px-2 py-1 font-semibold text-[var(--t-text-dim)]">{label}</td>
+                  <td className="px-1 py-0.5 text-right">
+                    <input
+                      value={eff[k]}
+                      onChange={(e) => setField(k, e.target.value)}
+                      inputMode="decimal"
+                      className="w-full bg-transparent border border-transparent hover:border-[var(--t-border-2)] focus:border-[var(--t-accent)] outline-none text-right tabular-nums px-1 py-0.5 text-[var(--t-text)]"
+                    />
+                  </td>
+                </tr>
+              ))}
+              {/* niveles — letra OSCURA (var --t-text) sobre la banda de color, como la planilla */}
+              {NIVELES.map((n) => (
+                <tr key={n.key} style={{ backgroundColor: BG[n.kind] }}>
+                  <td className="px-2 py-1 font-bold text-[var(--t-text)]">{n.label}</td>
+                  <td className="px-2 py-1 text-right font-semibold text-[var(--t-text)]">
+                    {piv ? valorNivel(piv[n.key], last, mode) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
-  );
-}
-
-function PivotBlock({ row, mode }: { row: PivotRow; mode: PivotMode }) {
-  const piv = row.pivots!;
-  const last = row.last ?? null;
-  const refs: [string, number | undefined][] = [
-    ["máximo", row.high],
-    ["mínimo", row.low],
-    ["cierre", row.close],
-  ];
-  return (
-    <table className="w-full text-[11px] tabular-nums">
-      <tbody>
-        {/* máx / mín / cierre — siempre en precio */}
-        {refs.map(([label, v]) => (
-          <tr key={label} className="border-b border-[var(--t-border)]">
-            <td className="px-2 py-0.5 font-semibold text-[var(--t-text-dim)]">{label}</td>
-            <td className="px-2 py-0.5 text-right">{v != null ? fmtPrecio(v) : "—"}</td>
-          </tr>
-        ))}
-        {/* niveles */}
-        {NIVELES.map((n) => {
-          const color =
-            n.kind === "R"
-              ? "var(--t-pos)"
-              : n.kind === "S"
-                ? "var(--t-neg)"
-                : "var(--t-text)";
-          return (
-            <tr key={n.key} style={{ backgroundColor: BG[n.kind] }}>
-              <td className="px-2 py-0.5 font-bold" style={{ color }}>
-                {n.label}
-              </td>
-              <td className="px-2 py-0.5 text-right font-semibold" style={{ color }}>
-                {valorNivel(piv[n.key], last, mode)}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
   );
 }
 
@@ -306,17 +327,17 @@ function CedearPicker({
       />
       {open && hits.length > 0 && (
         <div className="absolute top-full left-0 mt-0.5 bg-[var(--t-surface)] border border-[var(--t-border-2)] z-20 max-h-[220px] overflow-y-auto min-w-[220px] text-[10px]">
-          {hits.map((h) => (
+          {hits.map((hit) => (
             <div
-              key={h.ticker_corto}
+              key={hit.ticker_corto}
               onMouseDown={() => {
-                onPick(h.ticker_corto);
+                onPick(hit.ticker_corto);
                 setOpen(false);
               }}
               className="px-2 py-0.5 hover:bg-[var(--t-border)] cursor-pointer font-mono flex gap-2"
             >
-              <span className="text-[var(--t-text)] w-12">{h.ticker_corto}</span>
-              <span className="text-[var(--t-text-muted)] truncate">{h.nombre}</span>
+              <span className="text-[var(--t-text)] w-12">{hit.ticker_corto}</span>
+              <span className="text-[var(--t-text-muted)] truncate">{hit.nombre}</span>
             </div>
           ))}
         </div>
