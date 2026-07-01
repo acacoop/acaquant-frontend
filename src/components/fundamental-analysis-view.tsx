@@ -51,6 +51,7 @@ function Tabla({
         <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{title}</span>
         {sub && <span className="text-[9px] text-[var(--t-text-muted)]">{sub}</span>}
       </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-[11px] tabular-nums border-collapse">
         <thead>
           <tr className="text-[9px] uppercase text-[var(--t-text-muted)]">
@@ -76,6 +77,7 @@ function Tabla({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -223,17 +225,17 @@ export function FundamentalAnalysisView() {
           format={fMill}
         />
 
-        {/* múltiplos/ratios + márgenes */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          <Tabla title="Múltiplos y ratios" cols={periodos} filas={asFilas(data?.tablas.ratios ?? [])} format={(v) => fRatio(v)} />
-          <Tabla title="Márgenes" sub="% sobre ingresos" cols={periodos} filas={margFilas} format={(v) => fPct(v)} />
-        </div>
+        {/* múltiplos/ratios */}
+        <Tabla title="Múltiplos y ratios" cols={periodos} filas={asFilas(data?.tablas.ratios ?? [])} format={(v) => fRatio(v)} />
 
-        {/* balance + flujo de caja */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          <Tabla title="Balance" sub="USD millones" cols={periodos} filas={asFilas(data?.tablas.balance ?? [])} format={fMill} />
-          <Tabla title="Flujo de caja" sub="USD millones" cols={periodos} filas={asFilas(data?.tablas.cashflow ?? [])} format={fMill} />
-        </div>
+        {/* márgenes */}
+        <Tabla title="Márgenes" sub="% sobre ingresos" cols={periodos} filas={margFilas} format={(v) => fPct(v)} />
+
+        {/* balance */}
+        <Tabla title="Balance" sub="USD millones" cols={periodos} filas={asFilas(data?.tablas.balance ?? [])} format={fMill} />
+
+        {/* flujo de caja */}
+        <Tabla title="Flujo de caja" sub="USD millones" cols={periodos} filas={asFilas(data?.tablas.cashflow ?? [])} format={fMill} />
 
         {/* segmentos */}
         <Tabla
