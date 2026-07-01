@@ -233,8 +233,8 @@ export function TradingView() {
 
       {/* split 50 / 50 */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* izquierda: cards COMPACTAS, 2 columnas, apiladas por su contenido */}
-        <div className="min-h-0 overflow-y-auto grid grid-cols-2 auto-rows-min content-start gap-2">
+        {/* izquierda: cards COMPACTAS y angostas — entran tantas por fila como quepan */}
+        <div className="min-h-0 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] auto-rows-min content-start gap-1.5">
           {cards.map((c) => (
             <PivotCard
               key={c.id}
@@ -506,7 +506,7 @@ function CedearPicker({
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="CEDEAR…"
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] w-[100px] font-mono uppercase focus:border-[var(--t-accent)] outline-none"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] w-[72px] font-mono uppercase focus:border-[var(--t-accent)] outline-none"
       />
       {open && hits.length > 0 && (
         <div className="absolute top-full left-0 mt-0.5 bg-[var(--t-surface)] border border-[var(--t-border-2)] z-20 max-h-[220px] overflow-y-auto min-w-[220px] text-[10px]">
