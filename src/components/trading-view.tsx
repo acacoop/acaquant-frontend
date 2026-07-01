@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
+import { OrderBookPanel } from "@/components/order-book-panel";
 import { usePoll } from "@/lib/use-poll";
 import type {
   PivotLevels,
@@ -287,10 +288,8 @@ export function TradingView() {
               <CedearsTimeSalesPanel ticker={shownTicker || null} compact />
             </div>
           </div>
-          {/* 40% abajo: vacío (a definir) */}
-          <div className="min-h-0 border border-dashed border-[var(--t-border)] rounded-sm flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
-            (vacío)
-          </div>
+          {/* 40% abajo: order book (DOM) del CEDEAR seleccionado */}
+          <OrderBookPanel key={shownTicker} ticker={shownTicker} />
         </div>
       </div>
     </div>
