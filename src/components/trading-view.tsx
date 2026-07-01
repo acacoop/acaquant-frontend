@@ -233,8 +233,8 @@ export function TradingView() {
 
       {/* split 50 / 50 */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* izquierda: 4 cards en 2×2 que LLENAN el alto */}
-        <div className="min-h-0 grid grid-cols-2 grid-rows-2 gap-2">
+        {/* izquierda: cards COMPACTAS, 2 columnas, apiladas por su contenido */}
+        <div className="min-h-0 overflow-y-auto grid grid-cols-2 auto-rows-min content-start gap-2">
           {cards.map((c) => (
             <PivotCard
               key={c.id}
@@ -347,7 +347,7 @@ function PivotCard({
       }
     >
       {/* header: selector + last */}
-      <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--t-border)] shrink-0">
+      <div className="flex items-center gap-1 px-1.5 py-0.5 border-b border-[var(--t-border)] shrink-0">
         <CedearPicker value={ticker} universo={universo} onPick={onPick} />
         {override && (
           <button
@@ -360,8 +360,8 @@ function PivotCard({
           </button>
         )}
         <div className="flex items-baseline gap-1 ml-auto">
-          <span className="text-[9px] text-[var(--t-text-muted)]">last</span>
-          <span className="text-[var(--t-accent)] font-bold tabular-nums text-[12px]">
+          <span className="text-[8px] text-[var(--t-text-muted)]">last</span>
+          <span className="text-[var(--t-accent)] font-bold tabular-nums text-[11px]">
             {last !== null ? fmtPrecio(last) : "—"}
           </span>
         </div>
@@ -369,18 +369,18 @@ function PivotCard({
 
       {/* cuerpo */}
       {!ticker ? (
-        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
+        <div className="flex items-center justify-center py-3 text-[10px] text-[var(--t-text-muted)]">
           elegí un CEDEAR
         </div>
       ) : !piv && (!row || row.sin_datos) ? (
-        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-2">
+        <div className="flex items-center justify-center py-3 text-[10px] text-[var(--t-text-muted)] text-center px-2">
           esperando la primera rueda guardada
           <br />
           (o cargá máx/mín/cierre a mano)
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full text-[11px] tabular-nums">
+        <div className="overflow-hidden">
+          <table className="w-full text-[10px] leading-none tabular-nums">
             <tbody>
               {/* máx / mín / cierre — EDITABLES */}
               {([
@@ -389,13 +389,13 @@ function PivotCard({
                 ["cierre", "c"],
               ] as const).map(([label, k]) => (
                 <tr key={k} className="border-b border-[var(--t-border)]">
-                  <td className="px-2 py-1 font-semibold text-[var(--t-text-dim)]">{label}</td>
-                  <td className="px-1 py-0.5 text-right">
+                  <td className="px-1.5 py-[1px] font-semibold text-[var(--t-text-dim)]">{label}</td>
+                  <td className="px-1 py-0 text-right">
                     <input
                       value={eff[k]}
                       onChange={(e) => setField(k, e.target.value)}
                       inputMode="decimal"
-                      className="w-full bg-transparent border border-transparent hover:border-[var(--t-border-2)] focus:border-[var(--t-accent)] outline-none text-right tabular-nums px-1 py-0.5 text-[var(--t-text)]"
+                      className="w-full bg-transparent border border-transparent hover:border-[var(--t-border-2)] focus:border-[var(--t-accent)] outline-none text-right tabular-nums px-1 py-[1px] text-[var(--t-text)]"
                     />
                   </td>
                 </tr>
@@ -403,8 +403,8 @@ function PivotCard({
               {/* niveles — letra OSCURA (var --t-text) sobre la banda de color, como la planilla */}
               {NIVELES.map((n) => (
                 <tr key={n.key} style={{ backgroundColor: BG[n.kind] }}>
-                  <td className="px-2 py-1 font-bold text-[var(--t-text)]">{n.label}</td>
-                  <td className="px-2 py-1 text-right font-semibold text-[var(--t-text)]">
+                  <td className="px-1.5 py-[1px] font-bold text-[var(--t-text)]">{n.label}</td>
+                  <td className="px-1.5 py-[1px] text-right font-semibold text-[var(--t-text)]">
                     {piv ? valorNivel(piv[n.key], last, mode) : "—"}
                   </td>
                 </tr>
