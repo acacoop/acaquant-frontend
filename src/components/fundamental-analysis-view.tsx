@@ -1,25 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
-// Vista Análisis Fundamental (Renta Variable) — 4 paneles sobre research.*
-// (fundamentals de Refinitiv). Read-only. Selector de empresa + Anual/Trimestral.
+// Vista Análisis Fundamental (Renta Variable) — informe denso estilo research
+// sobre research.* (fundamentals de Refinitiv). Tablas: estado de resultados,
+// múltiplos/ratios, márgenes, balance, flujo de caja e ingresos por segmento.
 
 type Company = { ric: string; ticker: string; nombre: string; sector: string };
+type Fila = { item: string; valores: (number | null)[] };
 type Analisis = {
   company: {
     ric: string; ticker: string; nombre: string; sector: string;
@@ -31,29 +19,63 @@ type Analisis = {
     div_yield: number | null; currency: string | null; updated_at: string | null;
   } | null;
   periodos: string[];
-  evolucion: { periodo: string; ingresos: number | null; ebitda: number | null; neto: number | null }[];
+  tablas: { income: Fila[]; balance: Fila[]; cashflow: Fila[]; ratios: Fila[] };
   margenes: { periodo: string; bruto: number | null; ebitda: number | null; operativo: number | null; neto: number | null }[];
-  ratios: { periodo: string; roe: number | null; roa: number | null; ps: number | null; pb: number | null }[];
-  segmentos: { segmento: string; valor: number | null }[];
+  segmentos: { periodos: string[]; filas: { segmento: string; valores: (number | null)[] }[] };
 };
 
-const PIE = ["var(--t-accent)", "var(--t-brand)", "var(--t-pos)", "#9333ea", "#0891b2", "#d97706"];
+const nf = (n: number, d = 0) =>
+  n.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
 
-const fmtN = (n: number | null | undefined, d = 0) =>
-  n == null ? "—" : n.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const fmtM = (n: number | null | undefined) => (n == null ? "—" : fmtN(n / 1e6) + " M");
-const fmtCap = (n: number | null | undefined) =>
-  n == null ? "—" : n >= 1e9 ? (n / 1e9).toFixed(1) + " B" : (n / 1e6).toFixed(0) + " M";
-const fmtPct = (n: number | null | undefined) => (n == null ? "—" : n.toFixed(1) + "%");
+// formatters de celda
+const fMill = (v: number | null, label = "") =>
+  v == null ? "—" : /per share/i.test(label) ? nf(v, 2) : nf(v / 1e6);
+const fRatio = (v: number | null) => (v == null ? "—" : nf(v, 2));
+const fPct = (v: number | null | undefined) => (v == null ? "—" : nf(v, 1) + "%");
+const fCap = (v: number | null | undefined) =>
+  v == null ? "—" : v >= 1e9 ? nf(v / 1e9, 1) + " B" : nf(v / 1e6) + " M";
 
-function Panel({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
+function Tabla({
+  title, sub, cols, filas, format,
+}: {
+  title: string;
+  sub?: string;
+  cols: string[];
+  filas: { label: string; valores: (number | null)[] }[];
+  format: (v: number | null, label: string) => string;
+}) {
+  if (!filas.length || !cols.length) return null;
   return (
-    <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-      <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 flex items-baseline gap-2">
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)]">
+      <div className="px-2 py-1 border-b border-[var(--t-border)] flex items-baseline gap-2">
         <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{title}</span>
         {sub && <span className="text-[9px] text-[var(--t-text-muted)]">{sub}</span>}
       </div>
-      <div className="flex-1 min-h-0 p-2">{children}</div>
+      <table className="w-full text-[11px] tabular-nums border-collapse">
+        <thead>
+          <tr className="text-[9px] uppercase text-[var(--t-text-muted)]">
+            <th className="text-left font-normal px-2 py-1">Concepto</th>
+            {cols.map((c) => (
+              <th key={c} className="text-right font-normal px-2 py-1">{c}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr key={f.label} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
+              <td className="text-left px-2 py-[3px] text-[var(--t-text-dim)]">{f.label}</td>
+              {f.valores.map((v, i) => (
+                <td
+                  key={i}
+                  className={"text-right px-2 py-[3px] " + (v != null && v < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text)]")}
+                >
+                  {format(v, f.label)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -74,7 +96,6 @@ export function FundamentalAnalysisView() {
   const [data, setData] = useState<Analisis | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Universo de empresas (una vez)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -93,7 +114,6 @@ export function FundamentalAnalysisView() {
     };
   }, []);
 
-  // Datos de la empresa seleccionada
   useEffect(() => {
     if (!ric) return;
     let alive = true;
@@ -119,13 +139,22 @@ export function FundamentalAnalysisView() {
 
   const c = data?.company;
   const m = data?.market;
-  const evol = (data?.evolucion ?? []).map((r) => ({
-    periodo: r.periodo,
-    Ingresos: r.ingresos == null ? null : r.ingresos / 1e6,
-    EBITDA: r.ebitda == null ? null : r.ebitda / 1e6,
-    Neto: r.neto == null ? null : r.neto / 1e6,
+  const periodos = data?.periodos ?? [];
+  const asFilas = (f: Fila[]) => f.map((x) => ({ label: x.item, valores: x.valores }));
+
+  const margFilas = (
+    [
+      ["Margen Bruto", "bruto"],
+      ["Margen EBITDA", "ebitda"],
+      ["Margen Operativo", "operativo"],
+      ["Margen Neto", "neto"],
+    ] as const
+  ).map(([label, key]) => ({
+    label,
+    valores: (data?.margenes ?? []).map((x) => x[key]),
   }));
-  const seg = (data?.segmentos ?? []).filter((s) => s.valor != null && s.valor > 0);
+
+  const segFilas = (data?.segmentos.filas ?? []).map((s) => ({ label: s.segmento, valores: s.valores }));
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -143,6 +172,7 @@ export function FundamentalAnalysisView() {
             </option>
           ))}
         </select>
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">cargando…</span>}
         <div className="ml-auto flex items-center gap-0.5">
           {(["FY", "Q"] as const).map((f) => (
             <button
@@ -162,129 +192,62 @@ export function FundamentalAnalysisView() {
         </div>
       </div>
 
-      {/* 4 paneles */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2">
-        {/* 1 — Ficha + mercado */}
-        <Panel title="Ficha + Mercado" sub={c?.sector || ""}>
-          <div className="h-full flex flex-col gap-3 overflow-y-auto">
-            <div>
-              <div className="text-[15px] font-bold text-[var(--t-text)]">{c?.nombre || "—"}</div>
-              <div className="text-[10px] text-[var(--t-text-muted)] font-mono">
-                {c?.ticker} · {c?.ric} {c?.bolsa ? "· " + c.bolsa : ""} {m?.currency ? "· " + m.currency : ""}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-              <Metric label="Precio" value={fmtN(m?.price, 2)} />
-              <Metric label="Cap. de mercado" value={fmtCap(m?.market_cap)} />
-              <Metric label="Enterprise Value" value={fmtCap(m?.ev)} />
-              <Metric label="Acciones" value={fmtM(m?.shares)} />
-              <Metric label="Máx 52 sem" value={fmtN(m?.high_52w, 2)} />
-              <Metric label="Mín 52 sem" value={fmtN(m?.low_52w, 2)} />
-              <Metric label="Dividend yield" value={fmtPct(m?.div_yield)} />
-              <Metric label="Sector" value={c?.sector || "—"} />
-            </div>
+      {/* cuerpo del informe */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 flex flex-col gap-2">
+        {/* ficha + mercado */}
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2">
+          <div className="text-[16px] font-bold text-[var(--t-text)] leading-tight">{c?.nombre || "—"}</div>
+          <div className="text-[10px] text-[var(--t-text-muted)] font-mono mb-2">
+            {c?.ticker} · {c?.ric}
+            {c?.sector ? " · " + c.sector : ""}
+            {c?.bolsa ? " · " + c.bolsa : ""}
+            {m?.currency ? " · " + m.currency : ""}
           </div>
-        </Panel>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            <Metric label="Precio" value={m?.price != null ? nf(m.price, 2) : "—"} />
+            <Metric label="Cap. de mercado" value={fCap(m?.market_cap)} />
+            <Metric label="Enterprise Value" value={fCap(m?.ev)} />
+            <Metric label="Máx 52 sem" value={m?.high_52w != null ? nf(m.high_52w, 2) : "—"} />
+            <Metric label="Mín 52 sem" value={m?.low_52w != null ? nf(m.low_52w, 2) : "—"} />
+            <Metric label="Acciones (MM)" value={m?.shares != null ? nf(m.shares / 1e6) : "—"} />
+            <Metric label="Dividend yield" value={fPct(m?.div_yield)} />
+          </div>
+        </div>
 
-        {/* 2 — Evolución financiera */}
-        <Panel title="Evolución financiera" sub="ingresos · EBITDA · neto (USD MM)">
-          {evol.length ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={evol} margin={{ top: 6, right: 8, left: 0, bottom: 4 }}>
-                <XAxis dataKey="periodo" tick={{ fontSize: 10, fill: "var(--t-text-dim)" }} />
-                <YAxis tick={{ fontSize: 10, fill: "var(--t-text-dim)" }} width={44} />
-                <Tooltip
-                  contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 11 }}
-                  formatter={(v) => fmtN(Number(v)) + " M"}
-                />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="Ingresos" fill="var(--t-accent)" />
-                <Bar dataKey="EBITDA" fill="var(--t-brand)" />
-                <Bar dataKey="Neto" fill="var(--t-pos)" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <Empty loading={loading} />
-          )}
-        </Panel>
+        {/* estado de resultados */}
+        <Tabla
+          title="Estado de resultados"
+          sub="USD millones (BPA por acción)"
+          cols={periodos}
+          filas={asFilas(data?.tablas.income ?? [])}
+          format={fMill}
+        />
 
-        {/* 3 — Márgenes & ratios */}
-        <Panel title="Márgenes & ratios" sub="márgenes % · ROE/ROA">
-          {data?.margenes.length ? (
-            <div className="h-full flex flex-col gap-1">
-              <div className="flex-1 min-h-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.margenes} margin={{ top: 6, right: 8, left: 0, bottom: 4 }}>
-                    <XAxis dataKey="periodo" tick={{ fontSize: 10, fill: "var(--t-text-dim)" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "var(--t-text-dim)" }} width={36} unit="%" />
-                    <Tooltip
-                      contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 11 }}
-                      formatter={(v) => fmtPct(Number(v))}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 10 }} />
-                    <Line type="monotone" dataKey="bruto" name="Bruto" stroke="var(--t-accent)" dot={false} />
-                    <Line type="monotone" dataKey="ebitda" name="EBITDA" stroke="var(--t-brand)" dot={false} />
-                    <Line type="monotone" dataKey="operativo" name="Operativo" stroke="#9333ea" dot={false} />
-                    <Line type="monotone" dataKey="neto" name="Neto" stroke="var(--t-pos)" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="shrink-0 grid grid-cols-4 gap-1 text-center border-t border-[var(--t-border)] pt-1">
-                {(() => {
-                  const last = data.ratios.at(-1);
-                  return (
-                    <>
-                      <Metric label="ROE" value={fmtPct(last?.roe)} />
-                      <Metric label="ROA" value={fmtPct(last?.roa)} />
-                      <Metric label="P/S" value={fmtN(last?.ps, 1)} />
-                      <Metric label="P/B" value={fmtN(last?.pb, 1)} />
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-          ) : (
-            <Empty loading={loading} />
-          )}
-        </Panel>
+        {/* múltiplos/ratios + márgenes */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+          <Tabla title="Múltiplos y ratios" cols={periodos} filas={asFilas(data?.tablas.ratios ?? [])} format={(v) => fRatio(v)} />
+          <Tabla title="Márgenes" sub="% sobre ingresos" cols={periodos} filas={margFilas} format={(v) => fPct(v)} />
+        </div>
 
-        {/* 4 — Segmentos */}
-        <Panel title="Segmentos" sub="ingresos por línea de negocio (último período)">
-          {seg.length ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={seg}
-                  dataKey="valor"
-                  nameKey="segmento"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius="78%"
-                >
-                  {seg.map((_, i) => (
-                    <Cell key={i} fill={PIE[i % PIE.length]} />
-                  ))}
-                </Pie>
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-                <Tooltip
-                  contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 11 }}
-                  formatter={(v) => fmtN(Number(v) / 1e6) + " M"}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <Empty loading={loading} msg="sin datos de segmentos" />
-          )}
-        </Panel>
+        {/* balance + flujo de caja */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+          <Tabla title="Balance" sub="USD millones" cols={periodos} filas={asFilas(data?.tablas.balance ?? [])} format={fMill} />
+          <Tabla title="Flujo de caja" sub="USD millones" cols={periodos} filas={asFilas(data?.tablas.cashflow ?? [])} format={fMill} />
+        </div>
+
+        {/* segmentos */}
+        <Tabla
+          title="Ingresos por segmento"
+          sub="USD millones · trimestral"
+          cols={data?.segmentos.periodos ?? []}
+          filas={segFilas}
+          format={fMill}
+        />
+
+        {!loading && !data && (
+          <div className="text-[11px] text-[var(--t-text-muted)] px-2 py-6 text-center">sin datos para esta empresa</div>
+        )}
       </div>
-    </div>
-  );
-}
-
-function Empty({ loading, msg = "sin datos" }: { loading: boolean; msg?: string }) {
-  return (
-    <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
-      {loading ? "cargando…" : msg}
     </div>
   );
 }
