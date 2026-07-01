@@ -18,12 +18,25 @@ const LS_CARDS = "trd-fx-trading-pivot-cards-v1";
 
 type Card = { id: string; ticker: string };
 
+const SLOTS = 8; // 4 por fila × 2 filas — algunas pueden quedar vacías
+
 const DEFAULT_CARDS: Card[] = [
   { id: "c1", ticker: "RKLB" },
   { id: "c2", ticker: "SNDK" },
   { id: "c3", ticker: "ASTS" },
   { id: "c4", ticker: "" },
+  { id: "c5", ticker: "" },
+  { id: "c6", ticker: "" },
+  { id: "c7", ticker: "" },
+  { id: "c8", ticker: "" },
 ];
+
+// Rellena/recorta a SLOTS cards (para que siempre haya la grilla completa, con vacías).
+function padCards(arr: Card[]): Card[] {
+  const out = arr.slice(0, SLOTS);
+  while (out.length < SLOTS) out.push({ id: `c${out.length + 1}`, ticker: "" });
+  return out;
+}
 
 // Lazy init desde localStorage (guard SSR — mismo patrón que el módulo de órdenes).
 function loadCards(): Card[] {
@@ -32,7 +45,7 @@ function loadCards(): Card[] {
     const raw = window.localStorage.getItem(LS_CARDS);
     if (raw) {
       const arr = JSON.parse(raw) as Card[];
-      if (Array.isArray(arr) && arr.length) return arr.slice(0, 4);
+      if (Array.isArray(arr) && arr.length) return padCards(arr);
     }
   } catch {
     /* ignore */
@@ -233,8 +246,8 @@ export function TradingView() {
 
       {/* split 50 / 50 */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* izquierda: cards COMPACTAS y angostas — entran tantas por fila como quepan */}
-        <div className="min-h-0 overflow-y-auto grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] auto-rows-min content-start gap-1.5">
+        {/* izquierda: 4 cards por fila (angostas). Slots vacíos permitidos. */}
+        <div className="min-h-0 overflow-y-auto grid grid-cols-4 auto-rows-min content-start gap-1.5">
           {cards.map((c) => (
             <PivotCard
               key={c.id}
