@@ -53,7 +53,7 @@ function Pill({
 function RetornoCanjeBox() {
   const [view, setView] = useState<"retorno" | "carry" | "canje">("retorno");
   const [curva, setCurva] = useState<Curva>("tasa_fija");
-  const [ventana, setVentana] = useState<Ventana>("MTD");
+  const [ventana, setVentana] = useState<Ventana>("7D");
   // Fecha base libre. Cuando está seteada, pisa al preset (7D/14D/MTD) y el
   // retorno/carry se mide desde ese día. Vacío = usa el preset.
   const [desdeCustom, setDesdeCustom] = useState<string>("");
