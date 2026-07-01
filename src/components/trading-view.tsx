@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
+import { LiveVolumeChart } from "@/components/live-volume-chart";
 import { OrderBookPanel } from "@/components/order-book-panel";
 import { usePoll } from "@/lib/use-poll";
 import type {
@@ -246,8 +247,9 @@ export function TradingView() {
 
       {/* split 60 (cards) / 40 (chart + tape) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
-        {/* izquierda: 4 cards por fila (angostas). Slots vacíos permitidos. */}
-        <div className="min-h-0 overflow-y-auto grid grid-cols-4 auto-rows-min content-start gap-1.5">
+        {/* izquierda: cards (arriba, 4/fila) + order book (abajo) */}
+        <div className="min-h-0 grid grid-rows-[3fr_2fr] gap-2">
+          <div className="min-h-0 overflow-y-auto grid grid-cols-4 auto-rows-min content-start gap-1.5">
           {cards.map((c) => (
             <PivotCard
               key={c.id}
@@ -263,9 +265,11 @@ export function TradingView() {
               onResetEdit={() => c.ticker && setOverride(c.ticker, null)}
             />
           ))}
+          </div>
+          <OrderBookPanel key={shownTicker} ticker={shownTicker} />
         </div>
 
-        {/* derecha: 60% arriba (chart + tape) / 40% abajo (vacío) */}
+        {/* derecha: 60% arriba (chart + tape) / 40% abajo (volumen) */}
         <div className="min-h-0 hidden lg:grid grid-rows-[3fr_2fr] gap-2">
           <div className="min-h-0 grid grid-cols-[3fr_2fr] gap-2">
             {/* chart live */}
@@ -288,8 +292,21 @@ export function TradingView() {
               <CedearsTimeSalesPanel ticker={shownTicker || null} compact />
             </div>
           </div>
-          {/* 40% abajo: order book (DOM) del CEDEAR seleccionado */}
-          <OrderBookPanel key={shownTicker} ticker={shownTicker} />
+          {/* 40% abajo: volumen (barras por minuto + acumulado) */}
+          <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
+            <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+              Volumen <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
+            </div>
+            <div className="flex-1 min-h-0">
+              {shownTicker ? (
+                <LiveVolumeChart ticker={shownTicker} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
+                  elegí una card
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
