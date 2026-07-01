@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
-import { LiveVolumeChart } from "@/components/live-volume-chart";
 import { usePoll } from "@/lib/use-poll";
 import type {
   PivotLevels,
@@ -244,8 +243,8 @@ export function TradingView() {
         <MarketKpis />
       </div>
 
-      {/* split 50 / 50 */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
+      {/* split 60 (cards) / 40 (chart + tape) */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
         {/* izquierda: 4 cards por fila (angostas). Slots vacíos permitidos. */}
         <div className="min-h-0 overflow-y-auto grid grid-cols-4 auto-rows-min content-start gap-1.5">
           {cards.map((c) => (
@@ -288,20 +287,9 @@ export function TradingView() {
               <CedearsTimeSalesPanel ticker={shownTicker || null} compact />
             </div>
           </div>
-          {/* 40% abajo: volumen (barras por minuto + acumulado) */}
-          <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
-            <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-              Volumen <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
-            </div>
-            <div className="flex-1 min-h-0">
-              {shownTicker ? (
-                <LiveVolumeChart ticker={shownTicker} />
-              ) : (
-                <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
-                  elegí una card
-                </div>
-              )}
-            </div>
+          {/* 40% abajo: vacío (a definir) */}
+          <div className="min-h-0 border border-dashed border-[var(--t-border)] rounded-sm flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
+            (vacío)
           </div>
         </div>
       </div>
