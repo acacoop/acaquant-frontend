@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
-import { LiveVolumeChart } from "@/components/live-volume-chart";
 import { OrderBookPanel } from "@/components/order-book-panel";
+import { TradingMoversScanner } from "@/components/trading-movers-scanner";
 import { usePoll } from "@/lib/use-poll";
 import {
   VWAP_COLOR,
@@ -217,6 +217,19 @@ export function TradingView() {
     setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ticker: ticker.toUpperCase() } : c)));
   }
 
+  // Click en el radar hot-movers → carga el ticker en una card (la primera vacía,
+  // o la última si están todas ocupadas) y lo marca como el mostrado (chart/libro/tape).
+  function loadTicker(ticker: string) {
+    const up = ticker.toUpperCase();
+    setCards((cs) => {
+      if (cs.some((c) => c.ticker === up)) return cs;
+      const emptyIdx = cs.findIndex((c) => !c.ticker);
+      const idx = emptyIdx >= 0 ? emptyIdx : cs.length - 1;
+      return cs.map((c, i) => (i === idx ? { ...c, ticker: up } : c));
+    });
+    setSelected(up);
+  }
+
   return (
     <div className="h-full flex flex-col min-h-0 p-2 gap-2 text-[var(--t-text)]">
       {/* toolbar: título + toggle de modo */}
@@ -267,44 +280,29 @@ export function TradingView() {
             />
           ))}
           </div>
-          <OrderBookPanel key={shownTicker} ticker={shownTicker} />
-        </div>
-
-        {/* derecha: 60% arriba (chart + tape) / 40% abajo (volumen) */}
-        <div className="min-h-0 hidden lg:grid grid-rows-[3fr_2fr] gap-2">
-          <div className="min-h-0 grid grid-cols-[3fr_2fr] gap-2">
-            {/* chart live */}
-            <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
-              <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-                Live <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
-              </div>
-              <div className="flex-1 min-h-0">
-                {shownTicker ? (
-                  <LiveIntradayChart
-                    ticker={shownTicker}
-                    pivots={shownPivots}
-                    vwap={byTicker.get(shownTicker)?.vwap ?? null}
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
-                    elegí una card
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* time sales compacto (hora + precio) */}
+          {/* abajo izquierda: order book (mayor parte) + time sales (slice) */}
+          <div className="min-h-0 grid grid-cols-[13fr_7fr] gap-2">
+            <OrderBookPanel key={shownTicker} ticker={shownTicker} />
             <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
               <CedearsTimeSalesPanel ticker={shownTicker || null} compact />
             </div>
           </div>
-          {/* 40% abajo: volumen (barras por minuto + acumulado) */}
+        </div>
+
+        {/* derecha: chart LIVE full arriba (60%) / radar hot-movers abajo (40%) */}
+        <div className="min-h-0 hidden lg:grid grid-rows-[3fr_2fr] gap-2">
+          {/* chart live — ocupa todo el ancho (ya no comparte con el tape) */}
           <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
             <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-              Volumen <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
+              Live <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
             </div>
             <div className="flex-1 min-h-0">
               {shownTicker ? (
-                <LiveVolumeChart ticker={shownTicker} />
+                <LiveIntradayChart
+                  ticker={shownTicker}
+                  pivots={shownPivots}
+                  vwap={byTicker.get(shownTicker)?.vwap ?? null}
+                />
               ) : (
                 <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
                   elegí una card
@@ -312,6 +310,8 @@ export function TradingView() {
               )}
             </div>
           </div>
+          {/* radar hot-movers (reemplaza el volumen) */}
+          <TradingMoversScanner onSelect={loadTicker} selectedTicker={shownTicker || null} />
         </div>
       </div>
     </div>
