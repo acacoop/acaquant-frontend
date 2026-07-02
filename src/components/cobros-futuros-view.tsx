@@ -127,10 +127,6 @@ export function CobrosFuturosView({
         );
         if (cancel) return;
         setScope(d);
-        setSel(null);
-        setDetalle(null);
-        setSelTicker(null);
-        setSelBucket(null);
       } catch (e) {
         if (!cancel) setErr(e instanceof Error ? e.message : "error");
       } finally {
@@ -141,6 +137,14 @@ export function CobrosFuturosView({
       cancel = true;
     };
   }, [operador, nQS, fechaQS]);
+
+  // Reset de la selección SOLO cuando cambia el universo de clientes (operador/niveles),
+  // NO al mover el rango de fecha → así podés ajustar el rango con una cuenta elegida.
+  useEffect(() => {
+    setSel(null);
+    setSelTicker(null);
+    setSelBucket(null);
+  }, [operador, nQS]);
 
   // Detalle del cliente seleccionado (interactivo).
   useEffect(() => {
@@ -174,13 +178,32 @@ export function CobrosFuturosView({
     return [...list].sort((a, b) => (mk === "usd" ? b.total_usd - a.total_usd : b.total_ars - a.total_ars));
   }, [scope, mk]);
 
+  // Títulos del cliente ACOTADOS por el rango de fecha de cobro (el endpoint de detalle
+  // trae todo el libro; el rango se aplica acá). Alimenta gráfico + por-título + detalle.
+  const titulosRango = useMemo(() => {
+    const list = detalle?.titulos ?? [];
+    return list.filter(
+      (t) => (!desde || t.fecha_pago >= desde) && (!hasta || t.fecha_pago <= hasta),
+    );
+  }, [detalle, desde, hasta]);
+
+  // Detalle por fecha TOTAL (sin cuenta elegida): la serie del scope ya viene filtrada por
+  // rango desde el backend. {fecha, monto en la moneda activa}.
+  const serieRows = useMemo(() => {
+    return (scope?.serie ?? [])
+      .map((p) => ({ fecha: p.fecha, monto: mk === "usd" ? p.usd : p.ars }))
+      .filter((r) => r.monto !== 0)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }, [scope, mk]);
+  const totalSerie = useMemo(() => serieRows.reduce((s, r) => s + r.monto, 0), [serieRows]);
+
   // Gráfico de BARRAS por fecha (NO acumulado), en la moneda activa.
   //  · sin cliente → serie del scope.
   //  · con cliente → sus títulos (filtrados por moneda y, si hay, por ticker).
   const chartData = useMemo(() => {
     const map: Record<string, number> = {};
     if (sel && detalle) {
-      for (const t of detalle.titulos) {
+      for (const t of titulosRango) {
         if (monKey(t.moneda) !== mk) continue;
         if (selTicker && t.ticker !== selTicker) continue;
         const k = bucketKey(t.fecha_pago, agg);
@@ -195,24 +218,24 @@ export function CobrosFuturosView({
     return Object.keys(map)
       .sort()
       .map((k) => ({ bucket: k, monto: map[k] }));
-  }, [sel, detalle, scope, mk, selTicker, agg]);
+  }, [sel, detalle, titulosRango, scope, mk, selTicker, agg]);
 
   // Sumatoria POR TÍTULO del cliente (moneda activa).
   const porTitulo = useMemo(() => {
     if (!sel || !detalle) return [] as { ticker: string; emisor: string | null; total: number }[];
     const map: Record<string, { ticker: string; emisor: string | null; total: number }> = {};
-    for (const t of detalle.titulos) {
+    for (const t of titulosRango) {
       if (monKey(t.moneda) !== mk) continue;
       const k = t.ticker || "—";
       (map[k] ??= { ticker: k, emisor: t.emisor, total: 0 }).total += t.monto;
     }
     return Object.values(map).sort((a, b) => b.total - a.total);
-  }, [sel, detalle, mk]);
+  }, [sel, detalle, titulosRango, mk]);
 
   // Detalle por fecha (moneda activa + drilldown por ticker / por fecha).
   const detalleRows = useMemo(() => {
     if (!sel || !detalle) return [] as Titulo[];
-    return detalle.titulos
+    return titulosRango
       .filter(
         (t) =>
           monKey(t.moneda) === mk &&
@@ -220,10 +243,14 @@ export function CobrosFuturosView({
           (!selBucket || bucketKey(t.fecha_pago, agg) === selBucket),
       )
       .sort((a, b) => a.fecha_pago.localeCompare(b.fecha_pago) || b.monto - a.monto);
-  }, [sel, detalle, mk, selTicker, selBucket, agg]);
+  }, [sel, detalle, titulosRango, mk, selTicker, selBucket, agg]);
 
   const totalScope = mk === "usd" ? scope?.total_usd ?? 0 : scope?.total_ars ?? 0;
-  const totalCli = detalle ? (mk === "usd" ? detalle.total_usd : detalle.total_ars) : 0;
+  // Total del cliente ACOTADO al rango (suma de sus títulos en la moneda activa).
+  const totalCli = useMemo(
+    () => titulosRango.filter((t) => monKey(t.moneda) === mk).reduce((s, t) => s + t.monto, 0),
+    [titulosRango, mk],
+  );
 
   return (
     <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
@@ -361,10 +388,36 @@ export function CobrosFuturosView({
       {/* DERECHA: 50% sumatoria por título + 50% detalle por fecha */}
       <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
         {!sel || !detalle ? (
-          <div className="flex-1 flex items-center justify-center border border-[var(--t-border)] p-3">
-            <span className="text-[11px] text-[var(--t-text-dim)] text-center">
-              Elegí un cliente (tabla izquierda) para ver su sumatoria por título y el detalle por fecha.
-            </span>
+          /* Sin cuenta elegida → DETALLE POR FECHA TOTAL de todo el scope (serie ya
+             filtrada por rango en el backend). Elegir un cliente enfoca el detalle por título. */
+          <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Detalle por fecha · Total</span>
+              <span className="text-[9px] text-[var(--t-text-dim)] truncate">todo el scope · elegí un cliente para el detalle por título</span>
+              <span className="ml-auto text-[10px] font-mono font-semibold text-[var(--t-accent)]">{mon} {fmtMoneyFull(totalSerie)}</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              {serieRows.length === 0 ? (
+                <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin cobros futuros para el filtro.</p>
+              ) : (
+                <table className="w-full text-[10px]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)]">
+                    <tr className="text-[var(--t-text-muted)]">
+                      <th className="text-left !px-2">Fecha</th>
+                      <th className="text-right !px-2">Monto {mon}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {serieRows.map((r) => (
+                      <tr key={r.fecha} className="hover:bg-[var(--t-border)]">
+                        <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{fmtFecha(r.fecha)}</td>
+                        <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(r.monto)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         ) : (
           <>
