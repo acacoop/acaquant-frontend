@@ -20,6 +20,7 @@ import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 import { ComercialInforme } from "./comercial-informe-view";
 import { CobrosFuturosView } from "./cobros-futuros-view";
+import { ComercialControlView } from "./comercial-control-view";
 
 // Vista COMERCIAL (en OPERACIONES) — lente por operador.
 // Layout:
@@ -205,7 +206,7 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
 ];
 
 // Sub-vistas de COMERCIAL (sub-nav arriba-izquierda).
-type SubView = "portfolio" | "analisis" | "informe" | "cobros_futuros";
+type SubView = "portfolio" | "analisis" | "informe" | "cobros_futuros" | "control_comercial";
 
 // Estado comercial: color + label para las badges de la vista Análisis.
 const ESTADO_COLOR: Record<string, string> = {
@@ -457,17 +458,21 @@ export function ComercialOperacionesView(
   // ── Export a Excel (item 4) ──────────────────────────────────────────────
   const dlClientes = () => void exportToXlsx({
     filename: `comercial-clientes-${timestampSuffix()}.xlsx`,
+    // Volcamos TODA la ficha (no solo cuenta/AuM/YTD): la ficha ya viaja completa
+    // en cada cliente. Las columnas de ficha se generan de FICHA_DATOS → mismo set
+    // y orden que la ficha en pantalla (queda siempre sincronizado).
     sheets: [{ name: "Clientes", rows: clientesFiltrados.map((c) => ({
-      id_cuenta: c.id_cuenta, denominacion: c.denominacion, aum: c.aum, volumen_ytd: c.volumen_ytd,
-      nivel_1: c.ficha.nivel_1, nivel_2: c.ficha.nivel_2, nivel_3: c.ficha.nivel_3,
+      ...c.ficha,
+      id_cuenta: c.id_cuenta, denominacion: c.denominacion,
+      aum: c.aum, volumen_ytd: c.volumen_ytd,
     })), columns: [
       { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
       { header: "Cliente", key: "denominacion", format: "text", width: 32 },
       { header: "AuM", key: "aum", format: "currency", width: 16 },
       { header: "Vol. YTD", key: "volumen_ytd", format: "currency", width: 16 },
-      { header: "Nivel 1", key: "nivel_1", format: "text", width: 18 },
-      { header: "Nivel 2", key: "nivel_2", format: "text", width: 18 },
-      { header: "Nivel 3", key: "nivel_3", format: "text", width: 18 },
+      ...FICHA_DATOS.map(([k, label]) => ({
+        header: label, key: k as string, format: "text" as const, width: 18,
+      })),
     ] }],
   });
   const dlPortafolio = () => void exportToXlsx({
@@ -495,7 +500,7 @@ export function ComercialOperacionesView(
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"]] as [SubView, string][]).map(
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"], ["control_comercial", "Control Comercial"]] as [SubView, string][]).map(
             ([v, label]) => (
               <button
                 key={v}
@@ -536,6 +541,7 @@ export function ComercialOperacionesView(
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} desde={desdeCorte} />}
+      {subview === "control_comercial" && <ComercialControlView moneda={moneda} />}
       {/* CobrosFuturos (acreencias, Mongo) sigue siendo single → toma el 1er valor de cada filtro. */}
       {subview === "cobros_futuros" && <CobrosFuturosView operador={operador[0] ?? "__todos__"} moneda={moneda} nivel1={nivel1[0] ?? ""} nivel2={nivel2[0] ?? ""} nivel3={nivel3[0] ?? ""} referido={referido[0] ?? ""} />}
       {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} fecha={fechaCorte} desde={desdeCorte} />}
