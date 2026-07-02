@@ -518,11 +518,13 @@ export function ComercialOperacionesView(
         {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy. */}
         <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: TOTAL acumula hasta HASTA; las columnas MES (volumen/arancel/ctas ops) se calculan en [Desde, Hasta]. AuM = snapshot a HASTA. Vacío = hoy / mes del corte.">
           <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
-          <input type="date" value={desdeCorte} max={fechaCorte || new Date().toISOString().slice(0, 10)}
+          {/* Sin min/max en el DOM: las restricciones cruzadas (Desde≤Hasta) + max=hoy hacían
+              que el input nativo clampee a HOY mientras tipeás. El orden lo resuelve el backend. */}
+          <input type="date" value={desdeCorte}
             onChange={(e) => setDesdeCorte(e.target.value)}
             className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
           <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Hasta</span>
-          <input type="date" value={fechaCorte} min={desdeCorte || undefined} max={new Date().toISOString().slice(0, 10)}
+          <input type="date" value={fechaCorte}
             onChange={(e) => setFechaCorte(e.target.value)}
             className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
           {(fechaCorte || desdeCorte) && <button onClick={() => { setFechaCorte(""); setDesdeCorte(""); }} title="Volver a hoy" className="text-[10px] text-[var(--t-accent)] hover:underline">hoy</button>}
