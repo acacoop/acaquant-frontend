@@ -7,6 +7,7 @@ export type Me = {
   role: string;
   modules: string[];
   is_admin: boolean;
+  control_comercial: boolean;
 };
 
 /**

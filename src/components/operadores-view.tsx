@@ -98,6 +98,8 @@ export function OperadoresView() {
   const [nivel5, setNivel5] = usePersistedState<string[]>("operadores.nivel5", []);
   const [referido, setReferido] = usePersistedState<string[]>("operadores.referido", []);
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("operadores.moneda", "ARS");
+  // Permiso per-usuario para ver/editar Control Comercial (viene de /api/me).
+  const [puedeControl, setPuedeControl] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -114,7 +116,11 @@ export function OperadoresView() {
         // Arranca en el operador logueado si está registrado (y si no hay selección previa).
         let miEmail: string | null = null;
         if (rMe.ok) {
-          try { miEmail = ((await rMe.json())?.email ?? null) as string | null; } catch { /* no-JSON */ }
+          try {
+            const meJson = await rMe.json();
+            miEmail = (meJson?.email ?? null) as string | null;
+            setPuedeControl(!!meJson?.control_comercial);
+          } catch { /* no-JSON */ }
         }
         const mio = miEmail
           ? cs.find((c) => c.operador_email?.toLowerCase() === miEmail!.toLowerCase())
@@ -242,6 +248,7 @@ export function OperadoresView() {
           nivel4={nivel4}
           nivel5={nivel5}
           referido={referido}
+          controlComercial={puedeControl}
         />
       </div>
     </div>

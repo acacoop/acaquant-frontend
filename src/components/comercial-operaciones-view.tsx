@@ -249,13 +249,19 @@ const nivelQS = (nivel1: string[], nivel2: string[], nivel3: string[], referido:
   + arrQS("nivel_4", nivel4) + arrQS("nivel_5", nivel5) + arrQS("referido", referido);
 
 export function ComercialOperacionesView(
-  { operador, moneda = "ARS", nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [] }:
+  { operador, moneda = "ARS", nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
+    controlComercial = false }:
   { operador: string[]; moneda?: "ARS" | "USD"; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
-    nivel4?: string[]; nivel5?: string[]; referido?: string[] },
+    nivel4?: string[]; nivel5?: string[]; referido?: string[]; controlComercial?: boolean },
 ) {
   const nQS = nivelQS(nivel1, nivel2, nivel3, referido, nivel4, nivel5);
   const opQS = arrQS("operador", operador);
   const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
+  // Si el user no tiene permiso de Control Comercial pero quedó parado ahí (estado
+  // persistido), lo devolvemos a Portfolio → nunca ve la vista restringida.
+  useEffect(() => {
+    if (subview === "control_comercial" && !controlComercial) setSubview("portfolio");
+  }, [subview, controlComercial, setSubview]);
   // Corte = HASTA de la vista (Informe + Análisis). Vacío = hoy (live).
   const [fechaCorte, setFechaCorte] = useState<string>("");
   // Inicio del período (Desde). Vacío = mes del corte (comportamiento viejo). Si se setea,
@@ -500,7 +506,7 @@ export function ComercialOperacionesView(
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"], ["control_comercial", "Control Comercial"]] as [SubView, string][]).map(
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"], ...(controlComercial ? [["control_comercial", "Control Comercial"] as [SubView, string]] : [])] as [SubView, string][]).map(
             ([v, label]) => (
               <button
                 key={v}
@@ -543,7 +549,7 @@ export function ComercialOperacionesView(
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
       {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} desde={desdeCorte} />}
-      {subview === "control_comercial" && <ComercialControlView moneda={moneda} />}
+      {subview === "control_comercial" && controlComercial && <ComercialControlView moneda={moneda} />}
       {/* CobrosFuturos (acreencias, Mongo) sigue siendo single → toma el 1er valor de cada filtro. */}
       {subview === "cobros_futuros" && <CobrosFuturosView operador={operador[0] ?? "__todos__"} moneda={moneda} nivel1={nivel1[0] ?? ""} nivel2={nivel2[0] ?? ""} nivel3={nivel3[0] ?? ""} referido={referido[0] ?? ""} />}
       {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} fecha={fechaCorte} desde={desdeCorte} />}
