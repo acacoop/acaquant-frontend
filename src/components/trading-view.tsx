@@ -7,11 +7,12 @@ import { LiveIntradayChart } from "@/components/live-intraday-chart";
 import { LiveVolumeChart } from "@/components/live-volume-chart";
 import { OrderBookPanel } from "@/components/order-book-panel";
 import { usePoll } from "@/lib/use-poll";
-import type {
-  PivotLevels,
-  PivotMode,
-  PivotRow,
-  UniversoItem,
+import {
+  VWAP_COLOR,
+  type PivotLevels,
+  type PivotMode,
+  type PivotRow,
+  type UniversoItem,
 } from "@/lib/types-trading";
 
 const POLL_MS = 4_000;
@@ -337,6 +338,7 @@ function PivotCard({
   onResetEdit: () => void;
 }) {
   const last = row?.last ?? null;
+  const vwap = row?.vwap ?? null;
 
   // máx/mín/cierre: el override (editado a mano) lo guarda el padre y persiste en
   // localStorage. Sin override → sigue al server. Editar → llama onEdit (persiste).
@@ -376,11 +378,19 @@ function PivotCard({
             editado ↺
           </button>
         )}
-        <div className="flex items-baseline gap-1 ml-auto">
-          <span className="text-[8px] text-[var(--t-text-muted)]">last</span>
-          <span className="text-[var(--t-accent)] font-bold tabular-nums text-[11px]">
-            {last !== null ? fmtPrecio(last) : "—"}
-          </span>
+        <div className="flex flex-col items-end ml-auto leading-none gap-0.5">
+          <div className="flex items-baseline gap-1">
+            <span className="text-[8px] text-[var(--t-text-muted)]">last</span>
+            <span className="text-[var(--t-accent)] font-bold tabular-nums text-[11px]">
+              {last !== null ? fmtPrecio(last) : "—"}
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[8px] text-[var(--t-text-muted)]">vwap</span>
+            <span className="font-bold tabular-nums text-[10px]" style={{ color: VWAP_COLOR }}>
+              {vwap != null ? fmtPrecio(vwap) : "—"}
+            </span>
+          </div>
         </div>
       </div>
 

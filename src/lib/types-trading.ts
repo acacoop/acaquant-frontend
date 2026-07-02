@@ -1,5 +1,8 @@
 // Tipos de la vista TRADING (pivots sobre el CEDEAR).
 
+// Color del VWAP en toda la vista (card + curva del chart) — verde claro.
+export const VWAP_COLOR = "#86efac";
+
 export type PivotMode = "precio" | "dif" | "pct";
 
 export interface PivotLevels {
@@ -15,6 +18,7 @@ export interface PivotLevels {
 export interface PivotRow {
   ticker: string;
   last: number | null;
+  vwap?: number | null;
   sin_datos?: boolean;
   fecha?: string | null;
   high?: number;

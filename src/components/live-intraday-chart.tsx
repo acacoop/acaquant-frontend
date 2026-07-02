@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import {
   Area,
-  AreaChart,
   CartesianGrid,
+  ComposedChart,
+  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -12,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 
-import type { PivotLevels } from "@/lib/types-trading";
+import { VWAP_COLOR, type PivotLevels } from "@/lib/types-trading";
 
 // Niveles a dibujar como líneas horizontales (R verde, S rojo, PP gris).
 const NIVELES: { k: keyof PivotLevels; label: string; color: string }[] = [
@@ -39,7 +40,7 @@ export function LiveIntradayChart({
   ticker: string;
   pivots?: PivotLevels | null;
 }) {
-  const [data, setData] = useState<{ t: string; c: number }[]>([]);
+  const [data, setData] = useState<{ t: string; c: number; vwap: number | null }[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -51,7 +52,22 @@ export function LiveIntradayChart({
         );
         if (!r.ok) return;
         const j = await r.json();
-        if (alive) setData(Array.isArray(j) ? j : []);
+        const arr: { t: string; h?: number; l?: number; c: number; vol?: number }[] =
+          Array.isArray(j) ? j : [];
+        // VWAP acumulado (running): Σ(precio típico · vol) / Σ(vol) hasta cada minuto.
+        // Precio típico = (h+l+c)/3. Se recalcula en cada poll → la curva "crece" con la rueda.
+        let cumPV = 0;
+        let cumV = 0;
+        const serie = arr.map((p) => {
+          const vol = Number(p.vol) || 0;
+          const typ = (Number(p.h) + Number(p.l) + Number(p.c)) / 3;
+          if (vol > 0 && Number.isFinite(typ)) {
+            cumPV += typ * vol;
+            cumV += vol;
+          }
+          return { t: p.t, c: Number(p.c), vwap: cumV > 0 ? cumPV / cumV : null };
+        });
+        if (alive) setData(serie);
       } catch {
         /* transitorio */
       }
@@ -79,7 +95,7 @@ export function LiveIntradayChart({
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+      <ComposedChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
         <defs>
           <linearGradient id="cv-live-grad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.4} />
@@ -102,7 +118,7 @@ export function LiveIntradayChart({
         <Tooltip
           contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }}
           labelFormatter={(l) => fmtHora(String(l))}
-          formatter={(v) => [fmtPx(Number(v)), "Precio"]}
+          formatter={(v, name) => [fmtPx(Number(v)), name === "vwap" ? "VWAP" : "Precio"]}
         />
         <Area
           type="monotone"
@@ -112,6 +128,16 @@ export function LiveIntradayChart({
           fill="url(#cv-live-grad)"
           isAnimationActive={false}
           dot={false}
+        />
+        {/* VWAP acumulado — línea verde claro, sin relleno, encima del precio. */}
+        <Line
+          type="monotone"
+          dataKey="vwap"
+          stroke={VWAP_COLOR}
+          strokeWidth={1.5}
+          isAnimationActive={false}
+          dot={false}
+          connectNulls
         />
         {/* Pivots como líneas horizontales. ifOverflow="hidden" → si caen fuera
             del rango del precio, se recortan (NO estiran el eje). */}
@@ -131,7 +157,7 @@ export function LiveIntradayChart({
               />
             );
           })}
-      </AreaChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
