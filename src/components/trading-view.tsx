@@ -387,7 +387,7 @@ function PivotCard({
       {/* cuerpo */}
       {!ticker ? (
         <div className="flex items-center justify-center py-3 text-[10px] text-[var(--t-text-muted)]">
-          elegí un CEDEAR
+          elegí un activo
         </div>
       ) : !piv && (!row || row.sin_datos) ? (
         <div className="flex items-center justify-center py-3 text-[10px] text-[var(--t-text-muted)] text-center px-2">
@@ -522,7 +522,7 @@ function CedearPicker({
           setOpen(true);
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="CEDEAR…"
+        placeholder="activo…"
         className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] w-[72px] font-mono uppercase focus:border-[var(--t-accent)] outline-none"
       />
       {open && hits.length > 0 && (
@@ -534,10 +534,15 @@ function CedearPicker({
                 onPick(hit.ticker_corto);
                 setOpen(false);
               }}
-              className="px-2 py-0.5 hover:bg-[var(--t-border)] cursor-pointer font-mono flex gap-2"
+              className="px-2 py-0.5 hover:bg-[var(--t-border)] cursor-pointer font-mono flex gap-2 items-center"
             >
               <span className="text-[var(--t-text)] w-12">{hit.ticker_corto}</span>
-              <span className="text-[var(--t-text-muted)] truncate">{hit.nombre}</span>
+              <span className="text-[var(--t-text-muted)] truncate flex-1">{hit.nombre}</span>
+              {hit.clase === "bono" && (
+                <span className="text-[8px] font-semibold text-[var(--t-accent)] border border-[var(--t-border-2)] px-1 shrink-0">
+                  BONO
+                </span>
+              )}
             </div>
           ))}
         </div>

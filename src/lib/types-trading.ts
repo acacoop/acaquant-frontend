@@ -23,7 +23,10 @@ export interface PivotRow {
   pivots?: PivotLevels;
 }
 
+export type AssetClass = "cedear" | "bono";
+
 export interface UniversoItem {
   ticker_corto: string;
   nombre: string;
+  clase?: AssetClass;
 }
