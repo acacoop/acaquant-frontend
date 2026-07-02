@@ -280,7 +280,11 @@ export function TradingView() {
               </div>
               <div className="flex-1 min-h-0">
                 {shownTicker ? (
-                  <LiveIntradayChart ticker={shownTicker} pivots={shownPivots} />
+                  <LiveIntradayChart
+                    ticker={shownTicker}
+                    pivots={shownPivots}
+                    vwap={byTicker.get(shownTicker)?.vwap ?? null}
+                  />
                 ) : (
                   <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
                     elegí una card
