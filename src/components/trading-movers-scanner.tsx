@@ -50,31 +50,22 @@ export function TradingMoversScanner({
 
   const movers = useMemo(() => (rows ?? []).filter(esMover), [rows]);
 
-  return (
-    <div className="min-h-0 h-full border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-      <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Radar</span>
-        <span className="text-[9px] text-[var(--t-text-muted)] normal-case">
-          |1D| o |intra| ≥ {UMBRAL}%
-        </span>
-        <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tabular-nums">
-          {movers.length}
-        </span>
+  // Content-only: el borde y las tabs los pone TradingRadarPanel.
+  if (movers.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-3">
+        sin movimientos fuertes ahora — nada supera ±{UMBRAL}%
       </div>
-      {movers.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-3">
-          sin movimientos fuertes ahora — nada supera ±{UMBRAL}%
-        </div>
-      ) : (
-        <div className="flex-1 min-h-0">
-          <CedearsScannerTable
-            data={movers}
-            ccl={ccl}
-            onSelect={onSelect}
-            selectedTicker={selectedTicker}
-          />
-        </div>
-      )}
+    );
+  }
+  return (
+    <div className="h-full min-h-0">
+      <CedearsScannerTable
+        data={movers}
+        ccl={ccl}
+        onSelect={onSelect}
+        selectedTicker={selectedTicker}
+      />
     </div>
   );
 }

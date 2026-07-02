@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
 import { OrderBookPanel } from "@/components/order-book-panel";
-import { TradingMoversScanner } from "@/components/trading-movers-scanner";
+import { TradingRadarPanel } from "@/components/trading-radar-panel";
 import { usePoll } from "@/lib/use-poll";
 import {
   VWAP_COLOR,
@@ -310,8 +310,8 @@ export function TradingView() {
               )}
             </div>
           </div>
-          {/* radar hot-movers (reemplaza el volumen) */}
-          <TradingMoversScanner onSelect={loadTicker} selectedTicker={shownTicker || null} />
+          {/* radar con 2 tabs: MOVERS ±4% + PIVOTES (proximidad a pivote) */}
+          <TradingRadarPanel onSelect={loadTicker} selectedTicker={shownTicker || null} />
         </div>
       </div>
     </div>
