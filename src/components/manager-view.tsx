@@ -3508,6 +3508,7 @@ const BONO_TIPOS: { tipo: string; label: string; curva: string; bullet?: boolean
   { tipo: "cer",      label: "CER",                curva: "cer",       cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }, { k: "residual_previo_pct", label: "Resid. previo %" }], cer: true, cupon: true },
   { tipo: "dual",     label: "Dual / TAMAR",       curva: "tamar",     cols: [{ k: "amortizacion_pct", label: "Amort. %" }], tasaRef: true },
   { tipo: "soberano", label: "Soberano (USD)",     curva: "soberanos", cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }] },
+  { tipo: "dolar_linked", label: "Dólar Linked",   curva: "dolar_linked", cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }] },
 ];
 
 interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; fuente: string; accion: string; motivo: string; en_cartera: boolean }
@@ -3590,7 +3591,7 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
 }
 
 function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSaved?: () => void }) {
-  const tipoFromCurva = (c?: string) => c === "cer" ? "cer" : c === "soberanos" ? "soberano" : c === "tamar" ? "dual" : "lecap";
+  const tipoFromCurva = (c?: string) => c === "cer" ? "cer" : c === "soberanos" ? "soberano" : c === "tamar" ? "dual" : c === "dolar_linked" ? "dolar_linked" : "lecap";
   const [tipo, setTipo] = useState(prefill ? tipoFromCurva(prefill.curva) : "lecap");
   const cfg = BONO_TIPOS.find((t) => t.tipo === tipo) || BONO_TIPOS[0];
   const empty = { ticker_corto: "", tkCode: "", moneda_flujo: "ARS", fecha_emision: "", fecha_vencimiento: "", valor_nominal: "100", cer_emision: "", cupon_anual: "0", tasa_referencia: "TAMAR", flujo_vencimiento: "" };
