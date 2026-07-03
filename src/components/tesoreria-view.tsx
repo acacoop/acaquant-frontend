@@ -17,7 +17,7 @@ type Mov = {
 };
 type Resp = {
   fecha: string; estado: string; resumen: Record<string, Bucket>;
-  movimientos: Mov[]; n: number;
+  movimientos: Mov[]; n: number; raw?: number;
 };
 
 // Estados Aunesa. "Todos" manda la lista completa separada por ';' (la API acepta multi).
@@ -92,7 +92,10 @@ export function TesoreriaView() {
         </select>
         {loading
           ? <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>
-          : <span className="text-[9px] text-[var(--t-text-muted)]">{data?.n ?? 0} movimientos</span>}
+          : <span className="text-[9px] text-[var(--t-text-muted)]">
+              {data?.n ?? 0} movimientos
+              {data && typeof data.raw === "number" && data.raw !== data.n && ` (${data.raw} crudos de Aunesa)`}
+            </span>}
       </div>
 
       {/* Banner de error (distingue "backend caído / no deployado" de "vacío real") */}
