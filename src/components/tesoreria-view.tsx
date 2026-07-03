@@ -14,6 +14,7 @@ type Bucket = { ingresos: number; egresos: number; neto: number; n: number };
 type Mov = {
   id: string; hora: string; cuenta: string; cliente: string; riel: string;
   unidad: string; tipo: "ingreso" | "egreso"; monto: number; estado: string;
+  banco?: string | null; cbu?: string | null;
 };
 type Resp = {
   fecha: string; estado: string; resumen: Record<string, Bucket>;
@@ -157,6 +158,7 @@ export function TesoreriaView() {
               <th className="px-2 py-1.5 text-left">Cuenta</th>
               <th className="px-2 py-1.5 text-left">Cliente</th>
               <th className="px-2 py-1.5 text-left">Riel</th>
+              <th className="px-2 py-1.5 text-left">Banco / CBU contraparte</th>
               <th className="px-2 py-1.5 text-center">Mon</th>
               <th className="px-2 py-1.5 text-right">Ingreso</th>
               <th className="px-2 py-1.5 text-right">Egreso</th>
@@ -170,6 +172,7 @@ export function TesoreriaView() {
                 <td className="px-2 py-1 font-mono">{m.cuenta}</td>
                 <td className="px-2 py-1 truncate max-w-[220px]" title={m.cliente}>{m.cliente || "—"}</td>
                 <td className="px-2 py-1 text-[var(--t-text-dim)]">{m.riel}</td>
+                <td className="px-2 py-1 text-[var(--t-text-dim)] truncate max-w-[220px]" title={m.banco || m.cbu || ""}>{m.banco || m.cbu || "—"}</td>
                 <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{m.unidad}</td>
                 <td className="px-2 py-1 text-right font-semibold text-[var(--t-pos)]">{m.tipo === "ingreso" ? fmt(m.monto) : "—"}</td>
                 <td className="px-2 py-1 text-right font-semibold text-[var(--t-neg)]">{m.tipo === "egreso" ? fmt(m.monto) : "—"}</td>
@@ -177,7 +180,7 @@ export function TesoreriaView() {
               </tr>
             ))}
             {movs.length === 0 && !loading && (
-              <tr><td colSpan={8} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin movimientos</td></tr>
+              <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin movimientos</td></tr>
             )}
           </tbody>
         </table>
