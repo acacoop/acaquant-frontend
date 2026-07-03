@@ -11,15 +11,22 @@ import { useEffect, useMemo, useState } from "react";
  */
 
 type Bucket = { ingresos: number; egresos: number; neto: number; n: number };
-type Mov = {
-  id: string; hora: string; cuenta: string; cliente: string; riel: string;
-  unidad: string; tipo: "ingreso" | "egreso"; monto: number; estado: string;
-  banco?: string | null; cbu?: string | null;
-};
+// Movimiento = TODOS los campos crudos de Aunesa (dinámico) + derivados _hora/_tipo.
+type Mov = Record<string, unknown>;
 type Resp = {
   fecha: string; estado: string; resumen: Record<string, Bucket>;
   movimientos: Mov[]; n: number; raw?: number;
 };
+
+// Orden preferido de columnas (el resto se agrega alfabético al final). Todo lo que Aunesa
+// mande se muestra: si aparece un campo nuevo (ej. cuenta operativa), sale solo.
+const COL_PREF = [
+  "_hora", "id", "idExterno", "fecha", "solicitud", "_tipo", "tipoDocSoli", "cuenta",
+  "unidad", "monto", "estado", "banco", "cbuCVU",
+  "persona_nombreCompleto", "persona_documento", "persona_cuit",
+  "persona_tipoDocumento", "persona_tipoPersona",
+];
+const cell = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
 
 // Estados Aunesa. "Todos" manda la lista completa separada por ';' (la API acepta multi).
 const ESTADOS = [
@@ -74,8 +81,17 @@ export function TesoreriaView() {
     const rows = data?.movimientos ?? [];
     const t = q.trim().toLowerCase();
     if (!t) return rows;
-    return rows.filter((m) => String(m.cuenta).toLowerCase().includes(t) || m.cliente.toLowerCase().includes(t));
+    // Búsqueda genérica: matchea si CUALQUIER campo contiene el texto.
+    return rows.filter((m) => Object.values(m).some((v) => String(v ?? "").toLowerCase().includes(t)));
   }, [data, q]);
+  // Columnas = unión de todos los campos presentes, con COL_PREF adelante y el resto al final.
+  const cols = useMemo(() => {
+    const keys = new Set<string>();
+    for (const m of data?.movimientos ?? []) for (const k of Object.keys(m)) keys.add(k);
+    const pref = COL_PREF.filter((k) => keys.has(k));
+    const rest = [...keys].filter((k) => !COL_PREF.includes(k)).sort();
+    return [...pref, ...rest];
+  }, [data]);
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] text-[var(--t-text)]">
@@ -144,43 +160,33 @@ export function TesoreriaView() {
         })}
       </div>
 
-      {/* Detalle */}
+      {/* Detalle — tabla genérica con TODOS los campos crudos de Aunesa */}
       <div className="px-3 pb-1 flex items-center gap-2 shrink-0">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar cuenta o cliente…"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar en cualquier campo…"
           className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none w-[240px]" />
-        {q && <span className="text-[9px] text-[var(--t-text-muted)]">{movs.length} de {data?.n ?? 0}</span>}
+        <span className="text-[9px] text-[var(--t-text-muted)]">
+          {q ? `${movs.length} de ${data?.n ?? 0}` : `${data?.n ?? 0} movimientos`} · {cols.length} campos
+        </span>
       </div>
       <div className="flex-1 min-h-0 overflow-auto px-3 pb-3">
-        <table className="w-full text-[11px] tabular-nums">
+        <table className="text-[11px] tabular-nums whitespace-nowrap">
           <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
             <tr className="border-b border-[var(--t-border)]">
-              <th className="px-2 py-1.5 text-left">Hora</th>
-              <th className="px-2 py-1.5 text-left">Cuenta</th>
-              <th className="px-2 py-1.5 text-left">Cliente</th>
-              <th className="px-2 py-1.5 text-left">Riel</th>
-              <th className="px-2 py-1.5 text-left">Banco / CBU contraparte</th>
-              <th className="px-2 py-1.5 text-center">Mon</th>
-              <th className="px-2 py-1.5 text-right">Ingreso</th>
-              <th className="px-2 py-1.5 text-right">Egreso</th>
-              <th className="px-2 py-1.5 text-left">Estado</th>
+              {cols.map((c) => <th key={c} className="px-2 py-1.5 text-left">{c.replace(/^_/, "").replace(/^persona_/, "p·")}</th>)}
             </tr>
           </thead>
           <tbody>
-            {movs.map((m) => (
-              <tr key={m.id} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                <td className="px-2 py-1 text-[var(--t-text-dim)]">{m.hora || "—"}</td>
-                <td className="px-2 py-1 font-mono">{m.cuenta}</td>
-                <td className="px-2 py-1 truncate max-w-[220px]" title={m.cliente}>{m.cliente || "—"}</td>
-                <td className="px-2 py-1 text-[var(--t-text-dim)]">{m.riel}</td>
-                <td className="px-2 py-1 text-[var(--t-text-dim)] truncate max-w-[220px]" title={m.banco || m.cbu || ""}>{m.banco || m.cbu || "—"}</td>
-                <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{m.unidad}</td>
-                <td className="px-2 py-1 text-right font-semibold text-[var(--t-pos)]">{m.tipo === "ingreso" ? fmt(m.monto) : "—"}</td>
-                <td className="px-2 py-1 text-right font-semibold text-[var(--t-neg)]">{m.tipo === "egreso" ? fmt(m.monto) : "—"}</td>
-                <td className="px-2 py-1 text-[var(--t-text-dim)]">{m.estado}</td>
+            {movs.map((m, i) => (
+              <tr key={String(m.id ?? i)} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                {cols.map((c) => (
+                  <td key={c} className={"px-2 py-1 " + (c === "_tipo" ? (m._tipo === "ingreso" ? "text-[var(--t-pos)]" : m._tipo === "egreso" ? "text-[var(--t-neg)]" : "") : "text-[var(--t-text-dim)]")}>
+                    {cell(m[c])}
+                  </td>
+                ))}
               </tr>
             ))}
             {movs.length === 0 && !loading && (
-              <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin movimientos</td></tr>
+              <tr><td colSpan={Math.max(1, cols.length)} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin movimientos</td></tr>
             )}
           </tbody>
         </table>
