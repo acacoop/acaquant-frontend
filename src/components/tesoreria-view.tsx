@@ -33,23 +33,38 @@ const hoyISO = () => {
 };
 const fmt = (v: number) => v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-async function getJson<T>(url: string): Promise<T | null> {
-  try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
-}
-
 export function TesoreriaView() {
   const [fecha, setFecha] = useState(hoyISO());
   const [estado, setEstado] = useState<string>("Procesado");
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    getJson<Resp>(`/api/back-office/tesoreria/dia?fecha=${fecha}&estado=${encodeURIComponent(estado)}`)
-      .then((d) => { if (alive) setData(d); })
-      .finally(() => { if (alive) setLoading(false); });
+    setLoading(true); setErr(null);
+    const url = `/api/back-office/tesoreria/dia?fecha=${fecha}&estado=${encodeURIComponent(estado)}`;
+    (async () => {
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        const txt = await r.text();
+        let body: unknown = null;
+        try { body = JSON.parse(txt); } catch { /* no-JSON */ }
+        if (!alive) return;
+        if (!r.ok) {
+          const o = (body && typeof body === "object") ? (body as Record<string, unknown>) : {};
+          setErr(String(o.error ?? o.detail ?? `HTTP ${r.status} — ${txt.slice(0, 200)}`));
+          setData(null);
+        } else {
+          setData(body as Resp);
+        }
+      } catch (e) {
+        if (alive) { setErr(e instanceof Error ? e.message : String(e)); setData(null); }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
     return () => { alive = false; };
   }, [fecha, estado]);
 
@@ -80,9 +95,19 @@ export function TesoreriaView() {
           : <span className="text-[9px] text-[var(--t-text-muted)]">{data?.n ?? 0} movimientos</span>}
       </div>
 
+      {/* Banner de error (distingue "backend caído / no deployado" de "vacío real") */}
+      {err && (
+        <div className="mx-3 mt-2 px-3 py-2 border border-[var(--t-neg)] bg-[var(--t-neg)]/10 text-[11px] text-[var(--t-neg)] shrink-0">
+          Error al consultar Tesorería: {err}
+          <div className="text-[10px] text-[var(--t-text-dim)] mt-0.5">
+            Si dice 502 / HTTP 404, el backend todavía no está reiniciado en el Droplet (endpoint nuevo).
+          </div>
+        </div>
+      )}
+
       {/* KPIs por moneda */}
       <div className="px-3 py-2 flex gap-3 flex-wrap shrink-0">
-        {monedas.length === 0 && !loading && (
+        {monedas.length === 0 && !loading && !err && (
           <div className="text-[11px] text-[var(--t-text-muted)]">Sin movimientos para ese día/estado.</div>
         )}
         {monedas.map((m) => {
