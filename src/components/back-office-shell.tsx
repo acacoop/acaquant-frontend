@@ -4,10 +4,11 @@ import { useState } from "react";
 import { TitulosMercadoView } from "./titulos-mercado-view";
 import { AcreenciasView } from "./acreencias-view";
 import { TenenciaValorizadaView } from "./tenencia-valorizada-view";
+import { TesoreriaView } from "./tesoreria-view";
 
-// Tabs del Back Office. Por ahora Títulos / Mercado + Acreencias Clientes +
-// Tenencia Valorizada; cuando vengan nuevas se suman acá.
-type Tab = "titulos_mercado" | "acreencias" | "tenencia";
+// Tabs del Back Office. Tenencia Valorizada + Tesorería + Títulos / Mercado +
+// Acreencias Clientes; cuando vengan nuevas se suman acá.
+type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "tesoreria";
 
 export function BackOfficeShell() {
   // Default = Tenencia Valorizada (primera en la barra).
@@ -21,6 +22,12 @@ export function BackOfficeShell() {
           onClick={() => setTab("tenencia")}
         >
           Tenencia Valorizada
+        </TabBtn>
+        <TabBtn
+          active={tab === "tesoreria"}
+          onClick={() => setTab("tesoreria")}
+        >
+          Tesorería
         </TabBtn>
         <TabBtn
           active={tab === "titulos_mercado"}
@@ -37,6 +44,7 @@ export function BackOfficeShell() {
       </div>
 
       <div className="flex-1 min-h-0">
+        {tab === "tesoreria" && <TesoreriaView />}
         {tab === "titulos_mercado" && <TitulosMercadoView />}
         {tab === "acreencias" && <AcreenciasView />}
         {tab === "tenencia" && <TenenciaValorizadaView />}
