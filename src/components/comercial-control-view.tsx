@@ -8,7 +8,8 @@ import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 //  1) Datos totales ALyC: períodos fijos (no usa Desde/Hasta).
 //  2) Datos por operador: usa Desde/Hasta.
 //  3) Objetivos: Actual (rango) vs Objetivo + % alcanzado, con editor inline.
-// Es vista de jefatura → muestra TODA la mesa (no aplica los filtros madre operador/niveles).
+// Aplica los filtros madre de la barra de Operadores (operador/niveles/referido): sin filtros
+// muestra TODA la mesa; con filtros acota las 3 tablas al scope (cuentas + comerciales).
 
 type FilaTotal = {
   periodo: string;
@@ -44,6 +45,10 @@ async function getJson<T>(url: string): Promise<T | null> {
   try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? (await r.json()) as T : null; }
   catch { return null; }
 }
+
+// Filtros madre → query-string (repite el param por cada valor: nivel_1=a&nivel_1=b).
+const arrQS = (name: string, arr: string[]) =>
+  arr.filter((v) => v && v !== "__todos__").map((v) => `&${name}=${encodeURIComponent(v)}`).join("");
 
 // Celda de variación % (verde positivo, rojo negativo, gris sin base).
 function Pct({ v }: { v: number | null }) {
@@ -96,11 +101,24 @@ function AyudaKpis() {
   );
 }
 
-export function ComercialControlView({ moneda = "ARS" }: { moneda?: "ARS" | "USD" }) {
+export function ComercialControlView({
+  moneda = "ARS", operador = [], nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
+}: {
+  moneda?: "ARS" | "USD";
+  operador?: string[]; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
+  nivel4?: string[]; nivel5?: string[]; referido?: string[];
+}) {
   const hoy = new Date();
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   const [desde, setDesde] = useState(iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
   const [hasta, setHasta] = useState(iso(hoy));
+
+  // Filtros madre serializados (nombres del backend: nivel_1..5). Se recomputa solo si cambia
+  // alguna selección → dispara los 3 fetch. join("") lo hace estable para deps de efectos.
+  const filtQS = useMemo(() =>
+    arrQS("operador", operador) + arrQS("nivel_1", nivel1) + arrQS("nivel_2", nivel2) +
+    arrQS("nivel_3", nivel3) + arrQS("nivel_4", nivel4) + arrQS("nivel_5", nivel5) + arrQS("referido", referido),
+    [operador, nivel1, nivel2, nivel3, nivel4, nivel5, referido]);
 
   const [totales, setTotales] = useState<FilaTotal[]>([]);
   const [porOp, setPorOp] = useState<FilaOperador[]>([]);
@@ -109,17 +127,17 @@ export function ComercialControlView({ moneda = "ARS" }: { moneda?: "ARS" | "USD
   const [editorOpen, setEditorOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
-  // Tabla 1 (no depende de Desde/Hasta, solo moneda).
+  // Tabla 1 (no depende de Desde/Hasta, solo moneda + filtros madre).
   useEffect(() => {
-    void getJson<{ filas: FilaTotal[] }>(`/api/operaciones/comercial/control/totales?moneda=${moneda}`)
+    void getJson<{ filas: FilaTotal[] }>(`/api/operaciones/comercial/control/totales?moneda=${moneda}${filtQS}`)
       .then((d) => setTotales(d?.filas ?? []));
-  }, [moneda]);
+  }, [moneda, filtQS]);
 
-  // Tablas 2 y 3 (Desde/Hasta + moneda).
+  // Tablas 2 y 3 (Desde/Hasta + moneda + filtros madre).
   const cargarRango = useCallback(async () => {
     if (!desde || !hasta) return;
     setLoading(true);
-    const qs = `desde=${desde}&hasta=${hasta}&moneda=${moneda}`;
+    const qs = `desde=${desde}&hasta=${hasta}&moneda=${moneda}${filtQS}`;
     const [op, obj] = await Promise.all([
       getJson<{ filas: FilaOperador[] }>(`/api/operaciones/comercial/control/por-operador?${qs}`),
       getJson<{ filas: FilaObjetivo[] }>(`/api/operaciones/comercial/control/objetivos-vs-actual?${qs}`),
@@ -127,7 +145,7 @@ export function ComercialControlView({ moneda = "ARS" }: { moneda?: "ARS" | "USD
     setPorOp(op?.filas ?? []);
     setObjetivos(obj?.filas ?? []);
     setLoading(false);
-  }, [desde, hasta, moneda]);
+  }, [desde, hasta, moneda, filtQS]);
   useEffect(() => { void cargarRango(); }, [cargarRango]);
 
   // Descarga TODO en un solo Excel con 3 hojas (Totales / Por Operador / Objetivos).
