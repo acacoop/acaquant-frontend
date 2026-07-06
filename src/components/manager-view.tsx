@@ -3661,6 +3661,23 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
     finally { setSaving(false); }
   };
 
+  const borrar = async () => {
+    const tc = form.ticker_corto.trim();
+    if (!tc) return;
+    if (!window.confirm(`¿Dar de baja ${tc}? Se elimina de Curvas → deja de figurar en Renta Fija.`)) return;
+    setSaving(true); setMsg(null);
+    try {
+      const r = await fetch(`/api/manager/bonos?ticker_corto=${encodeURIComponent(tc)}`, { method: "DELETE" });
+      const txt = await r.text(); let d: { detail?: string } = {}; try { d = JSON.parse(txt); } catch { /* no-JSON */ }
+      if (!r.ok) throw new Error(d.detail || txt.slice(0, 300) || `HTTP ${r.status}`);
+      setMsg({ kind: "ok", text: `${tc} dado de baja.` });
+      setForm({ ...empty }); setFlujos([]);
+      fetch("/api/manager/bonos").then((x) => x.json()).then((d2: { bonos: BonoMaster[] }) => setExistentes(d2.bonos || [])).catch(() => {});
+      onSaved?.();
+    } catch (e) { setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
   return (
     <div className="h-full overflow-auto p-3 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -3669,6 +3686,11 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
           <option value="">— nuevo bono —</option>
           {existentes.map((b) => <option key={b.ticker_corto} value={b.ticker_corto}>{b.ticker_corto} · {b.tipo || b.curva}</option>)}
         </select>
+        {form.ticker_corto.trim() && (
+          <button type="button" onClick={borrar} disabled={saving} className="px-2 py-1 text-[10px] font-semibold bg-red-600 text-white disabled:opacity-50" title="Eliminar este bono de Curvas">
+            DAR DE BAJA
+          </button>
+        )}
       </div>
 
       <OnField label="Tipo de bono — define los campos y la shape del flujo">
@@ -4073,12 +4095,134 @@ function TabRentaVariable() {
 // (edición maestro). Gate fino: INSTRUMENTOS → manager_instrumentos;
 // ASSETS/ONs/BONOS/RENTA VARIABLE → manager_titulos.
 // Así asistente_comercial (manager_instrumentos) ve solo Instrumentos.
+// BREAKEVENS: curaduría de pares Lecap↔CER. El motor los empareja solo (vto más
+// cercano) y a veces se equivoca (par con BE absurdo). Acá se EXCLUYE el par malo
+// → desaparece de la vista de Renta Fija al instante (el reader lo filtra; el motor
+// no se toca). Reincluir lo vuelve a mostrar.
+interface BePar {
+  lecap: string;
+  cer: string;
+  mes_inflacion?: string;
+  dias?: number;
+  breakeven_mensual?: number;
+  excluido: boolean;
+}
+
+function fmtBe(n: number | undefined): string {
+  if (n === null || n === undefined || !isFinite(n)) return "--";
+  return `${(n * 100).toFixed(2)}%`;
+}
+
+function TabBreakevens() {
+  const [pares, setPares] = useState<BePar[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [nExcl, setNExcl] = useState(0);
+
+  const fetchPares = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manager/breakevens/pares")
+      .then((r) => r.json())
+      .then((d: { pares?: BePar[]; n_excluidos?: number }) => {
+        setPares(d.pares || []);
+        setNExcl(d.n_excluidos || 0);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  // Carga al montar — fetch inline (setState solo en .then) para no disparar
+  // setState sincrónico dentro del effect.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/breakevens/pares")
+      .then((r) => r.json())
+      .then((d: { pares?: BePar[]; n_excluidos?: number }) => {
+        if (!alive) return;
+        setPares(d.pares || []);
+        setNExcl(d.n_excluidos || 0);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const toggle = async (p: BePar) => {
+    const key = `${p.lecap}|${p.cer}`;
+    setBusy((b) => ({ ...b, [key]: true }));
+    // Optimista: reflejo el cambio antes de la respuesta.
+    setPares((prev) => prev.map((x) => (x.lecap === p.lecap && x.cer === p.cer ? { ...x, excluido: !x.excluido } : x)));
+    try {
+      const r = await fetch("/api/manager/breakevens/exclusion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lecap: p.lecap, cer: p.cer, excluir: !p.excluido }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setNExcl((n) => (p.excluido ? Math.max(0, n - 1) : n + 1));
+    } catch {
+      // revierto si falló
+      setPares((prev) => prev.map((x) => (x.lecap === p.lecap && x.cer === p.cer ? { ...x, excluido: p.excluido } : x)));
+    } finally {
+      setBusy((b) => ({ ...b, [key]: false }));
+    }
+  };
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[11px] text-[var(--t-text-dim)]">
+          {pares.length} pares que arma el motor · {nExcl} excluidos · excluir un par lo oculta de Renta Fija al instante
+        </span>
+        <button type="button" onClick={fetchPares} className={_onInput + " w-auto"}>↻</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Lecap/Boncap</th><th>CER</th><th>IPC mes</th><th>Días</th><th>BE mensual</th><th></th></tr>
+        </thead>
+        <tbody>
+          {pares.map((p) => {
+            const key = `${p.lecap}|${p.cer}`;
+            const beRoto = p.breakeven_mensual !== undefined && (p.breakeven_mensual < 0 || p.breakeven_mensual > 0.15);
+            return (
+              <tr key={key} className={p.excluido ? "opacity-40" : ""}>
+                <td className="font-semibold">{p.lecap}</td>
+                <td>{p.cer}</td>
+                <td className="tabular-nums">{p.mes_inflacion || "--"}</td>
+                <td className="tabular-nums text-right">{p.dias ?? "--"}</td>
+                <td className={"tabular-nums text-right " + (beRoto ? "text-red-500 font-semibold" : "")}>
+                  {fmtBe(p.breakeven_mensual)}
+                </td>
+                <td className="text-right">
+                  <button
+                    type="button"
+                    disabled={busy[key]}
+                    onClick={() => toggle(p)}
+                    className={_onInput + " w-auto text-[10px]"}
+                    title={p.excluido ? "Volver a mostrar este par" : "Ocultar este par de Renta Fija"}
+                  >
+                    {busy[key] ? "…" : p.excluido ? "incluir" : "excluir"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
+      {!loading && pares.length === 0 && (
+        <p className="text-[11px] text-[var(--t-text-muted)] mt-2">
+          Sin pares — ¿el motor de breakevens está corriendo?
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TitulosGroup({ modules }: { modules?: string[] | null }) {
-  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons" | "bonos" | "renta_variable">("manager.titulos.sub", "instrumentos");
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons" | "bonos" | "breakevens" | "renta_variable">("manager.titulos.sub", "instrumentos");
   const has = (m: string) => modules == null || modules.includes(m);
   const canInstr = has("manager") || has("manager_instrumentos");
   const canMaestro = has("manager") || has("manager_titulos");
-  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons" || sub === "bonos" || sub === "renta_variable") && canMaestro);
+  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons" || sub === "bonos" || sub === "breakevens" || sub === "renta_variable") && canMaestro);
   const eff = subVisible ? sub : (canInstr ? "instrumentos" : "assets");
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -4088,6 +4232,7 @@ function TitulosGroup({ modules }: { modules?: string[] | null }) {
         {canMaestro && <Pill label="ASSETS" active={eff === "assets"} onClick={() => setSub("assets")} />}
         {canMaestro && <Pill label="ONs" active={eff === "ons"} onClick={() => setSub("ons")} />}
         {canMaestro && <Pill label="BONOS" active={eff === "bonos"} onClick={() => setSub("bonos")} />}
+        {canMaestro && <Pill label="BREAKEVENS" active={eff === "breakevens"} onClick={() => setSub("breakevens")} />}
         {canMaestro && <Pill label="RENTA VARIABLE" active={eff === "renta_variable"} onClick={() => setSub("renta_variable")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -4095,6 +4240,7 @@ function TitulosGroup({ modules }: { modules?: string[] | null }) {
         {eff === "assets"         && canMaestro && <TabAssets />}
         {eff === "ons"            && canMaestro && <TabONs />}
         {eff === "bonos"          && canMaestro && <TabBonos />}
+        {eff === "breakevens"     && canMaestro && <TabBreakevens />}
         {eff === "renta_variable" && canMaestro && <TabRentaVariable />}
       </div>
     </div>
