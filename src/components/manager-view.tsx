@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
@@ -3513,7 +3513,7 @@ const BONO_TIPOS: { tipo: string; label: string; curva: string; bullet?: boolean
 
 interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; fuente: string; accion: string; motivo: string; en_cartera: boolean }
 interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_emision?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; cupon_anual?: number; tasa_referencia?: string; flujo_vencimiento?: number; flujos?: Record<string, unknown>[] }
-interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string }
+interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string; editTicker?: string }
 
 interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuente?: { curvas: number; on: number; ninguna: number }; titulos: BonoSinFlujo[] }
 
@@ -3624,6 +3624,19 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
     setMsg(null);
   };
   const setCell = (i: number, k: string, v: string) => setFlujos((fs) => fs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+
+  // Auto-carga al llegar desde el LISTADO con "editar": una vez que están los
+  // existentes, cargo ese bono en el form (una sola vez, vía ref). setTimeout(0)
+  // para no setear estado sincrónicamente dentro del effect.
+  const editLoadedRef = useRef(false);
+  useEffect(() => {
+    const et = prefill?.editTicker;
+    if (!et || editLoadedRef.current || !existentes.some((b) => b.ticker_corto === et)) return;
+    editLoadedRef.current = true;
+    const id = setTimeout(() => cargarExistente(et), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existentes, prefill]);
 
   const guardar = async () => {
     if (!form.ticker_corto.trim()) { setMsg({ kind: "err", text: "Falta el ticker corto" }); return; }
@@ -3754,7 +3767,7 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
   );
 }
 
-interface TituloPrefill { codigo: string; ticker?: string | null; destino: "curvas" | "bondsmaster"; curva?: string; emisor?: string | null; moneda?: string }
+interface TituloPrefill { codigo: string; ticker?: string | null; destino: "curvas" | "bondsmaster"; curva?: string; emisor?: string | null; moneda?: string; edit?: boolean }
 
 // Editor UNIFICADO: elegís la BASE (Curvas = Renta Fija · BondsMaster = ONs), te
 // marca dónde YA está, y carga el form de esa base. El conciliador entra acá directo
@@ -3772,7 +3785,7 @@ function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; o
   const code = (prefill?.codigo || "").toUpperCase();
   const enCurvas = !!code && bonos.some((b) => (b.ticker_corto || "").toUpperCase() === code);
   const enBm = !!code && ons.some((o) => (o.asset || "").toUpperCase() === code);
-  const bonoPrefill: BonoPrefill | null = prefill ? { ticker_corto: prefill.codigo, ticker: prefill.ticker ?? undefined, curva: prefill.curva || "tasa_fija" } : null;
+  const bonoPrefill: BonoPrefill | null = prefill ? { ticker_corto: prefill.codigo, ticker: prefill.ticker ?? undefined, curva: prefill.curva || "tasa_fija", editTicker: prefill.edit ? prefill.codigo : undefined } : null;
   const onPrefill: ONPrefill | null = prefill ? { asset: prefill.codigo, emisor: prefill.emisor ?? "", moneda_flujo: prefill.moneda === "DL" ? "DL" : (prefill.moneda || "USD") } : null;
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -3798,8 +3811,133 @@ function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; o
   );
 }
 
+// LISTADO: toda la base de bonos (mercado.curvas no-ON) como grilla buscable, con
+// sus flujos expandibles y detección de incompletos (sin flujo / sin vto). Es "ver
+// la base de datos" desde el front: buscar, revisar qué falta, editar o dar de baja.
+function bonoFlujoResumen(b: BonoMaster): { txt: string; falta: boolean } {
+  if (b.flujo_vencimiento != null) return { txt: `bullet ${b.flujo_vencimiento}`, falta: false };
+  const n = b.flujos?.length || 0;
+  if (n > 0) return { txt: `${n} flujos`, falta: false };
+  return { txt: "sin flujo", falta: true };
+}
+
+function FlujosMini({ flujos }: { flujos: Record<string, unknown>[] }) {
+  const cols = Array.from(new Set(flujos.flatMap((f) => Object.keys(f)))).filter((k) => k !== "fecha");
+  return (
+    <table className="w-full">
+      <thead><tr><th>Fecha</th>{cols.map((c) => <th key={c} className="text-right">{c}</th>)}</tr></thead>
+      <tbody>
+        {flujos.map((f, i) => (
+          <tr key={i}>
+            <td className="tabular-nums">{String(f.fecha ?? "").slice(0, 10)}</td>
+            {cols.map((c) => <td key={c} className="tabular-nums text-right">{f[c] != null ? String(f[c]) : ""}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function TabBonosListado({ onEditar }: { onEditar: (tc: string) => void }) {
+  const [bonos, setBonos] = useState<BonoMaster[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [curvaF, setCurvaF] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+
+  const fetchBonos = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manager/bonos").then((r) => r.json())
+      .then((d: { bonos: BonoMaster[] }) => setBonos(d.bonos || []))
+      .catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/bonos").then((r) => r.json())
+      .then((d: { bonos: BonoMaster[] }) => { if (alive) setBonos(d.bonos || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const borrar = async (tc: string) => {
+    if (!window.confirm(`¿Dar de baja ${tc}? Se elimina de Curvas → deja de figurar en Renta Fija.`)) return;
+    setBusy((b) => ({ ...b, [tc]: true }));
+    try {
+      const r = await fetch(`/api/manager/bonos?ticker_corto=${encodeURIComponent(tc)}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setBonos((prev) => prev.filter((x) => x.ticker_corto !== tc));
+    } catch { /* noop */ } finally { setBusy((b) => ({ ...b, [tc]: false })); }
+  };
+
+  const ql = q.trim().toLowerCase();
+  const filtered = bonos
+    .filter((b) => (!curvaF || b.curva === curvaF)
+      && (!ql || [b.ticker_corto, b.ticker, b.tipo, b.curva].some((v) => (v || "").toLowerCase().includes(ql))))
+    .sort((a, b) => (a.fecha_vencimiento || "9999").localeCompare(b.fecha_vencimiento || "9999"));
+  const curvasSet = Array.from(new Set(bonos.map((b) => b.curva).filter(Boolean))) as string[];
+  const nFalta = filtered.filter((b) => bonoFlujoResumen(b).falta || !b.fecha_vencimiento).length;
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <input className={_onInput + " w-48"} placeholder="buscar ticker / tipo…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className={_onInput + " w-auto"} value={curvaF} onChange={(e) => setCurvaF(e.target.value)}>
+          <option value="">todas las curvas</option>
+          {curvasSet.sort().map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <span className="text-[11px] text-[var(--t-text-dim)]">{filtered.length} bonos · {nFalta} incompletos</span>
+        <button type="button" onClick={fetchBonos} className={_onInput + " w-auto"}>↻</button>
+      </div>
+      <table>
+        <thead><tr><th>Ticker</th><th>ROFEX</th><th>Curva</th><th>Tipo</th><th>Vto</th><th>Mon</th><th className="text-right">VN</th><th className="text-right">Cupón</th><th>Flujo</th><th></th></tr></thead>
+        <tbody>
+          {filtered.map((b) => {
+            const fl = bonoFlujoResumen(b);
+            const sinVto = !b.fecha_vencimiento;
+            const open = expanded === b.ticker_corto;
+            return (
+              <Fragment key={b.ticker_corto}>
+                <tr className={fl.falta || sinVto ? "bg-red-500/10" : ""}>
+                  <td className="font-semibold">{b.ticker_corto}</td>
+                  <td className="text-[10px] text-[var(--t-text-dim)]">{b.ticker ? unwrapTicker(b.ticker) : "--"}</td>
+                  <td>{b.curva || "--"}</td>
+                  <td>{b.tipo || "--"}</td>
+                  <td className={"tabular-nums " + (sinVto ? "text-red-500 font-semibold" : "")}>{sinVto ? "⚠️ sin vto" : (b.fecha_vencimiento || "").slice(0, 10)}</td>
+                  <td>{b.moneda_flujo || "--"}</td>
+                  <td className="tabular-nums text-right">{b.valor_nominal ?? "--"}</td>
+                  <td className="tabular-nums text-right">{b.cupon_anual ?? "--"}</td>
+                  <td>
+                    <button type="button" onClick={() => setExpanded(open ? null : b.ticker_corto)} className={fl.falta ? "text-red-500 font-semibold" : "text-[var(--t-accent)]"} title="Ver flujos">
+                      {fl.falta ? "⚠️ sin flujo" : `${fl.txt} ${open ? "▴" : "▾"}`}
+                    </button>
+                  </td>
+                  <td className="text-right whitespace-nowrap">
+                    <button type="button" onClick={() => onEditar(b.ticker_corto)} className={_onInput + " w-auto text-[10px] mr-1"}>editar</button>
+                    <button type="button" disabled={busy[b.ticker_corto]} onClick={() => borrar(b.ticker_corto)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white disabled:opacity-50">baja</button>
+                  </td>
+                </tr>
+                {open && (
+                  <tr>
+                    <td colSpan={10} className="bg-[var(--t-panel)] p-2">
+                      {b.flujos?.length
+                        ? <FlujosMini flujos={b.flujos} />
+                        : <span className="text-[10px] text-[var(--t-text-dim)]">{b.flujo_vencimiento != null ? `Bullet: paga ${b.flujo_vencimiento} por 100 VN al vencimiento.` : "Sin flujos cargados."}</span>}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
+      {!loading && filtered.length === 0 && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">Sin bonos para ese filtro.</p>}
+    </div>
+  );
+}
+
 function TabBonos() {
-  const [sub, setSub] = usePersistedState<"control" | "alta">("manager.bonos.sub", "control");
+  const [sub, setSub] = usePersistedState<"listado" | "control" | "alta">("manager.bonos.sub", "listado");
   const [prefill, setPrefill] = useState<TituloPrefill | null>(null);
   const [prefillKey, setPrefillKey] = useState(0);
   const darDeAlta = (b: BonoSinFlujo) => {
@@ -3811,15 +3949,21 @@ function TabBonos() {
     });
     setPrefillKey((k) => k + 1); setSub("alta");
   };
+  const editarBono = (tc: string) => {
+    setPrefill({ codigo: tc, destino: "curvas", edit: true });
+    setPrefillKey((k) => k + 1); setSub("alta");
+  };
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+        <Pill label="LISTADO" active={sub === "listado"} onClick={() => setSub("listado")} />
         <Pill label="CONCILIADOR" active={sub === "control"} onClick={() => setSub("control")} />
         <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "listado" && <TabBonosListado onEditar={editarBono} />}
         {sub === "control" && <TabBonosControl key={prefillKey} onDarDeAlta={darDeAlta} />}
-        {sub === "alta" && <TabAltaTitulo key={prefillKey} prefill={prefill} onSaved={() => { if (prefill) setSub("control"); }} />}
+        {sub === "alta" && <TabAltaTitulo key={prefillKey} prefill={prefill} onSaved={() => { if (prefill?.edit) setSub("listado"); else if (prefill) setSub("control"); }} />}
       </div>
     </div>
   );
