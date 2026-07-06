@@ -23,6 +23,20 @@ interface CamaraResp {
   cereales: CamaraRow[];
 }
 
+interface TasasResp {
+  tasa_on: number | null;
+  tasa_pagare: number | null;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+const EMPTY_TASAS: TasasResp = {
+  tasa_on: null,
+  tasa_pagare: null,
+  updated_by: null,
+  updated_at: null,
+};
+
 const EMPTY: CamaraResp = {
   ts: "",
   cereales: CEREALES.map((c) => ({
@@ -52,6 +66,7 @@ export function AgroDatos() {
 
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
+      <TasasCoberturaPanel />
       <div className="max-w-2xl">
         <Panel title="CÁMARA ARBITRAL DE CEREALES — ROSARIO" expandable>
           <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
@@ -204,6 +219,156 @@ function CerealRow({ row }: { row: CamaraRow }) {
             placeholder="—"
             className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-24 text-right"
           />
+          {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
+          {savedOk === true && (
+            <span className="text-[9px] text-[var(--t-pos)]">✓</span>
+          )}
+          {savedOk === false && (
+            <span className="text-[9px] text-[var(--t-neg)]">✗</span>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-1.5 text-right text-[9px] text-[var(--t-text-muted)]">
+        {editHint}
+      </td>
+    </tr>
+  );
+}
+
+// ─── Tasas de cobertura (ON / Pagaré) ────────────────────────────────────────
+// Dos inputs manuales GLOBALES (no por cereal). Alimentan las columnas
+// Pagaré / ON del "Pase con Cobertura". El cálculo se define con la mesa;
+// por ahora solo se persisten y se muestran.
+
+function TasasCoberturaPanel() {
+  const { data } = usePoll<TasasResp>(
+    "/api/derivados-agro/tasas-cobertura",
+    EMPTY_TASAS,
+    POLL_MS,
+    { fetchOnMount: true },
+  );
+
+  return (
+    <div className="max-w-2xl">
+      <Panel title="TASAS DE COBERTURA — ON · PAGARÉ" expandable>
+        <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
+          Tasas manuales (TNA %) que carga el trader. Alimentan las columnas
+          Pagaré y ON del <span className="text-[var(--t-text-dim)]">Pase con
+          Cobertura</span>. La fórmula se define con la mesa.
+        </div>
+        <table className="w-full text-[11px] font-mono tabular-nums">
+          <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
+            <tr>
+              <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">
+                Instrumento
+              </th>
+              <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
+                Tasa (TNA %)
+              </th>
+              <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
+                Últ. edición
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <TasaRow
+              label="PAGARÉ"
+              field="tasa_pagare"
+              value={data.tasa_pagare}
+              updatedAt={data.updated_at}
+            />
+            <TasaRow
+              label="ON"
+              field="tasa_on"
+              value={data.tasa_on}
+              updatedAt={data.updated_at}
+            />
+          </tbody>
+        </table>
+      </Panel>
+    </div>
+  );
+}
+
+function TasaRow({
+  label,
+  field,
+  value,
+  updatedAt,
+}: {
+  label: string;
+  field: "tasa_on" | "tasa_pagare";
+  value: number | null;
+  updatedAt: string | null;
+}) {
+  const [txt, setTxt] = useState<string>(fmtNum(value, 2));
+  const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState<null | boolean>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remote = useRef<string>(fmtNum(value, 2));
+
+  // Adopta el valor remoto si otro user editó, sin pisar lo que estoy tipeando.
+  useEffect(() => {
+    const next = fmtNum(value, 2);
+    if (next !== remote.current) {
+      remote.current = next;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (txt !== next) setTxt(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  function parseInput(s: string): number | null {
+    if (!s) return null;
+    const cleaned = s.replace(/\./g, "").replace(",", ".");
+    const n = parseFloat(cleaned);
+    return isFinite(n) && n > 0 ? n : null;
+  }
+
+  function onChange(v: string) {
+    setTxt(v);
+    const n = parseInput(v);
+    if (n === null) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSaving(true);
+      setSavedOk(null);
+      try {
+        const res = await fetch("/api/derivados-agro/tasas-cobertura", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: n }),
+        });
+        setSavedOk(res.ok);
+      } catch {
+        setSavedOk(false);
+      } finally {
+        setSaving(false);
+        setTimeout(() => setSavedOk(null), 1500);
+      }
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  const editHint = updatedAt
+    ? fmtHoraAR(new Date(updatedAt).getTime())
+    : "—";
+
+  return (
+    <tr className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+      <td className="px-2 py-1.5 text-[var(--t-accent)] font-semibold tracking-wide">
+        {label}
+      </td>
+      <td className="px-2 py-1.5 text-right">
+        <div className="inline-flex items-center gap-1 justify-end">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={txt}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="—"
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-24 text-right"
+          />
+          <span className="text-[var(--t-text-muted)] text-[10px]">%</span>
           {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
           {savedOk === true && (
             <span className="text-[9px] text-[var(--t-pos)]">✓</span>

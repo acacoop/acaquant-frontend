@@ -35,6 +35,13 @@ interface AgroBloque {
   rows: AgroRow[];
 }
 
+interface TasasCobertura {
+  tasa_on: number | null;
+  tasa_pagare: number | null;
+  updated_by?: string | null;
+  updated_at?: string | null;
+}
+
 export interface AgroResp {
   oficial: {
     value: number | null;
@@ -49,6 +56,8 @@ export interface AgroResp {
   last_snapshot_at?: string | null;
   snapshot_age_s?: number | null;
   bloques: AgroBloque[];
+  // Tasas manuales ON / Pagaré (tab DATOS) — alimentan las columnas de abajo.
+  tasas_cobertura?: TasasCobertura | null;
 }
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
@@ -301,7 +310,11 @@ export function DerivadosAgroPizarra({
               </tbody>
             </table>
           ) : (
-            <PaseConCoberturaTable bloques={data.bloques} dim={dim} />
+            <PaseConCoberturaTable
+              bloques={data.bloques}
+              dim={dim}
+              tasas={data.tasas_cobertura ?? null}
+            />
           )}
         </Panel>
       </div>
@@ -360,12 +373,22 @@ function posicionFromVto(commodity: Commodity, vto: string | null): string {
   return `${commodity} ${mes} ${yr}`;
 }
 
+function fmtTasa(n: number | null | undefined): string {
+  if (n === null || n === undefined || !isFinite(n)) return "—";
+  return `${n.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}%`;
+}
+
 function PaseConCoberturaTable({
   bloques,
   dim,
+  tasas,
 }: {
   bloques: AgroBloque[];
   dim: string;
+  tasas: TasasCobertura | null;
 }) {
   const filas: { commodity: Commodity; vto: string | null; pase: number | null; ticker?: string }[] = [];
   for (const b of bloques) {
@@ -415,9 +438,15 @@ function PaseConCoberturaTable({
         <tr>
           <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
             Pagaré
+            <span className="ml-1 text-[9px] font-normal text-[var(--t-text-muted)]">
+              {fmtTasa(tasas?.tasa_pagare)}
+            </span>
           </th>
           <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
             ON
+            <span className="ml-1 text-[9px] font-normal text-[var(--t-text-muted)]">
+              {fmtTasa(tasas?.tasa_on)}
+            </span>
           </th>
           <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
             Sintético
