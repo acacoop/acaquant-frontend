@@ -90,7 +90,17 @@ function Panel({ title, extra, children, fill }: { title: string; extra?: React.
   );
 }
 
-export function ComercialInforme({ moneda = "ARS", fecha = "", desde = "" }: { moneda?: "ARS" | "USD"; fecha?: string; desde?: string }) {
+const _arrQS = (key: string, vals?: string[]) =>
+  (vals ?? []).map((v) => `&${key}=${encodeURIComponent(v)}`).join("");
+
+export function ComercialInforme({
+  moneda = "ARS", fecha = "", desde = "",
+  operador = [], nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
+}: {
+  moneda?: "ARS" | "USD"; fecha?: string; desde?: string;
+  operador?: string[]; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
+  nivel4?: string[]; nivel5?: string[]; referido?: string[];
+}) {
   const [informe, setInforme] = useState<InformeResp | null>(null);
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
   const [mes, setMes] = useState<string | null>(null);
@@ -102,10 +112,16 @@ export function ComercialInforme({ moneda = "ARS", fecha = "", desde = "" }: { m
   const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
 
   const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
+  // Filtros madre: niveles + referido van a los 4 cuadrantes; operador (madre) SOLO
+  // al ranking (Q2) — en Q1/Q3/Q4 el param `operador` es el drill-down del comercial
+  // clickeado. Vacío = sin filtro → el informe queda global como siempre.
+  const madreNiveles = _arrQS("nivel_1", nivel1) + _arrQS("nivel_2", nivel2) + _arrQS("nivel_3", nivel3)
+    + _arrQS("nivel_4", nivel4) + _arrQS("nivel_5", nivel5) + _arrQS("referido", referido);
+  const madreOperador = _arrQS("operador", operador);
 
   useEffect(() => {
-    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}${fQS}`, null).then(setInforme);
-  }, [moneda, fQS]);
+    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}${fQS}${madreOperador}${madreNiveles}`, null).then(setInforme);
+  }, [moneda, fQS, madreOperador, madreNiveles]);
 
   // Q1 (cuentas por segmento) — corte por la fecha GLOBAL de la vista + re-scope al comercial.
   useEffect(() => {
@@ -113,22 +129,23 @@ export function ComercialInforme({ moneda = "ARS", fecha = "", desde = "" }: { m
     if (fecha) params.set("fecha", fecha);
     if (desde) params.set("desde", desde);
     if (selComercial) params.set("operador", selComercial);
-    const q = params.toString() ? `?${params.toString()}` : "";
+    const base = params.toString();
+    const q = base || madreNiveles ? `?${base}${madreNiveles}` : "";
     void getJson<SegmentoResp | null>(`/api/operaciones/comercial/informe-segmento${q}`, null).then((d) => {
       setSeg(d);
       if (d) setMes(d.mes); // refleja el mes del corte (solo display)
     });
-  }, [fecha, desde, selComercial]);
+  }, [fecha, desde, selComercial, madreNiveles]);
 
   // Q3 re-scopeada: aranceles por segmento del comercial elegido.
   useEffect(() => {
     if (!selComercial) { setSegScoped(null); return; }
     setSegScoped(null);
     void getJson<{ aranceles_segmento: ArancelSeg[] } | null>(
-      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}${fQS}`,
+      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}${fQS}${madreNiveles}`,
       null,
     ).then((d) => setSegScoped(d?.aranceles_segmento ?? []));
-  }, [selComercial, moneda, fQS]);
+  }, [selComercial, moneda, fQS, madreNiveles]);
 
   // Detalle (Q4): por defecto TODOS los segmentos; al elegir uno en Q3, filtra.
   // Respeta el comercial elegido en Q2.
@@ -137,10 +154,10 @@ export function ComercialInforme({ moneda = "ARS", fecha = "", desde = "" }: { m
     const op = selComercial ? `&operador=${encodeURIComponent(selComercial)}` : "";
     const segParam = selSeg ?? "todos";
     void getJson<SegDetalle | null>(
-      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}${fQS}`,
+      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}${fQS}${madreNiveles}`,
       null,
     ).then(setDetalle);
-  }, [selSeg, selComercial, moneda, fQS]);
+  }, [selSeg, selComercial, moneda, fQS, madreNiveles]);
 
   const comercialNombre = selComercial
     ? (informe?.comerciales.find((c) => c.operador_email === selComercial)?.operador_nombre ?? selComercial)
