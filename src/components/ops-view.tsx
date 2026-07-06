@@ -283,7 +283,7 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Operación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel $</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Prom./boleto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
@@ -332,7 +332,7 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Denominación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel $</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                     <th className="px-1 py-1.5 border-b border-[var(--t-border)] w-6"></th>
                   </tr>
@@ -375,7 +375,7 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Instrumento</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
-                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel $</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                   </tr>
                 </thead>
