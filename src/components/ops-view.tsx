@@ -14,10 +14,10 @@ type Moneda = "ARS" | "USD" | "USD_DOL";
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 
 type FechaRow = { fecha: string; n: number };
-type OpRow = { operacion: string; bruto: number; n: number };
-type DenomRow = { denominacion: string; bruto: number; n: number };
+type OpRow = { operacion: string; bruto: number; arancel: number; n: number };
+type DenomRow = { denominacion: string; bruto: number; arancel: number; n: number };
 type Meta = { n_boletos: number; ultima_ingesta: string | null };
-type InstrRow = { instrumento: string; bruto: number; n: number };
+type InstrRow = { instrumento: string; bruto: number; arancel: number; n: number };
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
@@ -283,6 +283,7 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Operación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel $</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Prom./boleto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
@@ -296,13 +297,14 @@ export function OpsView() {
                         className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1">{r.operacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n.toLocaleString("es-AR")}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n ? fmtCompact(r.bruto / r.n) : "—"}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{total ? ((r.bruto / total) * 100).toFixed(0) : "0"}%</td>
                       </tr>
                     );
                   })}
-                  {!porOp.length && <tr><td colSpan={5} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porOp.length && <tr><td colSpan={6} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -330,6 +332,7 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Denominación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel $</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                     <th className="px-1 py-1.5 border-b border-[var(--t-border)] w-6"></th>
                   </tr>
@@ -342,6 +345,7 @@ export function OpsView() {
                         className={"group border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
                         <td className="px-1 py-1 text-center">
                           <button
@@ -354,7 +358,7 @@ export function OpsView() {
                       </tr>
                     );
                   })}
-                  {!denomRows.length && <tr><td colSpan={4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!denomRows.length && <tr><td colSpan={5} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -371,6 +375,7 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Instrumento</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel $</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                   </tr>
                 </thead>
@@ -382,11 +387,12 @@ export function OpsView() {
                         className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1 truncate max-w-[320px]" title={r.instrumento}>{r.instrumento}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
                       </tr>
                     );
                   })}
-                  {!porInstr.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porInstr.length && <tr><td colSpan={4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
