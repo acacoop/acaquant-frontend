@@ -33,6 +33,8 @@ export async function GET(req: Request) {
     if (moneda) q.set("moneda", moneda);
     const operador = url.searchParams.get("operador");
     if (operador) q.set("operador", operador);
+    const nivel1 = url.searchParams.get("nivel_1");
+    if (nivel1) q.set("nivel_1", nivel1);
     const suffix = q.toString() ? `?${q}` : "";
 
     const data = await apiFetch<BackendResp>(

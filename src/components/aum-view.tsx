@@ -133,6 +133,10 @@ export function AumView() {
   // scopea a sus cuentas. "" = todos. Se pasa como `operador=` a cada endpoint;
   // el backend (scope_aum) estrecha el scope → no hay lógica por tab.
   const [operador, setOperador] = useState<string>("");
+  // Filtro MADRE Nivel 1 (segmento): scopea la vista TOTAL a las cuentas de ese
+  // nivel_1. "" = todos. Se pasa como `nivel_1=` (intersecta con operador si hay).
+  const [nivel1, setNivel1] = useState<string>("");
+  const [niveles1, setNiveles1] = useState<string[]>([]);
   const [operadores, setOperadores] = useState<
     { operador_email: string; operador_nombre: string | null; n_cuentas: number }[]
   >([]);
@@ -194,6 +198,16 @@ export function AumView() {
     })();
   }, []);
 
+  // Valores de Nivel 1 (segmento) para el filtro madre de TOTAL.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/portfolio/niveles-1", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { niveles_1?: string[] } | null) => { if (alive && d) setNiveles1(d.niveles_1 ?? []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   const [loadingSerie, setLoadingSerie] = useState(true);
   const [serieErr, setSerieErr] = useState<string | null>(null);
   const [serie, setSerie] = useState<SeriePoint[]>([]);
@@ -221,6 +235,7 @@ export function AumView() {
         const q = new URLSearchParams({ moneda });
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
         if (operador) q.set("operador", operador);
+        if (nivel1 && tab === "total") q.set("nivel_1", nivel1);
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -252,7 +267,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, moneda, cuentaFilter, operador]);
+  }, [tab, moneda, cuentaFilter, operador, nivel1]);
 
   // Snapshot — depende de fecha + cuentaFilter + moneda. Es lo que cambia
   // cuando el usuario juega con los filtros; el chart de evolución se queda
@@ -268,6 +283,7 @@ export function AumView() {
         const q = new URLSearchParams({ fecha: fechaSel, moneda });
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
         if (operador) q.set("operador", operador);
+        if (nivel1 && tab === "total") q.set("nivel_1", nivel1);
         const res = await fetch(`${base}?${q}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -294,7 +310,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, fechaSel, cuentaFilter, moneda, operador]);
+  }, [tab, fechaSel, cuentaFilter, moneda, operador, nivel1]);
 
   const fechasAll = useMemo(() => serie.map((s) => s.fecha), [serie]);
 
@@ -424,7 +440,7 @@ export function AumView() {
     setUnidadSel(null);
     setCuentaQuery("");
     setUnidadQuery("");
-  }, [tab, operador]);
+  }, [tab, operador, nivel1]);
 
   const detalleEmisor = useMemo(() => {
     if (!emisorSel) return [];
@@ -483,6 +499,24 @@ export function AumView() {
           ))}
         </select>
       </div>
+      {tab === "total" && (
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 1</span>
+          <select
+            value={nivel1}
+            onChange={(e) => setNivel1(e.target.value)}
+            className={`bg-[var(--t-panel)] border text-[10px] px-2 py-0.5 font-mono focus:outline-none ${
+              nivel1 ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text)] focus:border-[var(--t-accent)]"
+            }`}
+            title="Filtra la vista AUM Total a las cuentas de un Nivel 1 (segmento)"
+          >
+            <option value="">TODOS</option>
+            {niveles1.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {(tab === "fci" || tab === "total") && (
         <div className="flex items-center gap-3">
           {tab === "total" && (
