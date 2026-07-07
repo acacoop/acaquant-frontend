@@ -5,8 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 // Monitor intradía de renta variable. Sube el CSV de boletos del día (export
 // ROFEX/Aunesa, formato AR) y el backend (api/services/intraday.py) consolida
 // por (cuenta, especie) con FIFO. Acá: filtro por cuenta, mark editable a mano
-// (cuando el feed no tiene la especie), costo en book, detalle de operaciones
-// por posición y un simulador de precio. Persiste en sessionStorage.
+// (cuando el feed no tiene la especie), multiplicador de contrato editable por
+// especie (1 = acción/CEDEAR, 100 = derivado x100 — escala costo/PnL, no el
+// arancel), costo en book, detalle de operaciones por posición y un simulador
+// de precio (en drawer lateral). Persiste en sessionStorage.
 
 interface Trade {
   hora: string;
@@ -65,6 +67,24 @@ function loadExcl(): Set<string> {
   return new Set();
 }
 
+const MULT_KEY = "intraday_mult_v1";
+
+// Multiplicador de contrato por ESPECIE (no por cuenta: es intrínseco del título).
+// Persiste entre archivos así no reescribís el x100 en cada carga.
+function loadMult(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(MULT_KEY);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && typeof o === "object") return o as Record<string, number>;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
 const EXCT_KEY = "intraday_exct_v1";
 
 function loadExcT(): Set<string> {
@@ -113,15 +133,19 @@ function estadoColor(e: string): string {
   return "#888";
 }
 
-// PnL derivado del mark EFECTIVO (override manual o el del backend).
-function derive(p: Posicion, mark: number) {
+// PnL derivado del mark EFECTIVO (override manual o el del backend) y del
+// multiplicador de contrato `mult` (1 = acción/CEDEAR; 100 = derivado x100).
+// El multiplicador escala la plata (costo, realizado, no realizado); el arancel
+// e IVA NO se tocan (salen del Monto real del boleto).
+function derive(p: Posicion, mark: number, mult = 1) {
   const abierta = Math.abs(p.qty_neta) > 1e-9;
   const ponder = p.precio_ponderado ?? 0;
-  const noreal = abierta ? p.qty_neta * (mark - ponder) : 0;
-  const bruto = p.pnl_realizado + noreal;
+  const noreal = (abierta ? p.qty_neta * (mark - ponder) : 0) * mult;
+  const real = p.pnl_realizado * mult;
+  const bruto = real + noreal;
   const neto = bruto - p.intereses - p.iva;
-  const costo = abierta ? p.qty_neta * ponder : 0; // plata puesta (long +, short −)
-  return { noreal, bruto, neto, costo };
+  const costo = (abierta ? p.qty_neta * ponder : 0) * mult; // plata puesta (long +, short −)
+  return { noreal, real, bruto, neto, costo };
 }
 
 export function IntradayView() {
@@ -130,9 +154,19 @@ export function IntradayView() {
   const [cargando, setCargando] = useState(false);
   const [cuentaFiltro, setCuentaFiltro] = useState<string>("todas");
   const [simSel, setSimSel] = useState<string>("__todas__");
+  const [simOpen, setSimOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [markOv, setMarkOv] = useState<Record<string, number>>({});
+  const [multOv, setMultOv] = useState<Record<string, number>>(loadMult);
   const [excluidas, setExcluidas] = useState<Set<string>>(loadExcl);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(MULT_KEY, JSON.stringify(multOv));
+    } catch {
+      /* ignore */
+    }
+  }, [multOv]);
 
   useEffect(() => {
     try {
@@ -295,6 +329,7 @@ export function IntradayView() {
   }, [resultado, cuentaFiltro]);
 
   const effMark = (p: Posicion) => markOv[keyOf(p)] ?? p.mark;
+  const effMult = (p: Posicion) => multOv[p.especie] ?? 1;
 
   const abiertas = useMemo(
     () =>
@@ -311,8 +346,8 @@ export function IntradayView() {
     for (const p of posiciones) {
       const ep = effPos(p);
       if (!ep) continue; // destildada (especie o todos los trades fuera)
-      const d = derive(ep, effMark(ep));
-      real += ep.pnl_realizado;
+      const d = derive(ep, effMark(ep), effMult(ep));
+      real += d.real;
       noreal += d.noreal;
       fees += ep.intereses + ep.iva;
       neto += d.neto;
@@ -320,7 +355,7 @@ export function IntradayView() {
     }
     return { real, noreal, fees, neto, costoBook };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posiciones, markOv, excluidas, excTrades, recomp]);
+  }, [posiciones, markOv, multOv, excluidas, excTrades, recomp]);
 
   // Simulador con mark efectivo.
   const simData = useMemo(() => {
@@ -330,20 +365,21 @@ export function IntradayView() {
       const filas = ladder.map((pct) => ({
         pct,
         precio: null as number | null,
-        delta: abiertas.reduce((acc, pos) => acc + pos.qty_neta * effMark(pos) * (pct / 100), 0),
+        delta: abiertas.reduce((acc, pos) => acc + pos.qty_neta * effMark(pos) * (pct / 100) * effMult(pos), 0),
       }));
       return { filas, mark: null as number | null };
     }
     const pos = abiertas.find((p) => keyOf(p) === simSel);
     if (!pos) return null;
     const m = effMark(pos);
+    const mult = effMult(pos);
     const filas = ladder.map((pct) => {
       const precio = m * (1 + pct / 100);
-      return { pct, precio, delta: pos.qty_neta * (precio - m) };
+      return { pct, precio, delta: pos.qty_neta * (precio - m) * mult };
     });
     return { filas, mark: m };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [abiertas, simSel, markOv]);
+  }, [abiertas, simSel, markOv, multOv]);
 
   const toggleExpand = (p: Posicion) => {
     const k = keyOf(p);
@@ -382,7 +418,19 @@ export function IntradayView() {
                 ))}
               </select>
             )}
-            <button onClick={limpiar} className="ml-auto text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline">
+            <button
+              onClick={() => setSimOpen((v) => !v)}
+              disabled={!abiertas.length}
+              className={`ml-auto px-2.5 py-1 text-[10px] font-semibold tracking-wide border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                simOpen
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+              }`}
+              title={abiertas.length ? "Abrir/cerrar simulador de precio" : "Sin posiciones abiertas para simular"}
+            >
+              Simulador
+            </button>
+            <button onClick={limpiar} className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline">
               limpiar
             </button>
           </>
@@ -413,9 +461,9 @@ export function IntradayView() {
             <KpiBox label="PnL Neto" val={totales.neto} big />
           </div>
 
-          {/* 60% tabla / 40% simulador */}
-          <div className="flex-1 min-h-0 grid grid-cols-[3fr_2fr] gap-3 overflow-hidden">
-            <div className="overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
+          {/* tabla a ancho completo; el simulador vive en un drawer lateral */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="h-full overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
               <table className="w-full text-[11px] font-mono tabular-nums border-collapse">
                 <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-wide text-[var(--t-accent)]">
                   <tr className="border-b border-[var(--t-border)]">
@@ -424,6 +472,7 @@ export function IntradayView() {
                     {cuentaFiltro === "todas" && <th className="!px-2 !py-1.5 text-center">Cta</th>}
                     <th className="!px-2 !py-1.5 text-center">Estado</th>
                     <th className="!px-2 !py-1.5 text-right">Qty</th>
+                    <th className="!px-1 !py-1.5 text-center" title="Multiplicador de contrato (100 = derivado x100)">×</th>
                     <th className="!px-2 !py-1.5 text-right">Costo</th>
                     <th className="!px-2 !py-1.5 text-right">Ponder.</th>
                     <th className="!px-2 !py-1.5 text-right">Mark</th>
@@ -438,13 +487,14 @@ export function IntradayView() {
                     const eff = effPos(p);          // efectiva (recalculada) o null si no cuenta
                     const dp = eff ?? p;
                     const m = effMark(dp);
-                    const d = derive(dp, m);
+                    const mult = effMult(dp);
+                    const d = derive(dp, m, mult);
                     const off = !eff;               // no cuenta (especie o todos los trades fuera)
                     const hasTradeExc = excCount(p) > 0;
                     const recalc = !!eff && hasTradeExc; // exclusión por-trade parcial
                     const sel = !off && k === simSel && dp.estado !== "CERRADA";
                     const isOpen = expanded.has(k);
-                    const colSpan = cuentaFiltro === "todas" ? 11 : 10;
+                    const colSpan = cuentaFiltro === "todas" ? 12 : 11;
                     return (
                       <FragmentRow key={k}>
                         <tr
@@ -470,13 +520,31 @@ export function IntradayView() {
                           {cuentaFiltro === "todas" && <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{p.cuenta}</td>}
                           <td className="!px-2 !py-1 text-center font-semibold" style={{ color: estadoColor(dp.estado) }}>{eff ? eff.estado : "—"}</td>
                           <td className="!px-2 !py-1 text-right">{eff ? fmtNum(eff.qty_neta, 0) : "—"}</td>
+                          <td className="!px-1 !py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="number"
+                              step="1"
+                              min="1"
+                              value={mult}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                setMultOv((prev) => ({ ...prev, [p.especie]: !v || v <= 0 ? 1 : v }));
+                              }}
+                              className={`w-10 bg-transparent text-center text-[11px] border-b border-dashed focus:outline-none ${
+                                mult !== 1
+                                  ? "text-[var(--t-accent)] border-[var(--t-accent)]"
+                                  : "text-[var(--t-text-dim)] border-[var(--t-border-2)] focus:border-[var(--t-accent)]"
+                              }`}
+                              title="Multiplicador de contrato: 1 = acción/CEDEAR, 100 = derivado x100"
+                            />
+                          </td>
                           <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{eff && eff.estado !== "CERRADA" ? fmtNum(d.costo, 0) : "—"}</td>
                           <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{eff && eff.precio_ponderado != null ? fmtNum(eff.precio_ponderado, 2) : "—"}</td>
                           <td className="!px-2 !py-1 text-right" onClick={(e) => e.stopPropagation()}>
                             <span className="inline-flex items-center justify-end gap-1">
                               <input
                                 type="number"
-                                step="0.01"
+                                step="1"
                                 value={Number.isFinite(m) ? m : ""}
                                 onChange={(e) => {
                                   const v = parseFloat(e.target.value);
@@ -490,7 +558,7 @@ export function IntradayView() {
                               </span>
                             </span>
                           </td>
-                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(eff ? eff.pnl_realizado : 0) }}>{eff ? fmtNum(eff.pnl_realizado, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(eff ? d.real : 0) }}>{eff ? fmtNum(d.real, 0) : "—"}</td>
                           <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(eff ? d.noreal : 0) }}>{eff && eff.estado !== "CERRADA" ? fmtNum(d.noreal, 0) : "—"}</td>
                           <td className="!px-2 !py-1 text-right font-semibold" style={{ color: pnlColor(eff ? d.neto : 0) }}>{eff ? fmtNum(d.neto, 0) : "—"}</td>
                         </tr>
@@ -549,15 +617,28 @@ export function IntradayView() {
                     );
                   })}
                   {!posiciones.length && (
-                    <tr><td colSpan={11} className="!px-2 !py-3 text-[var(--t-text-muted)]">sin posiciones para esta cuenta</td></tr>
+                    <tr><td colSpan={12} className="!px-2 !py-3 text-[var(--t-text-muted)]">sin posiciones para esta cuenta</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
 
-            {/* Simulador */}
-            <div className="flex flex-col gap-2 overflow-hidden border border-[var(--t-border)] bg-[var(--t-panel)] p-3">
-              <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] shrink-0">Simulador de precio</span>
+          </div>
+
+          {/* Simulador — drawer lateral, se abre con el botón */}
+          {simOpen && (
+            <div className="fixed inset-0 z-40" onClick={() => setSimOpen(false)}>
+              <div className="absolute inset-0 bg-black/40" />
+              <div
+                className="absolute top-0 right-0 h-full w-[380px] max-w-[90vw] flex flex-col gap-2 overflow-hidden border-l border-[var(--t-border)] bg-[var(--t-panel)] p-3 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between shrink-0">
+                  <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">Simulador de precio</span>
+                  <button onClick={() => setSimOpen(false)} className="text-[var(--t-text-muted)] hover:text-[var(--t-text)] text-[14px] leading-none px-1" title="Cerrar">
+                    ✕
+                  </button>
+                </div>
               {!abiertas.length ? (
                 <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-muted)] text-center">
                   No hay posiciones abiertas para simular.
@@ -613,6 +694,7 @@ export function IntradayView() {
               )}
             </div>
           </div>
+          )}
         </>
       )}
     </div>
