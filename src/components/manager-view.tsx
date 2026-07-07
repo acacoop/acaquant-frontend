@@ -3816,13 +3816,15 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
   );
 }
 
-interface TituloPrefill { codigo: string; ticker?: string | null; destino: "curvas" | "bondsmaster"; curva?: string; emisor?: string | null; moneda?: string; edit?: boolean }
+interface TituloPrefill { codigo: string; ticker?: string | null; destino: "curvas" | "ons"; curva?: string; emisor?: string | null; moneda?: string; edit?: boolean }
 
-// Editor UNIFICADO: elegís la BASE (Curvas = Renta Fija · BondsMaster = ONs), te
-// marca dónde YA está, y carga el form de esa base. El conciliador entra acá directo
-// con la base preseleccionada (Curvas si está en Curvas; BondsMaster si es ON/nuevo).
+// Editor UNIFICADO: elegís el TIPO de título (Renta Fija = soberano/CER/tasa fija · ONs).
+// AMBOS viven en la MISMA base SQL `mercado.curvas` (BondsMaster fue retirado); solo
+// cambian los campos del form y el endpoint. Te marca si ya está cargado. El conciliador
+// entra acá directo con el tipo preseleccionado (Renta Fija si ya está como bono; ONs si
+// es ON/nuevo).
 function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; onSaved?: () => void }) {
-  const [destino, setDestino] = useState<"curvas" | "bondsmaster">(prefill?.destino ?? "curvas");
+  const [destino, setDestino] = useState<"curvas" | "ons">(prefill?.destino ?? "curvas");
   const [bonos, setBonos] = useState<BonoMaster[]>([]);
   const [ons, setOns] = useState<ONMaster[]>([]);
   useEffect(() => {
@@ -3839,15 +3841,16 @@ function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; o
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
-        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Base destino</span>
-        <Pill label="CURVAS · Renta Fija" active={destino === "curvas"} onClick={() => setDestino("curvas")} />
-        <Pill label="BONDSMASTER · ONs" active={destino === "bondsmaster"} onClick={() => setDestino("bondsmaster")} />
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Tipo de título</span>
+        <Pill label="Renta Fija" active={destino === "curvas"} onClick={() => setDestino("curvas")} />
+        <Pill label="ONs" active={destino === "ons"} onClick={() => setDestino("ons")} />
+        <span className="text-[9px] text-[var(--t-text-muted)]">→ mercado.curvas</span>
         {code && (
           <span className="text-[10px] ml-2 text-[var(--t-text-dim)]">
             {code}:{" "}
-            {enCurvas ? <span className="text-emerald-500 font-semibold">✓ en Curvas </span> : null}
-            {enBm ? <span className="text-emerald-500 font-semibold">✓ en BondsMaster </span> : null}
-            {!enCurvas && !enBm ? <span className="text-amber-500 font-semibold">nuevo (no está en ninguna)</span> : null}
+            {enCurvas ? <span className="text-emerald-500 font-semibold">✓ ya cargado (Renta Fija) </span> : null}
+            {enBm ? <span className="text-emerald-500 font-semibold">✓ ya cargado (ON) </span> : null}
+            {!enCurvas && !enBm ? <span className="text-amber-500 font-semibold">nuevo (no está cargado)</span> : null}
           </span>
         )}
       </div>
@@ -4080,7 +4083,7 @@ function TabBonos() {
   const [dataKey, setDataKey] = useState(0);   // remonta listado/conciliador/errores tras guardar
 
   const darDeAlta = (b: BonoSinFlujo) => {
-    const destino = b.accion === "editar_on" ? "bondsmaster" : "curvas";
+    const destino = b.accion === "editar_on" ? "ons" : "curvas";
     setPrefill({
       codigo: b.ticker || b.unidad, ticker: b.ticker, destino,
       curva: b.cartera === "ARS" ? "tasa_fija" : "soberanos",
