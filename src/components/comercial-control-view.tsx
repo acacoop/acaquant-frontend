@@ -21,8 +21,15 @@ type FilaOperador = {
   operador_email: string; operador_nombre: string;
   clientes_activos: number; clientes_activos_pct: number | null;
   clientes_inactivos: number;
+  aum: number; aum_pct: number | null;
   volumen: number; volumen_pct: number | null;
   comisiones: number; comisiones_pct: number | null;
+};
+
+// % de clientes activos sobre el total del operador (activos + inactivos). null si no tiene cuentas.
+const pctActivos = (r: FilaOperador): number | null => {
+  const tot = r.clientes_activos + r.clientes_inactivos;
+  return tot > 0 ? (r.clientes_activos / tot) * 100 : null;
 };
 type FilaObjetivo = {
   operador_email: string; operador_nombre: string;
@@ -74,6 +81,8 @@ function ColGroup({ nums }: { nums: number }) {
 const KPIS: [string, string][] = [
   ["Clientes Activos", "Cuentas que operaron al menos 1 vez en el período (movimientos de negocio, categorías de volumen)."],
   ["Clientes Inactivos", "Comitentes en estado «Activa» del comercial que NO operaron en el período."],
+  ["% Activos", "Clientes activos sobre el total de clientes del operador (activos + inactivos). Qué proporción de su cartera operó en el período."],
+  ["AuM", "Activos bajo gestión del operador: valuación de las tenencias de sus cuentas a la foto del cierre del rango (Hasta). El «% vs ant.» compara contra la foto al cierre del rango anterior."],
   ["Volumen", "Suma pesificada de los movimientos de negocio (categorías de volumen). Excluye cash USD (USDL)."],
   ["Comisiones", "Suma de aranceles de operaciones del período (arancel > 0, excluye la etapa «solicitud»)."],
   ["% vs ant.", "Variación contra el período ANTERIOR inmediato de igual largo. En «Totales» es el período fijo equivalente (mes vs mes anterior, etc.); en «Por operador» es el rango [Desde, Hasta] anterior del mismo tamaño. «—» si no hay base de comparación."],
@@ -161,11 +170,14 @@ export function ComercialControlView({
         { header: "Comisiones", key: "comisiones", format: "currency", width: 16 },
         { header: "% vs ant.", key: "comisiones_pct", format: "percent", width: 12 },
       ] },
-      { name: "Por Operador", rows: porOp, columns: [
+      { name: "Por Operador", rows: porOp.map((r) => ({ ...r, activos_pct: pctActivos(r) })), columns: [
         { header: "Comercial", key: "operador_nombre", format: "text", width: 28 },
         { header: "Clientes Activos", key: "clientes_activos", format: "integer", width: 16 },
         { header: "% vs ant.", key: "clientes_activos_pct", format: "percent", width: 12 },
         { header: "Clientes Inactivos", key: "clientes_inactivos", format: "integer", width: 16 },
+        { header: "% Activos", key: "activos_pct", format: "percent", width: 12 },
+        { header: "AuM", key: "aum", format: "currency", width: 18 },
+        { header: "% vs ant.", key: "aum_pct", format: "percent", width: 12 },
         { header: "Volumen", key: "volumen", format: "currency", width: 18 },
         { header: "% vs ant.", key: "volumen_pct", format: "percent", width: 12 },
         { header: "Comisiones", key: "comisiones", format: "currency", width: 16 },
@@ -251,9 +263,9 @@ export function ComercialControlView({
       {/* ── Tabla 2: Datos por operador ── */}
       <Bloque titulo="Datos por operador">
         <table className="w-full table-fixed text-[11px] tabular-nums">
-          <ColGroup nums={7} />
+          <ColGroup nums={10} />
           <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
-            <tr><Th l>Comercial</Th><Th>Clientes Activos</Th><Th>% vs ant.</Th><Th>Clientes Inactivos</Th><Th>Volumen</Th><Th>% vs ant.</Th><Th>Comisiones</Th><Th>% vs ant.</Th></tr>
+            <tr><Th l>Comercial</Th><Th>Clientes Activos</Th><Th>% vs ant.</Th><Th>Clientes Inactivos</Th><Th>% Activos</Th><Th>AuM</Th><Th>% vs ant.</Th><Th>Volumen</Th><Th>% vs ant.</Th><Th>Comisiones</Th><Th>% vs ant.</Th></tr>
           </thead>
           <tbody>
             {porOp.map((r) => (
@@ -262,13 +274,16 @@ export function ComercialControlView({
                 <td className="px-2 py-1 text-right">{fmtN(r.clientes_activos)}</td>
                 <Pct v={r.clientes_activos_pct} />
                 <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtN(r.clientes_inactivos)}</td>
+                <td className="px-2 py-1 text-right text-[var(--t-text)]">{pctActivos(r) == null ? "—" : `${pctActivos(r)!.toFixed(0)}%`}</td>
+                <td className="px-2 py-1 text-right font-semibold text-[#7fd4b0]">{fmtMoney(r.aum)}</td>
+                <Pct v={r.aum_pct} />
                 <td className="px-2 py-1 text-right font-semibold text-[var(--t-accent)]">{fmtMoney(r.volumen)}</td>
                 <Pct v={r.volumen_pct} />
                 <td className="px-2 py-1 text-right text-[#9fb8d0]">{fmtMoney(r.comisiones)}</td>
                 <Pct v={r.comisiones_pct} />
               </tr>
             ))}
-            {!porOp.length && <tr><td colSpan={8} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin datos en el rango</td></tr>}
+            {!porOp.length && <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin datos en el rango</td></tr>}
           </tbody>
         </table>
       </Bloque>

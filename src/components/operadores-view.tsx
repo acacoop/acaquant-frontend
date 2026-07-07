@@ -45,6 +45,13 @@ function MultiSelect({
   const sel = new Set(selected);
   const toggle = (v: string) =>
     onChange(sel.has(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+  // Mostrar SIEMPRE lo seleccionado, aunque el cross-filter lo haya sacado de `options`
+  // (así al cruzar niveles no desaparecen ni se rompen las selecciones previas).
+  const optVals = new Set(options.map((o) => o.value));
+  const displayOpts: Opt[] = [
+    ...options,
+    ...selected.filter((v) => !optVals.has(v)).map((v) => ({ value: v, label: v })),
+  ];
   const resumen = selected.length === 0
     ? "— Todos —"
     : selected.length === 1
@@ -72,8 +79,14 @@ function MultiSelect({
               <button onClick={() => onChange([])} className="text-[var(--t-accent)] hover:underline">limpiar</button>
             )}
           </div>
-          {options.length === 0 && <div className="px-2 py-2 text-[10px] text-[var(--t-text-muted)]">sin opciones</div>}
-          {options.map((o) => (
+          {/* "Todos" = sin filtro en este nivel (toma todo). Estable al cruzar niveles. */}
+          <label className="flex items-center gap-2 px-2 py-1 text-[11px] border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer font-semibold">
+            <input type="checkbox" checked={selected.length === 0} onChange={() => onChange([])}
+              className="accent-[var(--t-accent)]" />
+            <span className="flex-1 text-[var(--t-text)]">Todos</span>
+          </label>
+          {displayOpts.length === 0 && <div className="px-2 py-2 text-[10px] text-[var(--t-text-muted)]">sin opciones</div>}
+          {displayOpts.map((o) => (
             <label key={o.value} className="flex items-center gap-2 px-2 py-1 text-[11px] hover:bg-[var(--t-surface)] cursor-pointer">
               <input type="checkbox" checked={sel.has(o.value)} onChange={() => toggle(o.value)}
                 className="accent-[var(--t-accent)]" />
@@ -178,27 +191,10 @@ export function OperadoresView() {
   const referidos = useMemo(() => valoresDe("referido", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c))),
     [combos, operador, nivel1, nivel2, nivel3, nivel4, nivel5]);
 
-  // Si una selección dejó de ser compatible (la achicó otra), la podamos.
-  const prune = (sel: string[], validos: string[], set: (v: string[]) => void) => {
-    if (sel.length && validos.length) {
-      const ok = new Set(validos);
-      const next = sel.filter((v) => ok.has(v));
-      if (next.length !== sel.length) set(next);
-    }
-  };
-  useEffect(() => { prune(nivel1, niveles1, setNivel1); }, [niveles1]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { prune(nivel2, niveles2, setNivel2); }, [niveles2]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { prune(nivel3, niveles3, setNivel3); }, [niveles3]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { prune(nivel4, niveles4, setNivel4); }, [niveles4]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { prune(nivel5, niveles5, setNivel5); }, [niveles5]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { prune(referido, referidos, setReferido); }, [referidos]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (operador.length && operadores.length) {
-      const ok = new Set(operadores.map((o) => o.email));
-      const next = operador.filter((v) => ok.has(v));
-      if (next.length !== operador.length) setOperador(next);
-    }
-  }, [operadores]); // eslint-disable-line react-hooks/exhaustive-deps
+  // NO se podan las selecciones cuando el cross-filter achica las opciones de otro nivel:
+  // marcar en Nivel 2 ya no borra lo elegido en Nivel 1 (se rompían las selecciones previas).
+  // El MultiSelect igual muestra lo seleccionado aunque no esté en las opciones compatibles,
+  // y "Todos" (vacío) limpia el filtro de ese nivel. Los valores conviven con AND en el backend.
 
   return (
     <div className="h-full flex flex-col min-h-0">

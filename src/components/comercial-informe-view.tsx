@@ -180,14 +180,22 @@ export function ComercialInforme({
   const totMostrado = selRow ?? totRanking;
 
   // Datos del gráfico Q1 según el modo (cuentas / operativas / aranceles por segmento).
+  // En "operativas" el % es la PENETRACIÓN del segmento: cuentas que operaron / cuentas
+  // TOTALES de ESE segmento (no sobre el total de operativas de la mesa). `etiqueta` trae
+  // el texto ya armado ("N · P%") porque el LabelList de recharts solo recibe el valor.
   const q1data = q1mode === "aranceles"
-    ? (q3segs ?? []).map((s) => ({ segmento: s.segmento, valor: s.ar_total }))
+    ? (q3segs ?? []).map((s) => ({ segmento: s.segmento, valor: s.ar_total, base: 0, pct: 0, etiqueta: "" }))
     : q1mode === "operativas"
     ? (seg?.segmentos ?? [])
-        .map((s) => ({ segmento: s.segmento, valor: s.ctas_ops ?? 0 }))
+        .map((s) => {
+          const valor = s.ctas_ops ?? 0;
+          const base = s.n;   // cuentas totales del segmento
+          const pct = base > 0 ? Math.round((valor / base) * 100) : 0;
+          return { segmento: s.segmento, valor, base, pct, etiqueta: `${fmtN(valor)} · ${pct}%` };
+        })
         .sort((a, b) => b.valor - a.valor)
-    : (seg?.segmentos ?? []).map((s) => ({ segmento: s.segmento, valor: s.n }));
-  // Total para el % (share) del modo Operativas.
+    : (seg?.segmentos ?? []).map((s) => ({ segmento: s.segmento, valor: s.n, base: 0, pct: 0, etiqueta: "" }));
+  // Total de operativas de la mesa (solo para el subtítulo del panel).
   const q1total = q1data.reduce((a, d) => a + d.valor, 0);
 
   // ── Export a Excel (item 4) ──────────────────────────────────────────────
@@ -279,19 +287,22 @@ export function ComercialInforme({
                 axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} width={114} interval={0} />
               <Tooltip
                 contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                formatter={(v) => {
+                formatter={(v, _name, it: { payload?: { pct?: number; base?: number } }) => {
                   const n = Number(v);
                   if (q1mode === "aranceles") return [fmtMoney(n), "Arancel"];
-                  if (q1mode === "operativas") return [`${fmtN(n)} (${q1total ? Math.round((n / q1total) * 100) : 0}%)`, "Operativas"];
+                  if (q1mode === "operativas") {
+                    const p = it?.payload;
+                    return [`${fmtN(n)} de ${fmtN(p?.base ?? 0)} · ${p?.pct ?? 0}% del segmento`, "Operativas"];
+                  }
                   return [fmtN(n), "Cuentas"];
                 }}
                 cursor={{ fill: "color-mix(in srgb, var(--t-text) 10%, transparent)" }} />
               <Bar dataKey="valor" fill="var(--t-brand)" isAnimationActive={false}>
-                <LabelList dataKey="valor" position="right" fontSize={9} fill="var(--t-text)"
+                <LabelList dataKey={q1mode === "operativas" ? "etiqueta" : "valor"} position="right" fontSize={9} fill="var(--t-text)"
                   formatter={(v) => {
+                    if (q1mode === "operativas") return String(v);   // ya viene "N · P%"
                     const n = Number(v);
                     if (q1mode === "aranceles") return fmtMoney(n);
-                    if (q1mode === "operativas") return `${fmtN(n)} · ${q1total ? Math.round((n / q1total) * 100) : 0}%`;
                     return fmtN(n);
                   }} />
               </Bar>
