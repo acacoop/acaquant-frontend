@@ -157,6 +157,10 @@ export function IntradayView() {
   const [simOpen, setSimOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [markOv, setMarkOv] = useState<Record<string, number>>({});
+  // Marks live refrescados por el botón "Actualizar cotizaciones" (keyed por especie).
+  const [liveMarks, setLiveMarks] = useState<Record<string, { last: number; updated_at: string | null }>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [multOv, setMultOv] = useState<Record<string, number>>(loadMult);
   const [excluidas, setExcluidas] = useState<Set<string>>(loadExcl);
 
@@ -287,6 +291,8 @@ export function IntradayView() {
       data.timestamp = Date.now();
       setResultado(data);
       setMarkOv({});
+      setLiveMarks({});
+      setLastRefresh(null);
       setExpanded(new Set());
       setExcluidas(new Set());
       setExcTrades(new Set());
@@ -310,11 +316,39 @@ export function IntradayView() {
     setResultado(null);
     setError(null);
     setMarkOv({});
+    setLiveMarks({});
+    setLastRefresh(null);
     setExpanded(new Set());
     setExcluidas(new Set());
     setExcTrades(new Set());
     setRecomp({});
     sessionStorage.removeItem(STORAGE_KEY);
+  };
+
+  // Refresca los marks live (precios de mercado) sin re-subir el CSV. Pide al
+  // backend el last actual por especie y actualiza `liveMarks`. Los overrides
+  // manuales (markOv) siguen ganando; sólo se refresca lo no editado a mano.
+  const refreshMarks = async () => {
+    if (!resultado || refreshing) return;
+    const especies = Array.from(new Set(resultado.posiciones.map((p) => p.especie)));
+    if (!especies.length) return;
+    setRefreshing(true);
+    try {
+      const r = await fetch("/api/operaciones/intraday/marks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ especies }),
+      });
+      if (r.ok) {
+        const data = (await r.json()) as { marks: Record<string, { last: number; updated_at: string | null }> };
+        setLiveMarks(data.marks || {});
+        setLastRefresh(new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      }
+    } catch {
+      /* transitorio */
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const cuentas = useMemo(() => {
@@ -328,8 +362,10 @@ export function IntradayView() {
     return cuentaFiltro === "todas" ? all : all.filter((p) => p.cuenta === cuentaFiltro);
   }, [resultado, cuentaFiltro]);
 
-  const effMark = (p: Posicion) => markOv[keyOf(p)] ?? p.mark;
+  // Prioridad: override manual > mark live refrescado (por especie) > mark del CSV.
+  const effMark = (p: Posicion) => markOv[keyOf(p)] ?? liveMarks[p.especie]?.last ?? p.mark;
   const effMult = (p: Posicion) => multOv[p.especie] ?? 1;
+  const hasLive = (p: Posicion) => liveMarks[p.especie] !== undefined || p.mark_source === "live";
 
   const abiertas = useMemo(
     () =>
@@ -355,7 +391,7 @@ export function IntradayView() {
     }
     return { real, noreal, fees, neto, costoBook };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posiciones, markOv, multOv, excluidas, excTrades, recomp]);
+  }, [posiciones, markOv, liveMarks, multOv, excluidas, excTrades, recomp]);
 
   // Simulador con mark efectivo.
   const simData = useMemo(() => {
@@ -379,7 +415,7 @@ export function IntradayView() {
     });
     return { filas, mark: m };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [abiertas, simSel, markOv, multOv]);
+  }, [abiertas, simSel, markOv, liveMarks, multOv]);
 
   const toggleExpand = (p: Posicion) => {
     const k = keyOf(p);
@@ -419,9 +455,22 @@ export function IntradayView() {
               </select>
             )}
             <button
+              onClick={refreshMarks}
+              disabled={refreshing}
+              className="ml-auto px-2.5 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-pos)] hover:text-[var(--t-pos)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Traer los precios de mercado actuales (sin re-subir el CSV)"
+            >
+              {refreshing ? "Actualizando…" : "↻ Cotizaciones"}
+            </button>
+            {lastRefresh && (
+              <span className="text-[9px] text-[var(--t-text-muted)] font-mono" title="Último refresco de cotizaciones">
+                {lastRefresh}
+              </span>
+            )}
+            <button
               onClick={() => setSimOpen((v) => !v)}
               disabled={!abiertas.length}
-              className={`ml-auto px-2.5 py-1 text-[10px] font-semibold tracking-wide border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`px-2.5 py-1 text-[10px] font-semibold tracking-wide border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 simOpen
                   ? "border-[var(--t-accent)] text-[var(--t-accent)]"
                   : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
@@ -551,10 +600,10 @@ export function IntradayView() {
                                   setMarkOv((prev) => ({ ...prev, [k]: isNaN(v) ? 0 : v }));
                                 }}
                                 className="w-16 bg-transparent text-right text-[11px] text-[var(--t-text)] border-b border-dashed border-[var(--t-border-2)] focus:border-[var(--t-accent)] focus:outline-none"
-                                title={dp.mark_source === "live" ? "live feed (editable)" : "no mapeado — escribilo a mano"}
+                                title={hasLive(dp) ? "precio de mercado (editable) — ↻ Cotizaciones lo refresca" : "no mapeado — escribilo a mano"}
                               />
-                              <span className="text-[8px]" style={{ color: markOv[k] !== undefined ? "var(--t-accent)" : dp.mark_source === "live" ? "var(--t-pos)" : "var(--t-text-muted)" }}>
-                                {markOv[k] !== undefined ? "✎" : dp.mark_source === "live" ? "●" : "○"}
+                              <span className="text-[8px]" style={{ color: markOv[k] !== undefined ? "var(--t-accent)" : hasLive(dp) ? "var(--t-pos)" : "var(--t-text-muted)" }}>
+                                {markOv[k] !== undefined ? "✎" : hasLive(dp) ? "●" : "○"}
                               </span>
                             </span>
                           </td>
