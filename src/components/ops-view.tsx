@@ -64,6 +64,7 @@ export function OpsView() {
   const [segmentos, setSegmentos] = useState<string[]>([]);
   const [nivel3, setNivel3] = usePersistedState<string>("ops.nivel3", "");
   const [niveles3, setNiveles3] = useState<string[]>([]);
+  const [acaValores, setAcaValores] = usePersistedState<string>("ops.acaValores", "");
   const [mercado, setMercado] = usePersistedState<string>("ops.mercado", "");
   const [mercados, setMercados] = useState<string[]>([]);
   const [operador, setOperador] = usePersistedState<string>("ops.operador", "");
@@ -118,6 +119,7 @@ export function OpsView() {
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
     + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
     + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
+    + (acaValores ? `&aca_valores=${encodeURIComponent(acaValores)}` : "")
     + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "")
     + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
     + (excluidas.length ? `&excluir=${encodeURIComponent(excluidas.join("\n"))}` : "");
@@ -257,6 +259,13 @@ export function OpsView() {
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
           <option value="">Todos los nivel 3</option>
           {niveles3.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        {/* Filtro ACA VALORES (set editable desde Manager → CLIENTES → ACA VALORES) */}
+        <select value={acaValores} onChange={(e) => setAcaValores(e.target.value)}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
+          <option value="">Todas (ACA Valores)</option>
+          <option value="solo">Solo ACA Valores</option>
+          <option value="sin">Sin ACA Valores</option>
         </select>
         {/* Filtro de mercado (campo `mercado`, ej. A3) */}
         <select value={mercado} onChange={(e) => setMercado(e.target.value)}

@@ -13,6 +13,7 @@ import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
 import { JobsRunsPanel } from "./jobs-runs-panel";
 import { GruposPanel } from "./grupos-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
+import { TabAcaValores } from "./manager-aca-valores-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { ManagerDebugTeaPanel } from "./manager-debug-tea";
@@ -3116,6 +3117,7 @@ type Tab =
   | "titulos"
   | "clientes"
   | "contrapartes"
+  | "aca-valores"
   | "compliance"
   | "aunesa"
   | "operaciones"
@@ -5090,6 +5092,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   titulos:      ["manager", "manager_titulos", "manager_instrumentos"],
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
+  "aca-valores": ["manager", "manager_clientes"],
   compliance:   ["manager", "manager_compliance"],
   aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
@@ -5236,6 +5239,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "titulos",      label: "TÍTULOS"      },
     { id: "clientes",     label: "CLIENTES"     },
     { id: "contrapartes", label: "CONTRAPARTES" },
+    { id: "aca-valores",  label: "ACA VALORES"  },
     { id: "compliance",   label: "COMPLIANCE"   },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
@@ -5273,6 +5277,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "contrapartes" && <TabContrapartes />}
+        {tab === "aca-valores"  && <TabAcaValores />}
         {tab === "compliance"   && <ComplianceGroup />}
         {tab === "aunesa"       && <AunesaGroup modules={modules} />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
