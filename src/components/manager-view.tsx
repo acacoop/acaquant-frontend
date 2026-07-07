@@ -3983,10 +3983,100 @@ function TabBonosListado({ onEditar }: { onEditar: (tc: string) => void }) {
   );
 }
 
+// Un cuadrante del panel unificado de bonos: header + cuerpo con scroll propio.
+function QuadPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+      <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] font-semibold tracking-widest text-[var(--t-text-muted)] uppercase bg-[var(--t-surface)]">
+        {title}
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+    </div>
+  );
+}
+
+// Cuadrante "errores de tasa": bonos con precio pero sin TEA (los "--"). Lista +
+// botón para recalcular (job backfill_tasas) y refrescar. El "por qué" de cada uno
+// se ve en VALIDACIONES → DEBUG TEA.
+function BonosErroresPanel({ reloadKey }: { reloadKey: number }) {
+  interface Fila { ticker_corto: string; ticker: string; curva: string; fecha_vencimiento: string; last_price: number }
+  const [data, setData] = useState<{ total: number; ok: boolean; bonos: Fila[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [recalc, setRecalc] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manager/bonos/sin-tasa", { cache: "no-store" })
+      .then(r => r.json()).then(setData).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load, reloadKey]);
+
+  const recalcular = async () => {
+    setRecalc("Recalculando…");
+    try {
+      const start = await fetch("/api/manager/jobs/run", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "backfill_tasas" }),
+      }).then(r => r.json());
+      const jobId = start?.job_id;
+      if (!jobId) { setRecalc("No se pudo lanzar (¿sin permiso?)."); return; }
+      for (let i = 0; i < 60; i++) {
+        await new Promise(res => setTimeout(res, 2000));
+        const job = await fetch(`/api/manager/jobs/${jobId}`, { cache: "no-store" }).then(r => r.json());
+        if (job?.status && job.status !== "running") {
+          setRecalc(job.result || `status=${job.status}`); load(); return;
+        }
+      }
+      setRecalc("Timeout (ver JOBS).");
+    } catch (e) { setRecalc(`Error: ${String(e)}`); }
+  };
+
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <button onClick={load} disabled={loading}
+          className="px-2 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          {loading ? "…" : "↻ Refrescar"}
+        </button>
+        <button onClick={recalcular}
+          className="px-2 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors">
+          ▶ Recalcular tasas
+        </button>
+        {data && <StatusBadge ok={data.ok} label={data.ok ? "Todos con tasa" : `${data.total} sin TEA`} />}
+      </div>
+      {data && data.bonos.length > 0 && (
+        <table className="w-full text-[10px]">
+          <thead><tr className="text-[var(--t-text-muted)] text-left">
+            <th className="py-0.5">TICKER</th><th>CURVA</th><th>VTO</th><th className="text-right">PRECIO</th>
+          </tr></thead>
+          <tbody>
+            {data.bonos.map(b => (
+              <tr key={b.ticker_corto} className="border-t border-[var(--t-border)]">
+                <td className="py-0.5 text-[var(--t-text)] font-semibold">{b.ticker_corto}</td>
+                <td className="text-[var(--t-text-muted)]">{b.curva}</td>
+                <td className="text-[var(--t-text-muted)]">{d10(b.fecha_vencimiento)}</td>
+                <td className="text-right text-[var(--t-text)]">{b.last_price?.toLocaleString("es-AR")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {recalc && (
+        <pre className="text-[9px] text-[var(--t-text-muted)] whitespace-pre-wrap bg-[var(--t-surface)] border border-[var(--t-border)] p-2 mt-2 max-h-32 overflow-y-auto">{recalc}</pre>
+      )}
+      <div className="text-[9px] text-[var(--t-text-muted)] mt-2 leading-relaxed">
+        El detalle del porqué de cada &quot;--&quot; está en VALIDACIONES → DEBUG TEA (por ticker).
+      </div>
+    </div>
+  );
+}
+
+// Vista unificada de bonos: 4 cuadrantes (ver/editar · agregar · conciliar · errores).
 function TabBonos() {
-  const [sub, setSub] = usePersistedState<"listado" | "control" | "alta">("manager.bonos.sub", "listado");
   const [prefill, setPrefill] = useState<TituloPrefill | null>(null);
   const [prefillKey, setPrefillKey] = useState(0);
+  const [dataKey, setDataKey] = useState(0);   // remonta listado/conciliador/errores tras guardar
+
   const darDeAlta = (b: BonoSinFlujo) => {
     const destino = b.accion === "editar_on" ? "bondsmaster" : "curvas";
     setPrefill({
@@ -3994,24 +4084,28 @@ function TabBonos() {
       curva: b.cartera === "ARS" ? "tasa_fija" : "soberanos",
       emisor: b.emisor, moneda: b.cartera,
     });
-    setPrefillKey((k) => k + 1); setSub("alta");
+    setPrefillKey((k) => k + 1);
   };
   const editarBono = (tc: string) => {
     setPrefill({ codigo: tc, destino: "curvas", edit: true });
-    setPrefillKey((k) => k + 1); setSub("alta");
+    setPrefillKey((k) => k + 1);
   };
+  const onSaved = () => { setDataKey((k) => k + 1); };
+
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-        <Pill label="LISTADO" active={sub === "listado"} onClick={() => setSub("listado")} />
-        <Pill label="CONCILIADOR" active={sub === "control"} onClick={() => setSub("control")} />
-        <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
-      </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "listado" && <TabBonosListado onEditar={editarBono} />}
-        {sub === "control" && <TabBonosControl key={prefillKey} onDarDeAlta={darDeAlta} />}
-        {sub === "alta" && <TabAltaTitulo key={prefillKey} prefill={prefill} onSaved={() => { if (prefill?.edit) setSub("listado"); else if (prefill) setSub("control"); }} />}
-      </div>
+    <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
+      <QuadPanel title="Ver / editar bonos">
+        <TabBonosListado key={`list-${dataKey}`} onEditar={editarBono} />
+      </QuadPanel>
+      <QuadPanel title="Agregar / editar">
+        <TabAltaTitulo key={`alta-${prefillKey}`} prefill={prefill} onSaved={onSaved} />
+      </QuadPanel>
+      <QuadPanel title="Conciliar — títulos sin flujo">
+        <TabBonosControl key={`conc-${dataKey}`} onDarDeAlta={darDeAlta} />
+      </QuadPanel>
+      <QuadPanel title="Errores de tasa — bonos sin TEA">
+        <BonosErroresPanel reloadKey={dataKey} />
+      </QuadPanel>
     </div>
   );
 }
