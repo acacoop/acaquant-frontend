@@ -21,12 +21,9 @@ import type { CedearScannerRow } from "@/lib/types-scanner";
 const POLL_MS = 2_000;
 const TOP_N = 30;
 
-// Cash en ARS a formato compacto: $1,23 MM (mil M) / $45,6 M / $789 K.
+// Cash en ARS: número completo, sin abreviar, sin decimales ($17.000.000.000).
 function fmtCash(n: number): string {
-  if (n >= 1e9) return `$${(n / 1e9).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MM`;
-  if (n >= 1e6) return `$${(n / 1e6).toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} M`;
-  if (n >= 1e3) return `$${(n / 1e3).toLocaleString("es-AR", { maximumFractionDigits: 0 })} K`;
-  return `$${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+  return `$${Math.round(n).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 }
 
 function pctColor(n: number | null | undefined): string {
