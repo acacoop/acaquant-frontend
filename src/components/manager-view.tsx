@@ -615,8 +615,8 @@ function TabValidaciones() {
 
       <CheckPanel title="Backfill Tasas — recalcular y rellenar TEA/TEM de Renta Fija">
         <div className="text-[10px] text-[var(--t-text-muted)] mb-2 leading-relaxed">
-          Recalcula la TEA/TEM de todos los bonos de <b>mercado.curvas</b> y las escribe
-          en el snapshot. Rellena las que están en <b>&quot;--&quot;</b> y refresca las
+          Recalcula la TEA/TEM de todos los bonos y actualiza los valores.
+          Rellena las que están en <b>&quot;--&quot;</b> y refresca las
           existentes, sin esperar al próximo trade (útil tras corregir un flujo o cuando
           el motor no las calculó). Solo escribe lo que puede calcular — no pisa datos buenos.
         </div>
@@ -858,7 +858,7 @@ function TabValidaciones() {
         {tfData && (
           <>
             <div className="flex items-center gap-3 mb-2 text-[10px] font-mono">
-              <span className="text-[var(--t-text-muted)]">Snapshot: {tfData.snapshot ?? "—"}</span>
+              <span className="text-[var(--t-text-muted)]">Corte: {tfData.snapshot ?? "—"}</span>
               <span style={{ color: "var(--t-pos)" }}>✅ {tfData.ok}</span>
               <span style={{ color: "#ff9900" }}>⚠️ {tfData.sin_posicion}</span>
               <span style={{ color: "var(--t-neg)" }}>❌ {tfData.sin_assets}</span>
@@ -1172,7 +1172,7 @@ function TabValidaciones() {
         <RunBtn onClick={runTna} loading={tnaLoading} />
         {tnaData && tnaData.total === 0 && (
           <div className="text-[10px] text-[var(--t-neg)] italic">
-            {tnaData.nota || "Sin datos en FuturosDLRSnapshot."}
+            {tnaData.nota || "Sin datos de futuros DLR."}
           </div>
         )}
         {tnaData && tnaData.total > 0 && (
@@ -1230,7 +1230,7 @@ function TabValidaciones() {
             <div className="text-[10px] text-[var(--t-text-muted)] mt-2">
               <span className="text-[var(--t-pos)]">TNA LIN</span> = directo × 365/días (lineal — terminal Rofex){" "}
               · <span className="text-[var(--t-accent)]">TEA COMP</span> = (1+directo)^(365/días) − 1 (compuesta) ·{" "}
-              <span className="text-[var(--t-text)]">PERSISTIDA</span> = lo que el motor escribe a Mongo (hoy = TEA COMP)
+              <span className="text-[var(--t-text)]">PERSISTIDA</span> = valor calculado y guardado (hoy = TEA COMP)
             </div>
           </>
         )}
@@ -3039,10 +3039,8 @@ function TabInstrumentos() {
         </div>
         {discData?.generated_at && (
           <div className="text-[9px] text-[var(--t-text-muted)] mt-2">
-            Snapshot generado {new Date(discData.generated_at).toLocaleString("es-AR")}
+            Actualizado {new Date(discData.generated_at).toLocaleString("es-AR")}
             {discData.stale_h !== null && ` (hace ${discData.stale_h}h)`}
-            {" — refresh: "}
-            <code className="text-[var(--t-pos)]">python -m scripts.discovery_pyrofex</code> en el Droplet
           </div>
         )}
       </div>
@@ -3521,8 +3519,8 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
         {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
       </div>
       <p className="text-[10px] text-[var(--t-text-muted)]">
-        Al guardar se sincroniza Curvas → la ON aparece en la vista. Para que COTICE
-        en vivo (precio/TEA) hay que reiniciar los motores.
+        Al guardar, la ON aparece en la vista. Puede tardar unos minutos en cotizar
+        en vivo (precio/TEA).
       </p>
     </div>
   );
@@ -3612,7 +3610,7 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
           ))}
         </tbody>
       </table>
-      {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todo lo de cartera ARS/DL/HD tiene flujo (Curvas o BondsMaster).</p>}
+      {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todo lo de cartera ARS/DL/HD tiene flujo cargado.</p>}
 
       {/* Ignorados — bonos que sacaste del gap. "restaurar" los vuelve a conciliar
           (útil si ignoraste uno por error). Lista desde Trading.OnsIgnoradas. */}
@@ -3811,7 +3809,7 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
         <button type="button" onClick={guardar} disabled={saving} className="px-3 py-1 text-[11px] font-semibold bg-[#094293] text-white disabled:opacity-50">{saving ? "Guardando…" : "GUARDAR BONO"}</button>
         {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
       </div>
-      <p className="text-[10px] text-[var(--t-text-muted)]">Escribe Trading.Curvas con la shape del tipo elegido. Para que cotice en vivo (precio/TEA) hay que reiniciar los motores.</p>
+      <p className="text-[10px] text-[var(--t-text-muted)]">Guarda el bono con la estructura del tipo elegido. Puede tardar unos minutos en cotizar en vivo (precio/TEA).</p>
     </div>
   );
 }
@@ -3844,7 +3842,6 @@ function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; o
         <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Tipo de título</span>
         <Pill label="Renta Fija" active={destino === "curvas"} onClick={() => setDestino("curvas")} />
         <Pill label="ONs" active={destino === "ons"} onClick={() => setDestino("ons")} />
-        <span className="text-[9px] text-[var(--t-text-muted)]">→ mercado.curvas</span>
         {code && (
           <span className="text-[10px] ml-2 text-[var(--t-text-dim)]">
             {code}:{" "}
@@ -4718,9 +4715,8 @@ function OperacionesBackfillPanel() {
         <div>
           <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">BACKFILL OPERACIONES</h2>
           <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
-            Subí un CSV con operaciones (fuente: informe de operaciones). Se carga en{" "}
-            <code className="text-[var(--t-text)]">CashFlow.Operaciones</code> con índice único por
-            boleto — un boleto, un documento; re-subir el mismo archivo actualiza, no duplica.
+            Subí un CSV con operaciones (fuente: informe de operaciones). Se carga con
+            índice único por boleto — un boleto, un registro; re-subir el mismo archivo actualiza, no duplica.
             Columnas reconocidas: boleto, cuenta, concertación, denominación, tipo de operación,
             instrumento, condiciones, cantidad, bruto, aranceles.
           </p>
@@ -4758,7 +4754,7 @@ function OperacionesBackfillPanel() {
                 onClick={subir}
                 className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]"
               >
-                {busy ? "Subiendo…" : "SUBIR A CASHFLOW.OPERACIONES"}
+                {busy ? "Subiendo…" : "SUBIR OPERACIONES"}
               </button>
             </div>
           ) : (
@@ -4920,7 +4916,7 @@ function ImportTenenciaPanel() {
         <div>
           {modo === "precios" ? (
             <>
-              <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">PRECIOS → portafolio.tenencia (SQL)</h2>
+              <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">PRECIOS → TENENCIA</h2>
               <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
                 Excel con <code className="text-[var(--t-text)]">unidad · precio · fecha</code>. Actualiza el{" "}
                 <code className="text-[var(--t-text)]">precio</code> por (fecha, unidad). La valuación NO se
@@ -4929,7 +4925,7 @@ function ImportTenenciaPanel() {
             </>
           ) : (
             <>
-              <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">IMPORTAR AUM → portafolio.tenencia (SQL)</h2>
+              <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">IMPORTAR AUM → TENENCIA</h2>
               <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
                 Excel con <code className="text-[var(--t-text)]">Cuenta · Unidad · Cantidad · Fecha · Precio · Valuación</code>.
                 Pisa las tenencias de cada fecha (idempotente: re-subir reemplaza). El resto de columnas las resuelve la vista.

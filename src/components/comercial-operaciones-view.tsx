@@ -522,7 +522,7 @@ export function ComercialOperacionesView(
           )}
         </div>
         {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy. */}
-        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: TOTAL acumula hasta HASTA; las columnas MES (volumen/arancel/ctas ops) se calculan en [Desde, Hasta]. AuM = snapshot a HASTA. Vacío = hoy / mes del corte.">
+        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: TOTAL acumula hasta HASTA; las columnas MES (volumen/arancel/ctas ops) se calculan en [Desde, Hasta]. AuM = foto a HASTA. Vacío = hoy / mes del corte.">
           <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
           {/* Sin min/max en el DOM: las restricciones cruzadas (Desde≤Hasta) + max=hoy hacían
               que el input nativo clampee a HOY mientras tipeás. El orden lo resuelve el backend. */}
@@ -1339,7 +1339,7 @@ function AnalisisComercial(
             <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[var(--t-text-dim)]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.DORMIDA }}>● Dormida</span><span className="text-[var(--t-text-dim)]">: operó alguna vez, pero hace más de {umbral.dormida} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Sin Operaciones</span><span className="text-[var(--t-text-dim)]">: nunca operó.</span></p>
-            <p className="mt-1.5 text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin AuM</span>: cuenta con AuM = $0 en el último snapshot.</p>
+            <p className="mt-1.5 text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin AuM</span>: cuenta con AuM = $0 en la última foto de cartera.</p>
             <p className="text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
             <p className="mt-1.5 text-[var(--t-text-muted)]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
           </div>

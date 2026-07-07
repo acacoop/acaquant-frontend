@@ -217,7 +217,7 @@ export function NewsPanel() {
         )}
         {!loading && visibles.length === 0 && (
           <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center font-mono">
-            Sin noticias todavía. El cron las ingesta cada 15 min.
+            Sin noticias todavía. Se actualizan cada 15 min.
           </div>
         )}
         <ul className="font-mono">

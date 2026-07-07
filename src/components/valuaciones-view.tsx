@@ -568,7 +568,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         Sin datos de valuación para cuenta [{idCuenta}].
         <br />
         <span className="text-[var(--t-text-muted)] text-xs">
-          Asegurate que jobs/aum.py haya generado snapshots en Valuaciones.AuM.
+          Todavía no hay valuaciones calculadas para esta cuenta.
         </span>
       </div>
     );
@@ -881,7 +881,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         }
                         title={
                           active
-                            ? "Click de nuevo para volver al snapshot más reciente"
+                            ? "Click de nuevo para volver a la posición más reciente"
                             : `Ver posición al cierre de ${fmtMesAnio(m.mes)} (${m.ultimo_dia})` +
                               (esUSD && m.mep_cierre ? ` · MEP ${m.mep_cierre.toLocaleString("es-AR")}` : "")
                         }
@@ -1012,7 +1012,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             <button
               onClick={() => setSelectedFecha(null)}
               className="text-[9px] uppercase tracking-wider px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10"
-              title="Volver al snapshot más reciente"
+              title="Volver a la posición más reciente"
             >
               Hoy ×
             </button>

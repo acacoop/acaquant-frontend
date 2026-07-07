@@ -131,7 +131,7 @@ export function CedearsScannerTable({
         {ccl && (
           <div
             className="ml-auto flex items-center gap-2 pr-1 text-[10px] tabular-nums"
-            title="CCL live (DolarSnapshot._id=current) + variación vs cierre día previo"
+            title="CCL live + variación vs cierre día previo"
           >
             <span className="text-[var(--t-text-dim)] tracking-wide uppercase">CCL</span>
             <span className="text-[var(--t-text)] font-mono">
@@ -177,7 +177,7 @@ export function CedearsScannerTable({
                 <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
                 <SortableTh label="NOMBRE"  col="nombre"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
                 <SortableTh label="RUBRO"   col="rubro"           sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
-                <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ, Trading.PreciosAcciones)" />
+                <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ)" />
                 <SortableTh label="1D"      col="adr_vs_1d_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / prev close − 1) × 100" />
                 <SortableTh label="7D"      col="adr_ret_7d_pct"  sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close ~7d atrás − 1) × 100" />
                 <SortableTh label="15R"     col="adr_ret_15r_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: retorno de las últimas 15 ruedas (last / close 15 ruedas atrás − 1) × 100" />

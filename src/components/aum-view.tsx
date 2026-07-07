@@ -633,7 +633,7 @@ export function AumView() {
         <div className="border border-[var(--t-accent)]/40 bg-[var(--t-accent)]/5 px-3 py-1.5 text-[10px] text-[var(--t-accent)]">
           ⚠ Sin cotización MEP para {fechasSinMep.length} fecha{fechasSinMep.length > 1 ? "s" : ""} de la serie
           {fechasSinMep.length <= 5 ? `: ${fechasSinMep.join(", ")}` : `. Ej: ${fechasSinMep.slice(0, 5).join(", ")}…`}.
-          Esos puntos quedan en ARS sin convertir; revisar feed `Valuaciones.Dolar` para esas fechas.
+          Esos puntos quedan en ARS sin convertir por falta de cotización del dólar para esas fechas.
         </div>
       )}
       <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
@@ -761,7 +761,7 @@ export function AumView() {
                   colapsar la tabla al text "Cargando…" y volver a expandirla. */}
               {snapshot.length === 0 && loadingSnap ? (
                 <div className="py-6 text-center text-[var(--t-text-muted)] text-[11px]">
-                  Cargando snapshot…
+                  Cargando…
                 </div>
               ) : snapshot.length === 0 ? (
                 <div className="py-6 text-center text-[var(--t-text-muted)] text-[11px]">

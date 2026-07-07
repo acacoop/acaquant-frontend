@@ -547,7 +547,7 @@ export function SensibilidadTable({ compact = false }: { compact?: boolean }) {
               : "desde HOY. Todos los flujos futuros."}
             <br />
             <b className="text-[var(--t-text)]">P<sub>actual</sub></b>: último precio
-            del MarketSnapshot (USD para tickers .D / .C).
+            de mercado (USD para tickers .D / .C).
             <br />
             <b className="text-[var(--t-text)]">Carry</b>: cupones + amortizaciones
             cobradas dentro del horizonte. Con horizonte=0 el carry es 0 y el
