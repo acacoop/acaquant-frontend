@@ -62,6 +62,8 @@ export function OpsView() {
   const [moneda, setMoneda] = usePersistedState<Moneda>("ops.moneda", "ARS");
   const [segmento, setSegmento] = usePersistedState<string>("ops.segmento", "");
   const [segmentos, setSegmentos] = useState<string[]>([]);
+  const [nivel3, setNivel3] = usePersistedState<string>("ops.nivel3", "");
+  const [niveles3, setNiveles3] = useState<string[]>([]);
   const [mercado, setMercado] = usePersistedState<string>("ops.mercado", "");
   const [mercados, setMercados] = useState<string[]>([]);
   const [operador, setOperador] = usePersistedState<string>("ops.operador", "");
@@ -115,6 +117,7 @@ export function OpsView() {
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
     + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
+    + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
     + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "")
     + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
     + (excluidas.length ? `&excluir=${encodeURIComponent(excluidas.join("\n"))}` : "");
@@ -137,6 +140,8 @@ export function OpsView() {
     (async () => {
       const s = await getJSON<{ segmentos: string[] }>("/api/operaciones/ops/segmentos");
       setSegmentos(s?.segmentos ?? []);
+      const n3 = await getJSON<{ niveles3: string[] }>("/api/operaciones/ops/niveles3");
+      setNiveles3(n3?.niveles3 ?? []);
       const m = await getJSON<{ mercados: string[] }>("/api/operaciones/ops/mercados");
       setMercados(m?.mercados ?? []);
       const c = await getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list");
@@ -246,6 +251,12 @@ export function OpsView() {
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
           <option value="">Todos los segmentos</option>
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {/* Filtro de nivel_3 (segmento del boleto) */}
+        <select value={nivel3} onChange={(e) => setNivel3(e.target.value)}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
+          <option value="">Todos los nivel 3</option>
+          {niveles3.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
         {/* Filtro de mercado (campo `mercado`, ej. A3) */}
         <select value={mercado} onChange={(e) => setMercado(e.target.value)}
