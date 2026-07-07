@@ -513,6 +513,10 @@ function TabValidaciones() {
                emisor: string | null; motivo: string; en_cartera: boolean }[];
   } | null>(null);
 
+  // Backfill Tasas — recalcula TEA/TEM de mercado.curvas y rellena las faltantes
+  const [btLoading, setBtLoading] = useState(false);
+  const [btResult, setBtResult] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
       setTickers(d);
@@ -520,6 +524,34 @@ function TabValidaciones() {
       if (d.length > 1) setTcB(d[1]);
     }).catch(console.error);
   }, []);
+
+  const runBackfillTasas = async () => {
+    setBtLoading(true);
+    setBtResult(null);
+    try {
+      const start = await fetch("/api/manager/jobs/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "backfill_tasas" }),
+      }).then(r => r.json());
+      const jobId = start?.job_id;
+      if (!jobId) { setBtResult("No se pudo lanzar el job (¿sin permiso?)."); return; }
+      // Poll hasta que termine (el job es rápido, pero damos margen).
+      for (let i = 0; i < 60; i++) {
+        await new Promise(res => setTimeout(res, 2000));
+        const job = await fetch(`/api/manager/jobs/${jobId}`, { cache: "no-store" }).then(r => r.json());
+        if (job?.status && job.status !== "running") {
+          setBtResult(job.result || `(sin salida) status=${job.status}`);
+          return;
+        }
+      }
+      setBtResult("Timeout esperando el job (seguí en JOBS → historial).");
+    } catch (e) {
+      setBtResult(`Error: ${String(e)}`);
+    } finally {
+      setBtLoading(false);
+    }
+  };
 
   const runCp  = () => { setCpLoading(true);  fetch("/api/manager/checks/curvas-pendientes").then(r => r.json()).then(setCpData).finally(() => setCpLoading(false)); };
   const runFwd = () => { setFwdLoading(true); fetch("/api/manager/checks/forwards").then(r => r.json()).then(setFwdData).finally(() => setFwdLoading(false)); };
@@ -579,6 +611,21 @@ function TabValidaciones() {
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-2">
+
+      <CheckPanel title="Backfill Tasas — recalcular y rellenar TEA/TEM de Renta Fija">
+        <div className="text-[10px] text-[var(--t-text-muted)] mb-2 leading-relaxed">
+          Recalcula la TEA/TEM de todos los bonos de <b>mercado.curvas</b> y las escribe
+          en el snapshot. Rellena las que están en <b>&quot;--&quot;</b> y refresca las
+          existentes, sin esperar al próximo trade (útil tras corregir un flujo o cuando
+          el motor no las calculó). Solo escribe lo que puede calcular — no pisa datos buenos.
+        </div>
+        <RunBtn onClick={runBackfillTasas} loading={btLoading} />
+        {btResult && (
+          <pre className="text-[10px] text-[var(--t-text)] whitespace-pre-wrap bg-[var(--t-surface)] border border-[var(--t-border)] p-2 mt-1 max-h-64 overflow-y-auto">
+            {btResult}
+          </pre>
+        )}
+      </CheckPanel>
 
       <CheckPanel title="Títulos sin flujo — bonos ARS/HD/DL sin flujo en Curvas">
         <RunBtn onClick={runTsf} loading={tsfLoading} />
