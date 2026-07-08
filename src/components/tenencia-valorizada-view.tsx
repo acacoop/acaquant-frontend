@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
 /**
@@ -19,9 +19,13 @@ type DiaRow = { fecha: string; tc: number | null; total: number } & Record<Cuent
 type PosRow = {
   unidad: string; total: number;
   precio?: number | null; cant?: Record<Cuenta, number>; total_cant?: number;
+  alq_cant?: number | null; alq_valor?: number | null;
 } & Record<Cuenta, number>;
 type DiasResp = { cuentas: string[]; cartera?: string; dias: DiaRow[]; ultima_fecha: string | null };
-type PosResp = { fecha: string; cartera?: string; tc: number | null; total: number; posiciones: PosRow[] };
+type PosResp = {
+  fecha: string; cartera?: string; tc: number | null; total: number;
+  total_alquiler?: number; posiciones: PosRow[];
+};
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
@@ -90,6 +94,11 @@ export function TenenciaValorizadaView() {
     setEdPrecio(p?.precio != null ? String(p.precio) : "");
     setEdMsg(null);
   }, [edUnidad, pos]);
+
+  const reloadPos = async () => {
+    if (!sel) return;
+    setPos(await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}&cartera=${cartera}`));
+  };
 
   const guardarPrecio = async () => {
     if (!sel || !edUnidad || edPrecio.trim() === "") return;
@@ -203,6 +212,12 @@ export function TenenciaValorizadaView() {
                 {nominal
                   ? <>Total nominal <span className="font-semibold text-[var(--t-accent)]">{fmtNum(pos.posiciones.reduce((a, p) => a + (p.total_cant ?? 0), 0))}</span></>
                   : <>TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.total, pos.tc))}</span></>}
+                {" · "}En alquiler{" "}
+                <span className="font-semibold text-amber-400">
+                  {nominal
+                    ? fmtNum(pos.posiciones.reduce((a, p) => a + (p.alq_cant ?? 0), 0))
+                    : fmtFull(cv(pos.total_alquiler ?? 0, pos.tc))}
+                </span>
               </span>
             )}
           </div>
@@ -218,10 +233,12 @@ export function TenenciaValorizadaView() {
                     <th className="text-right !px-2">PX</th>
                     {CUENTAS.map((c) => <th key={c} className="text-right !px-2">{c}</th>)}
                     <th className="text-right !px-2">Total</th>
+                    <th className="text-right !px-2 text-amber-400" title="Nominales en alquiler (editable, durable)">Alq.</th>
+                    <th className="text-right !px-2 text-amber-400" title="Valor de mercado de lo que está en alquiler">Val.Alq</th>
                   </tr></thead>
                   <tbody>
                     {pos.posiciones.map((p, i) => (
-                      <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
+                      <tr key={`${p.unidad}-${i}`} className={"hover:bg-[var(--t-border)] " + (p.alq_cant ? "bg-amber-400/5" : "")}>
                         <td className="!px-2">{p.unidad}</td>
                         <td className="!px-2 text-right tabular-nums text-[var(--t-text-muted)]">{fmtNum(p.precio)}</td>
                         {CUENTAS.map((c) => (
@@ -231,6 +248,14 @@ export function TenenciaValorizadaView() {
                         ))}
                         <td className="!px-2 text-right tabular-nums font-semibold">
                           {nominal ? fmtNum(p.total_cant) : fmtFull(cv(p.total, pos.tc))}
+                        </td>
+                        <td className="!px-1 text-right">
+                          <AlqCell unidad={p.unidad} cant={p.alq_cant} onSaved={reloadPos} />
+                        </td>
+                        <td className="!px-2 text-right tabular-nums text-amber-400">
+                          {p.alq_cant
+                            ? (nominal ? fmtNum(p.alq_cant) : fmtFull(cv(p.alq_valor, pos.tc)))
+                            : "—"}
                         </td>
                       </tr>
                     ))}
@@ -308,5 +333,66 @@ export function TenenciaValorizadaView() {
       </div>
       </div>
     </div>
+  );
+}
+
+// Celda editable de ALQUILER: nominales en alquiler de un título. Marca durable
+// (no por día) — guarda con debounce vía POST /tenencia-hd/alquiler. Vacío/0 quita.
+function AlqCell({
+  unidad,
+  cant,
+  onSaved,
+}: {
+  unidad: string;
+  cant: number | null | undefined;
+  onSaved: () => void;
+}) {
+  const [txt, setTxt] = useState(cant != null ? String(cant) : "");
+  const [saving, setSaving] = useState(false);
+  const remote = useRef(cant != null ? String(cant) : "");
+  const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Adopta el valor remoto (otro user / reload) sin pisar lo que estoy tipeando.
+  useEffect(() => {
+    const next = cant != null ? String(cant) : "";
+    if (next !== remote.current) {
+      remote.current = next;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTxt(next);
+    }
+  }, [cant]);
+
+  const onChange = (v: string) => {
+    setTxt(v);
+    if (debRef.current) clearTimeout(debRef.current);
+    debRef.current = setTimeout(async () => {
+      const n = v.trim() === "" ? 0 : Number(v.replace(",", "."));
+      if (!isFinite(n) || n < 0) return;
+      setSaving(true);
+      try {
+        await fetch("/api/back-office/tenencia-hd/alquiler", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ unidad, cantidad: n }),
+        });
+        onSaved();
+      } finally {
+        setSaving(false);
+      }
+    }, 800);
+  };
+
+  return (
+    <input
+      value={txt}
+      onChange={(e) => onChange(e.target.value)}
+      inputMode="decimal"
+      placeholder="—"
+      title="Nominales en alquiler (se guarda solo y persiste)"
+      className={
+        "w-16 bg-[var(--t-surface)] border px-1 py-0.5 text-right font-mono text-[10px] tabular-nums outline-none focus:border-[var(--t-accent)] " +
+        (saving ? "border-amber-400" : "border-[var(--t-border-2)]")
+      }
+    />
   );
 }

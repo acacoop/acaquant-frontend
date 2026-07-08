@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { apiFetch } from "@/lib/api";
 
-// Proxy de Tenencia Valorizada (cartera HD, cuentas propias 100/255/256).
-// Lee el rollup Valuaciones.TenenciaHD. Catch-all opcional: cubre tanto
-// /tenencia-hd (serie diaria) como /tenencia-hd/posiciones?fecha=...
+// Proxy de Tenencia Valorizada (cuentas propias 100/255/256, SQL portafolio.tenencia).
+// Catch-all: cubre /tenencia-hd (serie diaria), /tenencia-hd/posiciones?fecha=...,
+// y los POST /tenencia-hd/precio y /tenencia-hd/alquiler.
 export async function GET(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
   const { path } = await params;
   const sub = path?.length ? `/${path.join("/")}` : "";
