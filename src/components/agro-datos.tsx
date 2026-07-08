@@ -27,6 +27,7 @@ interface TasasResp {
   tasa_on: number | null;
   tasa_pagare: number | null;
   tasa_caucion_7d: number | null;
+  tasa_caucion_7d_usd: number | null;
   updated_by: string | null;
   updated_at: string | null;
 }
@@ -35,6 +36,7 @@ const EMPTY_TASAS: TasasResp = {
   tasa_on: null,
   tasa_pagare: null,
   tasa_caucion_7d: null,
+  tasa_caucion_7d_usd: null,
   updated_by: null,
   updated_at: null,
 };
@@ -99,11 +101,13 @@ export function AgroDatos() {
   );
 
   return (
-    <div className="h-full min-h-0 p-3 flex flex-col gap-3">
-      <DolaresReferenciaPanel />
-      <TasasCoberturaPanel />
-      <DescuentoCaucionPanel />
-      <div className="max-w-2xl">
+    <div className="h-full min-h-0 p-3 overflow-y-auto grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
+      <div className="flex flex-col gap-3">
+        <DolaresReferenciaPanel />
+        <TasasCoberturaPanel />
+        <DescuentoCaucionPanel />
+      </div>
+      <div>
         <Panel title="CÁMARA ARBITRAL DE CEREALES — ROSARIO" expandable>
           <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
             Inputs manuales del trader. Ambas columnas (ARS y USD) se cargan
@@ -285,7 +289,7 @@ function TasasCoberturaPanel() {
   );
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <Panel title="TASAS DE COBERTURA — ON · PAGARÉ · CAUCIÓN 7D" expandable>
         <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
           Tasas manuales (TNA %) que carga el trader. ON y Pagaré alimentan esas
@@ -322,9 +326,15 @@ function TasasCoberturaPanel() {
               updatedAt={data.updated_at}
             />
             <TasaRow
-              label="CAUCIÓN 7D"
+              label="CAUCIÓN 7D ARS"
               field="tasa_caucion_7d"
               value={data.tasa_caucion_7d}
+              updatedAt={data.updated_at}
+            />
+            <TasaRow
+              label="CAUCIÓN 7D USD"
+              field="tasa_caucion_7d_usd"
+              value={data.tasa_caucion_7d_usd}
               updatedAt={data.updated_at}
             />
           </tbody>
@@ -351,7 +361,7 @@ function DescuentoCaucionPanel() {
   const sinTasa = data.tasa_caucion_7d === null;
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <Panel title="DESCUENTO A TASA DE CAUCIÓN DE 7D" expandable>
         <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
           Precio disponible descontado a la tasa de caución 7D — calculado, no
@@ -415,7 +425,7 @@ function DolaresReferenciaPanel() {
   );
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <Panel title="DÓLARES DE REFERENCIA — BANCO NACIÓN · MATBA ROFEX" expandable>
         <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
           Cotizaciones manuales ($) que carga el trader. Alimentarán el cálculo
@@ -557,7 +567,7 @@ function TasaRow({
   updatedAt,
 }: {
   label: string;
-  field: "tasa_on" | "tasa_pagare" | "tasa_caucion_7d";
+  field: "tasa_on" | "tasa_pagare" | "tasa_caucion_7d" | "tasa_caucion_7d_usd";
   value: number | null;
   updatedAt: string | null;
 }) {
