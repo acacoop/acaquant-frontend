@@ -207,7 +207,7 @@ function CommodityTable({
               <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
                 {r.dias}
               </td>
-              <td className="px-2 py-1 text-right font-bold text-[var(--t-text)]">
+              <td className="px-2 py-1 text-right font-black text-[var(--t-text)]">
                 {fmtPct(r.tna)}
               </td>
               <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
@@ -219,11 +219,11 @@ function CommodityTable({
               <td className="px-2 py-1 text-right font-semibold text-[var(--t-text)]">
                 {fmtArs(precio)}
               </td>
-              <td className="px-2 py-1 text-right font-bold text-[var(--t-pos)]">
+              <td className="px-2 py-1 text-right font-black text-[var(--t-pos)]">
                 {fmtArs(r.interes_ganado)}
               </td>
               <td
-                className="px-2 py-1 text-right font-bold text-[var(--t-text)]"
+                className="px-2 py-1 text-right font-black text-[var(--t-text)]"
                 style={{ backgroundColor: cfg.tint }}
               >
                 {fmtArs(r.valor_final)}
