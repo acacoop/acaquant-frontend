@@ -579,39 +579,46 @@ function PaseCoberturaCards({
   pase: PaseCoberturaResp | null;
   dim: string;
 }) {
-  const hasCards = (pase?.commodities ?? []).some((c) => c.cards.length > 0);
-  if (!pase || !hasCards) {
+  // Solo los commodities que tienen tarjetas; se elige uno y se muestran las
+  // suyas (no todas desparramadas).
+  const conCards = (pase?.commodities ?? []).filter((c) => c.cards.length > 0);
+  const [sel, setSel] = useState<Commodity | null>(null);
+
+  if (!pase || conCards.length === 0) {
     return (
       <p className="text-[var(--t-text-muted)] text-xs py-2 text-center">
         Cargá en Datos el Dólar Matba Rofex, el precio dispo (Cámara) y la Tasa
-        ON para ver las cards del pase.
+        ON para ver las tarjetas del pase.
       </p>
     );
   }
 
+  const activo = conCards.find((c) => c.commodity === sel) ?? conCards[0];
   const hoyFmt = fmtFechaISO(pase.hoy);
 
   return (
-    <div className={`flex flex-col gap-4 ${dim}`}>
-      {pase.commodities.map((c) =>
-        c.cards.length === 0 ? null : (
-          <div key={c.commodity}>
-            <div className="text-[10px] uppercase tracking-wide text-[var(--t-accent)] font-semibold mb-1.5">
-              {c.commodity} — Obligación Negociable
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
-              {c.cards.map((card) => (
-                <ObligacionNegociableCard
-                  key={card.ticker ?? card.vto}
-                  card={card}
-                  commodity={c.commodity}
-                  hoy={hoyFmt}
-                />
-              ))}
-            </div>
-          </div>
-        ),
-      )}
+    <div className={`flex flex-col gap-3 ${dim}`}>
+      <div className="flex gap-0.5">
+        {conCards.map((c) => (
+          <VistaBtn
+            key={c.commodity}
+            active={activo.commodity === c.commodity}
+            onClick={() => setSel(c.commodity)}
+          >
+            {c.commodity}
+          </VistaBtn>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
+        {activo.cards.map((card) => (
+          <ObligacionNegociableCard
+            key={card.ticker ?? card.vto}
+            card={card}
+            commodity={activo.commodity}
+            hoy={hoyFmt}
+          />
+        ))}
+      </div>
     </div>
   );
 }
