@@ -10,16 +10,26 @@ const SAVE_DEBOUNCE_MS = 800;
 const CEREALES = ["TRIGO", "MAIZ", "GIRASOL", "SOJA", "SORGO"] as const;
 type Cereal = (typeof CEREALES)[number];
 
+type ManualLeg = "ars" | "usd";
+
+// SOJA se carga en ARS; el resto en USD. La otra pata la deriva el backend con
+// el dólar Banco Nación.
+function manualLeg(cereal: string): ManualLeg {
+  return cereal === "SOJA" ? "ars" : "usd";
+}
+
 interface CamaraRow {
   cereal: Cereal;
   precio_ars: number | null;
   precio_usd: number | null;
+  manual_leg: ManualLeg;
   updated_by: string | null;
   updated_at: string | null;
 }
 
 interface CamaraResp {
   ts: string;
+  dolar_bna: number | null;
   cereales: CamaraRow[];
 }
 
@@ -77,10 +87,12 @@ const EMPTY_DOLARES: DolaresResp = {
 
 const EMPTY: CamaraResp = {
   ts: "",
+  dolar_bna: null,
   cereales: CEREALES.map((c) => ({
     cereal: c,
     precio_ars: null,
     precio_usd: null,
+    manual_leg: manualLeg(c),
     updated_by: null,
     updated_at: null,
   })),
@@ -112,9 +124,15 @@ export function AgroDatos() {
       <div>
         <Panel title="CÁMARA ARBITRAL DE CEREALES — ROSARIO" expandable>
           <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
-            Inputs manuales del trader. Ambas columnas (ARS y USD) se cargan
-            por separado — no hay fórmula entre ellas. Estos valores se
-            reutilizan en otras vistas (Mejoras Precio Dispo, etc.).
+            El trader carga <span className="text-[var(--t-text-dim)]">UNA sola
+            pata</span>: SOJA en ARS, el resto (Trigo/Maíz/Girasol/Sorgo) en USD.
+            La otra se calcula sola con el{" "}
+            <span className="text-[var(--t-text-dim)]">Dólar Banco Nación</span>{" "}
+            {data.dolar_bna
+              ? `($${fmtNum(data.dolar_bna, 2)})`
+              : "(⚠ cargalo en Dólares de Referencia)"}
+            . La celda en gris es la automática. Se reutiliza en Mejoras Dispo,
+            Pase, etc.
           </div>
           <table className="w-full text-[11px] font-mono tabular-nums">
             <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
@@ -141,6 +159,7 @@ export function AgroDatos() {
                     cereal,
                     precio_ars: null,
                     precio_usd: null,
+                    manual_leg: manualLeg(cereal),
                     updated_by: null,
                     updated_at: null,
                   } as CamaraRow);
@@ -155,31 +174,27 @@ export function AgroDatos() {
 }
 
 function CerealRow({ row }: { row: CamaraRow }) {
-  const [ars, setArs] = useState<string>(fmtNum(row.precio_ars, 2));
-  const [usd, setUsd] = useState<string>(fmtNum(row.precio_usd, 2));
+  const legArs = row.manual_leg === "ars";
+  // Valor de la pata MANUAL (el editable) y de la DERIVADA (read-only).
+  const manualVal = legArs ? row.precio_ars : row.precio_usd;
+  const derivedVal = legArs ? row.precio_usd : row.precio_ars;
+
+  const [txt, setTxt] = useState<string>(fmtNum(manualVal, 2));
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState<null | boolean>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const remoteArs = useRef<string>(fmtNum(row.precio_ars, 2));
-  const remoteUsd = useRef<string>(fmtNum(row.precio_usd, 2));
+  const remote = useRef<string>(fmtNum(manualVal, 2));
 
-  // Sync con remoto si otro user editó (sin pisar lo que estoy tipeando).
-  // Mismo pattern que PizarraRow — setState es para adoptar lo que llegó por
-  // poll, no para reaccionar a un valor derivado: el lint rule no aplica.
+  // Adopta el valor remoto si otro user editó, sin pisar lo que estoy tipeando.
   useEffect(() => {
-    const newArs = fmtNum(row.precio_ars, 2);
-    if (newArs !== remoteArs.current) {
-      remoteArs.current = newArs;
+    const next = fmtNum(manualVal, 2);
+    if (next !== remote.current) {
+      remote.current = next;
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (ars !== newArs) setArs(newArs);
-    }
-    const newUsd = fmtNum(row.precio_usd, 2);
-    if (newUsd !== remoteUsd.current) {
-      remoteUsd.current = newUsd;
-      if (usd !== newUsd) setUsd(newUsd);
+      if (txt !== next) setTxt(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.precio_ars, row.precio_usd]);
+  }, [manualVal]);
 
   function parseInput(s: string): number | null {
     // Acepta "1.234,56" (es-AR) o "1234.56".
@@ -189,23 +204,22 @@ function CerealRow({ row }: { row: CamaraRow }) {
     return isFinite(n) && n > 0 ? n : null;
   }
 
-  function scheduleSave(payload: {
-    precio_ars?: number;
-    precio_usd?: number;
-  }) {
+  function onChange(v: string) {
+    setTxt(v);
+    const n = parseInput(v);
+    if (n === null) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSaving(true);
       setSavedOk(null);
       try {
-        const res = await fetch(
-          `/api/derivados-agro/camara/${row.cereal}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
+        // Solo se manda la pata manual; la otra la calcula el backend.
+        const body = legArs ? { precio_ars: n } : { precio_usd: n };
+        const res = await fetch(`/api/derivados-agro/camara/${row.cereal}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
         setSavedOk(res.ok);
       } catch {
         setSavedOk(false);
@@ -216,21 +230,37 @@ function CerealRow({ row }: { row: CamaraRow }) {
     }, SAVE_DEBOUNCE_MS);
   }
 
-  function onArsChange(v: string) {
-    setArs(v);
-    const n = parseInput(v);
-    if (n !== null) scheduleSave({ precio_ars: n });
-  }
-  function onUsdChange(v: string) {
-    setUsd(v);
-    const n = parseInput(v);
-    if (n !== null) scheduleSave({ precio_usd: n });
-  }
+  const editHint = row.updated_at
+    ? fmtHoraAR(new Date(row.updated_at).getTime())
+    : "—";
 
-  const editHint =
-    row.updated_at
-      ? fmtHoraAR(new Date(row.updated_at).getTime())
-      : "—";
+  // Celda editable (pata manual) — input con prefijo de moneda + estado.
+  const manualCell = (prefix: string, width: string) => (
+    <div className="inline-flex items-center gap-1 justify-end">
+      <span className="text-[var(--t-text-muted)] text-[10px]">{prefix}</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={txt}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="—"
+        className={`bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none ${width} text-right`}
+      />
+      {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
+      {savedOk === true && <span className="text-[9px] text-[var(--t-pos)]">✓</span>}
+      {savedOk === false && <span className="text-[9px] text-[var(--t-neg)]">✗</span>}
+    </div>
+  );
+
+  // Celda derivada (automática) — texto en gris, no editable.
+  const derivedCell = (prefix: string) => (
+    <span
+      className="text-[var(--t-text-muted)]"
+      title="Automático: calculado con el Dólar Banco Nación"
+    >
+      {derivedVal === null ? "—" : `${prefix}${fmtNum(derivedVal, 2)}`}
+    </span>
+  );
 
   return (
     <tr className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
@@ -238,37 +268,10 @@ function CerealRow({ row }: { row: CamaraRow }) {
         {row.cereal}
       </td>
       <td className="px-2 py-1.5 text-right">
-        <div className="inline-flex items-center gap-1 justify-end">
-          <span className="text-[var(--t-text-muted)] text-[10px]">$</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={ars}
-            onChange={(e) => onArsChange(e.target.value)}
-            placeholder="—"
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-28 text-right"
-          />
-        </div>
+        {legArs ? manualCell("$", "w-28") : derivedCell("$")}
       </td>
       <td className="px-2 py-1.5 text-right">
-        <div className="inline-flex items-center gap-1 justify-end">
-          <span className="text-[var(--t-text-muted)] text-[10px]">US$</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={usd}
-            onChange={(e) => onUsdChange(e.target.value)}
-            placeholder="—"
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-24 text-right"
-          />
-          {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
-          {savedOk === true && (
-            <span className="text-[9px] text-[var(--t-pos)]">✓</span>
-          )}
-          {savedOk === false && (
-            <span className="text-[9px] text-[var(--t-neg)]">✗</span>
-          )}
-        </div>
+        {legArs ? derivedCell("US$ ") : manualCell("US$", "w-24")}
       </td>
       <td className="px-2 py-1.5 text-right text-[9px] text-[var(--t-text-muted)]">
         {editHint}
