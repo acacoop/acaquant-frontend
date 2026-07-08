@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { Panel, fmtHoraAR } from "./ui";
 import { usePoll } from "@/lib/use-poll";
 
@@ -444,17 +445,19 @@ function PaseConCoberturaTable({
   tasas: TasasCobertura | null;
   pase: PaseCoberturaResp | null;
 }) {
-  // Ganancia ON / Pagaré por posición (key = ticker; fallback commodity+vto)
-  // desde el cálculo del backend, para llenar esas columnas de la tabla resumen.
-  const gananciaOn = new Map<string, number | null>();
-  const gananciaPagare = new Map<string, number | null>();
+  // Card completa por posición (key = ticker; fallback commodity+vto) desde el
+  // cálculo del backend: llena las columnas ON/Pagaré y alimenta el explicador.
+  const cardByKey = new Map<string, PaseCard>();
   for (const c of pase?.commodities ?? []) {
     for (const card of c.cards) {
-      const key = card.ticker ?? `${c.commodity}-${card.vto}`;
-      gananciaOn.set(key, card.ganancia_on_usd);
-      gananciaPagare.set(key, card.ganancia_pagare_usd);
+      cardByKey.set(card.ticker ?? `${c.commodity}-${card.vto}`, card);
     }
   }
+
+  // Fila seleccionada → modal con el paso a paso del cálculo.
+  const [detalle, setDetalle] = useState<
+    { card: PaseCard; commodity: Commodity; hoy: string } | null
+  >(null);
 
   const filas: { commodity: Commodity; vto: string | null; pase: number | null; ticker?: string }[] = [];
   for (const b of bloques) {
@@ -479,6 +482,13 @@ function PaseConCoberturaTable({
   }
 
   return (
+    <>
+    <div className="flex items-center gap-1.5 px-1.5 pb-1.5 text-[9px] text-[var(--t-text-muted)]">
+      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-[var(--t-border-2)] text-[8px] leading-none">
+        ?
+      </span>
+      Hacé clic en una fila para ver el cálculo paso a paso.
+    </div>
     <table className="w-full text-[11px] font-mono tabular-nums">
       <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
         <tr>
@@ -522,12 +532,23 @@ function PaseConCoberturaTable({
       <tbody className={dim}>
         {filas.map((f) => {
           const key = f.ticker ?? `${f.commodity}-${f.vto}`;
-          const gOn = gananciaOn.get(key) ?? null;
-          const gPag = gananciaPagare.get(key) ?? null;
+          const card = cardByKey.get(key) ?? null;
+          const gOn = card?.ganancia_on_usd ?? null;
+          const gPag = card?.ganancia_pagare_usd ?? null;
           return (
             <tr
               key={`${f.commodity}-${f.ticker ?? f.vto}`}
-              className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
+              onClick={() =>
+                card &&
+                setDetalle({
+                  card,
+                  commodity: f.commodity,
+                  hoy: pase?.hoy ?? "",
+                })
+              }
+              className={`border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
+                card ? "cursor-pointer" : ""
+              }`}
             >
               <td className="px-1.5 py-0.5 text-[var(--t-text)] font-semibold">
                 {posicionFromVto(f.commodity, f.vto)}
@@ -558,6 +579,169 @@ function PaseConCoberturaTable({
         })}
       </tbody>
     </table>
+    {detalle && (
+      <PaseCalcModal
+        card={detalle.card}
+        commodity={detalle.commodity}
+        hoy={detalle.hoy}
+        onClose={() => setDetalle(null)}
+      />
+    )}
+    </>
+  );
+}
+
+// ─── Explicador del cálculo de un pase (modal) ──────────────────────────────
+// Se abre al clickear una fila. Muestra, prolijo, el paso a paso de cómo se
+// llega a la Ganancia ON y Pagaré: cada fórmula con los números reales puestos.
+
+function PaseCalcModal({
+  card,
+  commodity,
+  hoy,
+  onClose,
+}: {
+  card: PaseCard;
+  commodity: Commodity;
+  hoy: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  const noun = commodity.charAt(0) + commodity.slice(1).toLowerCase();
+  const hoyFmt = fmtFechaISO(hoy);
+  const fpFmt = fmtFechaVtoFuturo(card.vto);
+  const tasaOn = fmtTasa(card.tasa_on);
+  const tasaPag = fmtTasa(card.tasa_pagare);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-lg max-h-[90vh] overflow-y-auto text-[11px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 sticky top-0">
+          <span className="text-[12px] font-semibold text-[var(--t-accent)] tracking-wide">
+            Cálculo — Pase {noun} {fpFmt}
+          </span>
+          <button
+            onClick={onClose}
+            className="ml-auto text-[var(--t-text-dim)] hover:text-[var(--t-accent)] text-[13px] px-1"
+            title="Cerrar (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-3 flex flex-col gap-3 font-mono tabular-nums">
+          <CalcBlock title="Datos base">
+            <CalcLine label="Hoy (se valúa siempre a hoy)" value={hoyFmt} />
+            <CalcLine label="Fecha Pase (vto del futuro)" value={fpFmt} />
+            <CalcLine label="Días (Fecha Pase − Hoy)" value={card.dias ?? "—"} />
+            <CalcLine label="Tipo de Cambio (Matba Rofex)" value={fmtPx(card.tc)} />
+            <CalcLine label="BNA Comprador T−1 (ayer)" value={fmtPx(card.bna_comprador_t1)} />
+            <CalcLine label={`Venta ${noun} Dispo (ARS)`} value={fmtArs(card.venta_dispo_ars)} />
+            <CalcLine label="Valor US$ Pase Agro (futuro)" value={fmtPx(card.valor_pase_agro_usd)} />
+          </CalcBlock>
+
+          <CalcBlock title="Compra del futuro (común a ON y Pagaré)">
+            <CalcLine
+              label={`Gastos = Valor US$ × ${fmtTasa((card.gastos_pct ?? 0) * 100)}`}
+              value={fmtPx(card.total_gastos)}
+            />
+            <CalcLine
+              label="Compra Futuro = Valor US$ + Gastos"
+              value={fmtPx(card.compra_futuro)}
+              strong
+            />
+          </CalcBlock>
+
+          <CalcBlock title="Obligación Negociable (ON)">
+            <CalcLine
+              label={`Interés = TC − TC / (1 + ${tasaOn}/365 × ${card.dias ?? "—"} días)`}
+              value={fmtPx(card.interes)}
+            />
+            <CalcLine label="Tipo de Cambio ON = TC − Interés" value={fmtPx(card.tc_on)} />
+            <CalcLine label="Compra USD = Venta Dispo / TC ON" value={fmtPx(card.compra_usd)} />
+            <CalcLine
+              label="Ganancia ON = Compra USD − Compra Futuro"
+              value={fmtPx(card.ganancia_on_usd)}
+              strong
+              color={pasecolor(card.ganancia_on_usd)}
+            />
+          </CalcBlock>
+
+          <CalcBlock title="Pagaré">
+            <CalcLine
+              label={`Interés desc. = BNA T−1 − BNA T−1 / (1 + ${tasaPag}/365 × ${card.dias ?? "—"} días)`}
+              value={fmtPx(card.interes_descontado)}
+            />
+            <CalcLine label="TC Pagaré = BNA T−1 − Interés desc." value={fmtPx(card.tc_pagare)} />
+            <CalcLine label="Compra USD = Venta Dispo / TC Pagaré" value={fmtPx(card.compra_usd_pagare)} />
+            <CalcLine
+              label="Ganancia Pagaré = Compra USD − Compra Futuro"
+              value={fmtPx(card.ganancia_pagare_usd)}
+              strong
+              color={pasecolor(card.ganancia_pagare_usd)}
+            />
+          </CalcBlock>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function CalcBlock({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-[var(--t-accent)] font-semibold mb-1 pb-1 border-b border-[var(--t-border)]">
+        {title}
+      </div>
+      <div className="flex flex-col gap-0.5">{children}</div>
+    </div>
+  );
+}
+
+function CalcLine({
+  label,
+  value,
+  strong,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  strong?: boolean;
+  color?: string;
+}) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-[var(--t-text-dim)] leading-snug">{label}</span>
+      <span
+        className={`text-right whitespace-nowrap ${strong ? "font-bold" : ""} ${
+          color ?? "text-[var(--t-text)]"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -696,7 +880,8 @@ function ObligacionNegociableCard({
           (0,175% + 0,05% der. Mercado / apertura) × 2
         </div>
       </div>
-      <div className="bg-[#1e2a4a] text-[#e8edf7] px-2 py-1 font-semibold tracking-wide mt-1">
+      <div className="h-3 border-t-2 border-[var(--t-border-2)] mt-3" />
+      <div className="bg-[#1e2a4a] text-[#e8edf7] px-2 py-1 font-semibold tracking-wide">
         Pagaré
       </div>
       <CardRow label="Interés descontado" value={fmtPx(card.interes_descontado)} />
