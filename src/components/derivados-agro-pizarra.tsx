@@ -61,6 +61,13 @@ interface PaseCard {
   total_gastos: number | null;
   compra_futuro: number | null;
   ganancia_on_usd: number | null;
+  // Pagaré
+  bna_comprador_t1: number | null;
+  tasa_pagare: number | null;
+  interes_descontado: number | null;
+  tc_pagare: number | null;
+  compra_usd_pagare: number | null;
+  ganancia_pagare_usd: number | null;
 }
 
 interface PaseCoberturaCommodity {
@@ -216,7 +223,7 @@ function FreshnessPill({ estado }: { estado: EstadoFeed }) {
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
-type VistaPase = "agro" | "cobertura";
+type VistaPase = "agro" | "cobertura" | "tarjetas";
 
 export function DerivadosAgroPizarra({
   initial,
@@ -298,6 +305,12 @@ export function DerivadosAgroPizarra({
               >
                 Pase con Cobertura
               </VistaBtn>
+              <VistaBtn
+                active={vista === "tarjetas"}
+                onClick={() => setVista("tarjetas")}
+              >
+                Tarjetas
+              </VistaBtn>
             </div>
           }
         >
@@ -345,16 +358,15 @@ export function DerivadosAgroPizarra({
                 )}
               </tbody>
             </table>
+          ) : vista === "cobertura" ? (
+            <PaseConCoberturaTable
+              bloques={data.bloques}
+              dim={dim}
+              tasas={data.tasas_cobertura ?? null}
+              pase={data.pase_cobertura ?? null}
+            />
           ) : (
-            <div className="flex flex-col gap-4">
-              <PaseConCoberturaTable
-                bloques={data.bloques}
-                dim={dim}
-                tasas={data.tasas_cobertura ?? null}
-                pase={data.pase_cobertura ?? null}
-              />
-              <PaseCoberturaCards pase={data.pase_cobertura ?? null} dim={dim} />
-            </div>
+            <PaseCoberturaCards pase={data.pase_cobertura ?? null} dim={dim} />
           )}
         </Panel>
       </div>
@@ -432,13 +444,15 @@ function PaseConCoberturaTable({
   tasas: TasasCobertura | null;
   pase: PaseCoberturaResp | null;
 }) {
-  // Ganancia ON por posición (key = ticker; fallback commodity+vto) desde el
-  // cálculo del backend, para llenar la columna ON de esta tabla resumen.
+  // Ganancia ON / Pagaré por posición (key = ticker; fallback commodity+vto)
+  // desde el cálculo del backend, para llenar esas columnas de la tabla resumen.
   const gananciaOn = new Map<string, number | null>();
+  const gananciaPagare = new Map<string, number | null>();
   for (const c of pase?.commodities ?? []) {
     for (const card of c.cards) {
       const key = card.ticker ?? `${c.commodity}-${card.vto}`;
       gananciaOn.set(key, card.ganancia_on_usd);
+      gananciaPagare.set(key, card.ganancia_pagare_usd);
     }
   }
 
@@ -507,7 +521,9 @@ function PaseConCoberturaTable({
       </thead>
       <tbody className={dim}>
         {filas.map((f) => {
-          const gOn = gananciaOn.get(f.ticker ?? `${f.commodity}-${f.vto}`) ?? null;
+          const key = f.ticker ?? `${f.commodity}-${f.vto}`;
+          const gOn = gananciaOn.get(key) ?? null;
+          const gPag = gananciaPagare.get(key) ?? null;
           return (
             <tr
               key={`${f.commodity}-${f.ticker ?? f.vto}`}
@@ -520,10 +536,10 @@ function PaseConCoberturaTable({
                 {fmtPx(f.pase)}
               </td>
               <td
-                className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]"
-                title="Pendiente — próxima iteración"
+                className={`px-1.5 py-0.5 text-right font-semibold ${pasecolor(gPag)}`}
+                title="Ganancia Pase (Pagaré) en US$/Tn"
               >
-                —
+                {gPag === null ? "—" : fmtPx(gPag)}
               </td>
               <td
                 className={`px-1.5 py-0.5 text-right font-semibold ${pasecolor(gOn)}`}
@@ -583,7 +599,7 @@ function PaseCoberturaCards({
             <div className="text-[10px] uppercase tracking-wide text-[var(--t-accent)] font-semibold mb-1.5">
               {c.commodity} — Obligación Negociable
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
               {c.cards.map((card) => (
                 <ObligacionNegociableCard
                   key={card.ticker ?? card.vto}
@@ -673,6 +689,19 @@ function ObligacionNegociableCard({
           (0,175% + 0,05% der. Mercado / apertura) × 2
         </div>
       </div>
+      <div className="bg-[#1e2a4a] text-[#e8edf7] px-2 py-1 font-semibold tracking-wide mt-1">
+        Pagaré
+      </div>
+      <CardRow label="Interés descontado" value={fmtPx(card.interes_descontado)} />
+      <CardRow label="Tipo de Cambio Pagaré" value={fmtPx(card.tc_pagare)} accentBg />
+      <CardRow label="Compra de USD x Tn" value={fmtPx(card.compra_usd_pagare)} />
+      <CardRow label={`Compra de Futuro ${noun}`} value={fmtPx(card.compra_futuro)} />
+      <CardRow
+        label="Ganancia Pase / Tn"
+        value={fmtPx(card.ganancia_pagare_usd)}
+        strong
+        color={pasecolor(card.ganancia_pagare_usd)}
+      />
     </div>
   );
 }

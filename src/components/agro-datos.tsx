@@ -62,6 +62,7 @@ const EMPTY_DESCUENTO: DescuentoCaucionResp = {
 interface DolaresResp {
   dolar_bna: number | null;
   dolar_matba: number | null;
+  bna_comprador_t1: number | null;
   updated_by: string | null;
   updated_at: string | null;
 }
@@ -69,6 +70,7 @@ interface DolaresResp {
 const EMPTY_DOLARES: DolaresResp = {
   dolar_bna: null,
   dolar_matba: null,
+  bna_comprador_t1: null,
   updated_by: null,
   updated_at: null,
 };
@@ -458,6 +460,12 @@ function DolaresReferenciaPanel() {
               value={data.dolar_matba}
               updatedAt={data.updated_at}
             />
+            <DolarRow
+              label="BNA COMPRADOR T-1"
+              field="bna_comprador_t1"
+              value={data.bna_comprador_t1}
+              updatedAt={data.updated_at}
+            />
           </tbody>
         </table>
       </Panel>
@@ -472,7 +480,7 @@ function DolarRow({
   updatedAt,
 }: {
   label: string;
-  field: "dolar_bna" | "dolar_matba";
+  field: "dolar_bna" | "dolar_matba" | "bna_comprador_t1";
   value: number | null;
   updatedAt: string | null;
 }) {
