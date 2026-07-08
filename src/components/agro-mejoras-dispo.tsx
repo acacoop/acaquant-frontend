@@ -131,7 +131,7 @@ export function AgroMejorasDispo() {
       {/* La tabla ocupa la mitad izquierda; la mitad derecha queda libre para
           próximos módulos. */}
       <div className="w-1/2 h-full min-h-0">
-        <Panel title="MEJORAS PRECIO DISPONIBLE — Soja · Maíz · Trigo" expandable>
+        <Panel title="DISPONIBLE ROSARIO" expandable>
           {!hasData ? (
             <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
               {data.bloques.length === 0
@@ -207,7 +207,7 @@ function CommodityTable({
               <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
                 {r.dias}
               </td>
-              <td className="px-2 py-1 text-right font-semibold text-[var(--t-text)]">
+              <td className="px-2 py-1 text-right font-bold text-[var(--t-text)]">
                 {fmtPct(r.tna)}
               </td>
               <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
@@ -219,11 +219,11 @@ function CommodityTable({
               <td className="px-2 py-1 text-right font-semibold text-[var(--t-text)]">
                 {fmtArs(precio)}
               </td>
-              <td className="px-2 py-1 text-right text-[var(--t-pos)]">
+              <td className="px-2 py-1 text-right font-bold text-[var(--t-pos)]">
                 {fmtArs(r.interes_ganado)}
               </td>
               <td
-                className="px-2 py-1 text-right font-semibold text-[var(--t-text)]"
+                className="px-2 py-1 text-right font-bold text-[var(--t-text)]"
                 style={{ backgroundColor: cfg.tint }}
               >
                 {fmtArs(r.valor_final)}
