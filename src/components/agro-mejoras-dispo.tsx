@@ -127,8 +127,10 @@ export function AgroMejorasDispo() {
   const hasData = data.bloques.some((b) => b.filas.length > 0);
 
   return (
-    <div className="h-full min-h-0 p-2 flex flex-col">
-      <div className="flex-1 min-h-0">
+    <div className="h-full min-h-0 p-2 flex flex-row gap-2">
+      {/* La tabla ocupa la mitad izquierda; la mitad derecha queda libre para
+          próximos módulos. */}
+      <div className="w-1/2 h-full min-h-0">
         <Panel title="MEJORAS PRECIO DISPONIBLE — Soja · Maíz · Trigo" expandable>
           {!hasData ? (
             <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
