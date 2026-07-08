@@ -26,6 +26,7 @@ interface CamaraResp {
 interface TasasResp {
   tasa_on: number | null;
   tasa_pagare: number | null;
+  tasa_caucion_7d: number | null;
   updated_by: string | null;
   updated_at: string | null;
 }
@@ -33,8 +34,27 @@ interface TasasResp {
 const EMPTY_TASAS: TasasResp = {
   tasa_on: null,
   tasa_pagare: null,
+  tasa_caucion_7d: null,
   updated_by: null,
   updated_at: null,
+};
+
+interface DescuentoCaucionRow {
+  commodity: string;
+  precio_ars: number | null;
+  descuento_cau_7d: number | null;
+}
+
+interface DescuentoCaucionResp {
+  ts: string;
+  tasa_caucion_7d: number | null;
+  commodities: DescuentoCaucionRow[];
+}
+
+const EMPTY_DESCUENTO: DescuentoCaucionResp = {
+  ts: "",
+  tasa_caucion_7d: null,
+  commodities: [],
 };
 
 interface DolaresResp {
@@ -82,6 +102,7 @@ export function AgroDatos() {
     <div className="h-full min-h-0 p-3 flex flex-col gap-3">
       <DolaresReferenciaPanel />
       <TasasCoberturaPanel />
+      <DescuentoCaucionPanel />
       <div className="max-w-2xl">
         <Panel title="CÁMARA ARBITRAL DE CEREALES — ROSARIO" expandable>
           <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
@@ -265,11 +286,13 @@ function TasasCoberturaPanel() {
 
   return (
     <div className="max-w-2xl">
-      <Panel title="TASAS DE COBERTURA — ON · PAGARÉ" expandable>
+      <Panel title="TASAS DE COBERTURA — ON · PAGARÉ · CAUCIÓN 7D" expandable>
         <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
-          Tasas manuales (TNA %) que carga el trader. Alimentan las columnas
-          Pagaré y ON del <span className="text-[var(--t-text-dim)]">Pase con
-          Cobertura</span>. La fórmula se define con la mesa.
+          Tasas manuales (TNA %) que carga el trader. ON y Pagaré alimentan esas
+          columnas del <span className="text-[var(--t-text-dim)]">Pase con
+          Cobertura</span>; Caución 7D calcula el{" "}
+          <span className="text-[var(--t-text-dim)]">Descuento a Tasa de
+          Caución</span> de abajo.
         </div>
         <table className="w-full text-[11px] font-mono tabular-nums">
           <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
@@ -298,6 +321,79 @@ function TasasCoberturaPanel() {
               value={data.tasa_on}
               updatedAt={data.updated_at}
             />
+            <TasaRow
+              label="CAUCIÓN 7D"
+              field="tasa_caucion_7d"
+              value={data.tasa_caucion_7d}
+              updatedAt={data.updated_at}
+            />
+          </tbody>
+        </table>
+      </Panel>
+    </div>
+  );
+}
+
+// ─── Descuento a Tasa de Caución de 7D (derivado, read-only) ─────────────────
+// Precio disponible (Cámara) descontado a la tasa de caución 7D:
+//   descuento = precio_ars × (1 − (tasa_caucion_7d/100) × 7/365)
+// Es el "Monto Pesos Cau 7D" que consume cada card del Pase con Cobertura.
+// Se calcula en el backend (única fuente de la fórmula); acá solo se muestra.
+
+function DescuentoCaucionPanel() {
+  const { data } = usePoll<DescuentoCaucionResp>(
+    "/api/derivados-agro/descuento-caucion",
+    EMPTY_DESCUENTO,
+    POLL_MS,
+    { fetchOnMount: true },
+  );
+
+  const sinTasa = data.tasa_caucion_7d === null;
+
+  return (
+    <div className="max-w-2xl">
+      <Panel title="DESCUENTO A TASA DE CAUCIÓN DE 7D" expandable>
+        <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
+          Precio disponible descontado a la tasa de caución 7D — calculado, no
+          editable. {sinTasa && (
+            <span className="text-[var(--t-warn,#c79a2e)]">
+              Cargá la tasa Caución 7D arriba para verlo.
+            </span>
+          )}
+        </div>
+        <table className="w-full text-[11px] font-mono tabular-nums">
+          <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
+            <tr>
+              <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">
+                Cereal
+              </th>
+              <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
+                Precio dispo ARS
+              </th>
+              <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
+                Descuento Cau 7D
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.commodities.map((r) => (
+              <tr
+                key={r.commodity}
+                className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
+              >
+                <td className="px-2 py-1.5 text-[var(--t-accent)] font-semibold tracking-wide">
+                  {r.commodity}
+                </td>
+                <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">
+                  {r.precio_ars === null ? "—" : `$${fmtNum(r.precio_ars, 2)}`}
+                </td>
+                <td className="px-2 py-1.5 text-right font-semibold text-[var(--t-text)]">
+                  {r.descuento_cau_7d === null
+                    ? "—"
+                    : `$${fmtNum(r.descuento_cau_7d, 2)}`}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </Panel>
@@ -461,7 +557,7 @@ function TasaRow({
   updatedAt,
 }: {
   label: string;
-  field: "tasa_on" | "tasa_pagare";
+  field: "tasa_on" | "tasa_pagare" | "tasa_caucion_7d";
   value: number | null;
   updatedAt: string | null;
 }) {
