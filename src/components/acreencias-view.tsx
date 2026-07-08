@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -78,15 +78,10 @@ export function AcreenciasView() {
     return t;
   }, [dias]);
 
-  // Serie acumulada (X=fecha, Y=monto acumulado) en la moneda del toggle.
+  // Serie por día (X=fecha, Y=monto a cobrar ese día) en la moneda del toggle.
   const chartData = useMemo(() => {
     const ord = [...dias].sort((a, b) => a.fecha.localeCompare(b.fecha));
-    let acc = 0;
-    return ord.map((d) => {
-      const v = d.por_moneda[chartMon] || 0;
-      acc += v;
-      return { fecha: d.fecha, dia: v, acum: acc };
-    });
+    return ord.map((d) => ({ fecha: d.fecha, dia: d.por_moneda[chartMon] || 0 }));
   }, [dias, chartMon]);
 
   const tickers = useMemo(
@@ -163,7 +158,7 @@ export function AcreenciasView() {
           {/* Gráfico acumulado */}
           <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Acumulado a cobrar · {chartMon}</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">A cobrar por día · {chartMon}</span>
               <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
                 {(["ARS", "USD"] as Mon[]).map((m) => (
                   <button key={m} onClick={() => setChartMon(m)}
@@ -178,23 +173,24 @@ export function AcreenciasView() {
                 <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin datos en el rango.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
                     <defs>
                       <linearGradient id="acr-grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.5} />
-                        <stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.04} />
+                        <stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.35} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" />
+                    <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" vertical={false} />
                     <XAxis dataKey="fecha" tickFormatter={fmtFecha} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={24} />
                     <YAxis tickFormatter={(v) => fmtMoney(v as number)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={54} />
                     <Tooltip
+                      cursor={{ fill: "var(--t-surface-2)", opacity: 0.4 }}
                       contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }}
                       labelFormatter={(l) => fmtFecha(String(l))}
-                      formatter={(v) => [`${chartMon} ${fmtMoney(Number(v))}`, "Acumulado"]}
+                      formatter={(v) => [`${chartMon} ${fmtMoney(Number(v))}`, "A cobrar"]}
                     />
-                    <Area type="monotone" dataKey="acum" stroke="var(--t-accent)" strokeWidth={2} fill="url(#acr-grad)" />
-                  </AreaChart>
+                    <Bar dataKey="dia" fill="url(#acr-grad)" radius={[2, 2, 0, 0]} maxBarSize={28} />
+                  </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
