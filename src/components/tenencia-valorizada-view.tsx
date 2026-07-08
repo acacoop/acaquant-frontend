@@ -19,9 +19,16 @@ type DiaRow = { fecha: string; tc: number | null; total: number } & Record<Cuent
 type PosRow = {
   unidad: string; total: number;
   precio?: number | null; cant?: Record<Cuenta, number>; total_cant?: number;
+  gar?: Record<Cuenta, number>; gar_cant?: Record<Cuenta, number>;
+  gar_total?: number; gar_total_cant?: number;
 } & Record<Cuenta, number>;
 type DiasResp = { cuentas: string[]; cartera?: string; dias: DiaRow[]; ultima_fecha: string | null };
-type PosResp = { fecha: string; cartera?: string; tc: number | null; total: number; posiciones: PosRow[] };
+type PosResp = {
+  fecha: string; cartera?: string; tc: number | null; total: number;
+  total_gar?: number; posiciones: PosRow[];
+};
+
+type GarMode = "todos" | "sin_gar" | "solo_gar";
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
@@ -48,6 +55,11 @@ export function TenenciaValorizadaView() {
   const carteraNom = usd ? "USD" : "ARS";
   const [vista, setVista] = usePersistedState<"dinero" | "nominal">("tenencia.vista", "dinero");
   const nominal = vista === "nominal";
+  // Filtro por estado de GARANTÍA (Aunesa): Todos / Sin GAR / Solo GAR.
+  const [garMode, setGarMode] = usePersistedState<GarMode>("tenencia.garMode", "todos");
+  // Valor a mostrar de una celda según el filtro GAR: base total, sin la parte GAR, o solo GAR.
+  const applyGar = (base: number, gar: number): number =>
+    garMode === "sin_gar" ? base - gar : garMode === "solo_gar" ? gar : base;
   const [edUnidad, setEdUnidad] = useState("");
   const [edPrecio, setEdPrecio] = useState("");
   const [saving, setSaving] = useState(false);
@@ -198,11 +210,21 @@ export function TenenciaValorizadaView() {
                   className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === v ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
               ))}
             </div>
+            {/* Filtro por estado de GARANTÍA (Aunesa) */}
+            <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {([["todos", "TODOS"], ["sin_gar", "SIN GAR"], ["solo_gar", "SOLO GAR"]] as const).map(([v, lbl]) => (
+                <button key={v} onClick={() => setGarMode(v)}
+                  className={"px-2 py-0.5 text-[10px] font-semibold " + (garMode === v ? "bg-amber-500 text-black" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-amber-400")}>{lbl}</button>
+              ))}
+            </div>
             {pos && (
               <span className="w-full text-[9px] font-mono text-[var(--t-text-muted)]">
                 {nominal
-                  ? <>Total nominal <span className="font-semibold text-[var(--t-accent)]">{fmtNum(pos.posiciones.reduce((a, p) => a + (p.total_cant ?? 0), 0))}</span></>
-                  : <>TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.total, pos.tc))}</span></>}
+                  ? <>Total nominal <span className="font-semibold text-[var(--t-accent)]">{fmtNum(pos.posiciones.reduce((a, p) => a + applyGar(p.total_cant ?? 0, p.gar_total_cant ?? 0), 0))}</span></>
+                  : <>TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.posiciones.reduce((a, p) => a + applyGar(p.total, p.gar_total ?? 0), 0), pos.tc))}</span></>}
+                {(pos.total_gar ?? 0) > 0 && (
+                  <> · En garantía <span className="font-semibold text-amber-400">{nominal ? fmtNum(pos.posiciones.reduce((a, p) => a + (p.gar_total_cant ?? 0), 0)) : fmtFull(cv(pos.total_gar ?? 0, pos.tc))}</span></>
+                )}
               </span>
             )}
           </div>
@@ -220,20 +242,32 @@ export function TenenciaValorizadaView() {
                     <th className="text-right !px-2">Total</th>
                   </tr></thead>
                   <tbody>
-                    {pos.posiciones.map((p, i) => (
-                      <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
+                    {pos.posiciones
+                      // En "Solo GAR" oculto los títulos que no tienen nada en garantía.
+                      .filter((p) => garMode !== "solo_gar" || (p.gar_total ?? 0) > 0)
+                      .map((p, i) => {
+                        const totBase = nominal ? (p.total_cant ?? 0) : p.total;
+                        const totGar = nominal ? (p.gar_total_cant ?? 0) : (p.gar_total ?? 0);
+                        return (
+                      <tr key={`${p.unidad}-${i}`} className={"hover:bg-[var(--t-border)] " + ((p.gar_total ?? 0) > 0 && garMode === "todos" ? "bg-amber-400/5" : "")}>
                         <td className="!px-2">{p.unidad}</td>
                         <td className="!px-2 text-right tabular-nums text-[var(--t-text-muted)]">{fmtNum(p.precio)}</td>
-                        {CUENTAS.map((c) => (
-                          <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">
-                            {nominal ? fmtNum(p.cant?.[c]) : (p[c] ? fmtFull(cv(p[c], pos.tc)) : "—")}
-                          </td>
-                        ))}
+                        {CUENTAS.map((c) => {
+                          const base = nominal ? (p.cant?.[c] ?? 0) : (p[c] ?? 0);
+                          const gar = nominal ? (p.gar_cant?.[c] ?? 0) : (p.gar?.[c] ?? 0);
+                          const v = applyGar(base, gar);
+                          return (
+                            <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">
+                              {v ? (nominal ? fmtNum(v) : fmtFull(cv(v, pos.tc))) : "—"}
+                            </td>
+                          );
+                        })}
                         <td className="!px-2 text-right tabular-nums font-semibold">
-                          {nominal ? fmtNum(p.total_cant) : fmtFull(cv(p.total, pos.tc))}
+                          {nominal ? fmtNum(applyGar(totBase, totGar)) : fmtFull(cv(applyGar(totBase, totGar), pos.tc))}
                         </td>
                       </tr>
-                    ))}
+                        );
+                      })}
                   </tbody>
                 </table>
               )}
