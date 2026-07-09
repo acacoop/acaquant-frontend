@@ -12,6 +12,18 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+// Fila del resumen agregado que arma el backend: una por (día, contraparte,
+// moneda), con el grupo ya joineado. Reemplaza a bajar 2 años de ops crudas.
+interface ResumenRow {
+  dia: string;
+  contraparte: string;
+  grupo: string;
+  moneda?: string;
+  bruto: number;
+  n: number;
+}
+
+// Operación individual — solo para el drill-down de un día puntual.
 interface FlujoDoc {
   boleto?: number | string;
   concertacion: string;
@@ -23,13 +35,6 @@ interface FlujoDoc {
   segmento?: string;
   contraparte?: string;
   moneda?: string;
-}
-
-interface ContraparteDoc {
-  cuenta?: string;
-  id_cuenta?: string;
-  nombre?: string;
-  grupo?: string;
 }
 
 const COLOR_ARS = "#094293";
@@ -70,8 +75,9 @@ function mesLabel(key: string): string {
 export function ContrapartesView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [flujos, setFlujos] = useState<FlujoDoc[]>([]);
-  const [contrapartes, setContrapartes] = useState<ContraparteDoc[]>([]);
+  const [filas, setFilas] = useState<ResumenRow[]>([]);
+  const [gruposDisp, setGruposDisp] = useState<string[]>([]);
+  const [monedasDisp, setMonedasDisp] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,10 +88,9 @@ export function ContrapartesView() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
-        setFlujos(Array.isArray(json.flujos) ? json.flujos : []);
-        setContrapartes(
-          Array.isArray(json.contrapartes) ? json.contrapartes : []
-        );
+        setFilas(Array.isArray(json.filas) ? json.filas : []);
+        setGruposDisp(Array.isArray(json.grupos) ? json.grupos : []);
+        setMonedasDisp(Array.isArray(json.monedas) ? json.monedas : []);
         setError(null);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "error");
@@ -98,29 +103,14 @@ export function ContrapartesView() {
     };
   }, []);
 
-  // Map contraparte.nombre → grupo (Fondos / ALYC / Bancos / …)
+  // contraparte → grupo, derivado del resumen (para filtrar el drill-down diario).
   const grupoMap = useMemo(() => {
     const m: Record<string, string> = {};
-    for (const c of contrapartes) {
-      if (c.nombre && c.grupo) m[c.nombre] = c.grupo;
+    for (const r of filas) {
+      if (r.contraparte && r.grupo) m[r.contraparte] = r.grupo;
     }
     return m;
-  }, [contrapartes]);
-
-  const gruposDisp = useMemo(
-    () =>
-      Array.from(
-        new Set(contrapartes.map((c) => c.grupo).filter(Boolean) as string[])
-      ).sort(),
-    [contrapartes]
-  );
-  const monedasDisp = useMemo(
-    () =>
-      Array.from(
-        new Set(flujos.map((f) => f.moneda).filter(Boolean) as string[])
-      ).sort(),
-    [flujos]
-  );
+  }, [filas]);
 
   const [grupoSel, setGrupoSel] = useState<string[]>([]);
   const [monSel, setMonSel] = useState<string[]>([]);
@@ -141,9 +131,9 @@ export function ContrapartesView() {
   // Fechas únicas (YYYY-MM-DD) ordenadas ASC. Base del DualRange.
   const diasAll = useMemo(() => {
     const set = new Set<string>();
-    for (const f of flujos) set.add(f.concertacion.slice(0, 10));
+    for (const r of filas) set.add(r.dia);
     return Array.from(set).sort();
-  }, [flujos]);
+  }, [filas]);
 
   // Rango por inputs de fecha (calendario). Default = todo el universo.
   const [desde, setDesde] = useState("");
@@ -164,27 +154,61 @@ export function ContrapartesView() {
   }, [monSel, monedaTabla]);
 
   const filtered = useMemo(() => {
-    return flujos.filter((f) => {
-      const dd = f.concertacion.slice(0, 10);
-      if (desde && dd < desde) return false;
-      if (hasta && dd > hasta) return false;
-      if (f.moneda && !monSel.includes(f.moneda)) return false;
+    return filas.filter((r) => {
+      if (desde && r.dia < desde) return false;
+      if (hasta && r.dia > hasta) return false;
+      if (r.moneda && !monSel.includes(r.moneda)) return false;
       if (grupoSel.length && grupoSel.length !== gruposDisp.length) {
-        const g = f.contraparte ? grupoMap[f.contraparte] : undefined;
-        if (!g || !grupoSel.includes(g)) return false;
+        if (!r.grupo || !grupoSel.includes(r.grupo)) return false;
       }
       return true;
     });
-  }, [flujos, desde, hasta, monSel, grupoSel, gruposDisp.length, grupoMap]);
+  }, [filas, desde, hasta, monSel, grupoSel, gruposDisp.length]);
 
-  // Operaciones del día seleccionado, ordenadas por |bruto| DESC — las más
-  // grandes primero, para ver dónde se concentra el flujo del día.
+  // Drill-down de un día: las operaciones individuales se piden on-demand al
+  // backend SOLO para ese día (el resumen agregado no las trae). Antes se
+  // mostraban todas las ops del rango (bug) — ahora la tabla es realmente del día.
+  const [opsDia, setOpsDia] = useState<FlujoDoc[]>([]);
+  const [opsDiaLoading, setOpsDiaLoading] = useState(false);
+  useEffect(() => {
+    if (!dia) {
+      setOpsDia([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setOpsDiaLoading(true);
+        const res = await fetch(`/api/contrapartes?dia=${dia}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (!cancelled) setOpsDia(Array.isArray(json.ops) ? json.ops : []);
+      } catch {
+        if (!cancelled) setOpsDia([]);
+      } finally {
+        if (!cancelled) setOpsDiaLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dia]);
+
+  // Operaciones del día seleccionado (respetan moneda/grupo), ordenadas por
+  // |bruto| DESC — las más grandes primero, para ver dónde se concentra el flujo.
   const opsDelDia = useMemo(() => {
     if (!dia) return [];
-    return [...filtered].sort((a, b) => {
-      return Math.abs(b.bruto || 0) - Math.abs(a.bruto || 0);
-    });
-  }, [filtered, dia]);
+    return opsDia
+      .filter((f) => {
+        if (f.moneda && !monSel.includes(f.moneda)) return false;
+        if (grupoSel.length && grupoSel.length !== gruposDisp.length) {
+          const g = f.contraparte ? grupoMap[f.contraparte] : undefined;
+          if (!g || !grupoSel.includes(g)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => Math.abs(b.bruto || 0) - Math.abs(a.bruto || 0));
+  }, [opsDia, dia, monSel, grupoSel, gruposDisp.length, grupoMap]);
 
   // Σ volumen por moneda y por bucket (día o mes) — barras (NO acumulado).
   // Respeta la contraparte seleccionada (cross-filter): si hay cpSel, el gráfico
@@ -192,11 +216,11 @@ export function ContrapartesView() {
   const chartDataByMoneda = useMemo(() => {
     const out: Record<string, { label: string; key: string; bruto: number }[]> = {};
     for (const moneda of monSel) {
-      const sub = filtered.filter((f) => f.moneda === moneda && (cpSel ? f.contraparte === cpSel : true));
+      const sub = filtered.filter((r) => r.moneda === moneda && (cpSel ? r.contraparte === cpSel : true));
       const buckets: Record<string, number> = {};
-      for (const f of sub) {
-        const k = aggCp === "MENSUAL" ? f.concertacion.slice(0, 7) : f.concertacion.slice(0, 10);
-        buckets[k] = (buckets[k] || 0) + (f.bruto || 0);
+      for (const r of sub) {
+        const k = aggCp === "MENSUAL" ? r.dia.slice(0, 7) : r.dia;
+        buckets[k] = (buckets[k] || 0) + (r.bruto || 0);
       }
       out[moneda] = Object.keys(buckets).sort().map((k) => ({
         key: k,
@@ -211,12 +235,12 @@ export function ContrapartesView() {
   // tabla MESES (cross-filter): si hay mesSel, solo cuenta ese mes.
   const contrapartesTabla = useMemo(() => {
     const sub = filtered.filter(
-      (f) => f.moneda === monedaTabla && (mesSel ? f.concertacion.slice(0, 7) === mesSel : true)
+      (r) => r.moneda === monedaTabla && (mesSel ? r.dia.slice(0, 7) === mesSel : true)
     );
     const agg: Record<string, number> = {};
-    for (const f of sub) {
-      const k = f.contraparte || "—";
-      agg[k] = (agg[k] || 0) + (f.bruto || 0);
+    for (const r of sub) {
+      const k = r.contraparte || "—";
+      agg[k] = (agg[k] || 0) + (r.bruto || 0);
     }
     const total = Object.values(agg).reduce((a, b) => a + b, 0);
     return Object.entries(agg)
@@ -231,13 +255,13 @@ export function ContrapartesView() {
   // Meses: por defecto consolidado (todas las contrapartes) — o de la contraparte seleccionada
   const mesesTabla = useMemo(() => {
     const sub = filtered.filter(
-      (f) =>
-        f.moneda === monedaTabla && (cpSel ? f.contraparte === cpSel : true)
+      (r) =>
+        r.moneda === monedaTabla && (cpSel ? r.contraparte === cpSel : true)
     );
     const monthly: Record<string, number> = {};
-    for (const f of sub) {
-      const k = f.concertacion.slice(0, 7);
-      monthly[k] = (monthly[k] || 0) + (f.bruto || 0);
+    for (const r of sub) {
+      const k = r.dia.slice(0, 7);
+      monthly[k] = (monthly[k] || 0) + (r.bruto || 0);
     }
     return Object.entries(monthly)
       .map(([k, bruto]) => ({ key: k, label: mesLabel(k), bruto }))
@@ -263,7 +287,7 @@ export function ContrapartesView() {
       </div>
     );
   }
-  if (flujos.length === 0) {
+  if (filas.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Sin datos.
@@ -317,7 +341,7 @@ export function ContrapartesView() {
           <button onClick={() => setMesSel(null)} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ {mesLabel(mesSel)}</button>
         )}
         <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
-          {filtered.length} ops
+          {filtered.reduce((s, r) => s + (r.n || 0), 0)} ops
         </span>
       </div>
 
@@ -369,7 +393,9 @@ export function ContrapartesView() {
                   </tr>
                 ))}
                 {opsDelDia.length === 0 && (
-                  <tr><td colSpan={8} className="text-center text-[var(--t-text-muted)] py-4">Sin operaciones en este día.</td></tr>
+                  <tr><td colSpan={8} className="text-center text-[var(--t-text-muted)] py-4">
+                    {opsDiaLoading ? "Cargando…" : "Sin operaciones en este día."}
+                  </td></tr>
                 )}
               </tbody>
             </table>
