@@ -64,6 +64,14 @@ const META: {
     accion: { label: "IR A TÍTULOS", tab: "titulos" },
   },
   {
+    id: "simbolos_cuarentena",
+    label: "ROFEX",
+    titulo: "Símbolos rechazados por ROFEX (en cuarentena)",
+    impacto:
+      "ROFEX respondió 'Product don't exist' y el símbolo quedó excluido de las suscripciones (se reintenta solo a los 7 días). La causa de fondo suele ser un ticker mal cargado o un bono vencido en el master — corregirlo en Títulos es el fix definitivo.",
+    accion: { label: "IR A TÍTULOS", tab: "titulos" },
+  },
+  {
     id: "comitentes_sin_nivel1",
     label: "NIVEL 1",
     titulo: "Comitentes activos sin nivel 1",
