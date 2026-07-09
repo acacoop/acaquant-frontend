@@ -13,13 +13,16 @@ import {
   ReferenceLine,
 } from "recharts";
 
-interface Flujo {
-  boleto?: string;
-  cuenta?: string;
-  concertacion: string;
-  informacion?: string;
-  bruto: number;
+// Fila del resumen agregado que arma el backend: una por (día, cuenta, unidad),
+// con entradas (Σ ≥0) y salidas (Σ <0) separadas. Reemplaza a bajar 2 años de
+// movimientos crudos.
+interface ResumenRow {
+  dia: string;
+  cuenta: string;
   unidad: string;
+  entradas: number;
+  salidas: number;
+  n: number;
 }
 
 interface Accionista {
@@ -113,7 +116,7 @@ function fmtDia(key: string): string {
 export function CashFlowView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [flujos, setFlujos] = useState<Flujo[]>([]);
+  const [filas, setFilas] = useState<ResumenRow[]>([]);
   const [accionistas, setAccionistas] = useState<Accionista[]>([]);
 
   useEffect(() => {
@@ -125,7 +128,7 @@ export function CashFlowView() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
-        setFlujos(Array.isArray(json.flujos) ? json.flujos : []);
+        setFilas(Array.isArray(json.filas) ? json.filas : []);
         setAccionistas(Array.isArray(json.accionistas) ? json.accionistas : []);
         setError(null);
       } catch (e) {
@@ -146,15 +149,15 @@ export function CashFlowView() {
   }, [accionistas]);
 
   const { minDate, maxDate } = useMemo(() => {
-    if (flujos.length === 0) return { minDate: "", maxDate: "" };
-    let mn = flujos[0].concertacion;
-    let mx = flujos[0].concertacion;
-    for (const f of flujos) {
-      if (f.concertacion < mn) mn = f.concertacion;
-      if (f.concertacion > mx) mx = f.concertacion;
+    if (filas.length === 0) return { minDate: "", maxDate: "" };
+    let mn = filas[0].dia;
+    let mx = filas[0].dia;
+    for (const r of filas) {
+      if (r.dia < mn) mn = r.dia;
+      if (r.dia > mx) mx = r.dia;
     }
     return { minDate: mn, maxDate: mx };
-  }, [flujos]);
+  }, [filas]);
 
   const [desdeSel, setDesdeSel] = useState<string | null>(null);
   const [hastaSel, setHastaSel] = useState<string | null>(null);
@@ -192,7 +195,7 @@ export function CashFlowView() {
 
   const { opciones, label } = useMemo(() => {
     const todasCuentas = Array.from(
-      new Set(flujos.map((f) => f.cuenta).filter(Boolean) as string[])
+      new Set(filas.map((r) => r.cuenta).filter(Boolean))
     );
     if (filtroAcc === "Solo accionistas") {
       const grupos = Array.from(
@@ -217,13 +220,13 @@ export function CashFlowView() {
       };
     }
     return { opciones: todasCuentas.sort(), label: "Cuenta" };
-  }, [flujos, filtroAcc, accMap]);
+  }, [filas, filtroAcc, accMap]);
 
   const filtered = useMemo(() => {
-    return flujos.filter((f) => {
-      if (f.concertacion < desde || f.concertacion > hasta) return false;
-      if (!monedasSel.includes(f.unidad)) return false;
-      const cuenta = f.cuenta || "";
+    return filas.filter((r) => {
+      if (r.dia < desde || r.dia > hasta) return false;
+      if (!monedasSel.includes(r.unidad)) return false;
+      const cuenta = r.cuenta || "";
       const grupo = accMap.get(cuenta);
       if (filtroAcc === "Sin accionistas") {
         if (grupo) return false;
@@ -240,18 +243,15 @@ export function CashFlowView() {
       }
       return true;
     });
-  }, [flujos, desde, hasta, monedasSel, filtroAcc, seleccion, accMap]);
+  }, [filas, desde, hasta, monedasSel, filtroAcc, seleccion, accMap]);
 
   const chartData = useMemo(() => {
     const byKey: Record<
       string,
       { key: string; label: string; ARS: number; USD: number }
     > = {};
-    for (const f of filtered) {
-      const key =
-        granularity === "Mensual"
-          ? f.concertacion.slice(0, 7)
-          : f.concertacion.slice(0, 10);
+    for (const r of filtered) {
+      const key = granularity === "Mensual" ? r.dia.slice(0, 7) : r.dia;
       if (!byKey[key]) {
         byKey[key] = {
           key,
@@ -260,8 +260,9 @@ export function CashFlowView() {
           USD: 0,
         };
       }
-      if (f.unidad === "ARS") byKey[key].ARS += f.bruto;
-      else if (f.unidad === "USD") byKey[key].USD += f.bruto;
+      const neto = r.entradas + r.salidas;
+      if (r.unidad === "ARS") byKey[key].ARS += neto;
+      else if (r.unidad === "USD") byKey[key].USD += neto;
     }
     return Object.entries(byKey)
       .sort((a, b) => (a[0] < b[0] ? -1 : 1))
@@ -273,10 +274,10 @@ export function CashFlowView() {
       ARS: { entradas: 0, salidas: 0 },
       USD: { entradas: 0, salidas: 0 },
     };
-    for (const f of filtered) {
-      if (!out[f.unidad]) continue;
-      if (f.bruto >= 0) out[f.unidad].entradas += f.bruto;
-      else out[f.unidad].salidas += f.bruto;
+    for (const r of filtered) {
+      if (!out[r.unidad]) continue;
+      out[r.unidad].entradas += r.entradas;
+      out[r.unidad].salidas += r.salidas;
     }
     return out;
   }, [filtered]);
@@ -295,7 +296,7 @@ export function CashFlowView() {
       </div>
     );
   }
-  if (flujos.length === 0) {
+  if (filas.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Sin datos.
