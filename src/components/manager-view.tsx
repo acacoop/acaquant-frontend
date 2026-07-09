@@ -3258,89 +3258,6 @@ function OnField({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function TabOnsSegmentar() {
-  const [ons, setOns] = useState<ONMaster[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [state, setState] = useState<Record<string, RowState>>({});
-
-  const fetchOns = () => {
-    setLoading(true);
-    fetch("/api/manager/ons")
-      .then((r) => r.json())
-      .then((d: { ons: ONMaster[] }) => setOns(d.ons || []))
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/manager/ons")
-      .then((r) => r.json())
-      .then((d: { ons: ONMaster[] }) => { if (alive) setOns(d.ons || []); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  const setSector = async (asset: string, sector: string) => {
-    setOns((prev) => prev.map((o) => (o.asset === asset ? { ...o, sector } : o)));
-    setState((s) => ({ ...s, [asset]: { kind: "saving" } }));
-    try {
-      const r = await fetch("/api/manager/ons/sector", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ asset, sector }),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setState((s) => ({ ...s, [asset]: { kind: "saved" } }));
-      setTimeout(() => setState((s) => ({ ...s, [asset]: { kind: "idle" } })), 1200);
-    } catch (e) {
-      setState((s) => ({ ...s, [asset]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
-    }
-  };
-
-  return (
-    <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[11px] text-[var(--t-text-dim)]">
-          {ons.length} ONs · cambiar el sector se refleja en la vista al instante
-        </span>
-        <button type="button" onClick={fetchOns} className={_onInput + " w-auto"}>↻</button>
-      </div>
-      <table>
-        <thead>
-          <tr><th>Asset</th><th>Emisor</th><th>Mon</th><th>Vto</th><th>Sector</th><th></th></tr>
-        </thead>
-        <tbody>
-          {ons.map((o) => {
-            const st = state[o.asset] || { kind: "idle" };
-            return (
-              <tr key={o.asset}>
-                <td className="font-semibold">{o.asset}</td>
-                <td>{o.emisor || "--"}</td>
-                <td>{o.moneda_flujo || "--"}</td>
-                <td className="tabular-nums">{(o.vencimiento || "").slice(0, 7) || "--"}</td>
-                <td>
-                  <select
-                    value={(o.sector || "otros").toLowerCase()}
-                    onChange={(e) => setSector(o.asset, e.target.value)}
-                    className={_onInput}
-                  >
-                    {ON_SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </td>
-                <td className="text-[10px]">
-                  {st.kind === "saving" && <span className="text-[var(--t-text-muted)]">…</span>}
-                  {st.kind === "saved" && <span className="text-emerald-500">✓</span>}
-                  {st.kind === "error" && <span className="text-red-500" title={st.msg}>✗</span>}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
-    </div>
-  );
-}
-
 interface ONPrefill { asset?: string; emisor?: string; moneda_flujo?: string }
 
 function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?: () => void }) {
@@ -3562,24 +3479,6 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
         Al guardar, la ON aparece en la vista. Puede tardar unos minutos en cotizar
         en vivo (precio/TEA).
       </p>
-    </div>
-  );
-}
-
-// El CONCILIADOR se unificó en la sub-tab BONOS (cubre Curvas + BondsMaster). Acá
-// quedan SEGMENTAR (sector) y ALTA / EDICIÓN de ONs (BondsMaster, 2 monedas).
-function TabONs() {
-  const [sub, setSub] = usePersistedState<"segmentar" | "alta">("manager.ons.sub.v2", "alta");
-  return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-        <Pill label="SEGMENTAR" active={sub === "segmentar"} onClick={() => setSub("segmentar")} />
-        <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
-      </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "segmentar" && <TabOnsSegmentar />}
-        {sub === "alta" && <TabOnsAlta onSaved={() => {}} />}
-      </div>
     </div>
   );
 }
@@ -4545,11 +4444,14 @@ function TabBreakevens() {
 }
 
 function TitulosGroup({ modules }: { modules?: string[] | null }) {
-  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons" | "bonos" | "breakevens" | "renta_variable">("manager.titulos.sub", "instrumentos");
+  // "ons" se eliminó como sub-tab (2026-07-09): alta/edición + sector de ONs
+  // viven en BONOS (editor unificado TabAltaTitulo). El persisted state viejo
+  // con "ons" cae al default vía subVisible.
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "bonos" | "breakevens" | "renta_variable">("manager.titulos.sub", "instrumentos");
   const has = (m: string) => modules == null || modules.includes(m);
   const canInstr = has("manager") || has("manager_instrumentos");
   const canMaestro = has("manager") || has("manager_titulos");
-  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons" || sub === "bonos" || sub === "breakevens" || sub === "renta_variable") && canMaestro);
+  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "bonos" || sub === "breakevens" || sub === "renta_variable") && canMaestro);
   const eff = subVisible ? sub : (canInstr ? "instrumentos" : "assets");
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -4557,7 +4459,6 @@ function TitulosGroup({ modules }: { modules?: string[] | null }) {
         <span className={GROUP_TITLE}>TÍTULOS</span>
         {canInstr && <Pill label="INSTRUMENTOS" active={eff === "instrumentos"} onClick={() => setSub("instrumentos")} />}
         {canMaestro && <Pill label="ASSETS" active={eff === "assets"} onClick={() => setSub("assets")} />}
-        {canMaestro && <Pill label="ONs" active={eff === "ons"} onClick={() => setSub("ons")} />}
         {canMaestro && <Pill label="BONOS" active={eff === "bonos"} onClick={() => setSub("bonos")} />}
         {canMaestro && <Pill label="BREAKEVENS" active={eff === "breakevens"} onClick={() => setSub("breakevens")} />}
         {canMaestro && <Pill label="RENTA VARIABLE" active={eff === "renta_variable"} onClick={() => setSub("renta_variable")} />}
@@ -4565,7 +4466,6 @@ function TitulosGroup({ modules }: { modules?: string[] | null }) {
       <div className="flex-1 min-h-0 overflow-hidden">
         {eff === "instrumentos"   && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
         {eff === "assets"         && canMaestro && <TabAssets />}
-        {eff === "ons"            && canMaestro && <TabONs />}
         {eff === "bonos"          && canMaestro && <TabBonos />}
         {eff === "breakevens"     && canMaestro && <TabBreakevens />}
         {eff === "renta_variable" && canMaestro && <TabRentaVariable />}
