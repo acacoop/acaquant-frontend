@@ -26,6 +26,11 @@ export function usePoll<T>(
   // (react-hooks/purity).
   const [lastAt, setLastAt] = useState<number>(0);
   const endpointRef = useRef(endpoint);
+  // Texto crudo del último payload aplicado. Si el poll trae EXACTAMENTE lo
+  // mismo (muy común fuera de rueda o entre trades), NO hacemos setData: la
+  // identidad de `data` se preserva y los useMemo/tablas de los consumidores
+  // no recomputan ni re-diffean nada. Solo se actualiza `lastAt`.
+  const lastRawRef = useRef<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -34,11 +39,13 @@ export function usePoll<T>(
       try {
         const r = await fetch(endpoint, { cache: "no-store" });
         if (!r.ok) return;
-        const j = (await r.json()) as T;
-        if (alive) {
-          setData(j);
-          setLastAt(Date.now());
+        const raw = await r.text();
+        if (!alive) return;
+        if (raw !== lastRawRef.current) {
+          lastRawRef.current = raw;
+          setData(JSON.parse(raw) as T);
         }
+        setLastAt(Date.now());
       } catch {
         // mantener data vieja si falló un poll puntual
       }
@@ -65,6 +72,7 @@ export function usePoll<T>(
   useEffect(() => {
     if (endpoint === endpointRef.current) return;
     endpointRef.current = endpoint;
+    lastRawRef.current = null;
     setData(initial);
     setLastAt(0);
   }, [endpoint, initial]);
