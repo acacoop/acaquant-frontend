@@ -11,7 +11,7 @@ import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
-import { JobsRunsPanel } from "./jobs-runs-panel";
+import { JobsGroup } from "./manager-jobs-panel";
 import { GruposPanel } from "./grupos-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
 import { TabAcaValores } from "./manager-aca-valores-view";
@@ -3110,9 +3110,7 @@ function TabInstrumentos() {
 }
 
 type Tab =
-  | "diagnostico"
-  | "controles"
-  | "jobs"
+  | "observabilidad"
   | "validaciones"
   | "titulos"
   | "clientes"
@@ -3132,6 +3130,46 @@ type Tab =
 
 const GROUP_HEADER = "flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0";
 const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2";
+
+// OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
+// (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
+// el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
+function ObservabilidadGroup({ goTo }: { goTo: (tab: Tab) => void }) {
+  const [sub, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs">(
+    "manager.obs.sub", "controles");
+  const [anomalias, setAnomalias] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/controles?resueltos_dias=0", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { totales?: Record<string, number> } | null) => {
+        if (alive && j?.totales) {
+          setAnomalias(Object.values(j.totales).reduce((s, n) => s + n, 0));
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [sub]); // re-chequea el badge al cambiar de sub-tab (barato: lee la tabla)
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className={GROUP_HEADER}>
+        <span className={GROUP_TITLE}>OBSERVABILIDAD</span>
+        <Pill
+          label={`CONTROLES${anomalias ? ` !${anomalias}` : ""}`}
+          active={sub === "controles"}
+          onClick={() => setSub("controles")}
+        />
+        <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
+        <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "controles"   && <ControlesPanel goTo={(t) => goTo(t as Tab)} />}
+        {sub === "diagnostico" && <DiagnosticoGroup />}
+        {sub === "jobs"        && <JobsGroup />}
+      </div>
+    </div>
+  );
+}
 
 // DIAGNÓSTICO: Motores (rediseñado 50/50) + Recursos + Logs.
 function DiagnosticoGroup() {
@@ -5087,9 +5125,7 @@ function ImportTenenciaPanel() {
 // `manager`. Mantener sincronizado con el gating server-side en
 // api/routers/manager/__init__.py — la API es la fuente de verdad.
 const TAB_MODULES: Record<Tab, string[]> = {
-  diagnostico:  ["manager"],
-  controles:    ["manager"],
-  jobs:         ["manager"],
+  observabilidad: ["manager"],
   validaciones: ["manager"],
   titulos:      ["manager", "manager_titulos", "manager_instrumentos"],
   clientes:     ["manager", "manager_clientes"],
@@ -5235,9 +5271,7 @@ function ComplianceGroup() {
 
 export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   const allTabs: { id: Tab; label: string }[] = [
-    { id: "diagnostico",  label: "DIAGNÓSTICO"  },
-    { id: "controles",    label: "CONTROLES"    },
-    { id: "jobs",         label: "JOBS"         },
+    { id: "observabilidad", label: "OBSERVABILIDAD" },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "titulos",      label: "TÍTULOS"      },
     { id: "clientes",     label: "CLIENTES"     },
@@ -5260,7 +5294,12 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     modules === null ||
     modules.includes("manager") ||
     modules.includes("manager_clientes_bulk");
-  const [tab, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "clientes");
+  const [tabRaw, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "clientes");
+  // Migración de tabs viejas persistidas: diagnostico/controles/jobs se
+  // consolidaron en observabilidad — sin este guard quedaba contenido vacío.
+  const tab: Tab = tabs.some((t) => t.id === tabRaw)
+    ? tabRaw
+    : (tabs[0]?.id ?? "clientes");
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -5274,9 +5313,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "diagnostico"  && <DiagnosticoGroup />}
-        {tab === "controles"    && <ControlesPanel goTo={(t) => setTab(t as Tab)} />}
-        {tab === "jobs"         && <JobsRunsPanel />}
+        {tab === "observabilidad" && <ObservabilidadGroup goTo={setTab} />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
