@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { ControlesPanel } from "./manager-controles-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
 // estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
@@ -3110,6 +3111,7 @@ function TabInstrumentos() {
 
 type Tab =
   | "diagnostico"
+  | "controles"
   | "jobs"
   | "validaciones"
   | "titulos"
@@ -5086,6 +5088,7 @@ function ImportTenenciaPanel() {
 // api/routers/manager/__init__.py — la API es la fuente de verdad.
 const TAB_MODULES: Record<Tab, string[]> = {
   diagnostico:  ["manager"],
+  controles:    ["manager"],
   jobs:         ["manager"],
   validaciones: ["manager"],
   titulos:      ["manager", "manager_titulos", "manager_instrumentos"],
@@ -5233,6 +5236,7 @@ function ComplianceGroup() {
 export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   const allTabs: { id: Tab; label: string }[] = [
     { id: "diagnostico",  label: "DIAGNÓSTICO"  },
+    { id: "controles",    label: "CONTROLES"    },
     { id: "jobs",         label: "JOBS"         },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "titulos",      label: "TÍTULOS"      },
@@ -5271,6 +5275,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {tab === "diagnostico"  && <DiagnosticoGroup />}
+        {tab === "controles"    && <ControlesPanel goTo={(t) => setTab(t as Tab)} />}
         {tab === "jobs"         && <JobsRunsPanel />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
