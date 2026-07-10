@@ -326,8 +326,9 @@ export function IntradayView() {
   };
 
   // Refresca los marks live (precios de mercado) sin re-subir el CSV. Pide al
-  // backend el last actual por especie y actualiza `liveMarks`. Los overrides
-  // manuales (markOv) siguen ganando; sólo se refresca lo no editado a mano.
+  // backend el last actual por especie, actualiza `liveMarks` y PISA los precios
+  // editados a mano en las especies que tienen cotización (los overrides de
+  // especies no mapeadas se preservan: no hay live con qué reemplazarlos).
   const refreshMarks = async () => {
     if (!resultado || refreshing) return;
     const especies = Array.from(new Set(resultado.posiciones.map((p) => p.especie)));
@@ -341,7 +342,19 @@ export function IntradayView() {
       });
       if (r.ok) {
         const data = (await r.json()) as { marks: Record<string, { last: number; updated_at: string | null }> };
-        setLiveMarks(data.marks || {});
+        const marks = data.marks || {};
+        setLiveMarks(marks);
+        // "↻ Cotizaciones" es autoritativo: descarta el precio editado a mano en las
+        // especies que ahora tienen cotización live, así el refresh SÍ actualiza el
+        // mark (antes el override manual quedaba pegado y el botón "no funcionaba").
+        // Los overrides de especies sin live (no mapeadas) se preservan.
+        setMarkOv((prev) => {
+          const next: Record<string, number> = {};
+          for (const [k, v] of Object.entries(prev)) {
+            if (marks[k.split("|")[0]] === undefined) next[k] = v;
+          }
+          return next;
+        });
         setLastRefresh(new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
       }
     } catch {
