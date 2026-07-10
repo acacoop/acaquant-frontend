@@ -52,8 +52,8 @@ const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
 // grilla compartida header/filas → columnas alineadas
 const GRID = "grid grid-cols-[minmax(0,1fr)_72px_58px_58px_58px] gap-x-2 px-4";
-const LBL = "text-[10px] font-semibold tracking-widest text-[var(--t-text-muted)] truncate";
-const HEAD = "text-right text-[9px] tracking-widest text-[var(--t-text-dim)]";
+const LBL = "text-[11px] font-bold tracking-wide text-[var(--t-text)] truncate";
+const HEAD = "text-right text-[9px] font-semibold tracking-widest text-[var(--t-text-dim)]";
 
 function artNow(): { hora: number; esHabil: boolean } {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -75,9 +75,9 @@ function fmtFecha(iso: string | undefined): string {
 
 function Pct({ v }: { v: number | null | undefined }) {
   if (v == null) return <span className="text-right tabular-nums text-[12px] text-[var(--t-text-dim)]">—</span>;
-  const cls = v > 0 ? "text-[var(--t-pos)]" : v < 0 ? "text-[var(--t-neg)]" : "";
+  const cls = v > 0 ? "text-[var(--t-pos)]" : v < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]";
   return (
-    <span className={`text-right tabular-nums text-[12px] ${cls}`}>
+    <span className={`text-right font-semibold tabular-nums text-[12px] ${cls}`}>
       {v > 0 ? "+" : ""}
       {nf.format(v)}%
     </span>
@@ -85,8 +85,8 @@ function Pct({ v }: { v: number | null | undefined }) {
 }
 
 function Hoy({ v }: { v: number | null }) {
-  if (v == null) return <span className="text-right text-[11px] text-[var(--t-text-dim)]">Sin Ops</span>;
-  return <span className="text-right font-mono tabular-nums text-[12px]">{nf.format(v)}</span>;
+  if (v == null) return <span className="text-right text-[11px] font-semibold text-[var(--t-text-dim)]">Sin Ops</span>;
+  return <span className="text-right font-mono font-bold tabular-nums text-[12px] text-[var(--t-text)]">{nf.format(v)}</span>;
 }
 
 function Row({ r }: { r: MetricRow }) {
@@ -107,7 +107,7 @@ function Row({ r }: { r: MetricRow }) {
 
 function Section({ title }: { title: string }) {
   return (
-    <div className="px-4 pt-3 pb-1 text-[9px] font-semibold tracking-widest text-[var(--t-accent)]">
+    <div className="mt-1.5 px-4 py-1.5 bg-[var(--t-surface-2)] border-l-[3px] border-[var(--t-accent)] text-[10px] font-bold tracking-widest text-[var(--t-accent)]">
       {title}
     </div>
   );
@@ -122,7 +122,7 @@ function renderFuturos(rows: MetricRow[]): ReactNode[] {
       out.push(
         <div
           key={`g-${grupo}`}
-          className="px-4 pt-1.5 pb-0.5 text-[9px] font-semibold tracking-wide text-[var(--t-text-dim)]"
+          className="px-4 pt-2 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--t-text-dim)]"
         >
           {grupo}
         </div>,
@@ -272,8 +272,8 @@ export function BriefingModal() {
                       key={b.ticker}
                       className="px-4 py-1.5 border-b border-[var(--t-border-2)] text-[12px]"
                     >
-                      <span className="font-mono font-semibold">{b.ticker}</span>
-                      {b.emisor && <span className="text-[var(--t-text-muted)]"> — {b.emisor}</span>}
+                      <span className="font-mono font-bold text-[var(--t-text)]">{b.ticker}</span>
+                      {b.emisor && <span className="text-[var(--t-text-dim)]"> — {b.emisor}</span>}
                     </div>
                   ))}
                 </>
