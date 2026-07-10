@@ -51,7 +51,7 @@ const POLL_MS = 60_000;
 const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
 // grilla compartida header/filas → columnas alineadas
-const GRID = "grid grid-cols-[minmax(0,1fr)_72px_58px_58px_58px] gap-x-2 px-4";
+const GRID = "grid grid-cols-[minmax(0,1fr)_68px_54px_54px_54px] gap-x-2 px-3";
 const LBL = "text-[11px] font-bold tracking-wide text-[var(--t-text)] truncate";
 const HEAD = "text-right text-[9px] font-semibold tracking-widest text-[var(--t-text-dim)]";
 
@@ -107,8 +107,20 @@ function Row({ r }: { r: MetricRow }) {
 
 function Section({ title }: { title: string }) {
   return (
-    <div className="mt-1.5 px-4 py-1.5 bg-[var(--t-surface-2)] border-l-[3px] border-[var(--t-accent)] text-[10px] font-bold tracking-widest text-[var(--t-accent)]">
+    <div className="px-3 py-1.5 bg-[var(--t-surface-2)] border-l-[3px] border-[var(--t-accent)] text-[10px] font-bold tracking-widest text-[var(--t-accent)]">
       {title}
+    </div>
+  );
+}
+
+function ColHeader() {
+  return (
+    <div className={`${GRID} py-1 border-b border-[var(--t-border-2)] bg-[var(--t-bg)]`}>
+      <span />
+      <span className={HEAD}>HOY</span>
+      <span className={HEAD}>1D</span>
+      <span className={HEAD}>WTD</span>
+      <span className={HEAD}>MTD</span>
     </div>
   );
 }
@@ -220,7 +232,7 @@ export function BriefingModal() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden"
+            className="w-full max-w-4xl bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--t-border)]">
@@ -237,47 +249,53 @@ export function BriefingModal() {
               </button>
             </div>
 
-            <div className="overflow-y-auto max-h-[72vh]">
-              {/* Cabecera de columnas */}
-              <div className={`${GRID} py-1 border-b border-[var(--t-border-2)] bg-[var(--t-bg)]`}>
-                <span />
-                <span className={HEAD}>HOY</span>
-                <span className={HEAD}>1D</span>
-                <span className={HEAD}>WTD</span>
-                <span className={HEAD}>MTD</span>
+            <div className="overflow-y-auto max-h-[82vh] p-3">
+              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-x-5 gap-y-3">
+                {/* IZQUIERDA — Futuros (el bloque grande) */}
+                <div className="self-start">
+                  <Section title="FUTUROS" />
+                  <ColHeader />
+                  {renderFuturos(data.futuros)}
+                </div>
+
+                {/* DERECHA — dólares + bonos, siempre visibles (no enterrados) */}
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <Section title="DÓLAR OFICIAL" />
+                    <ColHeader />
+                    {data.oficial.map((r) => (
+                      <Row key={r.label} r={r} />
+                    ))}
+                  </div>
+
+                  <div>
+                    <Section title="DÓLARES FINANCIEROS" />
+                    <ColHeader />
+                    {data.financieros.map((r) => (
+                      <Row key={r.label} r={r} />
+                    ))}
+                  </div>
+
+                  <div>
+                    <Section title="BONOS QUE PAGAN HOY" />
+                    {data.pagan_hoy.length > 0 ? (
+                      data.pagan_hoy.map((b) => (
+                        <div
+                          key={b.ticker}
+                          className="px-3 py-1.5 border-b border-[var(--t-border-2)] text-[12px]"
+                        >
+                          <span className="font-mono font-bold text-[var(--t-text)]">{b.ticker}</span>
+                          {b.emisor && <span className="text-[var(--t-text-dim)]"> — {b.emisor}</span>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-[11px] text-[var(--t-text-dim)]">
+                        Hoy no paga ningún bono en cartera.
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-
-              {/* FUTUROS (agrupados) */}
-              <Section title="FUTUROS" />
-              {renderFuturos(data.futuros)}
-
-              {/* DÓLAR OFICIAL (mayorista MAE + A3500) */}
-              <Section title="DÓLAR OFICIAL" />
-              {data.oficial.map((r) => (
-                <Row key={r.label} r={r} />
-              ))}
-
-              {/* DÓLARES FINANCIEROS (MEP/CCL) */}
-              <Section title="DÓLARES FINANCIEROS" />
-              {data.financieros.map((r) => (
-                <Row key={r.label} r={r} />
-              ))}
-
-              {/* BONOS QUE PAGAN HOY (solo si hay) */}
-              {data.pagan_hoy.length > 0 && (
-                <>
-                  <Section title="BONOS QUE PAGAN HOY" />
-                  {data.pagan_hoy.map((b) => (
-                    <div
-                      key={b.ticker}
-                      className="px-4 py-1.5 border-b border-[var(--t-border-2)] text-[12px]"
-                    >
-                      <span className="font-mono font-bold text-[var(--t-text)]">{b.ticker}</span>
-                      {b.emisor && <span className="text-[var(--t-text-dim)]"> — {b.emisor}</span>}
-                    </div>
-                  ))}
-                </>
-              )}
             </div>
 
             {/* Footer */}
