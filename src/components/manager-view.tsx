@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { ControlesPanel } from "./manager-controles-panel";
+import { IaPanel } from "./manager-ia-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
 // estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
@@ -3134,9 +3135,14 @@ const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] trackin
 // OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
 // (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
 // el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
-function ObservabilidadGroup({ goTo }: { goTo: (tab: Tab) => void }) {
-  const [sub, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs">(
+function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
+  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "ia">(
     "manager.obs.sub", "controles");
+  // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
+  // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
+  // al rol, no dejar la tab clavada en contenido inaccesible.
+  const canIa = modules == null || modules.includes("ia");
+  const sub = subRaw === "ia" && !canIa ? "controles" : subRaw;
   const [anomalias, setAnomalias] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
@@ -3161,11 +3167,13 @@ function ObservabilidadGroup({ goTo }: { goTo: (tab: Tab) => void }) {
         />
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
+        {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "controles"   && <ControlesPanel goTo={(t) => goTo(t as Tab)} />}
         {sub === "diagnostico" && <DiagnosticoGroup />}
         {sub === "jobs"        && <JobsGroup />}
+        {sub === "ia"          && <IaPanel />}
       </div>
     </div>
   );
@@ -5213,7 +5221,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "observabilidad" && <ObservabilidadGroup goTo={setTab} />}
+        {tab === "observabilidad" && <ObservabilidadGroup goTo={setTab} modules={modules} />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
