@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BriefingModal } from "@/components/briefing-modal";
 import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
 import { RetornoTotalMini, type Curva, type Ventana } from "@/components/retorno-total-mini";
@@ -204,6 +205,9 @@ export function HomeView() {
           </div>
         </div>
       </div>
+
+      {/* Briefing de apertura (modal 10:00 ART + botón de re-lectura) — solo módulo `ia` */}
+      <BriefingModal />
 
       {/* Overlay fullscreen del chart */}
       {maximized && (

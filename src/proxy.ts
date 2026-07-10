@@ -42,6 +42,8 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/portfolio", ["portfolios"]],
   ["/api/titulos", ["portfolios"]],
   ["/back-office", ["back-office"]],
+  // /api/ia (briefing + observabilidad IA) — módulo `ia` (marca AI, QuantAI)
+  ["/api/ia", ["ia"]],
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
   ["/renta-variable", ["renta-variable"]],
   ["/api/scanner",    ["renta-variable"]],
