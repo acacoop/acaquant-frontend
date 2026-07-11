@@ -67,6 +67,7 @@ interface ObsResp {
 interface PresupuestosResp {
   global_dia: number;
   usuario_dia: number;
+  excepciones: { usuario: string; valor: number }[];
   editado: { por: string | null; cuando: string } | null;
 }
 
@@ -111,6 +112,9 @@ export function IaPanel() {
   const [presMsg, setPresMsg] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [saldo, setSaldo] = useState<SaldoResp | null>(null);
+  const [excepciones, setExcepciones] = useState<PresupuestosResp["excepciones"]>([]);
+  const [excEmail, setExcEmail] = useState("");
+  const [excValor, setExcValor] = useState("");
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -125,6 +129,7 @@ export function IaPanel() {
         setPresGlobal(String(p.global_dia));
         setPresUsuario(String(p.usuario_dia));
         setPresEditado(p.editado);
+        setExcepciones(p.excepciones ?? []);
       }
       const rs = await fetch("/api/ia/saldo", { cache: "no-store" });
       if (rs.ok) setSaldo((await rs.json()) as SaldoResp);
@@ -163,6 +168,30 @@ export function IaPanel() {
       setGuardando(false);
     }
   }, [presGlobal, presUsuario, cargar]);
+
+  const guardarExcepcion = useCallback(async (email: string, valor: number | null) => {
+    setPresMsg(null);
+    try {
+      const res = await fetch("/api/ia/presupuesto/usuario", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, valor }),
+      });
+      const j = await res.json();
+      if (res.status === 403) {
+        setPresMsg("solo un admin puede editar excepciones");
+      } else if (!res.ok) {
+        setPresMsg(typeof j?.detail === "string" ? j.detail : `HTTP ${res.status}`);
+      } else {
+        setExcepciones((j as PresupuestosResp).excepciones ?? []);
+        setExcEmail("");
+        setExcValor("");
+        setPresMsg("guardado ✓ (rige en la próxima llamada)");
+      }
+    } catch (e) {
+      setPresMsg(e instanceof Error ? e.message : "error");
+    }
+  }, []);
 
   useEffect(() => {
     // Mismo patrón que ControlesPanel: carga inicial al montar.
@@ -219,6 +248,46 @@ export function IaPanel() {
               última edición: {presEditado.por ?? "—"} · {fmtTs(presEditado.cuando)}
             </div>
           )}
+
+          <div className="border-t border-[var(--t-border)] pt-3 space-y-1.5">
+            <div className="text-[10px] text-[var(--t-text-muted)] tracking-widest">
+              EXCEPCIONES POR USUARIO <span className="normal-case">(pisan el tope general)</span>
+            </div>
+            {excepciones.map((e) => (
+              <div key={e.usuario} className="flex items-center gap-2 text-[11px]">
+                <span className="text-[var(--t-text)]">{e.usuario}</span>
+                <span className="tabular-nums text-[var(--t-text-dim)]">{nf.format(e.valor)}</span>
+                <button
+                  onClick={() => void guardarExcepcion(e.usuario, null)}
+                  className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)]"
+                  title="Borrar excepción (vuelve al tope general)"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            <div className="flex items-center gap-2">
+              <input
+                value={excEmail}
+                onChange={(e) => setExcEmail(e.target.value)}
+                placeholder="email@…"
+                className="flex-1 min-w-0 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[11px] font-mono outline-none focus:border-[var(--t-accent)]"
+              />
+              <input
+                value={excValor}
+                onChange={(e) => setExcValor(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="tokens/día"
+                className="w-28 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-right tabular-nums text-[11px] font-mono outline-none focus:border-[var(--t-accent)]"
+              />
+              <button
+                onClick={() => void guardarExcepcion(excEmail.trim().toLowerCase(), Number(excValor))}
+                disabled={!excEmail.includes("@") || !excValor}
+                className="px-2 py-1 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40 transition-colors"
+              >
+                AGREGAR
+              </button>
+            </div>
+          </div>
 
           <div className="border-t border-[var(--t-border)] pt-3 space-y-1">
             <div className="text-[10px] text-[var(--t-text-muted)] tracking-widest">USADO HOY</div>
