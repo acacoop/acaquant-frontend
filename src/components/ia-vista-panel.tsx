@@ -25,7 +25,7 @@ type Mensaje = {
   trazaId?: number | null;
   fuente?: Fuente;
   fb?: 1 | -1;
-  sinRespaldo?: number; // números de la respuesta sin respaldo en los datos
+  sinRespaldo?: string[]; // números de la respuesta sin respaldo en los datos
 };
 
 const MAX_HISTORIAL = 4;
@@ -117,7 +117,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
             texto: j.respuesta,
             trazaId: j.traza_id,
             fuente: j.fuente,
-            sinRespaldo: j.numeros_sin_respaldo || 0,
+            sinRespaldo: Array.isArray(j.numeros_sin_respaldo) ? j.numeros_sin_respaldo : [],
           },
         ]);
       } else {
@@ -212,10 +212,10 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                 ) : (
                   <div key={i} className="text-[11px] leading-relaxed text-[var(--t-text)] px-3 py-2 border-l-2 border-[var(--t-accent)] whitespace-pre-wrap mr-4">
                     {conNegritas(m.texto)}
-                    {(m.sinRespaldo ?? 0) > 0 && (
+                    {(m.sinRespaldo?.length ?? 0) > 0 && (
                       <div className="mt-1.5 text-[10px] text-[var(--t-neg)]">
-                        ⚠ {m.sinRespaldo} número{m.sinRespaldo === 1 ? "" : "s"} de esta
-                        respuesta no se pudo verificar contra los datos — tomalo con pinzas.
+                        ⚠ No pude verificar contra los datos:{" "}
+                        {m.sinRespaldo!.join(", ")} — tomalo con pinzas.
                       </div>
                     )}
                     <div className="mt-2 flex items-center gap-2 text-[10px] text-[var(--t-text-dim)]">
