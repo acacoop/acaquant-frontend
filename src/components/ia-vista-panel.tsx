@@ -29,6 +29,21 @@ type Mensaje = {
 
 const MAX_HISTORIAL = 4;
 
+/** Render mínimo: solo **negrita** (el modelo la usa aunque pidamos texto
+ * plano — mejor mostrarla bien que mostrar asteriscos crudos). */
+function conNegritas(texto: string) {
+  const partes = texto.split(/\*\*([^*]+)\*\*/g);
+  return partes.map((p, i) =>
+    i % 2 === 1 ? (
+      <strong key={i} className="font-semibold text-[var(--t-accent)]">
+        {p}
+      </strong>
+    ) : (
+      p
+    ),
+  );
+}
+
 export function IaVistaPanel({ vista }: { vista: string }) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
@@ -138,10 +153,10 @@ export function IaVistaPanel({ vista }: { vista: string }) {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 bg-[var(--t-panel)] border border-[var(--t-border)] text-[var(--t-accent)] text-[11px] tracking-wider font-semibold hover:border-[var(--t-accent)]"
-        title="Preguntale a la IA sobre esta tabla"
+        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-2 bg-[var(--t-accent)] text-[var(--t-bg)] text-[11px] tracking-wider font-bold uppercase shadow-lg shadow-[var(--t-accent)]/25 hover:brightness-110 transition"
+        title="Consultale a la IA sobre los datos de esta vista"
       >
-        <Sparkles size={12} /> IA
+        <Sparkles size={13} /> Consultale a la IA
       </button>
 
       {open && (
@@ -155,7 +170,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
             <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--t-border)] shrink-0">
               <Sparkles size={13} className="text-[var(--t-accent)]" />
               <span className="text-[12px] tracking-wider text-[var(--t-accent)] font-semibold uppercase">
-                Copiloto — esta tabla
+                Copiloto IA
               </span>
               <button
                 onClick={() => setOpen(false)}
@@ -190,7 +205,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                   </div>
                 ) : (
                   <div key={i} className="text-[11px] leading-relaxed text-[var(--t-text)] px-3 py-2 border-l-2 border-[var(--t-accent)] whitespace-pre-wrap mr-4">
-                    {m.texto}
+                    {conNegritas(m.texto)}
                     <div className="mt-2 flex items-center gap-2 text-[10px] text-[var(--t-text-dim)]">
                       {m.fuente && (
                         <span>
