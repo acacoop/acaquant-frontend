@@ -182,6 +182,8 @@ export function IaVistaPanel({ vista }: { vista: string }) {
             "Alcanzaste tu límite diario de IA. Un admin puede subirlo en Manager → OBSERVABILIDAD → IA.",
           presupuesto_global:
             "El sistema alcanzó su tope diario de IA — se renueva a medianoche UTC.",
+          verificacion:
+            "La respuesta no pasó la verificación contra los datos, así que no se muestra. Reformulá la pregunta o pedime papeles puntuales.",
         };
         setMensajes((prev) => [
           ...prev,
