@@ -70,6 +70,11 @@ interface PresupuestosResp {
   editado: { por: string | null; cuando: string } | null;
 }
 
+interface SaldoResp {
+  disponible: boolean | null;
+  saldos: { moneda: string | null; total: string | null; otorgado: string | null; cargado: string | null }[];
+}
+
 const nf = new Intl.NumberFormat("es-AR");
 
 function fmtTs(iso: string): string {
@@ -105,6 +110,7 @@ export function IaPanel() {
   const [presEditado, setPresEditado] = useState<PresupuestosResp["editado"]>(null);
   const [presMsg, setPresMsg] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [saldo, setSaldo] = useState<SaldoResp | null>(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -120,6 +126,8 @@ export function IaPanel() {
         setPresUsuario(String(p.usuario_dia));
         setPresEditado(p.editado);
       }
+      const rs = await fetch("/api/ia/saldo", { cache: "no-store" });
+      if (rs.ok) setSaldo((await rs.json()) as SaldoResp);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "error");
     } finally {
@@ -232,6 +240,31 @@ export function IaPanel() {
               </>
             ) : (
               <div className="text-[11px] text-[var(--t-text-dim)]">—</div>
+            )}
+          </div>
+
+          <div className="border-t border-[var(--t-border)] pt-3 space-y-1">
+            <div className="text-[10px] text-[var(--t-text-muted)] tracking-widest">
+              SALDO DEEPSEEK <span className="normal-case">(real, de la cuenta del proveedor)</span>
+            </div>
+            {saldo && saldo.saldos.length > 0 ? (
+              <>
+                {saldo.saldos.map((s, i) => (
+                  <div key={i} className="text-[16px] tabular-nums">
+                    {s.moneda} {s.total ?? "—"}
+                    <span className="ml-2 text-[10px] text-[var(--t-text-dim)]">
+                      cargado {s.cargado ?? "—"} · otorgado {s.otorgado ?? "—"}
+                    </span>
+                  </div>
+                ))}
+                {saldo.disponible != null && (
+                  <div className={`text-[10px] ${saldo.disponible ? "text-[var(--t-pos)]" : "text-[var(--t-neg)] font-bold"}`}>
+                    {saldo.disponible ? "● alcanza para operar (según el proveedor)" : "● SALDO INSUFICIENTE según el proveedor — recargar"}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-[11px] text-[var(--t-text-dim)]">sin dato (key ausente o proveedor sin respuesta)</div>
             )}
           </div>
         </div>
