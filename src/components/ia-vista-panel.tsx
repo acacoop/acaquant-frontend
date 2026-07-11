@@ -202,12 +202,6 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                   <div key={i} className="text-[11px] leading-relaxed text-[var(--t-text)] px-3 py-2 border-l-2 border-[var(--t-accent)] whitespace-pre-wrap mr-4">
                     {conNegritas(m.texto)}
                     <div className="mt-2 flex items-center gap-2 text-[10px] text-[var(--t-text-dim)]">
-                      {m.fuente && (
-                        <span>
-                          📊 {m.fuente.titulo} · {m.fuente.filas} instrumentos ·{" "}
-                          {m.fuente.generado.slice(11, 16)} UTC
-                        </span>
-                      )}
                       {m.trazaId != null && (
                         <span className="ml-auto flex items-center gap-1.5">
                           <button
