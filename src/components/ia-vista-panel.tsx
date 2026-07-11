@@ -45,6 +45,51 @@ function conNegritas(texto: string) {
   );
 }
 
+/** Render de la respuesta: texto plano + tablas markdown simples (pedido del
+ * user: los datos en tabla, la lectura abajo). Sin librerías: líneas
+ * consecutivas que empiezan con "|" se agrupan como tabla. */
+function renderRespuesta(texto: string) {
+  const lineas = texto.split("\n");
+  const bloques: { tabla: boolean; lineas: string[] }[] = [];
+  for (const l of lineas) {
+    const esTabla = l.trim().startsWith("|");
+    const ult = bloques[bloques.length - 1];
+    if (ult && ult.tabla === esTabla) ult.lineas.push(l);
+    else bloques.push({ tabla: esTabla, lineas: [l] });
+  }
+  return bloques.map((b, bi) => {
+    if (!b.tabla) return <span key={bi}>{conNegritas(b.lineas.join("\n"))}</span>;
+    const filas = b.lineas
+      .map((l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()))
+      .filter((celdas) => !celdas.every((c) => /^:?-{2,}:?$/.test(c) || c === ""));
+    if (filas.length === 0) return null;
+    return (
+      <table key={bi} className="my-1.5 w-full text-[10px] font-mono border-collapse">
+        <thead>
+          <tr className="border-b border-[var(--t-border)]">
+            {filas[0].map((c, i) => (
+              <th key={i} className="px-1.5 py-0.5 text-left text-[9px] text-[var(--t-text-muted)] tracking-wider">
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.slice(1).map((celdas, ri) => (
+            <tr key={ri} className="border-b border-[var(--t-border-2)]">
+              {celdas.map((c, ci) => (
+                <td key={ci} className={"px-1.5 py-0.5 " + (ci > 0 ? "text-right tabular-nums" : "")}>
+                  {conNegritas(c)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  });
+}
+
 type Chip = { label: string; pregunta: string };
 
 export function IaVistaPanel({ vista }: { vista: string }) {
@@ -219,7 +264,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                   </div>
                 ) : (
                   <div key={i} className="text-[11px] leading-relaxed text-[var(--t-text)] px-3 py-2 border-l-2 border-[var(--t-accent)] whitespace-pre-wrap mr-4">
-                    {conNegritas(m.texto)}
+                    {renderRespuesta(m.texto)}
                     {(m.sinRespaldo?.length ?? 0) > 0 && (
                       <div className="mt-1.5 text-[10px] text-[var(--t-neg)]">
                         ⚠ No pude verificar contra los datos:{" "}
