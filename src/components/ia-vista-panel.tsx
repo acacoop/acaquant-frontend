@@ -185,14 +185,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {mensajes.length === 0 && (
                 <div className="text-[11px] text-[var(--t-text-dim)] leading-relaxed">
-                  Preguntá sobre los datos de esta vista: “¿qué CEDEARs suben
-                  más en dólares hoy?”, “¿cómo está NVDA contra sus pivots?”,
-                  “¿qué beta tiene MELI?”, “¿cómo viene el sector energía?”.
-                  <br />
-                  <br />
-                  Nombrá el ticker para que traiga su detalle (pivots, quant,
-                  retornos, fundamentals). Responde SOLO con los datos de la
-                  vista — si algo no está, lo dice.
+                  ¿En qué puedo ayudarte?
                 </div>
               )}
               {mensajes.map((m, i) =>
