@@ -135,11 +135,13 @@ export function IaVistaPanel({ vista }: { vista: string }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [mensajes, pensando]);
 
-  const enviar = useCallback(async (texto?: string) => {
+  const enviar = useCallback(async (texto?: string, etiqueta?: string) => {
     const q = (texto ?? pregunta).trim();
     if (!q || pensando) return;
     setPregunta("");
-    setMensajes((prev) => [...prev, { rol: "user", texto: q }]);
+    // los chips muestran su etiqueta limpia en el chat; el prompt curado
+    // completo viaja al backend por atrás
+    setMensajes((prev) => [...prev, { rol: "user", texto: etiqueta ?? q }]);
     setPensando(true);
 
     // Historial: últimos pares user→ia completos (los errores no cuentan).
@@ -310,7 +312,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                   {chips.map((c) => (
                     <button
                       key={c.label}
-                      onClick={() => void enviar(c.pregunta)}
+                      onClick={() => void enviar(c.pregunta, c.label)}
                       disabled={pensando}
                       className="px-2 py-0.5 text-[9px] font-semibold tracking-wide border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40 transition-colors"
                     >
