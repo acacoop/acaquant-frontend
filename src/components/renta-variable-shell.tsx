@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { FundamentalAnalysisView } from "./fundamental-analysis-view";
+import { IaVistaPanel } from "./ia-vista-panel";
 import { ScannerView } from "./scanner-view";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
@@ -53,6 +54,11 @@ export function RentaVariableShell({
           <FundamentalAnalysisView />
         )}
       </div>
+
+      {/* Copiloto IA de la VISTA completa (QuantAI P3): tabla + CCL + detalle
+          por ticker mencionado (pivots/quant/retornos/fundamentals). Vive en
+          el shell para estar presente en las dos tabs. */}
+      <IaVistaPanel vista="renta_variable" />
     </div>
   );
 }

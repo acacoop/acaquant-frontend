@@ -4,7 +4,6 @@ import { useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 import { Panel } from "./panel";
 import { CedearsScannerTable } from "./cedears-scanner-table";
-import { IaVistaPanel } from "./ia-vista-panel";
 import { MetricasPanel, rubroDe } from "./metricas-panel";
 import { TickerChartPanel } from "./ticker-chart-panel";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
@@ -86,10 +85,6 @@ export function ScannerView({
           </Panel>
         </div>
       </div>
-
-      {/* Copiloto IA contextual (QuantAI P3): botón ✦ IA + drawer. Solo se
-          renderiza si el backend habilita la vista (módulo ia + renta-variable). */}
-      <IaVistaPanel vista="cedears" />
     </div>
   );
 }

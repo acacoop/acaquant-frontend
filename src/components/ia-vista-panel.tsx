@@ -185,13 +185,14 @@ export function IaVistaPanel({ vista }: { vista: string }) {
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {mensajes.length === 0 && (
                 <div className="text-[11px] text-[var(--t-text-dim)] leading-relaxed">
-                  Preguntá sobre los datos de esta tabla: “¿qué CEDEARs suben
-                  más en dólares hoy?”, “¿cuál tiene menos spread?”, “¿cómo
-                  viene el sector energía?”.
+                  Preguntá sobre los datos de esta vista: “¿qué CEDEARs suben
+                  más en dólares hoy?”, “¿cómo está NVDA contra sus pivots?”,
+                  “¿qué beta tiene MELI?”, “¿cómo viene el sector energía?”.
                   <br />
                   <br />
-                  Responde SOLO con lo que hay en la tabla — si el dato no
-                  está, lo dice.
+                  Nombrá el ticker para que traiga su detalle (pivots, quant,
+                  retornos, fundamentals). Responde SOLO con los datos de la
+                  vista — si algo no está, lo dice.
                 </div>
               )}
               {mensajes.map((m, i) =>
@@ -253,7 +254,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                   onChange={(e) => setPregunta(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && enviar()}
                   maxLength={500}
-                  placeholder="Preguntá sobre esta tabla…"
+                  placeholder="Preguntá sobre esta vista…"
                   className="flex-1 bg-[var(--t-bg)] border border-[var(--t-border)] px-3 py-2 text-[11px] font-mono text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
                 />
                 <button
@@ -266,7 +267,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                 </button>
               </div>
               <div className="mt-1.5 text-[9px] text-[var(--t-text-dim)]">
-                Respuestas generadas por IA sobre los datos de esta tabla —
+                Respuestas generadas por IA sobre los datos de esta vista —
                 verificá antes de operar.
               </div>
             </div>
