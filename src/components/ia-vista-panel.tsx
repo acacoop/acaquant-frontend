@@ -114,14 +114,18 @@ export function IaVistaPanel({ vista }: { vista: string }) {
           { rol: "ia", texto: j.respuesta, trazaId: j.traza_id, fuente: j.fuente },
         ]);
       } else {
+        const msgs: Record<string, string> = {
+          datos_no_disponibles: "No hay datos de la tabla en este momento.",
+          presupuesto_usuario:
+            "Alcanzaste tu límite diario de IA. Un admin puede subirlo en Manager → OBSERVABILIDAD → IA.",
+          presupuesto_global:
+            "El sistema alcanzó su tope diario de IA — se renueva a medianoche UTC.",
+        };
         setMensajes((prev) => [
           ...prev,
           {
             rol: "error",
-            texto:
-              j?.error === "datos_no_disponibles"
-                ? "No hay datos de la tabla en este momento."
-                : "IA no disponible en este momento — probá más tarde.",
+            texto: msgs[j?.error as string] ?? "IA no disponible en este momento — probá más tarde.",
           },
         ]);
       }
