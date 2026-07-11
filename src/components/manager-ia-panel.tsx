@@ -78,10 +78,22 @@ const TD = "px-2 py-0.5 whitespace-nowrap";
 const TDR = `${TD} text-right tabular-nums`;
 const SECTION = "text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest px-3 pt-3 pb-1";
 
+interface PresupuestosResp {
+  global_dia: number;
+  usuario_dia: number;
+  editado: { por: string | null; cuando: string } | null;
+}
+
 export function IaPanel() {
   const [data, setData] = useState<ObsResp | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Límites de gasto (ia.config, editable solo admin)
+  const [presGlobal, setPresGlobal] = useState("");
+  const [presUsuario, setPresUsuario] = useState("");
+  const [presEditado, setPresEditado] = useState<PresupuestosResp["editado"]>(null);
+  const [presMsg, setPresMsg] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -90,12 +102,48 @@ export function IaPanel() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData((await res.json()) as ObsResp);
       setErr(null);
+      const rp = await fetch("/api/ia/presupuesto", { cache: "no-store" });
+      if (rp.ok) {
+        const p = (await rp.json()) as PresupuestosResp;
+        setPresGlobal(String(p.global_dia));
+        setPresUsuario(String(p.usuario_dia));
+        setPresEditado(p.editado);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const guardarPresupuestos = useCallback(async () => {
+    setGuardando(true);
+    setPresMsg(null);
+    try {
+      const res = await fetch("/api/ia/presupuesto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          global_dia: Number(presGlobal) || null,
+          usuario_dia: Number(presUsuario) || null,
+        }),
+      });
+      const j = await res.json();
+      if (res.status === 403) {
+        setPresMsg("solo un admin puede editar los límites");
+      } else if (!res.ok) {
+        setPresMsg(typeof j?.detail === "string" ? j.detail : `HTTP ${res.status}`);
+      } else {
+        setPresMsg("guardado ✓ (rige en la próxima llamada)");
+        setPresEditado((j as PresupuestosResp).editado);
+        void cargar(); // refresca el % del header con el tope nuevo
+      }
+    } catch (e) {
+      setPresMsg(e instanceof Error ? e.message : "error");
+    } finally {
+      setGuardando(false);
+    }
+  }, [presGlobal, presUsuario, cargar]);
 
   useEffect(() => {
     // Mismo patrón que ControlesPanel: carga inicial al montar.
@@ -142,6 +190,44 @@ export function IaPanel() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
+        {/* Límites de gasto (ia.config — techo GLOBAL duro + tope por usuario) */}
+        <div className={SECTION}>LÍMITES DE GASTO (tokens/día · solo admin)</div>
+        <div className="px-3 flex items-center gap-3 flex-wrap text-[11px] font-mono">
+          <label className="flex items-center gap-1.5">
+            <span className="text-[var(--t-text-muted)] text-[10px]">GLOBAL (techo duro)</span>
+            <input
+              value={presGlobal}
+              onChange={(e) => setPresGlobal(e.target.value.replace(/[^0-9]/g, ""))}
+              className="w-28 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-0.5 text-right tabular-nums outline-none focus:border-[var(--t-accent)]"
+            />
+          </label>
+          <label className="flex items-center gap-1.5">
+            <span className="text-[var(--t-text-muted)] text-[10px]">POR USUARIO (≤ global)</span>
+            <input
+              value={presUsuario}
+              onChange={(e) => setPresUsuario(e.target.value.replace(/[^0-9]/g, ""))}
+              className="w-28 bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-0.5 text-right tabular-nums outline-none focus:border-[var(--t-accent)]"
+            />
+          </label>
+          <button
+            onClick={() => void guardarPresupuestos()}
+            disabled={guardando || !presGlobal || !presUsuario}
+            className="px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40 transition-colors"
+          >
+            {guardando ? "GUARDANDO…" : "GUARDAR"}
+          </button>
+          {presMsg && (
+            <span className={`text-[10px] ${presMsg.startsWith("guardado") ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
+              {presMsg}
+            </span>
+          )}
+          {presEditado && (
+            <span className="text-[10px] text-[var(--t-text-dim)] ml-auto">
+              última edición: {presEditado.por ?? "—"} · {fmtTs(presEditado.cuando)}
+            </span>
+          )}
+        </div>
+
         {/* Por tarea */}
         <div className={SECTION}>POR TAREA (últimos {data?.ventana_dias ?? 14} días)</div>
         <div className="px-3 overflow-x-auto">
