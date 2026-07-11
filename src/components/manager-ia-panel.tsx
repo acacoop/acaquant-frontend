@@ -27,6 +27,7 @@ interface TrazaRow {
   feedback: number | null;
   detalle: string | null;
   respuesta: string | null;
+  razonamiento: string | null;
 }
 
 interface PorDiaRow {
@@ -502,6 +503,12 @@ export function IaPanel() {
                     {sel.respuesta ?? <span className="text-[var(--t-text-dim)]">—</span>}
                   </div>
                 </div>
+                {sel.razonamiento && (
+                  <div>
+                    <div className={`${LBL} mb-1`}>RAZONAMIENTO (interno del modelo)</div>
+                    <div className="whitespace-pre-wrap text-[var(--t-text-dim)]">{sel.razonamiento}</div>
+                  </div>
+                )}
               </>
             )}
           </div>
