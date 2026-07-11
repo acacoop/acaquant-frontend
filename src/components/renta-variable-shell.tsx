@@ -46,6 +46,11 @@ export function RentaVariableShell({
             {label}
           </button>
         ))}
+        {/* Copiloto IA de la VISTA completa (QuantAI P3): botón al margen
+            derecho de la barra + drawer. Oculto sin módulo `ia`. */}
+        <div className="ml-auto">
+          <IaVistaPanel vista="renta_variable" />
+        </div>
       </div>
       <div className="flex-1 min-h-0">
         {tab === "scanner" ? (
@@ -54,11 +59,6 @@ export function RentaVariableShell({
           <FundamentalAnalysisView />
         )}
       </div>
-
-      {/* Copiloto IA de la VISTA completa (QuantAI P3): tabla + CCL + detalle
-          por ticker mencionado (pivots/quant/retornos/fundamentals). Vive en
-          el shell para estar presente en las dos tabs. */}
-      <IaVistaPanel vista="renta_variable" />
     </div>
   );
 }

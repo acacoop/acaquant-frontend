@@ -151,12 +151,13 @@ export function IaVistaPanel({ vista }: { vista: string }) {
 
   return (
     <>
+      {/* Trigger inline: lo posiciona el padre (ej. ml-auto en la barra de tabs) */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 px-4 py-2 bg-[var(--t-accent)] text-[var(--t-bg)] text-[11px] tracking-wider font-bold uppercase shadow-lg shadow-[var(--t-accent)]/25 hover:brightness-110 transition"
+        className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--t-accent)] text-[var(--t-bg)] text-[10px] tracking-wider font-bold uppercase rounded-sm hover:brightness-110 transition"
         title="Consultale a la IA sobre los datos de esta vista"
       >
-        <Sparkles size={13} /> Consultale a la IA
+        <Sparkles size={11} /> Consultale a la IA
       </button>
 
       {open && (
