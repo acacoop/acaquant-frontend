@@ -45,25 +45,33 @@ function conNegritas(texto: string) {
   );
 }
 
+type Chip = { label: string; pregunta: string };
+
 export function IaVistaPanel({ vista }: { vista: string }) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [pregunta, setPregunta] = useState("");
   const [pensando, setPensando] = useState(false);
+  const [chips, setChips] = useState<Chip[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Probe de habilitación: el backend decide (módulo ia + módulo de la vista).
+  // De paso trae los chips (consultas de mesa curadas, versionadas en el repo).
   useEffect(() => {
     let cancelled = false;
     fetch("/api/ia/copiloto/vistas", { cache: "no-store" })
       .then(async (r) => {
-        if (!r.ok) return false;
+        if (!r.ok) return null;
         const j = await r.json();
-        return (j?.vistas ?? []).some((v: { vista: string }) => v.vista === vista);
+        return (j?.vistas ?? []).find((v: { vista: string }) => v.vista === vista) ?? null;
       })
-      .then((ok) => !cancelled && setAllowed(ok))
+      .then((v) => {
+        if (cancelled) return;
+        setAllowed(!!v);
+        setChips((v?.chips as Chip[]) ?? []);
+      })
       .catch(() => !cancelled && setAllowed(false));
     return () => {
       cancelled = true;
@@ -82,8 +90,8 @@ export function IaVistaPanel({ vista }: { vista: string }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [mensajes, pensando]);
 
-  const enviar = useCallback(async () => {
-    const q = pregunta.trim();
+  const enviar = useCallback(async (texto?: string) => {
+    const q = (texto ?? pregunta).trim();
     if (!q || pensando) return;
     setPregunta("");
     setMensajes((prev) => [...prev, { rol: "user", texto: q }]);
@@ -252,6 +260,20 @@ export function IaVistaPanel({ vista }: { vista: string }) {
 
             {/* Input */}
             <div className="border-t border-[var(--t-border)] p-3 shrink-0">
+              {chips.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {chips.map((c) => (
+                    <button
+                      key={c.label}
+                      onClick={() => void enviar(c.pregunta)}
+                      disabled={pensando}
+                      className="px-2 py-0.5 text-[9px] font-semibold tracking-wide border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40 transition-colors"
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <input
                   ref={inputRef}
@@ -263,7 +285,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
                   className="flex-1 bg-[var(--t-bg)] border border-[var(--t-border)] px-3 py-2 text-[11px] font-mono text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
                 />
                 <button
-                  onClick={enviar}
+                  onClick={() => void enviar()}
                   disabled={pensando || !pregunta.trim()}
                   className="p-2 border border-[var(--t-border)] text-[var(--t-accent)] hover:border-[var(--t-accent)] disabled:opacity-40"
                   title="Enviar"
