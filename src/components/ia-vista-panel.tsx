@@ -97,12 +97,16 @@ type Chip = { label: string; pregunta: string };
 export function IaVistaPanel({
   vista,
   getParams,
+  preguntaExterna,
 }: {
   vista: string;
   /** Snapshot de los parámetros de la vista al momento de preguntar (ej.
    * trading: tickers de las tarjetas + foco + overrides). El server los
    * sanea y busca los datos él mismo — nunca viajan datos, solo selección. */
   getParams?: () => unknown;
+  /** Pregunta disparada desde afuera (ej. "¿lo miramos?" de un toast del
+   * vigía): abre el panel y la envía. `n` distingue disparos sucesivos. */
+  preguntaExterna?: { texto: string; n: number };
 }) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
@@ -260,6 +264,17 @@ export function IaVistaPanel({
       inputRef.current?.focus();
     }
   }, [pregunta, pensando, vista, mensajes, getParams]);
+
+  // Disparo externo (toast del vigía): abre el panel y manda la pregunta.
+  // Va DESPUÉS de la declaración de enviar (orden de hooks).
+  const ultimoExterno = useRef(0);
+  useEffect(() => {
+    if (!preguntaExterna || preguntaExterna.n === ultimoExterno.current) return;
+    ultimoExterno.current = preguntaExterna.n;
+    setOpen(true);
+    void enviar(preguntaExterna.texto);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preguntaExterna]);
 
   const feedback = useCallback((idx: number, trazaId: number, valor: 1 | -1) => {
     setMensajes((prev) =>

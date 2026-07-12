@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { IaVistaPanel } from "@/components/ia-vista-panel";
@@ -144,12 +144,50 @@ function valorNivel(p: number, last: number | null, mode: PivotMode): string {
   return last !== 0 ? fmtPct(((p - last) / last) * 100) : "—";
 }
 
+type VigiaAlerta = {
+  id: string;
+  tipo: string;
+  ticker: string;
+  nivel: string | null;
+  mensaje: string;
+  pregunta: string;
+  accion_agregar?: string;
+};
+
+const VIGIA_VISTOS_KEY = "trd-fx-vigia-vistos-v1";
+const VIGIA_POLL_MS = 15_000;
+
+function loadVigiaVistos(): Set<string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(VIGIA_VISTOS_KEY) || "{}");
+    const hoy = new Date().toISOString().slice(0, 10);
+    if (raw?.fecha === hoy && Array.isArray(raw.ids)) return new Set(raw.ids);
+  } catch {
+    /* arranca limpio */
+  }
+  return new Set();
+}
+
+function saveVigiaVistos(ids: Set<string>) {
+  try {
+    localStorage.setItem(
+      VIGIA_VISTOS_KEY,
+      JSON.stringify({ fecha: new Date().toISOString().slice(0, 10), ids: [...ids] }),
+    );
+  } catch {
+    /* sin persistencia de vistos */
+  }
+}
+
 export function TradingView() {
   const [mode, setMode] = useState<PivotMode>("precio");
   const [cards, setCards] = useState<Card[]>(loadCards);
   const [universo, setUniverso] = useState<UniversoItem[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [overrides, setOverrides] = useState<Record<string, Ov>>(loadOverrides);
+  const [vigiaAlertas, setVigiaAlertas] = useState<VigiaAlerta[]>([]);
+  const [pregExterna, setPregExterna] = useState<{ texto: string; n: number } | undefined>();
+  const vigiaVistos = useRef<Set<string>>(loadVigiaVistos());
 
   // CEDEAR que manda el chart + time sales: la card marcada, o la primera con ticker.
   const shownTicker =
@@ -164,6 +202,56 @@ export function TradingView() {
   useEffect(() => {
     saveOverrides(overrides);
   }, [overrides]);
+
+  // EL VIGÍA: pollea los disparadores deterministas (tarjeta en nivel /
+  // candidato del radar) — cero tokens; los toasts son templates del server.
+  useEffect(() => {
+    let vivo = true;
+    const consultar = async () => {
+      try {
+        const r = await fetch("/api/ia/copiloto/vigia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            params: {
+              tickers: cards.map((c) => c.ticker).filter(Boolean),
+              overrides: Object.fromEntries(
+                Object.entries(overrides).map(([tk, ov]) => [
+                  tk,
+                  { high: parseFloat(ov.h), low: parseFloat(ov.l), close: parseFloat(ov.c) },
+                ]),
+              ),
+            },
+          }),
+        });
+        if (!r.ok || !vivo) return; // 403 = sin módulo ia → sin vigía, silencioso
+        const j = (await r.json()) as { alertas?: VigiaAlerta[] };
+        const nuevas = (j.alertas ?? []).filter((a) => !vigiaVistos.current.has(a.id));
+        setVigiaAlertas(nuevas.slice(0, 3));
+      } catch {
+        /* transitorio */
+      }
+    };
+    void consultar();
+    const t = setInterval(consultar, VIGIA_POLL_MS);
+    return () => {
+      vivo = false;
+      clearInterval(t);
+    };
+  }, [cards, overrides]);
+
+  function vigiaDescartar(id: string) {
+    vigiaVistos.current.add(id);
+    saveVigiaVistos(vigiaVistos.current);
+    setVigiaAlertas((as) => as.filter((a) => a.id !== id));
+  }
+
+  const pregNum = useRef(0);
+  function vigiaMirar(a: VigiaAlerta) {
+    pregNum.current += 1;
+    setPregExterna({ texto: a.pregunta, n: pregNum.current });
+    vigiaDescartar(a.id);
+  }
 
   function setOverride(ticker: string, ov: Ov | null) {
     setOverrides((prev) => {
@@ -263,6 +351,7 @@ export function TradingView() {
             datos frescos él mismo. Oculto sin módulos ia+trading. */}
         <IaVistaPanel
           vista="trading"
+          preguntaExterna={pregExterna}
           getParams={() => {
             let posiciones: unknown = undefined;
             try {
@@ -285,6 +374,49 @@ export function TradingView() {
           }}
         />
       </div>
+
+      {/* Toasts del vigía (esquina inferior izquierda) */}
+      {vigiaAlertas.length > 0 && (
+        <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 w-[380px] max-w-[90vw]">
+          {vigiaAlertas.map((a) => (
+            <div
+              key={a.id}
+              className="border border-[var(--t-accent)] bg-[var(--t-panel)] px-3 py-2 text-[11px] shadow-lg"
+            >
+              <div className="flex items-start gap-2">
+                <span>🔔</span>
+                <span className="flex-1">{a.mensaje}</span>
+                <button
+                  onClick={() => vigiaDescartar(a.id)}
+                  className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)] leading-none"
+                  title="Descartar por hoy"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <button
+                  onClick={() => vigiaMirar(a)}
+                  className="px-2 py-0.5 text-[9px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] transition-colors"
+                >
+                  ¿LO MIRAMOS?
+                </button>
+                {a.accion_agregar && (
+                  <button
+                    onClick={() => {
+                      loadTicker(a.accion_agregar!);
+                      vigiaDescartar(a.id);
+                    }}
+                    className="px-2 py-0.5 text-[9px] font-semibold border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors"
+                  >
+                    ➕ AGREGAR {a.accion_agregar}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* split 60 (cards) / 40 (chart + tape) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
