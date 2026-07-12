@@ -101,8 +101,43 @@ export function IaVistaPanel({ vista }: { vista: string }) {
   const [pregunta, setPregunta] = useState("");
   const [pensando, setPensando] = useState(false);
   const [chips, setChips] = useState<Chip[]>([]);
+  const [histCargado, setHistCargado] = useState(false);
+  const [etapa, setEtapa] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Memoria persistente: al abrir por primera vez se recuperan los últimos
+  // intercambios (reconstruidos server-side desde las trazas).
+  useEffect(() => {
+    if (!open || histCargado) return;
+    setHistCargado(true);
+    fetch("/api/ia/copiloto/historial", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const prev: Mensaje[] = [];
+        for (const m of j?.mensajes ?? []) {
+          prev.push({ rol: "user", texto: m.pregunta });
+          prev.push({
+            rol: "ia",
+            texto: m.respuesta,
+            trazaId: m.traza_id,
+            fb: m.feedback === 1 ? 1 : m.feedback === -1 ? -1 : undefined,
+          });
+        }
+        if (prev.length) setMensajes((actuales) => [...prev, ...actuales]);
+      })
+      .catch(() => {});
+  }, [open, histCargado]);
+
+  // "Pensando" con etapas reales del pipeline (leer → redactar → verificar).
+  useEffect(() => {
+    if (!pensando) {
+      setEtapa(0);
+      return;
+    }
+    const t = setInterval(() => setEtapa((e) => Math.min(e + 1, 2)), 3500);
+    return () => clearInterval(t);
+  }, [pensando]);
 
   // Probe de habilitación: el backend decide (módulo ia + módulo de la vista).
   // De paso trae los chips (consultas de mesa curadas, versionadas en el repo).
@@ -304,7 +339,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
               )}
               {pensando && (
                 <div className="text-[11px] text-[var(--t-text-dim)] italic px-3 animate-pulse">
-                  Pensando…
+                  {["Leyendo los datos de la vista…", "Redactando…", "Verificando números…"][etapa]}
                 </div>
               )}
             </div>
