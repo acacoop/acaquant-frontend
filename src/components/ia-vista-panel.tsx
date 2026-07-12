@@ -101,16 +101,16 @@ export function IaVistaPanel({ vista }: { vista: string }) {
   const [pregunta, setPregunta] = useState("");
   const [pensando, setPensando] = useState(false);
   const [chips, setChips] = useState<Chip[]>([]);
-  const [histCargado, setHistCargado] = useState(false);
   const [etapa, setEtapa] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const histCargado = useRef(false);
 
   // Memoria persistente: al abrir por primera vez se recuperan los últimos
   // intercambios (reconstruidos server-side desde las trazas).
   useEffect(() => {
-    if (!open || histCargado) return;
-    setHistCargado(true);
+    if (!open || histCargado.current) return;
+    histCargado.current = true;
     fetch("/api/ia/copiloto/historial", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
@@ -127,14 +127,12 @@ export function IaVistaPanel({ vista }: { vista: string }) {
         if (prev.length) setMensajes((actuales) => [...prev, ...actuales]);
       })
       .catch(() => {});
-  }, [open, histCargado]);
+  }, [open]);
 
   // "Pensando" con etapas reales del pipeline (leer → redactar → verificar).
+  // El reset a etapa 0 lo hace enviar() — acá solo avanza el reloj.
   useEffect(() => {
-    if (!pensando) {
-      setEtapa(0);
-      return;
-    }
+    if (!pensando) return;
     const t = setInterval(() => setEtapa((e) => Math.min(e + 1, 2)), 3500);
     return () => clearInterval(t);
   }, [pensando]);
@@ -179,6 +177,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
     // los chips muestran su etiqueta limpia en el chat; el prompt curado
     // completo viaja al backend por atrás
     setMensajes((prev) => [...prev, { rol: "user", texto: etiqueta ?? q }]);
+    setEtapa(0);
     setPensando(true);
 
     // Historial: últimos pares user→ia completos (los errores no cuentan).
