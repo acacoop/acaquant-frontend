@@ -56,11 +56,12 @@ const POLL_MS = 60_000;
 // determinista). Fuente de verdad: _PREGUNTA_NARRAR_BRIEFING en
 // api/services/copiloto.py (el chip del panel) — este texto es su copia.
 const NARRAR_PROMPT =
-  "Narrame el briefing de hoy como informe de mesa: 6-8 líneas de lectura " +
-  "transversal — qué grupo manda hoy, si los dólares acompañan o se abre la " +
-  "brecha, el riesgo país si se movió, y qué mirar en la rueda. No repitas " +
-  "la tabla fila por fila: contá la historia del día. Si algo no operó hoy, " +
-  "decilo.";
+  "Narrame el día como informe de mesa, POR SEGMENTO y en este orden: renta " +
+  "fija (por curva — ¿comprime la parte corta o la larga? ¿CER, tasa fija o " +
+  "soberanos?), acciones, dólares y tasas (¿el canje se abre o se cierra?), " +
+  "y commodities e índices globales. 2-3 frases por segmento, salteá los que " +
+  "no tengan nada para decir, y JAMÁS los mezcles. Cerrá con qué mirar en la " +
+  "rueda y los bonos que pagan hoy solo si hay.";
 const NARRAR_ETIQUETA = "Narrame el briefing";
 
 const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
