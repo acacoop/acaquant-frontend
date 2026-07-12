@@ -94,7 +94,16 @@ function renderRespuesta(texto: string) {
 
 type Chip = { label: string; pregunta: string };
 
-export function IaVistaPanel({ vista }: { vista: string }) {
+export function IaVistaPanel({
+  vista,
+  getParams,
+}: {
+  vista: string;
+  /** Snapshot de los parámetros de la vista al momento de preguntar (ej.
+   * trading: tickers de las tarjetas + foco + overrides). El server los
+   * sanea y busca los datos él mismo — nunca viajan datos, solo selección. */
+  getParams?: () => unknown;
+}) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
@@ -208,6 +217,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
           pregunta: q,
           historial: pares.slice(-MAX_HISTORIAL),
           conv_id: convId.current,
+          params: getParams?.() ?? undefined,
         }),
       });
       const j = await r.json();
@@ -249,7 +259,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
       setPensando(false);
       inputRef.current?.focus();
     }
-  }, [pregunta, pensando, vista, mensajes]);
+  }, [pregunta, pensando, vista, mensajes, getParams]);
 
   const feedback = useCallback((idx: number, trazaId: number, valor: 1 | -1) => {
     setMensajes((prev) =>

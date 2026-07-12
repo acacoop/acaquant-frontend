@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
+import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
 import { OrderBookPanel } from "@/components/order-book-panel";
 import { TradingRadarPanel } from "@/components/trading-radar-panel";
@@ -257,6 +258,22 @@ export function TradingView() {
           ))}
         </div>
         <MarketKpis />
+        {/* Copiloto IA de la vista TRADING: manda la SELECCIÓN (tickers de las
+            cards + foco + overrides) como parámetros; el server busca los
+            datos frescos él mismo. Oculto sin módulos ia+trading. */}
+        <IaVistaPanel
+          vista="trading"
+          getParams={() => ({
+            tickers: cards.map((c) => c.ticker).filter(Boolean),
+            seleccionado: shownTicker || undefined,
+            overrides: Object.fromEntries(
+              Object.entries(overrides).map(([tk, ov]) => [
+                tk,
+                { high: parseFloat(ov.h), low: parseFloat(ov.l), close: parseFloat(ov.c) },
+              ]),
+            ),
+          })}
+        />
       </div>
 
       {/* split 60 (cards) / 40 (chart + tape) */}
