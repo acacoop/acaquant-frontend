@@ -30,8 +30,8 @@ type Mensaje = {
 
 const MAX_HISTORIAL = 4;
 
-/** Render mínimo: solo **negrita** (el modelo la usa aunque pidamos texto
- * plano — mejor mostrarla bien que mostrar asteriscos crudos). */
+/** Render mínimo: **negrita** y *cursiva* (el modelo las usa aunque pidamos
+ * texto plano — mejor mostrarlas bien que mostrar asteriscos crudos). */
 function conNegritas(texto: string) {
   const partes = texto.split(/\*\*([^*]+)\*\*/g);
   return partes.map((p, i) =>
@@ -40,7 +40,9 @@ function conNegritas(texto: string) {
         {p}
       </strong>
     ) : (
-      p
+      p.split(/\*([^*\n]+)\*/g).map((q, j) =>
+        j % 2 === 1 ? <em key={`${i}-${j}`}>{q}</em> : q,
+      )
     ),
   );
 }
