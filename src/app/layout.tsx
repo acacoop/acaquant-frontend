@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
+import { BriefingModal } from "@/components/briefing-modal";
 import { Header } from "@/components/header";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getMe } from "@/lib/me";
@@ -58,7 +59,12 @@ export default async function RootLayout({
         <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">
           <ThemeToggle />
           <span>ACA VALORES &middot; MERCADO DE CAPITALES</span>
-          <span className="ml-auto">MERVAL / ROFEX</span>
+          <div className="ml-auto flex items-center gap-3">
+            {/* Briefing de apertura (QuantAI P1): botón inline + modal.
+                Se auto-oculta sin módulo `ia` (decide el backend). */}
+            <BriefingModal />
+            <span>MERVAL / ROFEX</span>
+          </div>
         </footer>
       </body>
     </html>

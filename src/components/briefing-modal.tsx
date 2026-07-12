@@ -9,7 +9,8 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
  * para usuarios con el módulo `ia` (si el backend devuelve 403, el componente
  * entero es invisible — gate estructural). "No volver a mostrar" silencia por
  * usuario+día (localStorage); al día siguiente reaparece con datos nuevos.
- * Re-lectura manual: botón BRIEFING fijo abajo a la derecha de HOME.
+ * Re-lectura manual: botón ☀ BRIEFING inline en la barra de estado inferior
+ * (montado en layout.tsx → vive en TODAS las páginas, no solo HOME).
  *
  * Contenido 100% calculado del backend (GET /api/ia/briefing) con columnas
  * uniformes HOY·1D·WTD·MTD: futuros (índices US/energía/metales/granos/cripto),
@@ -214,15 +215,19 @@ export function BriefingModal() {
 
   return (
     <>
-      {/* Re-lectura manual desde HOME (aunque se haya descartado) */}
+      {/* Re-lectura manual — botón inline en la barra de estado inferior
+          (layout.tsx), mismo estilo que el ThemeToggle. Antes era un fixed
+          flotante que quedaba desolapado sobre la barra. */}
       <button
         onClick={() => {
           void cargar();
           setOpen(true);
         }}
-        className="fixed bottom-3 right-3 z-40 px-2 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] bg-[var(--t-panel)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] transition-colors"
+        title="Volver a abrir el briefing de apertura"
+        className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
       >
-        ☀ BRIEFING
+        <span>☀</span>
+        <span className="tracking-widest">BRIEFING</span>
       </button>
 
       {open && data && (
