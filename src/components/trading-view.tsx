@@ -263,16 +263,26 @@ export function TradingView() {
             datos frescos él mismo. Oculto sin módulos ia+trading. */}
         <IaVistaPanel
           vista="trading"
-          getParams={() => ({
-            tickers: cards.map((c) => c.ticker).filter(Boolean),
-            seleccionado: shownTicker || undefined,
-            overrides: Object.fromEntries(
-              Object.entries(overrides).map(([tk, ov]) => [
-                tk,
-                { high: parseFloat(ov.h), low: parseFloat(ov.l), close: parseFloat(ov.c) },
-              ]),
-            ),
-          })}
+          getParams={() => {
+            let posiciones: unknown = undefined;
+            try {
+              const raw = localStorage.getItem("trd-fx-intraday-posiciones-v1");
+              if (raw) posiciones = JSON.parse(raw);
+            } catch {
+              /* sin puente intraday */
+            }
+            return {
+              tickers: cards.map((c) => c.ticker).filter(Boolean),
+              seleccionado: shownTicker || undefined,
+              overrides: Object.fromEntries(
+                Object.entries(overrides).map(([tk, ov]) => [
+                  tk,
+                  { high: parseFloat(ov.h), low: parseFloat(ov.l), close: parseFloat(ov.c) },
+                ]),
+              ),
+              posiciones,
+            };
+          }}
         />
       </div>
 
