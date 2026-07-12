@@ -1,6 +1,9 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+
+import { HANDOFF_KEY, IA_PREGUNTA_EVENT } from "@/components/ia-vista-panel";
 
 /**
  * Briefing de apertura (QuantAI P1, v2 determinista) — modal de HOME.
@@ -48,6 +51,17 @@ interface BriefingResp {
 const HORA_APERTURA_ART = 10; // el modal recién puede aparecer desde las 10:00 ART
 const DISMISS_KEY = "briefing.dismiss"; // valor = fecha (YYYY-MM-DD) silenciada
 const POLL_MS = 60_000;
+
+// Prompt de la narración (P1: capa de redacción IA arriba del briefing
+// determinista). Fuente de verdad: _PREGUNTA_NARRAR_BRIEFING en
+// api/services/copiloto.py (el chip del panel) — este texto es su copia.
+const NARRAR_PROMPT =
+  "Narrame el briefing de hoy como informe de mesa: 6-8 líneas de lectura " +
+  "transversal — qué grupo manda hoy, si los dólares acompañan o se abre la " +
+  "brecha, el riesgo país si se movió, y qué mirar en la rueda. No repitas " +
+  "la tabla fila por fila: contá la historia del día. Si algo no operó hoy, " +
+  "decilo.";
+const NARRAR_ETIQUETA = "Narrame el briefing";
 
 const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
@@ -151,6 +165,30 @@ export function BriefingModal() {
   const [data, setData] = useState<BriefingResp | null>(null);
   const [open, setOpen] = useState(false);
   const autoShownRef = useRef(false); // auto-apertura: máx. 1 vez por carga de página
+  const pathname = usePathname();
+
+  // 🗣 NARRÁMELO: la narración del briefing la hace el copiloto de HOME
+  // (misma tabla como contexto). En "/" el panel ya está montado → evento;
+  // en otra página → handoff por sessionStorage + navegación (el panel de
+  // HOME lo levanta al montar y pregunta solo).
+  const narrar = () => {
+    setOpen(false);
+    if (pathname === "/") {
+      window.dispatchEvent(
+        new CustomEvent(IA_PREGUNTA_EVENT, {
+          detail: { vista: "home", pregunta: NARRAR_PROMPT, etiqueta: NARRAR_ETIQUETA },
+        }),
+      );
+      return;
+    }
+    try {
+      sessionStorage.setItem(
+        HANDOFF_KEY,
+        JSON.stringify({ vista: "home", pregunta: NARRAR_PROMPT, etiqueta: NARRAR_ETIQUETA }),
+      );
+    } catch {}
+    window.location.href = "/";
+  };
 
   const cargar = useCallback(async (): Promise<BriefingResp | null> => {
     try {
@@ -309,8 +347,15 @@ export function BriefingModal() {
                 Yahoo (Globex) · MAE · BCRA A3500 · BYMA (MEP/CCL)
               </span>
               <button
+                onClick={narrar}
+                title="El copiloto te cuenta el briefing como informe de mesa"
+                className="ml-auto px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] transition-colors"
+              >
+                🗣 NARRÁMELO
+              </button>
+              <button
                 onClick={silenciarHoy}
-                className="ml-auto px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] transition-colors"
+                className="px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] transition-colors"
               >
                 NO VOLVER A MOSTRAR HOY
               </button>

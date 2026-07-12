@@ -31,6 +31,7 @@ const MANAGER_MODULES = [
 // mapa: su botón vive en la propia vista porque va cableado a las tarjetas y
 // al vigía (getParams/preguntaExterna). El panel se auto-oculta sin módulo ia.
 const VISTA_IA_POR_RUTA: Record<string, string> = {
+  "/": "home",
   "/renta-fija": "renta_fija",
   "/renta-variable": "renta_variable",
 };
