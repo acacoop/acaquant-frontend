@@ -17,6 +17,7 @@ import { RentaFijaTable } from "@/components/renta-fija-table";
 import { ForwardsPanel } from "@/components/forwards-panel";
 import { CurvasChart } from "@/components/curvas-chart";
 import { BreakevensBlock } from "@/components/breakevens-block";
+import { IaVistaPanel } from "@/components/ia-vista-panel";
 
 // Polling unificado: 1 sola request al endpoint /snapshot-live cada 5s
 // que devuelve {renta_fija, forwards, breakevens}. Cada bloque viene del
@@ -77,8 +78,13 @@ export function RentaFijaLiveView({
   const sub = lastAt > 0 ? fmtHoraAR(lastAt) : "";
 
   return (
-    <div className="h-full min-h-0 p-3">
-      <div className="grid grid-cols-2 gap-3 h-full min-h-0">
+    <div className="h-full min-h-0 p-3 flex flex-col gap-2">
+      {/* Copiloto IA de la vista Renta Fija (QuantAI P3): curvas, fair value,
+          forwards y breakevens. Oculto sin módulos ia + renta-fija. */}
+      <div className="flex justify-end shrink-0">
+        <IaVistaPanel vista="renta_fija" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
         <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
           <Panel title="RENTA FIJA" count={rentaFija.length} sub={sub} expandable>
             <RentaFijaTable data={rentaFija} flujos={flujos} forwards={forwards} />
