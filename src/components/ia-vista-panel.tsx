@@ -105,17 +105,20 @@ export function IaVistaPanel({ vista }: { vista: string }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const histCargado = useRef(false);
+  const convId = useRef<string>(crypto.randomUUID());
 
-  // Memoria persistente: al abrir por primera vez se recuperan los últimos
-  // intercambios (reconstruidos server-side desde las trazas).
+  // Memoria persistente: al abrir por primera vez se retoma la ÚLTIMA
+  // conversación (cada chat es su propio mundo; server la arma de las trazas).
   useEffect(() => {
     if (!open || histCargado.current) return;
     histCargado.current = true;
     fetch("/api/ia/copiloto/historial", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
+        if (!j?.conv_id) return; // sin conversaciones previas → mundo nuevo
+        convId.current = j.conv_id;
         const prev: Mensaje[] = [];
-        for (const m of j?.mensajes ?? []) {
+        for (const m of j.mensajes ?? []) {
           prev.push({ rol: "user", texto: m.pregunta });
           prev.push({
             rol: "ia",
@@ -128,6 +131,13 @@ export function IaVistaPanel({ vista }: { vista: string }) {
       })
       .catch(() => {});
   }, [open]);
+
+  const nuevaConversacion = useCallback(() => {
+    convId.current = crypto.randomUUID();
+    setMensajes([]);
+    setPregunta("");
+    inputRef.current?.focus();
+  }, []);
 
   // "Pensando" con etapas reales del pipeline (leer → redactar → verificar).
   // El reset a etapa 0 lo hace enviar() — acá solo avanza el reloj.
@@ -197,6 +207,7 @@ export function IaVistaPanel({ vista }: { vista: string }) {
           vista,
           pregunta: q,
           historial: pares.slice(-MAX_HISTORIAL),
+          conv_id: convId.current,
         }),
       });
       const j = await r.json();
@@ -277,6 +288,13 @@ export function IaVistaPanel({ vista }: { vista: string }) {
               <span className="text-[12px] tracking-wider text-[var(--t-accent)] font-semibold uppercase">
                 Copiloto IA
               </span>
+              <button
+                onClick={nuevaConversacion}
+                className="ml-2 px-2 py-0.5 text-[9px] font-semibold tracking-wide border border-[var(--t-border)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors"
+                title="Empezar una conversación nueva (la actual queda guardada)"
+              >
+                ＋ NUEVA
+              </button>
               <button
                 onClick={() => setOpen(false)}
                 className="ml-auto text-[var(--t-text-dim)] hover:text-[var(--t-neg)] text-[18px] leading-none"
