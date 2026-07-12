@@ -26,9 +26,18 @@ type Mensaje = {
   fuente?: Fuente;
   fb?: 1 | -1;
   sinRespaldo?: string[]; // números de la respuesta sin respaldo en los datos
+  irA?: { vista: string; titulo: string }; // derivación a otra vista con copiloto
 };
 
 const MAX_HISTORIAL = 4;
+
+/** Ruta de cada vista con copiloto — para el botón "Abrir X" cuando la
+ * pregunta pertenece a otro dominio (el backend valida RBAC antes de sugerir). */
+const RUTA_VISTA: Record<string, string> = {
+  renta_variable: "/renta-variable",
+  renta_fija: "/renta-fija",
+  trading: "/trading",
+};
 
 /** Render mínimo: **negrita** y *cursiva* (el modelo las usa aunque pidamos
  * texto plano — mejor mostrarlas bien que mostrar asteriscos crudos). */
@@ -234,15 +243,16 @@ export function IaVistaPanel({
             trazaId: j.traza_id,
             fuente: j.fuente,
             sinRespaldo: Array.isArray(j.numeros_sin_respaldo) ? j.numeros_sin_respaldo : [],
+            irA: j.vista_sugerida ?? undefined,
           },
         ]);
       } else {
         const msgs: Record<string, string> = {
           datos_no_disponibles: "No hay datos de la tabla en este momento.",
           presupuesto_usuario:
-            "Alcanzaste tu límite diario de IA. Un admin puede subirlo en Manager → OBSERVABILIDAD → IA.",
+            "Alcanzaste tu límite diario del asistente. Pedile al administrador que te amplíe el cupo — si no, se renueva solo a medianoche UTC.",
           presupuesto_global:
-            "El sistema alcanzó su tope diario de IA — se renueva a medianoche UTC.",
+            "El asistente alcanzó el tope diario de todo el sistema. Avisale al administrador si lo necesitás ahora — si no, se renueva a medianoche UTC.",
           verificacion:
             "La respuesta no pasó la verificación contra los datos, así que no se muestra. Reformulá la pregunta o pedime papeles puntuales.",
         };
@@ -348,6 +358,15 @@ export function IaVistaPanel({
                 ) : (
                   <div key={i} className="text-[11px] leading-relaxed text-[var(--t-text)] px-3 py-2 border-l-2 border-[var(--t-accent)] whitespace-pre-wrap mr-4">
                     {renderRespuesta(m.texto)}
+                    {m.irA && RUTA_VISTA[m.irA.vista] && (
+                      <a
+                        href={RUTA_VISTA[m.irA.vista]}
+                        className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] transition-colors"
+                        title={`Abrir la vista ${m.irA.titulo} y preguntar desde ahí`}
+                      >
+                        Abrir {m.irA.titulo} →
+                      </a>
+                    )}
                     {(m.sinRespaldo?.length ?? 0) > 0 && (
                       <div className="mt-1.5 text-[10px] text-[var(--t-neg)]">
                         ⚠ No pude verificar contra los datos:{" "}

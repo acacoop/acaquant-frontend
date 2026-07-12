@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { useIsGuest } from "@/lib/use-is-guest";
 
 // Cada vista gateada por su `module` (coincide con core/roles.py::MODULES).
@@ -23,6 +24,16 @@ const MANAGER_MODULES = [
   "manager_clientes",
   "manager_clientes_bulk",
 ];
+
+// Vistas con copiloto IA cuyo botón vive ACÁ, en el slot derecho del header
+// (donde estaba el texto TERMINAL) — pedido del user 2026-07-12: usar el lugar
+// que ya existe, no crear una franja nueva por vista. /trading NO está en el
+// mapa: su botón vive en la propia vista porque va cableado a las tarjetas y
+// al vigía (getParams/preguntaExterna). El panel se auto-oculta sin módulo ia.
+const VISTA_IA_POR_RUTA: Record<string, string> = {
+  "/renta-fija": "renta_fija",
+  "/renta-variable": "renta_variable",
+};
 
 const NAV: Entry[] = [
   { kind: "link", href: "/",            label: "HOME",        module: "home" },
@@ -148,8 +159,14 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
           );
         })}
       </nav>
-      <div className="ml-auto text-[10px] text-white/40 tracking-widest font-semibold">
-        TERMINAL
+      <div className="ml-auto flex items-center">
+        {VISTA_IA_POR_RUTA[pathname] ? (
+          <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} />
+        ) : (
+          <span className="text-[10px] text-white/40 tracking-widest font-semibold">
+            TERMINAL
+          </span>
+        )}
       </div>
     </header>
   );

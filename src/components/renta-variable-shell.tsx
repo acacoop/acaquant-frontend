@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { FundamentalAnalysisView } from "./fundamental-analysis-view";
-import { IaVistaPanel } from "./ia-vista-panel";
 import { ScannerView } from "./scanner-view";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
@@ -46,11 +45,8 @@ export function RentaVariableShell({
             {label}
           </button>
         ))}
-        {/* Copiloto IA de la VISTA completa (QuantAI P3): botón al margen
-            derecho de la barra + drawer. Oculto sin módulo `ia`. */}
-        <div className="ml-auto">
-          <IaVistaPanel vista="renta_variable" />
-        </div>
+        {/* El botón del copiloto IA de esta vista vive en el Header (slot
+            derecho, ex-TERMINAL). */}
       </div>
       <div className="flex-1 min-h-0">
         {tab === "scanner" ? (
