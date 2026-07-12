@@ -26,8 +26,15 @@ type Mensaje = {
   fuente?: Fuente;
   fb?: 1 | -1;
   sinRespaldo?: string[]; // números de la respuesta sin respaldo en los datos
-  irA?: { vista: string; titulo: string }; // derivación a otra vista con copiloto
+  // derivación a otra vista con copiloto; `pregunta` = la original del user,
+  // viaja en el handoff para re-preguntarse sola en la vista destino
+  irA?: { vista: string; titulo: string; pregunta?: string };
 };
+
+/** Handoff de derivación entre vistas: al clickear "Abrir X →" se deja acá la
+ * pregunta original + conv_id; el panel de la vista destino lo levanta al
+ * montar, se abre solo y re-pregunta — el usuario no re-tipea nada. */
+const HANDOFF_KEY = "ia_handoff";
 
 const MAX_HISTORIAL = 4;
 
@@ -243,7 +250,7 @@ export function IaVistaPanel({
             trazaId: j.traza_id,
             fuente: j.fuente,
             sinRespaldo: Array.isArray(j.numeros_sin_respaldo) ? j.numeros_sin_respaldo : [],
-            irA: j.vista_sugerida ?? undefined,
+            irA: j.vista_sugerida ? { ...j.vista_sugerida, pregunta: q } : undefined,
           },
         ]);
       } else {
@@ -274,6 +281,27 @@ export function IaVistaPanel({
       inputRef.current?.focus();
     }
   }, [pregunta, pensando, vista, mensajes, getParams]);
+
+  // Handoff de derivación: si venimos de otra vista con una pregunta pendiente
+  // para ESTA, se retoma la MISMA conversación, el panel se abre solo y
+  // re-pregunta en segundo plano — cero re-tipeo (pedido del user 2026-07-12).
+  const handoffHecho = useRef(false);
+  useEffect(() => {
+    if (allowed !== true || handoffHecho.current) return;
+    let h: { vista?: string; pregunta?: string; conv?: string } | null = null;
+    try {
+      h = JSON.parse(sessionStorage.getItem(HANDOFF_KEY) ?? "null");
+    } catch {
+      h = null;
+    }
+    if (!h || h.vista !== vista || !h.pregunta) return;
+    handoffHecho.current = true;
+    sessionStorage.removeItem(HANDOFF_KEY);
+    if (h.conv) convId.current = h.conv; // el chat sigue siendo el mismo
+    setOpen(true);
+    void enviar(h.pregunta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed, vista]);
 
   // Disparo externo (toast del vigía): abre el panel y manda la pregunta.
   // Va DESPUÉS de la declaración de enviar (orden de hooks).
@@ -361,8 +389,23 @@ export function IaVistaPanel({
                     {m.irA && RUTA_VISTA[m.irA.vista] && (
                       <a
                         href={RUTA_VISTA[m.irA.vista]}
+                        onClick={() => {
+                          // handoff: la vista destino re-pregunta sola esto
+                          if (m.irA!.pregunta) {
+                            try {
+                              sessionStorage.setItem(
+                                HANDOFF_KEY,
+                                JSON.stringify({
+                                  vista: m.irA!.vista,
+                                  pregunta: m.irA!.pregunta,
+                                  conv: convId.current,
+                                }),
+                              );
+                            } catch {}
+                          }
+                        }}
                         className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] transition-colors"
-                        title={`Abrir la vista ${m.irA.titulo} y preguntar desde ahí`}
+                        title={`Abrir la vista ${m.irA.titulo} — tu pregunta se repite sola ahí`}
                       >
                         Abrir {m.irA.titulo} →
                       </a>
