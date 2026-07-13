@@ -7,6 +7,7 @@ import { RetornoTotalMini, type Curva, type Ventana } from "@/components/retorno
 import { CanjeTab, PARES, type Par } from "@/components/canje-tab";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
+import { CalendarioPanel } from "@/components/calendario-panel";
 
 const DEFAULT_TICKER = "MERVAL";   // BCBA:IMV en TradingView (mapSymbol)
 
@@ -43,6 +44,45 @@ function Pill({
     >
       {children}
     </button>
+  );
+}
+
+// Watchlist con tab CALENDARIO: mismo slot, dos vistas. WATCHLIST = cotizaciones
+// live (el panel de siempre); CALENDARIO = eventos macro AR/US/BR de alto impacto.
+function WatchlistCalendario({
+  onSelect,
+  selected,
+}: {
+  onSelect?: (symbol: string) => void;
+  selected?: string | null;
+}) {
+  const [tab, setTab] = useState<"watchlist" | "calendario">("watchlist");
+  return (
+    <div className="h-full min-h-0 flex flex-col gap-1">
+      <div className="flex items-center gap-1 shrink-0">
+        {(["watchlist", "calendario"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={
+              "px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors " +
+              (tab === t
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]")
+            }
+          >
+            {t === "watchlist" ? "WATCHLIST" : "CALENDARIO"}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0">
+        {tab === "watchlist" ? (
+          <WatchlistPanel onSelect={onSelect} selected={selected} />
+        ) : (
+          <CalendarioPanel />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -179,7 +219,7 @@ export function HomeView() {
             chart (canvas + legend de N bonos) empuja la columna más allá del 50%. */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
           <div className="min-w-0 min-h-0">
-            <WatchlistPanel
+            <WatchlistCalendario
               onSelect={setSelectedTicker}
               selected={selectedTicker}
             />
