@@ -121,6 +121,7 @@ export function IaVistaPanel({
   vista,
   getParams,
   preguntaExterna,
+  tone = "accent",
 }: {
   vista: string;
   /** Snapshot de los parámetros de la vista al momento de preguntar (ej.
@@ -130,6 +131,12 @@ export function IaVistaPanel({
   /** Pregunta disparada desde afuera (ej. "¿lo miramos?" de un toast del
    * vigía): abre el panel y la envía. `n` distingue disparos sucesivos. */
   preguntaExterna?: { texto: string; n: number };
+  /** Estilo del botón trigger según DÓNDE vive:
+   * - "accent" (default): pastilla con color de acento — para el botón que
+   *   se apoya sobre el fondo de la página (ej. /trading).
+   * - "onDark": blanco/sutil como la nav — para el header azul fijo (HOME/RF/RV),
+   *   donde el acento naranja de modo oscuro quedaba fuera de tono. */
+  tone?: "accent" | "onDark";
 }) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
@@ -354,7 +361,12 @@ export function IaVistaPanel({
       {/* Trigger inline: lo posiciona el padre (ej. ml-auto en la barra de tabs) */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-2.5 py-1 bg-[var(--t-accent)] text-[var(--t-bg)] text-[10px] tracking-wider font-bold uppercase rounded-sm hover:brightness-110 transition"
+        className={
+          "flex items-center gap-1.5 px-2.5 py-1 text-[10px] tracking-wider font-bold uppercase rounded-sm transition-colors " +
+          (tone === "onDark"
+            ? "text-white/90 bg-white/10 hover:bg-white/20" // header azul fijo (HOME/RF/RV)
+            : "bg-[var(--t-accent)] text-[var(--t-bg)] hover:brightness-110") // sobre el fondo de la página (/trading)
+        }
         title="Consultale a la IA sobre los datos de esta vista"
       >
         <Sparkles size={11} /> Consultale a la IA

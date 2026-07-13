@@ -162,7 +162,7 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
       </nav>
       <div className="ml-auto flex items-center">
         {VISTA_IA_POR_RUTA[pathname] ? (
-          <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} />
+          <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} tone="onDark" />
         ) : (
           <span className="text-[10px] text-white/40 tracking-widest font-semibold">
             TERMINAL
