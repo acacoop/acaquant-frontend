@@ -433,8 +433,9 @@ function DolaresReferenciaPanel() {
     <div>
       <Panel title="DÓLARES DE REFERENCIA — BANCO NACIÓN · MATBA ROFEX" expandable>
         <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
-          Cotizaciones manuales ($) que carga el trader. Alimentarán el cálculo
-          del <span className="text-[var(--t-text-dim)]">Pase con Cobertura</span>.
+          Banco Nación y BNA T-1 se cargan a mano; <span className="text-[var(--t-text-dim)]">MATBA ROFEX</span>{" "}
+          sale automático del dólar oficial live (el mismo de la watchlist). Alimentan
+          el <span className="text-[var(--t-text-dim)]">Pase con Cobertura</span>.
         </div>
         <table className="w-full text-[11px] font-mono tabular-nums">
           <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
@@ -462,6 +463,7 @@ function DolaresReferenciaPanel() {
               field="dolar_matba"
               value={data.dolar_matba}
               updatedAt={data.updated_at}
+              auto
             />
             <DolarRow
               label="BNA COMPRADOR T-1"
@@ -481,11 +483,14 @@ function DolarRow({
   field,
   value,
   updatedAt,
+  auto = false,
 }: {
   label: string;
   field: "dolar_bna" | "dolar_matba" | "bna_comprador_t1";
   value: number | null;
   updatedAt: string | null;
+  // auto=true → valor read-only que sale del dólar oficial live (no editable).
+  auto?: boolean;
 }) {
   const [txt, setTxt] = useState<string>(fmtNum(value, 2));
   const [saving, setSaving] = useState(false);
@@ -535,7 +540,9 @@ function DolarRow({
     }, SAVE_DEBOUNCE_MS);
   }
 
-  const editHint = updatedAt
+  const editHint = auto
+    ? "auto · dólar oficial"
+    : updatedAt
     ? fmtHoraAR(new Date(updatedAt).getTime())
     : "—";
 
@@ -545,24 +552,31 @@ function DolarRow({
         {label}
       </td>
       <td className="px-2 py-1.5 text-right">
-        <div className="inline-flex items-center gap-1 justify-end">
-          <span className="text-[var(--t-text-muted)] text-[10px]">$</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={txt}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="—"
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-28 text-right"
-          />
-          {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
-          {savedOk === true && (
-            <span className="text-[9px] text-[var(--t-pos)]">✓</span>
-          )}
-          {savedOk === false && (
-            <span className="text-[9px] text-[var(--t-neg)]">✗</span>
-          )}
-        </div>
+        {auto ? (
+          <span className="inline-flex items-center gap-1 justify-end" title="Sale del dólar oficial live (watchlist) — en real time, no se carga a mano">
+            <span className="text-[var(--t-text-muted)] text-[10px]">$</span>
+            <span className="w-28 inline-block text-right text-[11px] font-mono text-[var(--t-text)]">{txt || "—"}</span>
+          </span>
+        ) : (
+          <div className="inline-flex items-center gap-1 justify-end">
+            <span className="text-[var(--t-text-muted)] text-[10px]">$</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={txt}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="—"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[11px] px-1.5 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none w-28 text-right"
+            />
+            {saving && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
+            {savedOk === true && (
+              <span className="text-[9px] text-[var(--t-pos)]">✓</span>
+            )}
+            {savedOk === false && (
+              <span className="text-[9px] text-[var(--t-neg)]">✗</span>
+            )}
+          </div>
+        )}
       </td>
       <td className="px-2 py-1.5 text-right text-[9px] text-[var(--t-text-muted)]">
         {editHint}
