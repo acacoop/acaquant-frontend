@@ -4,17 +4,19 @@ import { useState } from "react";
 
 import { TradingMoversScanner } from "./trading-movers-scanner";
 import { TradingPivotRadar } from "./trading-pivot-radar";
+import { TradingRentaFijaScanner } from "./trading-renta-fija-scanner";
 import { TradingVolumenScanner } from "./trading-volumen-scanner";
 
 /**
- * RADAR de TRADING (panel abajo-derecha) con 3 tabs:
- *   - MOVERS ±4%: CEDEARs que se movieron ±4% (1D o intradía).
- *   - PIVOTES:    CEDEARs con el last pegado a un pivote (≤ umbral%).
- *   - VOLÚMENES:  CEDEARs más operados del día por CASH (no nominal).
- * Todos siempre prendidos (poll 2s). Click en una fila → onSelect (carga el
- * ticker en el chart/libro/tape de la vista).
+ * RADAR de TRADING (panel abajo-derecha) con 4 tabs:
+ *   - MOVERS ±4%:        CEDEARs que se movieron ±4% (1D o intradía).
+ *   - PIVOTES:           CEDEARs con el last pegado a un pivote (≤ umbral%).
+ *   - VOLUMENES ACCIONES: CEDEARs más operados del día por CASH (no nominal).
+ *   - RENTA FIJA:        bonos en pesos suscriptos (tasa fija + CER) con last,
+ *                        TNA y volumen — click carga el bono en la card.
+ * Click en una fila → onSelect (carga el ticker en el chart/libro/tape).
  */
-type Tab = "movers" | "pivotes" | "volumenes";
+type Tab = "movers" | "pivotes" | "volumenes" | "renta_fija";
 
 export function TradingRadarPanel({
   onSelect,
@@ -35,7 +37,10 @@ export function TradingRadarPanel({
           PIVOTES
         </TabBtn>
         <TabBtn active={tab === "volumenes"} onClick={() => setTab("volumenes")}>
-          VOLÚMENES
+          VOLUMENES ACCIONES
+        </TabBtn>
+        <TabBtn active={tab === "renta_fija"} onClick={() => setTab("renta_fija")}>
+          RENTA FIJA
         </TabBtn>
       </div>
       <div className="flex-1 min-h-0">
@@ -43,8 +48,10 @@ export function TradingRadarPanel({
           <TradingMoversScanner onSelect={onSelect} selectedTicker={selectedTicker} />
         ) : tab === "pivotes" ? (
           <TradingPivotRadar onSelect={onSelect} selectedTicker={selectedTicker} />
-        ) : (
+        ) : tab === "volumenes" ? (
           <TradingVolumenScanner onSelect={onSelect} selectedTicker={selectedTicker} />
+        ) : (
+          <TradingRentaFijaScanner onSelect={onSelect} selectedTicker={selectedTicker} />
         )}
       </div>
     </div>
