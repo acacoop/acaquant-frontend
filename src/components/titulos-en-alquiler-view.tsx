@@ -18,19 +18,19 @@ type PosRow = {
   cantidad: number;
   precio: number | null;
   valuacion: number;
+  ultimo_dia: string | null;
   en_alquiler: boolean;
   alq_cant: number | null;
   alq_valor: number | null;
   desde: string | null;
+  hasta: string | null;
 };
-type Resp = { ultima_fecha: string | null; cuentas: string[]; posiciones: PosRow[] };
+type Resp = { ultima_fecha: string | null; desde: string; cuentas: string[]; posiciones: PosRow[] };
+
+// Arranque del proceso legal — default del filtro DESDE.
+const DESDE_DEFAULT = "2026-06-01";
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
-const fmtFecha = (s: string | null) => {
-  if (!s) return "—";
-  const [y, m, d] = s.split("-");
-  return d ? `${d}/${m}/${y.slice(2)}` : s;
-};
 const fmtNum = (v: number | null | undefined) =>
   v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 const fmtFull = (v: number | null | undefined) =>
@@ -50,12 +50,17 @@ export function TitulosEnAlquilerView() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [soloAlq, setSoloAlq] = useState(false);
+  // Rango: DESDE (default arranque del proceso legal) → HOY (fijo). Trae todos los
+  // títulos tenidos en ese rango, aunque hoy ya no estén.
+  const [desde, setDesde] = useState(DESDE_DEFAULT);
 
   const reload = useCallback(async () => {
-    const d = await getJson<Resp>("/api/back-office/tenencia-hd/en-alquiler");
+    const d = await getJson<Resp>(
+      `/api/back-office/tenencia-hd/en-alquiler?desde=${encodeURIComponent(desde)}`,
+    );
     setData(d);
     setLoading(false);
-  }, []);
+  }, [desde]);
 
   useEffect(() => {
     void reload();
@@ -77,9 +82,17 @@ export function TitulosEnAlquilerView() {
           <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
             Títulos en Alquiler
           </span>
-          <span className="text-[9px] text-[var(--t-text-muted)]">
-            posición al {fmtFecha(data?.ultima_fecha ?? null)} · cuentas 100 / 255 / 256
-          </span>
+          <label className="flex items-center gap-1 text-[9px] text-[var(--t-text-muted)]">
+            Desde
+            <input
+              type="date"
+              value={desde}
+              onChange={(e) => setDesde(e.target.value || DESDE_DEFAULT)}
+              title="Trae todos los títulos tenidos desde esta fecha hasta hoy (aunque hoy ya no estén)"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] text-[var(--t-text)] [color-scheme:dark] outline-none focus:border-[var(--t-accent)]"
+            />
+            <span>hasta hoy · cuentas 100 / 255 / 256</span>
+          </label>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -116,6 +129,7 @@ export function TitulosEnAlquilerView() {
                 <th className="text-center !px-2">En alq.</th>
                 <th className="text-right !px-2 text-amber-400">Cantidad</th>
                 <th className="text-center !px-2 text-amber-400">Desde</th>
+                <th className="text-center !px-2 text-amber-400">Hasta</th>
                 <th className="text-right !px-2 text-amber-400">Valor alq.</th>
               </tr>
             </thead>
@@ -135,6 +149,7 @@ function AlquilerRow({ row, onSaved }: { row: PosRow; onSaved: () => void }) {
   const [en, setEn] = useState(row.en_alquiler);
   const [cant, setCant] = useState(row.alq_cant != null ? String(row.alq_cant) : "");
   const [desde, setDesde] = useState(row.desde ?? "");
+  const [hasta, setHasta] = useState(row.hasta ?? "");
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState<null | boolean>(null);
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,9 +162,11 @@ function AlquilerRow({ row, onSaved }: { row: PosRow; onSaved: () => void }) {
     setCant(row.alq_cant != null ? String(row.alq_cant) : "");
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDesde(row.desde ?? "");
-  }, [row.en_alquiler, row.alq_cant, row.desde]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasta(row.hasta ?? "");
+  }, [row.en_alquiler, row.alq_cant, row.desde, row.hasta]);
 
-  const save = (nextEn: boolean, nextCant: string, nextDesde: string, reloadAfter: boolean) => {
+  const save = (nextEn: boolean, nextCant: string, nextDesde: string, nextHasta: string, reloadAfter: boolean) => {
     if (debRef.current) clearTimeout(debRef.current);
     debRef.current = setTimeout(async () => {
       setSaving(true);
@@ -165,6 +182,7 @@ function AlquilerRow({ row, onSaved }: { row: PosRow; onSaved: () => void }) {
             en_alquiler: nextEn,
             cantidad: cantNum,
             desde: nextDesde || null,
+            hasta: nextHasta || null,
           }),
         });
         setOk(r.ok);
@@ -181,15 +199,19 @@ function AlquilerRow({ row, onSaved }: { row: PosRow; onSaved: () => void }) {
 
   const onToggle = (v: boolean) => {
     setEn(v);
-    save(v, cant, desde, true);
+    save(v, cant, desde, hasta, true);
   };
   const onCant = (v: string) => {
     setCant(v);
-    save(en, v, desde, false);
+    save(en, v, desde, hasta, false);
   };
   const onDesde = (v: string) => {
     setDesde(v);
-    save(en, cant, v, false);
+    save(en, cant, v, hasta, false);
+  };
+  const onHasta = (v: string) => {
+    setHasta(v);
+    save(en, cant, desde, v, false);
   };
 
   return (
@@ -220,6 +242,16 @@ function AlquilerRow({ row, onSaved }: { row: PosRow; onSaved: () => void }) {
           value={desde}
           onChange={(e) => onDesde(e.target.value)}
           disabled={!en}
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] text-[var(--t-text)] [color-scheme:dark] outline-none focus:border-[var(--t-accent)] disabled:opacity-40"
+        />
+      </td>
+      <td className="!px-1 text-center">
+        <input
+          type="date"
+          value={hasta}
+          onChange={(e) => onHasta(e.target.value)}
+          disabled={!en}
+          title="Vacío = sigue en alquiler"
           className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-[10px] text-[var(--t-text)] [color-scheme:dark] outline-none focus:border-[var(--t-accent)] disabled:opacity-40"
         />
       </td>
