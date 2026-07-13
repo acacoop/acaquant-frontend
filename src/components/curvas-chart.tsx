@@ -328,13 +328,24 @@ export function CurvasChart({
         const steps = 100;
         if (betasOficiales) {
           // Cuadrática oficial (β en TEA decimal → ×100 para el eje en %).
+          // La parábola EXTRAPOLADA fuera del cluster de bonos líquidos se
+          // disparaba a -80/-150% en el tramo largo (mismo síntoma en tasa fija
+          // Y CER → es la extrapolación, no un bono puntual). Se CAPEA al band de
+          // los puntos observados (±margen): la línea no inventa valores fuera de
+          // rango; a lo sumo se aplana donde no hay datos que la sostengan.
           const { b0, b1, b2 } = betasOficiales;
+          const yLo = Math.min(...ys);
+          const yHi = Math.max(...ys);
+          const margin = (yHi - yLo) * 0.25 || Math.abs(yHi) * 0.1 || 5;
+          const floor = yLo - margin;
+          const ceil = yHi + margin;
           fitArr = [];
           for (let i = 0; i <= steps; i++) {
             const x = xA + ((xB - xA) * i) / steps;
+            const raw = (b0 + b1 * x + b2 * x * x) * 100;
             fitArr.push({
               Duration: +x.toFixed(4),
-              y: +((b0 + b1 * x + b2 * x * x) * 100).toFixed(4),
+              y: +Math.max(floor, Math.min(ceil, raw)).toFixed(4),
             });
           }
           allY.push(...fitArr.map((p) => p.y));
