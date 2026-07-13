@@ -425,7 +425,7 @@ export function TradingView() {
       {/* split 60 (cards) / 40 (chart + tape) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
         {/* izquierda: cards (arriba, 4/fila × 3 filas, llenan el alto) + order book (abajo) */}
-        <div className="min-h-0 grid grid-rows-[2fr_1fr] gap-2">
+        <div className="min-h-0 grid grid-rows-[7fr_3fr] gap-2">
           <div className="min-h-0 grid grid-cols-4 auto-rows-fr gap-1.5">
           {cards.map((c) => (
             <PivotCard

@@ -86,6 +86,17 @@ export function LiveIntradayChart({
 
   const hayVwap = vwap != null && Number.isFinite(vwap);
 
+  // Dominio Y centrado en el MOVIMIENTO del precio (con colchón), no en los
+  // pivots/VWAP lejanos: para un bono que se mueve centavos, dejar que el VWAP
+  // estire el eje (extendDomain) aplastaba la serie contra el borde. Los niveles
+  // fuera de este rango se recortan (ifOverflow="hidden").
+  const closes = data.map((d) => d.c).filter((n) => Number.isFinite(n));
+  const lo = Math.min(...closes);
+  const hi = Math.max(...closes);
+  const span = hi - lo;
+  const pad = span > 0 ? span * 0.2 : Math.max(Math.abs(hi) * 0.001, 0.01);
+  const yDomain: [number, number] = [lo - pad, hi + pad];
+
   return (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
@@ -103,7 +114,8 @@ export function LiveIntradayChart({
           minTickGap={32}
         />
         <YAxis
-          domain={["auto", "auto"]}
+          domain={yDomain}
+          allowDataOverflow
           tickFormatter={(v) => fmtPx(v as number)}
           tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
           width={56}
@@ -128,7 +140,7 @@ export function LiveIntradayChart({
             y={vwap as number}
             stroke={VWAP_COLOR}
             strokeWidth={1.5}
-            ifOverflow="extendDomain"
+            ifOverflow="hidden"
             label={{ value: "VWAP", position: "right", fontSize: 8, fill: VWAP_COLOR }}
           />
         )}
