@@ -26,9 +26,10 @@ const NIVELES: { k: keyof PivotLevels; label: string; color: string }[] = [
 ];
 
 /**
- * Chart LIVE intradía — NUESTRO feed (mercado.cedears_time_sales por minuto, vía
- * /api/scanner/cedears/intraday). Solo la rueda de hoy; se arma desde el primer
- * trade. Autocontenido: recibe `ticker` y se refetcha/repolea solo (3s).
+ * Chart LIVE intradía — NUESTRO feed por minuto, vía /api/trading/intraday (el
+ * backend resuelve la fuente por ticker: CEDEAR → cedears_time_sales; bono →
+ * mercado.timesales). Solo la rueda de hoy; se arma desde el primer trade.
+ * Autocontenido: recibe `ticker` y se refetcha/repolea solo (3s).
  *
  * VWAP: línea horizontal en el valor REAL del snapshot (prop `vwap`, el mismo que
  * la card). Se mueve en cada poll → "va cambiando" durante la rueda. Sólida y
@@ -52,7 +53,7 @@ export function LiveIntradayChart({
     const fetchSerie = async () => {
       try {
         const r = await fetch(
-          `/api/scanner/cedears/intraday?ticker=${encodeURIComponent(ticker)}`,
+          `/api/trading/intraday?ticker=${encodeURIComponent(ticker)}`,
           { cache: "no-store" },
         );
         if (!r.ok) return;
