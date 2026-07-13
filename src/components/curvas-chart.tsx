@@ -297,19 +297,13 @@ export function CurvasChart({
       }
     }
 
-    // Curva a dibujar: si el BACKEND ya ajustó la curva oficial del día
-    // (fair value: TEA = β0 + β1·dur + β2·dur², jobs.fair_value), se dibuja
-    // ESA — el front no recalcula matemática que el back ya resolvió
-    // ("el front pinta, el back piensa"). El logFit local queda SOLO como
-    // tendencia visual para los combos sin fit oficial (TEM/TNA, histórico,
-    // soberanos, dolar_linked).
-    const fv = modo === "live" && metricaUsada === "TEA"
-      && (curva === "tasa_fija" || curva === "cer")
-      ? fairValueInicial?.[curva] : undefined;
-    const betasOficiales = fv && (fv.n_bonos_universo ?? 0) > 0
-      && (fv.beta1 !== 0 || fv.beta2 !== 0)
-      ? { b0: fv.beta0, b1: fv.beta1, b2: fv.beta2 } : null;
-
+    // La línea es una tendencia LOG local ajustada sobre los puntos LIVE que se
+    // grafican (los bonos CON dato de la rueda) → es una curva LIVE: refleja el
+    // PRESENTE. Antes se dibujaba la cuadrática oficial del fair value (β del
+    // cierre), pero al depender del cierre quedaba congelada y se disparaba a
+    // -80% cuando ese cierre tenía bonos con flujos malos, aunque el dato live
+    // ya estuviera bien. La curva oficial del fair value vive en la pestaña
+    // FAIR VALUE (esa sí usa los β del cierre).
     const fitPorTipo: Record<string, { Duration: number; y: number }[] | null> = {};
     const allY: number[] = [];
     const allX: number[] = [];
@@ -326,37 +320,21 @@ export function CurvasChart({
         const xA = xs[0];
         const xB = xs[xs.length - 1];
         const steps = 100;
-        if (betasOficiales) {
-          // Cuadrática oficial (β en TEA decimal → ×100 para el eje en %).
-          const { b0, b1, b2 } = betasOficiales;
+        const fitted = logFit(xs, ys);
+        if (fitted) {
           fitArr = [];
           for (let i = 0; i <= steps; i++) {
             const x = xA + ((xB - xA) * i) / steps;
             fitArr.push({
               Duration: +x.toFixed(4),
-              y: +((b0 + b1 * x + b2 * x * x) * 100).toFixed(4),
+              y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4),
             });
           }
           allY.push(...fitArr.map((p) => p.y));
-        } else {
-          const fitted = logFit(xs, ys);
-          if (fitted) {
-            fitArr = [];
-            for (let i = 0; i <= steps; i++) {
-              const x = xA + ((xB - xA) * i) / steps;
-              fitArr.push({
-                Duration: +x.toFixed(4),
-                y: +(fitted.a * Math.log(x) + fitted.b).toFixed(4),
-              });
-            }
-            allY.push(...fitArr.map((p) => p.y));
-          }
         }
       }
       fitPorTipo[t] = fitArr;
     }
-    const fitOficial = betasOficiales !== null;
-
     const yScale = allY.length
       ? niceScale(Math.min(...allY), Math.max(...allY), 6)
       : { min: 0, max: 1, ticks: [0, 1] };
@@ -369,7 +347,6 @@ export function CurvasChart({
     return {
       puntosPorTipo,
       fitPorTipo,
-      fitOficial,
       tipos,
       yMin: yScale.min,
       yMax: yScale.max,
