@@ -3136,7 +3136,7 @@ const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] trackin
 // (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
 // el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
 function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
-  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "ia">(
+  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia">(
     "manager.obs.sub", "controles");
   // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
   // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
@@ -3167,13 +3167,134 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         />
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
+        <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
         {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "controles"   && <ControlesPanel goTo={(t) => goTo(t as Tab)} />}
         {sub === "diagnostico" && <DiagnosticoGroup />}
         {sub === "jobs"        && <JobsGroup />}
+        {sub === "base"        && <DbBasePanel />}
         {sub === "ia"          && <IaPanel />}
+      </div>
+    </div>
+  );
+}
+
+// BASE: espacio/salud de la base — tamaño total vs límite del plan, por schema,
+// y top tablas con bloat (dead tuples) + último dato. Fuente:
+// /api/manager/db-observabilidad (cache 2 min en el backend).
+type DbTablaObs = {
+  schema: string; tabla: string;
+  total_bytes: number; tabla_bytes: number; indices_bytes: number;
+  filas_vivas: number; filas_muertas: number; dead_pct: number;
+  ultimo_dato: string | null; last_autovacuum: string | null;
+};
+type DbObs = {
+  total_bytes: number; limit_bytes: number; usado_pct: number | null;
+  schemas: { schema: string; bytes: number; tablas: number }[];
+  tablas: DbTablaObs[];
+};
+
+function fmtBytesDb(n: number | null | undefined): string {
+  if (n == null) return "—";
+  let v = n;
+  for (const u of ["B", "KB", "MB", "GB", "TB"]) {
+    if (Math.abs(v) < 1024) return `${v.toFixed(1)}${u}`;
+    v /= 1024;
+  }
+  return `${v.toFixed(1)}PB`;
+}
+
+function DbBasePanel() {
+  const [data, setData] = useState<DbObs | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch("/api/manager/db-observabilidad", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((j: DbObs) => { if (alive) { setData(j); setErr(null); } })
+        .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  if (err) return <p className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</p>;
+  if (!data) return <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>;
+
+  const pct = data.usado_pct ?? 0;
+  const pctColor = pct >= 85 ? "var(--t-neg)" : pct >= 65 ? "#ff9900" : "var(--t-pos)";
+  const maxSchema = Math.max(1, ...data.schemas.map((s) => s.bytes));
+
+  return (
+    <div className="h-full min-h-0 overflow-auto p-3 flex flex-col gap-4">
+      {/* Gauge total vs límite del plan */}
+      <div>
+        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+          <span className="text-[11px] uppercase tracking-widest text-[var(--t-accent)]">Espacio de la base</span>
+          <span className="text-[11px] font-mono">{fmtBytesDb(data.total_bytes)} / {fmtBytesDb(data.limit_bytes)}</span>
+          <span className="ml-auto text-[14px] font-bold font-mono" style={{ color: pctColor }}>{pct}%</span>
+        </div>
+        <div className="h-2.5 w-full bg-[var(--t-border)] rounded-sm overflow-hidden">
+          <div style={{ width: `${Math.min(100, pct)}%`, background: pctColor }} className="h-full" />
+        </div>
+        <div className="text-[9px] text-[var(--t-text-muted)] mt-1">
+          Límite del plan configurable (env <span className="font-mono">DB_DISK_LIMIT_GB</span>, default 8 = Supabase Pro).
+        </div>
+      </div>
+
+      {/* Por schema */}
+      <div>
+        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">Por schema</div>
+        <div className="flex flex-col gap-0.5">
+          {data.schemas.map((s) => (
+            <div key={s.schema} className="flex items-center gap-2 text-[10px]">
+              <span className="w-28 font-mono text-[var(--t-text)] truncate">{s.schema}</span>
+              <div className="flex-1 h-2.5 bg-[var(--t-border)] rounded-sm overflow-hidden">
+                <div style={{ width: `${(s.bytes / maxSchema) * 100}%` }} className="h-full bg-[var(--t-accent)]" />
+              </div>
+              <span className="w-16 text-right font-mono text-[var(--t-text-dim)]">{fmtBytesDb(s.bytes)}</span>
+              <span className="w-16 text-right text-[9px] text-[var(--t-text-muted)]">{s.tablas} tablas</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top tablas */}
+      <div>
+        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">Top tablas por tamaño</div>
+        <table className="w-full text-[10px] tabular-nums">
+          <thead className="text-[9px] uppercase text-[var(--t-text-muted)]">
+            <tr>
+              <th className="text-left px-2 py-1">Tabla</th>
+              <th className="text-right px-2 py-1">Total</th>
+              <th className="text-right px-2 py-1">Índices</th>
+              <th className="text-right px-2 py-1">Filas</th>
+              <th className="text-right px-2 py-1">Muertas</th>
+              <th className="text-right px-2 py-1">Dead%</th>
+              <th className="text-right px-2 py-1">Últ. dato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.tablas.map((t) => {
+              const bloat = t.dead_pct > 20 && t.filas_muertas > 10_000;
+              return (
+                <tr key={`${t.schema}.${t.tabla}`} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                  <td className="px-2 py-1 font-mono text-[var(--t-text-dim)]">{t.schema}.<span className="text-[var(--t-text)]">{t.tabla}</span></td>
+                  <td className="px-2 py-1 text-right font-mono font-semibold">{fmtBytesDb(t.total_bytes)}</td>
+                  <td className="px-2 py-1 text-right font-mono text-[var(--t-text-dim)]">{fmtBytesDb(t.indices_bytes)}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{t.filas_vivas.toLocaleString("es-AR")}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{t.filas_muertas.toLocaleString("es-AR")}</td>
+                  <td className="px-2 py-1 text-right font-semibold" style={{ color: bloat ? "var(--t-neg)" : "var(--t-text-dim)" }}>{t.dead_pct}%</td>
+                  <td className="px-2 py-1 text-right text-[9px] text-[var(--t-text-muted)]">{t.ultimo_dato ?? "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
