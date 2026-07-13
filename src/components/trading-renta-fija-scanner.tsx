@@ -12,6 +12,7 @@ import { usePoll } from "@/lib/use-poll";
 type BonoRadar = {
   ticker_corto: string;
   last: number | null;
+  tea: number | null;
   tna: number | null;
   volumen: number | null;
 };
@@ -23,7 +24,8 @@ function fmtLast(n: number | null): string {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 }
 
-function fmtTna(n: number | null): string {
+// TEA / TNA vienen en fracción (0.36 = 36%).
+function fmtPct(n: number | null): string {
   if (n == null) return "—";
   return `${(n * 100).toFixed(2)}%`;
 }
@@ -73,6 +75,7 @@ export function TradingRentaFijaScanner({
             <tr>
               <th className="!px-1.5 py-1 text-left">Bono</th>
               <th className="!px-1 py-1 text-right">Last</th>
+              <th className="!px-1 py-1 text-right">TEA</th>
               <th className="!px-1 py-1 text-right">TNA</th>
               <th className="!px-1.5 py-1 text-right">Vol</th>
             </tr>
@@ -94,7 +97,8 @@ export function TradingRentaFijaScanner({
                     {r.ticker_corto}
                   </td>
                   <td className="!px-1 py-[2px] text-right font-mono text-[var(--t-text)]">{fmtLast(r.last)}</td>
-                  <td className="!px-1 py-[2px] text-right text-[var(--t-text-dim)]">{fmtTna(r.tna)}</td>
+                  <td className="!px-1 py-[2px] text-right text-[var(--t-text-dim)]">{fmtPct(r.tea)}</td>
+                  <td className="!px-1 py-[2px] text-right text-[var(--t-text-dim)]">{fmtPct(r.tna)}</td>
                   {/* barra proporcional al más operado + volumen nominal */}
                   <td className="!px-1.5 py-[2px] text-right relative">
                     <div
