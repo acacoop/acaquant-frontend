@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 
 /**
- * TIME & SALES (tape) intradía de un CEDEAR — panel inferior del Scanner.
+ * TIME & SALES (tape) intradía — panel inferior de la vista TRADING.
  *
- * Polea /api/scanner/cedears/trades?ticker=X cada 2s. Los trades los infiere
- * el motor (salto de NV) y viven en Trading.CedearsTimeSales (intradía, se
- * vacía al cierre). Side coloreado: BUY verde, SELL rojo, MID gris.
+ * Polea /api/trading/trades?ticker=X cada 2s. El backend resuelve la fuente por
+ * ticker (igual que /pivots): CEDEAR → tape del motor de CEDEARs; bono → trades
+ * del día de mercado.timesales (misma fuente que el tape de Renta Fija). Ambos
+ * intradía (se vacían/cortan al día). Side coloreado: BUY verde, SELL rojo,
+ * MID gris.
  */
 
 interface Trade {
@@ -39,7 +41,7 @@ export function CedearsTimeSalesPanel({
     let alive = true;
     const fetchTrades = async () => {
       try {
-        const r = await fetch(`/api/scanner/cedears/trades?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" });
+        const r = await fetch(`/api/trading/trades?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" });
         if (!r.ok) return;
         const j: Trade[] = await r.json();
         if (alive) setTrades(Array.isArray(j) ? j : []);
