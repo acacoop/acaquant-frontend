@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { BriefingModal } from "@/components/briefing-modal";
-import { CopilotoNoticia } from "@/components/copiloto-noticia";
 import { Header } from "@/components/header";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getMe } from "@/lib/me";
@@ -42,9 +41,6 @@ export default async function RootLayout({
   //     en el nav cuando el getMe fallaba. Fail-closed por seguridad.
   const isProd = !!process.env.API_URL;
   const modules = me?.modules ?? (isProd ? [] : null);
-  // Cartel de novedad del Copiloto IA: solo a quien tiene el módulo `ia` (dev
-  // modules=null = permisivo; prod fail-closed si getMe falló = modules=[]).
-  const hasIa = modules == null || modules.includes("ia");
   return (
     <html lang="es" className={`h-full light ${jbMono.variable}`}>
       <head>
@@ -60,7 +56,6 @@ export default async function RootLayout({
       <body className="h-full flex flex-col">
         <Header modules={modules} />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
-        <CopilotoNoticia hasIa={hasIa} />
 
         <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">
           <ThemeToggle />

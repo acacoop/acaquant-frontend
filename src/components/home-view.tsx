@@ -51,7 +51,7 @@ function Pill({
 // Caja con borde como el box del chart de al lado → alineados, sin título
 // duplicado. CARRY = retorno medido en USD (descuenta la variación del MEP).
 function RetornoCanjeBox() {
-  const [view, setView] = useState<"retorno" | "carry" | "canje">("retorno");
+  const [view, setView] = useState<"retorno" | "carry" | "canje">("canje");
   const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [ventana, setVentana] = useState<Ventana>("7D");
   // Fecha base libre. Cuando está seteada, pisa al preset (7D/14D/MTD) y el
