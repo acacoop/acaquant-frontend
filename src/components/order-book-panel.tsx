@@ -149,8 +149,8 @@ export function OrderBookPanel({ ticker }: { ticker: string }) {
             </tbody>
           </table>
 
-          {/* totales + desbalance */}
-          <div className="mt-auto border-t border-[var(--t-border)] px-2 py-1 shrink-0">
+          {/* totales + desbalance — pegado a las puntas (sin hueco negro arriba) */}
+          <div className="border-t border-[var(--t-border)] px-2 py-1 shrink-0">
             <div className="flex justify-between text-[8px] text-[var(--t-text-muted)]">
               <span>
                 BID <b className="text-[var(--t-pos)]">{fmtN(bidNomTot)}</b> · {fmtN(bidCashTot)}

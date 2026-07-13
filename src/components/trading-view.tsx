@@ -21,7 +21,7 @@ const LS_CARDS = "trd-fx-trading-pivot-cards-v1";
 
 type Card = { id: string; ticker: string };
 
-const SLOTS = 8; // 4 por fila × 2 filas — algunas pueden quedar vacías
+const SLOTS = 12; // 4 por fila × 3 filas — algunas pueden quedar vacías
 
 const DEFAULT_CARDS: Card[] = [
   { id: "c1", ticker: "RKLB" },
@@ -32,6 +32,10 @@ const DEFAULT_CARDS: Card[] = [
   { id: "c6", ticker: "" },
   { id: "c7", ticker: "" },
   { id: "c8", ticker: "" },
+  { id: "c9", ticker: "" },
+  { id: "c10", ticker: "" },
+  { id: "c11", ticker: "" },
+  { id: "c12", ticker: "" },
 ];
 
 // Rellena/recorta a SLOTS cards (para que siempre haya la grilla completa, con vacías).
@@ -420,9 +424,9 @@ export function TradingView() {
 
       {/* split 60 (cards) / 40 (chart + tape) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
-        {/* izquierda: cards (arriba, 4/fila) + order book (abajo) */}
-        <div className="min-h-0 grid grid-rows-[3fr_2fr] gap-2">
-          <div className="min-h-0 overflow-y-auto grid grid-cols-4 auto-rows-min content-start gap-1.5">
+        {/* izquierda: cards (arriba, 4/fila × 3 filas, llenan el alto) + order book (abajo) */}
+        <div className="min-h-0 grid grid-rows-[2fr_1fr] gap-2">
+          <div className="min-h-0 grid grid-cols-4 auto-rows-fr gap-1.5">
           {cards.map((c) => (
             <PivotCard
               key={c.id}
