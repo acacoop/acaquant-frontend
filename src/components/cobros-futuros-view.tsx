@@ -50,6 +50,16 @@ const fmtFecha = (s: string) => {
   return d ? `${d}/${m}/${y.slice(-2)}` : s;
 };
 
+// Fecha LOCAL del browser en ISO YYYY-MM-DD, con offset de días opcional.
+function isoLocal(offsetDias = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDias);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${da}`;
+}
+
 const monKey = (m: string | null): "ars" | "usd" => (m === "USD" ? "usd" : "ars");
 
 // Agregación temporal del gráfico (solo el gráfico — las tablas no se tocan).
@@ -108,9 +118,10 @@ export function CobrosFuturosView({
   const [selBucket, setSelBucket] = useState<string | null>(null);
   const [agg, setAgg] = useState<Agg>("MES");
   const [escala, setEscala] = useState<"lin" | "log">("lin");
-  // Rango por FECHA DE COBRO (ISO 'YYYY-MM-DD'). Vacío = todo el futuro (default).
-  const [desde, setDesde] = useState<string>("");
-  const [hasta, setHasta] = useState<string>("");
+  // Rango por FECHA DE COBRO (ISO 'YYYY-MM-DD'). Default = HOY → HOY+60 (lo más
+  // útil es lo que se viene ya). Vacío ("todo") = todo el futuro.
+  const [desde, setDesde] = useState<string>(() => isoLocal(0));
+  const [hasta, setHasta] = useState<string>(() => isoLocal(60));
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fechaQS = (desde ? `&desde=${desde}` : "") + (hasta ? `&hasta=${hasta}` : "");
@@ -273,6 +284,13 @@ export function CobrosFuturosView({
                 className="bg-transparent text-[10px] tabular-nums text-[var(--t-text)] outline-none" />
               {(desde || hasta) && <button onClick={() => { setDesde(""); setHasta(""); }} title="Quitar filtro de fecha" className="text-[9px] text-[var(--t-accent)] hover:underline">todo</button>}
             </label>
+            <button
+              onClick={() => { const h = isoLocal(0); setDesde(h); setHasta(h); setAgg("DIA"); }}
+              title="Solo lo que se cobra HOY"
+              className="border border-[var(--t-border-2)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+            >
+              HOY
+            </button>
             <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
             <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoneyFull(totalScope)}</span>
           </div>
@@ -364,6 +382,7 @@ export function CobrosFuturosView({
                   />
                   <Bar
                     dataKey="monto"
+                    maxBarSize={72}
                     onClick={(d) => {
                       const k = (d as { bucket?: string })?.bucket ?? null;
                       setSelBucket((prev) => (prev === k ? null : k));
