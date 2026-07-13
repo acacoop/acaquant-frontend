@@ -310,19 +310,6 @@ export function CurvasChart({
       && (fv.beta1 !== 0 || fv.beta2 !== 0)
       ? { b0: fv.beta0, b1: fv.beta1, b2: fv.beta2 } : null;
 
-    // Rango de duration donde el fit tiene SOPORTE = span de los bonos del
-    // universo del fit (en_universo). Fuera de ahí la cuadrática se EXTRAPOLA y
-    // se dispara (los bonos largos ilíquidos quedan fuera del fit → la parábola
-    // se hundía a -80% en el tramo largo). Si no tenemos el universo, no
-    // clampeamos (fallback al rango de los puntos).
-    const univDurs = betasOficiales
-      ? (fv!.bonos ?? [])
-          .filter((b) => b.en_universo && Number.isFinite(b.duration))
-          .map((b) => b.duration)
-      : [];
-    const fitXMin = univDurs.length ? Math.min(...univDurs) : null;
-    const fitXMax = univDurs.length ? Math.max(...univDurs) : null;
-
     const fitPorTipo: Record<string, { Duration: number; y: number }[] | null> = {};
     const allY: number[] = [];
     const allX: number[] = [];
@@ -341,21 +328,16 @@ export function CurvasChart({
         const steps = 100;
         if (betasOficiales) {
           // Cuadrática oficial (β en TEA decimal → ×100 para el eje en %).
-          // Dibujada SOLO en el rango con soporte del fit (sin extrapolar).
           const { b0, b1, b2 } = betasOficiales;
-          const dA = fitXMin != null ? Math.max(xA, fitXMin) : xA;
-          const dB = fitXMax != null ? Math.min(xB, fitXMax) : xB;
-          if (dB > dA) {
-            fitArr = [];
-            for (let i = 0; i <= steps; i++) {
-              const x = dA + ((dB - dA) * i) / steps;
-              fitArr.push({
-                Duration: +x.toFixed(4),
-                y: +((b0 + b1 * x + b2 * x * x) * 100).toFixed(4),
-              });
-            }
-            allY.push(...fitArr.map((p) => p.y));
+          fitArr = [];
+          for (let i = 0; i <= steps; i++) {
+            const x = xA + ((xB - xA) * i) / steps;
+            fitArr.push({
+              Duration: +x.toFixed(4),
+              y: +((b0 + b1 * x + b2 * x * x) * 100).toFixed(4),
+            });
           }
+          allY.push(...fitArr.map((p) => p.y));
         } else {
           const fitted = logFit(xs, ys);
           if (fitted) {
