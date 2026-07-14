@@ -28,7 +28,9 @@ function mapSymbol(symbol: string): string {
 
   // Índices
   if (symbol === "MERVAL") return "BCBA:IMV";
-  if (symbol === "DXY")    return "TVC:DXY";
+  // DXY: fuente CAPITALCOM (Index CFD). TVC:DXY no carga en el widget gratuito
+  // (feed no disponible → el chart quedaba en error).
+  if (symbol === "DXY")    return "CAPITALCOM:DXY";
 
   // Futuros CME / CBOT / COMEX / NYMEX / ICE (continuous front-month con '!')
   if (symbol === "S&P FUT")    return "CME_MINI:ES1!";

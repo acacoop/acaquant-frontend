@@ -9,7 +9,7 @@ const POLL_LOCAL_MS = 5_000;   // ARGY + futuros DLR refrescan cada 5s (live)
 
 // Default cuando el filtro cambia y el ticker actual no aplica más
 // (ej: estabas viendo curva DLR y volvés a General). DXY siempre vive
-// en TradingView (TVC:DXY vía mapSymbol).
+// en TradingView (CAPITALCOM:DXY vía mapSymbol).
 const DEFAULT_TICKER_AL_SALIR_DE_DLR = "DXY";
 
 // ── Helpers de formateo ──

@@ -8,7 +8,7 @@ import { CanjeTab, PARES, type Par } from "@/components/canje-tab";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
-const DEFAULT_TICKER = "DXY";   // TVC:DXY en TradingView (mapSymbol)
+const DEFAULT_TICKER = "DXY";   // CAPITALCOM:DXY en TradingView (mapSymbol)
 
 // Cualquier ticker DLR (outright, ej "DLR/MAY26") muestra la curva entera —
 // TradingView no tiene los outrights de ROFEX y la serie temporal de un
