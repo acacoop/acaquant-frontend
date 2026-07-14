@@ -1,28 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+  AreaSeries,
+  ColorType,
+  CrosshairMode,
+  createChart,
+  LineStyle,
+  type IChartApi,
+  type IPriceLine,
+  type ISeriesApi,
+  type Time,
+} from "lightweight-charts";
 
 import { VWAP_COLOR, type PivotLevels } from "@/lib/types-trading";
 
 // Niveles a dibujar como líneas horizontales (R verde, S rojo, PP gris).
 const NIVELES: { k: keyof PivotLevels; label: string; color: string }[] = [
-  { k: "r3", label: "R3", color: "var(--t-pos)" },
-  { k: "r2", label: "R2", color: "var(--t-pos)" },
-  { k: "r1", label: "R1", color: "var(--t-pos)" },
-  { k: "pp", label: "PP", color: "var(--t-text-muted)" },
-  { k: "s1", label: "S1", color: "var(--t-neg)" },
-  { k: "s2", label: "S2", color: "var(--t-neg)" },
-  { k: "s3", label: "S3", color: "var(--t-neg)" },
+  { k: "r3", label: "R3", color: "#10b981" },
+  { k: "r2", label: "R2", color: "#10b981" },
+  { k: "r1", label: "R1", color: "#10b981" },
+  { k: "pp", label: "PP", color: "#8a8a8a" },
+  { k: "s1", label: "S1", color: "#ef4444" },
+  { k: "s2", label: "S2", color: "#ef4444" },
+  { k: "s3", label: "S3", color: "#ef4444" },
 ];
 
 /**
@@ -31,11 +32,17 @@ const NIVELES: { k: keyof PivotLevels; label: string; color: string }[] = [
  * mercado.timesales). Solo la rueda de hoy; se arma desde el primer trade.
  * Autocontenido: recibe `ticker` y se refetcha/repolea solo (3s).
  *
- * VWAP: línea horizontal en el valor REAL del snapshot (prop `vwap`, el mismo que
- * la card). Se mueve en cada poll → "va cambiando" durante la rueda. Sólida y
- * verde claro para no confundirla con los niveles R (punteados).
+ * MANIPULABLE (pedido de la mesa 2026-07-14, motor lightweight-charts — el
+ * mismo de RETORNO TOTAL): arrastrás para moverte entre horarios, rueda del
+ * mouse / pinch para zoom en el eje X, y la ESCALA Y SE RE-AJUSTA SOLA a lo
+ * visible — un trade sucio en la apertura ya no aplasta la rueda entera:
+ * zoomeás pasada la apertura y el resto se lee bien. Doble click o el botón
+ * "⟲ todo" vuelven a la rueda completa. Mientras no toques el chart, sigue
+ * solo al último dato del poll.
  *
- * Extraído de ticker-chart-panel.tsx para reusarlo en la vista TRADING.
+ * VWAP: línea horizontal en el valor REAL del snapshot (prop `vwap`, el mismo
+ * que la card) — se mueve en cada poll. Sólida, para no confundir con los
+ * niveles (punteados). Pivots/VWAP no estiran la escala (líneas de precio).
  */
 export function LiveIntradayChart({
   ticker,
@@ -46,19 +53,148 @@ export function LiveIntradayChart({
   pivots?: PivotLevels | null;
   vwap?: number | null;
 }) {
-  const [data, setData] = useState<{ t: string; c: number }[]>([]);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const linesRef = useRef<IPriceLine[]>([]);
+  // true apenas el user arrastra/zoomea → el poll deja de re-encuadrar.
+  const interactedRef = useRef(false);
+  const [ready, setReady] = useState(0);
+  const [hasData, setHasData] = useState(false);
 
+  // Tema (claro/oscuro): misma señal que el resto de la app (clase "light" en <html>).
+  const [isLight, setIsLight] = useState(false);
   useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setIsLight(el.classList.contains("light"));
+    read();
+    const obs = new MutationObserver(read);
+    obs.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => obs.disconnect();
+  }, []);
+
+  // ── Chart (una vez por tema) ──
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const txt = isLight ? "#16203a" : "#8a8a8a";
+    const grid = isLight ? "#eef2f7" : "#141414";
+    const border = isLight ? "#aab6c9" : "#2a2a2a";
+    const bg = isLight ? "#ffffff" : "#080808";
+
+    const chart = createChart(el, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: bg },
+        textColor: txt,
+        fontSize: 10,
+        fontFamily: "JetBrains Mono, monospace",
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: grid, style: LineStyle.Dotted },
+        horzLines: { color: grid, style: LineStyle.Dotted },
+      },
+      // Eje Y a la IZQUIERDA (como venía). autoScale (default) = la escala se
+      // recalcula sobre lo VISIBLE — el fix del pico sucio de apertura.
+      leftPriceScale: {
+        visible: true,
+        borderColor: border,
+        scaleMargins: { top: 0.08, bottom: 0.08 },
+      },
+      rightPriceScale: { visible: false },
+      timeScale: {
+        borderColor: border,
+        timeVisible: true,
+        secondsVisible: false,
+        rightOffset: 2,
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: border, width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#ff9900" },
+        horzLine: { color: border, width: 1, style: LineStyle.Dashed, labelBackgroundColor: "#ff9900" },
+      },
+      localization: {
+        priceFormatter: (v: number) =>
+          v.toLocaleString("es-AR", { maximumFractionDigits: 2 }),
+      },
+    });
+    const series = chart.addSeries(AreaSeries, {
+      priceScaleId: "left",
+      lineColor: "#ff9900",
+      lineWidth: 2,
+      topColor: "rgba(255, 153, 0, 0.30)",
+      bottomColor: "rgba(255, 153, 0, 0.02)",
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 3,
+    });
+    chartRef.current = chart;
+    seriesRef.current = series;
+    setReady((n) => n + 1);
+
+    // Cualquier gesto del user (drag / rueda / touch) frena el auto-encuadre.
+    const marcar = () => { interactedRef.current = true; };
+    el.addEventListener("pointerdown", marcar);
+    el.addEventListener("wheel", marcar, { passive: true });
+    // Doble click = volver a la rueda completa y retomar el seguimiento.
+    const reset = () => {
+      interactedRef.current = false;
+      chart.timeScale().fitContent();
+    };
+    el.addEventListener("dblclick", reset);
+
+    return () => {
+      el.removeEventListener("pointerdown", marcar);
+      el.removeEventListener("wheel", marcar);
+      el.removeEventListener("dblclick", reset);
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+      linesRef.current = [];
+    };
+  }, [isLight]);
+
+  // ── Datos (poll 3s) ──
+  useEffect(() => {
+    const series = seriesRef.current;
+    const chart = chartRef.current;
+    if (!series || !chart) return;
     let alive = true;
+    let primera = true;
+    interactedRef.current = false;
+
     const fetchSerie = async () => {
       try {
         const r = await fetch(
           `/api/trading/intraday?ticker=${encodeURIComponent(ticker)}`,
           { cache: "no-store" },
         );
-        if (!r.ok) return;
+        if (!r.ok || !alive) return;
         const j = await r.json();
-        if (alive) setData(Array.isArray(j) ? j : []);
+        const rows: { t: string; c: number }[] = Array.isArray(j) ? j : [];
+        // ts naive ART → epoch como si fuera UTC: el chart (que muestra UTC)
+        // rendea la MISMA hora de pared ART en cualquier browser.
+        const data: { time: Time; value: number }[] = [];
+        let prev = 0;
+        for (const d of rows) {
+          if (!d?.t || !Number.isFinite(d.c)) continue;
+          const secs = Math.floor(Date.parse(d.t.endsWith("Z") ? d.t : d.t + "Z") / 1000);
+          if (!Number.isFinite(secs) || secs <= prev) continue; // asc + sin dupes
+          prev = secs;
+          data.push({ time: secs as Time, value: d.c });
+        }
+        if (!alive) return;
+        series.setData(data);
+        setHasData(data.length > 0);
+        // Mientras el user no tocó el chart, se sigue viendo la rueda entera
+        // (con datos nuevos incluidos). Si arrastró/zoomeó, su ventana MANDA.
+        if (data.length > 0 && (primera || !interactedRef.current)) {
+          chart.timeScale().fitContent();
+          primera = false;
+        }
       } catch {
         /* transitorio */
       }
@@ -69,100 +205,62 @@ export function LiveIntradayChart({
       alive = false;
       clearInterval(id);
     };
-  }, [ticker]);
+  }, [ticker, ready]);
 
-  const fmtHora = (iso: string) =>
-    new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
-  const fmtPx = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
-
-  if (data.length === 0) {
-    return (
-      <p className="text-[var(--t-text-muted)] text-xs py-4 text-center px-3">
-        Sin operaciones en la rueda de hoy todavía. El chart LIVE se arma con nuestro
-        feed intradía desde el primer trade.
-      </p>
-    );
-  }
-
-  const hayVwap = vwap != null && Number.isFinite(vwap);
-
-  // Dominio Y centrado en el MOVIMIENTO del precio (con colchón), no en los
-  // pivots/VWAP lejanos: para un bono que se mueve centavos, dejar que el VWAP
-  // estire el eje (extendDomain) aplastaba la serie contra el borde. Los niveles
-  // fuera de este rango se recortan (ifOverflow="hidden").
-  const closes = data.map((d) => d.c).filter((n) => Number.isFinite(n));
-  const lo = Math.min(...closes);
-  const hi = Math.max(...closes);
-  const span = hi - lo;
-  const pad = span > 0 ? span * 0.2 : Math.max(Math.abs(hi) * 0.001, 0.01);
-  const yDomain: [number, number] = [lo - pad, hi + pad];
+  // ── Pivots + VWAP como líneas de precio (no estiran la escala) ──
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    for (const l of linesRef.current) series.removePriceLine(l);
+    linesRef.current = [];
+    if (vwap != null && Number.isFinite(vwap)) {
+      linesRef.current.push(series.createPriceLine({
+        price: vwap,
+        color: VWAP_COLOR,
+        lineWidth: 1,
+        lineStyle: LineStyle.Solid,
+        axisLabelVisible: false,
+        title: "VWAP",
+      }));
+    }
+    if (pivots) {
+      for (const n of NIVELES) {
+        const y = pivots[n.k];
+        if (y == null || !Number.isFinite(y)) continue;
+        linesRef.current.push(series.createPriceLine({
+          price: y,
+          color: n.color,
+          lineWidth: 1,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: false,
+          title: n.label,
+        }));
+      }
+    }
+  }, [pivots, vwap, ready]);
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-        <defs>
-          <linearGradient id="cv-live-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--t-accent)" stopOpacity={0.4} />
-            <stop offset="100%" stopColor="var(--t-accent)" stopOpacity={0.03} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" />
-        <XAxis
-          dataKey="t"
-          tickFormatter={fmtHora}
-          tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
-          minTickGap={32}
-        />
-        <YAxis
-          domain={yDomain}
-          allowDataOverflow
-          tickFormatter={(v) => fmtPx(v as number)}
-          tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
-          width={56}
-        />
-        <Tooltip
-          contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }}
-          labelFormatter={(l) => fmtHora(String(l))}
-          formatter={(v) => [fmtPx(Number(v)), "Precio"]}
-        />
-        <Area
-          type="monotone"
-          dataKey="c"
-          stroke="var(--t-accent)"
-          strokeWidth={1.5}
-          fill="url(#cv-live-grad)"
-          isAnimationActive={false}
-          dot={false}
-        />
-        {/* VWAP real (snapshot) — línea sólida verde claro, se mueve con cada poll. */}
-        {hayVwap && (
-          <ReferenceLine
-            y={vwap as number}
-            stroke={VWAP_COLOR}
-            strokeWidth={1.5}
-            ifOverflow="hidden"
-            label={{ value: "VWAP", position: "right", fontSize: 8, fill: VWAP_COLOR }}
-          />
-        )}
-        {/* Pivots como líneas horizontales. ifOverflow="hidden" → si caen fuera
-            del rango del precio, se recortan (NO estiran el eje). */}
-        {pivots &&
-          NIVELES.map((n) => {
-            const y = pivots[n.k];
-            if (y == null || !Number.isFinite(y)) return null;
-            return (
-              <ReferenceLine
-                key={n.k}
-                y={y}
-                stroke={n.color}
-                strokeDasharray="4 3"
-                strokeWidth={1}
-                ifOverflow="hidden"
-                label={{ value: n.label, position: "right", fontSize: 8, fill: n.color }}
-              />
-            );
-          })}
-      </AreaChart>
-    </ResponsiveContainer>
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {/* Volver a la rueda completa (= doble click) */}
+      {hasData && (
+        <button
+          onClick={() => {
+            interactedRef.current = false;
+            chartRef.current?.timeScale().fitContent();
+          }}
+          title="Ver la rueda completa (también con doble click)"
+          className="absolute top-1 right-1 z-10 px-1.5 py-0.5 text-[9px] font-semibold border border-[var(--t-border-2)] bg-[var(--t-panel)]/80 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+        >
+          ⟲ todo
+        </button>
+      )}
+      {!hasData && (
+        <p className="absolute inset-0 flex items-center justify-center text-[var(--t-text-muted)] text-xs px-3 text-center">
+          Sin operaciones en la rueda de hoy todavía. El chart LIVE se arma con
+          nuestro feed intradía desde el primer trade.
+        </p>
+      )}
+    </div>
   );
 }
