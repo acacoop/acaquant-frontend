@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PortfolioAlquilerView } from "./portfolio-alquiler-view";
 
 /**
- * Back Office → Títulos en Alquiler. Cuentas propias 100/255/256.
- * Lista TODOS los (título, cuenta) en posición al último día. Por cada uno el
- * user marca SI/NO, la cantidad (nominales) en alquiler y la fecha desde. Es
- * durable (no por día). Impacta la vista Tenencia Valorizada: descuenta lo que
- * está en alquiler (posiciones + AuM), date-aware desde la fecha marcada.
- * Persiste vía POST /api/back-office/tenencia-hd/alquiler.
+ * Back Office → Títulos en Alquiler. Cuentas propias 100/255/256. Dos tabs:
+ *   MARCAS      — lista TODOS los (título, cuenta) en posición; por cada uno el
+ *                 user marca SI/NO, nominales y período. Netea Tenencia Valorizada.
+ *   PORTFOLIO ALQUILER — tabla tipo Tenencia Valorizada pero SOLO con títulos
+ *                 elegidos a mano (fila "+" con buscador). Pedido mesa 2026-07-14.
+ * Persiste vía POST /api/back-office/tenencia-hd/alquiler (marcas) y
+ * /tenencia-hd/portfolio-alquiler (lista del portfolio).
  */
 
 type PosRow = {
@@ -46,6 +48,33 @@ async function getJson<T>(url: string): Promise<T | null> {
 }
 
 export function TitulosEnAlquilerView() {
+  const [subTab, setSubTab] = useState<"portfolio" | "marcas">("portfolio");
+
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="shrink-0 border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-1">
+        {([["portfolio", "Portfolio Alquiler"], ["marcas", "Marcas por cuenta"]] as const).map(([k, lbl]) => (
+          <button
+            key={k}
+            onClick={() => setSubTab(k)}
+            className={`text-[10px] tracking-wide uppercase px-3 py-1.5 border-b-2 ${
+              subTab === k
+                ? "text-[var(--t-accent)] border-[var(--t-accent)]"
+                : "text-[var(--t-text-dim)] border-transparent hover:text-[var(--t-text)]"
+            }`}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 min-h-0">
+        {subTab === "portfolio" ? <PortfolioAlquilerView /> : <MarcasAlquilerView />}
+      </div>
+    </div>
+  );
+}
+
+function MarcasAlquilerView() {
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
