@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Back Office → Títulos en Alquiler → tab PORTFOLIO ALQUILER.
- * Igual layout que Tenencia Valorizada (izquierda: serie diaria por fecha;
- * derecha: posiciones del día con PX / 100 / 255 / 256 / Total), pero SOLO con
- * los títulos que el back office ELIGE: la tabla arranca vacía y cada título se
- * agrega con la fila "+" (buscador sobre TODOS los instrumentos, tipeando).
- * La selección es durable y compartida (SQL portafolio.alquiler_portfolio);
- * la valuación sale de portafolio.tenencia EN BRUTO (sin netear marcas).
+ * Layout tipo Tenencia Valorizada (izquierda fechas desde 01/06/2026 · derecha
+ * títulos con PX / 100 / 255 / 256 / Total) pero acá lo que se ve/edita son los
+ * NOMINALES EN ALQUILER: cada celda de cuenta es un input; lo cargado un día
+ * RIGE de ese día en adelante hasta la próxima edición (carry-forward). La
+ * valuación usa el precio de la tenencia de ese día. Los títulos se agregan con
+ * la fila "+" (buscador sobre todos los instrumentos) y se quitan con ✕.
+ * Este portfolio es la fuente del filtro SIN ALQUILER de Tenencia Valorizada.
  */
 
 const CUENTAS = ["100", "255", "256"] as const;
@@ -21,7 +22,7 @@ type DiasResp = {
 };
 type PosRow = {
   unidad: string; precio: number | null; total: number; total_cant: number;
-  cant: Record<Cuenta, number>;
+  cant: Record<Cuenta, number>; ten_cant: Record<Cuenta, number>; sin_precio: boolean;
 } & Record<Cuenta, number>;
 type PosResp = { fecha: string; tc: number | null; total: number; posiciones: PosRow[] };
 
@@ -51,7 +52,6 @@ export function PortfolioAlquilerView() {
     const d = await getJson<DiasResp>("/api/back-office/tenencia-hd/portfolio-alquiler");
     setDias(d?.dias ?? []);
     setUnidades(d?.unidades ?? []);
-    // mantiene el día elegido si sigue existiendo; si no, va al último
     const fechas = new Set((d?.dias ?? []).map((r) => r.fecha));
     setSel(keepSel && fechas.has(keepSel) ? keepSel : d?.ultima_fecha ?? null);
     setLoading(false);
@@ -77,6 +77,11 @@ export function PortfolioAlquilerView() {
 
   useEffect(() => { void reloadPos(sel); }, [sel, reloadPos]);
 
+  const refresh = useCallback(async () => {
+    await reloadDias(sel);
+    await reloadPos(sel);
+  }, [reloadDias, reloadPos, sel]);
+
   const setTitulo = async (unidad: string, enPortfolio: boolean) => {
     setSaving(true); setMsg(null);
     try {
@@ -89,8 +94,7 @@ export function PortfolioAlquilerView() {
       if (r.ok && j?.ok) {
         setNuevo("");
         setMsg(enPortfolio ? "✓ agregado" : "✓ quitado");
-        await reloadDias(sel);
-        await reloadPos(sel);
+        await refresh();
       } else {
         setMsg(j?.error ?? `HTTP ${r.status}`);
       }
@@ -102,31 +106,20 @@ export function PortfolioAlquilerView() {
     }
   };
 
-  // El "+" exige un instrumento EXACTO del catálogo (tipeando el datalist
-  // autocompleta por cualquier parte del texto — código, ticker o descripción).
   const nuevoValido = nuevo.trim() !== "" && catalogo.includes(nuevo.trim())
     && !unidades.includes(nuevo.trim());
-
-  // Filas de posiciones: si el día elegido no devolvió (o no hay días todavía),
-  // igual mostramos los títulos elegidos con "—" para poder quitarlos.
-  const filasPos: PosRow[] = pos?.posiciones
-    ?? unidades.map((u) => ({
-      unidad: u, precio: null, total: 0, total_cant: 0,
-      cant: { "100": 0, "255": 0, "256": 0 },
-      "100": 0, "255": 0, "256": 0,
-    }));
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-3 p-3 overflow-hidden">
       <div className="flex-1 min-h-0 grid grid-cols-[0.8fr_1.2fr] gap-3 overflow-hidden">
-        {/* IZQUIERDA — serie diaria del portfolio elegido */}
+        {/* IZQUIERDA — serie diaria del portfolio (valuación de lo alquilado) */}
         <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className={HDR}>
             <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
               Portfolio Alquiler por día
             </span>
             <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">
-              {unidades.length} título(s) · 100 / 255 / 256 · en ARS
+              desde 01/06/26 · {unidades.length} título(s) · en ARS
             </span>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
@@ -138,7 +131,7 @@ export function PortfolioAlquilerView() {
               </p>
             ) : dias.length === 0 ? (
               <p className="p-3 text-[11px] text-[var(--t-text-dim)]">
-                Los títulos elegidos no tienen tenencia registrada en las cuentas propias.
+                Sin fechas de tenencia desde el 01/06 — ¿corrió el backfill diario?
               </p>
             ) : (
               <table className="w-full text-[10px]">
@@ -159,7 +152,7 @@ export function PortfolioAlquilerView() {
                         {CUENTAS.map((c) => (
                           <td key={c} className="!px-2 text-right tabular-nums">{r[c] ? fmtFull(r[c]) : "—"}</td>
                         ))}
-                        <td className="!px-2 text-right tabular-nums font-semibold">{fmtFull(r.total)}</td>
+                        <td className="!px-2 text-right tabular-nums font-semibold">{r.total ? fmtFull(r.total) : "—"}</td>
                       </tr>
                     );
                   })}
@@ -169,18 +162,23 @@ export function PortfolioAlquilerView() {
           </div>
         </div>
 
-        {/* DERECHA — posiciones del día elegido, SOLO títulos elegidos + fila "+" */}
+        {/* DERECHA — nominales EN ALQUILER del día (editables) + fila "+" */}
         <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className={HDR}>
             <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-              Títulos del portfolio · {sel ? fmtFecha(sel) : "—"}
+              Nominales en alquiler · {sel ? fmtFecha(sel) : "—"}
             </span>
             {pos && (
               <span className="ml-auto text-[9px] font-mono text-[var(--t-text-muted)]">
-                TC {fmtTC(pos.tc)} · Total{" "}
+                TC {fmtTC(pos.tc)} · Valor alquilado{" "}
                 <span className="font-semibold text-[var(--t-accent)]">{fmtFull(pos.total)}</span> ARS
               </span>
             )}
+          </div>
+          <div className="px-3 py-1 text-[9px] text-[var(--t-text-muted)] border-b border-[var(--t-border)] shrink-0">
+            Lo que cargás un día <span className="text-[var(--t-text-dim)]">rige de ese día en adelante</span>{" "}
+            hasta la próxima edición (0 = corta el alquiler). Se descuenta en Tenencia Valorizada
+            con el filtro SIN ALQUILER.
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-[10px]">
@@ -188,33 +186,14 @@ export function PortfolioAlquilerView() {
                 <th className="text-left !px-2">Título</th>
                 <th className="text-right !px-2">PX</th>
                 {CUENTAS.map((c) => <th key={c} className="text-right !px-2">{c}</th>)}
-                <th className="text-right !px-2">Total</th>
+                <th className="text-right !px-2">Valor alq.</th>
                 <th className="!px-1 w-6" />
               </tr></thead>
               <tbody>
-                {filasPos.map((p) => (
-                  <tr key={p.unidad} className="hover:bg-[var(--t-border)]">
-                    <td className="!px-2">{p.unidad}</td>
-                    <td className="!px-2 text-right tabular-nums text-[var(--t-text-muted)]">{fmtNum(p.precio)}</td>
-                    {CUENTAS.map((c) => (
-                      <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">
-                        {p[c] ? fmtFull(p[c]) : "—"}
-                      </td>
-                    ))}
-                    <td className="!px-2 text-right tabular-nums font-semibold">
-                      {p.total ? fmtFull(p.total) : "—"}
-                    </td>
-                    <td className="!px-1 text-center">
-                      <button
-                        onClick={() => setTitulo(p.unidad, false)}
-                        disabled={saving}
-                        title="Quitar del portfolio"
-                        className="text-[var(--t-text-muted)] hover:text-red-400 text-[11px] px-1 disabled:opacity-40"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
+                {(pos?.posiciones ?? []).map((p) => (
+                  <PortfolioRow key={p.unidad} row={p} fecha={sel} tc={pos?.tc ?? null}
+                                saving={saving} onQuitar={() => setTitulo(p.unidad, false)}
+                                onSaved={refresh} />
                 ))}
                 {/* Fila "+": buscador sobre TODOS los instrumentos (tipeá para filtrar) */}
                 <tr className="border-t border-[var(--t-border-2)]">
@@ -249,11 +228,107 @@ export function PortfolioAlquilerView() {
             <div className="px-3 py-1 text-[9px] text-[var(--t-text-muted)]">
               {msg
                 ? <span className={msg.startsWith("✓") ? "text-[var(--t-pos)]" : "text-red-400"}>{msg}</span>
-                : "La lista es compartida (queda guardada para todo el back office). Valuación en ARS, en bruto."}
+                : "En cada celda: nominales en alquiler de esa cuenta (abajo, en gris, lo que hay en cartera ese día). Lista compartida."}
             </div>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// Fila de título: cada cuenta es un input de NOMINALES (debounce → POST /nominal
+// con la fecha seleccionada). Muestra abajo la valuación de lo cargado y, como
+// referencia, la cantidad en cartera ese día.
+function PortfolioRow({
+  row, fecha, tc: _tc, saving, onQuitar, onSaved,
+}: {
+  row: PosRow; fecha: string | null; tc: number | null;
+  saving: boolean; onQuitar: () => void; onSaved: () => void;
+}) {
+  const [vals, setVals] = useState<Record<Cuenta, string>>({
+    "100": row.cant["100"] ? String(row.cant["100"]) : "",
+    "255": row.cant["255"] ? String(row.cant["255"]) : "",
+    "256": row.cant["256"] ? String(row.cant["256"]) : "",
+  });
+  const [ok, setOk] = useState<null | boolean>(null);
+  const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Adopta lo remoto al cambiar de día/refresh (sin pisar lo que se tipea).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVals({
+      "100": row.cant["100"] ? String(row.cant["100"]) : "",
+      "255": row.cant["255"] ? String(row.cant["255"]) : "",
+      "256": row.cant["256"] ? String(row.cant["256"]) : "",
+    });
+  }, [row.cant]);
+
+  const guardar = (c: Cuenta, v: string) => {
+    setVals((prev) => ({ ...prev, [c]: v }));
+    if (!fecha) return;
+    if (debRef.current) clearTimeout(debRef.current);
+    debRef.current = setTimeout(async () => {
+      const cant = v.trim() === "" ? 0 : Number(v.replace(",", "."));
+      if (!isFinite(cant) || cant < 0) { setOk(false); return; }
+      try {
+        const r = await fetch("/api/back-office/tenencia-hd/portfolio-alquiler/nominal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ unidad: row.unidad, id_cuenta: c, fecha, cantidad: cant }),
+        });
+        setOk(r.ok);
+        if (r.ok) onSaved();
+      } catch {
+        setOk(false);
+      } finally {
+        setTimeout(() => setOk(null), 1500);
+      }
+    }, 700);
+  };
+
+  return (
+    <tr className="hover:bg-[var(--t-border)] align-top">
+      <td className="!px-2">
+        {row.unidad}
+        {row.sin_precio && (
+          <span className="ml-1 text-[8px] text-amber-400" title="Sin tenencia ese día — no se puede valuar">
+            SIN PX
+          </span>
+        )}
+      </td>
+      <td className="!px-2 text-right tabular-nums text-[var(--t-text-muted)]">{fmtNum(row.precio)}</td>
+      {CUENTAS.map((c) => (
+        <td key={c} className="!px-1 text-right">
+          <input
+            value={vals[c]}
+            onChange={(e) => guardar(c, e.target.value)}
+            inputMode="decimal"
+            placeholder="—"
+            title={`En cartera ese día: ${fmtNum(row.ten_cant[c])}`}
+            className="w-24 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-right font-mono text-[10px] tabular-nums outline-none focus:border-[var(--t-accent)]"
+          />
+          <div className="text-[8px] text-[var(--t-text-muted)] tabular-nums pr-1">
+            {row[c] ? `$ ${fmtFull(row[c])}` : ""}
+            {row.ten_cant[c] ? ` · cart. ${fmtNum(row.ten_cant[c])}` : ""}
+          </div>
+        </td>
+      ))}
+      <td className="!px-2 text-right tabular-nums font-semibold">
+        {row.total ? fmtFull(row.total) : "—"}
+        {ok === true && <span className="ml-1 text-[var(--t-pos)]">✓</span>}
+        {ok === false && <span className="ml-1 text-[var(--t-neg)]">✗</span>}
+      </td>
+      <td className="!px-1 text-center">
+        <button
+          onClick={onQuitar}
+          disabled={saving}
+          title="Quitar del portfolio"
+          className="text-[var(--t-text-muted)] hover:text-red-400 text-[11px] px-1 disabled:opacity-40"
+        >
+          ✕
+        </button>
+      </td>
+    </tr>
   );
 }

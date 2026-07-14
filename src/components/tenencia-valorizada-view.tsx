@@ -30,7 +30,10 @@ type PosResp = {
   total_gar?: number; total_alq?: number; posiciones: PosRow[];
 };
 
-type GarMode = "todos" | "sin_gar" | "solo_gar" | "alquiler";
+// "sin_alquiler": resta de la tenencia lo cargado en PORTFOLIO ALQUILER
+// (nominales por cuenta/día, carry-forward) — PUEDE dar negativo si se alquiló
+// más de lo que hay en cartera ese día.
+type GarMode = "todos" | "sin_gar" | "solo_gar" | "sin_alquiler";
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
@@ -57,8 +60,10 @@ export function TenenciaValorizadaView() {
   const carteraNom = usd ? "USD" : "ARS";
   const [vista, setVista] = usePersistedState<"dinero" | "nominal">("tenencia.vista", "dinero");
   const nominal = vista === "nominal";
-  // Filtro por estado de GARANTÍA (Aunesa): Todos / Sin GAR / Solo GAR.
-  const [garMode, setGarMode] = usePersistedState<GarMode>("tenencia.garMode", "todos");
+  // Filtro por estado: GARANTÍA (Aunesa) / ALQUILER (portfolio). Key .v2: el
+  // modo viejo "alquiler" (mostrar solo lo alquilado) se reemplazó por
+  // "sin_alquiler" (restarlo) — un valor persistido viejo quedaría inválido.
+  const [garMode, setGarMode] = usePersistedState<GarMode>("tenencia.garMode.v2", "todos");
   // Valor a mostrar de una celda según el filtro GAR: base total, sin la parte GAR, o solo GAR.
   const applyGar = (base: number, gar: number): number =>
     garMode === "sin_gar" ? base - gar : garMode === "solo_gar" ? gar : base;
@@ -212,21 +217,22 @@ export function TenenciaValorizadaView() {
                   className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === v ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
               ))}
             </div>
-            {/* Filtro por estado: GARANTÍA (Aunesa) + ALQUILER (back office) */}
+            {/* Filtro por estado: GARANTÍA (Aunesa) + SIN ALQUILER (resta el Portfolio Alquiler) */}
             <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-              {([["todos", "TODOS"], ["sin_gar", "SIN GAR"], ["solo_gar", "SOLO GAR"], ["alquiler", "ALQUILER"]] as const).map(([v, lbl]) => (
+              {([["todos", "TODOS"], ["sin_gar", "SIN GAR"], ["solo_gar", "SOLO GAR"], ["sin_alquiler", "SIN ALQUILER"]] as const).map(([v, lbl]) => (
                 <button key={v} onClick={() => setGarMode(v)}
+                  title={v === "sin_alquiler" ? "Tenencia menos los nominales cargados en Portfolio Alquiler (puede dar negativo)" : undefined}
                   className={"px-2 py-0.5 text-[10px] font-semibold " + (
                     garMode === v
-                      ? (v === "alquiler" ? "bg-sky-500 text-black" : "bg-amber-500 text-black")
+                      ? (v === "sin_alquiler" ? "bg-sky-500 text-black" : "bg-amber-500 text-black")
                       : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-amber-400")}>{lbl}</button>
               ))}
             </div>
             {pos && (
               <span className="w-full text-[9px] font-mono text-[var(--t-text-muted)]">
                 {nominal
-                  ? <>Total nominal <span className="font-semibold text-[var(--t-accent)]">{fmtNum(pos.posiciones.reduce((a, p) => a + applyGar(p.total_cant ?? 0, p.gar_total_cant ?? 0), 0))}</span></>
-                  : <>TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.posiciones.reduce((a, p) => a + applyGar(p.total, p.gar_total ?? 0), 0), pos.tc))}</span></>}
+                  ? <>Total nominal <span className="font-semibold text-[var(--t-accent)]">{fmtNum(pos.posiciones.reduce((a, p) => a + applyGar(p.total_cant ?? 0, p.gar_total_cant ?? 0) - (garMode === "sin_alquiler" ? (p.alq_total_cant ?? 0) : 0), 0))}</span></>
+                  : <>TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.posiciones.reduce((a, p) => a + applyGar(p.total, p.gar_total ?? 0) - (garMode === "sin_alquiler" ? (p.alq_total ?? 0) : 0), 0), pos.tc))}</span></>}
                 {(pos.total_gar ?? 0) > 0 && (
                   <> · En garantía <span className="font-semibold text-amber-400">{nominal ? fmtNum(pos.posiciones.reduce((a, p) => a + (p.gar_total_cant ?? 0), 0)) : fmtFull(cv(pos.total_gar ?? 0, pos.tc))}</span></>
                 )}
@@ -251,37 +257,34 @@ export function TenenciaValorizadaView() {
                   </tr></thead>
                   <tbody>
                     {pos.posiciones
-                      // "Solo GAR" oculta lo que no tiene garantía; "ALQUILER" lo que no está en alquiler.
-                      .filter((p) => (garMode !== "solo_gar" || (p.gar_total ?? 0) > 0)
-                        && (garMode !== "alquiler" || p.en_alquiler))
+                      // "Solo GAR" oculta lo que no tiene garantía. "SIN ALQUILER"
+                      // muestra TODO (la resta se ve en los números, no ocultando filas).
+                      .filter((p) => (garMode !== "solo_gar" || (p.gar_total ?? 0) > 0))
                       .map((p, i) => {
-                        const esAlq = garMode === "alquiler";
-                        const totBase = esAlq
-                          ? (nominal ? (p.alq_total_cant ?? 0) : (p.alq_total ?? 0))
-                          : (nominal ? (p.total_cant ?? 0) : p.total);
+                        const sinAlq = garMode === "sin_alquiler";
+                        const totBase = nominal ? (p.total_cant ?? 0) : p.total;
                         const totGar = nominal ? (p.gar_total_cant ?? 0) : (p.gar_total ?? 0);
+                        const totAlq = nominal ? (p.alq_total_cant ?? 0) : (p.alq_total ?? 0);
+                        const tot = applyGar(totBase, totGar) - (sinAlq ? totAlq : 0);
                         return (
                       <tr key={`${p.unidad}-${i}`} className={"hover:bg-[var(--t-border)] " + (garMode === "todos" ? (p.en_alquiler ? "bg-sky-500/10" : ((p.gar_total ?? 0) > 0 ? "bg-amber-400/5" : "")) : "")}>
                         <td className="!px-2">
                           {p.unidad}
-                          {garMode === "todos" && p.en_alquiler && <span className="ml-1 text-[8px] font-semibold text-sky-400">ALQ</span>}
+                          {(garMode === "todos" || sinAlq) && p.en_alquiler && <span className="ml-1 text-[8px] font-semibold text-sky-400">ALQ</span>}
                         </td>
                         <td className="!px-2 text-right tabular-nums text-[var(--t-text-muted)]">{fmtNum(p.precio)}</td>
                         {CUENTAS.map((c) => {
-                          const v = esAlq
-                            ? (nominal ? (p.alq_cant?.[c] ?? 0) : (p.alq?.[c] ?? 0))
-                            : applyGar(nominal ? (p.cant?.[c] ?? 0) : (p[c] ?? 0),
-                                       nominal ? (p.gar_cant?.[c] ?? 0) : (p.gar?.[c] ?? 0));
+                          const base = applyGar(nominal ? (p.cant?.[c] ?? 0) : (p[c] ?? 0),
+                                                nominal ? (p.gar_cant?.[c] ?? 0) : (p.gar?.[c] ?? 0));
+                          const v = base - (sinAlq ? (nominal ? (p.alq_cant?.[c] ?? 0) : (p.alq?.[c] ?? 0)) : 0);
                           return (
-                            <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">
+                            <td key={c} className={"!px-2 text-right tabular-nums " + (v < 0 ? "text-red-400" : "text-[var(--t-text-dim)]")}>
                               {v ? (nominal ? fmtNum(v) : fmtFull(cv(v, pos.tc))) : "—"}
                             </td>
                           );
                         })}
-                        <td className="!px-2 text-right tabular-nums font-semibold">
-                          {esAlq
-                            ? (nominal ? fmtNum(totBase) : fmtFull(cv(totBase, pos.tc)))
-                            : (nominal ? fmtNum(applyGar(totBase, totGar)) : fmtFull(cv(applyGar(totBase, totGar), pos.tc)))}
+                        <td className={"!px-2 text-right tabular-nums font-semibold " + (tot < 0 ? "text-red-400" : "")}>
+                          {nominal ? fmtNum(tot) : fmtFull(cv(tot, pos.tc))}
                         </td>
                       </tr>
                         );
@@ -363,5 +366,6 @@ export function TenenciaValorizadaView() {
   );
 }
 
-// (La marca de alquiler se gestiona en la vista "Títulos en Alquiler"; acá la
-// tenencia ya viene NETA — el backend descuenta lo que está en alquiler.)
+// (La tenencia viene BRUTA desde 2026-07-14 — ya no se netea server-side. El
+// alquiler se carga en Títulos en Alquiler → PORTFOLIO ALQUILER (nominales por
+// cuenta/día) y esta vista lo resta con el filtro SIN ALQUILER.)
