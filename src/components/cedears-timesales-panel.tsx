@@ -20,10 +20,10 @@ interface Trade {
   money: number;
 }
 
-const fmtHora = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-};
+// El backend manda hora ARGENTINA naive ("2026-07-14T16:52:55") — se muestra la
+// hora de pared TAL CUAL, sin pasar por Date (que la interpretaría en la zona
+// del browser y la corría; bug 2026-07-14: el tape marcaba 19:52 a las 16:52).
+const fmtHora = (iso: string) => (iso.length >= 19 ? iso.slice(11, 19) : iso);
 const fmtPx = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtSz = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
