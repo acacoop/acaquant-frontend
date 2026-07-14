@@ -3,8 +3,9 @@
 import { Fragment, useEffect, useState } from "react";
 
 /**
- * CALENDARIO económico — tab de la watchlist HOME. Próximos eventos AR/US/BR de
- * alto impacto (feed FMP → home.market_calendar). Agrupados por día.
+ * CALENDARIO económico — chip de la watchlist HOME (se renderiza DENTRO del
+ * panel watchlist, por eso no trae borde ni header propio). Próximos eventos
+ * AR/US/BR de alto impacto (feed FMP → home.market_calendar), agrupados por día.
  * Fuente: GET /api/calendario. Poll 5 min (el dato cambia 1×/día).
  */
 type CalEvent = {
@@ -72,13 +73,8 @@ export function CalendarioPanel() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Calendario</span>
-        <span className="text-[9px] text-[var(--t-text-muted)]">AR · US · BR · alto impacto</span>
-      </div>
-      <div className="flex-1 min-h-0 overflow-auto">
-        {err ? (
+    <>
+      {err ? (
           <p className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</p>
         ) : !data ? (
           <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
@@ -112,8 +108,7 @@ export function CalendarioPanel() {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   );
 }
