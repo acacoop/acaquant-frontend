@@ -185,11 +185,11 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
   useEffect(() => {
     if (!filtro) {
-      // Default = FUTUROS ROFEX si está (pedido de la mesa); si no, General.
+      // Default = General (pedido de la mesa 2026-07-14; antes era FUTUROS ROFEX).
       // CALENDARIO nunca es default (está siempre presente, es tab secundaria).
       const conDatos = gruposPresentes.filter((g) => g !== "CALENDARIO");
       if (conDatos.length > 0) {
-        setFiltro(conDatos.includes("FUTUROS ROFEX") ? "FUTUROS ROFEX" : conDatos[0]);
+        setFiltro(conDatos.includes("General") ? "General" : conDatos[0]);
       }
     }
   }, [filtro, gruposPresentes]);
