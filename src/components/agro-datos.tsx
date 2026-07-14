@@ -18,6 +18,13 @@ function manualLeg(cereal: string): ManualLeg {
   return cereal === "SOJA" ? "ars" : "usd";
 }
 
+// "2026-07-13" → "13/07". La fecha viene como día calendario (sin hora): se parte
+// el string en vez de usar Date, que la interpretaría en UTC y la correría un día.
+function fmtFechaCorta(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return d && m ? `${d}/${m}` : iso;
+}
+
 interface CamaraRow {
   cereal: Cereal;
   precio_ars: number | null;
@@ -73,6 +80,8 @@ interface DolaresResp {
   dolar_bna: number | null;
   dolar_matba: number | null;
   bna_comprador_t1: number | null;
+  /** Fecha del fixing A3500 que alimenta BNA Comprador T-1 (YYYY-MM-DD). */
+  bna_comprador_t1_fecha: string | null;
   updated_by: string | null;
   updated_at: string | null;
 }
@@ -81,6 +90,7 @@ const EMPTY_DOLARES: DolaresResp = {
   dolar_bna: null,
   dolar_matba: null,
   bna_comprador_t1: null,
+  bna_comprador_t1_fecha: null,
   updated_by: null,
   updated_at: null,
 };
@@ -433,9 +443,12 @@ function DolaresReferenciaPanel() {
     <div>
       <Panel title="DÓLARES DE REFERENCIA — BANCO NACIÓN · MATBA ROFEX" expandable>
         <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
-          Banco Nación y BNA T-1 se cargan a mano; <span className="text-[var(--t-text-dim)]">MATBA ROFEX</span>{" "}
-          sale automático del dólar oficial live (el mismo de la watchlist). Alimentan
-          el <span className="text-[var(--t-text-dim)]">Pase con Cobertura</span>.
+          Sólo <span className="text-[var(--t-text-dim)]">BANCO NACIÓN</span> se carga a
+          mano. <span className="text-[var(--t-text-dim)]">MATBA ROFEX</span> sale del
+          dólar oficial live (el mismo de la watchlist) y{" "}
+          <span className="text-[var(--t-text-dim)]">BNA COMPRADOR T-1</span> del fixing
+          A3500 del BCRA del último día hábil anterior. Alimentan el{" "}
+          <span className="text-[var(--t-text-dim)]">Pase con Cobertura</span>.
         </div>
         <table className="w-full text-[11px] font-mono tabular-nums">
           <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
@@ -470,6 +483,13 @@ function DolaresReferenciaPanel() {
               field="bna_comprador_t1"
               value={data.bna_comprador_t1}
               updatedAt={data.updated_at}
+              auto
+              autoHint={
+                data.bna_comprador_t1_fecha
+                  ? `auto · A3500 ${fmtFechaCorta(data.bna_comprador_t1_fecha)}`
+                  : "auto · A3500 BCRA"
+              }
+              autoTitle="Fixing A3500 del BCRA del último día hábil anterior (T-1) — no se carga a mano"
             />
           </tbody>
         </table>
@@ -484,13 +504,18 @@ function DolarRow({
   value,
   updatedAt,
   auto = false,
+  autoHint = "auto · dólar oficial",
+  autoTitle = "Sale del dólar oficial live (watchlist) — en real time, no se carga a mano",
 }: {
   label: string;
   field: "dolar_bna" | "dolar_matba" | "bna_comprador_t1";
   value: number | null;
   updatedAt: string | null;
-  // auto=true → valor read-only que sale del dólar oficial live (no editable).
+  // auto=true → valor read-only alimentado por una fuente (no editable).
   auto?: boolean;
+  // De dónde sale el valor: se muestra en la col. "Últ. edición" y en el tooltip.
+  autoHint?: string;
+  autoTitle?: string;
 }) {
   const [txt, setTxt] = useState<string>(fmtNum(value, 2));
   const [saving, setSaving] = useState(false);
@@ -541,7 +566,7 @@ function DolarRow({
   }
 
   const editHint = auto
-    ? "auto · dólar oficial"
+    ? autoHint
     : updatedAt
     ? fmtHoraAR(new Date(updatedAt).getTime())
     : "—";
@@ -553,7 +578,7 @@ function DolarRow({
       </td>
       <td className="px-2 py-1.5 text-right">
         {auto ? (
-          <span className="inline-flex items-center gap-1 justify-end" title="Sale del dólar oficial live (watchlist) — en real time, no se carga a mano">
+          <span className="inline-flex items-center gap-1 justify-end" title={autoTitle}>
             <span className="text-[var(--t-text-muted)] text-[10px]">$</span>
             <span className="w-28 inline-block text-right text-[11px] font-mono text-[var(--t-text)]">{txt || "—"}</span>
           </span>

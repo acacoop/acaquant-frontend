@@ -8,9 +8,9 @@ const POLL_MS = 30_000;
 const POLL_LOCAL_MS = 5_000;   // ARGY + futuros DLR refrescan cada 5s (live)
 
 // Default cuando el filtro cambia y el ticker actual no aplica más
-// (ej: estabas viendo curva DLR y volvés a General). MERVAL siempre vive
-// en TradingView (BCBA:IMV vía mapSymbol).
-const DEFAULT_TICKER_AL_SALIR_DE_DLR = "MERVAL";
+// (ej: estabas viendo curva DLR y volvés a General). DXY siempre vive
+// en TradingView (TVC:DXY vía mapSymbol).
+const DEFAULT_TICKER_AL_SALIR_DE_DLR = "DXY";
 
 // ── Helpers de formateo ──
 
@@ -195,7 +195,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   }, [filtro, gruposPresentes]);
 
   // Sincronización chart ↔ filtro: entrando a FUTUROS ROFEX linkea la curva DLR;
-  // saliendo a General, si veníamos de la curva, volvemos a MERVAL.
+  // saliendo a General, si veníamos de la curva, volvemos a DXY.
   const selectedRef = useRef(selected);
   useEffect(() => {
     selectedRef.current = selected;

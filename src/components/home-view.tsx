@@ -8,7 +8,7 @@ import { CanjeTab, PARES, type Par } from "@/components/canje-tab";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
-const DEFAULT_TICKER = "MERVAL";   // BCBA:IMV en TradingView (mapSymbol)
+const DEFAULT_TICKER = "DXY";   // TVC:DXY en TradingView (mapSymbol)
 
 // Cualquier ticker DLR (outright, ej "DLR/MAY26") muestra la curva entera —
 // TradingView no tiene los outrights de ROFEX y la serie temporal de un
@@ -18,7 +18,7 @@ function esTickerDlr(t: string): boolean {
 }
 
 // ARGY no tiene chart propio — cuando el user filtra por ARGY o clickea una
-// fila MEP/CCL/Oficial, el chart se queda en el default (MERVAL).
+// fila MEP/CCL/Oficial, el chart se queda en el default (DXY).
 function esTickerArgy(t: string): boolean {
   return (
     t === "ARGY" ||
