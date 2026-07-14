@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AreaSeries,
   ColorType,
@@ -57,10 +57,31 @@ export function LiveIntradayChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area"> | null>(null);
   const linesRef = useRef<IPriceLine[]>([]);
+  // Etiquetas de los niveles ("R1", "VWAP"…): spans propios anclados a la
+  // altura de cada línea (el title nativo de las price lines no se dibuja) —
+  // se reposicionan en cada pan/zoom/poll vía priceToCoordinate.
+  const labelLayerRef = useRef<HTMLDivElement | null>(null);
+  const labelItemsRef = useRef<{ el: HTMLSpanElement; price: number }[]>([]);
   // true apenas el user arrastra/zoomea → el poll deja de re-encuadrar.
   const interactedRef = useRef(false);
   const [ready, setReady] = useState(0);
   const [hasData, setHasData] = useState(false);
+
+  // Recalcula el top de cada etiqueta según la escala visible. Solo toca refs
+  // (identidad estable) — se llama en pan/zoom, poll, resize y cambio de líneas.
+  const reposicionar = useCallback(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    for (const { el, price } of labelItemsRef.current) {
+      const y = series.priceToCoordinate(price);
+      if (y == null || y < 0) {
+        el.style.display = "none";
+      } else {
+        el.style.display = "block";
+        el.style.top = `${y}px`;
+      }
+    }
+  }, []);
 
   // Tema (claro/oscuro): misma señal que el resto de la app (clase "light" en <html>).
   const [isLight, setIsLight] = useState(false);
@@ -143,10 +164,20 @@ export function LiveIntradayChart({
     const reset = () => {
       interactedRef.current = false;
       chart.timeScale().fitContent();
+      requestAnimationFrame(reposicionar);
     };
     el.addEventListener("dblclick", reset);
 
+    // Las etiquetas siguen a la escala: pan/zoom (la escala Y se re-ajusta a lo
+    // visible) y cambios de tamaño reposicionan.
+    const onRange = () => reposicionar();
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
+    const ro = new ResizeObserver(() => reposicionar());
+    ro.observe(el);
+
     return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
+      ro.disconnect();
       el.removeEventListener("pointerdown", marcar);
       el.removeEventListener("wheel", marcar);
       el.removeEventListener("dblclick", reset);
@@ -154,8 +185,9 @@ export function LiveIntradayChart({
       chartRef.current = null;
       seriesRef.current = null;
       linesRef.current = [];
+      labelItemsRef.current = [];
     };
-  }, [isLight]);
+  }, [isLight, reposicionar]);
 
   // ── Datos (poll 3s) ──
   useEffect(() => {
@@ -195,6 +227,7 @@ export function LiveIntradayChart({
           chart.timeScale().fitContent();
           primera = false;
         }
+        requestAnimationFrame(reposicionar);  // la escala pudo moverse con el dato nuevo
       } catch {
         /* transitorio */
       }
@@ -205,43 +238,64 @@ export function LiveIntradayChart({
       alive = false;
       clearInterval(id);
     };
-  }, [ticker, ready]);
+  }, [ticker, ready, reposicionar]);
 
-  // ── Pivots + VWAP como líneas de precio (no estiran la escala) ──
+  // ── Pivots + VWAP como líneas de precio (no estiran la escala) + etiquetas ──
   useEffect(() => {
     const series = seriesRef.current;
-    if (!series) return;
+    const layer = labelLayerRef.current;
+    if (!series || !layer) return;
     for (const l of linesRef.current) series.removePriceLine(l);
     linesRef.current = [];
-    if (vwap != null && Number.isFinite(vwap)) {
+    layer.replaceChildren();
+    labelItemsRef.current = [];
+
+    const nivel = (price: number, label: string, color: string, solida: boolean) => {
       linesRef.current.push(series.createPriceLine({
-        price: vwap,
-        color: VWAP_COLOR,
+        price,
+        color,
         lineWidth: 1,
-        lineStyle: LineStyle.Solid,
+        lineStyle: solida ? LineStyle.Solid : LineStyle.Dashed,
         axisLabelVisible: false,
-        title: "VWAP",
+        title: "",
       }));
-    }
+      // Etiqueta propia sobre el borde derecho, anclada a la altura de la línea.
+      const el = document.createElement("span");
+      el.textContent = label;
+      Object.assign(el.style, {
+        position: "absolute",
+        right: "2px",
+        top: "0px",
+        transform: "translateY(-100%)",
+        fontSize: "8px",
+        lineHeight: "1",
+        fontFamily: "JetBrains Mono, monospace",
+        fontWeight: "600",
+        color,
+        display: "none",
+        pointerEvents: "none",
+      } as CSSStyleDeclaration);
+      layer.appendChild(el);
+      labelItemsRef.current.push({ el, price });
+    };
+
+    if (vwap != null && Number.isFinite(vwap)) nivel(vwap, "VWAP", VWAP_COLOR, true);
     if (pivots) {
       for (const n of NIVELES) {
         const y = pivots[n.k];
         if (y == null || !Number.isFinite(y)) continue;
-        linesRef.current.push(series.createPriceLine({
-          price: y,
-          color: n.color,
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: false,
-          title: n.label,
-        }));
+        nivel(y, n.label, n.color, false);
       }
     }
-  }, [pivots, vwap, ready]);
+    requestAnimationFrame(reposicionar);
+  }, [pivots, vwap, ready, reposicionar]);
 
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+      {/* Etiquetas de niveles (R/S/PP/VWAP) — capa propia sobre el canvas,
+          transparente al mouse; reposicionar() las mueve con la escala. */}
+      <div ref={labelLayerRef} className="absolute inset-0 z-[5] overflow-hidden pointer-events-none" />
       {/* Volver a la rueda completa (= doble click) */}
       {hasData && (
         <button
