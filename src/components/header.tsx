@@ -34,6 +34,9 @@ const VISTA_IA_POR_RUTA: Record<string, string> = {
   "/": "home",
   "/renta-fija": "renta_fija",
   "/renta-variable": "renta_variable",
+  "/agro": "agro",
+  "/derivados": "derivados",
+  "/ons": "ons",
 };
 
 const NAV: Entry[] = [
