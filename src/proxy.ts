@@ -174,6 +174,7 @@ export const config = {
     "/valuaciones/:path*",
     "/back-office/:path*",
     "/api/manager/:path*",
+    "/api/ia/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
     "/api/operativa/:path*",
