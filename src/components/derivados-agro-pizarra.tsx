@@ -49,7 +49,8 @@ interface PaseCard {
   ticker: string | null;
   vto: string | null;
   dias: number | null;
-  pase_lleno: number | null;
+  pase_bruto: number | null;
+  pase_lleno: number | null; // neto del costo pase (bruto − gastos MATBA+ALyC)
   tc: number | null;
   venta_dispo_ars: number | null;
   monto_pesos_cau_7d: number | null;
@@ -400,9 +401,9 @@ function VistaBtn({
 
 // ─── Tabla "Pase con Cobertura" ─────────────────────────────────────────────
 // Replica la planilla: una fila por (commodity, vencimiento) — solo futuros.
-// Posición = "TRIGO JULIO 26". Pase Lleno = el `pase` actual (pizarra USD −
-// futuro USD). Pagaré / ON / Sintético quedan en "—" hasta que se definan
-// las fórmulas (a confirmar con la mesa).
+// Posición = "TRIGO JULIO 26". Pase Lleno = (pizarra USD − futuro USD) NETO
+// del costo pase (gastos MATBA+ALyC 0,45%, lo calcula el backend; ver panel
+// COSTO PASE en DATOS). Sintético queda en "—" hasta definir la fórmula.
 
 const MESES_ES: Record<string, string> = {
   "01": "ENERO",
@@ -501,8 +502,12 @@ function PaseConCoberturaTable({
           <th
             rowSpan={2}
             className="text-right px-1.5 py-1 border-b border-[var(--t-border)] align-bottom"
+            title="(Pizarra US$ − Futuro US$) − Costo Pase (gastos MATBA + ALyC 0,45%, ver DATOS)"
           >
             Pase Lleno
+            <span className="block text-[8px] font-normal text-[var(--t-text-muted)]">
+              neto de costo pase
+            </span>
           </th>
           <th
             colSpan={3}
@@ -535,6 +540,9 @@ function PaseConCoberturaTable({
           const card = cardByKey.get(key) ?? null;
           const gOn = card?.ganancia_on_usd ?? null;
           const gPag = card?.ganancia_pagare_usd ?? null;
+          // Pase Lleno neto (backend le resta el costo pase). Sin card todavía
+          // (payload viejo en caché), cae al pase bruto del bloque.
+          const paseLleno = card?.pase_lleno ?? f.pase;
           return (
             <tr
               key={`${f.commodity}-${f.ticker ?? f.vto}`}
@@ -553,8 +561,11 @@ function PaseConCoberturaTable({
               <td className="px-1.5 py-0.5 text-[var(--t-text)] font-semibold">
                 {posicionFromVto(f.commodity, f.vto)}
               </td>
-              <td className={`px-1.5 py-0.5 text-right ${pasecolor(f.pase)}`}>
-                {fmtPx(f.pase)}
+              <td
+                className={`px-1.5 py-0.5 text-right ${pasecolor(paseLleno)}`}
+                title="(Pizarra − Futuro) − Costo Pase"
+              >
+                {fmtPx(paseLleno)}
               </td>
               <td
                 className={`px-1.5 py-0.5 text-right font-semibold ${pasecolor(gPag)}`}
@@ -655,13 +666,34 @@ function PaseCalcModal({
             <CalcLine label="Valor US$ Pase Agro (futuro)" value={fmtPx(card.valor_pase_agro_usd)} />
           </CalcBlock>
 
-          <CalcBlock title="Compra del futuro (común a ON y Pagaré)">
+          <CalcBlock title="Costo Pase (gastos MATBA + ALyC — común a todo)">
             <CalcLine
-              label={`Gastos = Valor US$ × ${fmtTasa((card.gastos_pct ?? 0) * 100)}`}
-              value={fmtPx(card.total_gastos)}
+              label="(0,175% der. mercado + 0,05% apertura) × 2 patas"
+              value={fmtTasa((card.gastos_pct ?? 0) * 100)}
             />
             <CalcLine
-              label="Compra Futuro = Valor US$ + Gastos"
+              label={`Costo Pase = Valor US$ × ${fmtTasa((card.gastos_pct ?? 0) * 100)}`}
+              value={fmtPx(card.total_gastos)}
+              strong
+            />
+          </CalcBlock>
+
+          <CalcBlock title="Pase Lleno">
+            <CalcLine
+              label="Pase bruto = Pizarra US$ − Futuro US$"
+              value={fmtPx(card.pase_bruto)}
+            />
+            <CalcLine
+              label="Pase Lleno = Pase bruto − Costo Pase"
+              value={fmtPx(card.pase_lleno)}
+              strong
+              color={pasecolor(card.pase_lleno)}
+            />
+          </CalcBlock>
+
+          <CalcBlock title="Compra del futuro (común a ON y Pagaré)">
+            <CalcLine
+              label="Compra Futuro = Valor US$ + Costo Pase"
               value={fmtPx(card.compra_futuro)}
               strong
             />

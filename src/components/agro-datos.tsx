@@ -129,6 +129,7 @@ export function AgroDatos() {
       <div className="flex flex-col gap-3">
         <DolaresReferenciaPanel />
         <TasasCoberturaPanel />
+        <CostoPasePanel />
         <DescuentoCaucionPanel />
       </div>
       <div>
@@ -421,6 +422,90 @@ function DescuentoCaucionPanel() {
             ))}
           </tbody>
         </table>
+      </Panel>
+    </div>
+  );
+}
+
+// ─── Costo Pase (gastos MATBA + ALyC) — 100% automático, nada editable ──────
+// Desglose de cómo se genera el 0,45% que se le resta al Pase Lleno en las
+// cards del Pase con Cobertura + costo en US$/Tn por commodity (≈ US$ 1).
+
+interface CostoPaseResp {
+  der_mercado_pct: number;
+  apertura_pct: number;
+  por_pata_pct: number;
+  total_pct: number;
+  commodities: { commodity: string; us_ref: number | null; costo_usd: number | null }[];
+}
+
+const EMPTY_COSTO_PASE: CostoPaseResp = {
+  der_mercado_pct: 0.175,
+  apertura_pct: 0.05,
+  por_pata_pct: 0.225,
+  total_pct: 0.45,
+  commodities: [],
+};
+
+function CostoPasePanel() {
+  const { data } = usePoll<CostoPaseResp>(
+    "/api/derivados-agro/costo-pase",
+    EMPTY_COSTO_PASE,
+    POLL_MS,
+    { fetchOnMount: true },
+  );
+
+  return (
+    <div>
+      <Panel title="COSTO PASE — GASTOS MATBA + ALyC" expandable>
+        <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
+          Automático (constantes de mercado, no se carga a mano). Este costo se
+          le <span className="text-[var(--t-text-dim)]">resta al Pase Lleno</span>{" "}
+          en las cards del Pase con Cobertura.
+        </div>
+        <table className="w-full text-[11px] font-mono tabular-nums">
+          <tbody>
+            <tr className="border-b border-[var(--t-border)]">
+              <td className="px-2 py-1 text-[var(--t-text-dim)]">Derechos de mercado</td>
+              <td className="px-2 py-1 text-right">{fmtNum(data.der_mercado_pct, 3)}%</td>
+            </tr>
+            <tr className="border-b border-[var(--t-border)]">
+              <td className="px-2 py-1 text-[var(--t-text-dim)]">Derecho de apertura</td>
+              <td className="px-2 py-1 text-right">{fmtNum(data.apertura_pct, 2)}%</td>
+            </tr>
+            <tr className="border-b border-[var(--t-border)]">
+              <td className="px-2 py-1 text-[var(--t-text-dim)]">
+                Por pata · × 2 (ida y vuelta)
+              </td>
+              <td className="px-2 py-1 text-right">{fmtNum(data.por_pata_pct, 3)}% × 2</td>
+            </tr>
+            <tr className="border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+              <td className="px-2 py-1 font-semibold text-[var(--t-text)]">
+                Total gastos MATBA + ALyC
+              </td>
+              <td className="px-2 py-1 text-right font-bold text-[var(--t-accent)]">
+                {fmtNum(data.total_pct, 2)}%
+              </td>
+            </tr>
+            {data.commodities.map((c) => (
+              <tr key={c.commodity} className="border-b border-[var(--t-border)]">
+                <td className="px-2 py-1 text-[var(--t-accent)] font-semibold tracking-wide">
+                  {c.commodity}
+                  <span className="ml-1 text-[9px] font-normal text-[var(--t-text-muted)]">
+                    {c.us_ref != null ? `(US$ ${fmtNum(c.us_ref, 2)} × ${fmtNum(data.total_pct, 2)}%)` : ""}
+                  </span>
+                </td>
+                <td className="px-2 py-1 text-right font-semibold">
+                  {c.costo_usd != null ? `US$ ${fmtNum(c.costo_usd, 2)} /Tn` : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-2 py-1 text-[9px] text-[var(--t-text-muted)]">
+          En cada card el costo exacto se calcula sobre el US$ del futuro de esa
+          posición; acá la referencia es el precio dispo US$ de la Cámara.
+        </div>
       </Panel>
     </div>
   );
