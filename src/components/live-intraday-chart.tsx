@@ -124,6 +124,13 @@ export function LiveIntradayChart({
         borderColor: border,
         scaleMargins: { top: 0.08, bottom: 0.08 },
       },
+      // El eje de PRECIOS no se arrastra: hacerlo apagaba autoScale para
+      // siempre y al cambiar de card la serie nueva quedaba fuera de la escala
+      // vieja → chart "congelado" en la card anterior (bug 2026-07-15). La
+      // escala Y se ajusta SOLA a lo visible; manipulable es solo el eje X.
+      handleScale: {
+        axisPressedMouseMove: { time: true, price: false },
+      },
       rightPriceScale: { visible: false },
       timeScale: {
         borderColor: border,
@@ -163,6 +170,7 @@ export function LiveIntradayChart({
     // Doble click = volver a la rueda completa y retomar el seguimiento.
     const reset = () => {
       interactedRef.current = false;
+      chart.priceScale("left").applyOptions({ autoScale: true });
       chart.timeScale().fitContent();
       requestAnimationFrame(reposicionar);
     };
@@ -197,6 +205,9 @@ export function LiveIntradayChart({
     let alive = true;
     let primera = true;
     interactedRef.current = false;
+    // Cambio de ticker (card nueva): la escala Y vuelve a ajustarse sola,
+    // por si algún gesto sobre el eje la dejó fija en los precios anteriores.
+    chart.priceScale("left").applyOptions({ autoScale: true });
 
     const fetchSerie = async () => {
       try {
@@ -301,6 +312,7 @@ export function LiveIntradayChart({
         <button
           onClick={() => {
             interactedRef.current = false;
+            chartRef.current?.priceScale("left").applyOptions({ autoScale: true });
             chartRef.current?.timeScale().fitContent();
           }}
           title="Ver la rueda completa (también con doble click)"
