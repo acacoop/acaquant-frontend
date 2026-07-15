@@ -426,7 +426,10 @@ export function TradingView() {
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
         {/* izquierda: cards (arriba, 4/fila × 3 filas, llenan el alto) + order book (abajo) */}
         <div className="min-h-0 grid grid-rows-[7fr_3fr] gap-2">
-          <div className="min-h-0 grid grid-cols-4 auto-rows-fr gap-1.5">
+          {/* Filas con altura MÍNIMA (170px = card completa hasta S3): en un
+              monitor grande siguen llenando el alto (1fr); en uno chico ya no
+              se aplastan — el contenedor scrollea y se ve la card entera. */}
+          <div className="min-h-0 grid grid-cols-4 auto-rows-[minmax(170px,1fr)] gap-1.5 overflow-y-auto">
           {cards.map((c) => (
             <PivotCard
               key={c.id}
