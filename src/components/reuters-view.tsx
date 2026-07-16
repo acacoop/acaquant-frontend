@@ -1,13 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
+import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { usePoll } from "@/lib/use-poll";
 
 // TRADING → REUTERS: tablero live de los subyacentes US suscriptos (feed de la
-// PC de oficina). Tabla a la izquierda (60%); el panel derecho queda reservado
-// para lo próximo que se diseñe. La columna CCL está modelada pero PENDIENTE:
-// se va a calcular en vivo como precio_cedear_ars × ratio / precio_adr_usd.
+// PC de oficina), a pantalla completa. Toda columna ordena con click: números
+// de mayor a menor (2do click invierte), texto de A a Z. La columna CCL está
+// modelada pero PENDIENTE: precio_cedear_ars × ratio / precio_adr_usd.
 const POLL_MS = 5_000;
 
 interface ReutersRow {
@@ -41,7 +42,10 @@ interface ReutersRow {
   updated_at: string | null;
 }
 
-const RETORNOS: { key: keyof ReutersRow; label: string }[] = [
+type SortKey = keyof ReutersRow;
+const TEXT_KEYS: SortKey[] = ["ticker", "ric", "updated_at"];
+
+const RETORNOS: { key: SortKey; label: string }[] = [
   { key: "ret_5d", label: "5D" },
   { key: "ret_wtd", label: "WTD" },
   { key: "ret_mtd", label: "MTD" },
@@ -53,11 +57,6 @@ const RETORNOS: { key: keyof ReutersRow; label: string }[] = [
   { key: "ret_5y", label: "5A" },
 ];
 
-function fmtPct(v: number | null, dec = 1): string {
-  if (v === null || v === undefined || !isFinite(v)) return "—";
-  return `${v > 0 ? "+" : ""}${v.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec })}%`;
-}
-
 function fmt(n: number | null, dec = 2): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
   return n.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -66,6 +65,11 @@ function fmt(n: number | null, dec = 2): string {
 function fmtVol(n: number | null): string {
   if (n === null || n === undefined || !isFinite(n)) return "—";
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+}
+
+function fmtPct(v: number | null, dec = 1): string {
+  if (v === null || v === undefined || !isFinite(v)) return "—";
+  return `${v > 0 ? "+" : ""}${v.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec })}%`;
 }
 
 function hora(ts: string | null): string {
@@ -80,110 +84,145 @@ function varClass(v: number | null): string {
 }
 
 export function ReutersView() {
-  const { data: rows, lastAt } = usePoll<ReutersRow[]>(
+  const { data: rows } = usePoll<ReutersRow[]>(
     "/api/trading/reuters", [], POLL_MS, { fetchOnMount: true },
   );
-  const filas = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
+  // dir: -1 = descendente (default numérico), 1 = ascendente (default texto)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
+
+  const clickSort = (key: SortKey) => {
+    setSort((s) => {
+      if (s?.key === key) return { key, dir: s.dir === 1 ? -1 : 1 };
+      return { key, dir: TEXT_KEYS.includes(key) ? 1 : -1 };
+    });
+  };
+
+  const filas = useMemo(() => {
+    const base = Array.isArray(rows) ? [...rows] : [];
+    if (!sort) return base;
+    const { key, dir } = sort;
+    return base.sort((a, b) => {
+      const va = a[key];
+      const vb = b[key];
+      // nulls SIEMPRE al final, sin importar la dirección
+      if (va === null || va === undefined) return vb === null || vb === undefined ? 0 : 1;
+      if (vb === null || vb === undefined) return -1;
+      if (typeof va === "string" || typeof vb === "string") {
+        return String(va).localeCompare(String(vb)) * dir;
+      }
+      return ((va as number) - (vb as number)) * dir;
+    });
+  }, [rows, sort]);
+
+  const Th = ({ k, label, title, align = "right" }: { k: SortKey; label: string; title?: string; align?: "left" | "right" }) => (
+    <th
+      onClick={() => clickSort(k)}
+      title={title ?? "Click para ordenar"}
+      className={`px-2 py-2 cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${align === "left" ? "text-left" : "text-right"} ${sort?.key === k ? "text-[var(--t-accent)]" : ""}`}
+    >
+      {label}
+      {sort?.key === k && <span className="ml-0.5">{sort.dir === -1 ? "▼" : "▲"}</span>}
+    </th>
+  );
 
   return (
-    <div className="h-full flex min-h-0">
-      {/* Tabla de suscriptos — 60% del ancho */}
-      <div className="w-[60%] h-full flex flex-col min-h-0 border-r border-[var(--t-border)]">
-        <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">REUTERS</span>
-          <span className="text-[10px] text-[var(--t-text-muted)]">
-            {filas.length} activo{filas.length === 1 ? "" : "s"} suscripto{filas.length === 1 ? "" : "s"}
-          </span>
-          {lastAt > 0 && (
-            <span className="ml-auto text-[9px] text-[var(--t-text-dim)]">live · 5s</span>
-          )}
-        </div>
-        <div className="flex-1 min-h-0 overflow-auto">
-          {filas.length === 0 ? (
-            <div className="p-4 text-[11px] text-[var(--t-text-muted)]">
-              Sin activos suscriptos todavía — prendé el feed en la PC de la oficina
-              y cargá los códigos en Manager → Títulos → Renta Variable.
-            </div>
-          ) : (
-            <table className="w-full text-[11px] font-mono">
-              <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)]">
-                <tr className="text-left text-[var(--t-text-dim)] tracking-widest text-[9px]">
-                  <th className="px-3 py-2">ACTIVO</th>
-                  <th className="px-2 py-2 text-right">ÚLTIMO</th>
-                  <th className="px-2 py-2 text-right">BID</th>
-                  <th className="px-2 py-2 text-right">ASK</th>
-                  <th className="px-2 py-2 text-right">APERTURA</th>
-                  <th className="px-2 py-2 text-right">MÁX</th>
-                  <th className="px-2 py-2 text-right">MÍN</th>
-                  <th className="px-2 py-2 text-right">CIERRE ANT.</th>
-                  <th className="px-2 py-2 text-right">VOLUMEN</th>
-                  <th className="px-2 py-2 text-right">VAR %</th>
-                  <th className="px-2 py-2 text-right">VAR NETA</th>
-                  <th className="px-2 py-2 text-right" title="Precio del pre market (y su variación contra el cierre anterior)">PRE MKT</th>
-                  <th className="px-2 py-2 text-right" title="Precio del after market (y su variación contra el cierre de hoy)">AFTER HS</th>
-                  {RETORNOS.map((r) => (
-                    <th key={r.key} className="px-2 py-2 text-right" title={`Retorno ${r.label} (al cierre de la rueda anterior)`}>{r.label}</th>
-                  ))}
-                  <th className="px-2 py-2 text-right" title="Ratio de conversión del CEDEAR (CEDEARs por acción)">RATIO</th>
-                  <th className="px-2 py-2 text-right" title="CCL implícito del activo — próximamente">CCL</th>
-                  <th className="px-3 py-2 text-right">HORA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((r) => (
-                  <tr key={r.ticker} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
-                    <td className="px-3 py-1.5 whitespace-nowrap">
-                      <span className="text-[var(--t-accent)] font-semibold">{r.ticker}</span>
-                      {r.ric && <span className="ml-1.5 text-[9px] text-[var(--t-text-dim)]">{r.ric}</span>}
-                    </td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text)] font-semibold">{fmt(r.last)}</td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmt(r.bid)}</td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmt(r.ask)}</td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.open)}</td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.high)}</td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.low)}</td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.prev_close)}</td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmtVol(r.volumen)}</td>
-                    <td className={`px-2 py-1.5 text-right ${varClass(r.var_pct)}`}>
-                      {r.var_pct === null ? "—" : `${r.var_pct > 0 ? "+" : ""}${fmt(r.var_pct)}%`}
-                    </td>
-                    <td className={`px-2 py-1.5 text-right ${varClass(r.var_neta)}`}>
-                      {r.var_neta === null ? "—" : `${r.var_neta > 0 ? "+" : ""}${fmt(r.var_neta)}`}
-                    </td>
-                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                      <span className="text-[var(--t-text)]">{fmt(r.pre_last)}</span>
-                      {r.pre_var_pct !== null && (
-                        <span className={`ml-1 text-[9px] ${varClass(r.pre_var_pct)}`}>{fmtPct(r.pre_var_pct)}</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                      <span className="text-[var(--t-text)]">{fmt(r.ah_last)}</span>
-                      {r.ah_var_pct !== null && (
-                        <span className={`ml-1 text-[9px] ${varClass(r.ah_var_pct)}`}>{fmtPct(r.ah_var_pct)}</span>
-                      )}
-                    </td>
-                    {RETORNOS.map((col) => {
-                      const v = r[col.key] as number | null;
-                      return (
-                        <td key={col.key} className={`px-2 py-1.5 text-right ${varClass(v)}`}>{fmtPct(v)}</td>
-                      );
-                    })}
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">
-                      {r.ratio === null ? "—" : `${fmt(r.ratio, 0)}:1`}
-                    </td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">—</td>
-                    <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)] whitespace-nowrap">{hora(r.updated_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">REUTERS</span>
+        <span className="text-[10px] text-[var(--t-text-muted)]">
+          {filas.length} activo{filas.length === 1 ? "" : "s"} suscripto{filas.length === 1 ? "" : "s"}
+        </span>
+        {sort && (
+          <button
+            onClick={() => setSort(null)}
+            className="text-[9px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] px-1.5 py-0.5"
+            title="Volver al orden original"
+          >
+            ✕ orden
+          </button>
+        )}
+        <span className="ml-auto text-[9px] text-[var(--t-text-dim)]">live · 5s</span>
+        {/* Copiloto IA de la vista REUTERS (oculto sin módulos ia+trading) */}
+        <IaVistaPanel vista="reuters" />
       </div>
-
-      {/* Panel derecho (40%) — reservado, se diseña después */}
-      <div className="flex-1 h-full flex items-center justify-center">
-        <span className="text-[10px] text-[var(--t-text-dim)] tracking-widest">PRÓXIMAMENTE</span>
+      <div className="flex-1 min-h-0 overflow-auto">
+        {filas.length === 0 ? (
+          <div className="p-4 text-[11px] text-[var(--t-text-muted)]">
+            Sin activos suscriptos todavía — prendé el feed en la PC de la oficina
+            y cargá los códigos en Manager → Títulos → Renta Variable.
+          </div>
+        ) : (
+          <table className="w-full text-[11px] font-mono">
+            <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
+              <tr className="text-[var(--t-text-dim)] tracking-widest text-[9px]">
+                <Th k="ticker" label="ACTIVO" align="left" />
+                <Th k="last" label="ÚLTIMO" />
+                <Th k="bid" label="BID" />
+                <Th k="ask" label="ASK" />
+                <Th k="open" label="APERTURA" />
+                <Th k="high" label="MÁX" />
+                <Th k="low" label="MÍN" />
+                <Th k="prev_close" label="CIERRE ANT." />
+                <Th k="volumen" label="VOLUMEN" />
+                <Th k="var_pct" label="VAR %" />
+                <Th k="var_neta" label="VAR NETA" />
+                <Th k="pre_last" label="PRE MKT" title="Precio del pre market (var. contra el cierre anterior)" />
+                <Th k="ah_last" label="AFTER HS" title="Precio del after market (var. contra el cierre de hoy)" />
+                {RETORNOS.map((r) => (
+                  <Th key={r.key} k={r.key} label={r.label} title={`Retorno ${r.label} (al cierre de la rueda anterior)`} />
+                ))}
+                <Th k="ratio" label="RATIO" title="Ratio de conversión del CEDEAR (CEDEARs por acción)" />
+                <Th k="ccl" label="CCL" title="CCL implícito del activo — próximamente" />
+                <Th k="updated_at" label="HORA" />
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((r) => (
+                <tr key={r.ticker} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
+                  <td className="px-3 py-1.5 whitespace-nowrap">
+                    <span className="text-[var(--t-accent)] font-semibold">{r.ticker}</span>
+                    {r.ric && <span className="ml-1.5 text-[9px] text-[var(--t-text-dim)]">{r.ric}</span>}
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text)] font-semibold">{fmt(r.last)}</td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmt(r.bid)}</td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmt(r.ask)}</td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.open)}</td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.high)}</td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.low)}</td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.prev_close)}</td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmtVol(r.volumen)}</td>
+                  <td className={`px-2 py-1.5 text-right ${varClass(r.var_pct)}`}>{fmtPct(r.var_pct, 2)}</td>
+                  <td className={`px-2 py-1.5 text-right ${varClass(r.var_neta)}`}>
+                    {r.var_neta === null ? "—" : `${r.var_neta > 0 ? "+" : ""}${fmt(r.var_neta)}`}
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <span className="text-[var(--t-text)]">{fmt(r.pre_last)}</span>
+                    {r.pre_var_pct !== null && (
+                      <span className={`ml-1 text-[9px] ${varClass(r.pre_var_pct)}`}>{fmtPct(r.pre_var_pct)}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <span className="text-[var(--t-text)]">{fmt(r.ah_last)}</span>
+                    {r.ah_var_pct !== null && (
+                      <span className={`ml-1 text-[9px] ${varClass(r.ah_var_pct)}`}>{fmtPct(r.ah_var_pct)}</span>
+                    )}
+                  </td>
+                  {RETORNOS.map((col) => {
+                    const v = r[col.key] as number | null;
+                    return (
+                      <td key={col.key} className={`px-2 py-1.5 text-right ${varClass(v)}`}>{fmtPct(v)}</td>
+                    );
+                  })}
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">
+                    {r.ratio === null ? "—" : `${fmt(r.ratio, 0)}:1`}
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">—</td>
+                  <td className="px-3 py-1.5 text-right text-[var(--t-text-dim)] whitespace-nowrap">{hora(r.updated_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
