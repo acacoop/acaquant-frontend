@@ -4,14 +4,16 @@ import { useState } from "react";
 
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { IntradayView } from "./intraday-view";
+import { ReutersView } from "./reuters-view";
 import { TradingView } from "./trading-view";
 
 // Módulo TRADING con sub-pestañas:
 //   PIVOTS   → panel de pivots del CEDEAR + chart/tape/volumen.
 //   INTRADAY → monitor intradía FIFO (migrado de Operaciones).
+//   REUTERS  → tablero live de subyacentes US suscriptos (feed de oficina).
 // Keep-alive: cada tab se monta la primera vez y luego se oculta con CSS (mismo
 // patrón que operaciones-view) → cambiar de tab no re-fetchea ni pierde estado.
-type Tab = "pivots" | "intraday";
+type Tab = "pivots" | "intraday" | "reuters";
 
 export function TradingShell() {
   const [tab, setTab] = usePersistedState<Tab>("trading.tab", "pivots");
@@ -23,6 +25,7 @@ export function TradingShell() {
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "pivots"} onClick={() => setTab("pivots")}>PIVOTS</TabBtn>
         <TabBtn active={tab === "intraday"} onClick={() => setTab("intraday")}>INTRADAY</TabBtn>
+        <TabBtn active={tab === "reuters"} onClick={() => setTab("reuters")}>REUTERS</TabBtn>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {visited.has("pivots") && (
@@ -33,6 +36,11 @@ export function TradingShell() {
         {visited.has("intraday") && (
           <Pane active={tab === "intraday"}>
             <IntradayView />
+          </Pane>
+        )}
+        {visited.has("reuters") && (
+          <Pane active={tab === "reuters"}>
+            <ReutersView />
           </Pane>
         )}
       </div>

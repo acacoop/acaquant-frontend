@@ -4197,6 +4197,7 @@ interface CedearRow {
   rubro: string | null;
   es_ia: boolean | null;
   ric: string | null;        // identidad Refinitiv del subyacente (ej. AAPL.O)
+  ratio: number | null;      // CEDEARs por acción (ej. AAPL 10:1 → 10), para el CCL implícito
   nombre: string | null;
 }
 interface RubroRow { rubro: string; es_ia_def: boolean }
@@ -4213,8 +4214,9 @@ function TabRentaVariable() {
   const [nuevoRubroIa, setNuevoRubroIa] = useState(false);
   const [creandoRubro, setCreandoRubro] = useState(false);
   const [rubroMsg, setRubroMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  // Borrador del input RIC por fila (se guarda al salir del campo / Enter).
+  // Borradores de los inputs RIC/RATIO por fila (se guardan al salir del campo / Enter).
   const [ricDrafts, setRicDrafts] = useState<Record<string, string>>({});
+  const [ratioDrafts, setRatioDrafts] = useState<Record<string, string>>({});
 
   const fetchCedears = () => {
     setLoading(true);
@@ -4253,7 +4255,7 @@ function TabRentaVariable() {
   }, [rows, q]);
 
   // PATCH inmediato (optimista) de un campo de la fila.
-  const patchRow = async (c: CedearRow, patch: { rubro?: string | null; es_ia?: boolean; ric?: string | null }) => {
+  const patchRow = async (c: CedearRow, patch: { rubro?: string | null; es_ia?: boolean; ric?: string | null; ratio?: number | null }) => {
     setRowState((s) => ({ ...s, [c.ticker]: { kind: "saving" } }));
     // Optimista: aplicar local antes de la respuesta.
     setRows((prev) => prev.map((x) => (x.ticker === c.ticker ? { ...x, ...patch } : x)));
@@ -4387,6 +4389,7 @@ function TabRentaVariable() {
                 <th className="px-2 py-2">RUBRO</th>
                 <th className="px-2 py-2 text-center">ES IA</th>
                 <th className="px-2 py-2" title="Identidad Refinitiv del subyacente (ej. AAPL.O) — la usan Research y el feed de precios en vivo">RIC</th>
+                <th className="px-2 py-2" title="Ratio de conversión: cuántos CEDEARs equivalen a 1 acción (ej. 10). Insumo del CCL implícito.">RATIO</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -4442,6 +4445,29 @@ function TabRentaVariable() {
                         placeholder="AAPL.O"
                         spellCheck={false}
                         className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[90px]"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        value={ratioDrafts[c.ticker] ?? (c.ratio === null ? "" : String(c.ratio))}
+                        onChange={(e) => setRatioDrafts((d) => ({ ...d, [c.ticker]: e.target.value }))}
+                        onBlur={() => {
+                          const draft = ratioDrafts[c.ticker];
+                          if (draft === undefined) return;
+                          setRatioDrafts((d) => { const rest = { ...d }; delete rest[c.ticker]; return rest; });
+                          const txt = draft.trim().replace(",", ".");
+                          const val = txt === "" ? null : Number(txt);
+                          if (val !== null && (!isFinite(val) || val <= 0)) {
+                            setRowState((s) => ({ ...s, [c.ticker]: { kind: "error", msg: "ratio inválido (número > 0)" } }));
+                            return;
+                          }
+                          if (val !== (c.ratio ?? null)) patchRow(c, { ratio: val });
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        placeholder="10"
+                        inputMode="decimal"
+                        spellCheck={false}
+                        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] text-right focus:border-[var(--t-accent)] focus:outline-none w-[60px]"
                       />
                     </td>
                     <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
