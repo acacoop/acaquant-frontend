@@ -16,6 +16,7 @@ interface ReutersRow {
   last: number | null;
   bid: number | null;
   ask: number | null;
+  open: number | null;
   high: number | null;
   low: number | null;
   prev_close: number | null;
@@ -81,6 +82,7 @@ export function ReutersView() {
                   <th className="px-2 py-2 text-right">ÚLTIMO</th>
                   <th className="px-2 py-2 text-right">BID</th>
                   <th className="px-2 py-2 text-right">ASK</th>
+                  <th className="px-2 py-2 text-right">APERTURA</th>
                   <th className="px-2 py-2 text-right">MÁX</th>
                   <th className="px-2 py-2 text-right">MÍN</th>
                   <th className="px-2 py-2 text-right">CIERRE ANT.</th>
@@ -102,6 +104,7 @@ export function ReutersView() {
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)] font-semibold">{fmt(r.last)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmt(r.bid)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{fmt(r.ask)}</td>
+                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.open)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.high)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.low)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{fmt(r.prev_close)}</td>
