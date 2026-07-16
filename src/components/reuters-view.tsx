@@ -23,9 +23,39 @@ interface ReutersRow {
   volumen: number | null;
   var_pct: number | null;
   var_neta: number | null;
+  pre_last: number | null;
+  pre_var_pct: number | null;
+  ah_last: number | null;
+  ah_var_pct: number | null;
+  ret_5d: number | null;
+  ret_wtd: number | null;
+  ret_mtd: number | null;
+  ret_qtd: number | null;
+  ret_ytd: number | null;
+  ret_1m: number | null;
+  ret_3m: number | null;
+  ret_1y: number | null;
+  ret_5y: number | null;
   ratio: number | null;
   ccl: number | null;
   updated_at: string | null;
+}
+
+const RETORNOS: { key: keyof ReutersRow; label: string }[] = [
+  { key: "ret_5d", label: "5D" },
+  { key: "ret_wtd", label: "WTD" },
+  { key: "ret_mtd", label: "MTD" },
+  { key: "ret_qtd", label: "QTD" },
+  { key: "ret_ytd", label: "YTD" },
+  { key: "ret_1m", label: "1M" },
+  { key: "ret_3m", label: "3M" },
+  { key: "ret_1y", label: "1A" },
+  { key: "ret_5y", label: "5A" },
+];
+
+function fmtPct(v: number | null, dec = 1): string {
+  if (v === null || v === undefined || !isFinite(v)) return "—";
+  return `${v > 0 ? "+" : ""}${v.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec })}%`;
 }
 
 function fmt(n: number | null, dec = 2): string {
@@ -89,6 +119,11 @@ export function ReutersView() {
                   <th className="px-2 py-2 text-right">VOLUMEN</th>
                   <th className="px-2 py-2 text-right">VAR %</th>
                   <th className="px-2 py-2 text-right">VAR NETA</th>
+                  <th className="px-2 py-2 text-right" title="Precio del pre market (y su variación contra el cierre anterior)">PRE MKT</th>
+                  <th className="px-2 py-2 text-right" title="Precio del after market (y su variación contra el cierre de hoy)">AFTER HS</th>
+                  {RETORNOS.map((r) => (
+                    <th key={r.key} className="px-2 py-2 text-right" title={`Retorno ${r.label} (al cierre de la rueda anterior)`}>{r.label}</th>
+                  ))}
                   <th className="px-2 py-2 text-right" title="Ratio de conversión del CEDEAR (CEDEARs por acción)">RATIO</th>
                   <th className="px-2 py-2 text-right" title="CCL implícito del activo — próximamente">CCL</th>
                   <th className="px-3 py-2 text-right">HORA</th>
@@ -115,6 +150,24 @@ export function ReutersView() {
                     <td className={`px-2 py-1.5 text-right ${varClass(r.var_neta)}`}>
                       {r.var_neta === null ? "—" : `${r.var_neta > 0 ? "+" : ""}${fmt(r.var_neta)}`}
                     </td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      <span className="text-[var(--t-text)]">{fmt(r.pre_last)}</span>
+                      {r.pre_var_pct !== null && (
+                        <span className={`ml-1 text-[9px] ${varClass(r.pre_var_pct)}`}>{fmtPct(r.pre_var_pct)}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      <span className="text-[var(--t-text)]">{fmt(r.ah_last)}</span>
+                      {r.ah_var_pct !== null && (
+                        <span className={`ml-1 text-[9px] ${varClass(r.ah_var_pct)}`}>{fmtPct(r.ah_var_pct)}</span>
+                      )}
+                    </td>
+                    {RETORNOS.map((col) => {
+                      const v = r[col.key] as number | null;
+                      return (
+                        <td key={col.key} className={`px-2 py-1.5 text-right ${varClass(v)}`}>{fmtPct(v)}</td>
+                      );
+                    })}
                     <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">
                       {r.ratio === null ? "—" : `${fmt(r.ratio, 0)}:1`}
                     </td>
