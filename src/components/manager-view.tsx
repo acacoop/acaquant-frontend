@@ -4196,6 +4196,7 @@ interface CedearRow {
   activo: boolean | null;
   rubro: string | null;
   es_ia: boolean | null;
+  ric: string | null;        // identidad Refinitiv del subyacente (ej. AAPL.O)
   nombre: string | null;
 }
 interface RubroRow { rubro: string; es_ia_def: boolean }
@@ -4212,6 +4213,8 @@ function TabRentaVariable() {
   const [nuevoRubroIa, setNuevoRubroIa] = useState(false);
   const [creandoRubro, setCreandoRubro] = useState(false);
   const [rubroMsg, setRubroMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Borrador del input RIC por fila (se guarda al salir del campo / Enter).
+  const [ricDrafts, setRicDrafts] = useState<Record<string, string>>({});
 
   const fetchCedears = () => {
     setLoading(true);
@@ -4250,7 +4253,7 @@ function TabRentaVariable() {
   }, [rows, q]);
 
   // PATCH inmediato (optimista) de un campo de la fila.
-  const patchRow = async (c: CedearRow, patch: { rubro?: string | null; es_ia?: boolean }) => {
+  const patchRow = async (c: CedearRow, patch: { rubro?: string | null; es_ia?: boolean; ric?: string | null }) => {
     setRowState((s) => ({ ...s, [c.ticker]: { kind: "saving" } }));
     // Optimista: aplicar local antes de la respuesta.
     setRows((prev) => prev.map((x) => (x.ticker === c.ticker ? { ...x, ...patch } : x)));
@@ -4383,6 +4386,7 @@ function TabRentaVariable() {
                 <th className="px-2 py-2">UNDERLYING</th>
                 <th className="px-2 py-2">RUBRO</th>
                 <th className="px-2 py-2 text-center">ES IA</th>
+                <th className="px-2 py-2" title="Identidad Refinitiv del subyacente (ej. AAPL.O) — la usan Research y el feed de precios en vivo">RIC</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -4422,6 +4426,23 @@ function TabRentaVariable() {
                       >
                         {c.es_ia ? "SÍ" : "NO"}
                       </button>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        value={ricDrafts[c.ticker] ?? c.ric ?? ""}
+                        onChange={(e) => setRicDrafts((d) => ({ ...d, [c.ticker]: e.target.value }))}
+                        onBlur={() => {
+                          const draft = ricDrafts[c.ticker];
+                          if (draft === undefined) return;
+                          setRicDrafts((d) => { const rest = { ...d }; delete rest[c.ticker]; return rest; });
+                          const val = draft.trim() || null;
+                          if (val !== (c.ric ?? null)) patchRow(c, { ric: val });
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        placeholder="AAPL.O"
+                        spellCheck={false}
+                        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[90px]"
+                      />
                     </td>
                     <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
                       {state.kind === "saving" && <span className="text-[var(--t-accent)]">Guardando…</span>}
