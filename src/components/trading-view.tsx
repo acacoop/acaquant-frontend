@@ -615,10 +615,12 @@ function PivotCard({
 }
 
 // ── KPIs del toolbar: CCL + SPY + QQQ (referencia de mercado) ─────────────────
-interface MarketQuote {
-  symbol: string;
+// SPY/QQQ salen del tablero REUTERS (feed real-time de la oficina) — antes
+// venían de la watchlist de HOME (fuente externa, menos fresca).
+interface ReutersQuote {
+  ticker: string;
   last: number | null;
-  pct_day: number | null;
+  var_pct: number | null;
 }
 
 function MarketKpis() {
@@ -628,19 +630,19 @@ function MarketKpis() {
     5_000,
     { fetchOnMount: true },
   );
-  const { data: quotes } = usePoll<MarketQuote[]>(
-    "/api/market/quotes?symbols=SPY,QQQ",
+  const { data: quotes } = usePoll<ReutersQuote[]>(
+    "/api/trading/reuters",
     [],
-    15_000,
+    5_000,
     { fetchOnMount: true },
   );
-  const spy = quotes?.find((q) => q.symbol === "SPY");
-  const qqq = quotes?.find((q) => q.symbol === "QQQ");
+  const spy = quotes?.find?.((q) => q.ticker === "SPY");
+  const qqq = quotes?.find?.((q) => q.ticker === "QQQ");
   return (
     <div className="flex items-center gap-3 ml-auto text-[11px]">
       <Kpi label="CCL" value={ccl.value} pct={ccl.vs_1d_pct} />
-      <Kpi label="SPY" value={spy?.last ?? null} pct={spy?.pct_day ?? null} />
-      <Kpi label="QQQ" value={qqq?.last ?? null} pct={qqq?.pct_day ?? null} />
+      <Kpi label="SPY" value={spy?.last ?? null} pct={spy?.var_pct ?? null} />
+      <Kpi label="QQQ" value={qqq?.last ?? null} pct={qqq?.var_pct ?? null} />
     </div>
   );
 }

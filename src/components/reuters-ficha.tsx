@@ -231,6 +231,19 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
   const def = GRUPOS_5A[grupo];
   const activas = def.series.filter((s) => !apagadas.has(s.key));
 
+  // El SVG se dibuja al TAMAÑO REAL del cuadrante (medido) — sin viewBox
+  // escalado: las barras llenan el espacio y los textos salen nítidos.
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [dim, setDim] = useState({ w: 640, h: 240 });
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() =>
+      setDim({ w: Math.max(el.clientWidth, 240), h: Math.max(el.clientHeight, 140) }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Escala ADAPTATIVA con tope "redondo" (1/2/2.5/5 × 10^k): el eje queda en
   // números que se leen (0 / 25 / 50%), no en el máximo crudo de los datos.
   const redondear = (v: number): number => {
@@ -243,15 +256,16 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
   const vals = serie.flatMap((a) => activas.map((s) => num(a[s.key]))).filter((v): v is number => v !== null);
   const topPos = redondear(Math.max(0, ...vals.filter((v) => v > 0)));
   const topNeg = redondear(Math.max(0, ...vals.filter((v) => v < 0).map((v) => -v)));
-  const H = 190;
-  const M = 40;                                    // margen izquierdo (eje Y)
+  const W = dim.w;
+  const H = dim.h - 18;                            // franja inferior: fechas
+  const M = 48;                                    // margen izquierdo (eje Y)
   // Cabecera arriba (y abajo si hay negativos) para que las etiquetas
   // verticales de las barras más altas no se recorten.
-  const margenTop = 36;
-  const margenBot = topNeg > 0 ? 36 : 14;
-  const escala = (H - margenTop - margenBot) / ((topPos + topNeg) || 1);
+  const margenTop = 40;
+  const margenBot = topNeg > 0 ? 40 : 12;
+  const escala = Math.max(H - margenTop - margenBot, 20) / ((topPos + topNeg) || 1);
   const cero = margenTop + topPos * escala;
-  const W = M + Math.max(serie.length, 1) * 96;
+  const slot = (W - M) / Math.max(serie.length, 1);
 
   // Ticks del eje Y: 0, mitad y tope redondos de cada lado
   const ticks = [...new Set([topPos, topPos / 2, 0, -topNeg / 2, -topNeg])];
@@ -299,17 +313,17 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
           sin datos {per === "anual" ? "anuales" : "trimestrales"} todavía — se cargan con la próxima pasada del feed
         </div>
       ) : (
-        <div className="flex-1 min-h-0 px-2 pb-1">
-          <svg viewBox={`0 0 ${W} ${H + 16}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+        <div ref={boxRef} className="flex-1 min-h-0 px-2 pb-1 overflow-hidden">
+          <svg width={W} height={dim.h}>
             {/* eje Y: gridlines + valores */}
             {ticks.map((t) => {
               const y = cero - t * escala;
               return (
                 <g key={t}>
                   <line x1={M} x2={W} y1={y} y2={y} stroke="var(--t-border-2)"
-                    strokeWidth={t === 0 ? 0.8 : 0.4} strokeDasharray={t === 0 ? undefined : "2,3"} />
-                  <text x={M - 4} y={y + 2.5} textAnchor="end"
-                    className="fill-[var(--t-text-dim)]" fontSize={7.5}
+                    strokeWidth={t === 0 ? 1 : 0.5} strokeDasharray={t === 0 ? undefined : "3,4"} />
+                  <text x={M - 6} y={y + 3} textAnchor="end"
+                    className="fill-[var(--t-text-muted)] font-medium" fontSize={9.5}
                     fontFamily="JetBrains Mono, monospace">
                     {def.corto(t)}
                   </text>
@@ -317,36 +331,36 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
               );
             })}
             {serie.map((a, i) => {
-              const x0 = M + i * 96 + 10;
-              const ancho = 72 / Math.max(activas.length, 1);
+              const x0 = M + i * slot + slot * 0.1;
+              const ancho = (slot * 0.8) / Math.max(activas.length, 1);
               return (
                 <g key={a.fecha}>
                   {activas.map((s, j) => {
                     const v = num(a[s.key]);
                     if (v === null) return null;
-                    const h = Math.max(1, Math.abs(v) * escala);
+                    const h = Math.max(1.5, Math.abs(v) * escala);
                     const y = v >= 0 ? cero - h : cero;
-                    const cx = x0 + j * ancho + (ancho - 3) / 2 + 2.5;
-                    const yLbl = v >= 0 ? y - 3 : y + h + 3;
+                    const cx = x0 + j * ancho + (ancho - 3) / 2 + 3.5;
+                    const yLbl = v >= 0 ? y - 4 : y + h + 4;
                     return (
                       <g key={s.key}>
-                        <rect x={x0 + j * ancho} width={ancho - 3} y={y} height={h}
-                          fill={s.color} opacity={0.85}>
+                        <rect x={x0 + j * ancho} width={Math.max(ancho - 3, 2)} y={y} height={h}
+                          fill={s.color} opacity={0.9} rx={1}>
                           <title>{`${etiqueta(a.fecha)} · ${s.label}: ${def.fmt(v)}`}</title>
                         </rect>
                         {/* valor en TODAS las barras (vertical para que entre) */}
                         <text x={cx} y={yLbl}
                           transform={`rotate(-90 ${cx} ${yLbl})`}
                           textAnchor={v >= 0 ? "start" : "end"}
-                          className="fill-[var(--t-text-muted)]"
-                          fontSize={6.5} fontFamily="JetBrains Mono, monospace">
+                          className="fill-[var(--t-text)] font-medium"
+                          fontSize={8.5} fontFamily="JetBrains Mono, monospace">
                           {def.corto(v)}
                         </text>
                       </g>
                     );
                   })}
-                  <text x={M + i * 96 + 46} y={H + 12} textAnchor="middle"
-                    className="fill-[var(--t-text-dim)]" fontSize={8.5}
+                  <text x={M + i * slot + slot / 2} y={dim.h - 4} textAnchor="middle"
+                    className="fill-[var(--t-text-muted)] font-medium" fontSize={10}
                     fontFamily="JetBrains Mono, monospace">
                     {etiqueta(a.fecha)}
                   </text>
@@ -363,22 +377,42 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
 // ── bloques auxiliares ───────────────────────────────────────────────────────
 function Dato({ label, children, title }: { label: string; children: React.ReactNode; title?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-[11px] font-mono border-b border-[var(--t-border)] py-1 last:border-0" title={title}>
-      <span className="text-[var(--t-text-muted)] whitespace-nowrap">
+    <div className="flex items-baseline justify-between gap-3 text-[11px] font-mono border-b border-[var(--t-border)] py-[5px] last:border-0" title={title}>
+      <span className="text-[var(--t-text-muted)] font-medium whitespace-nowrap">
         {label}
         {title && <span className="ml-0.5 text-[7px] align-super opacity-50">?</span>}
       </span>
-      <span className="text-[var(--t-text)] text-right whitespace-nowrap">{children}</span>
+      <span className="text-[var(--t-text)] font-semibold text-right whitespace-nowrap">{children}</span>
     </div>
   );
 }
 
-function Cuadrante({ titulo, children, extra }: { titulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
+type CuadranteId = "precio" | "metricas" | "retornos" | "evolucion";
+
+function Cuadrante({ id, titulo, children, extra, maxi, setMaxi }: {
+  id: CuadranteId;
+  titulo: string;
+  children: React.ReactNode;
+  extra?: React.ReactNode;
+  maxi: CuadranteId | null;
+  setMaxi: (m: CuadranteId | null) => void;
+}) {
+  const esMax = maxi === id;
+  if (maxi && !esMax) return null;   // otro cuadrante está maximizado
   return (
-    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-w-0 min-h-0 flex flex-col">
-      <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">{titulo}</span>
-        {extra}
+    <div className={`bg-[var(--t-panel)] min-w-0 min-h-0 flex flex-col ${esMax ? "col-span-2 row-span-2" : ""}`}>
+      <div className="flex items-center px-3 py-1.5 border-b-2 border-[var(--t-border-2)] bg-[var(--t-surface)] shrink-0">
+        <span className="text-[9px] tracking-widest font-bold text-[var(--t-accent)]">{titulo}</span>
+        <div className="ml-auto flex items-center gap-1.5">
+          {extra}
+          <button
+            onClick={() => setMaxi(esMax ? null : id)}
+            title={esMax ? "Restaurar los 4 paneles" : "Maximizar este panel"}
+            className="px-1.5 py-0.5 text-[10px] leading-none border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)] transition-colors"
+          >
+            {esMax ? "🗗" : "⛶"}
+          </button>
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-auto">{children}</div>
     </div>
@@ -400,6 +434,8 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
     if (tab === "negocio") setGrupo("resultados");
     else if (tab === "salud") setGrupo("salud");
   }, [tab]);
+  // Cuadrante maximizado (⛶ en cada panel) — null = los 4 visibles.
+  const [maxi, setMaxi] = useState<CuadranteId | null>(null);
 
   const q = data?.quote ?? null;
   const f = data?.fundamentals ?? null;
@@ -463,17 +499,17 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
       {!data ? (
         <div className="p-4 text-[11px] text-[var(--t-text-muted)]">Cargando {ticker}…</div>
       ) : (
-        <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-2 p-2">
+        <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-[2px] bg-[var(--t-border-2)] border-t-2 border-[var(--t-border-2)]">
           {/* ── Arriba-izquierda: precio 1 año ── */}
-          <Cuadrante titulo="PRECIO — 1 AÑO">
+          <Cuadrante id="precio" titulo="PRECIO — 1 AÑO" maxi={maxi} setMaxi={setMaxi}>
             {data.velas.length > 0
               ? <ChartAnual velas={data.velas} />
               : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie de precios todavía</div>}
           </Cuadrante>
 
           {/* ── Arriba-derecha: métricas en tabs ── */}
-          <Cuadrante titulo="MÉTRICAS" extra={
-            <div className="ml-auto flex gap-1">
+          <Cuadrante id="metricas" titulo="MÉTRICAS" maxi={maxi} setMaxi={setMaxi} extra={
+            <div className="flex gap-1">
               {([["negocio", "NEGOCIO"], ["salud", "SALUD"], ["valuacion", "VALUACIÓN"]] as const).map(([k, lbl]) => (
                 <button key={k} onClick={() => setTab(k)}
                   className={`px-2 py-0.5 text-[9px] font-semibold border transition-colors ${
@@ -491,7 +527,7 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
                 Sin fundamentals todavía — se cargan solos con la primera pasada diaria del feed de la oficina.
               </div>
             ) : (
-              <div className="px-3 py-1">
+              <div className="px-3 py-1.5 grid grid-cols-2 gap-x-8 content-start">
                 {tab === "negocio" && (
                   <>
                     <Dato label="Ingresos (últ. año fiscal)" title="Ventas totales del último año fiscal, en USD.">{fmtMillones(f.revenue)}</Dato>
@@ -534,13 +570,13 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
           </Cuadrante>
 
           {/* ── Abajo-izquierda: retornos + market cap + rango 52s ── */}
-          <Cuadrante titulo="RETORNOS">
+          <Cuadrante id="retornos" titulo="RETORNOS" maxi={maxi} setMaxi={setMaxi}>
             <div className="px-3 py-1">
               <div className="grid grid-cols-2 gap-x-6">
                 {RETORNOS.map((r) => (
                   <div key={r.key} className="flex items-baseline justify-between text-[11px] font-mono border-b border-[var(--t-border)] py-1">
-                    <span className="text-[var(--t-text-muted)]">{r.label}</span>
-                    <span className={varClass(q?.[r.key])}>{fmtPct(q?.[r.key])}</span>
+                    <span className="text-[var(--t-text-muted)] font-medium">{r.label}</span>
+                    <span className={`font-semibold ${varClass(q?.[r.key])}`}>{fmtPct(q?.[r.key])}</span>
                   </div>
                 ))}
               </div>
@@ -560,8 +596,8 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
           </Cuadrante>
 
           {/* ── Abajo-derecha: evolución histórica graficada ── */}
-          <Cuadrante titulo="EVOLUCIÓN" extra={
-            <div className="ml-auto flex gap-1">
+          <Cuadrante id="evolucion" titulo="EVOLUCIÓN" maxi={maxi} setMaxi={setMaxi} extra={
+            <div className="flex gap-1">
               {(Object.keys(GRUPOS_5A) as GrupoSerie[]).map((g) => (
                 <button key={g} onClick={() => setGrupo(g)}
                   className={`px-2 py-0.5 text-[9px] font-semibold border transition-colors ${
