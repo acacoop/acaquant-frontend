@@ -101,40 +101,43 @@ const COLS: ColDef[] = [
       </>
     ),
   },
-  { key: "last", label: "ÚLTIMO", render: (r) => <span className="text-[var(--t-text)] font-semibold">{fmt(r.last)}</span> },
-  { key: "bid", label: "BID", render: (r) => <span className="text-[var(--t-text)]">{fmt(r.bid)}</span> },
-  { key: "ask", label: "ASK", render: (r) => <span className="text-[var(--t-text)]">{fmt(r.ask)}</span> },
-  { key: "high", label: "MÁX", render: (r) => fmt(r.high) },
-  { key: "low", label: "MÍN", render: (r) => fmt(r.low) },
-  { key: "prev_close", label: "CIERRE", title: "Cierre de la rueda anterior", render: (r) => fmt(r.prev_close) },
-  { key: "volumen", label: "VOLUMEN", render: (r) => fmtVol(r.volumen) },
-  { key: "var_pct", label: "VAR %", render: pct("var_pct", 2) },
+  { key: "last", label: "ÚLTIMO", title: "Último precio operado en NY (USD).", render: (r) => <span className="text-[var(--t-text)] font-semibold">{fmt(r.last)}</span> },
+  { key: "bid", label: "BID", title: "Mejor precio de COMPRA en pantalla: lo que están pagando ahora.", render: (r) => <span className="text-[var(--t-text)]">{fmt(r.bid)}</span> },
+  { key: "ask", label: "ASK", title: "Mejor precio de VENTA en pantalla: lo que están pidiendo ahora. La diferencia con el bid es el spread (costo de entrar y salir).", render: (r) => <span className="text-[var(--t-text)]">{fmt(r.ask)}</span> },
+  { key: "high", label: "MÁX", title: "Máximo operado en la rueda de hoy.", render: (r) => fmt(r.high) },
+  { key: "low", label: "MÍN", title: "Mínimo operado en la rueda de hoy.", render: (r) => fmt(r.low) },
+  { key: "prev_close", label: "CIERRE", title: "Cierre de la rueda anterior — la base contra la que se mide la variación de hoy.", render: (r) => fmt(r.prev_close) },
+  { key: "volumen", label: "VOLUMEN", title: "Acciones operadas hoy. Volumen alto = el movimiento del precio tiene más respaldo.", render: (r) => fmtVol(r.volumen) },
+  { key: "var_pct", label: "VAR %", title: "Variación de hoy en % contra el cierre anterior.", render: pct("var_pct", 2) },
   {
-    key: "var_neta", label: "VAR NETA",
+    key: "var_neta", label: "VAR NETA", title: "Variación de hoy en USD (cuántos dólares se movió el precio, no %).",
     render: (r) => (
       <span className={varClass(r.var_neta)}>
         {r.var_neta === null ? "—" : `${r.var_neta > 0 ? "+" : ""}${fmt(r.var_neta)}`}
       </span>
     ),
   },
-  { key: "pre_var_pct", label: "PRE", title: "Variación del pre market contra el cierre anterior", render: pct("pre_var_pct") },
-  { key: "ah_var_pct", label: "AFTER", title: "Variación del after market contra el cierre de hoy", render: pct("ah_var_pct") },
-  { key: "ret_5d", label: "5D", title: "Retorno 5 días (al cierre anterior)", render: pct("ret_5d") },
-  { key: "ret_wtd", label: "WTD", title: "Retorno semana en curso (al cierre anterior)", render: pct("ret_wtd") },
-  { key: "ret_mtd", label: "MTD", title: "Retorno mes en curso (al cierre anterior)", render: pct("ret_mtd") },
-  { key: "ret_qtd", label: "QTD", title: "Retorno trimestre en curso (al cierre anterior)", render: pct("ret_qtd") },
-  { key: "ret_ytd", label: "YTD", title: "Retorno del año (al cierre anterior)", render: pct("ret_ytd") },
-  { key: "ret_1m", label: "1M", title: "Retorno 1 mes móvil (al cierre anterior)", render: pct("ret_1m") },
-  { key: "ret_3m", label: "3M", title: "Retorno 3 meses (al cierre anterior)", render: pct("ret_3m") },
-  { key: "ret_1y", label: "1A", title: "Retorno 1 año (al cierre anterior)", render: pct("ret_1y") },
-  { key: "ret_5y", label: "5A", title: "Retorno 5 años (al cierre anterior)", render: pct("ret_5y") },
+  { key: "pre_var_pct", label: "PRE", title: "Variación del PRE market (operaciones ANTES de la apertura de NY) contra el cierre anterior. Anticipa el gap de apertura.", render: pct("pre_var_pct") },
+  { key: "ah_var_pct", label: "AFTER", title: "Variación del AFTER market (operaciones DESPUÉS del cierre de NY) contra el cierre de hoy. Refleja reacción a balances/noticias fuera de rueda.", render: pct("ah_var_pct") },
+  { key: "ret_5d", label: "5D", title: "Retorno de las últimas 5 ruedas, medido al cierre anterior (no incluye hoy).", render: pct("ret_5d") },
+  { key: "ret_wtd", label: "WTD", title: "Retorno de la semana CALENDARIO en curso (week-to-date), al cierre anterior.", render: pct("ret_wtd") },
+  { key: "ret_mtd", label: "MTD", title: "Retorno del mes CALENDARIO en curso (month-to-date), al cierre anterior. No es lo mismo que 1M (ventana móvil de 30 días).", render: pct("ret_mtd") },
+  { key: "ret_qtd", label: "QTD", title: "Retorno del trimestre CALENDARIO en curso (quarter-to-date), al cierre anterior.", render: pct("ret_qtd") },
+  { key: "ret_ytd", label: "YTD", title: "Retorno del año CALENDARIO en curso (year-to-date), al cierre anterior.", render: pct("ret_ytd") },
+  { key: "ret_1m", label: "1M", title: "Retorno de los últimos 30 días (ventana MÓVIL), al cierre anterior. No es lo mismo que MTD (mes calendario).", render: pct("ret_1m") },
+  { key: "ret_3m", label: "3M", title: "Retorno de los últimos 3 meses (ventana móvil), al cierre anterior.", render: pct("ret_3m") },
+  { key: "ret_1y", label: "1A", title: "Retorno de los últimos 12 meses (ventana móvil), al cierre anterior.", render: pct("ret_1y") },
+  { key: "ret_5y", label: "5A", title: "Retorno de los últimos 5 años, al cierre anterior.", render: pct("ret_5y") },
   {
-    key: "ratio", label: "RATIO", title: "Ratio de conversión del CEDEAR (CEDEARs por acción)",
+    key: "ratio", label: "RATIO", title: "Ratio de conversión del CEDEAR: cuántos CEDEARs equivalen a 1 acción del subyacente. Insumo del CCL implícito.",
     render: (r) => (r.ratio === null ? "—" : `${fmt(r.ratio, 0)}:1`),
   },
-  { key: "ccl", label: "CCL", title: "CCL implícito del activo — próximamente", render: () => "—" },
-  { key: "updated_at", label: "HORA", texto: true, render: (r) => hora(r.updated_at) },
+  { key: "ccl", label: "CCL", title: "CCL implícito del papel: precio del CEDEAR en ARS × ratio ÷ precio del ADR en USD — a qué tipo de cambio está pagando el mercado ese activo. Próximamente.", render: () => "—" },
+  { key: "updated_at", label: "HORA", texto: true, title: "Hora argentina del último dato recibido del feed.", render: (r) => hora(r.updated_at) },
 ];
+
+// Columnas que solo aparecen con el filtro AFTER HOURS activado.
+const COLS_AFTER: SortKey[] = ["pre_var_pct", "ah_var_pct"];
 
 export function ReutersView() {
   const { data: rows } = usePoll<ReutersRow[]>(
@@ -154,9 +157,16 @@ export function ReutersView() {
   const [subvista, setSubvista] = usePersistedState<"cotizaciones" | "fundamentals">(
     "reuters.subvista", "cotizaciones",
   );
+  // Filtro AFTER HOURS: muestra/oculta las columnas PRE y AFTER.
+  const [afterHours, setAfterHours] = usePersistedState<boolean>("reuters.afterhours", false, "local");
 
-  const visibles = useMemo(() => COLS.filter((c) => c.fija || !ocultas[c.key]), [ocultas]);
-  const nOcultas = COLS.length - visibles.length;
+  const visibles = useMemo(
+    () => COLS.filter((c) => c.fija || !ocultas[c.key])
+      .filter((c) => (COLS_AFTER.includes(c.key) ? afterHours : true)),
+    [ocultas, afterHours],
+  );
+  const nOcultas = COLS.filter((c) => !COLS_AFTER.includes(c.key)).length
+    - visibles.filter((c) => !COLS_AFTER.includes(c.key)).length;
 
   const clickSort = (col: ColDef) => {
     setSort((s) => {
@@ -224,6 +234,19 @@ export function ReutersView() {
               </button>
             )}
 
+            {/* Filtro AFTER HOURS: agrega/quita las columnas PRE y AFTER */}
+            <button
+              onClick={() => setAfterHours((v) => !v)}
+              title="Mostrar/ocultar las columnas del pre y after market"
+              className={`text-[9px] tracking-widest border px-1.5 py-0.5 transition-colors ${
+                afterHours
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+              }`}
+            >
+              AFTER HOURS
+            </button>
+
             {/* Selector de columnas visibles */}
             <div className="relative">
               <button
@@ -238,7 +261,7 @@ export function ReutersView() {
               </button>
               {selectorAbierto && (
                 <div className="absolute left-0 top-full mt-1 z-30 bg-[var(--t-surface)] border border-[var(--t-border-2)] shadow-lg p-2 max-h-[60vh] overflow-auto min-w-[170px]">
-                  {COLS.filter((c) => !c.fija).map((c) => (
+                  {COLS.filter((c) => !c.fija && !COLS_AFTER.includes(c.key)).map((c) => (
                     <label key={c.key} className="flex items-center gap-2 px-1 py-0.5 text-[10px] text-[var(--t-text)] cursor-pointer hover:bg-[var(--t-surface-2)]">
                       <input
                         type="checkbox"
@@ -303,6 +326,7 @@ export function ReutersView() {
                     className={`px-2 py-2 cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${c.align === "left" ? "text-left" : "text-right"} ${sort?.key === c.key ? "text-[var(--t-accent)]" : ""}`}
                   >
                     {c.label}
+                    {c.title && <span className="ml-0.5 text-[7px] align-super opacity-50">?</span>}
                     {sort?.key === c.key && <span className="ml-0.5">{sort.dir === -1 ? "▼" : "▲"}</span>}
                   </th>
                 ))}

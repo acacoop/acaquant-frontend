@@ -231,20 +231,30 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
   const def = GRUPOS_5A[grupo];
   const activas = def.series.filter((s) => !apagadas.has(s.key));
 
-  // Escala: positivos arriba del cero, negativos abajo — cada lado con su
-  // propio máximo (una pérdida grande ya no se sale del lienzo).
+  // Escala ADAPTATIVA con tope "redondo" (1/2/2.5/5 × 10^k): el eje queda en
+  // números que se leen (0 / 25 / 50%), no en el máximo crudo de los datos.
+  const redondear = (v: number): number => {
+    if (v <= 0) return 0;
+    const p = 10 ** Math.floor(Math.log10(v));
+    const m = v / p;
+    const nm = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10;
+    return nm * p;
+  };
   const vals = serie.flatMap((a) => activas.map((s) => num(a[s.key]))).filter((v): v is number => v !== null);
-  const maxPos = Math.max(0, ...vals.filter((v) => v > 0));
-  const maxNeg = Math.max(0, ...vals.filter((v) => v < 0).map((v) => -v));
-  const H = 150;
+  const topPos = redondear(Math.max(0, ...vals.filter((v) => v > 0)));
+  const topNeg = redondear(Math.max(0, ...vals.filter((v) => v < 0).map((v) => -v)));
+  const H = 190;
   const M = 40;                                    // margen izquierdo (eje Y)
-  const escala = (H - 24) / ((maxPos + maxNeg) || 1);
-  const cero = 8 + maxPos * escala;
+  // Cabecera arriba (y abajo si hay negativos) para que las etiquetas
+  // verticales de las barras más altas no se recorten.
+  const margenTop = 36;
+  const margenBot = topNeg > 0 ? 36 : 14;
+  const escala = (H - margenTop - margenBot) / ((topPos + topNeg) || 1);
+  const cero = margenTop + topPos * escala;
   const W = M + Math.max(serie.length, 1) * 96;
 
-  // Ticks del eje Y (0, mitad y tope de cada lado, sin duplicados)
-  const ticks = [...new Set([maxPos, maxPos / 2, 0, -maxNeg / 2, -maxNeg]
-    .filter((t) => t === 0 || Math.abs(t) > (maxPos + maxNeg) * 0.04))];
+  // Ticks del eje Y: 0, mitad y tope redondos de cada lado
+  const ticks = [...new Set([topPos, topPos / 2, 0, -topNeg / 2, -topNeg])];
 
   const etiqueta = (fecha: string) =>
     per === "anual" ? fecha.slice(0, 4) : `${fecha.slice(5, 7)}/${fecha.slice(2, 4)}`;
@@ -316,21 +326,22 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
                     if (v === null) return null;
                     const h = Math.max(1, Math.abs(v) * escala);
                     const y = v >= 0 ? cero - h : cero;
+                    const cx = x0 + j * ancho + (ancho - 3) / 2 + 2.5;
+                    const yLbl = v >= 0 ? y - 3 : y + h + 3;
                     return (
                       <g key={s.key}>
                         <rect x={x0 + j * ancho} width={ancho - 3} y={y} height={h}
                           fill={s.color} opacity={0.85}>
                           <title>{`${etiqueta(a.fecha)} · ${s.label}: ${def.fmt(v)}`}</title>
                         </rect>
-                        {/* valor sobre la barra cuando entra (pocas series activas) */}
-                        {activas.length <= 2 && (
-                          <text x={x0 + j * ancho + (ancho - 3) / 2}
-                            y={v >= 0 ? y - 2 : y + h + 7}
-                            textAnchor="middle" className="fill-[var(--t-text-dim)]"
-                            fontSize={7} fontFamily="JetBrains Mono, monospace">
-                            {def.corto(v)}
-                          </text>
-                        )}
+                        {/* valor en TODAS las barras (vertical para que entre) */}
+                        <text x={cx} y={yLbl}
+                          transform={`rotate(-90 ${cx} ${yLbl})`}
+                          textAnchor={v >= 0 ? "start" : "end"}
+                          className="fill-[var(--t-text-muted)]"
+                          fontSize={6.5} fontFamily="JetBrains Mono, monospace">
+                          {def.corto(v)}
+                        </text>
                       </g>
                     );
                   })}
@@ -353,7 +364,10 @@ function ChartEvolucion({ anual, trimestral, grupo }: {
 function Dato({ label, children, title }: { label: string; children: React.ReactNode; title?: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-[11px] font-mono border-b border-[var(--t-border)] py-1 last:border-0" title={title}>
-      <span className="text-[var(--t-text-muted)] whitespace-nowrap">{label}</span>
+      <span className="text-[var(--t-text-muted)] whitespace-nowrap">
+        {label}
+        {title && <span className="ml-0.5 text-[7px] align-super opacity-50">?</span>}
+      </span>
       <span className="text-[var(--t-text)] text-right whitespace-nowrap">{children}</span>
     </div>
   );
@@ -480,39 +494,39 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
               <div className="px-3 py-1">
                 {tab === "negocio" && (
                   <>
-                    <Dato label="Ingresos (últ. año fiscal)">{fmtMillones(f.revenue)}</Dato>
-                    <Dato label="Utilidad bruta">{fmtMillones(f.gross_profit)}</Dato>
-                    <Dato label="EBITDA">{fmtMillones(f.ebitda)}</Dato>
-                    <Dato label="Resultado operativo">{fmtMillones(f.ebit)}</Dato>
-                    <Dato label="Resultado neto">{fmtMillones(f.net_income)}</Dato>
-                    <Dato label="Free cash flow">{fmtMillones(f.fcf)}</Dato>
-                    <Dato label="Capex">{fmtMillones(f.capex)}</Dato>
-                    <Dato label="Margen bruto">{pctPlano(f.margen_bruto)}</Dato>
-                    <Dato label="Margen operativo"><span className={varClass(f.margen_operativo)}>{pctPlano(f.margen_operativo)}</span></Dato>
-                    <Dato label="Margen neto"><span className={varClass(f.margen_neto)}>{pctPlano(f.margen_neto)}</span></Dato>
+                    <Dato label="Ingresos (últ. año fiscal)" title="Ventas totales del último año fiscal, en USD.">{fmtMillones(f.revenue)}</Dato>
+                    <Dato label="Utilidad bruta" title="Ingresos menos el costo directo de lo vendido.">{fmtMillones(f.gross_profit)}</Dato>
+                    <Dato label="EBITDA" title="Resultado antes de intereses, impuestos, depreciación y amortización ≈ la caja que genera el negocio operando.">{fmtMillones(f.ebitda)}</Dato>
+                    <Dato label="Resultado operativo" title="EBIT: ganancia de operar el negocio, antes de intereses e impuestos.">{fmtMillones(f.ebit)}</Dato>
+                    <Dato label="Resultado neto" title="Ganancia final del año, después de todo (costos, intereses, impuestos).">{fmtMillones(f.net_income)}</Dato>
+                    <Dato label="Free cash flow" title="Caja que queda tras operar E invertir (capex): la plata realmente disponible para deuda, dividendos o recompras.">{fmtMillones(f.fcf)}</Dato>
+                    <Dato label="Capex" title="Inversión del año en activos fijos (plantas, equipos). Negativo = salida de caja.">{fmtMillones(f.capex)}</Dato>
+                    <Dato label="Margen bruto" title="De cada $100 vendidos, cuántos quedan tras el costo directo de producir.">{pctPlano(f.margen_bruto)}</Dato>
+                    <Dato label="Margen operativo" title="De cada $100 vendidos, cuántos quedan tras TODOS los costos de operar. Negativo = el negocio pierde plata operando."><span className={varClass(f.margen_operativo)}>{pctPlano(f.margen_operativo)}</span></Dato>
+                    <Dato label="Margen neto" title="De cada $100 vendidos, cuántos llegan como ganancia final al accionista."><span className={varClass(f.margen_neto)}>{pctPlano(f.margen_neto)}</span></Dato>
                   </>
                 )}
                 {tab === "salud" && (
                   <>
-                    <Dato label="Deuda total">{fmtGrande(f.deuda_total)}</Dato>
-                    <Dato label="Caja y equivalentes">{fmtGrande(f.caja)}</Dato>
-                    <Dato label="Deuda neta / EBITDA">{fmtX(f.deuda_neta_ebitda)}</Dato>
-                    <Dato label="Current ratio">{fmtN(f.current_ratio, 2)}</Dato>
-                    <Dato label="Quick ratio">{fmtN(f.quick_ratio, 2)}</Dato>
-                    <Dato label="Acciones en circulación">{fmtGrande(f.acciones).replace("$", "")}</Dato>
+                    <Dato label="Deuda total" title="Deuda financiera total (corto + largo plazo), en USD.">{fmtGrande(f.deuda_total)}</Dato>
+                    <Dato label="Caja y equivalentes" title="Efectivo y colocaciones de disponibilidad inmediata.">{fmtGrande(f.caja)}</Dato>
+                    <Dato label="Deuda neta / EBITDA" title="(Deuda − caja) ÷ EBITDA: años de EBITDA para pagar la deuda neta. <1 holgado · >3 muy apalancada · vacío si el EBITDA es negativo.">{fmtX(f.deuda_neta_ebitda)}</Dato>
+                    <Dato label="Current ratio" title="Activos corrientes ÷ pasivos corrientes: si cubre lo que vence en el año. >1 cubre.">{fmtN(f.current_ratio, 2)}</Dato>
+                    <Dato label="Quick ratio" title="Como el current ratio pero sin inventarios: solo lo más líquido.">{fmtN(f.quick_ratio, 2)}</Dato>
+                    <Dato label="Acciones en circulación" title="Cantidad total de acciones emitidas. Market cap = precio × esta cantidad.">{fmtGrande(f.acciones).replace("$", "")}</Dato>
                   </>
                 )}
                 {tab === "valuacion" && (
                   <>
-                    <Dato label="Market cap">{fmtGrande(f.market_cap)}</Dato>
-                    <Dato label="Enterprise value">{fmtGrande(f.ev)}</Dato>
-                    <Dato label="P/E">{fmtX(f.pe)}</Dato>
-                    <Dato label="P/E forward">{fmtX(f.fwd_pe)}</Dato>
-                    <Dato label="EV/EBITDA">{fmtX(f.ev_ebitda)}</Dato>
-                    <Dato label="EV/EBITDA forward">{fmtX(f.fwd_ev_ebitda)}</Dato>
-                    <Dato label="EV/EBIT">{fmtX(f.ev_ebit)}</Dato>
-                    <Dato label="Precio / valor libro">{fmtX(f.p_bv)}</Dato>
-                    <Dato label="Dividend yield">{pctPlano(f.div_yield)}</Dato>
+                    <Dato label="Market cap" title="Capitalización bursátil: precio × acciones en circulación — lo que vale el equity en bolsa.">{fmtGrande(f.market_cap)}</Dato>
+                    <Dato label="Enterprise value" title="Market cap + deuda − caja: lo que costaría comprar la empresa ENTERA, haciéndose cargo de su deuda y quedándose su caja.">{fmtGrande(f.ev)}</Dato>
+                    <Dato label="P/E" title="Precio ÷ ganancia por acción (últimos 12 meses): años de ganancias actuales que pagás. Alto = cara o con expectativa de crecimiento. Vacío = pierde plata.">{fmtX(f.pe)}</Dato>
+                    <Dato label="P/E forward" title="P/E con la ganancia ESTIMADA por el consenso para el próximo año.">{fmtX(f.fwd_pe)}</Dato>
+                    <Dato label="EV/EBITDA" title="Valor de la empresa entera ÷ EBITDA: compara empresas con distinta deuda. Menos = más barata.">{fmtX(f.ev_ebitda)}</Dato>
+                    <Dato label="EV/EBITDA forward" title="EV/EBITDA con el EBITDA estimado del próximo año.">{fmtX(f.fwd_ev_ebitda)}</Dato>
+                    <Dato label="EV/EBIT" title="Valor de la empresa entera ÷ resultado operativo (incluye el desgaste de los activos, a diferencia del EBITDA).">{fmtX(f.ev_ebit)}</Dato>
+                    <Dato label="Precio / valor libro" title="Precio ÷ patrimonio contable por acción. Debajo de 1 cotiza por menos que su patrimonio.">{fmtX(f.p_bv)}</Dato>
+                    <Dato label="Dividend yield" title="Dividendos del año ÷ precio: la renta anual por dividendos comprando hoy.">{pctPlano(f.div_yield)}</Dato>
                   </>
                 )}
               </div>
@@ -531,7 +545,7 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
                 ))}
               </div>
               <div className="mt-2.5 flex flex-col gap-1.5">
-                <Dato label="Market cap">{fmtGrande(f?.market_cap)}</Dato>
+                <Dato label="Market cap" title="Capitalización bursátil: precio × acciones en circulación.">{fmtGrande(f?.market_cap)}</Dato>
                 <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] mt-1">RANGO 52 SEMANAS</div>
                 <div className="flex items-center justify-between text-[10px] font-mono text-[var(--t-text-muted)]">
                   <span>{fmtN(min52)}</span><span>{fmtN(max52)}</span>

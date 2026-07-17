@@ -109,28 +109,29 @@ const COLS: ColDef[] = [
       </>
     ),
   },
-  { key: "market_cap", label: "MKT CAP", render: (r) => fmtGrande(r.market_cap) },
-  { key: "pe", label: "P/E", render: (r) => fmtX(r.pe) },
-  { key: "fwd_pe", label: "P/E FWD", render: (r) => fmtX(r.fwd_pe) },
-  { key: "ev_ebitda", label: "EV/EBITDA", render: (r) => fmtX(r.ev_ebitda) },
-  { key: "fwd_ev_ebitda", label: "EV/EBITDA FWD", render: (r) => fmtX(r.fwd_ev_ebitda) },
-  { key: "p_bv", label: "P/VL", render: (r) => fmtX(r.p_bv) },
-  { key: "div_yield", label: "DIV %", render: (r) => fmtPctPlano(r.div_yield) },
-  { key: "revenue", label: "INGRESOS", title: "Último año fiscal, USD", render: (r) => fmtMill(r.revenue) },
-  { key: "gross_profit", label: "UT. BRUTA", render: (r) => fmtMill(r.gross_profit) },
-  { key: "ebitda", label: "EBITDA", render: (r) => <span className={varClass(r.ebitda)}>{fmtMill(r.ebitda)}</span> },
-  { key: "net_income", label: "RESULTADO", render: (r) => <span className={varClass(r.net_income)}>{fmtMill(r.net_income)}</span> },
-  { key: "fcf", label: "FCF", render: (r) => <span className={varClass(r.fcf)}>{fmtMill(r.fcf)}</span> },
-  { key: "capex", label: "CAPEX", render: (r) => fmtMill(r.capex) },
-  { key: "margen_bruto", label: "MG BRUTO", render: (r) => fmtPctPlano(r.margen_bruto) },
-  { key: "margen_operativo", label: "MG OPER", render: (r) => <span className={varClass(r.margen_operativo)}>{fmtPctPlano(r.margen_operativo)}</span> },
-  { key: "margen_neto", label: "MG NETO", render: (r) => <span className={varClass(r.margen_neto)}>{fmtPctPlano(r.margen_neto)}</span> },
-  { key: "deuda_total", label: "DEUDA", render: (r) => fmtGrande(r.deuda_total) },
-  { key: "caja", label: "CAJA", render: (r) => fmtGrande(r.caja) },
-  { key: "deuda_neta_ebitda", label: "DN/EBITDA", render: (r) => fmtX(r.deuda_neta_ebitda) },
-  { key: "current_ratio", label: "CURRENT", render: (r) => fmtN(r.current_ratio) },
+  { key: "market_cap", label: "MKT CAP", title: "Capitalización bursátil: precio × acciones en circulación — lo que vale el equity de la empresa en bolsa.", render: (r) => fmtGrande(r.market_cap) },
+  { key: "pe", label: "P/E", title: "Precio ÷ ganancia por acción de los últimos 12 meses: cuántos años de ganancias actuales pagás por la empresa. Alto = cara o con mucha expectativa de crecimiento. Vacío = la empresa pierde plata.", render: (r) => fmtX(r.pe) },
+  { key: "fwd_pe", label: "P/E FWD", title: "P/E forward: precio ÷ ganancia ESTIMADA por el consenso para el próximo año. Más útil que el P/E común en empresas que crecen rápido.", render: (r) => fmtX(r.fwd_pe) },
+  { key: "ev_ebitda", label: "EV/EBITDA", title: "Enterprise Value (market cap + deuda − caja) ÷ EBITDA: cuántos años de generación operativa vale la empresa ENTERA. Permite comparar empresas con distinto endeudamiento. Menos = más barata.", render: (r) => fmtX(r.ev_ebitda) },
+  { key: "fwd_ev_ebitda", label: "EV/EBITDA FWD", title: "EV/EBITDA con el EBITDA estimado para el próximo año.", render: (r) => fmtX(r.fwd_ev_ebitda) },
+  { key: "p_bv", label: "P/VL", title: "Precio ÷ valor libro contable por acción. Debajo de 1 la empresa cotiza por menos que su patrimonio contable.", render: (r) => fmtX(r.p_bv) },
+  { key: "div_yield", label: "DIV %", title: "Dividend yield: dividendos pagados en el año ÷ precio — la renta anual por dividendos que pagás hoy.", render: (r) => fmtPctPlano(r.div_yield) },
+  { key: "revenue", label: "INGRESOS", title: "Ventas totales del último año fiscal, en USD.", render: (r) => fmtMill(r.revenue) },
+  { key: "gross_profit", label: "UT. BRUTA", title: "Utilidad bruta: ingresos − costo directo de lo vendido.", render: (r) => fmtMill(r.gross_profit) },
+  { key: "ebitda", label: "EBITDA", title: "Resultado antes de intereses, impuestos, depreciación y amortización ≈ la caja que genera el negocio operando, sin efectos financieros ni contables.", render: (r) => <span className={varClass(r.ebitda)}>{fmtMill(r.ebitda)}</span> },
+  { key: "net_income", label: "RESULTADO", title: "Ganancia neta final del año, después de TODO (costos, intereses, impuestos).", render: (r) => <span className={varClass(r.net_income)}>{fmtMill(r.net_income)}</span> },
+  { key: "fcf", label: "FCF", title: "Free cash flow: la caja que queda después de operar Y de invertir (capex) — la plata realmente disponible para pagar deuda, dividendos o recomprar acciones.", render: (r) => <span className={varClass(r.fcf)}>{fmtMill(r.fcf)}</span> },
+  { key: "capex", label: "CAPEX", title: "Inversión del año en activos fijos (plantas, equipos). Negativo porque es salida de caja.", render: (r) => fmtMill(r.capex) },
+  { key: "margen_bruto", label: "MG BRUTO", title: "De cada $100 vendidos, cuántos quedan después del costo directo de producir.", render: (r) => fmtPctPlano(r.margen_bruto) },
+  { key: "margen_operativo", label: "MG OPER", title: "De cada $100 vendidos, cuántos quedan después de TODOS los costos de operar (antes de intereses e impuestos). Negativo = el negocio pierde plata operando.", render: (r) => <span className={varClass(r.margen_operativo)}>{fmtPctPlano(r.margen_operativo)}</span> },
+  { key: "margen_neto", label: "MG NETO", title: "De cada $100 vendidos, cuántos llegan como ganancia final al accionista.", render: (r) => <span className={varClass(r.margen_neto)}>{fmtPctPlano(r.margen_neto)}</span> },
+  { key: "deuda_total", label: "DEUDA", title: "Deuda financiera total (corto + largo plazo), en USD.", render: (r) => fmtGrande(r.deuda_total) },
+  { key: "caja", label: "CAJA", title: "Efectivo y equivalentes disponibles, en USD.", render: (r) => fmtGrande(r.caja) },
+  { key: "deuda_neta_ebitda", label: "DN/EBITDA", title: "(Deuda − caja) ÷ EBITDA: cuántos años de EBITDA hacen falta para pagar la deuda neta. <1 = holgado · >3 = muy apalancada · vacío = EBITDA negativo o caja mayor a la deuda.", render: (r) => fmtX(r.deuda_neta_ebitda) },
+  { key: "current_ratio", label: "CURRENT", title: "Activos corrientes ÷ pasivos corrientes: capacidad de cubrir lo que vence en el año. >1 cubre; muy alto puede ser caja ociosa.", render: (r) => fmtN(r.current_ratio) },
   {
     key: "proximo_balance", label: "REPORTA", texto: true,
+    title: "Fecha estimada de presentación del próximo balance trimestral.",
     render: (r) => {
       if (!r.proximo_balance) return "—";
       const d = new Date(r.proximo_balance);
@@ -244,6 +245,7 @@ export function ReutersFundamentals({ onFicha }: { onFicha: (ticker: string) => 
                     title={c.title ?? "Click para ordenar"}
                     className={`px-2 py-2 cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${c.key === "ticker" ? "text-left" : "text-right"} ${sort?.key === c.key ? "text-[var(--t-accent)]" : ""}`}>
                     {c.label}
+                    {c.title && <span className="ml-0.5 text-[7px] align-super opacity-50">?</span>}
                     {sort?.key === c.key && <span className="ml-0.5">{sort.dir === -1 ? "▼" : "▲"}</span>}
                   </th>
                 ))}
