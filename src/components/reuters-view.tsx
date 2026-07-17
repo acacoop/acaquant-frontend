@@ -133,7 +133,6 @@ const COLS: ColDef[] = [
     render: (r) => (r.ratio === null ? "—" : `${fmt(r.ratio, 0)}:1`),
   },
   { key: "ccl", label: "CCL", title: "CCL implícito del papel: precio del CEDEAR en ARS × ratio ÷ precio del ADR en USD — a qué tipo de cambio está pagando el mercado ese activo. Próximamente.", render: () => "—" },
-  { key: "updated_at", label: "HORA", texto: true, title: "Hora argentina del último dato recibido del feed.", render: (r) => hora(r.updated_at) },
 ];
 
 // Columnas que solo aparecen con el filtro AFTER HOURS activado.
@@ -165,6 +164,13 @@ export function ReutersView() {
       .filter((c) => (COLS_AFTER.includes(c.key) ? afterHours : true)),
     [ocultas, afterHours],
   );
+  // Hora del dato más fresco del feed (reemplaza a la vieja columna HORA).
+  const ultimaHora = useMemo(() => {
+    const ts = (Array.isArray(rows) ? rows : [])
+      .map((r) => (r.updated_at ? new Date(r.updated_at).getTime() : 0))
+      .filter((t) => t > 0);
+    return ts.length ? hora(new Date(Math.max(...ts)).toISOString()) : null;
+  }, [rows]);
   const nOcultas = COLS.filter((c) => !COLS_AFTER.includes(c.key)).length
     - visibles.filter((c) => !COLS_AFTER.includes(c.key)).length;
 
@@ -280,6 +286,12 @@ export function ReutersView() {
                 </div>
               )}
             </div>
+
+            {ultimaHora && (
+              <span className="text-[9px] text-[var(--t-text-dim)]" title="Hora argentina del último dato recibido del feed">
+                actualizado {ultimaHora}
+              </span>
+            )}
           </>
         )}
 
