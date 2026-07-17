@@ -23,10 +23,15 @@ const POLL_MS = 10_000;
 
 interface SerieAnual {
   fecha: string;
-  revenue: number | null;
-  ebitda: number | null;
-  net_income: number | null;
-  fcf: number | null;
+  revenue?: number | null;
+  ebitda?: number | null;
+  net_income?: number | null;
+  fcf?: number | null;
+  deuda?: number | null;
+  caja?: number | null;
+  margen_bruto?: number | null;
+  margen_operativo?: number | null;
+  margen_neto?: number | null;
 }
 
 interface Ficha {
@@ -158,16 +163,47 @@ function ChartAnual({ velas }: { velas: { fecha: string; close: number }[] }) {
 }
 
 // ── evolución 5 años: barras agrupadas por año fiscal (SVG propio) ───────────
-const SERIES_5A: { key: keyof SerieAnual; label: string; color: string }[] = [
-  { key: "revenue", label: "Ingresos", color: "#3b82f6" },
-  { key: "ebitda", label: "EBITDA", color: "#ff9900" },
-  { key: "net_income", label: "Resultado", color: "#10b981" },
-  { key: "fcf", label: "FCF", color: "#a855f7" },
-];
+// Los MÚLTIPLOS no se grafican a propósito: la "serie" que devuelve la fuente
+// es precio de HOY / resultados de cada año — no el múltiplo que se pagaba
+// entonces (verificado 2026-07-17). Solo grupos con historia REAL.
+type GrupoSerie = "resultados" | "margenes" | "salud";
 
-function ChartEvolucion({ serie }: { serie: SerieAnual[] }) {
+interface DefSerie { key: keyof SerieAnual; label: string; color: string }
+
+const GRUPOS_5A: Record<GrupoSerie, { label: string; fmt: (v: unknown) => string; series: DefSerie[] }> = {
+  resultados: {
+    label: "RESULTADOS",
+    fmt: fmtMillones,
+    series: [
+      { key: "revenue", label: "Ingresos", color: "#3b82f6" },
+      { key: "ebitda", label: "EBITDA", color: "#ff9900" },
+      { key: "net_income", label: "Resultado", color: "#10b981" },
+      { key: "fcf", label: "FCF", color: "#a855f7" },
+    ],
+  },
+  margenes: {
+    label: "MÁRGENES",
+    fmt: (v) => pctPlano(v),
+    series: [
+      { key: "margen_bruto", label: "Bruto", color: "#3b82f6" },
+      { key: "margen_operativo", label: "Operativo", color: "#ff9900" },
+      { key: "margen_neto", label: "Neto", color: "#10b981" },
+    ],
+  },
+  salud: {
+    label: "SALUD",
+    fmt: fmtMillones,
+    series: [
+      { key: "deuda", label: "Deuda total", color: "#ef4444" },
+      { key: "caja", label: "Caja", color: "#10b981" },
+    ],
+  },
+};
+
+function ChartEvolucion({ serie, grupo }: { serie: SerieAnual[]; grupo: GrupoSerie }) {
   const [apagadas, setApagadas] = useState<Set<string>>(new Set());
-  const activas = SERIES_5A.filter((s) => !apagadas.has(s.key));
+  const def = GRUPOS_5A[grupo];
+  const activas = def.series.filter((s) => !apagadas.has(s.key));
   const W = 100 * serie.length;
   const H = 150;
   const maxAbs = Math.max(
@@ -179,7 +215,7 @@ function ChartEvolucion({ serie }: { serie: SerieAnual[] }) {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex flex-wrap items-center gap-2 px-2 pt-2 shrink-0">
-        {SERIES_5A.map((s) => (
+        {def.series.map((s) => (
           <button key={s.key}
             onClick={() => setApagadas((prev) => {
               const n = new Set(prev);
@@ -195,7 +231,9 @@ function ChartEvolucion({ serie }: { serie: SerieAnual[] }) {
             {s.label}
           </button>
         ))}
-        <span className="ml-auto text-[8px] text-[var(--t-text-dim)] pr-1">USD · por año fiscal</span>
+        <span className="ml-auto text-[8px] text-[var(--t-text-dim)] pr-1">
+          {grupo === "margenes" ? "% · por año fiscal" : "USD · por año fiscal"}
+        </span>
       </div>
       <div className="flex-1 min-h-0 px-2 pb-1">
         <svg viewBox={`0 0 ${W} ${H + 16}`} className="w-full h-full" preserveAspectRatio="none">
@@ -215,7 +253,7 @@ function ChartEvolucion({ serie }: { serie: SerieAnual[] }) {
                       y={v >= 0 ? cero - h : cero}
                       height={h}
                       fill={s.color} opacity={0.85}>
-                      <title>{`${a.fecha.slice(0, 4)} · ${s.label}: ${fmtMillones(v)}`}</title>
+                      <title>{`${a.fecha.slice(0, 4)} · ${s.label}: ${def.fmt(v)}`}</title>
                     </rect>
                   );
                 })}
@@ -262,6 +300,13 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
     null, POLL_MS, { fetchOnMount: true },
   );
   const [tab, setTab] = usePersistedState<TabMetricas>("reuters.ficha.tab", "negocio");
+  // Grupo graficado abajo-derecha: sigue al tab de métricas (valuación no tiene
+  // serie con historia real → mantiene el último grupo), pero se puede elegir.
+  const [grupo, setGrupo] = useState<GrupoSerie>("resultados");
+  useEffect(() => {
+    if (tab === "negocio") setGrupo("resultados");
+    else if (tab === "salud") setGrupo("salud");
+  }, [tab]);
 
   const q = data?.quote ?? null;
   const f = data?.fundamentals ?? null;
@@ -421,10 +466,23 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
           </Cuadrante>
 
           {/* ── Abajo-derecha: evolución 5 años graficada ── */}
-          <Cuadrante titulo="EVOLUCIÓN 5 AÑOS — ingresos · EBITDA · resultado · FCF">
+          <Cuadrante titulo="EVOLUCIÓN 5 AÑOS" extra={
+            <div className="ml-auto flex gap-1">
+              {(Object.keys(GRUPOS_5A) as GrupoSerie[]).map((g) => (
+                <button key={g} onClick={() => setGrupo(g)}
+                  className={`px-2 py-0.5 text-[9px] font-semibold border transition-colors ${
+                    grupo === g
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                      : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+                  }`}>
+                  {GRUPOS_5A[g].label}
+                </button>
+              ))}
+            </div>
+          }>
             {serie.length > 1
-              ? <ChartEvolucion serie={serie} />
-              : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie anual todavía</div>}
+              ? <ChartEvolucion serie={serie} grupo={grupo} />
+              : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie anual todavía — se carga con la próxima pasada diaria del feed</div>}
           </Cuadrante>
         </div>
       )}
