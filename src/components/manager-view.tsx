@@ -3637,6 +3637,9 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
   const [loading, setLoading] = useState(false);
   // Bonos ignorados (ocultados del gap) — para poder revertir un ignore por error.
   const [ignoradas, setIgnoradas] = useState<{ ticker: string; ignorado_por?: string; at?: string }[]>([]);
+  // Solapa: el gap (sin flujo) o los ignorados — separados para que la lista de
+  // ignorados no crezca hacia abajo empujando el conciliador (pedido del user).
+  const [vista, setVista] = useState<"gap" | "ignorados">("gap");
   const cargarIgnoradas = () => fetch("/api/manager/ons/ignoradas").then(r => r.json()).then(d => setIgnoradas(d.ignoradas || [])).catch(() => {});
   const cargar = () => { setLoading(true); fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); cargarIgnoradas(); };
   useEffect(() => { let alive = true; fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); cargarIgnoradas(); return () => { alive = false; }; }, []);
@@ -3652,12 +3655,25 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
   const pf = data?.por_fuente;
   return (
     <div className="h-full overflow-auto p-3">
+      {/* Solapas: Sin flujo (el gap) · Ignorados (en su propia vista) */}
+      <div className="flex items-center gap-1 mb-2">
+        <button type="button" onClick={() => setVista("gap")}
+          className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === "gap" ? "bg-[#094293] text-white" : "border border-[var(--t-border)] text-[var(--t-text-muted)]")}>
+          Sin flujo{data ? ` (${data.total})` : ""}
+        </button>
+        <button type="button" onClick={() => setVista("ignorados")}
+          className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === "ignorados" ? "bg-[#094293] text-white" : "border border-[var(--t-border)] text-[var(--t-text-muted)]")}>
+          Ignorados ({ignoradas.length})
+        </button>
+        <button type="button" onClick={cargar} className={_onInput + " w-auto ml-1"}>↻</button>
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
+      </div>
+
+      {vista === "gap" && (<>
       <div className="flex items-center gap-3 mb-2 text-[11px]">
         <span className="text-[var(--t-text-dim)]">
           {data ? <>Faltan/incompletos: <span className="text-amber-500 font-semibold">{data.total}</span> · en cartera: <span className="text-red-500 font-semibold">{data.en_cartera}</span>{pf ? <> · Renta Fija {pf.curvas} · ONs {pf.on} · nuevos {pf.ninguna}</> : null}</> : "cargando…"}
         </span>
-        <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
-        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
       </div>
       <table>
         <thead><tr><th>Cart</th><th>Unidad</th><th>Ticker</th><th>Hoy</th><th>Fuente</th><th>Motivo</th><th></th></tr></thead>
@@ -3679,17 +3695,14 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
         </tbody>
       </table>
       {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todo lo de cartera ARS/DL/HD tiene flujo cargado.</p>}
+      </>)}
 
-      {/* Ignorados — bonos que sacaste del gap. "restaurar" los vuelve a conciliar
-          (útil si ignoraste uno por error). Lista desde Trading.OnsIgnoradas. */}
-      <div className="mt-4 border-t border-[var(--t-border)] pt-2">
-        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)] mb-1">
-          Ignorados ({ignoradas.length}) — “restaurar” los vuelve a mostrar en el conciliador
-        </div>
-        {ignoradas.length === 0 ? (
-          <p className="text-[10px] text-[var(--t-text-muted)]">Ninguno ignorado.</p>
+      {/* Ignorados — su propia solapa. "restaurar" los vuelve a mostrar en el conciliador. */}
+      {vista === "ignorados" && (
+        ignoradas.length === 0 ? (
+          <p className="text-[10px] text-[var(--t-text-muted)]">Ninguno ignorado. Los que saques del conciliador con “ignorar” aparecen acá para poder restaurarlos.</p>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 content-start">
             {ignoradas.map((g) => (
               <span key={g.ticker} className="inline-flex items-center gap-1.5 border border-[var(--t-border-2)] px-2 py-0.5 text-[10px]">
                 <span className="font-mono text-[var(--t-text)]">{g.ticker}</span>
@@ -3699,8 +3712,8 @@ function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => vo
               </span>
             ))}
           </div>
-        )}
-      </div>
+        )
+      )}
     </div>
   );
 }
@@ -3715,6 +3728,11 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
   const [existentes, setExistentes] = useState<BonoMaster[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  // Pegar Excel de flujos (reusa el parser de ONs; el backend devuelve la shape del tipo)
+  const [flujosText, setFlujosText] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
+  const [parseMsg, setParseMsg] = useState<string | null>(null);
+  const puedePegar = !cfg.bullet && (tipo === "soberano" || tipo === "bono");
 
   useEffect(() => { let alive = true; fetch("/api/manager/bonos").then(r => r.json()).then((d: { bonos: BonoMaster[] }) => { if (alive) setExistentes(d.bonos || []); }).catch(() => {}); return () => { alive = false; }; }, []);
 
@@ -3806,6 +3824,26 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
     finally { setSaving(false); }
   };
 
+  // Pega las filas del Excel → el backend las devuelve en la shape del tipo → tabla.
+  const parsearFlujos = async (texto: string) => {
+    if (!texto.trim()) return;
+    try {
+      const r = await fetch("/api/manager/bonos/parse-flujos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto, tipo }),
+      });
+      const d: { flujos?: Record<string, unknown>[]; vencimiento?: string | null; formato?: string; error?: string } = await r.json();
+      const rows = (d.flujos || []).map((f) => {
+        const row: Record<string, string> = { fecha: String(f.fecha ?? "") };
+        (cfg.cols || []).forEach((c) => { if (f[c.k] != null) row[c.k] = String(f[c.k]); });
+        return row;
+      });
+      setFlujos(rows);
+      if (d.vencimiento && !form.fecha_vencimiento) setForm((s) => ({ ...s, fecha_vencimiento: d.vencimiento as string }));
+      setParseMsg(d.error ? `error: ${d.error}` : rows.length ? `${rows.length} flujos · ${d.formato || ""}` : "no se detectaron flujos");
+    } catch (e) { setParseMsg(e instanceof Error ? e.message : "error al parsear"); }
+  };
+
   return (
     <div className="h-full overflow-auto p-3 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -3822,7 +3860,7 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
       </div>
 
       <OnField label="Tipo de bono — define los campos y la shape del flujo">
-        <select className={_onInput} value={tipo} onChange={(e) => { setTipo(e.target.value); setFlujos([]); }}>
+        <select className={_onInput} value={tipo} onChange={(e) => { setTipo(e.target.value); setFlujos([]); setFlujosText(""); setParseMsg(null); }}>
           {BONO_TIPOS.map((t) => <option key={t.tipo} value={t.tipo}>{t.label}</option>)}
         </select>
       </OnField>
@@ -3851,10 +3889,30 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
         </OnField>
       ) : (
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos (carga manual, shape {tipo})</span>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos{puedePegar ? " (carga manual o pegá el Excel)" : ` (carga manual, shape ${tipo})`}</span>
             <button type="button" onClick={() => setFlujos((fs) => [...fs, { fecha: "" }])} className="px-2 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">+ fila</button>
+            {puedePegar && (
+              <button type="button" onClick={() => setShowPaste((v) => !v)} className="px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border)]">
+                {showPaste ? "ocultar" : "o pegar Excel"}
+              </button>
+            )}
+            {(flujos.length > 0 || flujosText) && (
+              <button type="button" onClick={() => { setFlujos([]); setFlujosText(""); setParseMsg(null); }} className="px-2 py-0.5 text-[10px] text-red-500 border border-[var(--t-border)]">limpiar</button>
+            )}
           </div>
+          {puedePegar && showPaste && (
+            <div className="mb-1">
+              <textarea
+                className={_onInput + " h-20 font-mono text-[10px]"}
+                placeholder="Pegá las filas del Excel (formato BYMA/IAMC 'Flujo de fondos c/100 vn', o simple: fecha ⭾ amort ⭾ interés/cupón ⭾ residual). Al salir del campo se cargan en la tabla — podés editarlas."
+                value={flujosText}
+                onChange={(e) => setFlujosText(e.target.value)}
+                onBlur={() => parsearFlujos(flujosText)}
+              />
+              {parseMsg && <div className="text-[10px] text-[var(--t-text-muted)]">{parseMsg}</div>}
+            </div>
+          )}
           <div className="max-h-52 overflow-auto border border-[var(--t-border)]">
             <table>
               <thead><tr><th>Fecha</th>{(cfg.cols || []).map((c) => <th key={c.k} className="text-right">{c.label}</th>)}<th></th></tr></thead>
