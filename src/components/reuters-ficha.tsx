@@ -39,7 +39,10 @@ interface Ficha {
   ric: string | null;
   ratio: number | null;
   quote: Record<string, number | string | null> | null;
-  fundamentals: (Record<string, number | string | null> & { serie_anual?: SerieAnual[] }) | null;
+  fundamentals: (Record<string, number | string | null> & {
+    serie_anual?: SerieAnual[];
+    serie_trimestral?: SerieAnual[];
+  }) | null;
   velas: { fecha: string; close: number }[];
 }
 
@@ -170,10 +173,27 @@ type GrupoSerie = "resultados" | "margenes" | "salud";
 
 interface DefSerie { key: keyof SerieAnual; label: string; color: string }
 
-const GRUPOS_5A: Record<GrupoSerie, { label: string; fmt: (v: unknown) => string; series: DefSerie[] }> = {
+// Etiquetas cortas para el eje Y y las barras (los montos vienen en MILLONES).
+function cortoUSD(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1000) return `${(n / 1000).toLocaleString("es-AR", { maximumFractionDigits: 1 })}B`;
+  return `${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}M`;
+}
+
+function cortoPct(n: number): string {
+  return `${n.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
+}
+
+const GRUPOS_5A: Record<GrupoSerie, {
+  label: string;
+  fmt: (v: unknown) => string;          // tooltip
+  corto: (n: number) => string;         // eje Y + etiqueta de barra
+  series: DefSerie[];
+}> = {
   resultados: {
     label: "RESULTADOS",
     fmt: fmtMillones,
+    corto: cortoUSD,
     series: [
       { key: "revenue", label: "Ingresos", color: "#3b82f6" },
       { key: "ebitda", label: "EBITDA", color: "#ff9900" },
@@ -184,6 +204,7 @@ const GRUPOS_5A: Record<GrupoSerie, { label: string; fmt: (v: unknown) => string
   margenes: {
     label: "MÁRGENES",
     fmt: (v) => pctPlano(v),
+    corto: cortoPct,
     series: [
       { key: "margen_bruto", label: "Bruto", color: "#3b82f6" },
       { key: "margen_operativo", label: "Operativo", color: "#ff9900" },
@@ -193,6 +214,7 @@ const GRUPOS_5A: Record<GrupoSerie, { label: string; fmt: (v: unknown) => string
   salud: {
     label: "SALUD",
     fmt: fmtMillones,
+    corto: cortoUSD,
     series: [
       { key: "deuda", label: "Deuda total", color: "#ef4444" },
       { key: "caja", label: "Caja", color: "#10b981" },
@@ -200,17 +222,32 @@ const GRUPOS_5A: Record<GrupoSerie, { label: string; fmt: (v: unknown) => string
   },
 };
 
-function ChartEvolucion({ serie, grupo }: { serie: SerieAnual[]; grupo: GrupoSerie }) {
+function ChartEvolucion({ anual, trimestral, grupo }: {
+  anual: SerieAnual[]; trimestral: SerieAnual[]; grupo: GrupoSerie;
+}) {
   const [apagadas, setApagadas] = useState<Set<string>>(new Set());
+  const [per, setPer] = useState<"anual" | "trim">("anual");
+  const serie = per === "anual" ? anual : trimestral;
   const def = GRUPOS_5A[grupo];
   const activas = def.series.filter((s) => !apagadas.has(s.key));
-  const W = 100 * serie.length;
+
+  // Escala: positivos arriba del cero, negativos abajo — cada lado con su
+  // propio máximo (una pérdida grande ya no se sale del lienzo).
+  const vals = serie.flatMap((a) => activas.map((s) => num(a[s.key]))).filter((v): v is number => v !== null);
+  const maxPos = Math.max(0, ...vals.filter((v) => v > 0));
+  const maxNeg = Math.max(0, ...vals.filter((v) => v < 0).map((v) => -v));
   const H = 150;
-  const maxAbs = Math.max(
-    ...serie.flatMap((a) => activas.map((s) => Math.abs(num(a[s.key]) ?? 0))), 1,
-  );
-  const cero = maxAbs > 0 ? H * 0.82 : H; // deja lugar bajo cero para negativos
-  const escala = (H * 0.78) / maxAbs;
+  const M = 40;                                    // margen izquierdo (eje Y)
+  const escala = (H - 24) / ((maxPos + maxNeg) || 1);
+  const cero = 8 + maxPos * escala;
+  const W = M + Math.max(serie.length, 1) * 96;
+
+  // Ticks del eje Y (0, mitad y tope de cada lado, sin duplicados)
+  const ticks = [...new Set([maxPos, maxPos / 2, 0, -maxNeg / 2, -maxNeg]
+    .filter((t) => t === 0 || Math.abs(t) > (maxPos + maxNeg) * 0.04))];
+
+  const etiqueta = (fecha: string) =>
+    per === "anual" ? fecha.slice(0, 4) : `${fecha.slice(5, 7)}/${fecha.slice(2, 4)}`;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -231,41 +268,83 @@ function ChartEvolucion({ serie, grupo }: { serie: SerieAnual[]; grupo: GrupoSer
             {s.label}
           </button>
         ))}
-        <span className="ml-auto text-[8px] text-[var(--t-text-dim)] pr-1">
-          {grupo === "margenes" ? "% · por año fiscal" : "USD · por año fiscal"}
-        </span>
+        <div className="ml-auto flex items-center gap-1">
+          {([["anual", "ANUAL"], ["trim", "TRIMESTRAL"]] as const).map(([k, lbl]) => (
+            <button key={k} onClick={() => setPer(k)}
+              className={`px-1.5 py-0.5 text-[8px] font-semibold border transition-colors ${
+                per === k
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+              }`}>
+              {lbl}
+            </button>
+          ))}
+          <span className="text-[8px] text-[var(--t-text-dim)] pl-1">
+            {grupo === "margenes" ? "%" : "USD"}
+          </span>
+        </div>
       </div>
-      <div className="flex-1 min-h-0 px-2 pb-1">
-        <svg viewBox={`0 0 ${W} ${H + 16}`} className="w-full h-full" preserveAspectRatio="none">
-          <line x1={0} x2={W} y1={cero} y2={cero} stroke="var(--t-border-2)" strokeWidth={0.5} />
-          {serie.map((a, i) => {
-            const x0 = i * 100 + 14;
-            const ancho = 72 / Math.max(activas.length, 1);
-            return (
-              <g key={a.fecha}>
-                {activas.map((s, j) => {
-                  const v = num(a[s.key]);
-                  if (v === null) return null;
-                  const h = Math.max(1, Math.abs(v) * escala);
-                  return (
-                    <rect key={s.key}
-                      x={x0 + j * ancho} width={ancho - 3}
-                      y={v >= 0 ? cero - h : cero}
-                      height={h}
-                      fill={s.color} opacity={0.85}>
-                      <title>{`${a.fecha.slice(0, 4)} · ${s.label}: ${def.fmt(v)}`}</title>
-                    </rect>
-                  );
-                })}
-                <text x={i * 100 + 50} y={H + 12} textAnchor="middle"
-                  className="fill-[var(--t-text-dim)]" fontSize={9} fontFamily="JetBrains Mono, monospace">
-                  {a.fecha.slice(0, 4)}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+      {serie.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">
+          sin datos {per === "anual" ? "anuales" : "trimestrales"} todavía — se cargan con la próxima pasada del feed
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 px-2 pb-1">
+          <svg viewBox={`0 0 ${W} ${H + 16}`} className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+            {/* eje Y: gridlines + valores */}
+            {ticks.map((t) => {
+              const y = cero - t * escala;
+              return (
+                <g key={t}>
+                  <line x1={M} x2={W} y1={y} y2={y} stroke="var(--t-border-2)"
+                    strokeWidth={t === 0 ? 0.8 : 0.4} strokeDasharray={t === 0 ? undefined : "2,3"} />
+                  <text x={M - 4} y={y + 2.5} textAnchor="end"
+                    className="fill-[var(--t-text-dim)]" fontSize={7.5}
+                    fontFamily="JetBrains Mono, monospace">
+                    {def.corto(t)}
+                  </text>
+                </g>
+              );
+            })}
+            {serie.map((a, i) => {
+              const x0 = M + i * 96 + 10;
+              const ancho = 72 / Math.max(activas.length, 1);
+              return (
+                <g key={a.fecha}>
+                  {activas.map((s, j) => {
+                    const v = num(a[s.key]);
+                    if (v === null) return null;
+                    const h = Math.max(1, Math.abs(v) * escala);
+                    const y = v >= 0 ? cero - h : cero;
+                    return (
+                      <g key={s.key}>
+                        <rect x={x0 + j * ancho} width={ancho - 3} y={y} height={h}
+                          fill={s.color} opacity={0.85}>
+                          <title>{`${etiqueta(a.fecha)} · ${s.label}: ${def.fmt(v)}`}</title>
+                        </rect>
+                        {/* valor sobre la barra cuando entra (pocas series activas) */}
+                        {activas.length <= 2 && (
+                          <text x={x0 + j * ancho + (ancho - 3) / 2}
+                            y={v >= 0 ? y - 2 : y + h + 7}
+                            textAnchor="middle" className="fill-[var(--t-text-dim)]"
+                            fontSize={7} fontFamily="JetBrains Mono, monospace">
+                            {def.corto(v)}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                  <text x={M + i * 96 + 46} y={H + 12} textAnchor="middle"
+                    className="fill-[var(--t-text-dim)]" fontSize={8.5}
+                    fontFamily="JetBrains Mono, monospace">
+                    {etiqueta(a.fecha)}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -310,7 +389,8 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
 
   const q = data?.quote ?? null;
   const f = data?.fundamentals ?? null;
-  const serie = (f?.serie_anual ?? []).slice().reverse(); // viejo → nuevo
+  const serieAnual = (f?.serie_anual ?? []).slice().reverse();         // viejo → nuevo
+  const serieTrim = (f?.serie_trimestral ?? []).slice().reverse();
   const last = num(q?.last);
   const min52 = num(f?.min_52s);
   const max52 = num(f?.max_52s);
@@ -465,8 +545,8 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
             </div>
           </Cuadrante>
 
-          {/* ── Abajo-derecha: evolución 5 años graficada ── */}
-          <Cuadrante titulo="EVOLUCIÓN 5 AÑOS" extra={
+          {/* ── Abajo-derecha: evolución histórica graficada ── */}
+          <Cuadrante titulo="EVOLUCIÓN" extra={
             <div className="ml-auto flex gap-1">
               {(Object.keys(GRUPOS_5A) as GrupoSerie[]).map((g) => (
                 <button key={g} onClick={() => setGrupo(g)}
@@ -480,9 +560,9 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
               ))}
             </div>
           }>
-            {serie.length > 1
-              ? <ChartEvolucion serie={serie} grupo={grupo} />
-              : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie anual todavía — se carga con la próxima pasada diaria del feed</div>}
+            {serieAnual.length > 0 || serieTrim.length > 0
+              ? <ChartEvolucion anual={serieAnual} trimestral={serieTrim} grupo={grupo} />
+              : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie histórica todavía — se carga con la próxima pasada diaria del feed</div>}
           </Cuadrante>
         </div>
       )}

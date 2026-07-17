@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { ReutersFicha } from "@/components/reuters-ficha";
+import { ReutersFundamentals } from "@/components/reuters-fundamentals";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { usePoll } from "@/lib/use-poll";
 
@@ -149,6 +150,10 @@ export function ReutersView() {
   // Ficha de empresa abierta (click en fila / Enter en el buscador).
   const [fichaTicker, setFichaTicker] = usePersistedState<string | null>("reuters.ficha", null);
   const [busqueda, setBusqueda] = useState("");
+  // Sub-vista: COTIZACIONES (quotes live) o FUNDAMENTALS (screener comparativo).
+  const [subvista, setSubvista] = usePersistedState<"cotizaciones" | "fundamentals">(
+    "reuters.subvista", "cotizaciones",
+  );
 
   const visibles = useMemo(() => COLS.filter((c) => c.fija || !ocultas[c.key]), [ocultas]);
   const nOcultas = COLS.length - visibles.length;
@@ -191,70 +196,95 @@ export function ReutersView() {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">REUTERS</span>
-        <span className="text-[10px] text-[var(--t-text-muted)]">
-          {filas.length} activo{filas.length === 1 ? "" : "s"} suscripto{filas.length === 1 ? "" : "s"}
-        </span>
-        <input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && filas.length > 0) {
-              setFichaTicker(filas[0].ticker);
-              setBusqueda("");
-            }
-          }}
-          placeholder="buscar empresa… (Enter abre la ficha)"
-          spellCheck={false}
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[210px]"
-        />
-        {sort && (
-          <button
-            onClick={() => setSort(null)}
-            className="text-[9px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] px-1.5 py-0.5"
-            title="Volver al orden original"
-          >
-            ✕ orden
-          </button>
+        {subvista === "cotizaciones" && (
+          <>
+            <span className="text-[10px] text-[var(--t-text-muted)]">
+              {filas.length} activo{filas.length === 1 ? "" : "s"} suscripto{filas.length === 1 ? "" : "s"}
+            </span>
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && filas.length > 0) {
+                  setFichaTicker(filas[0].ticker);
+                  setBusqueda("");
+                }
+              }}
+              placeholder="buscar empresa… (Enter abre la ficha)"
+              spellCheck={false}
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[210px]"
+            />
+            {sort && (
+              <button
+                onClick={() => setSort(null)}
+                className="text-[9px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] px-1.5 py-0.5"
+                title="Volver al orden original"
+              >
+                ✕ orden
+              </button>
+            )}
+
+            {/* Selector de columnas visibles */}
+            <div className="relative">
+              <button
+                onClick={() => setSelectorAbierto((v) => !v)}
+                className={`text-[9px] tracking-widest border px-1.5 py-0.5 transition-colors ${
+                  selectorAbierto || nOcultas > 0
+                    ? "text-[var(--t-accent)] border-[var(--t-accent)]"
+                    : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+                }`}
+              >
+                COLUMNAS{nOcultas > 0 ? ` (${nOcultas} ocultas)` : ""} ▾
+              </button>
+              {selectorAbierto && (
+                <div className="absolute left-0 top-full mt-1 z-30 bg-[var(--t-surface)] border border-[var(--t-border-2)] shadow-lg p-2 max-h-[60vh] overflow-auto min-w-[170px]">
+                  {COLS.filter((c) => !c.fija).map((c) => (
+                    <label key={c.key} className="flex items-center gap-2 px-1 py-0.5 text-[10px] text-[var(--t-text)] cursor-pointer hover:bg-[var(--t-surface-2)]">
+                      <input
+                        type="checkbox"
+                        checked={!ocultas[c.key]}
+                        onChange={() => setOcultas((o) => ({ ...o, [c.key]: !o[c.key] }))}
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                  <button
+                    onClick={() => setOcultas({})}
+                    className="mt-1 w-full text-[9px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] px-1.5 py-0.5"
+                  >
+                    Mostrar todas
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
-        {/* Selector de columnas visibles */}
-        <div className="relative">
-          <button
-            onClick={() => setSelectorAbierto((v) => !v)}
-            className={`text-[9px] tracking-widest border px-1.5 py-0.5 transition-colors ${
-              selectorAbierto || nOcultas > 0
-                ? "text-[var(--t-accent)] border-[var(--t-accent)]"
-                : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-            }`}
-          >
-            COLUMNAS{nOcultas > 0 ? ` (${nOcultas} ocultas)` : ""} ▾
-          </button>
-          {selectorAbierto && (
-            <div className="absolute left-0 top-full mt-1 z-30 bg-[var(--t-surface)] border border-[var(--t-border-2)] shadow-lg p-2 max-h-[60vh] overflow-auto min-w-[170px]">
-              {COLS.filter((c) => !c.fija).map((c) => (
-                <label key={c.key} className="flex items-center gap-2 px-1 py-0.5 text-[10px] text-[var(--t-text)] cursor-pointer hover:bg-[var(--t-surface-2)]">
-                  <input
-                    type="checkbox"
-                    checked={!ocultas[c.key]}
-                    onChange={() => setOcultas((o) => ({ ...o, [c.key]: !o[c.key] }))}
-                  />
-                  {c.label}
-                </label>
-              ))}
-              <button
-                onClick={() => setOcultas({})}
-                className="mt-1 w-full text-[9px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] px-1.5 py-0.5"
-              >
-                Mostrar todas
-              </button>
-            </div>
+        {/* Derecha: sub-vistas + copiloto */}
+        <div className="ml-auto flex items-center gap-2">
+          {([["cotizaciones", "COTIZACIONES"], ["fundamentals", "FUNDAMENTALS"]] as const).map(([k, lbl]) => (
+            <button key={k} onClick={() => setSubvista(k)}
+              className={`px-2 py-0.5 text-[9px] font-semibold border transition-colors ${
+                subvista === k
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+              }`}>
+              {lbl}
+            </button>
+          ))}
+          {subvista === "cotizaciones" && (
+            <span className="text-[9px] text-[var(--t-text-dim)]">live · 5s</span>
           )}
+          {/* Copiloto IA de la vista REUTERS (oculto sin módulos ia+trading) */}
+          <IaVistaPanel vista="reuters" />
         </div>
-
-        <span className="ml-auto text-[9px] text-[var(--t-text-dim)]">live · 5s</span>
-        {/* Copiloto IA de la vista REUTERS (oculto sin módulos ia+trading) */}
-        <IaVistaPanel vista="reuters" />
       </div>
+
+      {subvista === "fundamentals" ? (
+        <div className="flex-1 min-h-0">
+          <ReutersFundamentals onFicha={setFichaTicker} />
+        </div>
+      ) : (
       <div className="flex-1 min-h-0 overflow-auto" onClick={() => selectorAbierto && setSelectorAbierto(false)}>
         {filas.length === 0 ? (
           <div className="p-4 text-[11px] text-[var(--t-text-muted)]">
@@ -298,6 +328,7 @@ export function ReutersView() {
           </table>
         )}
       </div>
+      )}
     </div>
   );
 }
