@@ -70,7 +70,38 @@ function hora(ts: string | null): string {
 
 function varClass(v: number | null): string {
   if (v === null || v === undefined || !isFinite(v) || v === 0) return "text-[var(--t-text-dim)]";
-  return v > 0 ? "text-green-400" : "text-red-400";
+  // Colores POR TEMA (--t-pos/--t-neg): el green-400 fijo era ilegible en modo claro.
+  return v > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
+}
+
+// ── Agrupación visual de columnas (cabecera de 2 niveles + separadores) ───────
+type Grupo = "activo" | "precio" | "dia" | "retornos" | "cedear";
+
+const GRUPO_DE: Partial<Record<SortKey, Grupo>> = {
+  ticker: "activo",
+  last: "precio", bid: "precio", ask: "precio", high: "precio", low: "precio",
+  prev_close: "precio", volumen: "precio",
+  var_pct: "dia", var_neta: "dia", pre_var_pct: "dia", ah_var_pct: "dia",
+  ret_5d: "retornos", ret_wtd: "retornos", ret_mtd: "retornos", ret_qtd: "retornos",
+  ret_ytd: "retornos", ret_1m: "retornos", ret_3m: "retornos", ret_1y: "retornos",
+  ret_5y: "retornos",
+  ratio: "cedear", ccl: "cedear",
+};
+const GRUPO_LABEL: Record<Grupo, string> = {
+  activo: "", precio: "PRECIO (USD)", dia: "HOY", retornos: "RETORNOS", cedear: "CEDEAR",
+};
+const grupoDe = (k: SortKey): Grupo => GRUPO_DE[k] ?? "activo";
+
+// Columnas con HEATMAP: fondo tenue verde/rojo (más intenso cuanto más grande
+// el retorno relativo a su columna), texto en color normal — no grita.
+const HEAT: Set<SortKey> = new Set([
+  "ret_5d", "ret_wtd", "ret_mtd", "ret_qtd", "ret_ytd", "ret_1m", "ret_3m", "ret_1y", "ret_5y",
+]);
+
+function heatStyle(v: number | null, maxAbs: number | undefined): React.CSSProperties | undefined {
+  if (v === null || v === undefined || !isFinite(v) || v === 0 || !maxAbs) return undefined;
+  const alpha = 0.05 + 0.2 * Math.sqrt(Math.min(Math.abs(v) / maxAbs, 1));
+  return { background: v > 0 ? `rgba(16,185,129,${alpha})` : `rgba(239,68,68,${alpha})` };
 }
 
 interface ColDef {
@@ -168,6 +199,38 @@ export function ReutersView() {
       .filter((c) => (COLS_AFTER.includes(c.key) ? afterHours : true)),
     [ocultas, afterHours],
   );
+  // Heatmap: máximo |retorno| por columna (normaliza la intensidad del fondo).
+  const maxRet = useMemo(() => {
+    const m: Partial<Record<SortKey, number>> = {};
+    const base = Array.isArray(rows) ? rows : [];
+    for (const k of HEAT) {
+      m[k] = Math.max(...base.map((r) => Math.abs((r[k] as number) ?? 0)), 0.0001);
+    }
+    return m;
+  }, [rows]);
+
+  // Segmentos de la cabecera de grupos + qué columnas ABREN grupo (separador).
+  const segmentos = useMemo(() => {
+    const seg: { g: Grupo; n: number }[] = [];
+    for (const c of visibles) {
+      const g = grupoDe(c.key);
+      const last = seg[seg.length - 1];
+      if (last && last.g === g) last.n++;
+      else seg.push({ g, n: 1 });
+    }
+    return seg;
+  }, [visibles]);
+  const iniciaGrupo = useMemo(() => {
+    const s = new Set<SortKey>();
+    let prev: Grupo | null = null;
+    for (const c of visibles) {
+      const g = grupoDe(c.key);
+      if (prev !== null && g !== prev) s.add(c.key);
+      prev = g;
+    }
+    return s;
+  }, [visibles]);
+
   // Hora del dato más fresco del feed (reemplaza a la vieja columna HORA).
   const ultimaHora = useMemo(() => {
     const ts = (Array.isArray(rows) ? rows : [])
@@ -332,14 +395,24 @@ export function ReutersView() {
           </div>
         ) : (
           <table className="w-full text-[11px] font-mono">
-            <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
-              <tr className="text-[var(--t-text-dim)] tracking-widest text-[9px]">
-                {visibles.map((c) => (
+            <thead className="sticky top-0 bg-[var(--t-surface)] z-10">
+              {/* Nivel 1: los bloques (PRECIO · HOY · RETORNOS · CEDEAR) */}
+              <tr className="text-[8px] tracking-[0.2em] text-[var(--t-text-dim)]">
+                {segmentos.map((s, i) => (
+                  <th key={i} colSpan={s.n}
+                    className={`pt-1.5 pb-0.5 text-center font-semibold ${i > 0 ? "border-l-2 border-[var(--t-border-2)]" : ""}`}>
+                    {GRUPO_LABEL[s.g]}
+                  </th>
+                ))}
+              </tr>
+              {/* Nivel 2: las columnas */}
+              <tr className="text-[var(--t-text-dim)] tracking-widest text-[9px] border-b-2 border-[var(--t-border-2)]">
+                {visibles.map((c, i) => (
                   <th
                     key={c.key}
                     onClick={() => clickSort(c)}
                     title={c.title ?? "Click para ordenar"}
-                    className={`px-2 py-2 cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${c.align === "left" ? "text-left" : "text-right"} ${sort?.key === c.key ? "text-[var(--t-accent)]" : ""}`}
+                    className={`px-2 py-1.5 cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${c.align === "left" ? "text-left" : "text-right"} ${sort?.key === c.key ? "text-[var(--t-accent)]" : ""} ${i > 0 && iniciaGrupo.has(c.key) ? "border-l-2 border-[var(--t-border-2)]" : ""}`}
                   >
                     {c.label}
                     {c.title && <span className="ml-0.5 text-[7px] align-super opacity-50">?</span>}
@@ -353,15 +426,22 @@ export function ReutersView() {
                 <tr key={r.ticker}
                   onClick={() => setFichaTicker(r.ticker)}
                   title={`Abrir la ficha de ${r.ticker}`}
-                  className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)] cursor-pointer">
-                  {visibles.map((c) => (
-                    <td
-                      key={c.key}
-                      className={`px-2 py-1.5 whitespace-nowrap text-[var(--t-text-dim)] ${c.align === "left" ? "text-left px-3" : "text-right"}`}
-                    >
-                      {c.render(r)}
-                    </td>
-                  ))}
+                  className="border-b border-[var(--t-border)] odd:bg-[var(--t-surface)]/40 hover:bg-[var(--t-surface-2)] cursor-pointer">
+                  {visibles.map((c, i) => {
+                    const esHeat = HEAT.has(c.key);
+                    const v = esHeat ? (r[c.key] as number | null) : null;
+                    return (
+                      <td
+                        key={c.key}
+                        style={esHeat ? heatStyle(v, maxRet[c.key]) : undefined}
+                        className={`px-2 py-1.5 whitespace-nowrap text-[var(--t-text-dim)] ${c.align === "left" ? "text-left px-3" : "text-right"} ${i > 0 && iniciaGrupo.has(c.key) ? "border-l-2 border-[var(--t-border-2)]" : ""}`}
+                      >
+                        {esHeat
+                          ? <span className="text-[var(--t-text)]">{fmtPct(v)}</span>
+                          : c.render(r)}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

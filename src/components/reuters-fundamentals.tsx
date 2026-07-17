@@ -87,7 +87,7 @@ function fmtN(v: unknown, dec = 2): string {
 function varClass(v: unknown): string {
   const n = num(v);
   if (n === null || n === 0) return "text-[var(--t-text-dim)]";
-  return n > 0 ? "text-green-400" : "text-red-400";
+  return n > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
 }
 
 interface ColDef {
