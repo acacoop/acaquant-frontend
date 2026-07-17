@@ -61,7 +61,7 @@ const POLL_MS = 60_000;
 const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
 // grilla compartida header/filas → columnas alineadas
-const GRID = "grid grid-cols-[minmax(0,1fr)_68px_54px_54px_54px] gap-x-2 px-3";
+const GRID = "grid grid-cols-[minmax(0,1fr)_60px_46px_46px_46px] gap-x-1.5 px-3";
 const LBL = "text-[11px] font-bold tracking-wide text-[var(--t-text)] truncate";
 const HEAD = "text-right text-[9px] font-semibold tracking-widest text-[var(--t-text-dim)]";
 
@@ -102,7 +102,7 @@ function Hoy({ v }: { v: number | null }) {
 function Row({ r }: { r: MetricRow }) {
   return (
     <div className={`${GRID} items-baseline py-1.5 border-b border-[var(--t-border-2)]`}>
-      <span className={LBL}>
+      <span className={LBL} title={r.label}>
         {r.label}
         {r.fecha && <span className="font-normal text-[var(--t-text-dim)]"> {fmtFecha(r.fecha)}</span>}
         {r.stale && <span className="text-[var(--t-neg)]"> ⚠</span>}
@@ -292,7 +292,7 @@ export function BriefingModal() {
 
                   {(data.cauciones?.length ?? 0) > 0 && (
                     <div>
-                      <Section title="CAUCIONES" />
+                      <Section title="CAUCIONES · TNA %" />
                       <ColHeader />
                       {data.cauciones!.map((r) => (
                         <Row key={r.label} r={r} />
