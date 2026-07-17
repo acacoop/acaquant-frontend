@@ -11,8 +11,10 @@ import { usePoll } from "@/lib/use-poll";
 // TRADING → REUTERS: tablero live de los subyacentes US suscriptos (feed de la
 // PC de oficina), a pantalla completa. Toda columna ordena con click (números
 // de mayor a menor, texto A→Z) y se puede ocultar desde el selector COLUMNAS
-// (preferencia persistente). PRE/AFTER muestran la VARIACIÓN, no el precio.
-// La columna CCL está modelada pero PENDIENTE: cedear_ars × ratio / adr_usd.
+// (preferencia persistente; VOLUMEN/MÍN/CIERRE/RATIO arrancan ocultas — default
+// sobrio pedido por la mesa). El bloque RETORNOS lleva fondo propio + corte
+// más grueso: misma tabla, pero se lee como otra cosa (día vs. acumulado).
+// PRE/AFTER muestran la VARIACIÓN, no el precio.
 const POLL_MS = 5_000;
 
 interface ReutersRow {
@@ -91,6 +93,11 @@ const GRUPO_LABEL: Record<Grupo, string> = {
   activo: "", precio: "PRECIO (USD)", dia: "HOY", retornos: "RETORNOS", cedear: "CEDEAR",
 };
 const grupoDe = (k: SortKey): Grupo => GRUPO_DE[k] ?? "activo";
+
+// Fondo tenue de TODO el bloque RETORNOS (cabeceras y celdas): el corte visual
+// entre el estado del DÍA y la performance ACUMULADA. El heatmap por celda
+// (inline style) pisa este fondo cuando hay valor.
+const TINT_RETORNOS = "bg-[var(--t-surface-2)]/40";
 
 // Columnas con HEATMAP: fondo tenue verde/rojo (más intenso cuanto más grande
 // el retorno relativo a su columna), texto en color normal — no grita.
@@ -180,8 +187,13 @@ export function ReutersView() {
   // dir: -1 = descendente (default numérico), 1 = ascendente (default texto)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   // Columnas ocultas — preferencia del usuario, sobrevive al cierre de la app.
+  // Default sobrio (pedido de mesa): VOLUMEN, MÍN, CIERRE y RATIO arrancan
+  // ocultas; se prenden desde COLUMNAS. Key `.v2`: el default viejo era {} y
+  // quedó persistido en los navegadores de la mesa — la key nueva lo pisa.
   const [ocultas, setOcultas] = usePersistedState<Partial<Record<SortKey, boolean>>>(
-    "reuters.cols.ocultas", {}, "local",
+    "reuters.cols.ocultas.v2",
+    { volumen: true, low: true, prev_close: true, ratio: true },
+    "local",
   );
   const [selectorAbierto, setSelectorAbierto] = useState(false);
   // Ficha de empresa abierta (click en fila / Enter en el buscador).
@@ -400,25 +412,29 @@ export function ReutersView() {
               <tr className="text-[8px] tracking-[0.2em] text-[var(--t-text-dim)]">
                 {segmentos.map((s, i) => (
                   <th key={i} colSpan={s.n}
-                    className={`pt-1.5 pb-0.5 text-center font-semibold ${i > 0 ? "border-l-2 border-[var(--t-border-2)]" : ""}`}>
+                    className={`pt-1.5 pb-0.5 text-center font-semibold ${i > 0 ? (s.g === "retornos" ? "border-l-[3px]" : "border-l-2") + " border-[var(--t-border-2)]" : ""} ${s.g === "retornos" ? TINT_RETORNOS : ""}`}>
                     {GRUPO_LABEL[s.g]}
                   </th>
                 ))}
               </tr>
               {/* Nivel 2: las columnas */}
               <tr className="text-[var(--t-text-dim)] tracking-widest text-[9px] border-b-2 border-[var(--t-border-2)]">
-                {visibles.map((c, i) => (
-                  <th
-                    key={c.key}
-                    onClick={() => clickSort(c)}
-                    title={c.title ?? "Click para ordenar"}
-                    className={`px-2 py-1.5 cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${c.align === "left" ? "text-left" : "text-right"} ${sort?.key === c.key ? "text-[var(--t-accent)]" : ""} ${i > 0 && iniciaGrupo.has(c.key) ? "border-l-2 border-[var(--t-border-2)]" : ""}`}
-                  >
-                    {c.label}
-                    {c.title && <span className="ml-0.5 text-[7px] align-super opacity-50">?</span>}
-                    {sort?.key === c.key && <span className="ml-0.5">{sort.dir === -1 ? "▼" : "▲"}</span>}
-                  </th>
-                ))}
+                {visibles.map((c, i) => {
+                  const g = grupoDe(c.key);
+                  const corte = i > 0 && iniciaGrupo.has(c.key);
+                  return (
+                    <th
+                      key={c.key}
+                      onClick={() => clickSort(c)}
+                      title={c.title ?? "Click para ordenar"}
+                      className={`px-2 py-1.5 cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${c.align === "left" ? "text-left" : "text-right"} ${sort?.key === c.key ? "text-[var(--t-accent)]" : ""} ${corte ? (g === "retornos" ? "border-l-[3px]" : "border-l-2") + " border-[var(--t-border-2)]" : ""} ${g === "retornos" ? TINT_RETORNOS : ""}`}
+                    >
+                      {c.label}
+                      {c.title && <span className="ml-0.5 text-[7px] align-super opacity-50">?</span>}
+                      {sort?.key === c.key && <span className="ml-0.5">{sort.dir === -1 ? "▼" : "▲"}</span>}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -430,11 +446,13 @@ export function ReutersView() {
                   {visibles.map((c, i) => {
                     const esHeat = HEAT.has(c.key);
                     const v = esHeat ? (r[c.key] as number | null) : null;
+                    const g = grupoDe(c.key);
+                    const corte = i > 0 && iniciaGrupo.has(c.key);
                     return (
                       <td
                         key={c.key}
                         style={esHeat ? heatStyle(v, maxRet[c.key]) : undefined}
-                        className={`px-2 py-1.5 whitespace-nowrap text-[var(--t-text-dim)] ${c.align === "left" ? "text-left px-3" : "text-right"} ${i > 0 && iniciaGrupo.has(c.key) ? "border-l-2 border-[var(--t-border-2)]" : ""}`}
+                        className={`px-2 py-1.5 whitespace-nowrap text-[var(--t-text-dim)] ${c.align === "left" ? "text-left px-3" : "text-right"} ${corte ? (g === "retornos" ? "border-l-[3px]" : "border-l-2") + " border-[var(--t-border-2)]" : ""} ${g === "retornos" ? TINT_RETORNOS : ""}`}
                       >
                         {esHeat
                           ? <span className="text-[var(--t-text)]">{fmtPct(v)}</span>
