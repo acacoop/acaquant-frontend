@@ -132,7 +132,11 @@ const COLS: ColDef[] = [
     key: "ratio", label: "RATIO", title: "Ratio de conversión del CEDEAR: cuántos CEDEARs equivalen a 1 acción del subyacente. Insumo del CCL implícito.",
     render: (r) => (r.ratio === null ? "—" : `${fmt(r.ratio, 0)}:1`),
   },
-  { key: "ccl", label: "CCL", title: "CCL implícito del papel: precio del CEDEAR en ARS × ratio ÷ precio del ADR en USD — a qué tipo de cambio está pagando el mercado ese activo. Próximamente.", render: () => "—" },
+  {
+    key: "ccl", label: "CCL",
+    title: "CCL implícito del papel: last del CEDEAR en ARS × ratio ÷ last del ADR en USD — a qué tipo de cambio está pagando el mercado ese activo AHORA. Vacío si falta alguna pata: feed apagado, CEDEAR sin operar hoy o ratio sin cargar.",
+    render: (r) => (r.ccl === null ? "—" : <span className="text-[var(--t-text)] font-semibold">{fmt(r.ccl)}</span>),
+  },
 ];
 
 // Columnas que solo aparecen con el filtro AFTER HOURS activado.

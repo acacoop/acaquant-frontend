@@ -614,13 +614,19 @@ function PivotCard({
   );
 }
 
-// ── KPIs del toolbar: CCL + SPY + QQQ (referencia de mercado) ─────────────────
-// SPY/QQQ son el CEDEAR local (ARS, tick a tick del motor propio — mismo feed
-// que la tabla del Scanner), NO el subyacente US.
+// ── KPIs del toolbar: CCL + SPY/QQQ (CEDEAR en ARS) + sus ADR (USD) ──────────
+// El CEDEAR sale del motor local (mismo feed que el Scanner, tick a tick).
+// El ADR sale del tablero REUTERS (feed real-time de la oficina).
 interface CedearScannerRow {
   ticker_corto: string;
   last: number | null;
   vs_1d_pct: number | null;
+}
+
+interface ReutersQuote {
+  ticker: string;
+  last: number | null;
+  var_pct: number | null;
 }
 
 function MarketKpis() {
@@ -636,13 +642,23 @@ function MarketKpis() {
     5_000,
     { fetchOnMount: true },
   );
+  const { data: adrs } = usePoll<ReutersQuote[]>(
+    "/api/trading/reuters",
+    [],
+    5_000,
+    { fetchOnMount: true },
+  );
   const spy = cedears?.find?.((q) => q.ticker_corto === "SPY");
   const qqq = cedears?.find?.((q) => q.ticker_corto === "QQQ");
+  const spyAdr = adrs?.find?.((q) => q.ticker === "SPY");
+  const qqqAdr = adrs?.find?.((q) => q.ticker === "QQQ");
   return (
     <div className="flex items-center gap-3 ml-auto text-[11px]">
       <Kpi label="CCL" value={ccl.value} pct={ccl.vs_1d_pct} />
       <Kpi label="SPY" value={spy?.last ?? null} pct={spy?.vs_1d_pct ?? null} />
+      <Kpi label="SPY ADR" value={spyAdr?.last ?? null} pct={spyAdr?.var_pct ?? null} />
       <Kpi label="QQQ" value={qqq?.last ?? null} pct={qqq?.vs_1d_pct ?? null} />
+      <Kpi label="QQQ ADR" value={qqqAdr?.last ?? null} pct={qqqAdr?.var_pct ?? null} />
     </div>
   );
 }

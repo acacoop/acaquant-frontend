@@ -36,6 +36,13 @@ interface PagaRow {
   emisor: string | null;
 }
 
+interface DlrRow {
+  ticker: string;
+  dias: number | null;
+  ultimo: number | null;
+  tna: number | null;
+}
+
 interface BriefingResp {
   fecha: string;
   generado: string;
@@ -43,6 +50,7 @@ interface BriefingResp {
   oficial: MetricRow[];
   financieros: MetricRow[];
   cauciones?: MetricRow[];
+  futuros_dlr?: DlrRow[];
   pagan_hoy: PagaRow[];
 }
 
@@ -238,7 +246,7 @@ export function BriefingModal() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-4xl bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden"
+            className="w-full max-w-6xl bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--t-border)]">
@@ -256,7 +264,7 @@ export function BriefingModal() {
             </div>
 
             <div className="overflow-y-auto max-h-[82vh] p-3">
-              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] gap-x-5 gap-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] lg:grid-cols-[1.1fr_1fr_0.85fr] gap-x-5 gap-y-3">
                 {/* IZQUIERDA — Futuros (el bloque grande) */}
                 <div className="self-start">
                   <Section title="FUTUROS" />
@@ -310,6 +318,38 @@ export function BriefingModal() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* TERCERA COLUMNA — curva de futuros de dólar (Matba Rofex) */}
+                <div className="self-start">
+                  <Section title="DÓLAR FUTURO (DLR)" />
+                  <div className="grid grid-cols-[minmax(0,1fr)_44px_64px_58px] gap-x-2 px-3 text-[9px] tracking-widest text-[var(--t-text-dim)] py-1">
+                    <span>TICKER</span>
+                    <span className="text-right">DÍAS</span>
+                    <span className="text-right">ÚLTIMO</span>
+                    <span className="text-right">TNA %</span>
+                  </div>
+                  {(data.futuros_dlr?.length ?? 0) > 0 ? (
+                    data.futuros_dlr!.map((f) => (
+                      <div
+                        key={f.ticker}
+                        className="grid grid-cols-[minmax(0,1fr)_44px_64px_58px] gap-x-2 px-3 py-1 border-b border-[var(--t-border-2)] text-[11px] font-mono"
+                      >
+                        <span className="font-semibold text-[var(--t-text)] truncate">{f.ticker}</span>
+                        <span className="text-right text-[var(--t-text-muted)]">{f.dias ?? "—"}</span>
+                        <span className="text-right text-[var(--t-text)]">
+                          {f.ultimo != null ? f.ultimo.toLocaleString("es-AR", { maximumFractionDigits: 1 }) : "—"}
+                        </span>
+                        <span className="text-right text-[var(--t-accent)] font-semibold">
+                          {f.tna != null ? `${f.tna.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%` : "—"}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-[11px] text-[var(--t-text-dim)]">
+                      Sin datos de la curva DLR.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
