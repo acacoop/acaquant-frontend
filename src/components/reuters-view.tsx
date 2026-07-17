@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { IaVistaPanel } from "@/components/ia-vista-panel";
+import { ReutersFicha } from "@/components/reuters-ficha";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { usePoll } from "@/lib/use-poll";
 
@@ -145,6 +146,9 @@ export function ReutersView() {
     "reuters.cols.ocultas", {}, "local",
   );
   const [selectorAbierto, setSelectorAbierto] = useState(false);
+  // Ficha de empresa abierta (click en fila / Enter en el buscador).
+  const [fichaTicker, setFichaTicker] = usePersistedState<string | null>("reuters.ficha", null);
+  const [busqueda, setBusqueda] = useState("");
 
   const visibles = useMemo(() => COLS.filter((c) => c.fija || !ocultas[c.key]), [ocultas]);
   const nOcultas = COLS.length - visibles.length;
@@ -157,7 +161,12 @@ export function ReutersView() {
   };
 
   const filas = useMemo(() => {
-    const base = Array.isArray(rows) ? [...rows] : [];
+    let base = Array.isArray(rows) ? [...rows] : [];
+    const t = busqueda.trim().toUpperCase();
+    if (t) {
+      base = base.filter((r) =>
+        r.ticker.toUpperCase().includes(t) || (r.ric ?? "").toUpperCase().includes(t));
+    }
     if (!sort) return base;
     const { key, dir } = sort;
     return base.sort((a, b) => {
@@ -171,7 +180,12 @@ export function ReutersView() {
       }
       return ((va as number) - (vb as number)) * dir;
     });
-  }, [rows, sort]);
+  }, [rows, sort, busqueda]);
+
+  // Ficha abierta → reemplaza al screener (← VOLVER la cierra).
+  if (fichaTicker) {
+    return <ReutersFicha ticker={fichaTicker} onVolver={() => setFichaTicker(null)} />;
+  }
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -180,6 +194,19 @@ export function ReutersView() {
         <span className="text-[10px] text-[var(--t-text-muted)]">
           {filas.length} activo{filas.length === 1 ? "" : "s"} suscripto{filas.length === 1 ? "" : "s"}
         </span>
+        <input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && filas.length > 0) {
+              setFichaTicker(filas[0].ticker);
+              setBusqueda("");
+            }
+          }}
+          placeholder="buscar empresa… (Enter abre la ficha)"
+          spellCheck={false}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[210px]"
+        />
         {sort && (
           <button
             onClick={() => setSort(null)}
@@ -253,7 +280,10 @@ export function ReutersView() {
             </thead>
             <tbody>
               {filas.map((r) => (
-                <tr key={r.ticker} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
+                <tr key={r.ticker}
+                  onClick={() => setFichaTicker(r.ticker)}
+                  title={`Abrir la ficha de ${r.ticker}`}
+                  className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)] cursor-pointer">
                   {visibles.map((c) => (
                     <td
                       key={c.key}
