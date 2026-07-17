@@ -42,6 +42,7 @@ interface BriefingResp {
   futuros: MetricRow[];
   oficial: MetricRow[];
   financieros: MetricRow[];
+  cauciones?: MetricRow[];
   pagan_hoy: PagaRow[];
 }
 
@@ -280,6 +281,16 @@ export function BriefingModal() {
                       <Row key={r.label} r={r} />
                     ))}
                   </div>
+
+                  {(data.cauciones?.length ?? 0) > 0 && (
+                    <div>
+                      <Section title="CAUCIONES" />
+                      <ColHeader />
+                      {data.cauciones!.map((r) => (
+                        <Row key={r.label} r={r} />
+                      ))}
+                    </div>
+                  )}
 
                   <div>
                     <Section title="BONOS QUE PAGAN HOY" />
