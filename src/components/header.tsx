@@ -43,6 +43,7 @@ const NAV: Entry[] = [
   { kind: "link", href: "/",            label: "HOME",        module: "home" },
   { kind: "link", href: "/operar",      label: "OPERAR",      module: "operar" },
   { kind: "link", href: "/trading",     label: "TRADING",     module: "trading" },
+  { kind: "link", href: "/research",     label: "RESEARCH",    module: "research" },
   {
     kind: "group",
     label: "MERCADOS",

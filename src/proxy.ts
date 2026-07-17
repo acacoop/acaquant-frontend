@@ -42,6 +42,10 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/portfolio", ["portfolios"]],
   ["/api/titulos", ["portfolios"]],
   ["/back-office", ["back-office"]],
+  // /research (vista Research: research diario 1816 + market data) — módulo `research`.
+  // Prefijo API distinto de /api/research (Análisis Fundamental de RV) — no colisiona.
+  ["/research", ["research"]],
+  ["/api/research1816", ["research"]],
   // /api/ia (briefing + observabilidad IA) — módulo `ia` (marca AI, QuantAI)
   ["/api/ia", ["ia"]],
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
@@ -173,7 +177,9 @@ export const config = {
     "/aum/:path*",
     "/valuaciones/:path*",
     "/back-office/:path*",
+    "/research/:path*",
     "/api/manager/:path*",
+    "/api/research1816/:path*",
     "/api/ia/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
