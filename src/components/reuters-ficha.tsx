@@ -11,12 +11,14 @@ import {
   type Time,
 } from "lightweight-charts";
 
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { usePoll } from "@/lib/use-poll";
 
-// TRADING → REUTERS → FICHA de empresa: una pantalla, curada ("menos es más").
-// Header (precio live + rango 52s + próximo balance) · chart 1 año · bloques
-// VALUACIÓN / NEGOCIO (FY0 + serie 5 años) / SALUD / CONSENSO / RETORNOS.
-// Datos: quote live del feed + fundamentals diarios + velas EOD de la casa.
+// TRADING → REUTERS → FICHA de empresa. Layout 2×2 (mismo patrón que la vista
+// de negocio): arriba-izq chart de precio 1 año · abajo-izq retornos en tabla
+// + market cap + rango 52 semanas · arriba-der métricas en TABS (NEGOCIO /
+// SALUD / VALUACIÓN) · abajo-der la EVOLUCIÓN 5 AÑOS graficada (barras por
+// año fiscal, series seleccionables). Menos es más — sin consenso de analistas.
 const POLL_MS = 10_000;
 
 interface SerieAnual {
@@ -51,7 +53,7 @@ function fmtGrande(v: unknown): string {
   return `$${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 }
 
-// Los resultados FY0 vienen en MILLONES de USD.
+// Los resultados FY0 y la serie anual vienen en MILLONES de USD.
 function fmtMillones(v: unknown): string {
   const n = num(v);
   if (n === null) return "—";
@@ -92,17 +94,7 @@ function fecha(v: unknown): string {
   return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
 }
 
-function recTexto(v: unknown): string {
-  const n = num(v);
-  if (n === null) return "—";
-  if (n <= 1.5) return "COMPRA FUERTE";
-  if (n <= 2.5) return "COMPRA";
-  if (n <= 3.5) return "MANTENER";
-  if (n <= 4.5) return "VENTA";
-  return "VENTA FUERTE";
-}
-
-// ── chart 1 año (mismo motor y tema que el resto de la app) ──────────────────
+// ── chart de precio 1 año (mismo motor y tema que el resto de la app) ────────
 function ChartAnual({ velas }: { velas: { fecha: string; close: number }[] }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -165,82 +157,151 @@ function ChartAnual({ velas }: { velas: { fecha: string; close: number }[] }) {
   return <div ref={ref} className="w-full h-full" />;
 }
 
-// Mini-barras de la serie anual (5 años) — negativo en rojo bajo la línea.
-function MiniBarras({ serie, campo }: { serie: SerieAnual[]; campo: keyof SerieAnual }) {
-  const vals = serie.map((s) => num(s[campo]));
-  const maxAbs = Math.max(...vals.map((v) => Math.abs(v ?? 0)), 1);
-  return (
-    <svg width={serie.length * 9} height={16} className="inline-block align-middle">
-      {vals.map((v, i) => {
-        if (v === null) return null;
-        const h = Math.max(1, (Math.abs(v) / maxAbs) * 14);
-        return (
-          <rect key={i} x={i * 9} width={6}
-            y={v >= 0 ? 15 - h : 1}
-            height={h}
-            className={v >= 0 ? "fill-green-500" : "fill-red-500"}
-            opacity={0.35 + 0.65 * ((i + 1) / vals.length)} />
-        );
-      })}
-    </svg>
-  );
-}
+// ── evolución 5 años: barras agrupadas por año fiscal (SVG propio) ───────────
+const SERIES_5A: { key: keyof SerieAnual; label: string; color: string }[] = [
+  { key: "revenue", label: "Ingresos", color: "#3b82f6" },
+  { key: "ebitda", label: "EBITDA", color: "#ff9900" },
+  { key: "net_income", label: "Resultado", color: "#10b981" },
+  { key: "fcf", label: "FCF", color: "#a855f7" },
+];
 
-// ── bloques ──────────────────────────────────────────────────────────────────
-function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function ChartEvolucion({ serie }: { serie: SerieAnual[] }) {
+  const [apagadas, setApagadas] = useState<Set<string>>(new Set());
+  const activas = SERIES_5A.filter((s) => !apagadas.has(s.key));
+  const W = 100 * serie.length;
+  const H = 150;
+  const maxAbs = Math.max(
+    ...serie.flatMap((a) => activas.map((s) => Math.abs(num(a[s.key]) ?? 0))), 1,
+  );
+  const cero = maxAbs > 0 ? H * 0.82 : H; // deja lugar bajo cero para negativos
+  const escala = (H * 0.78) / maxAbs;
+
   return (
-    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-w-0">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[9px] tracking-widest text-[var(--t-text-muted)]">{titulo}</div>
-      <div className="p-3 flex flex-col gap-1.5">{children}</div>
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex flex-wrap items-center gap-2 px-2 pt-2 shrink-0">
+        {SERIES_5A.map((s) => (
+          <button key={s.key}
+            onClick={() => setApagadas((prev) => {
+              const n = new Set(prev);
+              if (n.has(s.key)) n.delete(s.key); else n.add(s.key);
+              return n;
+            })}
+            className={`flex items-center gap-1 text-[9px] px-1.5 py-0.5 border transition-colors ${
+              apagadas.has(s.key)
+                ? "border-[var(--t-border-2)] text-[var(--t-text-dim)] opacity-50"
+                : "border-[var(--t-border-2)] text-[var(--t-text)]"
+            }`}>
+            <span className="w-2 h-2 inline-block" style={{ background: s.color }} />
+            {s.label}
+          </button>
+        ))}
+        <span className="ml-auto text-[8px] text-[var(--t-text-dim)] pr-1">USD · por año fiscal</span>
+      </div>
+      <div className="flex-1 min-h-0 px-2 pb-1">
+        <svg viewBox={`0 0 ${W} ${H + 16}`} className="w-full h-full" preserveAspectRatio="none">
+          <line x1={0} x2={W} y1={cero} y2={cero} stroke="var(--t-border-2)" strokeWidth={0.5} />
+          {serie.map((a, i) => {
+            const x0 = i * 100 + 14;
+            const ancho = 72 / Math.max(activas.length, 1);
+            return (
+              <g key={a.fecha}>
+                {activas.map((s, j) => {
+                  const v = num(a[s.key]);
+                  if (v === null) return null;
+                  const h = Math.max(1, Math.abs(v) * escala);
+                  return (
+                    <rect key={s.key}
+                      x={x0 + j * ancho} width={ancho - 3}
+                      y={v >= 0 ? cero - h : cero}
+                      height={h}
+                      fill={s.color} opacity={0.85}>
+                      <title>{`${a.fecha.slice(0, 4)} · ${s.label}: ${fmtMillones(v)}`}</title>
+                    </rect>
+                  );
+                })}
+                <text x={i * 100 + 50} y={H + 12} textAnchor="middle"
+                  className="fill-[var(--t-text-dim)]" fontSize={9} fontFamily="JetBrains Mono, monospace">
+                  {a.fecha.slice(0, 4)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 }
 
+// ── bloques auxiliares ───────────────────────────────────────────────────────
 function Dato({ label, children, title }: { label: string; children: React.ReactNode; title?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-[11px] font-mono" title={title}>
+    <div className="flex items-baseline justify-between gap-3 text-[11px] font-mono border-b border-[var(--t-border)] py-1 last:border-0" title={title}>
       <span className="text-[var(--t-text-muted)] whitespace-nowrap">{label}</span>
       <span className="text-[var(--t-text)] text-right whitespace-nowrap">{children}</span>
     </div>
   );
 }
 
+function Cuadrante({ titulo, children, extra }: { titulo: string; children: React.ReactNode; extra?: React.ReactNode }) {
+  return (
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] min-w-0 min-h-0 flex flex-col">
+      <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">{titulo}</span>
+        {extra}
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+    </div>
+  );
+}
+
+type TabMetricas = "negocio" | "salud" | "valuacion";
+
 export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: () => void }) {
   const { data } = usePoll<Ficha | null>(
     `/api/trading/reuters/ficha?ticker=${encodeURIComponent(ticker)}`,
     null, POLL_MS, { fetchOnMount: true },
   );
+  const [tab, setTab] = usePersistedState<TabMetricas>("reuters.ficha.tab", "negocio");
 
   const q = data?.quote ?? null;
   const f = data?.fundamentals ?? null;
   const serie = (f?.serie_anual ?? []).slice().reverse(); // viejo → nuevo
   const last = num(q?.last);
-  const target = num(f?.target_medio);
-  const upside = last && target ? (target / last - 1) * 100 : null;
   const min52 = num(f?.min_52s);
   const max52 = num(f?.max_52s);
   const pos52 = last !== null && min52 !== null && max52 !== null && max52 > min52
     ? Math.min(1, Math.max(0, (last - min52) / (max52 - min52)))
     : null;
 
+  const RETORNOS: { label: string; key: string }[] = [
+    { label: "Hoy", key: "var_pct" },
+    { label: "5 días", key: "ret_5d" },
+    { label: "Semana (WTD)", key: "ret_wtd" },
+    { label: "Mes (MTD)", key: "ret_mtd" },
+    { label: "Trimestre (QTD)", key: "ret_qtd" },
+    { label: "Año (YTD)", key: "ret_ytd" },
+    { label: "1 mes móvil", key: "ret_1m" },
+    { label: "3 meses", key: "ret_3m" },
+    { label: "1 año", key: "ret_1y" },
+    { label: "5 años", key: "ret_5y" },
+  ];
+
   return (
     <div className="h-full flex flex-col min-h-0">
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+      {/* Header slim */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <button onClick={onVolver}
           className="px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors">
           ← VOLVER
         </button>
-        <div className="min-w-0">
-          <div className="flex items-baseline gap-2">
-            <span className="text-[14px] font-semibold text-[var(--t-text)]">{(f?.nombre as string) ?? ticker}</span>
-            <span className="text-[10px] text-[var(--t-accent)] font-mono">{ticker}</span>
-            {data?.ric && <span className="text-[9px] text-[var(--t-text-dim)] font-mono">{data.ric}</span>}
-          </div>
-          <div className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
-            {(f?.industria as string) ?? "—"}{f?.pais ? ` · ${f.pais}` : ""}
-            {data?.ratio ? ` · ratio ${fmtN(data.ratio, 0)}:1` : ""}
-          </div>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="text-[13px] font-semibold text-[var(--t-text)] truncate">{(f?.nombre as string) ?? ticker}</span>
+          <span className="text-[10px] text-[var(--t-accent)] font-mono">{ticker}</span>
+          {data?.ric && <span className="text-[9px] text-[var(--t-text-dim)] font-mono">{data.ric}</span>}
+          <span className="text-[9px] text-[var(--t-text-muted)]">
+            {(f?.industria as string) ?? ""}{data?.ratio ? ` · ratio ${fmtN(data.ratio, 0)}:1` : ""}
+            {f?.proximo_balance ? ` · reporta ${fecha(f.proximo_balance)}` : ""}
+          </span>
         </div>
         <div className="ml-auto flex items-center gap-4 font-mono">
           {q?.pre_var_pct != null && (
@@ -255,26 +316,98 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
               <span className={varClass(q.ah_var_pct)}>{fmtPct(q.ah_var_pct)}</span>
             </span>
           )}
-          <div className="text-right">
-            <div className="text-[16px] font-semibold text-[var(--t-text)]">{last === null ? "—" : fmtN(last)}</div>
-            <div className={`text-[10px] ${varClass(q?.var_pct)}`}>{fmtPct(q?.var_pct, 2)} hoy</div>
-          </div>
+          <span className="text-[15px] font-semibold text-[var(--t-text)]">{last === null ? "—" : fmtN(last)}</span>
+          <span className={`text-[11px] ${varClass(q?.var_pct)}`}>{fmtPct(q?.var_pct, 2)}</span>
         </div>
       </div>
 
       {!data ? (
         <div className="p-4 text-[11px] text-[var(--t-text-muted)]">Cargando {ticker}…</div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto p-3 flex flex-col gap-3">
-          {/* Chart + lateral */}
-          <div className="flex gap-3 min-h-[260px]">
-            <div className="flex-1 border border-[var(--t-border)] min-w-0">
-              {data.velas.length > 0
-                ? <ChartAnual velas={data.velas} />
-                : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie de precios todavía</div>}
+        <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-2 p-2">
+          {/* ── Arriba-izquierda: precio 1 año ── */}
+          <Cuadrante titulo="PRECIO — 1 AÑO">
+            {data.velas.length > 0
+              ? <ChartAnual velas={data.velas} />
+              : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie de precios todavía</div>}
+          </Cuadrante>
+
+          {/* ── Arriba-derecha: métricas en tabs ── */}
+          <Cuadrante titulo="MÉTRICAS" extra={
+            <div className="ml-auto flex gap-1">
+              {([["negocio", "NEGOCIO"], ["salud", "SALUD"], ["valuacion", "VALUACIÓN"]] as const).map(([k, lbl]) => (
+                <button key={k} onClick={() => setTab(k)}
+                  className={`px-2 py-0.5 text-[9px] font-semibold border transition-colors ${
+                    tab === k
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                      : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+                  }`}>
+                  {lbl}
+                </button>
+              ))}
             </div>
-            <div className="w-[300px] shrink-0 flex flex-col gap-3">
-              <Bloque titulo="RANGO 52 SEMANAS">
+          }>
+            {!f ? (
+              <div className="p-3 text-[10px] text-[var(--t-text-muted)]">
+                Sin fundamentals todavía — se cargan solos con la primera pasada diaria del feed de la oficina.
+              </div>
+            ) : (
+              <div className="px-3 py-1">
+                {tab === "negocio" && (
+                  <>
+                    <Dato label="Ingresos (últ. año fiscal)">{fmtMillones(f.revenue)}</Dato>
+                    <Dato label="Utilidad bruta">{fmtMillones(f.gross_profit)}</Dato>
+                    <Dato label="EBITDA">{fmtMillones(f.ebitda)}</Dato>
+                    <Dato label="Resultado operativo">{fmtMillones(f.ebit)}</Dato>
+                    <Dato label="Resultado neto">{fmtMillones(f.net_income)}</Dato>
+                    <Dato label="Free cash flow">{fmtMillones(f.fcf)}</Dato>
+                    <Dato label="Capex">{fmtMillones(f.capex)}</Dato>
+                    <Dato label="Margen bruto">{pctPlano(f.margen_bruto)}</Dato>
+                    <Dato label="Margen operativo"><span className={varClass(f.margen_operativo)}>{pctPlano(f.margen_operativo)}</span></Dato>
+                    <Dato label="Margen neto"><span className={varClass(f.margen_neto)}>{pctPlano(f.margen_neto)}</span></Dato>
+                  </>
+                )}
+                {tab === "salud" && (
+                  <>
+                    <Dato label="Deuda total">{fmtGrande(f.deuda_total)}</Dato>
+                    <Dato label="Caja y equivalentes">{fmtGrande(f.caja)}</Dato>
+                    <Dato label="Deuda neta / EBITDA">{fmtX(f.deuda_neta_ebitda)}</Dato>
+                    <Dato label="Current ratio">{fmtN(f.current_ratio, 2)}</Dato>
+                    <Dato label="Quick ratio">{fmtN(f.quick_ratio, 2)}</Dato>
+                    <Dato label="Acciones en circulación">{fmtGrande(f.acciones).replace("$", "")}</Dato>
+                  </>
+                )}
+                {tab === "valuacion" && (
+                  <>
+                    <Dato label="Market cap">{fmtGrande(f.market_cap)}</Dato>
+                    <Dato label="Enterprise value">{fmtGrande(f.ev)}</Dato>
+                    <Dato label="P/E">{fmtX(f.pe)}</Dato>
+                    <Dato label="P/E forward">{fmtX(f.fwd_pe)}</Dato>
+                    <Dato label="EV/EBITDA">{fmtX(f.ev_ebitda)}</Dato>
+                    <Dato label="EV/EBITDA forward">{fmtX(f.fwd_ev_ebitda)}</Dato>
+                    <Dato label="EV/EBIT">{fmtX(f.ev_ebit)}</Dato>
+                    <Dato label="Precio / valor libro">{fmtX(f.p_bv)}</Dato>
+                    <Dato label="Dividend yield">{pctPlano(f.div_yield)}</Dato>
+                  </>
+                )}
+              </div>
+            )}
+          </Cuadrante>
+
+          {/* ── Abajo-izquierda: retornos + market cap + rango 52s ── */}
+          <Cuadrante titulo="RETORNOS">
+            <div className="px-3 py-1">
+              <div className="grid grid-cols-2 gap-x-6">
+                {RETORNOS.map((r) => (
+                  <div key={r.key} className="flex items-baseline justify-between text-[11px] font-mono border-b border-[var(--t-border)] py-1">
+                    <span className="text-[var(--t-text-muted)]">{r.label}</span>
+                    <span className={varClass(q?.[r.key])}>{fmtPct(q?.[r.key])}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2.5 flex flex-col gap-1.5">
+                <Dato label="Market cap">{fmtGrande(f?.market_cap)}</Dato>
+                <div className="text-[9px] tracking-widest text-[var(--t-text-muted)] mt-1">RANGO 52 SEMANAS</div>
                 <div className="flex items-center justify-between text-[10px] font-mono text-[var(--t-text-muted)]">
                   <span>{fmtN(min52)}</span><span>{fmtN(max52)}</span>
                 </div>
@@ -283,84 +416,16 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
                     <div className="absolute top-[-3px] w-[3px] h-3 bg-[var(--t-accent)]" style={{ left: `${pos52 * 100}%` }} />
                   )}
                 </div>
-              </Bloque>
-              <Bloque titulo="CONSENSO DE ANALISTAS">
-                <Dato label="Target medio">{fmtN(target)}</Dato>
-                <Dato label="Upside al target">
-                  <span className={varClass(upside)}>{fmtPct(upside)}</span>
-                </Dato>
-                <Dato label="Recomendación" title="Promedio de analistas (1 = compra fuerte · 5 = venta)">
-                  {recTexto(f?.rec_media)} <span className="text-[var(--t-text-dim)]">({fmtN(f?.rec_media, 1)})</span>
-                </Dato>
-                <Dato label="Próximo balance">{fecha(f?.proximo_balance)}</Dato>
-              </Bloque>
-              <Bloque titulo="RETORNOS">
-                <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono">
-                  {([["MTD", "ret_mtd"], ["YTD", "ret_ytd"], ["1A", "ret_1y"],
-                     ["5D", "ret_5d"], ["3M", "ret_3m"], ["5A", "ret_5y"]] as const).map(([lbl, k]) => (
-                    <div key={k} className="flex flex-col items-center border border-[var(--t-border)] py-1">
-                      <span className="text-[8px] text-[var(--t-text-dim)] tracking-widest">{lbl}</span>
-                      <span className={varClass(q?.[k])}>{fmtPct(q?.[k])}</span>
-                    </div>
-                  ))}
-                </div>
-              </Bloque>
+              </div>
             </div>
-          </div>
+          </Cuadrante>
 
-          {/* Bloques fundamentales */}
-          {f ? (
-            <div className="grid grid-cols-3 gap-3">
-              <Bloque titulo="VALUACIÓN">
-                <Dato label="Market cap">{fmtGrande(f.market_cap)}</Dato>
-                <Dato label="Enterprise value">{fmtGrande(f.ev)}</Dato>
-                <Dato label="P/E">{fmtX(f.pe)}</Dato>
-                <Dato label="P/E forward">{fmtX(f.fwd_pe)}</Dato>
-                <Dato label="EV/EBITDA">{fmtX(f.ev_ebitda)}</Dato>
-                <Dato label="EV/EBITDA fwd">{fmtX(f.fwd_ev_ebitda)}</Dato>
-                <Dato label="P/valor libro">{fmtX(f.p_bv)}</Dato>
-                <Dato label="Dividend yield">{pctPlano(f.div_yield)}</Dato>
-              </Bloque>
-              <Bloque titulo="NEGOCIO — último año fiscal">
-                <Dato label="Ingresos">
-                  {serie.length > 1 && <MiniBarras serie={serie} campo="revenue" />}{" "}
-                  {fmtMillones(f.revenue)}
-                </Dato>
-                <Dato label="EBITDA">
-                  {serie.length > 1 && <MiniBarras serie={serie} campo="ebitda" />}{" "}
-                  {fmtMillones(f.ebitda)}
-                </Dato>
-                <Dato label="Resultado neto">
-                  {serie.length > 1 && <MiniBarras serie={serie} campo="net_income" />}{" "}
-                  {fmtMillones(f.net_income)}
-                </Dato>
-                <Dato label="Free cash flow">
-                  {serie.length > 1 && <MiniBarras serie={serie} campo="fcf" />}{" "}
-                  {fmtMillones(f.fcf)}
-                </Dato>
-                <Dato label="Margen bruto">{pctPlano(f.margen_bruto)}</Dato>
-                <Dato label="Margen operativo">
-                  <span className={varClass(f.margen_operativo)}>{pctPlano(f.margen_operativo)}</span>
-                </Dato>
-                <Dato label="Margen neto">
-                  <span className={varClass(f.margen_neto)}>{pctPlano(f.margen_neto)}</span>
-                </Dato>
-              </Bloque>
-              <Bloque titulo="SALUD FINANCIERA">
-                <Dato label="Deuda total">{fmtGrande(f.deuda_total)}</Dato>
-                <Dato label="Caja">{fmtGrande(f.caja)}</Dato>
-                <Dato label="Deuda neta/EBITDA">{fmtX(f.deuda_neta_ebitda)}</Dato>
-                <Dato label="Current ratio">{fmtN(f.current_ratio, 2)}</Dato>
-                <Dato label="Quick ratio">{fmtN(f.quick_ratio, 2)}</Dato>
-                <Dato label="Capex (año)">{fmtMillones(f.capex)}</Dato>
-                <Dato label="Acciones en circ.">{fmtGrande(f.acciones)?.replace("$", "")}</Dato>
-              </Bloque>
-            </div>
-          ) : (
-            <div className="p-3 text-[10px] text-[var(--t-text-muted)] border border-[var(--t-border)]">
-              Sin fundamentals todavía — se cargan solos con la primera pasada diaria del feed de la oficina.
-            </div>
-          )}
+          {/* ── Abajo-derecha: evolución 5 años graficada ── */}
+          <Cuadrante titulo="EVOLUCIÓN 5 AÑOS — ingresos · EBITDA · resultado · FCF">
+            {serie.length > 1
+              ? <ChartEvolucion serie={serie} />
+              : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie anual todavía</div>}
+          </Cuadrante>
         </div>
       )}
     </div>
