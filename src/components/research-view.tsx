@@ -13,8 +13,8 @@ export interface ResearchMail {
   fuente: string | null;
   asunto: string | null;
   tipo: string;
-  cuerpo: string | null;
-  destilado: ResearchDestilado | null;
+  texto: string | null;        // crudo limpio (headers/pie del reenvío ya sacados)
+  destilado: ResearchDestilado | null;  // opcional — solo si se corrió --destilar
   fragmento?: string;
 }
 export interface ResearchData { items: ResearchMail[]; total: number }
@@ -51,12 +51,27 @@ function TipoBadge({ tipo }: { tipo: string }) {
   return <span className={`text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${cls}`}>{tipo}</span>;
 }
 
+// El research en párrafos legibles. Los títulos de 1816 vienen en MAYÚSCULA →
+// se resaltan solos. Los saltos sueltos dentro de un párrafo se reflowean.
+function ResearchTexto({ texto }: { texto: string }) {
+  const parrafos = texto
+    .split(/\n{2,}/)
+    .map((p) => p.replace(/\s*\n\s*/g, " ").trim())
+    .filter(Boolean);
+  return (
+    <div className="space-y-2.5">
+      {parrafos.map((p, i) => (
+        <p key={i} className="text-[12px] leading-relaxed text-[var(--t-text)] text-justify">{p}</p>
+      ))}
+    </div>
+  );
+}
+
 function MailCard({ m }: { m: ResearchMail }) {
-  const [abierto, setAbierto] = useState(false);
   const d = m.destilado;
   return (
-    <article className="border border-[var(--t-border)] rounded-md p-3 bg-[var(--t-bg-soft,transparent)]">
-      <header className="flex items-center gap-2 flex-wrap mb-1.5">
+    <article className="border border-[var(--t-border)] rounded-md p-3">
+      <header className="flex items-center gap-2 flex-wrap mb-2 pb-2 border-b border-[var(--t-border)]">
         <span className="text-[13px] font-semibold text-[var(--t-text)]">{fmtFecha(m.fecha)}</span>
         <TipoBadge tipo={m.tipo} />
         <span className="text-[10px] text-[var(--t-text-dim)] truncate max-w-full" title={m.asunto || ""}>
@@ -64,58 +79,25 @@ function MailCard({ m }: { m: ResearchMail }) {
         </span>
       </header>
 
+      {/* Al buscar: el fragmento resaltado arriba */}
       {m.fragmento && (
         <p className="text-[11px] text-[var(--t-text-muted)] mb-2 leading-relaxed italic">
           …<Resaltado texto={m.fragmento} />…
         </p>
       )}
 
+      {/* Resumen IA — SOLO si se destiló (opt-in, no automático) */}
       {d?.resumen && (
-        <p className="text-[12px] text-[var(--t-text)] leading-relaxed mb-2">{d.resumen}</p>
-      )}
-
-      {d?.temas && d.temas.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {d.temas.map((t, i) => (
-            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full border border-[var(--t-border-2)] text-[var(--t-text-muted)]">
-              {t}
-            </span>
-          ))}
+        <div className="mb-2 p-2 rounded bg-[var(--t-border-2)]/20 border-l-2 border-[var(--t-accent)]">
+          <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] mb-0.5">Resumen IA</div>
+          <p className="text-[11px] text-[var(--t-text-muted)] leading-relaxed">{d.resumen}</p>
         </div>
       )}
 
-      {d?.hechos && d.hechos.length > 0 && (
-        <ul className="space-y-0.5 mb-2">
-          {d.hechos.slice(0, 8).map((h, i) => (
-            <li key={i} className="text-[11px] text-[var(--t-text-muted)] leading-snug pl-3 -indent-3">
-              • {h.hecho}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {!d && !m.fragmento && (
-        <p className="text-[11px] text-[var(--t-text-dim)] italic mb-2">
-          (sin destilar todavía — se reintenta en la próxima corrida)
-        </p>
-      )}
-
-      {m.cuerpo && (
-        <>
-          <button
-            type="button"
-            onClick={() => setAbierto((v) => !v)}
-            className="text-[10px] font-semibold text-[var(--t-accent)] hover:underline"
-          >
-            {abierto ? "ocultar texto completo ▴" : "ver texto completo ▾"}
-          </button>
-          {abierto && (
-            <pre className="mt-1.5 max-h-72 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-[var(--t-text-muted)] border-t border-[var(--t-border)] pt-1.5 font-sans">
-              {m.cuerpo}
-            </pre>
-          )}
-        </>
-      )}
+      {/* El research, tal cual — el texto es lo principal */}
+      {m.texto
+        ? <ResearchTexto texto={m.texto} />
+        : <p className="text-[11px] text-[var(--t-text-dim)] italic">(sin texto)</p>}
     </article>
   );
 }
