@@ -3728,8 +3728,9 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
   const [existentes, setExistentes] = useState<BonoMaster[]>([]);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
-  // Pegar Excel de flujos (reusa el parser de ONs; el backend devuelve la shape del tipo)
+  // Subir/pegar Excel de flujos (reusa el parser de ONs; el backend devuelve la shape del tipo)
   const [flujosText, setFlujosText] = useState("");
+  const [fileName, setFileName] = useState("");
   const [showPaste, setShowPaste] = useState(false);
   const [parseMsg, setParseMsg] = useState<string | null>(null);
   const puedePegar = !cfg.bullet && (tipo === "soberano" || tipo === "bono");
@@ -3844,6 +3845,26 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
     } catch (e) { setParseMsg(e instanceof Error ? e.message : "error al parsear"); }
   };
 
+  // "Examinar archivo": lee el .xlsx/.xls/.csv REAL (SheetJS lazy) → lo pasa a
+  // texto tabulado y lo manda al parser (mismo flujo que "pegar", pero desde archivo).
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      // cellDates + dateNF ISO: evita que SheetJS formatee una fecha como US
+      // (M/D/Y) — el parser lee DMY y "6/8" sería junio en vez de agosto.
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const tsv = XLSX.utils.sheet_to_csv(ws, { FS: "\t", dateNF: "yyyy-mm-dd" });
+      setFlujosText(tsv);
+      await parsearFlujos(tsv);
+    } catch (err) { setParseMsg(err instanceof Error ? err.message : "no pude leer el archivo"); }
+    e.target.value = "";  // permite volver a elegir el mismo archivo
+  };
+
   return (
     <div className="h-full overflow-auto p-3 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -3890,29 +3911,34 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
       ) : (
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos{puedePegar ? " (carga manual o pegá el Excel)" : ` (carga manual, shape ${tipo})`}</span>
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos{puedePegar ? " — subí el Excel (BYMA/IAMC) o cargá a mano" : ` (carga manual, shape ${tipo})`}</span>
             <button type="button" onClick={() => setFlujos((fs) => [...fs, { fecha: "" }])} className="px-2 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">+ fila</button>
             {puedePegar && (
-              <button type="button" onClick={() => setShowPaste((v) => !v)} className="px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border)]">
-                {showPaste ? "ocultar" : "o pegar Excel"}
+              <label className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-[#094293] text-white cursor-pointer hover:opacity-90">
+                📁 examinar archivo
+                <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFile} className="hidden" />
+              </label>
+            )}
+            {puedePegar && fileName && <span className="text-[10px] text-[var(--t-text)] truncate max-w-[200px]" title={fileName}>{fileName}</span>}
+            {puedePegar && (
+              <button type="button" onClick={() => setShowPaste((v) => !v)} className="px-2 py-0.5 text-[10px] border border-[var(--t-border)]">
+                {showPaste ? "ocultar" : "o pegar"}
               </button>
             )}
             {(flujos.length > 0 || flujosText) && (
-              <button type="button" onClick={() => { setFlujos([]); setFlujosText(""); setParseMsg(null); }} className="px-2 py-0.5 text-[10px] text-red-500 border border-[var(--t-border)]">limpiar</button>
+              <button type="button" onClick={() => { setFlujos([]); setFlujosText(""); setFileName(""); setParseMsg(null); }} className="px-2 py-0.5 text-[10px] text-red-500 border border-[var(--t-border)]">limpiar</button>
             )}
           </div>
           {puedePegar && showPaste && (
-            <div className="mb-1">
-              <textarea
-                className={_onInput + " h-20 font-mono text-[10px]"}
-                placeholder="Pegá las filas del Excel (formato BYMA/IAMC 'Flujo de fondos c/100 vn', o simple: fecha ⭾ amort ⭾ interés/cupón ⭾ residual). Al salir del campo se cargan en la tabla — podés editarlas."
-                value={flujosText}
-                onChange={(e) => setFlujosText(e.target.value)}
-                onBlur={() => parsearFlujos(flujosText)}
-              />
-              {parseMsg && <div className="text-[10px] text-[var(--t-text-muted)]">{parseMsg}</div>}
-            </div>
+            <textarea
+              className={_onInput + " h-20 font-mono text-[10px] mb-1"}
+              placeholder="Pegá las filas del Excel (BYMA/IAMC 'Flujo de fondos c/100 vn', o simple: fecha ⭾ amort ⭾ interés/cupón ⭾ residual)."
+              value={flujosText}
+              onChange={(e) => setFlujosText(e.target.value)}
+              onBlur={() => parsearFlujos(flujosText)}
+            />
           )}
+          {puedePegar && parseMsg && <div className="text-[10px] text-[var(--t-text-muted)] mb-1">{parseMsg}</div>}
           <div className="max-h-52 overflow-auto border border-[var(--t-border)]">
             <table>
               <thead><tr><th>Fecha</th>{(cfg.cols || []).map((c) => <th key={c.k} className="text-right">{c.label}</th>)}<th></th></tr></thead>
