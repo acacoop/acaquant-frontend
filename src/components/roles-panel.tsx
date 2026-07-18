@@ -8,19 +8,14 @@ type MatrixResponse = {
   matrix: Record<string, string[]>;
 };
 
-type AuditEntry = {
-  ts: string;
-  actor: string;
-  action: string;
-  target: string;
-  before?: unknown;
-  after?: unknown;
-};
+// (El AUDIT LOG se quitó de la vista el 2026-07-18 — pedido del user: acá queda
+// SOLO la matriz de roles y permisos. La auditoría sigue registrándose en
+// manager.role_audit y el endpoint /api/manager/roles/audit sigue vivo por si
+// se necesita consultar a mano.)
 
 export function RolesPanel() {
   const [data, setData] = useState<MatrixResponse | null>(null);
   const [working, setWorking] = useState<Record<string, Set<string>>>({});
-  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,10 +28,7 @@ export function RolesPanel() {
     setLoading(true);
     setError(null);
     try {
-      const [rolesRes, auditRes] = await Promise.all([
-        fetch("/api/manager/roles", { cache: "no-store" }),
-        fetch("/api/manager/roles/audit?limit=50", { cache: "no-store" }),
-      ]);
+      const rolesRes = await fetch("/api/manager/roles", { cache: "no-store" });
       if (!rolesRes.ok) throw new Error(`HTTP ${rolesRes.status}`);
       const m = (await rolesRes.json()) as MatrixResponse;
       setData(m);
@@ -45,9 +37,6 @@ export function RolesPanel() {
           Object.entries(m.matrix).map(([r, mods]) => [r, new Set(mods)]),
         ),
       );
-      if (auditRes.ok) {
-        setAudit((await auditRes.json()) as AuditEntry[]);
-      }
     } catch (e: unknown) {
       setError(String((e as Error).message || e));
     } finally {
@@ -135,15 +124,6 @@ export function RolesPanel() {
     }
   }
 
-  const fmtDate = (s?: string) => {
-    if (!s) return "—";
-    const d = new Date(s);
-    return `${String(d.getDate()).padStart(2, "0")}/${String(
-      d.getMonth() + 1,
-    ).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(
-      d.getMinutes(),
-    ).padStart(2, "0")}`;
-  };
 
   if (loading || !data) {
     return (
@@ -242,29 +222,6 @@ export function RolesPanel() {
         </table>
       </div>
 
-      {/* Audit log */}
-      <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] text-[var(--t-accent)] tracking-widest font-semibold">
-          AUDIT LOG — ÚLTIMOS {audit.length}
-        </div>
-        <div className="flex-1 overflow-y-auto font-mono text-[11px]">
-          {audit.length === 0 ? (
-            <div className="text-[var(--t-text-muted)] text-xs py-4 text-center">Sin eventos.</div>
-          ) : (
-            audit.map((ev, i) => (
-              <div
-                key={`${ev.ts}-${i}`}
-                className="grid grid-cols-[140px_1fr_180px_1fr] gap-2 px-3 py-1 border-b border-[var(--t-border)]"
-              >
-                <div className="text-[var(--t-text-muted)]">{fmtDate(ev.ts)}</div>
-                <div className="text-[var(--t-accent)] truncate">{ev.actor}</div>
-                <div className="text-[var(--t-text)]">{ev.action}</div>
-                <div className="text-[var(--t-text-dim)] truncate">{ev.target}</div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
     </div>
   );
 }
