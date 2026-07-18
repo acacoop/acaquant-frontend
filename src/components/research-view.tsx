@@ -6,6 +6,7 @@
 // tablero REUTERS (movido desde /trading el 2026-07-18).
 // La IA no interviene: los reportes muestran el texto crudo, limpio.
 import { useMemo, useState } from "react";
+import { ResearchBcra } from "@/components/research-bcra";
 import { ResearchForwards } from "@/components/research-forwards";
 import { ResearchLab } from "@/components/research-lab";
 import { ReutersView } from "@/components/reuters-view";
@@ -79,7 +80,7 @@ function ReporteItem({ m, abierto, onToggle }: { m: ResearchMail; abierto: boole
 }
 
 // ── Tabs de la vista (keep-alive, mismo patrón que trading-shell) ─────────────
-type Tab = "argentina" | "rv-int";
+type Tab = "argentina" | "bcra" | "rv-int";
 
 export function ResearchView({ initial }: { initial: ResearchData }) {
   const [tab, setTab] = useState<Tab>("argentina");
@@ -90,6 +91,7 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "argentina"} onClick={() => setTab("argentina")}>ARGENTINA</TabBtn>
+        <TabBtn active={tab === "bcra"} onClick={() => setTab("bcra")}>BCRA</TabBtn>
         <TabBtn active={tab === "rv-int"} onClick={() => setTab("rv-int")}>RENTA VARIABLE INTERNACIONAL</TabBtn>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden relative">
@@ -102,6 +104,11 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
               <ResearchLab modoFijo="overlay" />
               <ReportesPanel initial={initial} />
             </div>
+          </Pane>
+        )}
+        {visited.has("bcra") && (
+          <Pane active={tab === "bcra"}>
+            <ResearchBcra />
           </Pane>
         )}
         {visited.has("rv-int") && (
