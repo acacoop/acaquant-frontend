@@ -148,8 +148,9 @@ function ReportesPanel({ initial }: { initial: ResearchData }) {
   const [fuente, setFuente] = useState<string>(initial.items[0]?.fuente_label || "1816");
   const visibles = useMemo(() => items.filter((m) => (m.fuente_label || "1816") === fuente), [items, fuente]);
 
-  // Acordeón: arranca abierto el más reciente de la fuente elegida.
-  const [abiertoId, setAbiertoId] = useState<number | null>(initial.items[0]?.id ?? null);
+  // Acordeón: TODOS cerrados por defecto (pedido del user 2026-07-18) — se abre
+  // el que clickeás; solo fecha+título a la vista.
+  const [abiertoId, setAbiertoId] = useState<number | null>(null);
 
   const cargarMas = async () => {
     setCargando(true);

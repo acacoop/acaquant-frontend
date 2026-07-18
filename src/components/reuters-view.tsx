@@ -20,6 +20,7 @@ const POLL_MS = 5_000;
 interface ReutersRow {
   ticker: string;
   ric: string | null;
+  rubro: string | null;
   last: number | null;
   bid: number | null;
   ask: number | null;
@@ -80,14 +81,15 @@ function varClass(v: number | null): string {
 type Grupo = "activo" | "precio" | "dia" | "retornos" | "cedear";
 
 const GRUPO_DE: Partial<Record<SortKey, Grupo>> = {
-  ticker: "activo",
-  last: "precio", bid: "precio", ask: "precio", high: "precio", low: "precio",
-  prev_close: "precio", volumen: "precio",
+  ticker: "activo", rubro: "activo",
+  // ccl en "precio": vive al lado de ÚLTIMO (pedido de mesa 2026-07-18)
+  last: "precio", ccl: "precio", bid: "precio", ask: "precio", high: "precio",
+  low: "precio", prev_close: "precio", volumen: "precio",
   var_pct: "dia", var_neta: "dia", pre_var_pct: "dia", ah_var_pct: "dia",
   ret_5d: "retornos", ret_wtd: "retornos", ret_mtd: "retornos", ret_qtd: "retornos",
   ret_ytd: "retornos", ret_1m: "retornos", ret_3m: "retornos", ret_1y: "retornos",
   ret_5y: "retornos",
-  ratio: "cedear", ccl: "cedear",
+  ratio: "cedear",
 };
 const GRUPO_LABEL: Record<Grupo, string> = {
   activo: "", precio: "PRECIO (USD)", dia: "HOY", retornos: "RETORNOS", cedear: "CEDEAR",
@@ -139,7 +141,17 @@ const COLS: ColDef[] = [
       </>
     ),
   },
+  {
+    key: "rubro", label: "RUBRO", align: "left", texto: true,
+    title: "Rubro del catálogo de CEDEARs (se edita en Manager → Títulos → Renta Variable).",
+    render: (r) => <span className="text-[var(--t-text-dim)]">{r.rubro ?? "—"}</span>,
+  },
   { key: "last", label: "ÚLTIMO", title: "Último precio operado en NY (USD).", render: (r) => <span className="text-[var(--t-text)] font-semibold">{fmt(r.last)}</span> },
+  {
+    key: "ccl", label: "CCL",
+    title: "CCL implícito de ESTE papel: last del CEDEAR en ARS × ratio ÷ last del ADR en USD — a qué tipo de cambio lo está pagando el mercado ahora.",
+    render: (r) => (r.ccl === null ? "—" : <span className="text-[var(--t-text)] font-semibold">{fmt(r.ccl)}</span>),
+  },
   { key: "bid", label: "BID", title: "Mejor precio de COMPRA en pantalla: lo que están pagando ahora.", render: (r) => <span className="text-[var(--t-text)]">{fmt(r.bid)}</span> },
   { key: "ask", label: "ASK", title: "Mejor precio de VENTA en pantalla: lo que están pidiendo ahora. La diferencia con el bid es el spread (costo de entrar y salir).", render: (r) => <span className="text-[var(--t-text)]">{fmt(r.ask)}</span> },
   { key: "high", label: "MÁX", title: "Máximo operado en la rueda de hoy.", render: (r) => fmt(r.high) },
@@ -170,11 +182,6 @@ const COLS: ColDef[] = [
     key: "ratio", label: "RATIO", title: "Ratio de conversión del CEDEAR: cuántos CEDEARs equivalen a 1 acción del subyacente. Insumo del CCL implícito.",
     render: (r) => (r.ratio === null ? "—" : `${fmt(r.ratio, 0)}:1`),
   },
-  {
-    key: "ccl", label: "CCL",
-    title: "CCL implícito del papel: last del CEDEAR en ARS × ratio ÷ last del ADR en USD — a qué tipo de cambio está pagando el mercado ese activo AHORA. Vacío si falta alguna pata: feed apagado, CEDEAR sin operar hoy o ratio sin cargar.",
-    render: (r) => (r.ccl === null ? "—" : <span className="text-[var(--t-text)] font-semibold">{fmt(r.ccl)}</span>),
-  },
 ];
 
 // Columnas que solo aparecen con el filtro AFTER HOURS activado.
@@ -199,6 +206,8 @@ export function ReutersView() {
   // Ficha de empresa abierta (click en fila / Enter en el buscador).
   const [fichaTicker, setFichaTicker] = usePersistedState<string | null>("reuters.ficha", null);
   const [busqueda, setBusqueda] = useState("");
+  // Filtro por RUBRO (catálogo de CEDEARs) — "" = todos.
+  const [rubroFiltro, setRubroFiltro] = useState<string>("");
   // Sub-vista: COTIZACIONES (quotes live) o FUNDAMENTALS (screener comparativo).
   const [subvista, setSubvista] = usePersistedState<"cotizaciones" | "fundamentals">(
     "reuters.subvista", "cotizaciones",
@@ -260,8 +269,16 @@ export function ReutersView() {
     });
   };
 
+  // Rubros presentes en el tablero (para el dropdown del filtro).
+  const rubros = useMemo(() => {
+    const set = new Set((Array.isArray(rows) ? rows : [])
+      .map((r) => r.rubro).filter((x): x is string => !!x));
+    return Array.from(set).sort();
+  }, [rows]);
+
   const filas = useMemo(() => {
     let base = Array.isArray(rows) ? [...rows] : [];
+    if (rubroFiltro) base = base.filter((r) => r.rubro === rubroFiltro);
     const t = busqueda.trim().toUpperCase();
     if (t) {
       base = base.filter((r) =>
@@ -280,7 +297,7 @@ export function ReutersView() {
       }
       return ((va as number) - (vb as number)) * dir;
     });
-  }, [rows, sort, busqueda]);
+  }, [rows, sort, busqueda, rubroFiltro]);
 
   // Ficha abierta → reemplaza al screener (← VOLVER la cierra).
   if (fichaTicker) {
@@ -317,6 +334,23 @@ export function ReutersView() {
               >
                 ✕ orden
               </button>
+            )}
+
+            {/* Filtro por RUBRO (del catálogo de CEDEARs) */}
+            {rubros.length > 0 && (
+              <select
+                value={rubroFiltro}
+                onChange={(e) => setRubroFiltro(e.target.value)}
+                title="Filtrar el tablero por rubro"
+                className={`text-[9px] tracking-wide border px-1.5 py-0.5 bg-[var(--t-panel)] outline-none cursor-pointer ${
+                  rubroFiltro
+                    ? "text-[var(--t-accent)] border-[var(--t-accent)]"
+                    : "text-[var(--t-text-dim)] border-[var(--t-border-2)]"
+                }`}
+              >
+                <option value="">RUBRO: todos</option>
+                {rubros.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
             )}
 
             {/* Filtro AFTER HOURS: agrega/quita las columnas PRE y AFTER */}

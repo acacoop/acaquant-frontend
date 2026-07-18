@@ -161,8 +161,9 @@ export function ResearchLab({ modoFijo }: { modoFijo?: "spread" | "overlay" } = 
 
   return (
     <section className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
-      {/* barra 1 — título + modo + campo + rango */}
-      <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap bg-[var(--t-panel)]">
+      {/* HEADER ÚNICO — título + selección + stats + campo/rango, todo al mismo
+          nivel (pedido del user 2026-07-18: más espacio para el chart) */}
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] flex items-center gap-x-2 gap-y-1 flex-wrap bg-[var(--t-panel)]">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)] mr-1">
           {modoFijo === "spread" ? "Spread A−B" : modoFijo === "overlay" ? "Comparar" : "Market Data"}
         </span>
@@ -176,57 +177,56 @@ export function ResearchLab({ modoFijo }: { modoFijo?: "spread" | "overlay" } = 
             ))}
           </div>
         )}
-        <select value={campo} onChange={(e) => setCampo(e.target.value)} className={SEL}>
-          {CAMPOS.map((c) => <option key={c.k} value={c.k}>{c.label}</option>)}
-        </select>
-        <div className={`${SEG} ml-auto`}>
-          {RANGOS.map((r) => (
-            <button key={r.k} type="button" onClick={() => setDias(r.k)}
-              className={`text-[10px] font-medium px-2 py-[3px] transition-colors ${dias === r.k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* barra 2 — selección de bonos */}
-      {uni && (
-        <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-wrap bg-[var(--t-surface)]/40">
-          {modo === "spread" ? (
-            <>
-              <BonoSelect universo={uni} value={a} onChange={setA} />
-              <span className="text-[13px] font-bold text-[var(--t-text-muted)] px-0.5">−</span>
-              <BonoSelect universo={uni} value={b} onChange={setB} />
-            </>
-          ) : (
-            <>
-              <BonoSelect universo={uni} value="" onChange={toggleTicker} label="+ bono" />
-              {tickers.map((t, i) => (
-                <span key={t} className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-[3px] rounded-full bg-[var(--t-surface)] border"
-                  style={{ borderColor: COLORES[i % COLORES.length], color: "var(--t-text)" }}>
-                  <span className="w-2 h-2 rounded-full" style={{ background: COLORES[i % COLORES.length] }} />
-                  {t}
-                  <button type="button" onClick={() => toggleTicker(t)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)] ml-0.5">×</button>
-                </span>
-              ))}
-            </>
-          )}
-          {cargando && <span className="text-[9px] text-[var(--t-text-dim)] ml-auto">actualizando…</span>}
-        </div>
-      )}
-
-      {/* barra 3 — stats de valor relativo (modo spread) */}
-      {modo === "spread" && stats && (
-        <div className="px-3 py-1.5 border-b border-[var(--t-border)] flex items-center gap-4 flex-wrap text-[10px] font-mono bg-[var(--t-surface)]">
-          <span className="flex items-baseline gap-1"><span className="text-[var(--t-text-muted)] not-italic">hoy</span><span className="text-[13px] font-bold text-[var(--t-accent)]">{fmtVal(stats.actual, campo, spreadUp)}</span></span>
-          <span className="flex items-baseline gap-1"><span className="text-[var(--t-text-muted)]">percentil</span><span className="font-bold" style={{ color: pctColor(stats.percentil) }}>{stats.percentil}%</span></span>
-          <span className="flex items-baseline gap-1"><span className="text-[var(--t-text-muted)]">z</span><span className="text-[var(--t-text)]">{stats.z}</span></span>
-          <span className="text-[var(--t-text-dim)]">rango {fmtVal(stats.min, campo, spreadUp)} → {fmtVal(stats.max, campo, spreadUp)}</span>
-          <span className="ml-auto font-sans font-semibold" style={{ color: pctColor(stats.percentil) }}>
-            {stats.percentil >= 80 ? "ancho vs su historia" : stats.percentil <= 20 ? "angosto vs su historia" : "zona media"}
+        {/* selección de bonos — inline, al nivel del título (más alto para el chart) */}
+        {uni && (modo === "spread" ? (
+          <span className="flex items-center gap-1">
+            <BonoSelect universo={uni} value={a} onChange={setA} />
+            <span className="text-[13px] font-bold text-[var(--t-text-muted)]">−</span>
+            <BonoSelect universo={uni} value={b} onChange={setB} />
           </span>
-        </div>
-      )}
+        ) : (
+          <>
+            <BonoSelect universo={uni} value="" onChange={toggleTicker} label="+ bono" />
+            {tickers.map((t, i) => (
+              <span key={t} className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-[2px] rounded-full bg-[var(--t-surface)] border"
+                style={{ borderColor: COLORES[i % COLORES.length], color: "var(--t-text)" }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: COLORES[i % COLORES.length] }} />
+                {t}
+                <button type="button" onClick={() => toggleTicker(t)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)]">×</button>
+              </span>
+            ))}
+          </>
+        ))}
+
+        {/* stats de valor relativo — inline (modo spread) */}
+        {modo === "spread" && stats && (
+          <span className="flex items-baseline gap-x-2 flex-wrap text-[10px] font-mono">
+            <span><span className="text-[var(--t-text-muted)]">hoy </span><span className="text-[12px] font-bold text-[var(--t-accent)]">{fmtVal(stats.actual, campo, spreadUp)}</span></span>
+            <span><span className="text-[var(--t-text-muted)]">pct </span><span className="font-bold" style={{ color: pctColor(stats.percentil) }}>{stats.percentil}%</span></span>
+            <span><span className="text-[var(--t-text-muted)]">z </span><span className="text-[var(--t-text)]">{stats.z}</span></span>
+            <span className="text-[var(--t-text-dim)]">{fmtVal(stats.min, campo, spreadUp)}→{fmtVal(stats.max, campo, spreadUp)}</span>
+            <span className="font-sans font-semibold" style={{ color: pctColor(stats.percentil) }}>
+              {stats.percentil >= 80 ? "ancho" : stats.percentil <= 20 ? "angosto" : "zona media"}
+            </span>
+          </span>
+        )}
+        {cargando && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
+
+        {/* campo + rango, a la derecha */}
+        <span className="ml-auto flex items-center gap-1.5">
+          <select value={campo} onChange={(e) => setCampo(e.target.value)} className={SEL}>
+            {CAMPOS.map((c) => <option key={c.k} value={c.k}>{c.label}</option>)}
+          </select>
+          <span className={SEG}>
+            {RANGOS.map((r) => (
+              <button key={r.k} type="button" onClick={() => setDias(r.k)}
+                className={`text-[10px] font-medium px-2 py-[3px] transition-colors ${dias === r.k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
+                {r.label}
+              </button>
+            ))}
+          </span>
+        </span>
+      </div>
 
       {/* gráfico */}
       <div className="flex-1 min-h-0 p-2 bg-[var(--t-panel)]">
