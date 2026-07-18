@@ -3135,8 +3135,114 @@ const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] trackin
 // OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
 // (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
 // el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
+// ── OBSERVABILIDAD → USO: heatmap usuario × módulo (manager.uso_modulos) ─────
+// Telemetría de producto: qué usuario pasa tiempo en qué módulo. Tabla con
+// celdas coloreadas por intensidad (sin librería de charts), rango 7/30 días.
+interface UsoResp {
+  dias: number;
+  usuarios: string[];
+  modulos: string[];
+  celdas: Record<string, Record<string, number>>;
+  totales_modulo: Record<string, number>;
+  totales_usuario: Record<string, number>;
+  total: number;
+}
+
+function UsoPanel() {
+  const [dias, setDias] = useState<7 | 30>(7);
+  const [data, setData] = useState<UsoResp | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setErr(null);
+    fetch(`/api/manager/uso?dias=${dias}`, { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: UsoResp) => { if (alive) setData(d); })
+      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
+    return () => { alive = false; };
+  }, [dias]);
+
+  const maxCelda = useMemo(() => {
+    if (!data) return 1;
+    let m = 1;
+    for (const u of data.usuarios) {
+      for (const mod of data.modulos) m = Math.max(m, data.celdas[u]?.[mod] ?? 0);
+    }
+    return m;
+  }, [data]);
+
+  // intensidad por celda: alpha ~ sqrt(hits/max) — el sqrt evita que un power
+  // user aplaste el color del resto
+  const celda = (hits: number) =>
+    hits === 0 ? undefined : { background: `rgba(47,127,224,${0.08 + 0.5 * Math.sqrt(hits / maxCelda)})` };
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">
+          Uso por módulo {data ? `· ${data.total.toLocaleString("es-AR")} requests` : ""}
+        </span>
+        <div className="flex rounded overflow-hidden border border-[var(--t-border-2)] ml-auto">
+          {([7, 30] as const).map((d) => (
+            <button key={d} type="button" onClick={() => setDias(d)}
+              className={`text-[10px] font-semibold px-2.5 py-0.5 ${dias === d ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-muted)]"}`}>
+              {d} días
+            </button>
+          ))}
+        </div>
+      </div>
+      {err && <p className="text-[11px] text-[var(--t-neg)]">No pude cargar el uso ({err}).</p>}
+      {data && data.usuarios.length === 0 && !err && (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          Sin datos todavía — la telemetría acumula desde el deploy (flush cada ~60s).
+        </p>
+      )}
+      {data && data.usuarios.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th className="text-left">USUARIO</th>
+              {data.modulos.map((m) => <th key={m} className="text-right">{m.toUpperCase()}</th>)}
+              <th className="text-right">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.usuarios.map((u) => (
+              <tr key={u}>
+                <td className="text-[var(--t-accent)]">{u.split("@")[0]}</td>
+                {data.modulos.map((m) => {
+                  const hits = data.celdas[u]?.[m] ?? 0;
+                  return (
+                    <td key={m} className="text-right tabular-nums" style={celda(hits)}>
+                      {hits ? hits.toLocaleString("es-AR") : "·"}
+                    </td>
+                  );
+                })}
+                <td className="text-right font-bold">{(data.totales_usuario[u] ?? 0).toLocaleString("es-AR")}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-[var(--t-border-2)]">
+              <td className="text-[10px] uppercase text-[var(--t-text-muted)]">total módulo</td>
+              {data.modulos.map((m) => (
+                <td key={m} className="text-right font-bold tabular-nums">
+                  {(data.totales_modulo[m] ?? 0).toLocaleString("es-AR")}
+                </td>
+              ))}
+              <td className="text-right font-bold">{data.total.toLocaleString("es-AR")}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+      <p className="text-[10px] text-[var(--t-text-muted)] mt-2">
+        Requests autenticados agregados por hora (no incluye invitados ni servicios).
+      </p>
+    </div>
+  );
+}
+
 function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
-  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia">(
+  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia" | "uso">(
     "manager.obs.sub", "controles");
   // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
   // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
@@ -3168,6 +3274,7 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
         <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
+        <Pill label="USO" active={sub === "uso"} onClick={() => setSub("uso")} />
         {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -3176,6 +3283,7 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         {sub === "jobs"        && <JobsGroup />}
         {sub === "base"        && <DbBasePanel />}
         {sub === "ia"          && <IaPanel />}
+        {sub === "uso"         && <UsoPanel />}
       </div>
     </div>
   );
