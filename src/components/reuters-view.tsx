@@ -182,7 +182,7 @@ const COLS_AFTER: SortKey[] = ["pre_var_pct", "ah_var_pct"];
 
 export function ReutersView() {
   const { data: rows } = usePoll<ReutersRow[]>(
-    "/api/trading/reuters", [], POLL_MS, { fetchOnMount: true },
+    "/api/research1816/reuters", [], POLL_MS, { fetchOnMount: true },
   );
   // dir: -1 = descendente (default numérico), 1 = ascendente (default texto)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);

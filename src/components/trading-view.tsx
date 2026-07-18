@@ -643,7 +643,7 @@ function MarketKpis() {
     { fetchOnMount: true },
   );
   const { data: adrs } = usePoll<ReutersQuote[]>(
-    "/api/trading/reuters",
+    "/api/research1816/reuters",
     [],
     5_000,
     { fetchOnMount: true },

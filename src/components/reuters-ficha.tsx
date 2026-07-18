@@ -423,7 +423,7 @@ type TabMetricas = "negocio" | "salud" | "valuacion";
 
 export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: () => void }) {
   const { data } = usePoll<Ficha | null>(
-    `/api/trading/reuters/ficha?ticker=${encodeURIComponent(ticker)}`,
+    `/api/research1816/reuters/ficha?ticker=${encodeURIComponent(ticker)}`,
     null, POLL_MS, { fetchOnMount: true },
   );
   const [tab, setTab] = usePersistedState<TabMetricas>("reuters.ficha.tab", "negocio");

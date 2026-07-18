@@ -142,7 +142,7 @@ const COLS: ColDef[] = [
 
 export function ReutersFundamentals({ onFicha }: { onFicha: (ticker: string) => void }) {
   const { data: rows } = usePoll<FundRow[]>(
-    "/api/trading/reuters/fundamentals", [], POLL_MS, { fetchOnMount: true },
+    "/api/research1816/reuters/fundamentals", [], POLL_MS, { fetchOnMount: true },
   );
   const [sort, setSort] = useState<{ key: Key; dir: 1 | -1 } | null>(null);
   const [ocultas, setOcultas] = usePersistedState<Partial<Record<Key, boolean>>>(
