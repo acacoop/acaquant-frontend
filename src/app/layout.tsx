@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { BriefingModal } from "@/components/briefing-modal";
 import { Header } from "@/components/header";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -67,6 +68,7 @@ export default async function RootLayout({
             <span>MERVAL / ROFEX</span>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   );
