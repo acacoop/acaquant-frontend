@@ -6,6 +6,7 @@
 // tablero REUTERS (movido desde /trading el 2026-07-18).
 // La IA no interviene: los reportes muestran el texto crudo, limpio.
 import { useMemo, useState } from "react";
+import { ResearchForwards } from "@/components/research-forwards";
 import { ResearchLab } from "@/components/research-lab";
 import { ReutersView } from "@/components/reuters-view";
 
@@ -31,13 +32,15 @@ function fmtFecha(iso: string | null): string {
 const limpiarAsunto = (a: string | null) => (a || "").replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "").trim();
 
 // Un párrafo: si arranca con un TITULAR en mayúscula (estilo 1816), lo resalta.
+// Cuerpo en --t-text (el muted era ilegible en los dos temas — feedback del user
+// 2026-07-18); el titular se distingue por PESO (bold) + acento, no por gris.
 function Parrafo({ texto }: { texto: string }) {
   const m = texto.match(/^([^a-záéíóúñ]*?[.;:])\s+([\s\S]+)$/);
   const titular = m && m[1].replace(/[^A-ZÁÉÍÓÚÑ]/g, "").length >= 8 ? m[1] : null;
   return (
-    <p className="text-[12.5px] leading-[1.6] text-[var(--t-text-muted)]">
+    <p className="text-[12.5px] leading-[1.6] text-[var(--t-text)]">
       {titular
-        ? <><span className="font-semibold text-[var(--t-text)]">{titular}</span> {m![2]}</>
+        ? <><span className="font-bold text-[var(--t-accent)]">{titular}</span> {m![2]}</>
         : texto}
     </p>
   );
@@ -95,9 +98,7 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
             {/* 4 cuadrantes 50/50: TL spread · TR (libre) · BL comparar · BR reportes */}
             <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
               <ResearchLab modoFijo="spread" />
-              <section className="h-full min-h-0 bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg flex items-center justify-center">
-                <span className="text-[10px] text-[var(--t-text-dim)]">— próximo módulo —</span>
-              </section>
+              <ResearchForwards />
               <ResearchLab modoFijo="overlay" />
               <ReportesPanel initial={initial} />
             </div>
