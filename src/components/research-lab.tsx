@@ -67,18 +67,23 @@ export function ResearchLab() {
   const [keys, setKeys] = useState<string[]>([]);       // series a dibujar
   const [stats, setStats] = useState<SpreadStats | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   // Universo (una vez) → defaults lindos (AL30−GD30 si están).
   useEffect(() => {
     let vivo = true;
-    fetch("/api/research1816/universo").then((r) => r.json()).then((u: Universo) => {
-      if (!vivo) return;
-      setUni(u);
-      const todos = u.curvas.flatMap((g) => g.bonos.map((x) => x.ticker));
-      setA(todos.includes("AL30") ? "AL30" : (todos[0] || ""));
-      setB(todos.includes("GD30") ? "GD30" : (todos[1] || ""));
-      setTickers([todos.includes("AL30") ? "AL30" : todos[0], todos.includes("GD30") ? "GD30" : todos[1]].filter(Boolean));
-    }).catch(() => {});
+    fetch("/api/research1816/universo")
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((u: Universo) => {
+        if (!vivo) return;
+        if (!u || !Array.isArray(u.curvas)) throw new Error("respuesta inesperada");
+        setUni(u);
+        const todos = u.curvas.flatMap((g) => g.bonos.map((x) => x.ticker));
+        setA(todos.includes("AL30") ? "AL30" : (todos[0] || ""));
+        setB(todos.includes("GD30") ? "GD30" : (todos[1] || ""));
+        setTickers([todos.includes("AL30") ? "AL30" : todos[0], todos.includes("GD30") ? "GD30" : todos[1]].filter(Boolean));
+      })
+      .catch((e) => { if (vivo) setErr(`No pude cargar el universo (${e.message}). ¿El backend está actualizado (git pull + restart)?`); });
     return () => { vivo = false; };
   }, []);
 
@@ -219,8 +224,9 @@ export function ResearchLab() {
       {/* gráfico */}
       <div className="flex-1 min-h-0 p-1">
         {rows.length === 0
-          ? <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)] text-center px-4">
-              {uni ? "Elegí bonos para ver la serie." : "Cargando universo…"}
+          ? <div className="h-full flex items-center justify-center text-[10px] text-center px-4"
+                 style={{ color: err ? "var(--t-neg)" : "var(--t-text-dim)" }}>
+              {err ? err : uni ? "Elegí bonos para ver la serie." : "Cargando universo…"}
             </div>
           : chart}
       </div>
