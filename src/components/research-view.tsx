@@ -5,6 +5,7 @@
 // DERECHA = REPORTES: research por fuente (1816, …), en acordeón (fecha+título →
 // click → contenido). La IA no interviene: se muestra el texto crudo, limpio.
 import { useMemo, useState } from "react";
+import { ResearchLab } from "@/components/research-lab";
 
 export interface ResearchDestilado { resumen?: string; temas?: string[]; hechos?: { hecho: string }[] }
 export interface ResearchMail {
@@ -99,21 +100,8 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
 
   return (
     <div className="h-full flex flex-col lg:flex-row min-h-0 gap-2 p-2">
-      {/* IZQUIERDA — Market Data 1816 (placeholder hasta la API key) */}
-      <section className="lg:w-1/2 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
-        <div className="px-3 py-2.5 border-b border-[var(--t-border)] text-[11px] uppercase tracking-widest text-[var(--t-text-muted)]">
-          Market Data · 1816
-        </div>
-        <div className="flex-1 min-h-0 flex items-center justify-center p-6 text-center">
-          <div className="max-w-sm">
-            <div className="text-[13px] font-semibold text-[var(--t-text)] mb-1">Próximamente: datos de mercado</div>
-            <p className="text-[11px] text-[var(--t-text-muted)] leading-relaxed">
-              Series históricas e indicadores de 1816 (precio, paridad, TNA/TEA, duration…).
-              Pendiente de conectar la API — primero exploramos qué devuelve.
-            </p>
-          </div>
-        </div>
-      </section>
+      {/* IZQUIERDA — Market Data 1816: laboratorio de series/spreads */}
+      <ResearchLab />
 
       {/* DERECHA — REPORTES */}
       <section className="lg:w-1/2 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
