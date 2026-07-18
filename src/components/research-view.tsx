@@ -72,27 +72,6 @@ function ReporteItem({ m, abierto, onToggle }: { m: ResearchMail; abierto: boole
   );
 }
 
-// Placeholder de un panel de serie histórica (Market Data). Estructura lista;
-// los selectores y el gráfico se llenan cuando esté la API de 1816 (docs §4).
-function ChartPanel({ titulo }: { titulo: string }) {
-  const sel = "text-[10px] px-1.5 py-0.5 rounded bg-transparent border border-[var(--t-border)] text-[var(--t-text-dim)] opacity-60 cursor-not-allowed";
-  return (
-    <div className="flex-1 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
-      <div className="px-2.5 py-1.5 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-wrap">
-        <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)] mr-auto">{titulo}</span>
-        <select disabled className={sel}><option>instrumento</option></select>
-        <select disabled className={sel}><option>campo</option></select>
-        <select disabled className={sel}><option>rango</option></select>
-      </div>
-      <div className="flex-1 min-h-0 flex items-center justify-center p-4 text-center">
-        <div className="text-[10px] text-[var(--t-text-dim)] leading-relaxed">
-          gráfico de serie histórica<br />pendiente de la API de 1816
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function ResearchView({ initial }: { initial: ResearchData }) {
   const [items, setItems] = useState<ResearchMail[]>(initial.items);
   const [total] = useState(initial.total);
@@ -120,15 +99,19 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
 
   return (
     <div className="h-full flex flex-col lg:flex-row min-h-0 gap-2 p-2">
-      {/* IZQUIERDA — Market Data 1816: dos series comparables (scaffold hasta la key) */}
+      {/* IZQUIERDA — Market Data 1816 (placeholder hasta la API key) */}
       <section className="lg:w-1/2 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
-        <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-widest text-[var(--t-text-muted)]">Market Data · 1816</span>
-          <span className="text-[9px] text-[var(--t-text-dim)]">series comparables — pendiente de la API</span>
+        <div className="px-3 py-2.5 border-b border-[var(--t-border)] text-[11px] uppercase tracking-widest text-[var(--t-text-muted)]">
+          Market Data · 1816
         </div>
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 p-2">
-          <ChartPanel titulo="Serie A" />
-          <ChartPanel titulo="Serie B" />
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6 text-center">
+          <div className="max-w-sm">
+            <div className="text-[13px] font-semibold text-[var(--t-text)] mb-1">Próximamente: datos de mercado</div>
+            <p className="text-[11px] text-[var(--t-text-muted)] leading-relaxed">
+              Series históricas e indicadores de 1816 (precio, paridad, TNA/TEA, duration…).
+              Pendiente de conectar la API — primero exploramos qué devuelve.
+            </p>
+          </div>
         </div>
       </section>
 
