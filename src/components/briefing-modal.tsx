@@ -50,6 +50,8 @@ interface BriefingResp {
   oficial: MetricRow[];
   financieros: MetricRow[];
   cauciones?: MetricRow[];
+  // Mail de research del DÍA (1816) — None si hoy no llegó: el panel ni aparece.
+  research_hoy?: { asunto: string; texto: string } | null;
   futuros_dlr?: DlrRow[];
   pagan_hoy: PagaRow[];
 }
@@ -246,7 +248,7 @@ export function BriefingModal() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-6xl bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden"
+            className={`w-full ${data.research_hoy ? "max-w-[110rem]" : "max-w-6xl"} bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden`}
           >
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--t-border)]">
@@ -263,7 +265,10 @@ export function BriefingModal() {
               </button>
             </div>
 
-            <div className="overflow-y-auto max-h-[82vh] p-3">
+            {/* Contenido: la tabla de siempre + (si HAY mail de HOY) el research
+                al costado — cada mitad scrollea POR SU CUENTA */}
+            <div className="flex min-h-0 max-h-[82vh]">
+            <div className="overflow-y-auto p-3 flex-1 min-w-0">
               <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] lg:grid-cols-[1.1fr_1fr_0.85fr] gap-x-5 gap-y-3">
                 {/* IZQUIERDA — Futuros (el bloque grande) */}
                 <div className="self-start">
@@ -352,6 +357,26 @@ export function BriefingModal() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* RESEARCH DEL DÍA (mail 1816) — solo si llegó HOY; scroll propio */}
+            {data.research_hoy && (
+              <aside className="hidden lg:flex w-[440px] shrink-0 border-l border-[var(--t-border)] flex-col min-h-0">
+                <div className="px-3 py-2 border-b border-[var(--t-border)] shrink-0">
+                  <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+                    📰 RESEARCH DEL DÍA
+                  </span>
+                  <span className="ml-2 text-[10px] text-[var(--t-text-dim)]">
+                    {data.research_hoy.asunto.replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "")}
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto px-3 py-2">
+                  <p className="whitespace-pre-wrap text-[11.5px] leading-[1.6] text-[var(--t-text)]">
+                    {data.research_hoy.texto}
+                  </p>
+                </div>
+              </aside>
+            )}
             </div>
 
             {/* Footer */}
