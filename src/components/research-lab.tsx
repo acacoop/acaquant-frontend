@@ -21,7 +21,12 @@ const CAMPOS = [
   { k: "duration", label: "Duration" },
 ];
 const RANGOS = [{ k: 30, label: "1M" }, { k: 90, label: "3M" }, { k: 182, label: "6M" }, { k: 3650, label: "Máx" }];
-const COLORES = ["var(--t-accent)", "#e0803c", "#3ca37a", "#b5539c", "#c9b23a", "#5b8def", "#d9694e", "#6bbf59"];
+const COLORES = ["#2f7fe0", "#e0803c", "#3ca37a", "#b5539c", "#c9a23a", "#5b8def", "#d9694e", "#6bbf59"];
+
+// Estilos base tomados del sistema de la app (globals.css): superficies e inputs
+// temáticos → claro y oscuro. bg-[var(--t-surface)] evita el select blanco en dark.
+const SEL = "bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] rounded px-2 py-[3px] text-[10px] outline-none focus:border-[var(--t-accent)] cursor-pointer";
+const SEG = "flex rounded-md overflow-hidden border border-[var(--t-border-2)] bg-[var(--t-surface)]";
 
 const esFraccion = (c: string) => c === "tea" || c === "paridad";
 function fmtVal(v: number | null | undefined, campo: string, pp = false): string {
@@ -40,11 +45,7 @@ function BonoSelect({ universo, value, onChange, label }: {
   universo: Universo; value: string; onChange: (v: string) => void; label?: string;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="text-[10px] px-1.5 py-1 rounded bg-transparent border border-[var(--t-border)] text-[var(--t-text)] max-w-[130px]"
-    >
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={`${SEL} max-w-[128px] font-semibold`}>
       {label && <option value="">{label}</option>}
       {universo.curvas.map((g) => (
         <optgroup key={g.curva} label={g.curva}>
@@ -64,12 +65,11 @@ export function ResearchLab() {
   const [b, setB] = useState("");
   const [tickers, setTickers] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, number | string>[]>([]);
-  const [keys, setKeys] = useState<string[]>([]);       // series a dibujar
+  const [keys, setKeys] = useState<string[]>([]);
   const [stats, setStats] = useState<SpreadStats | null>(null);
   const [cargando, setCargando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Universo (una vez) → defaults lindos (AL30−GD30 si están).
   useEffect(() => {
     let vivo = true;
     fetch("/api/research1816/universo")
@@ -83,7 +83,7 @@ export function ResearchLab() {
         setB(todos.includes("GD30") ? "GD30" : (todos[1] || ""));
         setTickers([todos.includes("AL30") ? "AL30" : todos[0], todos.includes("GD30") ? "GD30" : todos[1]].filter(Boolean));
       })
-      .catch((e) => { if (vivo) setErr(`No pude cargar el universo (${e.message}). ¿El backend está actualizado (git pull + restart)?`); });
+      .catch((e) => { if (vivo) setErr(`No pude cargar el universo (${e.message}). ¿El backend está actualizado?`); });
     return () => { vivo = false; };
   }, []);
 
@@ -123,106 +123,105 @@ export function ResearchLab() {
     setTickers((prev) => prev.includes(t) ? prev.filter((x) => x !== t) : (prev.length >= 8 ? prev : [...prev, t]));
   };
 
-  const spreadUp = esFraccion(campo);   // spread de tasas en pp
+  const spreadUp = esFraccion(campo);
   const titulo = modo === "spread" ? `${a || "?"} − ${b || "?"}` : "comparación";
+  const pctColor = (p: number) => p >= 80 ? "var(--t-neg)" : p <= 20 ? "var(--t-pos)" : "var(--t-text)";
 
   const chart = useMemo(() => (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={rows} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+      <LineChart data={rows} margin={{ top: 8, right: 14, bottom: 4, left: 4 }}>
         <CartesianGrid stroke="var(--t-border)" vertical={false} />
         <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
-          axisLine={{ stroke: "var(--t-border-2)" }} minTickGap={40}
-          tickFormatter={(v) => String(v).slice(5)} />
+          axisLine={{ stroke: "var(--t-border-2)" }} tickLine={{ stroke: "var(--t-border-2)" }}
+          minTickGap={44} tickFormatter={(v) => String(v).slice(5)} />
         <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} axisLine={{ stroke: "var(--t-border-2)" }}
-          width={44} domain={["auto", "auto"]}
+          tickLine={{ stroke: "var(--t-border-2)" }} width={42} domain={["auto", "auto"]}
           tickFormatter={(v) => esFraccion(campo) ? `${(v * 100).toFixed(1)}` : (campo === "duration" ? v.toFixed(1) : String(Math.round(v)))} />
-        {modo === "spread" && <ReferenceLine y={0} stroke="var(--t-text-dim)" strokeDasharray="4 4" />}
+        {modo === "spread" && <ReferenceLine y={0} stroke="var(--t-border-2)" strokeDasharray="4 4" />}
         {modo === "spread" && stats && (
-          <ReferenceLine y={stats.media} stroke="var(--t-text-muted)" strokeDasharray="2 4"
+          <ReferenceLine y={stats.media} stroke="var(--t-text-dim)" strokeDasharray="2 4"
             label={{ value: "media", fill: "var(--t-text-dim)", fontSize: 8, position: "insideTopRight" }} />
         )}
         <Tooltip
-          contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 10, borderRadius: 6 }}
-          labelStyle={{ color: "var(--t-accent)" }}
+          contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 10, borderRadius: 6, color: "var(--t-text)" }}
+          labelStyle={{ color: "var(--t-text-muted)" }} itemStyle={{ padding: 0 }}
           formatter={(val, name) => [fmtVal(Number(val), campo, modo === "spread" && spreadUp), String(name)]} />
-        {modo === "overlay" && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {modo === "overlay" && <Legend wrapperStyle={{ fontSize: 10, color: "var(--t-text-muted)" }} />}
         {keys.map((k, i) => (
           <Line key={k} type="monotone" dataKey={k} name={k === "spread" ? titulo : k}
-            stroke={COLORES[i % COLORES.length]} strokeWidth={1.6} dot={false} isAnimationActive={false} connectNulls />
+            stroke={COLORES[i % COLORES.length]} strokeWidth={1.8} dot={false} isAnimationActive={false} connectNulls />
         ))}
       </LineChart>
     </ResponsiveContainer>
   ), [rows, keys, campo, modo, stats, spreadUp, titulo]);
 
   return (
-    <section className="lg:w-1/2 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
-      {/* barra de controles */}
-      <div className="px-2.5 py-1.5 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-wrap">
-        <span className="text-[11px] uppercase tracking-widest text-[var(--t-text-muted)] mr-1">Market Data · 1816</span>
-        <div className="flex rounded overflow-hidden border border-[var(--t-border)]">
+    <section className="lg:w-1/2 min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
+      {/* barra 1 — título + modo + campo + rango */}
+      <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap bg-[var(--t-panel)]">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)] mr-1">Market Data</span>
+        <div className={SEG}>
           {(["spread", "overlay"] as const).map((m) => (
             <button key={m} type="button" onClick={() => setModo(m)}
-              className={`text-[10px] font-semibold px-2 py-0.5 ${modo === m ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)]"}`}>
+              className={`text-[10px] font-semibold px-2.5 py-[3px] transition-colors ${modo === m ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
               {m === "spread" ? "Spread A−B" : "Comparar"}
             </button>
           ))}
         </div>
-        <select value={campo} onChange={(e) => setCampo(e.target.value)}
-          className="text-[10px] px-1.5 py-1 rounded bg-transparent border border-[var(--t-border)] text-[var(--t-text)]">
+        <select value={campo} onChange={(e) => setCampo(e.target.value)} className={SEL}>
           {CAMPOS.map((c) => <option key={c.k} value={c.k}>{c.label}</option>)}
         </select>
-        <div className="flex rounded overflow-hidden border border-[var(--t-border)]">
+        <div className={`${SEG} ml-auto`}>
           {RANGOS.map((r) => (
             <button key={r.k} type="button" onClick={() => setDias(r.k)}
-              className={`text-[10px] px-1.5 py-0.5 ${dias === r.k ? "bg-[var(--t-border-2)] text-[var(--t-text)]" : "text-[var(--t-text-dim)]"}`}>
+              className={`text-[10px] font-medium px-2 py-[3px] transition-colors ${dias === r.k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
               {r.label}
             </button>
           ))}
         </div>
-        {cargando && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
       </div>
 
-      {/* selección de bonos */}
+      {/* barra 2 — selección de bonos */}
       {uni && (
-        <div className="px-2.5 py-1.5 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-wrap">
+        <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-wrap bg-[var(--t-surface)]/40">
           {modo === "spread" ? (
             <>
               <BonoSelect universo={uni} value={a} onChange={setA} />
-              <span className="text-[11px] text-[var(--t-text-muted)]">−</span>
+              <span className="text-[13px] font-bold text-[var(--t-text-muted)] px-0.5">−</span>
               <BonoSelect universo={uni} value={b} onChange={setB} />
             </>
           ) : (
             <>
-              <BonoSelect universo={uni} value="" onChange={toggleTicker} label="+ agregar bono" />
+              <BonoSelect universo={uni} value="" onChange={toggleTicker} label="+ bono" />
               {tickers.map((t, i) => (
-                <span key={t} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border"
+                <span key={t} className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-[3px] rounded-full bg-[var(--t-surface)] border"
                   style={{ borderColor: COLORES[i % COLORES.length], color: "var(--t-text)" }}>
+                  <span className="w-2 h-2 rounded-full" style={{ background: COLORES[i % COLORES.length] }} />
                   {t}
-                  <button type="button" onClick={() => toggleTicker(t)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)]">×</button>
+                  <button type="button" onClick={() => toggleTicker(t)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)] ml-0.5">×</button>
                 </span>
               ))}
             </>
           )}
+          {cargando && <span className="text-[9px] text-[var(--t-text-dim)] ml-auto">actualizando…</span>}
         </div>
       )}
 
-      {/* stats de valor relativo (modo spread) */}
+      {/* barra 3 — stats de valor relativo (modo spread) */}
       {modo === "spread" && stats && (
-        <div className="px-2.5 py-1 border-b border-[var(--t-border)] flex items-center gap-3 flex-wrap text-[10px] font-mono">
-          <span><span className="text-[var(--t-text-muted)]">Hoy </span><span className="text-[var(--t-accent)] font-semibold">{fmtVal(stats.actual, campo, spreadUp)}</span></span>
-          <span><span className="text-[var(--t-text-muted)]">percentil </span>
-            <span className={stats.percentil >= 80 ? "text-[var(--t-neg)]" : stats.percentil <= 20 ? "text-[var(--t-pos)]" : "text-[var(--t-text)]"}>{stats.percentil}%</span>
-          </span>
-          <span><span className="text-[var(--t-text-muted)]">z </span>{stats.z}</span>
-          <span className="text-[var(--t-text-dim)]">mín/máx {fmtVal(stats.min, campo, spreadUp)} / {fmtVal(stats.max, campo, spreadUp)}</span>
-          <span className="text-[var(--t-text-dim)] ml-auto">
-            {stats.percentil >= 80 ? "ancho vs su historia" : stats.percentil <= 20 ? "angosto vs su historia" : "en zona media"}
+        <div className="px-3 py-1.5 border-b border-[var(--t-border)] flex items-center gap-4 flex-wrap text-[10px] font-mono bg-[var(--t-surface)]">
+          <span className="flex items-baseline gap-1"><span className="text-[var(--t-text-muted)] not-italic">hoy</span><span className="text-[13px] font-bold text-[var(--t-accent)]">{fmtVal(stats.actual, campo, spreadUp)}</span></span>
+          <span className="flex items-baseline gap-1"><span className="text-[var(--t-text-muted)]">percentil</span><span className="font-bold" style={{ color: pctColor(stats.percentil) }}>{stats.percentil}%</span></span>
+          <span className="flex items-baseline gap-1"><span className="text-[var(--t-text-muted)]">z</span><span className="text-[var(--t-text)]">{stats.z}</span></span>
+          <span className="text-[var(--t-text-dim)]">rango {fmtVal(stats.min, campo, spreadUp)} → {fmtVal(stats.max, campo, spreadUp)}</span>
+          <span className="ml-auto font-sans font-semibold" style={{ color: pctColor(stats.percentil) }}>
+            {stats.percentil >= 80 ? "ancho vs su historia" : stats.percentil <= 20 ? "angosto vs su historia" : "zona media"}
           </span>
         </div>
       )}
 
       {/* gráfico */}
-      <div className="flex-1 min-h-0 p-1">
+      <div className="flex-1 min-h-0 p-2 bg-[var(--t-panel)]">
         {rows.length === 0
           ? <div className="h-full flex items-center justify-center text-[10px] text-center px-4"
                  style={{ color: err ? "var(--t-neg)" : "var(--t-text-dim)" }}>

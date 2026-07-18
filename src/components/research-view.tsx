@@ -47,7 +47,7 @@ function ReporteItem({ m, abierto, onToggle }: { m: ResearchMail; abierto: boole
     [m.texto],
   );
   return (
-    <article className="border border-[var(--t-border)] rounded-md overflow-hidden">
+    <article className="bg-[var(--t-panel)] border border-[var(--t-border)] rounded-md overflow-hidden">
       {/* Cabecera — color distinto del cuerpo. Click abre/cierra. */}
       <button
         type="button"
@@ -104,20 +104,20 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
       <ResearchLab />
 
       {/* DERECHA — REPORTES */}
-      <section className="lg:w-1/2 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
-        <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center justify-between gap-3">
-          <span className="text-[11px] uppercase tracking-widest text-[var(--t-text-muted)]">Reportes</span>
+      <section className="lg:w-1/2 min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
+        <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center justify-between gap-3 bg-[var(--t-panel)]">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)]">Reportes</span>
           {fuentes.length > 0 && (
-            <div className="flex items-center gap-1">
+            <div className="flex rounded-md overflow-hidden border border-[var(--t-border-2)] bg-[var(--t-surface)]">
               {fuentes.map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => setFuente(f)}
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
+                  className={`text-[10px] font-semibold px-2.5 py-[3px] transition-colors ${
                     f === fuente
                       ? "bg-[var(--t-accent)] text-white"
-                      : "border border-[var(--t-border)] text-[var(--t-text-muted)] hover:bg-[var(--t-border-2)]/30"
+                      : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"
                   }`}
                 >
                   {f}
@@ -127,7 +127,7 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
           )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto p-2.5 space-y-2">
+        <div className="flex-1 min-h-0 overflow-auto p-2.5 space-y-2 bg-[var(--t-surface)]/30">
           {visibles.length === 0 && (
             <div className="text-[11px] text-[var(--t-text-dim)] p-4 text-center">
               No hay reportes de {fuente} todavía. Aparecen acá apenas los ingesta el sistema.
