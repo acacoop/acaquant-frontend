@@ -56,9 +56,13 @@ function BonoSelect({ universo, value, onChange, label }: {
   );
 }
 
-export function ResearchLab() {
+export function ResearchLab({ modoFijo }: { modoFijo?: "spread" | "overlay" } = {}) {
   const [uni, setUni] = useState<Universo | null>(null);
-  const [modo, setModo] = useState<"spread" | "overlay">("spread");
+  const [modoLibre, setModoLibre] = useState<"spread" | "overlay">("spread");
+  // Con `modoFijo` el panel es SOLO spread o SOLO overlay (cuadrantes de la tab
+  // Argentina); sin él conserva el toggle (modo standalone).
+  const modo = modoFijo ?? modoLibre;
+  const setModo = setModoLibre;
   const [campo, setCampo] = useState("tea");
   const [dias, setDias] = useState(182);
   const [a, setA] = useState("");
@@ -156,18 +160,22 @@ export function ResearchLab() {
   ), [rows, keys, campo, modo, stats, spreadUp, titulo]);
 
   return (
-    <section className="lg:w-1/2 min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
+    <section className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
       {/* barra 1 — título + modo + campo + rango */}
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap bg-[var(--t-panel)]">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)] mr-1">Market Data</span>
-        <div className={SEG}>
-          {(["spread", "overlay"] as const).map((m) => (
-            <button key={m} type="button" onClick={() => setModo(m)}
-              className={`text-[10px] font-semibold px-2.5 py-[3px] transition-colors ${modo === m ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
-              {m === "spread" ? "Spread A−B" : "Comparar"}
-            </button>
-          ))}
-        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)] mr-1">
+          {modoFijo === "spread" ? "Spread A−B" : modoFijo === "overlay" ? "Comparar" : "Market Data"}
+        </span>
+        {!modoFijo && (
+          <div className={SEG}>
+            {(["spread", "overlay"] as const).map((m) => (
+              <button key={m} type="button" onClick={() => setModo(m)}
+                className={`text-[10px] font-semibold px-2.5 py-[3px] transition-colors ${modo === m ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
+                {m === "spread" ? "Spread A−B" : "Comparar"}
+              </button>
+            ))}
+          </div>
+        )}
         <select value={campo} onChange={(e) => setCampo(e.target.value)} className={SEL}>
           {CAMPOS.map((c) => <option key={c.k} value={c.k}>{c.label}</option>)}
         </select>

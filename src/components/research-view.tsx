@@ -1,11 +1,13 @@
 "use client";
 
 // Vista RESEARCH — doc madre: docs/VISTA_RESEARCH.md (en TRD-FX).
-// Split 50/50: IZQUIERDA = Market Data 1816 (placeholder hasta la API key) ·
-// DERECHA = REPORTES: research por fuente (1816, …), en acordeón (fecha+título →
-// click → contenido). La IA no interviene: se muestra el texto crudo, limpio.
+// Tabs (keep-alive): ARGENTINA = 4 cuadrantes 50/50 (spread A−B · libre ·
+// comparar · reportes 1816 en acordeón) · RENTA VARIABLE INTERNACIONAL = el
+// tablero REUTERS (movido desde /trading el 2026-07-18).
+// La IA no interviene: los reportes muestran el texto crudo, limpio.
 import { useMemo, useState } from "react";
 import { ResearchLab } from "@/components/research-lab";
+import { ReutersView } from "@/components/reuters-view";
 
 export interface ResearchDestilado { resumen?: string; temas?: string[]; hechos?: { hecho: string }[] }
 export interface ResearchMail {
@@ -73,7 +75,67 @@ function ReporteItem({ m, abierto, onToggle }: { m: ResearchMail; abierto: boole
   );
 }
 
+// ── Tabs de la vista (keep-alive, mismo patrón que trading-shell) ─────────────
+type Tab = "argentina" | "rv-int";
+
 export function ResearchView({ initial }: { initial: ResearchData }) {
+  const [tab, setTab] = useState<Tab>("argentina");
+  const [visited, setVisited] = useState<Set<Tab>>(() => new Set<Tab>(["argentina"]));
+  if (!visited.has(tab)) setVisited(new Set(visited).add(tab));
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <TabBtn active={tab === "argentina"} onClick={() => setTab("argentina")}>ARGENTINA</TabBtn>
+        <TabBtn active={tab === "rv-int"} onClick={() => setTab("rv-int")}>RENTA VARIABLE INTERNACIONAL</TabBtn>
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden relative">
+        {visited.has("argentina") && (
+          <Pane active={tab === "argentina"}>
+            {/* 4 cuadrantes 50/50: TL spread · TR (libre) · BL comparar · BR reportes */}
+            <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
+              <ResearchLab modoFijo="spread" />
+              <section className="h-full min-h-0 bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg flex items-center justify-center">
+                <span className="text-[10px] text-[var(--t-text-dim)]">— próximo módulo —</span>
+              </section>
+              <ResearchLab modoFijo="overlay" />
+              <ReportesPanel initial={initial} />
+            </div>
+          </Pane>
+        )}
+        {visited.has("rv-int") && (
+          <Pane active={tab === "rv-int"}>
+            <ReutersView />
+          </Pane>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Pane({ active, children }: { active: boolean; children: React.ReactNode }) {
+  return <div className={active ? "h-full w-full" : "hidden"}>{children}</div>;
+}
+
+function TabBtn({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1 text-[11px] font-semibold tracking-wide border transition-colors ${
+        active
+          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ── Cuadrante REPORTES (mails de 1816, acordeón por fuente) ──────────────────
+function ReportesPanel({ initial }: { initial: ResearchData }) {
   const [items, setItems] = useState<ResearchMail[]>(initial.items);
   const [total] = useState(initial.total);
   const [cargando, setCargando] = useState(false);
@@ -99,12 +161,7 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
   };
 
   return (
-    <div className="h-full flex flex-col lg:flex-row min-h-0 gap-2 p-2">
-      {/* IZQUIERDA — Market Data 1816: laboratorio de series/spreads */}
-      <ResearchLab />
-
-      {/* DERECHA — REPORTES */}
-      <section className="lg:w-1/2 min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
+      <section className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
         <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center justify-between gap-3 bg-[var(--t-panel)]">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)]">Reportes</span>
           {fuentes.length > 0 && (
@@ -153,6 +210,5 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
           )}
         </div>
       </section>
-    </div>
   );
 }
