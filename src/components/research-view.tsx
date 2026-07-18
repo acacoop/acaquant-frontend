@@ -1,21 +1,21 @@
 "use client";
 
-// Vista RESEARCH (Nivel 1) — doc madre: docs/VISTA_RESEARCH.md (en TRD-FX).
+// Vista RESEARCH — doc madre: docs/VISTA_RESEARCH.md (en TRD-FX).
 // Split 50/50: IZQUIERDA = Market Data 1816 (placeholder hasta la API key) ·
-// DERECHA = research diario de 1816 (mails), con destilado IA + búsqueda full-text.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// DERECHA = REPORTES: research por fuente (1816, …), en acordeón (fecha+título →
+// click → contenido). La IA no interviene: se muestra el texto crudo, limpio.
+import { useMemo, useState } from "react";
 
-export interface ResearchHecho { hecho: string; tema?: string }
-export interface ResearchDestilado { resumen?: string; temas?: string[]; hechos?: ResearchHecho[] }
+export interface ResearchDestilado { resumen?: string; temas?: string[]; hechos?: { hecho: string }[] }
 export interface ResearchMail {
   id: number;
   fecha: string | null;
   fuente: string | null;
+  fuente_label: string;
   asunto: string | null;
   tipo: string;
-  texto: string | null;        // crudo limpio (headers/pie del reenvío ya sacados)
-  destilado: ResearchDestilado | null;  // opcional — solo si se corrió --destilar
-  fragmento?: string;
+  texto: string | null;              // crudo limpio, en párrafos
+  destilado: ResearchDestilado | null;  // opcional (solo si se corrió --destilar)
 }
 export interface ResearchData { items: ResearchMail[]; total: number }
 
@@ -23,81 +23,57 @@ const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "o
 function fmtFecha(iso: string | null): string {
   if (!iso) return "—";
   const [y, m, d] = iso.slice(0, 10).split("-");
-  const mi = Number(m) - 1;
-  return `${d} ${MESES[mi] ?? m} ${y}`;
+  return `${d} ${MESES[Number(m) - 1] ?? m} ${y}`;
 }
+const limpiarAsunto = (a: string | null) => (a || "").replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "").trim();
 
-// Resalta el fragmento del buscador de forma SEGURA (el server marca los matches
-// con « » vía ts_headline — nunca HTML crudo del mail).
-function Resaltado({ texto }: { texto: string }) {
-  const partes = texto.split(/«(.+?)»/g);
+// Un párrafo: si arranca con un TITULAR en mayúscula (estilo 1816), lo resalta.
+function Parrafo({ texto }: { texto: string }) {
+  const m = texto.match(/^([^a-záéíóúñ]*?[.;:])\s+([\s\S]+)$/);
+  const titular = m && m[1].replace(/[^A-ZÁÉÍÓÚÑ]/g, "").length >= 8 ? m[1] : null;
   return (
-    <>
-      {partes.map((p, i) =>
-        i % 2 === 1
-          ? <mark key={i} className="bg-[var(--t-accent)]/25 text-[var(--t-text)] rounded px-0.5">{p}</mark>
-          : <span key={i}>{p}</span>,
-      )}
-    </>
+    <p className="text-[12.5px] leading-[1.6] text-[var(--t-text-muted)]">
+      {titular
+        ? <><span className="font-semibold text-[var(--t-text)]">{titular}</span> {m![2]}</>
+        : texto}
+    </p>
   );
 }
 
-function TipoBadge({ tipo }: { tipo: string }) {
-  const map: Record<string, string> = {
-    diario: "bg-[#094293] text-white",
-    mensual: "bg-amber-500 text-white",
-  };
-  const cls = map[tipo] || "bg-[var(--t-border-2)] text-[var(--t-text-muted)]";
-  return <span className={`text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${cls}`}>{tipo}</span>;
-}
-
-// El research en párrafos legibles. Los títulos de 1816 vienen en MAYÚSCULA →
-// se resaltan solos. Los saltos sueltos dentro de un párrafo se reflowean.
-function ResearchTexto({ texto }: { texto: string }) {
-  const parrafos = texto
-    .split(/\n{2,}/)
-    .map((p) => p.replace(/\s*\n\s*/g, " ").trim())
-    .filter(Boolean);
-  return (
-    <div className="space-y-2.5">
-      {parrafos.map((p, i) => (
-        <p key={i} className="text-[12px] leading-relaxed text-[var(--t-text)] text-justify">{p}</p>
-      ))}
-    </div>
+function ReporteItem({ m, abierto, onToggle }: { m: ResearchMail; abierto: boolean; onToggle: () => void }) {
+  const parrafos = useMemo(
+    () => (m.texto || "").split(/\n{2,}/).map((p) => p.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean),
+    [m.texto],
   );
-}
-
-function MailCard({ m }: { m: ResearchMail }) {
-  const d = m.destilado;
   return (
-    <article className="border border-[var(--t-border)] rounded-md p-3">
-      <header className="flex items-center gap-2 flex-wrap mb-2 pb-2 border-b border-[var(--t-border)]">
-        <span className="text-[13px] font-semibold text-[var(--t-text)]">{fmtFecha(m.fecha)}</span>
-        <TipoBadge tipo={m.tipo} />
-        <span className="text-[10px] text-[var(--t-text-dim)] truncate max-w-full" title={m.asunto || ""}>
-          {(m.asunto || "").replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "")}
+    <article className="border border-[var(--t-border)] rounded-md overflow-hidden">
+      {/* Cabecera — color distinto del cuerpo. Click abre/cierra. */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left bg-[var(--t-accent)]/8 hover:bg-[var(--t-accent)]/15 transition-colors"
+      >
+        <span className={`text-[10px] text-[var(--t-text-dim)] transition-transform ${abierto ? "rotate-90" : ""}`}>▶</span>
+        <span className="text-[12px] font-semibold text-[var(--t-accent)] whitespace-nowrap">{fmtFecha(m.fecha)}</span>
+        <span className="text-[8px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--t-border-2)] text-[var(--t-text-muted)]">{m.tipo}</span>
+        <span className="text-[12px] text-[var(--t-text)] truncate flex-1" title={limpiarAsunto(m.asunto)}>
+          {limpiarAsunto(m.asunto) || "Reporte"}
         </span>
-      </header>
+      </button>
 
-      {/* Al buscar: el fragmento resaltado arriba */}
-      {m.fragmento && (
-        <p className="text-[11px] text-[var(--t-text-muted)] mb-2 leading-relaxed italic">
-          …<Resaltado texto={m.fragmento} />…
-        </p>
-      )}
-
-      {/* Resumen IA — SOLO si se destiló (opt-in, no automático) */}
-      {d?.resumen && (
-        <div className="mb-2 p-2 rounded bg-[var(--t-border-2)]/20 border-l-2 border-[var(--t-accent)]">
-          <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] mb-0.5">Resumen IA</div>
-          <p className="text-[11px] text-[var(--t-text-muted)] leading-relaxed">{d.resumen}</p>
+      {abierto && (
+        <div className="px-4 py-3 border-t border-[var(--t-border)] space-y-3">
+          {m.destilado?.resumen && (
+            <div className="p-2.5 rounded bg-[var(--t-border-2)]/20 border-l-2 border-[var(--t-accent)]">
+              <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] mb-1">Resumen IA</div>
+              <p className="text-[11.5px] leading-relaxed text-[var(--t-text-muted)]">{m.destilado.resumen}</p>
+            </div>
+          )}
+          {parrafos.length > 0
+            ? parrafos.map((p, i) => <Parrafo key={i} texto={p} />)
+            : <p className="text-[11px] text-[var(--t-text-dim)] italic">(sin texto)</p>}
         </div>
       )}
-
-      {/* El research, tal cual — el texto es lo principal */}
-      {m.texto
-        ? <ResearchTexto texto={m.texto} />
-        : <p className="text-[11px] text-[var(--t-text-dim)] italic">(sin texto)</p>}
     </article>
   );
 }
@@ -105,98 +81,92 @@ function MailCard({ m }: { m: ResearchMail }) {
 export function ResearchView({ initial }: { initial: ResearchData }) {
   const [items, setItems] = useState<ResearchMail[]>(initial.items);
   const [total] = useState(initial.total);
-  const [q, setQ] = useState("");
-  const [buscando, setBuscando] = useState(false);
-  const [modoBusqueda, setModoBusqueda] = useState(false);
-  const [cargandoMas, setCargandoMas] = useState(false);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [cargando, setCargando] = useState(false);
 
-  const buscar = useCallback(async (texto: string) => {
-    const t = texto.trim();
-    if (t.length < 2) {
-      setModoBusqueda(false);
-      setItems(initial.items);
-      return;
-    }
-    setBuscando(true);
-    setModoBusqueda(true);
-    try {
-      const r = await fetch(`/api/research1816/mails/buscar?q=${encodeURIComponent(t)}`);
-      const d: ResearchData = await r.json();
-      setItems(d.items || []);
-    } catch {
-      setItems([]);
-    } finally {
-      setBuscando(false);
-    }
-  }, [initial.items]);
+  // Fuentes disponibles (1816, ACA VALORES, …) — selector estilo News.
+  const fuentes = useMemo(() => {
+    const set = new Set(items.map((m) => m.fuente_label || "1816"));
+    return Array.from(set);
+  }, [items]);
+  const [fuente, setFuente] = useState<string>(initial.items[0]?.fuente_label || "1816");
+  const visibles = useMemo(() => items.filter((m) => (m.fuente_label || "1816") === fuente), [items, fuente]);
 
-  useEffect(() => {
-    if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => buscar(q), 350);
-    return () => { if (debounce.current) clearTimeout(debounce.current); };
-  }, [q, buscar]);
+  // Acordeón: arranca abierto el más reciente de la fuente elegida.
+  const [abiertoId, setAbiertoId] = useState<number | null>(initial.items[0]?.id ?? null);
 
   const cargarMas = async () => {
-    setCargandoMas(true);
+    setCargando(true);
     try {
       const r = await fetch(`/api/research1816/mails?limit=30&offset=${items.length}`);
       const d: ResearchData = await r.json();
       setItems((prev) => [...prev, ...(d.items || [])]);
-    } catch { /* noop */ } finally { setCargandoMas(false); }
+    } catch { /* noop */ } finally { setCargando(false); }
   };
-
-  const hayMas = useMemo(() => !modoBusqueda && items.length < total, [modoBusqueda, items.length, total]);
 
   return (
     <div className="h-full flex flex-col lg:flex-row min-h-0 gap-2 p-2">
       {/* IZQUIERDA — Market Data 1816 (placeholder hasta la API key) */}
       <section className="lg:w-1/2 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
-        <div className="px-3 py-2 border-b border-[var(--t-border)] text-[11px] uppercase tracking-widest text-[var(--t-text-muted)]">
-          Market Data — 1816
+        <div className="px-3 py-2.5 border-b border-[var(--t-border)] text-[11px] uppercase tracking-widest text-[var(--t-text-muted)]">
+          Market Data
         </div>
         <div className="flex-1 min-h-0 flex items-center justify-center p-6 text-center">
           <div className="max-w-sm">
             <div className="text-[13px] font-semibold text-[var(--t-text)] mb-1">Próximamente: series históricas</div>
             <p className="text-[11px] text-[var(--t-text-muted)] leading-relaxed">
-              Acá van a vivir las series históricas de 1816 (precio, paridad, TNA/TEA,
-              duration…) de soberanos y corporativos, más los indicadores del día.
-              Pendiente de conectar la API de 1816 (falta la API key).
+              Series históricas de 1816 (precio, paridad, TNA/TEA, duration…) de soberanos y
+              corporativos, más los indicadores del día. Pendiente de conectar la API de 1816.
             </p>
           </div>
         </div>
       </section>
 
-      {/* DERECHA — Research diario (mails de 1816) */}
+      {/* DERECHA — REPORTES */}
       <section className="lg:w-1/2 min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
-        <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-widest text-[var(--t-text-muted)] whitespace-nowrap">
-            Research diario — 1816
-          </span>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar (ej. BCRA, licitación, AO29)…"
-            className="flex-1 min-w-0 text-[11px] px-2 py-1 rounded bg-transparent border border-[var(--t-border)] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)]"
-          />
-          {buscando && <span className="text-[10px] text-[var(--t-text-dim)]">…</span>}
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-auto p-2 space-y-2">
-          {items.length === 0 && (
-            <div className="text-[11px] text-[var(--t-text-dim)] p-4 text-center">
-              {modoBusqueda ? "Sin resultados para esa búsqueda." : "Todavía no hay research cargado. Los mails de 1816 aparecen acá apenas los ingesta el sistema."}
+        <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center justify-between gap-3">
+          <span className="text-[11px] uppercase tracking-widest text-[var(--t-text-muted)]">Reportes</span>
+          {fuentes.length > 0 && (
+            <div className="flex items-center gap-1">
+              {fuentes.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFuente(f)}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
+                    f === fuente
+                      ? "bg-[var(--t-accent)] text-white"
+                      : "border border-[var(--t-border)] text-[var(--t-text-muted)] hover:bg-[var(--t-border-2)]/30"
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
             </div>
           )}
-          {items.map((m) => <MailCard key={m.id} m={m} />)}
-          {hayMas && (
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto p-2.5 space-y-2">
+          {visibles.length === 0 && (
+            <div className="text-[11px] text-[var(--t-text-dim)] p-4 text-center">
+              No hay reportes de {fuente} todavía. Aparecen acá apenas los ingesta el sistema.
+            </div>
+          )}
+          {visibles.map((m) => (
+            <ReporteItem
+              key={m.id}
+              m={m}
+              abierto={abiertoId === m.id}
+              onToggle={() => setAbiertoId((cur) => (cur === m.id ? null : m.id))}
+            />
+          ))}
+          {items.length < total && (
             <button
               type="button"
               onClick={cargarMas}
-              disabled={cargandoMas}
+              disabled={cargando}
               className="w-full py-1.5 text-[11px] font-semibold border border-[var(--t-border)] rounded text-[var(--t-text-muted)] hover:bg-[var(--t-border-2)]/30 disabled:opacity-50"
             >
-              {cargandoMas ? "Cargando…" : `Cargar más (${total - items.length} restantes)`}
+              {cargando ? "Cargando…" : `Cargar más (${total - items.length} restantes)`}
             </button>
           )}
         </div>
