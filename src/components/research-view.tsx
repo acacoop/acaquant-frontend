@@ -63,12 +63,6 @@ function ReporteItem({ m, abierto, onToggle }: { m: ResearchMail; abierto: boole
 
       {abierto && (
         <div className="px-4 py-3 border-t border-[var(--t-border)] space-y-3">
-          {m.destilado?.resumen && (
-            <div className="p-2.5 rounded bg-[var(--t-border-2)]/20 border-l-2 border-[var(--t-accent)]">
-              <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] mb-1">Resumen IA</div>
-              <p className="text-[11.5px] leading-relaxed text-[var(--t-text-muted)]">{m.destilado.resumen}</p>
-            </div>
-          )}
           {parrafos.length > 0
             ? parrafos.map((p, i) => <Parrafo key={i} texto={p} />)
             : <p className="text-[11px] text-[var(--t-text-dim)] italic">(sin texto)</p>}
