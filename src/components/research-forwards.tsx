@@ -29,17 +29,9 @@ function desdeISO(dias: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Orden por vencimiento embebido en el ticker (S30S6, T15E7…): igual criterio
-// visual que la matriz de RF — acá alcanza el orden que traen las keys.
-function tickersDe(docs: ForwardHistDoc[]): string[] {
-  const ultimo = docs[docs.length - 1];
-  if (!ultimo?.matrix) return [];
-  return Object.keys(ultimo.matrix);
-}
-
 export function ResearchForwards() {
   const [curva, setCurva] = useState<string>("tasa_fija");
-  const [dias, setDias] = useState(182);
+  const [dias, setDias] = useState(3650);   // default Máx (pedido del user)
   const [docs, setDocs] = useState<ForwardHistDoc[]>([]);
   const [largo, setLargo] = useState("");
   const [corto, setCorto] = useState("");
@@ -56,12 +48,7 @@ export function ResearchForwards() {
       );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d: ForwardHistDoc[] = await r.json();
-      const lista = (Array.isArray(d) ? d : []).sort((a, b) => a.fecha.localeCompare(b.fecha));
-      setDocs(lista);
-      // defaults: el primer par consecutivo de la última matriz (si no hay selección válida)
-      const tks = tickersDe(lista);
-      setLargo((prev) => (tks.includes(prev) ? prev : tks[1] || tks[0] || ""));
-      setCorto((prev) => (tks.includes(prev) ? prev : tks[0] || ""));
+      setDocs((Array.isArray(d) ? d : []).sort((a, b) => a.fecha.localeCompare(b.fecha)));
     } catch (e) {
       setDocs([]);
       setErr(`No pude cargar los forwards (${e instanceof Error ? e.message : "error"}).`);
@@ -72,7 +59,40 @@ export function ResearchForwards() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const tickers = useMemo(() => tickersDe(docs), [docs]);
+  // Pares CON DATOS en la historia cargada: {largo → set(cortos con ≥1 punto)}.
+  // El selector solo ofrece cruces que EXISTEN → nunca "sin historia para ese
+  // par" (pedido del user: siempre hay cruce).
+  const paresConDatos = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const doc of docs) {
+      for (const [a, fila] of Object.entries(doc.matrix || {})) {
+        for (const [b, v] of Object.entries(fila || {})) {
+          if (v == null) continue;
+          if (!m.has(a)) m.set(a, new Set());
+          m.get(a)!.add(b);
+        }
+      }
+    }
+    return m;
+  }, [docs]);
+
+  const tickers = useMemo(
+    () => Array.from(paresConDatos.keys()),
+    [paresConDatos],
+  );
+  const cortosDe = useMemo(
+    () => Array.from(paresConDatos.get(largo) ?? []),
+    [paresConDatos, largo],
+  );
+
+  // Defaults/validación: A = uno con cruces; B = siempre uno válido PARA ese A.
+  useEffect(() => {
+    if (!tickers.length) return;
+    const a = tickers.includes(largo) ? largo : tickers[0];
+    if (a !== largo) setLargo(a);
+    const bs = Array.from(paresConDatos.get(a) ?? []);
+    if (bs.length && !bs.includes(corto)) setCorto(bs[0]);
+  }, [tickers, paresConDatos, largo, corto]);
 
   const rows = useMemo(() => {
     if (!largo || !corto || largo === corto) return [];
@@ -106,8 +126,9 @@ export function ResearchForwards() {
               {tickers.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
             <span className="text-[13px] font-bold text-[var(--t-text-muted)]">→</span>
+            {/* B solo ofrece los cruces que EXISTEN para el A elegido */}
             <select value={corto} onChange={(e) => setCorto(e.target.value)} className={`${SEL} max-w-[110px] font-semibold`}>
-              {tickers.map((t) => <option key={t} value={t}>{t}</option>)}
+              {cortosDe.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </span>
         )}

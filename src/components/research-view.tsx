@@ -90,7 +90,7 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <TabBtn active={tab === "argentina"} onClick={() => setTab("argentina")}>ARGENTINA</TabBtn>
+        <TabBtn active={tab === "argentina"} onClick={() => setTab("argentina")}>RENTA FIJA ARGENTINA</TabBtn>
         <TabBtn active={tab === "bcra"} onClick={() => setTab("bcra")}>BCRA</TabBtn>
         <TabBtn active={tab === "rv-int"} onClick={() => setTab("rv-int")}>RENTA VARIABLE INTERNACIONAL</TabBtn>
       </div>

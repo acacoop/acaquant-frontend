@@ -49,19 +49,29 @@ function fmtValor(v: number, unidad: string | null): string {
 function fmtEje(v: number, unidad: string | null): string {
   if (unidad === "%") return v.toLocaleString("es-AR", { maximumFractionDigits: 1 });
   if (unidad === "M USD" || unidad === "M ARS") {
-    if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}B`;
-    if (Math.abs(v) >= 1_000) return `${Math.round(v / 1_000)}k`;
-    return String(Math.round(v));
+    // el valor YA está en MILLONES → jamás "k" (48.617 = 48.617 millones);
+    // ≥1e6 millones = billones → "B"
+    if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })}B`;
+    return v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
   }
-  if (Math.abs(v) >= 1_000) return `${Math.round(v / 1_000)}k`;
-  return v.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+  if (unidad === "ARS") return v.toLocaleString("es-AR", { maximumFractionDigits: 0 });  // sin abreviar
+  return v.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 }
+
+// Bloques que se muestran PARTIDOS 50/50 (un chart por serie — bases/escalas
+// distintas que no tiene sentido superponer): CER & UVA · Inflación (mensual |
+// interanual). Pedido del user 2026-07-18.
+const SPLIT_BLOQUES = new Set(["indexacion", "inflacion"]);
 
 // ── Un BLOQUE (sub-tab): chips de series + rango + chart multi-serie ─────────
 function BcraBloque({ bloque, series }: { bloque: string; series: BcraSerieMeta[] }) {
+  const split = SPLIT_BLOQUES.has(bloque);
   const [dias, setDias] = useState(365);
-  // por defecto las primeras 3 series del bloque prendidas (menos ruido)
-  const [activas, setActivas] = useState<Set<number>>(() => new Set(series.slice(0, 3).map((s) => s.id)));
+  // default: 3 series prendidas (menos ruido); en modo split, TODAS (cada una
+  // tiene su propio chart, no se pisan)
+  const [activas, setActivas] = useState<Set<number>>(
+    () => new Set((split ? series : series.slice(0, 3)).map((s) => s.id)),
+  );
   const [rows, setRows] = useState<Record<string, number | string>[]>([]);
   const [cargando, setCargando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -155,6 +165,38 @@ function BcraBloque({ bloque, series }: { bloque: string; series: BcraSerieMeta[
               : idsActivas.length === 0 ? "Prendé alguna serie."
               : "Sin datos sincronizados todavía (corré el sync del BCRA en el Droplet)."}
           </div>
+        ) : split ? (
+          /* modo PARTIDO 50/50: un chart por serie (CER | UVA · mensual | interanual) */
+          <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-2">
+            {keys.map((k) => {
+              const idx = series.findIndex((s) => s.etiqueta === k);
+              const color = COLORES[(idx >= 0 ? idx : 0) % COLORES.length];
+              return (
+                <div key={k} className="min-h-0 flex flex-col border border-[var(--t-border)] rounded-md">
+                  <div className="px-2 py-1 text-[10px] font-semibold" style={{ color }}>{k}</div>
+                  <div className="flex-1 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={rows} margin={{ top: 4, right: 10, bottom: 4, left: 4 }}>
+                        <CartesianGrid stroke="var(--t-border)" vertical={false} />
+                        <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
+                          axisLine={{ stroke: "var(--t-border-2)" }} tickLine={{ stroke: "var(--t-border-2)" }}
+                          minTickGap={48} tickFormatter={(v) => String(v).slice(2, 7)} />
+                        <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} axisLine={{ stroke: "var(--t-border-2)" }}
+                          tickLine={{ stroke: "var(--t-border-2)" }} width={54} domain={["auto", "auto"]}
+                          tickFormatter={(v: number) => fmtEje(v, unidad)} />
+                        <Tooltip
+                          contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 10, borderRadius: 6, color: "var(--t-text)" }}
+                          labelStyle={{ color: "var(--t-text-muted)" }}
+                          formatter={(val) => [fmtValor(Number(val), unidad), k]} />
+                        <Line type="monotone" dataKey={k} stroke={color} strokeWidth={1.7}
+                          dot={false} isAnimationActive={false} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={rows} margin={{ top: 8, right: 14, bottom: 4, left: 4 }}>
@@ -163,7 +205,7 @@ function BcraBloque({ bloque, series }: { bloque: string; series: BcraSerieMeta[
                 axisLine={{ stroke: "var(--t-border-2)" }} tickLine={{ stroke: "var(--t-border-2)" }}
                 minTickGap={48} tickFormatter={(v) => String(v).slice(2, 7)} />
               <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 9 }} axisLine={{ stroke: "var(--t-border-2)" }}
-                tickLine={{ stroke: "var(--t-border-2)" }} width={48} domain={["auto", "auto"]}
+                tickLine={{ stroke: "var(--t-border-2)" }} width={54} domain={["auto", "auto"]}
                 tickFormatter={(v: number) => fmtEje(v, unidad)} />
               <Tooltip
                 contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 10, borderRadius: 6, color: "var(--t-text)" }}
