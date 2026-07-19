@@ -43,7 +43,17 @@ const CUADRANTES: Record<string, { titulo: string; ids: string[] }[]> = {
     { titulo: "ACTIVIDAD", ids: ["GDPC1", "INDPRO"] },
     { titulo: "EXPECTATIVAS", ids: ["UMCSENT", "T10YIE"] },
   ],
+  commodities: [
+    { titulo: "COMPLEJO SOJA", ids: ["PSOYBUSDM", "PSMEAUSDM", "PSOILUSDM"] },
+    { titulo: "GRANOS", ids: ["PMAIZMTUSDM", "PWHEAMTUSDM"] },
+    { titulo: "ENERGÍA", ids: ["DCOILWTICO", "DCOILBRENTEU", "DHHNGSP"] },
+    { titulo: "METALES", ids: ["PCOPPUSDM"] },
+  ],
 };
+// Transformación por default de cada bloque en cuadrantes: el macro se lee
+// rebaseado (Base 100); los commodities en Nivel (querés ver el precio real, "soja
+// a 500"; los cuadrantes de granos ya son homogéneos en USD/t).
+const CUADRANTES_MODO: Record<string, Transform> = { eeuu_macro: "base100", commodities: "nivel" };
 
 function desdeISO(dias: number): string {
   const d = new Date(); d.setDate(d.getDate() - dias); return d.toISOString().slice(0, 10);
@@ -178,7 +188,7 @@ function MiniChart({ titulo, grupo, raw, modo }: { titulo: string; grupo: FredSe
 function CuadrantesBloque({ bloque, series }: { bloque: string; series: FredSerieMeta[] }) {
   const grupos = CUADRANTES[bloque];
   const [dias, setDias] = useState(365);
-  const [modo, setModo] = useState<Transform>("base100");   // el macro se lee rebaseado
+  const [modo, setModo] = useState<Transform>(CUADRANTES_MODO[bloque] ?? "base100");
   const metaById = useMemo(() => new Map(series.map((s) => [s.id, s])), [series]);
   const labelDe = useMemo(() => new Map(series.map((s) => [s.id, s.etiqueta] as const)), [series]);
   const allIds = useMemo(() => grupos.flatMap((g) => g.ids).filter((id) => metaById.has(id)), [grupos, metaById]);
