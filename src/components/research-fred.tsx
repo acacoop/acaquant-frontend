@@ -50,10 +50,19 @@ const CUADRANTES: Record<string, { titulo: string; ids: string[] }[]> = {
     { titulo: "METALES", ids: ["PCOPPUSDM"] },
   ],
 };
-// Transformación por default de cada bloque en cuadrantes: el macro se lee
-// rebaseado (Base 100); los commodities en Nivel (querés ver el precio real, "soja
-// a 500"; los cuadrantes de granos ya son homogéneos en USD/t).
-const CUADRANTES_MODO: Record<string, Transform> = { eeuu_macro: "base100", commodities: "nivel" };
+// Grupos de ESCALA (eje Y compatible): dentro de un cuadrante SOLO se muestran
+// juntas las series del MISMO grupo (comparten magnitud). Marcar una de otro grupo
+// deselecciona las incompatibles — porque no combinan en el eje Y. Ej: CPI + CPI
+// núcleo (mismo grupo) van juntas; PCE, desempleo, PBI, etc. son excluyentes.
+// Serie sin entrada acá = grupo propio (siempre sola).
+const SCALE_GROUP: Record<string, string> = {
+  CPIAUCSL: "cpi", CPILFESL: "cpi",                 // índices de precios ~330
+  PAYEMS: "empleo", ICSA: "empleo",                 // conteos grandes ~150-230k
+  UNRATE: "pct", T10YIE: "pct",                     // porcentajes
+  PSOYBUSDM: "grano", PSMEAUSDM: "grano", PSOILUSDM: "grano", PMAIZMTUSDM: "grano", PWHEAMTUSDM: "grano",  // USD/t
+  DCOILWTICO: "oil", DCOILBRENTEU: "oil",           // USD/bbl ~75
+};
+const grupoEscala = (id: string) => SCALE_GROUP[id] ?? id;
 
 function desdeISO(dias: number): string {
   const d = new Date(); d.setDate(d.getDate() - dias); return d.toISOString().slice(0, 10);
@@ -144,26 +153,48 @@ function Controles({ modo, setModo, dias, setDias, extra }: {
 }
 
 // ── Mini-chart de un cuadrante (su propio eje Y auto-escalado) ───────────────
+// Selección EXCLUYENTE por grupo de escala: solo se muestran juntas las series que
+// comparten eje Y. Marcar una de otro grupo apaga las incompatibles.
 function MiniChart({ titulo, grupo, raw, modo }: { titulo: string; grupo: FredSerieMeta[]; raw: Row[]; modo: Transform }) {
-  const keys = grupo.map((s) => s.etiqueta);
+  // default: el grupo de escala de la 1ª serie (ej. Inflación → CPI + CPI núcleo)
+  const gInicial = grupoEscala(grupo[0]?.id ?? "");
+  const [activas, setActivas] = useState<Set<string>>(() => new Set(grupo.filter((s) => grupoEscala(s.id) === gInicial).map((s) => s.id)));
+
+  const toggle = (id: string) => setActivas((prev) => {
+    if (prev.has(id)) { const n = new Set(prev); n.delete(id); return n; }
+    const g = grupoEscala(id);
+    const n = new Set([...prev].filter((x) => grupoEscala(x) === g));  // deja solo las del MISMO grupo
+    n.add(id);
+    return n;
+  });
+
+  const activasSeries = grupo.filter((s) => activas.has(s.id));
+  const keys = activasSeries.map((s) => s.etiqueta);
   const data = useMemo(() => transformar(raw, keys, modo), [raw, keys, modo]);
+  const unidad0 = activasSeries[0]?.unidad ?? null;
   const unidadDe = (name: string) => grupo.find((s) => s.etiqueta === name)?.unidad ?? null;
+
   return (
     <div className="min-h-0 flex flex-col border border-[var(--t-border)] rounded-md bg-[var(--t-panel)]">
-      <div className="px-2 py-1 border-b border-[var(--t-border)] flex items-center gap-x-2 gap-y-0.5 flex-wrap">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--t-text)]">{titulo}</span>
+      <div className="px-2 py-1 border-b border-[var(--t-border)] flex items-center gap-x-1.5 gap-y-0.5 flex-wrap">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--t-text)] mr-1">{titulo}</span>
         {grupo.map((s, i) => {
+          const on = activas.has(s.id);
           const hoy = hoyRawDe(raw, s.etiqueta);
           return (
-            <span key={s.id} className="inline-flex items-center gap-1 text-[9px] text-[var(--t-text-muted)]" title={`${s.id}${s.desde ? ` · desde ${s.desde}` : ""}`}>
+            <button key={s.id} type="button" onClick={() => toggle(s.id)} title={`${s.id}${s.desde ? ` · desde ${s.desde}` : ""}`}
+              className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-[1px] rounded-full border transition-colors ${on ? "bg-[var(--t-surface)] text-[var(--t-text)]" : "opacity-45 text-[var(--t-text-dim)] border-[var(--t-border-2)]"}`}
+              style={on ? { borderColor: COLORES[i % COLORES.length] } : undefined}>
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: COLORES[i % COLORES.length] }} />
-              {s.etiqueta}{hoy !== null && <span className="font-mono">{fmtValor(hoy, s.unidad)}</span>}
-            </span>
+              {s.etiqueta}{hoy !== null && <span className="font-mono text-[var(--t-text-muted)]">{fmtValor(hoy, s.unidad)}</span>}
+            </button>
           );
         })}
       </div>
       <div className="flex-1 min-h-0 p-1">
-        {data.length === 0 ? (
+        {keys.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-[9px] text-[var(--t-text-dim)]">Prendé una serie.</div>
+        ) : data.length === 0 ? (
           <div className="h-full flex items-center justify-center text-[9px] text-[var(--t-text-dim)]">sin datos aún</div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -172,10 +203,13 @@ function MiniChart({ titulo, grupo, raw, modo }: { titulo: string; grupo: FredSe
               <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 8 }} axisLine={{ stroke: "var(--t-border-2)" }}
                 tickLine={{ stroke: "var(--t-border-2)" }} minTickGap={40} tickFormatter={(v) => String(v).slice(2, 7)} />
               <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 8 }} axisLine={{ stroke: "var(--t-border-2)" }}
-                tickLine={{ stroke: "var(--t-border-2)" }} width={46} domain={["auto", "auto"]} tickFormatter={(v: number) => ejeTransform(v, modo, null)} />
+                tickLine={{ stroke: "var(--t-border-2)" }} width={46} domain={["auto", "auto"]} tickFormatter={(v: number) => ejeTransform(v, modo, unidad0)} />
               <Tooltip contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 10, borderRadius: 6, color: "var(--t-text)" }}
                 labelStyle={{ color: "var(--t-text-muted)" }} formatter={(val, name) => [serieTransform(Number(val), modo, unidadDe(String(name))), String(name)]} />
-              {keys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={COLORES[i % COLORES.length]} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />)}
+              {keys.map((k) => {
+                const idx = grupo.findIndex((s) => s.etiqueta === k);
+                return <Line key={k} type="monotone" dataKey={k} stroke={COLORES[(idx >= 0 ? idx : 0) % COLORES.length]} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />;
+              })}
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -188,7 +222,7 @@ function MiniChart({ titulo, grupo, raw, modo }: { titulo: string; grupo: FredSe
 function CuadrantesBloque({ bloque, series }: { bloque: string; series: FredSerieMeta[] }) {
   const grupos = CUADRANTES[bloque];
   const [dias, setDias] = useState(365);
-  const [modo, setModo] = useState<Transform>(CUADRANTES_MODO[bloque] ?? "base100");
+  const [modo, setModo] = useState<Transform>("nivel");   // con selección excluyente, el Nivel ya combina bien
   const metaById = useMemo(() => new Map(series.map((s) => [s.id, s])), [series]);
   const labelDe = useMemo(() => new Map(series.map((s) => [s.id, s.etiqueta] as const)), [series]);
   const allIds = useMemo(() => grupos.flatMap((g) => g.ids).filter((id) => metaById.has(id)), [grupos, metaById]);
