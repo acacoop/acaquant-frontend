@@ -92,13 +92,22 @@ export function PnlHistoricoView() {
 
   const dias = useMemo(() => data?.dias ?? [], [data]);
 
-  // Serie del gráfico: solo días con monto cargado (la línea corta en el último).
-  const serie = useMemo(
-    () => dias.filter((d) => d.monto !== null).map((d) => ({
-      fecha: fmtDia(d.fecha),
-      total: d.acumulado_total,
-      mensual: d.acumulado_mensual,
-    })),
+  // Mes en curso = el del último día listado (el rango llega a fin de mes actual).
+  const mesActual = dias.length ? dias[dias.length - 1].mes : "";
+
+  // Series de los gráficos: solo días con monto cargado (la línea corta ahí).
+  //   serieMes   → acumulado mensual, SOLO del mes en curso.
+  //   serieTotal → acumulado total desde el 1-jul-2026.
+  const serieMes = useMemo(
+    () => dias
+      .filter((d) => d.mes === mesActual && d.monto !== null)
+      .map((d) => ({ fecha: fmtDia(d.fecha), valor: d.acumulado_mensual })),
+    [dias, mesActual],
+  );
+  const serieTotal = useMemo(
+    () => dias
+      .filter((d) => d.monto !== null)
+      .map((d) => ({ fecha: fmtDia(d.fecha), valor: d.acumulado_total })),
     [dias],
   );
 
@@ -137,37 +146,14 @@ export function PnlHistoricoView() {
         </span>
       </div>
 
-      {/* gráfico del acumulado */}
-      <div className="h-56 shrink-0 border border-[var(--t-border)] bg-[var(--t-panel)] p-1">
-        {serie.length === 0 ? (
-          <div className="h-full grid place-items-center text-[11px] text-[var(--t-text-muted)]">
-            Cargá el PnL de algún día para ver el acumulado.
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={serie} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-              <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" vertical={false} />
-              <ReferenceLine y={0} stroke="var(--t-text-muted)" strokeWidth={1} />
-              <XAxis dataKey="fecha" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={20} />
-              <YAxis tickFormatter={(v) => fmtMoney(v as number)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={54} />
-              <Tooltip
-                contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 11 }}
-                labelStyle={{ color: "var(--t-text-dim)" }}
-                formatter={(v, n) => [fmtMoneyFull(Number(v)), n === "total" ? "Acum. total" : "Acum. mensual"]}
-              />
-              <Line type="monotone" dataKey="total" name="total" stroke="var(--t-accent)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="mensual" name="mensual" stroke="var(--t-text-dim)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* tabla editable */}
-      <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
-        {loading && !data ? (
-          <div className="p-4 text-[11px] text-[var(--t-text-muted)]">Cargando…</div>
-        ) : (
-          <table className="w-full text-[12px] border-collapse">
+      {/* split 50/50: tabla a la izquierda, dos gráficos apilados a la derecha */}
+      <div className="flex-1 min-h-0 flex gap-2">
+        {/* IZQUIERDA — tabla editable */}
+        <div className="w-1/2 min-h-0 overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
+          {loading && !data ? (
+            <div className="p-4 text-[11px] text-[var(--t-text-muted)]">Cargando…</div>
+          ) : (
+            <table className="w-full text-[12px] border-collapse">
             <thead className="sticky top-0 bg-[var(--t-surface)] z-10">
               <tr className="text-[10px] tracking-wide text-[var(--t-text-dim)]">
                 <th className="text-left font-semibold px-3 py-1.5">DÍA</th>
@@ -196,6 +182,57 @@ export function PnlHistoricoView() {
               })}
             </tbody>
           </table>
+          )}
+        </div>
+
+        {/* DERECHA — dos gráficos apilados: mes (arriba) + acumulado total (abajo) */}
+        <div className="w-1/2 min-h-0 flex flex-col gap-2">
+          <AcumChart
+            titulo={mesActual ? `MES · ${nombreMes(mesActual)}` : "MES"}
+            data={serieMes}
+            color="var(--t-text-dim)"
+          />
+          <AcumChart titulo="ACUMULADO TOTAL" data={serieTotal} color="var(--t-accent)" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AcumChart({
+  titulo,
+  data,
+  color,
+}: {
+  titulo: string;
+  data: { fecha: string; valor: number | null }[];
+  color: string;
+}) {
+  return (
+    <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
+      <div className="px-2 py-1 text-[10px] font-semibold tracking-widest text-[var(--t-text-dim)] border-b border-[var(--t-border)] shrink-0">
+        {titulo}
+      </div>
+      <div className="flex-1 min-h-0 p-1">
+        {data.length === 0 ? (
+          <div className="h-full grid place-items-center text-[11px] text-[var(--t-text-muted)]">
+            Cargá el PnL de algún día.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 6, right: 10, bottom: 2, left: 2 }}>
+              <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border)" vertical={false} />
+              <ReferenceLine y={0} stroke="var(--t-text-muted)" strokeWidth={1} />
+              <XAxis dataKey="fecha" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} minTickGap={20} />
+              <YAxis tickFormatter={(v) => fmtMoney(v as number)} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={50} />
+              <Tooltip
+                contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 11 }}
+                labelStyle={{ color: "var(--t-text-dim)" }}
+                formatter={(v) => [fmtMoneyFull(Number(v)), "Acumulado"]}
+              />
+              <Line type="monotone" dataKey="valor" stroke={color} strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         )}
       </div>
     </div>
