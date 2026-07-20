@@ -11,6 +11,7 @@ import { type Doc, PdfViewer } from "@/components/research-documentos";
 import { ResearchFred } from "@/components/research-fred";
 import { ResearchForwards } from "@/components/research-forwards";
 import { ResearchLab } from "@/components/research-lab";
+import { ResearchRetornoTotal } from "@/components/research-retorno-total";
 import { ReutersView } from "@/components/reuters-view";
 
 export interface ResearchDestilado { resumen?: string; temas?: string[]; hechos?: { hecho: string }[] }
@@ -69,14 +70,12 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {visited.has("argentina") && (
           <Pane active={tab === "argentina"}>
-            {/* Reportes 1816 se movió a la tab REPORTES FINANCIEROS. Quedan 3 paneles:
-                spread (TL) · forwards (TR) · comparar (fila inferior, ancho completo). */}
+            {/* 4 cuadrantes: spread (TL) · forwards (TR) · comparar (BL) · retorno total (BR). */}
             <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
               <ResearchLab modoFijo="spread" />
               <ResearchForwards />
-              <div className="lg:col-span-2 min-h-0">
-                <ResearchLab modoFijo="overlay" />
-              </div>
+              <ResearchLab modoFijo="overlay" />
+              <ResearchRetornoTotal />
             </div>
           </Pane>
         )}
