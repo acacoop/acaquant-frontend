@@ -61,9 +61,13 @@ const CUADRANTES: Record<string, { titulo: string; ids: string[] }[]> = {
   macro_global: [
     { titulo: "CHINA", ids: ["CHNCPIALLMINMEI", "XTEXVA01CNM667S", "TRESEGCNM052N"] },
     { titulo: "BRASIL", ids: ["IRSTCB01BRM156N", "BRACPIALLMINMEI"] },
-    { titulo: "LIQUIDEZ FED", ids: ["WALCL", "WRESBAL", "M2SL"] },
+    { titulo: "LIQUIDEZ FED", ids: ["WALCL", "WRESBAL"] },
+    { titulo: "M2 (EEUU)", ids: ["M2SL"] },
   ],
 };
+// Rango por default por bloque (días). Macro Global usa 5A porque las series OECD
+// (China/Brasil) vienen con rezago y en 1A quedan fuera de la ventana → vacías.
+const BLOQUE_RANGO_DEFAULT: Record<string, number> = { macro_global: 1825 };
 // Grupos de ESCALA (eje Y compatible): dentro de un cuadrante SOLO se muestran
 // juntas las series del MISMO grupo (comparten magnitud). Marcar una de otro grupo
 // deselecciona las incompatibles — porque no combinan en el eje Y. Ej: CPI + CPI
@@ -91,7 +95,11 @@ function fmtValor(v: number, unidad: string | null): string {
 }
 function fmtEje(v: number, unidad: string | null): string {
   if (unidad === "%") return v.toLocaleString("es-AR", { maximumFractionDigits: 1 });
-  if (Math.abs(v) >= 1000) return v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+  const a = Math.abs(v);   // compacto para que no se corte el eje (k/M/MM/B)
+  if (a >= 1e12) return `${(v / 1e12).toLocaleString("es-AR", { maximumFractionDigits: 1 })}B`;
+  if (a >= 1e9) return `${(v / 1e9).toLocaleString("es-AR", { maximumFractionDigits: 1 })}MM`;
+  if (a >= 1e6) return `${(v / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 })}M`;
+  if (a >= 1e3) return `${(v / 1e3).toLocaleString("es-AR", { maximumFractionDigits: 1 })}k`;
   return v.toLocaleString("es-AR", { maximumFractionDigits: 1 });
 }
 function ejeTransform(v: number, modo: Transform, unidad: string | null): string {
@@ -221,7 +229,7 @@ function MiniChart({ titulo, grupo, raw, modo }: { titulo: string; grupo: FredSe
               <XAxis dataKey="fecha" tick={{ fill: "var(--t-text-dim)", fontSize: 8 }} axisLine={{ stroke: "var(--t-border-2)" }}
                 tickLine={{ stroke: "var(--t-border-2)" }} minTickGap={40} tickFormatter={(v) => String(v).slice(2, 7)} />
               <YAxis tick={{ fill: "var(--t-text-dim)", fontSize: 8 }} axisLine={{ stroke: "var(--t-border-2)" }}
-                tickLine={{ stroke: "var(--t-border-2)" }} width={46} domain={["auto", "auto"]} tickFormatter={(v: number) => ejeTransform(v, modo, unidad0)} />
+                tickLine={{ stroke: "var(--t-border-2)" }} width={52} domain={["auto", "auto"]} tickFormatter={(v: number) => ejeTransform(v, modo, unidad0)} />
               <Tooltip contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 10, borderRadius: 6, color: "var(--t-text)" }}
                 labelStyle={{ color: "var(--t-text-muted)" }} formatter={(val, name) => [serieTransform(Number(val), modo, unidadDe(String(name))), String(name)]} />
               {keys.map((k) => {
@@ -239,7 +247,7 @@ function MiniChart({ titulo, grupo, raw, modo }: { titulo: string; grupo: FredSe
 // ── Bloque en CUADRANTES 2x2 ─────────────────────────────────────────────────
 function CuadrantesBloque({ bloque, series }: { bloque: string; series: FredSerieMeta[] }) {
   const grupos = CUADRANTES[bloque];
-  const [dias, setDias] = useState(365);
+  const [dias, setDias] = useState(BLOQUE_RANGO_DEFAULT[bloque] ?? 365);
   const [modo, setModo] = useState<Transform>("nivel");   // con selección excluyente, el Nivel ya combina bien
   const metaById = useMemo(() => new Map(series.map((s) => [s.id, s])), [series]);
   const labelDe = useMemo(() => new Map(series.map((s) => [s.id, s.etiqueta] as const)), [series]);
