@@ -4,21 +4,24 @@ import { useState } from "react";
 
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { IntradayView } from "./intraday-view";
+import { PnlHistoricoView } from "./pnl-historico-view";
 import { TradingView } from "./trading-view";
 
 // Módulo TRADING con sub-pestañas:
-//   PIVOTS   → panel de pivots del CEDEAR + chart/tape/volumen.
-//   INTRADAY → monitor intradía FIFO (migrado de Operaciones).
+//   PIVOTS        → panel de pivots del CEDEAR + chart/tape/volumen.
+//   INTRADAY      → monitor intradía FIFO (migrado de Operaciones).
+//   PNL HISTÓRICO → cuaderno manual de PnL diario + acumulado (total/mensual).
 // (REUTERS se movió a /research → tab RENTA VARIABLE INTERNACIONAL, 2026-07-18.)
 // Keep-alive: cada tab se monta la primera vez y luego se oculta con CSS (mismo
 // patrón que operaciones-view) → cambiar de tab no re-fetchea ni pierde estado.
-type Tab = "pivots" | "intraday";
+type Tab = "pivots" | "intraday" | "pnl";
+
+const TABS: Tab[] = ["pivots", "intraday", "pnl"];
 
 export function TradingShell() {
   const [tabRaw, setTab] = usePersistedState<string>("trading.tab", "pivots");
-  // Usuarios con "reuters" persistido en localStorage (la tab ya no existe acá)
-  // caen a pivots en vez de quedar en un pane vacío.
-  const tab: Tab = tabRaw === "intraday" ? "intraday" : "pivots";
+  // Usuarios con "reuters" persistido (la tab ya no existe acá) caen a pivots.
+  const tab: Tab = TABS.includes(tabRaw as Tab) ? (tabRaw as Tab) : "pivots";
   const [visited, setVisited] = useState<Set<Tab>>(() => new Set<Tab>([tab]));
   if (!visited.has(tab)) setVisited(new Set(visited).add(tab));
 
@@ -27,6 +30,7 @@ export function TradingShell() {
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "pivots"} onClick={() => setTab("pivots")}>PIVOTS</TabBtn>
         <TabBtn active={tab === "intraday"} onClick={() => setTab("intraday")}>INTRADAY</TabBtn>
+        <TabBtn active={tab === "pnl"} onClick={() => setTab("pnl")}>PNL HISTÓRICO</TabBtn>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {visited.has("pivots") && (
@@ -37,6 +41,11 @@ export function TradingShell() {
         {visited.has("intraday") && (
           <Pane active={tab === "intraday"}>
             <IntradayView />
+          </Pane>
+        )}
+        {visited.has("pnl") && (
+          <Pane active={tab === "pnl"}>
+            <PnlHistoricoView />
           </Pane>
         )}
       </div>
