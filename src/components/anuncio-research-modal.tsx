@@ -96,7 +96,7 @@ export function AnuncioResearchModal() {
             <div>
               <div className="text-[12.5px] font-semibold text-[var(--t-text)]">Reportes financieros</div>
               <div className="text-[11px] text-[var(--t-text-muted)] leading-snug mt-0.5">
-                Los reportes diarios de 1816 y ACA VALORES, más PDFs (el Semanal) y notas que se cargan a mano desde Manager, todos en un mismo lugar.
+                Los reportes diarios y semanales de 1816 y más.
               </div>
             </div>
           </div>
