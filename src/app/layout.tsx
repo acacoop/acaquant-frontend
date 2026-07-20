@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { Header } from "@/components/header";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -57,6 +58,10 @@ export default async function RootLayout({
       <body className="h-full flex flex-col">
         <Header modules={modules} />
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+
+        {/* Anuncio de lanzamiento de la nueva vista RESEARCH (solo 20-21 jul 2026). */}
+        <AnuncioResearchModal />
+
 
         <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">
           <ThemeToggle />
