@@ -29,10 +29,14 @@ const COLORES = ["#2f7fe0", "#e0803c", "#3ca37a", "#b5539c", "#c9a23a", "#5b8def
 const REF_COLOR = "#7c3aed";
 
 const BLOQUE_LABEL: Record<string, string> = {
-  tasas_usa: "TASAS USA", commodities: "COMMODITIES", eeuu_macro: "EEUU MACRO",
-  eeuu_inflacion: "EEUU INFLACIÓN", eeuu_actividad: "EEUU ACTIVIDAD", china: "CHINA", indices: "ÍNDICES BOLSA",
+  tasas_usa: "TASAS USA", eeuu_macro: "EEUU MACRO", dolar_fx: "DÓLAR / FX",
+  commodities: "COMMODITIES", riesgo_credito: "RIESGO / CRÉDITO", volatilidad: "VOLATILIDAD",
+  indices: "ÍNDICES BOLSA", macro_global: "MACRO GLOBAL",
 };
-const BLOQUE_ORDEN = ["tasas_usa", "commodities", "eeuu_macro", "eeuu_inflacion", "eeuu_actividad", "china", "indices"];
+const BLOQUE_ORDEN = ["tasas_usa", "eeuu_macro", "dolar_fx", "commodities", "riesgo_credito", "volatilidad", "indices", "macro_global"];
+// Transformación por default de bloques single-chart (los de cuadrantes van Nivel).
+// FX e Índices arrancan en Base 100 (escalas muy distintas → se comparan rebaseados).
+const BLOQUE_MODO_DEFAULT: Record<string, Transform> = { indices: "base100", dolar_fx: "base100" };
 
 // Bloques que se muestran en CUADRANTES 2x2 (cada sub-grupo su mini-chart + su eje
 // Y), porque las escalas son demasiado distintas para un eje único. Editable.
@@ -49,6 +53,16 @@ const CUADRANTES: Record<string, { titulo: string; ids: string[] }[]> = {
     { titulo: "ENERGÍA", ids: ["DCOILWTICO", "DCOILBRENTEU", "DHHNGSP"] },
     { titulo: "METALES", ids: ["PCOPPUSDM"] },
   ],
+  riesgo_credito: [
+    { titulo: "CRÉDITO USA", ids: ["BAMLH0A0HYM2", "BAMLC0A0CM"] },
+    { titulo: "CRÉDITO EMERGENTES", ids: ["BAMLEMCBPIOAS", "BAMLEMHBHYCRPIOAS"] },
+    { titulo: "CONDICIONES FINANCIERAS", ids: ["NFCI", "STLFSI4"] },
+  ],
+  macro_global: [
+    { titulo: "CHINA", ids: ["CHNCPIALLMINMEI", "XTEXVA01CNM667S", "TRESEGCNM052N"] },
+    { titulo: "BRASIL", ids: ["IRSTCB01BRM156N", "BRACPIALLMINMEI"] },
+    { titulo: "LIQUIDEZ FED", ids: ["WALCL", "WRESBAL", "M2SL"] },
+  ],
 };
 // Grupos de ESCALA (eje Y compatible): dentro de un cuadrante SOLO se muestran
 // juntas las series del MISMO grupo (comparten magnitud). Marcar una de otro grupo
@@ -61,6 +75,10 @@ const SCALE_GROUP: Record<string, string> = {
   UNRATE: "pct", T10YIE: "pct",                     // porcentajes
   PSOYBUSDM: "grano", PSMEAUSDM: "grano", PSOILUSDM: "grano", PMAIZMTUSDM: "grano", PWHEAMTUSDM: "grano",  // USD/t
   DCOILWTICO: "oil", DCOILBRENTEU: "oil",           // USD/bbl ~75
+  BAMLH0A0HYM2: "spread_usa", BAMLC0A0CM: "spread_usa",           // spreads USA (pp)
+  BAMLEMCBPIOAS: "spread_em", BAMLEMHBHYCRPIOAS: "spread_em",     // spreads EM (pp)
+  NFCI: "fincond", STLFSI4: "fincond",              // índices de condiciones (~0)
+  WALCL: "liquidez", WRESBAL: "liquidez",           // balance/reservas Fed (millones)
 };
 const grupoEscala = (id: string) => SCALE_GROUP[id] ?? id;
 
@@ -252,7 +270,7 @@ function CuadrantesBloque({ bloque, series }: { bloque: string; series: FredSeri
 // ── Bloque de UN chart (multi-serie) con transform + índice de referencia ─────
 function ChartBloque({ bloque, series, refOptions }: { bloque: string; series: FredSerieMeta[]; refOptions: FredSerieMeta[] }) {
   const [dias, setDias] = useState(365);
-  const [modo, setModo] = useState<Transform>("nivel");
+  const [modo, setModo] = useState<Transform>(BLOQUE_MODO_DEFAULT[bloque] ?? "nivel");
   const [refId, setRefId] = useState<string>("");
   const [activas, setActivas] = useState<Set<string>>(() => new Set(series.slice(0, 3).map((s) => s.id)));
 
