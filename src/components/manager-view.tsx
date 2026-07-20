@@ -16,6 +16,7 @@ import { JobsGroup } from "./manager-jobs-panel";
 import { GruposPanel } from "./grupos-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
 import { TabAcaValores } from "./manager-aca-valores-view";
+import { TabDocumentos } from "./manager-documentos-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { ManagerDebugTeaPanel } from "./manager-debug-tea";
@@ -3120,6 +3121,7 @@ type Tab =
   | "compliance"
   | "aunesa"
   | "operaciones"
+  | "documentos"
   | "usuarios";
 
 // AUNESA es un grupo con tres sub-vistas:
@@ -5402,6 +5404,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   compliance:   ["manager", "manager_compliance"],
   aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
+  documentos:   ["manager"],
   usuarios:     ["manager"],
 };
 
@@ -5548,6 +5551,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "compliance",   label: "COMPLIANCE"   },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
+    { id: "documentos",   label: "DOCUMENTOS"   },
     { id: "usuarios",     label: "USUARIOS"     },
   ];
   // modules === null → dev / backend caído: mostrar todo (sin RBAC en cliente).
@@ -5590,6 +5594,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "compliance"   && <ComplianceGroup />}
         {tab === "aunesa"       && <AunesaGroup modules={modules} />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
+        {tab === "documentos"   && <TabDocumentos />}
         {tab === "usuarios"     && <UsuariosGroup />}
       </div>
     </div>

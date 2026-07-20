@@ -7,6 +7,7 @@
 // La IA no interviene: los reportes muestran el texto crudo, limpio.
 import { useMemo, useState } from "react";
 import { ResearchBcra } from "@/components/research-bcra";
+import { DocumentosPanel } from "@/components/research-documentos";
 import { ResearchFred } from "@/components/research-fred";
 import { ResearchForwards } from "@/components/research-forwards";
 import { ResearchLab } from "@/components/research-lab";
@@ -113,11 +114,7 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
         )}
         {visited.has("reportes") && (
           <Pane active={tab === "reportes"}>
-            {/* REPORTES FINANCIEROS: hoy = los mails automáticos (1816 / ACA VALORES).
-                Próximo: documentos + comentarios cargados a mano desde Manager. */}
-            <div className="h-full p-2 min-h-0">
-              <ReportesPanel initial={initial} />
-            </div>
+            <ReportesFinancieros initial={initial} />
           </Pane>
         )}
         {visited.has("bcra") && (
@@ -158,6 +155,23 @@ function TabBtn({ active, onClick, children }: {
     >
       {children}
     </button>
+  );
+}
+
+// ── REPORTES FINANCIEROS: sub-tabs Automáticos (mail) · Documentos (manual) ──
+function ReportesFinancieros({ initial }: { initial: ResearchData }) {
+  const [sub, setSub] = useState<"auto" | "docs">("auto");
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <TabBtn active={sub === "auto"} onClick={() => setSub("auto")}>AUTOMÁTICOS (MAIL)</TabBtn>
+        <TabBtn active={sub === "docs"} onClick={() => setSub("docs")}>DOCUMENTOS</TabBtn>
+      </div>
+      <div className="flex-1 min-h-0 p-2">
+        <div className={sub === "auto" ? "h-full" : "hidden"}><ReportesPanel initial={initial} /></div>
+        <div className={sub === "docs" ? "h-full" : "hidden"}><DocumentosPanel /></div>
+      </div>
+    </div>
   );
 }
 

@@ -48,6 +48,7 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/research1816", ["research"]],
   ["/api/research-bcra", ["research"]],
   ["/api/research-fred", ["research"]],
+  ["/api/research-docs", ["research"]],
   // /api/ia (briefing + observabilidad IA) — módulo `ia` (marca AI, QuantAI)
   ["/api/ia", ["ia"]],
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
@@ -184,6 +185,7 @@ export const config = {
     "/api/research1816/:path*",
     "/api/research-bcra/:path*",
     "/api/research-fred/:path*",
+    "/api/research-docs/:path*",
     "/api/ia/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
