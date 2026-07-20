@@ -120,7 +120,7 @@ export function AnuncioResearchModal() {
           </button>
           <a href="/research" onClick={() => setOpen(false)}
             className="ml-auto px-4 py-1.5 text-[12px] font-semibold rounded bg-[var(--t-accent)] text-white hover:opacity-90 transition-opacity">
-            Explorar Research →
+            Ir ahora →
           </a>
         </div>
       </div>
