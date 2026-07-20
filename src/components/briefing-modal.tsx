@@ -66,6 +66,9 @@ const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 // que banca el valor más ancho (64.688,12 / +17,06%) para que el label
 // (Mayorista MAE, Caución ARS 1d) nunca se trunque con el research abierto.
 const GRID = "grid grid-cols-[minmax(0,1fr)_60px_44px_44px_44px] gap-x-1 px-2";
+// FUTUROS: labels cortos (S&P FUT, ORO) → menos aire al label, retornos más
+// anchos y con más gap para que no queden pegados entre sí.
+const GRID_FUT = "grid grid-cols-[minmax(0,1fr)_64px_54px_54px_54px] gap-x-2 px-2";
 const LBL = "text-[11px] font-bold tracking-wide text-[var(--t-text)] truncate";
 const HEAD = "text-right text-[9px] font-semibold tracking-widest text-[var(--t-text-dim)]";
 
@@ -103,9 +106,9 @@ function Hoy({ v }: { v: number | null }) {
   return <span className="text-right font-mono font-bold tabular-nums text-[11px] text-[var(--t-text)]">{nf.format(v)}</span>;
 }
 
-function Row({ r }: { r: MetricRow }) {
+function Row({ r, grid = GRID }: { r: MetricRow; grid?: string }) {
   return (
-    <div className={`${GRID} items-baseline py-1.5 border-b border-[var(--t-border-2)]`}>
+    <div className={`${grid} items-baseline py-1.5 border-b border-[var(--t-border-2)]`}>
       <span className={LBL} title={r.label}>
         {r.label}
         {r.fecha && <span className="font-normal text-[var(--t-text-dim)]"> {fmtFecha(r.fecha)}</span>}
@@ -127,9 +130,9 @@ function Section({ title }: { title: string }) {
   );
 }
 
-function ColHeader() {
+function ColHeader({ grid = GRID }: { grid?: string }) {
   return (
-    <div className={`${GRID} py-1 border-b border-[var(--t-border-2)] bg-[var(--t-bg)]`}>
+    <div className={`${grid} py-1 border-b border-[var(--t-border-2)] bg-[var(--t-bg)]`}>
       <span />
       <span className={HEAD}>HOY</span>
       <span className={HEAD}>1D</span>
@@ -154,7 +157,7 @@ function renderFuturos(rows: MetricRow[]): ReactNode[] {
         </div>,
       );
     }
-    out.push(<Row key={r.label} r={r} />);
+    out.push(<Row key={r.label} r={r} grid={GRID_FUT} />);
   }
   return out;
 }
@@ -275,7 +278,7 @@ export function BriefingModal() {
                 {/* IZQUIERDA — Futuros (el bloque grande) */}
                 <div className="self-start">
                   <Section title="FUTUROS" />
-                  <ColHeader />
+                  <ColHeader grid={GRID_FUT} />
                   {renderFuturos(data.futuros)}
                 </div>
 
