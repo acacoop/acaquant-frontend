@@ -165,12 +165,14 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
         })}
       </nav>
       <div className="ml-auto flex items-center">
+        {/* Rutas con copiloto de datos propio → su vista. El resto → el GUÍA de
+            la plataforma (vista `ayuda`: navegación, jamás datos). El invitado
+            nunca lo ve: el panel se auto-oculta sin módulo `ia` (que el rol
+            invitado no tiene, default-deny). */}
         {VISTA_IA_POR_RUTA[pathname] ? (
           <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} tone="onDark" />
         ) : (
-          <span className="text-[10px] text-white/40 tracking-widest font-semibold">
-            TERMINAL
-          </span>
+          <IaVistaPanel vista="ayuda" tone="onDark" />
         )}
       </div>
     </header>
