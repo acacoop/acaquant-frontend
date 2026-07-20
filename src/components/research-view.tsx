@@ -81,7 +81,7 @@ function ReporteItem({ m, abierto, onToggle }: { m: ResearchMail; abierto: boole
 }
 
 // ── Tabs de la vista (keep-alive, mismo patrón que trading-shell) ─────────────
-type Tab = "argentina" | "bcra" | "internacional" | "rv-int";
+type Tab = "argentina" | "reportes" | "bcra" | "internacional" | "rv-int";
 
 export function ResearchView({ initial }: { initial: ResearchData }) {
   const [tab, setTab] = useState<Tab>("argentina");
@@ -92,6 +92,7 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <TabBtn active={tab === "argentina"} onClick={() => setTab("argentina")}>RENTA FIJA ARGENTINA</TabBtn>
+        <TabBtn active={tab === "reportes"} onClick={() => setTab("reportes")}>REPORTES FINANCIEROS</TabBtn>
         <TabBtn active={tab === "bcra"} onClick={() => setTab("bcra")}>BCRA</TabBtn>
         <TabBtn active={tab === "internacional"} onClick={() => setTab("internacional")}>DATOS INTERNACIONALES</TabBtn>
         <TabBtn active={tab === "rv-int"} onClick={() => setTab("rv-int")}>RENTA VARIABLE INTERNACIONAL</TabBtn>
@@ -99,11 +100,22 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {visited.has("argentina") && (
           <Pane active={tab === "argentina"}>
-            {/* 4 cuadrantes 50/50: TL spread · TR (libre) · BL comparar · BR reportes */}
+            {/* Reportes 1816 se movió a la tab REPORTES FINANCIEROS. Quedan 3 paneles:
+                spread (TL) · forwards (TR) · comparar (fila inferior, ancho completo). */}
             <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
               <ResearchLab modoFijo="spread" />
               <ResearchForwards />
-              <ResearchLab modoFijo="overlay" />
+              <div className="lg:col-span-2 min-h-0">
+                <ResearchLab modoFijo="overlay" />
+              </div>
+            </div>
+          </Pane>
+        )}
+        {visited.has("reportes") && (
+          <Pane active={tab === "reportes"}>
+            {/* REPORTES FINANCIEROS: hoy = los mails automáticos (1816 / ACA VALORES).
+                Próximo: documentos + comentarios cargados a mano desde Manager. */}
+            <div className="h-full p-2 min-h-0">
               <ReportesPanel initial={initial} />
             </div>
           </Pane>
