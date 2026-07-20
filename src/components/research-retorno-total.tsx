@@ -3,9 +3,11 @@
 // RENTA FIJA ARGENTINA → cuadrante RETORNO TOTAL, estilo Research (recharts).
 // Reusa el MISMO endpoint/cálculo que la Home (GET /api/analitica/retorno-total):
 // retorno = (precio + Σ cupones)/base − 1; "carry" mide en USD ÷ MEP. NO usa 1816.
-// - Carry SOLO para tasa_fija/cer (los soberanos ya están en USD → sin carry).
-// - Rango desde/hasta libre, acotado al dato más viejo/nuevo de cada set (default 14d).
-// - Dropdown de bonos (agrupado por curva) para elegir cuáles mostrar; default todos.
+// - Carga las 3 curvas juntas → el dropdown deja comparar bonos de tasa_fija, CER y
+//   soberanos ENTRE SÍ (agrupados por categoría).
+// - Carry se aplica SOLO a los peso (tasa_fija/CER); los soberanos siempre nativos
+//   (ya están en USD), aunque estén en la misma selección.
+// - Ventana por presets Max/6M/3M/MTD/WTD (acotada al dato más viejo del set).
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid, Line, LineChart, ReferenceLine,
@@ -14,6 +16,7 @@ import {
 
 type Curva = "tasa_fija" | "cer" | "soberanos";
 type Mode = "retorno" | "carry";
+type Win = "Max" | "6M" | "3M" | "MTD" | "WTD";
 
 interface HistRow { fecha: string; ticker: string; price: number | null }
 interface RetornoData {
@@ -21,12 +24,21 @@ interface RetornoData {
   flujos: Record<string, Array<{ fecha: string; monto: number }>>;
   mep?: Record<string, number>;
 }
+interface Merged {
+  rows: HistRow[];
+  flujos: Record<string, Array<{ fecha: string; monto: number }>>;
+  mep: Record<string, number>;
+  curvaOf: Record<string, Curva>;
+  grupos: Record<Curva, string[]>;
+}
 
-const SEG = "flex rounded-md overflow-hidden border border-[var(--t-border-2)] bg-[var(--t-surface)]";
-const COLORES = ["#e0803c", "#2f7fe0", "#3ca37a", "#d9694e", "#b5539c", "#4bb3c9", "#c9a23a", "#6bbf59", "#8a8f98", "#5b8def"];
+const SEG = "flex rounded overflow-hidden border border-[var(--t-border-2)] bg-[var(--t-surface)]";
+const BTN = "text-[9px] font-medium px-1.5 py-[2px] transition-colors";
+const COLORES = ["#e0803c", "#2f7fe0", "#3ca37a", "#d9694e", "#b5539c", "#4bb3c9", "#c9a23a", "#6bbf59", "#8a8f98", "#5b8def", "#e05c7e", "#59a5e0", "#8fbf59", "#bf8f59"];
 const CURVAS: { k: Curva; label: string }[] = [
   { k: "tasa_fija", label: "TASA FIJA" }, { k: "cer", label: "CER" }, { k: "soberanos", label: "SOBERANOS" },
 ];
+const WINS: Win[] = ["Max", "6M", "3M", "MTD", "WTD"];
 
 function addDays(iso: string, n: number): string {
   const d = new Date(iso.slice(0, 10) + "T00:00:00Z");
@@ -35,11 +47,26 @@ function addDays(iso: string, n: number): string {
 }
 const fmtDia = (iso: string, largo: boolean) => (largo ? iso.slice(2, 7) : iso.slice(5));
 
-// Retorno total % por ticker entre [desde, hasta] (misma lógica que la Home).
-function computar(data: RetornoData | null, desde: string, hasta: string, mode: Mode, shown: (tk: string) => boolean) {
+// desde de la ventana, dado el dato más reciente (y acotado al más viejo).
+function desdeDeWin(win: Win, min: string, max: string): string {
+  if (!max) return "";
+  let d: string;
+  if (win === "Max") d = min;
+  else if (win === "6M") d = addDays(max, -182);
+  else if (win === "3M") d = addDays(max, -91);
+  else if (win === "MTD") d = max.slice(0, 8) + "01";
+  else { // WTD: lunes de la semana del último dato
+    const dt = new Date(max.slice(0, 10) + "T00:00:00Z");
+    d = addDays(max, -((dt.getUTCDay() + 6) % 7));
+  }
+  return min && d < min ? min : d;
+}
+
+// Retorno total % por ticker entre [desde, hasta]. Carry NO aplica a soberanos.
+function computar(m: Merged | null, desde: string, hasta: string, mode: Mode, shown: (tk: string) => boolean) {
   const vacio = { tickers: [] as string[], rows: [] as Record<string, number | string>[], resumen: [] as { tk: string; ret: number | null }[] };
-  if (!data?.rows?.length || !desde || !hasta) return vacio;
-  const { rows, flujos, mep = {} } = data;
+  if (!m || !m.rows.length || !desde || !hasta) return vacio;
+  const { rows, flujos, mep, curvaOf } = m;
 
   const serieByTk: Record<string, Array<{ fecha: string; price: number }>> = {};
   for (const r of rows) { if (r.price != null && shown(r.ticker)) (serieByTk[r.ticker] ??= []).push({ fecha: r.fecha, price: r.price }); }
@@ -57,6 +84,7 @@ function computar(data: RetornoData | null, desde: string, hasta: string, mode: 
 
   for (const tk of Object.keys(serieByTk).sort()) {
     const serie = serieByTk[tk];
+    const carryOk = mode === "carry" && curvaOf[tk] !== "soberanos";
     let base: { fecha: string; price: number } | null = null;
     for (const pt of serie) { if (pt.fecha <= desde) base = pt; else break; }
     if (!base) base = serie.find((pt) => pt.fecha >= desde && pt.fecha <= hasta) || null;
@@ -67,15 +95,11 @@ function computar(data: RetornoData | null, desde: string, hasta: string, mode: 
     for (const pt of serie) {
       if (pt.fecha < base.fecha || pt.fecha < desde || pt.fecha > hasta) continue;
       const tot = pt.price + sumaFlujos(tk, base.fecha, pt.fecha);
-      let ret: number;
-      if (mode === "carry" && mep[base.fecha] && mep[pt.fecha]) {
-        ret = ((tot / mep[pt.fecha]) / (base.price / mep[base.fecha]) - 1) * 100;
-      } else {
-        ret = (tot / base.price - 1) * 100;
-      }
-      ret = +ret.toFixed(3);
-      (out[pt.fecha] ??= { fecha: pt.fecha })[tk] = ret;
-      ultimoRet = ret; n++;
+      const ret = carryOk && mep[base.fecha] && mep[pt.fecha]
+        ? ((tot / mep[pt.fecha]) / (base.price / mep[base.fecha]) - 1) * 100
+        : (tot / base.price - 1) * 100;
+      (out[pt.fecha] ??= { fecha: pt.fecha })[tk] = +ret.toFixed(3);
+      ultimoRet = +ret.toFixed(3); n++;
     }
     if (n >= 2) { tickers.push(tk); resumen.push({ tk, ret: ultimoRet }); }
   }
@@ -85,57 +109,58 @@ function computar(data: RetornoData | null, desde: string, hasta: string, mode: 
 }
 
 export function ResearchRetornoTotal() {
-  const [curva, setCurva] = useState<Curva>("tasa_fija");
   const [mode, setMode] = useState<Mode>("retorno");
-  const [desde, setDesde] = useState("");   // "" = default (últimos 14d del set)
-  const [hasta, setHasta] = useState("");   // "" = default (dato más reciente)
-  const [sel, setSel] = useState<Set<string> | null>(null);  // null = todos
+  const [win, setWin] = useState<Win>("3M");
+  const [sel, setSel] = useState<Set<string> | null>(null);   // null = aún sin inicializar
   const [dropOpen, setDropOpen] = useState(false);
-  const [byCurva, setByCurva] = useState<Record<string, RetornoData>>({});
-  const [cargando, setCargando] = useState(false);
+  const [m, setM] = useState<Merged | null>(null);
+  const [cargando, setCargando] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Al cambiar de curva: resetear rango (cada set tiene sus fechas) y selección.
-  useEffect(() => { setDesde(""); setHasta(""); setSel(null); setDropOpen(false); }, [curva]);
-
+  // Cargar las 3 curvas y mergearlas.
   useEffect(() => {
-    if (byCurva[curva]) return;
     let vivo = true;
     setCargando(true); setErr(null);
-    fetch(`/api/analitica/retorno-total?curva=${encodeURIComponent(curva)}`, { cache: "no-store" })
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((j: RetornoData) => { if (vivo) setByCurva((p) => ({ ...p, [curva]: j })); })
-      .catch((e) => { if (vivo) setErr(e instanceof Error ? e.message : "error"); })
+    Promise.all(CURVAS.map((c) =>
+      fetch(`/api/analitica/retorno-total?curva=${c.k}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((j: RetornoData) => ({ curva: c.k, j })),
+    )).then((res) => {
+      if (!vivo) return;
+      const merged: Merged = { rows: [], flujos: {}, mep: {}, curvaOf: {}, grupos: { tasa_fija: [], cer: [], soberanos: [] } };
+      for (const { curva, j } of res) {
+        merged.rows.push(...(j.rows || []));
+        Object.assign(merged.flujos, j.flujos || {});
+        Object.assign(merged.mep, j.mep || {});
+        for (const tk of new Set((j.rows || []).map((r) => r.ticker))) {
+          merged.curvaOf[tk] = curva; merged.grupos[curva].push(tk);
+        }
+      }
+      for (const k of Object.keys(merged.grupos) as Curva[]) merged.grupos[k].sort();
+      setM(merged);
+      setSel(new Set(merged.grupos.tasa_fija));   // default: todos los de tasa fija
+    }).catch((e) => { if (vivo) setErr(e instanceof Error ? e.message : "error"); })
       .finally(() => { if (vivo) setCargando(false); });
     return () => { vivo = false; };
-  }, [curva, byCurva]);
+  }, []);
 
-  const data = byCurva[curva] ?? null;
-  const esSoberano = curva === "soberanos";
-  const modeEff: Mode = esSoberano ? "retorno" : mode;   // soberanos: nunca carry
-
-  // Universo de bonos y rango de fechas del set actual.
-  const allTickers = useMemo(() => Array.from(new Set((data?.rows || []).map((r) => r.ticker))).sort(), [data]);
+  const allBonds = useMemo(() => (m ? Object.values(m.grupos).flat() : []), [m]);
   const [minDate, maxDate] = useMemo(() => {
-    const fs = (data?.rows || []).map((r) => r.fecha);
+    const fs = (m?.rows || []).map((r) => r.fecha);
     if (!fs.length) return ["", ""];
     return [fs.reduce((a, b) => (a < b ? a : b)), fs.reduce((a, b) => (a > b ? a : b))];
-  }, [data]);
+  }, [m]);
+  const desde = desdeDeWin(win, minDate, maxDate);
+  const colorOf = useMemo(() => Object.fromEntries(allBonds.map((tk, i) => [tk, COLORES[i % COLORES.length]])), [allBonds]);
 
-  // Rango efectivo: user override, o default (últimos 14d acotado al dato más viejo).
-  const hastaEff = hasta || maxDate;
-  const desdeDefault = maxDate ? (() => { const d = addDays(maxDate, -14); return minDate && d < minDate ? minDate : d; })() : "";
-  const desdeEff = desde || desdeDefault;
-
-  const shown = (tk: string) => (sel ? sel.has(tk) : true);
+  const shown = (tk: string) => (sel ? sel.has(tk) : false);
   const { tickers, rows, resumen } = useMemo(
-    () => computar(data, desdeEff, hastaEff, modeEff, shown),
-    [data, desdeEff, hastaEff, modeEff, sel],  // eslint-disable-line react-hooks/exhaustive-deps
+    () => computar(m, desde, maxDate, mode, shown),
+    [m, desde, maxDate, mode, sel],  // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const colorOf = useMemo(() => Object.fromEntries(allTickers.map((tk, i) => [tk, COLORES[i % COLORES.length]])), [allTickers]);
-  const rangoLargo = !!desdeEff && !!hastaEff && (new Date(hastaEff).getTime() - new Date(desdeEff).getTime()) / 86400000 > 200;
+  const rangoLargo = !!desde && !!maxDate && (new Date(maxDate).getTime() - new Date(desde).getTime()) / 86400000 > 200;
+  const selCount = sel ? sel.size : 0;
 
-  // Cerrar el dropdown al clickear afuera.
   const dropRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!dropOpen) return;
@@ -145,44 +170,49 @@ export function ResearchRetornoTotal() {
   }, [dropOpen]);
 
   const toggleBono = (tk: string) => setSel((prev) => {
-    const base = prev ? new Set(prev) : new Set(allTickers);
-    if (base.has(tk)) base.delete(tk); else base.add(tk);
-    return base;
+    const n = new Set(prev ?? []);
+    if (n.has(tk)) n.delete(tk); else n.add(tk);
+    return n;
   });
-  const selCount = sel ? sel.size : allTickers.length;
+  const toggleGrupo = (c: Curva) => setSel((prev) => {
+    const n = new Set(prev ?? []);
+    const g = m?.grupos[c] || [];
+    const todos = g.every((tk) => n.has(tk));
+    for (const tk of g) { if (todos) n.delete(tk); else n.add(tk); }
+    return n;
+  });
 
   return (
     <section className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] flex items-center gap-x-2 gap-y-1 flex-wrap bg-[var(--t-panel)]">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)]">Retorno Total</span>
-        <span className={SEG}>
-          {CURVAS.map((c) => (
-            <button key={c.k} type="button" onClick={() => setCurva(c.k)}
-              className={`text-[10px] font-medium px-2 py-[3px] transition-colors ${curva === c.k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>{c.label}</button>
-          ))}
-        </span>
+      <div className="px-2 py-1 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-nowrap bg-[var(--t-panel)] overflow-x-auto">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--t-text)] whitespace-nowrap">Retorno Total</span>
 
-        {/* Dropdown de bonos (agrupado por curva) */}
-        <div className="relative" ref={dropRef}>
+        <div className="relative shrink-0" ref={dropRef}>
           <button type="button" onClick={() => setDropOpen((o) => !o)}
-            className="text-[10px] font-medium px-2 py-[3px] rounded-md border border-[var(--t-border-2)] bg-[var(--t-surface)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">
-            Bonos ({selCount}/{allTickers.length}) ▾
+            className="text-[9px] font-medium px-1.5 py-[2px] rounded border border-[var(--t-border-2)] bg-[var(--t-surface)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)] whitespace-nowrap">
+            Bonos {selCount}/{allBonds.length} ▾
           </button>
           {dropOpen && (
-            <div className="absolute z-30 mt-1 left-0 w-52 max-h-64 overflow-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] rounded-md shadow-lg">
-              <div className="flex gap-1 px-2 py-1 border-b border-[var(--t-border)] sticky top-0 bg-[var(--t-panel)]">
-                <button type="button" onClick={() => setSel(null)} className="text-[9px] text-[var(--t-accent)] hover:underline">Todos</button>
+            <div className="absolute z-30 mt-1 left-0 w-56 max-h-72 overflow-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] rounded-md shadow-lg">
+              <div className="flex gap-2 px-2 py-1 border-b border-[var(--t-border)] sticky top-0 bg-[var(--t-panel)]">
+                <button type="button" onClick={() => setSel(new Set(allBonds))} className="text-[9px] text-[var(--t-accent)] hover:underline">Todos</button>
                 <button type="button" onClick={() => setSel(new Set())} className="text-[9px] text-[var(--t-text-muted)] hover:underline">Ninguno</button>
+                <span className="text-[9px] text-[var(--t-text-dim)] ml-auto">tocá la categoría para (des)marcarla</span>
               </div>
-              <div className="px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--t-text-dim)] bg-[var(--t-surface)]/40">
-                {CURVAS.find((c) => c.k === curva)?.label}
-              </div>
-              {allTickers.map((tk) => (
-                <label key={tk} className="flex items-center gap-2 px-2 py-0.5 text-[11px] text-[var(--t-text)] hover:bg-[var(--t-surface)]/50 cursor-pointer">
-                  <input type="checkbox" checked={shown(tk)} onChange={() => toggleBono(tk)} />
-                  <span className="w-2 h-2 rounded-[1px]" style={{ background: colorOf[tk] }} />
-                  {tk}
-                </label>
+              {CURVAS.map((c) => (
+                <div key={c.k}>
+                  <button type="button" onClick={() => toggleGrupo(c.k)}
+                    className="w-full text-left px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-[var(--t-text-dim)] bg-[var(--t-surface)]/40 hover:text-[var(--t-accent)] sticky">
+                    {c.label} ({(m?.grupos[c.k] || []).filter((tk) => shown(tk)).length}/{(m?.grupos[c.k] || []).length})
+                  </button>
+                  {(m?.grupos[c.k] || []).map((tk) => (
+                    <label key={tk} className="flex items-center gap-2 px-2 py-0.5 text-[11px] text-[var(--t-text)] hover:bg-[var(--t-surface)]/50 cursor-pointer">
+                      <input type="checkbox" checked={shown(tk)} onChange={() => toggleBono(tk)} />
+                      <span className="w-2 h-2 rounded-[1px]" style={{ background: colorOf[tk] }} />
+                      {tk}
+                    </label>
+                  ))}
+                </div>
               ))}
             </div>
           )}
@@ -190,22 +220,19 @@ export function ResearchRetornoTotal() {
 
         {cargando && <span className="text-[9px] text-[var(--t-text-dim)]">…</span>}
 
-        <span className="ml-auto flex items-center gap-1.5 flex-wrap">
-          {!esSoberano && (
-            <span className={SEG}>
-              {([["retorno", "Retorno"], ["carry", "Carry USD"]] as const).map(([k, lbl]) => (
-                <button key={k} type="button" onClick={() => setMode(k)}
-                  className={`text-[10px] font-medium px-2 py-[3px] transition-colors ${mode === k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>{lbl}</button>
-              ))}
-            </span>
-          )}
-          <input type="date" value={desdeEff} min={minDate || undefined} max={hastaEff || undefined}
-            onChange={(e) => setDesde(e.target.value)} title="Desde"
-            className="px-1 py-0.5 text-[10px] font-medium border border-[var(--t-border-2)] bg-transparent text-[var(--t-text-muted)] rounded" />
-          <span className="text-[9px] text-[var(--t-text-dim)]">→</span>
-          <input type="date" value={hastaEff} min={desdeEff || minDate || undefined} max={maxDate || undefined}
-            onChange={(e) => setHasta(e.target.value)} title="Hasta"
-            className="px-1 py-0.5 text-[10px] font-medium border border-[var(--t-border-2)] bg-transparent text-[var(--t-text-muted)] rounded" />
+        <span className="ml-auto flex items-center gap-1.5 shrink-0">
+          <span className={SEG} title="Carry USD solo afecta a los peso (tasa fija / CER); los soberanos van nativos">
+            {([["retorno", "Ret"], ["carry", "Carry"]] as const).map(([k, lbl]) => (
+              <button key={k} type="button" onClick={() => setMode(k)}
+                className={`${BTN} ${mode === k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>{lbl}</button>
+            ))}
+          </span>
+          <span className={SEG}>
+            {WINS.map((w) => (
+              <button key={w} type="button" onClick={() => setWin(w)}
+                className={`${BTN} ${win === w ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>{w}</button>
+            ))}
+          </span>
         </span>
       </div>
 
@@ -213,7 +240,7 @@ export function ResearchRetornoTotal() {
         <div className="flex-1 min-h-0 p-2">
           {rows.length === 0 ? (
             <div className="h-full flex items-center justify-center text-[10px] text-center px-4" style={{ color: err ? "var(--t-neg)" : "var(--t-text-dim)" }}>
-              {err ? `Error: ${err}` : cargando ? "Cargando…" : selCount === 0 ? "Elegí algún bono en el dropdown." : "Sin datos suficientes en el rango."}
+              {err ? `Error: ${err}` : cargando ? "Cargando…" : selCount === 0 ? "Elegí bonos en el dropdown." : "Sin datos suficientes en el rango."}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
