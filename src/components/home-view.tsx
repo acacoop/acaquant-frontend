@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
-import { RetornoTotalMini, type Curva, type Ventana } from "@/components/retorno-total-mini";
 import { CanjeTab, PARES, type Par } from "@/components/canje-tab";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
@@ -50,77 +49,21 @@ function Pill({
 // RETORNO TOTAL / CARRY / CANJE + (en retorno/carry) pills de curva y ventana.
 // Caja con borde como el box del chart de al lado → alineados, sin título
 // duplicado. CARRY = retorno medido en USD (descuenta la variación del MEP).
-function RetornoCanjeBox() {
-  const [view, setView] = useState<"retorno" | "carry" | "canje">("canje");
-  const [curva, setCurva] = useState<Curva>("tasa_fija");
-  const [ventana, setVentana] = useState<Ventana>("7D");
-  // Fecha base libre. Cuando está seteada, pisa al preset (7D/14D/MTD) y el
-  // retorno/carry se mide desde ese día. Vacío = usa el preset.
-  const [desdeCustom, setDesdeCustom] = useState<string>("");
+// CANJE (el Retorno Total se movió a Research → RENTA FIJA ARGENTINA, 2026-07-20).
+function CanjeBox() {
   const [par, setPar] = useState<Par>("AL30");
-  const esRetorno = view === "retorno" || view === "carry";
-  const setPreset = (v: Ventana) => { setVentana(v); setDesdeCustom(""); };
-
   return (
     <div className="h-full min-h-0 min-w-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
       <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-1">
-          <Pill active={view === "retorno"} onClick={() => setView("retorno")}>RETORNO TOTAL</Pill>
-          <Pill active={view === "carry"} onClick={() => setView("carry")}>CARRY</Pill>
-          <Pill active={view === "canje"} onClick={() => setView("canje")}>CANJE</Pill>
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Canje</span>
+        <div className="flex items-center gap-1 ml-auto">
+          {PARES.map((p) => (
+            <Pill key={p} active={par === p} onClick={() => setPar(p)}>{p}</Pill>
+          ))}
         </div>
-        {esRetorno ? (
-          <>
-            <div className="flex items-center gap-1">
-              <Pill active={curva === "tasa_fija"} onClick={() => setCurva("tasa_fija")}>TASA FIJA</Pill>
-              <Pill active={curva === "cer"} onClick={() => setCurva("cer")}>CER</Pill>
-              <Pill active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>HARD DÓLAR</Pill>
-            </div>
-            <div className="flex items-center gap-1 ml-auto">
-              <Pill active={!desdeCustom && ventana === "7D"} onClick={() => setPreset("7D")}>7D</Pill>
-              <Pill active={!desdeCustom && ventana === "14D"} onClick={() => setPreset("14D")}>14D</Pill>
-              <Pill active={!desdeCustom && ventana === "MTD"} onClick={() => setPreset("MTD")}>MTD</Pill>
-              <input
-                type="date"
-                value={desdeCustom}
-                onChange={(e) => setDesdeCustom(e.target.value)}
-                title="Fecha base libre (desde): mide el retorno/carry desde ese día"
-                className={`px-1 py-0.5 text-[10px] font-semibold border bg-transparent ${
-                  desdeCustom
-                    ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                    : "border-[var(--t-border-2)] text-[var(--t-text-muted)]"
-                }`}
-              />
-              {desdeCustom && (
-                <button
-                  onClick={() => setDesdeCustom("")}
-                  title="Volver al preset"
-                  className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px] px-0.5"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center gap-1">
-            {PARES.map((p) => (
-              <Pill key={p} active={par === p} onClick={() => setPar(p)}>{p}</Pill>
-            ))}
-          </div>
-        )}
       </div>
       <div className="flex-1 min-h-0 min-w-0">
-        {view === "canje" ? (
-          <CanjeTab par={par} />
-        ) : (
-          <RetornoTotalMini
-            curva={curva}
-            ventana={ventana}
-            mode={view === "carry" ? "carry" : "retorno"}
-            desdeOverride={desdeCustom || undefined}
-          />
-        )}
+        <CanjeTab par={par} />
       </div>
     </div>
   );
@@ -174,9 +117,9 @@ export function HomeView() {
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* Columna izquierda: watchlist arriba · RETORNO TOTAL abajo.
-            min-w-0 evita el grid blowout: sin esto, el contenido ancho del
-            chart (canvas + legend de N bonos) empuja la columna más allá del 50%. */}
+        {/* Columna izquierda: watchlist arriba · CANJE abajo.
+            min-w-0 evita el grid blowout: sin esto, el contenido ancho empuja la
+            columna más allá del 50%. */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
           <div className="min-w-0 min-h-0">
             <WatchlistPanel
@@ -185,7 +128,7 @@ export function HomeView() {
             />
           </div>
           <div className="min-w-0 min-h-0">
-            <RetornoCanjeBox />
+            <CanjeBox />
           </div>
         </div>
 
