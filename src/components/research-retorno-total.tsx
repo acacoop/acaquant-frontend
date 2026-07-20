@@ -16,7 +16,7 @@ import {
 
 type Curva = "tasa_fija" | "cer" | "soberanos";
 type Mode = "retorno" | "carry";
-type Win = "Max" | "6M" | "3M" | "MTD" | "WTD";
+type Win = "Max" | "6M" | "3M" | "2M" | "1M" | "MTD" | "WTD";
 
 interface HistRow { fecha: string; ticker: string; price: number | null }
 interface RetornoData {
@@ -38,7 +38,7 @@ const COLORES = ["#e0803c", "#2f7fe0", "#3ca37a", "#d9694e", "#b5539c", "#4bb3c9
 const CURVAS: { k: Curva; label: string }[] = [
   { k: "tasa_fija", label: "TASA FIJA" }, { k: "cer", label: "CER" }, { k: "soberanos", label: "SOBERANOS" },
 ];
-const WINS: Win[] = ["Max", "6M", "3M", "MTD", "WTD"];
+const WINS: Win[] = ["Max", "6M", "3M", "2M", "1M", "MTD", "WTD"];
 
 function addDays(iso: string, n: number): string {
   const d = new Date(iso.slice(0, 10) + "T00:00:00Z");
@@ -53,6 +53,8 @@ function desdeDeWin(win: Win, min: string, max: string): string {
   if (win === "Max") d = min;
   else if (win === "6M") d = addDays(max, -182);
   else if (win === "3M") d = addDays(max, -91);
+  else if (win === "2M") d = addDays(max, -61);
+  else if (win === "1M") d = addDays(max, -30);
   else if (win === "MTD") d = max.slice(0, 8) + "01";
   else { const dt = new Date(max.slice(0, 10) + "T00:00:00Z"); d = addDays(max, -((dt.getUTCDay() + 6) % 7)); }
   return min && d < min ? min : d;
@@ -177,7 +179,7 @@ export function ResearchRetornoTotal() {
 
   return (
     <section className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
-      <div className="px-2 py-1 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-wrap bg-[var(--t-panel)]">
+      <div className="pl-2 pr-6 py-1 border-b border-[var(--t-border)] flex items-center gap-1.5 flex-wrap bg-[var(--t-panel)]">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--t-text)] whitespace-nowrap">Retorno Total</span>
 
         {/* 3 categorías clickeables — cada una despliega sus bonos */}

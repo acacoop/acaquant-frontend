@@ -10,6 +10,7 @@ import { ResearchBcra } from "@/components/research-bcra";
 import { type Doc, PdfViewer } from "@/components/research-documentos";
 import { ResearchFred } from "@/components/research-fred";
 import { ResearchForwards } from "@/components/research-forwards";
+import { Maximizable } from "@/components/maximizable";
 import { ResearchLab } from "@/components/research-lab";
 import { ResearchRetornoTotal } from "@/components/research-retorno-total";
 import { ReutersView } from "@/components/reuters-view";
@@ -72,31 +73,31 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
           <Pane active={tab === "argentina"}>
             {/* 4 cuadrantes: spread (TL) · forwards (TR) · comparar (BL) · retorno total (BR). */}
             <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
-              <ResearchLab modoFijo="spread" />
-              <ResearchForwards />
-              <ResearchLab modoFijo="overlay" />
-              <ResearchRetornoTotal />
+              <Maximizable><ResearchLab modoFijo="spread" /></Maximizable>
+              <Maximizable><ResearchForwards /></Maximizable>
+              <Maximizable><ResearchLab modoFijo="overlay" /></Maximizable>
+              <Maximizable><ResearchRetornoTotal /></Maximizable>
             </div>
           </Pane>
         )}
         {visited.has("reportes") && (
           <Pane active={tab === "reportes"}>
-            <ReportesFinancieros initial={initial} />
+            <Maximizable><ReportesFinancieros initial={initial} /></Maximizable>
           </Pane>
         )}
         {visited.has("bcra") && (
           <Pane active={tab === "bcra"}>
-            <ResearchBcra />
+            <Maximizable><ResearchBcra /></Maximizable>
           </Pane>
         )}
         {visited.has("internacional") && (
           <Pane active={tab === "internacional"}>
-            <ResearchFred />
+            <Maximizable><ResearchFred /></Maximizable>
           </Pane>
         )}
         {visited.has("rv-int") && (
           <Pane active={tab === "rv-int"}>
-            <ReutersView />
+            <Maximizable><ReutersView /></Maximizable>
           </Pane>
         )}
       </div>
