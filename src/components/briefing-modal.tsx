@@ -62,8 +62,10 @@ const POLL_MS = 60_000;
 
 const nf = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 });
 
-// grilla compartida header/filas → columnas alineadas
-const GRID = "grid grid-cols-[minmax(0,1fr)_60px_46px_46px_46px] gap-x-1.5 px-3";
+// grilla compartida header/filas → columnas alineadas. Numéricas al mínimo
+// que banca el valor más ancho (64.688,12 / +17,06%) para que el label
+// (Mayorista MAE, Caución ARS 1d) nunca se trunque con el research abierto.
+const GRID = "grid grid-cols-[minmax(0,1fr)_60px_44px_44px_44px] gap-x-1 px-2";
 const LBL = "text-[11px] font-bold tracking-wide text-[var(--t-text)] truncate";
 const HEAD = "text-right text-[9px] font-semibold tracking-widest text-[var(--t-text-dim)]";
 
@@ -86,10 +88,10 @@ function fmtFecha(iso: string | undefined): string {
 }
 
 function Pct({ v }: { v: number | null | undefined }) {
-  if (v == null) return <span className="text-right tabular-nums text-[12px] text-[var(--t-text-dim)]">—</span>;
+  if (v == null) return <span className="text-right tabular-nums text-[11px] text-[var(--t-text-dim)]">—</span>;
   const cls = v > 0 ? "text-[var(--t-pos)]" : v < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]";
   return (
-    <span className={`text-right font-semibold tabular-nums text-[12px] ${cls}`}>
+    <span className={`text-right font-semibold tabular-nums text-[11px] ${cls}`}>
       {v > 0 ? "+" : ""}
       {nf.format(v)}%
     </span>
@@ -98,7 +100,7 @@ function Pct({ v }: { v: number | null | undefined }) {
 
 function Hoy({ v }: { v: number | null }) {
   if (v == null) return <span className="text-right text-[11px] font-semibold text-[var(--t-text-dim)]">Sin Ops</span>;
-  return <span className="text-right font-mono font-bold tabular-nums text-[12px] text-[var(--t-text)]">{nf.format(v)}</span>;
+  return <span className="text-right font-mono font-bold tabular-nums text-[11px] text-[var(--t-text)]">{nf.format(v)}</span>;
 }
 
 function Row({ r }: { r: MetricRow }) {
@@ -146,7 +148,7 @@ function renderFuturos(rows: MetricRow[]): ReactNode[] {
       out.push(
         <div
           key={`g-${grupo}`}
-          className="px-4 pt-2 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--t-text-dim)]"
+          className="px-3 pt-2 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--t-text-dim)]"
         >
           {grupo}
         </div>,
@@ -269,7 +271,7 @@ export function BriefingModal() {
                 al costado — cada mitad scrollea POR SU CUENTA */}
             <div className="flex min-h-0 max-h-[82vh]">
             <div className="overflow-y-auto p-3 flex-1 min-w-0">
-              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] lg:grid-cols-[1.1fr_1fr_0.85fr] gap-x-5 gap-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] lg:grid-cols-[1.1fr_1fr_0.85fr] gap-x-3 gap-y-3">
                 {/* IZQUIERDA — Futuros (el bloque grande) */}
                 <div className="self-start">
                   <Section title="FUTUROS" />
@@ -311,7 +313,7 @@ export function BriefingModal() {
                       data.pagan_hoy.map((b) => (
                         <div
                           key={b.ticker}
-                          className="px-3 py-1.5 border-b border-[var(--t-border-2)] text-[12px]"
+                          className="px-2 py-1.5 border-b border-[var(--t-border-2)] text-[12px]"
                         >
                           <span className="font-mono font-bold text-[var(--t-text)]">{b.ticker}</span>
                           {b.emisor && <span className="text-[var(--t-text-dim)]"> — {b.emisor}</span>}
@@ -328,7 +330,7 @@ export function BriefingModal() {
                 {/* TERCERA COLUMNA — curva de futuros de dólar (Matba Rofex) */}
                 <div className="self-start">
                   <Section title="DÓLAR FUTURO (DLR)" />
-                  <div className="grid grid-cols-[minmax(0,1fr)_44px_64px_58px] gap-x-2 px-3 text-[9px] tracking-widest text-[var(--t-text-dim)] py-1">
+                  <div className="grid grid-cols-[minmax(0,1fr)_36px_56px_48px] gap-x-1.5 px-2 text-[9px] tracking-widest text-[var(--t-text-dim)] py-1">
                     <span>TICKER</span>
                     <span className="text-right">DÍAS</span>
                     <span className="text-right">ÚLTIMO</span>
@@ -338,7 +340,7 @@ export function BriefingModal() {
                     data.futuros_dlr!.map((f) => (
                       <div
                         key={f.ticker}
-                        className="grid grid-cols-[minmax(0,1fr)_44px_64px_58px] gap-x-2 px-3 py-1 border-b border-[var(--t-border-2)] text-[11px] font-mono"
+                        className="grid grid-cols-[minmax(0,1fr)_36px_56px_48px] gap-x-1.5 px-2 py-1 border-b border-[var(--t-border-2)] text-[11px] font-mono"
                       >
                         <span className="font-semibold text-[var(--t-text)] truncate">{f.ticker}</span>
                         <span className="text-right text-[var(--t-text-muted)]">{f.dias ?? "—"}</span>
@@ -361,7 +363,7 @@ export function BriefingModal() {
 
             {/* RESEARCH DEL DÍA (mail 1816) — solo si llegó HOY; scroll propio */}
             {data.research_hoy && (
-              <aside className="hidden lg:flex w-[440px] shrink-0 border-l border-[var(--t-border)] flex-col min-h-0">
+              <aside className="hidden lg:flex w-[360px] shrink-0 border-l border-[var(--t-border)] flex-col min-h-0">
                 <div className="px-3 py-2 border-b border-[var(--t-border)] shrink-0">
                   <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
                     📰 RESEARCH DEL DÍA
@@ -371,7 +373,7 @@ export function BriefingModal() {
                   </span>
                 </div>
                 <div className="flex-1 overflow-y-auto px-3 py-2">
-                  <p className="whitespace-pre-wrap text-[11.5px] leading-[1.6] text-[var(--t-text)]">
+                  <p className="whitespace-pre-wrap text-[11px] leading-[1.55] text-[var(--t-text)]">
                     {data.research_hoy.texto}
                   </p>
                 </div>
