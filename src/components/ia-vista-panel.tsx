@@ -51,6 +51,9 @@ const RUTA_VISTA: Record<string, string> = {
   renta_variable: "/renta-variable",
   renta_fija: "/renta-fija",
   trading: "/trading",
+  // el asistente de negocio vive en el panel de las vistas de negocio —
+  // /operaciones es la puerta natural para el handoff
+  negocio: "/operaciones",
 };
 
 /** Render mínimo: **negrita** y *cursiva* (el modelo las usa aunque pidamos
@@ -119,11 +122,16 @@ type Chip = { label: string; pregunta: string };
 
 export function IaVistaPanel({
   vista,
+  fallback,
   getParams,
   preguntaExterna,
   tone = "accent",
 }: {
   vista: string;
+  /** Vista alternativa si el backend NO habilita la principal para este
+   * usuario (ej. vistas de negocio: los jefes ven `negocio`, el resto cae
+   * al guía `ayuda`). El probe resuelve cuál queda activa. */
+  fallback?: string;
   /** Snapshot de los parámetros de la vista al momento de preguntar (ej.
    * trading: tickers de las tarjetas + foco + overrides). El server los
    * sanea y busca los datos él mismo — nunca viajan datos, solo selección. */
@@ -139,6 +147,8 @@ export function IaVistaPanel({
   tone?: "accent" | "onDark";
 }) {
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  // la vista que quedó ACTIVA tras el probe (la principal, o el fallback)
+  const [vistaActiva, setVistaActiva] = useState(vista);
   const [open, setOpen] = useState(false);
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [pregunta, setPregunta] = useState("");
@@ -198,18 +208,26 @@ export function IaVistaPanel({
       .then(async (r) => {
         if (!r.ok) return null;
         const j = await r.json();
-        return (j?.vistas ?? []).find((v: { vista: string }) => v.vista === vista) ?? null;
+        const lista: { vista: string; chips?: Chip[] }[] = j?.vistas ?? [];
+        // principal si el backend la habilita; si no, el fallback (ej. en
+        // vistas de negocio: `negocio` para jefes, `ayuda` para el resto)
+        return (
+          lista.find((v) => v.vista === vista) ??
+          (fallback ? lista.find((v) => v.vista === fallback) : null) ??
+          null
+        );
       })
       .then((v) => {
         if (cancelled) return;
         setAllowed(!!v);
         setChips((v?.chips as Chip[]) ?? []);
+        if (v) setVistaActiva(v.vista);
       })
       .catch(() => !cancelled && setAllowed(false));
     return () => {
       cancelled = true;
     };
-  }, [vista]);
+  }, [vista, fallback]);
 
   useEffect(() => {
     if (!open) return;
@@ -247,7 +265,7 @@ export function IaVistaPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vista,
+          vista: vistaActiva,
           pregunta: q,
           historial: pares.slice(-MAX_HISTORIAL),
           conv_id: convId.current,
@@ -294,7 +312,7 @@ export function IaVistaPanel({
       setPensando(false);
       inputRef.current?.focus();
     }
-  }, [pregunta, pensando, vista, mensajes, getParams]);
+  }, [pregunta, pensando, vistaActiva, mensajes, getParams]);
 
   // Handoff de derivación: si venimos de otra vista con una pregunta pendiente
   // para ESTA, se retoma la MISMA conversación, el panel se abre solo y
@@ -308,14 +326,14 @@ export function IaVistaPanel({
     } catch {
       h = null;
     }
-    if (!h || h.vista !== vista || !h.pregunta) return;
+    if (!h || h.vista !== vistaActiva || !h.pregunta) return;
     handoffHecho.current = true;
     sessionStorage.removeItem(HANDOFF_KEY);
     if (h.conv) convId.current = h.conv; // el chat sigue siendo el mismo
     setOpen(true);
     void enviar(h.pregunta, h.etiqueta);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowed, vista]);
+  }, [allowed, vistaActiva]);
 
   // Pregunta disparada por evento (panel ya montado en la página — ej. el
   // botón 🗣 NARRÁMELO del modal de briefing estando en HOME).
@@ -324,13 +342,13 @@ export function IaVistaPanel({
       const d = (e as CustomEvent).detail as
         | { vista?: string; pregunta?: string; etiqueta?: string }
         | null;
-      if (!d || d.vista !== vista || !d.pregunta) return;
+      if (!d || d.vista !== vistaActiva || !d.pregunta) return;
       setOpen(true);
       void enviar(d.pregunta, d.etiqueta);
     };
     window.addEventListener(IA_PREGUNTA_EVENT, onAsk);
     return () => window.removeEventListener(IA_PREGUNTA_EVENT, onAsk);
-  }, [vista, enviar]);
+  }, [vistaActiva, enviar]);
 
   // Disparo externo (toast del vigía): abre el panel y manda la pregunta.
   // Va DESPUÉS de la declaración de enviar (orden de hooks).

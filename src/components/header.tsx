@@ -176,15 +176,18 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
             - rutas que montan su botón ADENTRO de la vista (/trading con las
               tarjetas+vigía, /research con la tab activa) → el header NO pone
               nada;
-            - el resto → el GUÍA (vista `ayuda`). El invitado nunca lo ve (sin
-              módulo `ia`, default-deny). */}
+            - el resto (vistas de NEGOCIO: operaciones, carteras, back office,
+              manager…) → el MISMO panel resuelve quién sos: los jefes con el
+              módulo `asistente` ven el ASISTENTE DE NEGOCIO (vista `negocio`,
+              QuantAI P7 — AuM, clientes, rendimientos vía la aduana PII) y el
+              resto cae al GUÍA (`ayuda`). Decide el backend con el probe. */}
         {/* Invitados (2026-07-21): SÍ ven los copilotos de las vistas de
-            mercado, pero JAMÁS el guía (mapea el producto entero — el backend
-            también lo excluye; esto evita el probe extra). */}
+            mercado, pero JAMÁS el guía ni el negocio (el backend también los
+            excluye; esto evita el probe extra). */}
         {VISTA_IA_POR_RUTA[pathname] ? (
           <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} tone="onDark" />
         ) : isGuest || RUTAS_CON_PANEL_PROPIO.some((r) => pathname.startsWith(r)) ? null : (
-          <IaVistaPanel vista="ayuda" tone="onDark" />
+          <IaVistaPanel vista="negocio" fallback="ayuda" tone="onDark" />
         )}
       </div>
     </header>
