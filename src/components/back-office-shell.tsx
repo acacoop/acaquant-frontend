@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { TitulosMercadoView } from "./titulos-mercado-view";
 import { AcreenciasView } from "./acreencias-view";
 import { TenenciaValorizadaView } from "./tenencia-valorizada-view";
@@ -12,8 +12,10 @@ import { TesoreriaView } from "./tesoreria-view";
 type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "tesoreria";
 
 export function BackOfficeShell() {
-  // Default = Tenencia Valorizada (primera en la barra).
-  const [tab, setTab] = useState<Tab>("tenencia");
+  // Default = Tenencia Valorizada (primera en la barra). Persistido: la
+  // pestaña sobrevive a navegar y vuelve donde estabas — y habilita que el
+  // guía te traiga directo a una pestaña (navegación asistida, v1.82).
+  const [tab, setTab] = usePersistedState<Tab>("backoffice.tab", "tenencia");
 
   return (
     <div className="h-full min-h-0 flex flex-col">

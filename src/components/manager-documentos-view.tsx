@@ -66,6 +66,7 @@ export function TabDocumentos() {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       if (!r.ok) {
+        if (r.status === 413) throw new Error("el PDF es muy grande para la subida (tope del servidor). Probá uno más liviano.");
         const d = await r.json().catch(() => ({}));
         throw new Error(d.detail || `HTTP ${r.status}`);
       }
@@ -103,7 +104,12 @@ export function TabDocumentos() {
           <div><div className={LABEL}>Fecha</div><input type="date" className={INPUT} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
           <div><div className={LABEL}>Fuente (opcional)</div><input className={INPUT} value={fuente} onChange={(e) => setFuente(e.target.value)} placeholder="Ej. Semanal, Nota mesa…" /></div>
           {tipo === "pdf" ? (
-            <div><div className={LABEL}>Archivo PDF</div><input type="file" accept="application/pdf" className="text-[11px] text-[var(--t-text-muted)]" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></div>
+            <div><div className={LABEL}>Archivo PDF</div>
+              <input type="file" accept="application/pdf" className="text-[11px] text-[var(--t-text-muted)]" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+              {file && file.size > 3.3e6 && (
+                <div className="text-[10px] text-[var(--t-neg)] mt-1">⚠ Pesa {fmtBytes(file.size)} — puede superar el tope de subida (~3 MB).</div>
+              )}
+            </div>
           ) : <div />}
         </div>
         {tipo === "comentario" && (

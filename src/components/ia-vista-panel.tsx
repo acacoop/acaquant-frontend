@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ArrowRight, Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+
+import { aplicarEstado } from "@/lib/aplicar-estado";
 
 /**
  * Copiloto de Mesa contextual (QuantAI P3): botón ✦ IA + drawer lateral que
@@ -29,6 +31,15 @@ type Mensaje = {
   // derivación a otra vista con copiloto; `pregunta` = la original del user,
   // viaja en el handoff para re-preguntarse sola en la vista destino
   irA?: { vista: string; titulo: string; pregunta?: string };
+  // navegación asistida (v1.82): el guía resolvió a dónde ir y con qué
+  // filtros; el botón los aplica y abre la vista. El `estado` viene validado
+  // server-side contra los catálogos reales.
+  navegacion?: {
+    ruta: string;
+    titulo: string;
+    resumen?: string;
+    estado: Record<string, unknown>;
+  };
 };
 
 /** Handoff de derivación entre vistas: al clickear "Abrir X →" se deja acá la
@@ -283,6 +294,7 @@ export function IaVistaPanel({
             fuente: j.fuente,
             sinRespaldo: Array.isArray(j.numeros_sin_respaldo) ? j.numeros_sin_respaldo : [],
             irA: j.vista_sugerida ? { ...j.vista_sugerida, pregunta: q } : undefined,
+            navegacion: j.navegacion ?? undefined,
           },
         ]);
       } else {
@@ -438,6 +450,36 @@ export function IaVistaPanel({
                 ) : (
                   <div key={i} className="text-[11px] leading-relaxed text-[var(--t-text)] px-3 py-2 border-l-2 border-[var(--t-accent)] whitespace-pre-wrap mr-4">
                     {renderRespuesta(m.texto)}
+                    {m.navegacion && (
+                      <a
+                        href={m.navegacion.ruta}
+                        onClick={(e) => {
+                          // los filtros viajan por sessionStorage (claves que
+                          // las vistas ya persisten) → se aplican ANTES de
+                          // navegar, y si ya estamos en la ruta, el evento
+                          // hace que la vista montada los relea.
+                          aplicarEstado(m.navegacion!.estado);
+                          if (window.location.pathname === m.navegacion!.ruta) {
+                            e.preventDefault();
+                            setOpen(false);
+                          }
+                        }}
+                        className="mt-2 flex items-center gap-2 px-3 py-2 border border-[var(--t-accent)] bg-[var(--t-accent)]/10 hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] transition-colors group"
+                        title="Abre la vista con estos filtros ya aplicados"
+                      >
+                        <ArrowRight size={13} className="shrink-0" />
+                        <span className="flex flex-col text-left leading-tight">
+                          <span className="text-[10px] font-semibold tracking-wide uppercase">
+                            Ver en {m.navegacion.titulo}
+                          </span>
+                          {m.navegacion.resumen && (
+                            <span className="text-[9px] opacity-70">
+                              {m.navegacion.resumen}
+                            </span>
+                          )}
+                        </span>
+                      </a>
+                    )}
                     {m.irA && RUTA_VISTA[m.irA.vista] && (
                       <a
                         href={RUTA_VISTA[m.irA.vista]}

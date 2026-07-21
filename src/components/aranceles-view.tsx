@@ -6,6 +6,7 @@
 // y agrega/filtra en cliente (toolbar idéntico a OPERACIONES). Endpoint /ops/aranceles.
 
 import { useEffect, useMemo, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 
 type Moneda = "ARS" | "USD";
@@ -43,19 +44,22 @@ type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 export function ArancelesView() {
   // El arancel es un solo valor SIEMPRE en pesos (no existe arancel en USD) → sin toggle.
   const moneda: Moneda = "ARS";
-  const [segmento, setSegmento] = useState("");
+  // Filtros PERSISTIDOS (claves `ar.*`): sobreviven a navegar entre rutas y
+  // habilitan la navegación asistida del guía (v1.82 — el panel escribe estas
+  // mismas claves; ver api/services/copiloto/navegacion.py).
+  const [segmento, setSegmento] = usePersistedState<string>("ar.segmento", "");
   const [segmentos, setSegmentos] = useState<string[]>([]);
-  const [operador, setOperador] = useState("");
+  const [operador, setOperador] = usePersistedState<string>("ar.operador", "");
   const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null }[]>([]);
-  const [dim, setDim] = useState<Dim>("nivel3");
+  const [dim, setDim] = usePersistedState<Dim>("ar.dim", "nivel3");
   const [selDim, setSelDim] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [selInstr, setSelInstr] = useState<string | null>(null);
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
-  const [modo, setModo] = useState<Modo>("ULTIMA");
-  const [rDesde, setRDesde] = useState("");
-  const [rHasta, setRHasta] = useState("");
+  const [modo, setModo] = usePersistedState<Modo>("ar.modo", "ULTIMA");
+  const [rDesde, setRDesde] = usePersistedState<string>("ar.desde", "");
+  const [rHasta, setRHasta] = usePersistedState<string>("ar.hasta", "");
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
   const [meta, setMeta] = useState<{ n_boletos: number } | null>(null);
   // La serie del gráfico llega acotada a ~18m (perf). Al elegir "ALL" pedimos
