@@ -30,6 +30,11 @@ const MANAGER_MODULES = [
 // que ya existe, no crear una franja nueva por vista. /trading NO está en el
 // mapa: su botón vive en la propia vista porque va cableado a las tarjetas y
 // al vigía (getParams/preguntaExterna). El panel se auto-oculta sin módulo ia.
+// Rutas cuya vista monta su PROPIO botón de IA adentro (cableado a estado
+// local: tarjetas/vigía en trading, tab activa en research) → el header no
+// duplica el botón ahí.
+const RUTAS_CON_PANEL_PROPIO = ["/trading", "/research"];
+
 const VISTA_IA_POR_RUTA: Record<string, string> = {
   "/": "home",
   "/renta-fija": "renta_fija",
@@ -165,13 +170,17 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
         })}
       </nav>
       <div className="ml-auto flex items-center">
-        {/* Rutas con copiloto de datos propio → su vista. El resto → el GUÍA de
-            la plataforma (vista `ayuda`: navegación, jamás datos). El invitado
-            nunca lo ve: el panel se auto-oculta sin módulo `ia` (que el rol
-            invitado no tiene, default-deny). */}
+        {/* UN SOLO botón de IA por página (captura del user 2026-07-20: en
+            /research se apilaban dos "Consultale a la IA"):
+            - rutas del mapa → su copiloto de datos acá en el header;
+            - rutas que montan su botón ADENTRO de la vista (/trading con las
+              tarjetas+vigía, /research con la tab activa) → el header NO pone
+              nada;
+            - el resto → el GUÍA (vista `ayuda`). El invitado nunca lo ve (sin
+              módulo `ia`, default-deny). */}
         {VISTA_IA_POR_RUTA[pathname] ? (
           <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} tone="onDark" />
-        ) : (
+        ) : RUTAS_CON_PANEL_PROPIO.some((r) => pathname.startsWith(r)) ? null : (
           <IaVistaPanel vista="ayuda" tone="onDark" />
         )}
       </div>
