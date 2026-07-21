@@ -68,6 +68,11 @@ export function OpsView() {
   const [incluirAca, setIncluirAca] = usePersistedState<boolean>("ops.incluirAca", true);
   const [mercado, setMercado] = usePersistedState<string>("ops.mercado", "");
   const [mercados, setMercados] = useState<string[]>([]);
+  // CARTERA del título (assets): permite ver qué se opera de HD / DL / ARS /
+  // FCI… El backend une por assets.unidad = instrumento (99% del volumen,
+  // medido con diag_ops_cartera).
+  const [cartera, setCartera] = usePersistedState<string>("ops.cartera", "");
+  const [carteras, setCarteras] = useState<string[]>([]);
   const [operador, setOperador] = usePersistedState<string>("ops.operador", "");
   const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>([]);
   const [search, setSearch] = usePersistedState<string>("ops.search", "");
@@ -126,6 +131,7 @@ export function OpsView() {
     + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
     + (incluirAca ? "" : "&aca_valores=sin")
     + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "")
+    + (cartera ? `&cartera=${encodeURIComponent(cartera)}` : "")
     + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
     + (excluidas.length ? `&excluir=${encodeURIComponent(excluidas.join("\n"))}` : "");
 
@@ -151,6 +157,8 @@ export function OpsView() {
       setNiveles3(n3?.niveles3 ?? []);
       const m = await getJSON<{ mercados: string[] }>("/api/operaciones/ops/mercados");
       setMercados(m?.mercados ?? []);
+      const ca = await getJSON<{ carteras: string[] }>("/api/operaciones/ops/carteras");
+      setCarteras(ca?.carteras ?? []);
       const c = await getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list");
       setCuentasList(c?.cuentas ?? []);
       const ops = await getJSON<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>("/api/operaciones/comercial/operadores");
@@ -226,6 +234,7 @@ export function OpsView() {
         {/* Filtros cruzados activos: se ACUMULAN (cuenta + op + título). Cada chip
             se saca solo, sin borrar los otros → podés ver "qué operó tal cuenta". */}
         {selDenom && <FiltroChip label={`cuenta: ${selDenom}`} onClear={() => { setSelDenom(null); setSearch(""); }} />}
+        {cartera && <FiltroChip label={`cartera: ${cartera}`} onClear={() => setCartera("")} />}
         {selOp && <FiltroChip label={`op: ${selOp}`} onClear={() => setSelOp(null)} />}
         {selInstr && <FiltroChip label={`título: ${selInstr}`} onClear={() => setSelInstr(null)} />}
         {/* Cuentas ocultas (excluidas server-side). Cada chip las restaura. */}
@@ -258,6 +267,13 @@ export function OpsView() {
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
           <option value="">Todos los segmentos</option>
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        {/* Filtro de CARTERA del título (catálogo Assets: HD / DL / ARS / FCI…) */}
+        <select value={cartera} onChange={(e) => setCartera(e.target.value)}
+          title="Cartera del título según el catálogo de Assets"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
+          <option value="">Todas las carteras</option>
+          {carteras.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         {/* Filtro de nivel_3 (segmento del boleto) */}
         <select value={nivel3} onChange={(e) => setNivel3(e.target.value)}
