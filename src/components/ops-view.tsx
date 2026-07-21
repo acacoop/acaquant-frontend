@@ -82,7 +82,11 @@ export function OpsView() {
   const [rHasta, setRHasta] = usePersistedState<string>("ops.hasta", "");
   const [fechas, setFechas] = useState<FechaRow[]>([]);
   const [selOp, setSelOp] = useState<string | null>(null);
-  const [selDenom, setSelDenom] = useState<string | null>(null);
+  // PERSISTIDO: `search` es solo el texto del buscador; el filtro REAL es
+  // este (viaja como &denominacion= a la API). Sin persistirlo, la navegación
+  // asistida escribía el nombre pero no filtraba nada (bug cazado por el user
+  // 2026-07-21). Ahora el guía puede dejar la cuenta ya seleccionada.
+  const [selDenom, setSelDenom] = usePersistedState<string | null>("ops.denominacion", null);
   const [selInstr, setSelInstr] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [serie, setSerie] = useState<SerieRow[]>([]);
@@ -296,7 +300,12 @@ export function OpsView() {
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por operación</span>
-              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(total)} {MONEDA_UNIDAD[moneda]}</span>
+              {/* Σ del filtro VIGENTE, no el global: con una cuenta elegida, el
+                  backend arma `total` sobre TODAS las denominaciones (la tabla
+                  "por cuenta" es cross-filter y no se filtra a sí misma) → la
+                  cabecera mostraba el total de la mesa junto a una tabla vacía.
+                  Caso real reportado 2026-07-21. */}
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(denomTotal)} {MONEDA_UNIDAD[moneda]}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
