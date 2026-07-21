@@ -47,6 +47,9 @@ interface PorTareaRow {
 interface PorProveedorRow {
   proveedor: string; modelos: string[]; llamadas: number; errores: number;
   tokens: number; latencia_ms_avg: number | null; no_entrena: boolean | null;
+  /** Gasto estimado desde los tokens (tabla de precios en core/llm.py):
+   * OpenAI no expone saldo por API, así que es la única forma de seguirlo. */
+  costo_usd: number; costo_usd_hoy: number; costo_estimable: boolean;
 }
 
 interface ObsResp {
@@ -96,6 +99,15 @@ function fmtTs(iso: string): string {
         hour: "2-digit", minute: "2-digit", second: "2-digit",
       });
 }
+/** Gasto en dólares: los importes chicos necesitan más decimales para no
+ * verse todos como "USD 0.00" (una pregunta cuesta fracciones de centavo). */
+function fmtUsd(v: number): string {
+  if (v === 0) return "USD 0";
+  if (v < 0.01) return `USD ${v.toFixed(4)}`;
+  if (v < 1) return `USD ${v.toFixed(3)}`;
+  return `USD ${v.toFixed(2)}`;
+}
+
 /** 1.234.567 → 1,2M — para que los KPI no se coman la fila. */
 function compact(n: number): string {
   if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
@@ -271,15 +283,24 @@ export function IaPanel() {
           />
           {proveedores.map((p) => {
             const s = p.saldo?.saldos?.[0];
+            const uso = data?.por_proveedor.find((x) => x.proveedor === p.proveedor);
+            // DeepSeek expone saldo real; OpenAI NO tiene endpoint de saldo
+            // (ni con admin key) → se muestra el gasto estimado desde los
+            // tokens, que además sirve para los dos.
+            const gastoHoy = uso?.costo_estimable ? uso.costo_usd_hoy : null;
             return (
               <Kpi
                 key={p.proveedor}
                 label={p.proveedor.toUpperCase()}
-                valor={s ? `${s.moneda} ${s.total ?? "—"}` : p.configurado ? "activo" : "sin key"}
+                valor={s ? `${s.moneda} ${s.total ?? "—"}` : gastoHoy != null ? fmtUsd(gastoHoy) : (p.configurado ? "activo" : "sin key")}
                 tono={!p.configurado ? "neg" : p.saldo?.disponible === false ? "neg" : "pos"}
                 sub={
                   <span title={Object.values(p.modelos).join(" · ")}>
-                    {p.no_entrena ? "no entrena ✓" : "puede entrenar ⚠"} · {p.modelos.flash ?? "—"}
+                    {s
+                      ? `saldo · gastado hoy ${gastoHoy != null ? fmtUsd(gastoHoy) : "—"}`
+                      : "gastado hoy (estimado)"}
+                    {" · "}
+                    {p.no_entrena ? "no entrena ✓" : "puede entrenar ⚠"}
                   </span>
                 }
               />
@@ -437,6 +458,15 @@ export function IaPanel() {
                         </span>
                       )}
                       <span className="ml-auto text-[11px] tabular-nums">{compact(r.tokens)} tokens</span>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="text-[13px] tabular-nums text-[var(--t-text)]">
+                        {r.costo_estimable ? fmtUsd(r.costo_usd) : "—"}
+                      </span>
+                      <span className="text-[9px] text-[var(--t-text-dim)]">
+                        gasto estimado en la ventana
+                        {r.costo_estimable && ` · hoy ${fmtUsd(r.costo_usd_hoy)}`}
+                      </span>
                     </div>
                     <div className="mt-1 text-[10px] text-[var(--t-text-dim)] tabular-nums">
                       {nf.format(r.llamadas)} llamadas
