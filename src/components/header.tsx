@@ -178,9 +178,12 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
               nada;
             - el resto → el GUÍA (vista `ayuda`). El invitado nunca lo ve (sin
               módulo `ia`, default-deny). */}
+        {/* Invitados (2026-07-21): SÍ ven los copilotos de las vistas de
+            mercado, pero JAMÁS el guía (mapea el producto entero — el backend
+            también lo excluye; esto evita el probe extra). */}
         {VISTA_IA_POR_RUTA[pathname] ? (
           <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} tone="onDark" />
-        ) : RUTAS_CON_PANEL_PROPIO.some((r) => pathname.startsWith(r)) ? null : (
+        ) : isGuest || RUTAS_CON_PANEL_PROPIO.some((r) => pathname.startsWith(r)) ? null : (
           <IaVistaPanel vista="ayuda" tone="onDark" />
         )}
       </div>
