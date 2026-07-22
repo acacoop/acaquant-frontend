@@ -4,13 +4,17 @@ import { useMemo, useState } from "react";
 import type { CedearScannerRow } from "@/lib/types-scanner";
 import { fmtMoney } from "@/lib/fmt-money";
 import { PivotPointsPanel } from "./pivot-points-panel";
+import { RetornosChart } from "./retornos-chart";
 
 /**
- * Panel MÉTRICAS del Scanner — 2 tabs:
- *   PULSO  → pulso del mercado por RUBRO (default). Retornos 1D/WTD/15R/MTD/YTD del
- *            ADR (USD del subyacente) ponderados por volumen USD del ADR + breadth
- *            (▲/▼). Real-time: se recalcula con cada poll de la tabla.
- *   PIVOTS → pivot points / zonas / volatilidad del ticker elegido.
+ * Panel MÉTRICAS del Scanner — 3 tabs:
+ *   PULSO    → pulso del mercado por RUBRO (default). Retornos 1D/WTD/15R/MTD/YTD del
+ *              ADR (USD del subyacente) ponderados por volumen USD del ADR + breadth
+ *              (▲/▼). Real-time: se recalcula con cada poll de la tabla.
+ *   PIVOTS   → pivot points / zonas / volatilidad del ticker elegido.
+ *   RETORNOS → el retorno DIARIO del ticker elegido a lo largo del tiempo (% vs
+ *              fecha). PULSO responde "cómo viene el mercado hoy"; esto responde
+ *              "cómo se movió ESTE papel, día por día".
  *
  * Filtro "A.I" (toggle en el header del Pulso): cuando está activo, el Pulso muestra
  * SOLO los rubros del ecosistema IA (filtra rows a es_ia=true ANTES de agrupar).
@@ -25,7 +29,7 @@ import { PivotPointsPanel } from "./pivot-points-panel";
  * clasificación de negocio nueva, más granular que el sector legacy del master.
  */
 
-type Tab = "pulso" | "pivots";
+type Tab = "pulso" | "pivots" | "retornos";
 
 // Estos dos campos viven en mercado.cedears (columnas) y los expone el path SQL
 // del scanner (api/services/scanner_sql.py). El tipo CedearScannerRow en
@@ -69,7 +73,8 @@ export function MetricasPanel({
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="flex items-center gap-1 mb-1 shrink-0">
-        {([["pulso", "PULSO"], ["pivots", "PIVOTS / VOL"]] as [Tab, string][]).map(([k, l]) => (
+        {([["pulso", "PULSO"], ["pivots", "PIVOTS / VOL"],
+           ["retornos", "RETORNOS"]] as [Tab, string][]).map(([k, l]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -95,14 +100,16 @@ export function MetricasPanel({
             A.I
           </button>
         )}
-        {tab === "pivots" && <span className="ml-auto text-[10px] text-[var(--t-text-dim)]">{ticker || "—"}</span>}
+        {(tab === "pivots" || tab === "retornos") && (
+          <span className="ml-auto text-[10px] text-[var(--t-text-dim)]">{ticker || "—"}</span>
+        )}
       </div>
       <div className="flex-1 min-h-0">
-        {tab === "pulso" ? (
+        {tab === "pulso" && (
           <PulsoRubrosPanel rows={rowsFiltradas} selected={selectedRubro} onSelect={onRubroSelect} />
-        ) : (
-          <PivotPointsPanel ticker={ticker} />
         )}
+        {tab === "pivots" && <PivotPointsPanel ticker={ticker} />}
+        {tab === "retornos" && <RetornosChart ticker={ticker} />}
       </div>
     </div>
   );
