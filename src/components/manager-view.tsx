@@ -1856,6 +1856,7 @@ function TabClientesSegmentacion() {
   // Filtros
   const [fOperador, setFOperador] = useState("");
   const [fNivel1, setFNivel1] = useState("");
+  const [fNivel2, setFNivel2] = useState("");
   const [campoVacio, setCampoVacio] = useState<ClienteCampo | "">("");
   const [q, setQ] = useState("");
   // Import de archivo (csv/xlsx)
@@ -1868,6 +1869,7 @@ function TabClientesSegmentacion() {
     const qs = new URLSearchParams();
     if (fOperador) qs.set("operador", fOperador);
     if (fNivel1) qs.set("nivel_1", fNivel1);
+    if (fNivel2) qs.set("nivel_2", fNivel2);
     if (campoVacio) qs.set("campo_vacio", campoVacio);
     if (q.trim()) qs.set("q", q.trim());
     fetch(`/api/manager/clientes?${qs}`)
@@ -1923,8 +1925,22 @@ function TabClientesSegmentacion() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivelFocus, drafts, niveles]);
 
+  // Opciones del FILTRO de nivel 2: solo las que conviven con el nivel 1
+  // elegido (mismo criterio de cascada que los combos de la tabla, sobre los
+  // mismos datos ya cargados — sin pedirle nada más al backend). Una lista
+  // plana mostraría valores de otros nivel_1 que siempre dan cero resultados.
+  const opcionesNivel2 = useMemo(() => {
+    const out = new Set<string>();
+    for (const combo of niveles) {
+      if ((!fNivel1 || combo["nivel_1"] === fNivel1) && combo["nivel_2"]) {
+        out.add(combo["nivel_2"]);
+      }
+    }
+    return [...out].sort();
+  }, [niveles, fNivel1]);
+
   // Re-fetch al cambiar filtros de select. La búsqueda libre va por Enter/botón.
-  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, campoVacio]);
+  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, fNivel2, campoVacio]);
 
   const setDraftField = (id: string, field: ClienteCampo, value: string) => {
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || emptyClienteDraft()), [field]: value } }));
@@ -2090,10 +2106,24 @@ function TabClientesSegmentacion() {
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 1</span>
-        <select value={fNivel1} onChange={(e) => setFNivel1(e.target.value)}
+        <select value={fNivel1}
+          onChange={(e) => {
+            setFNivel1(e.target.value);
+            // el nivel 2 elegido puede no existir dentro del nuevo nivel 1 →
+            // sin esto quedaría un filtro invisible que devuelve cero
+            setFNivel2("");
+          }}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
           {(vals["nivel_1"] || []).map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 2</span>
+        <select value={fNivel2} onChange={(e) => setFNivel2(e.target.value)}
+          title={fNivel1 ? `Subsegmentos dentro de ${fNivel1}` : "Subsegmento (nivel 2)"}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+          <option value="">— todos —</option>
+          {opcionesNivel2.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CAMPO VACÍO</span>
