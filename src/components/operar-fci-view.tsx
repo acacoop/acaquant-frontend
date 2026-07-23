@@ -1,14 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ACCOUNT_DEFAULT_FALLBACK, CuentaDescubierta } from "./dolar-mep-shared";
-import {
-  AccountSearch,
-  OrderManagement,
-  PortfolioPanel,
-  usePortfolio,
-  useOrdenesDia,
-} from "./operar-dashboard-view";
+
+// Este archivo aporta SOLO el panel de operación FCI (buscador de fondo + cuota
+// + suscribir/rescatar). La columna derecha (portfolio + órdenes) y el toolbar
+// de cuenta los pone la vista consolidada `operar-titulos-fci-view`, que reusa
+// este panel para el modo FCI. La vista espejo que había acá se eliminó al
+// consolidar OPERAR en una sola pantalla.
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -138,7 +136,7 @@ function fmtNum(n: number | null | undefined, dec = 4): string {
 
 // ─── Panel de operación FCI (lado izquierdo) ─────────────────────────────────
 
-function FciOperatePanel({
+export function FciOperatePanel({
   account,
   onExecuted,
   initialFundQuery,
@@ -404,146 +402,3 @@ function Meta({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-// ─── Vista principal — espejo del DASHBOARD ──────────────────────────────────
-// Izquierda: panel FCI. Derecha: portfolio (arriba) + órdenes del día (abajo),
-// reusando los MISMOS componentes que el dashboard de assets.
-
-export function OperarFciView() {
-  const [cuentas, setCuentas] = useState<CuentaDescubierta[]>([]);
-  const [account, setAccount] = useState<string>(ACCOUNT_DEFAULT_FALLBACK);
-  const [derivedAccount, setDerivedAccount] = useState<string | null>(null);
-  const [fundSeed, setFundSeed] = useState<string | undefined>(undefined);
-
-  const { orders, refresh } = useOrdenesDia(account);
-  const { saldo, detailed, refresh: refreshPortfolio } = usePortfolio(account);
-
-  // Deep-link desde Valuaciones: ?account= & ?fci= (nombre del fondo a buscar).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const p = new URLSearchParams(window.location.search);
-    const acc = p.get("account");
-    const fci = p.get("fci");
-    if (acc) {
-      setAccount(acc);
-      setDerivedAccount(acc);
-    }
-    if (fci) setFundSeed(fci);
-  }, []);
-
-  // Cuentas + deep-link. La cuenta NO se persiste entre sesiones.
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/risk/account/listado", { cache: "no-store" });
-        if (!alive || !r.ok) return;
-        const list = (await r.json()) as CuentaDescubierta[];
-        setCuentas(list);
-        const urlAcc =
-          typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search).get("account")
-            : null;
-        // La cuenta arranca VACÍA en cada sesión: no se restaura de
-        // localStorage (navegador compartido en la mesa heredaría la cuenta del
-        // usuario anterior). Solo el deep-link ?account= la precarga.
-        if (urlAcc && list.some((c) => c.account_id === urlAcc)) {
-          setAccount(urlAcc);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  async function cancelOrder(cl_ord_id: string, proprietary?: string) {
-    try {
-      const qs = proprietary ? `?proprietary=${encodeURIComponent(proprietary)}` : "";
-      const r = await fetch(`/api/ordenes/${encodeURIComponent(cl_ord_id)}${qs}`, {
-        method: "DELETE",
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.ok === false) {
-        alert(`Cancelar falló: ${j.error || j.detail || `HTTP ${r.status}`}`);
-      }
-    } catch (e) {
-      alert(`Cancelar falló: ${e instanceof Error ? e.message : "error"}`);
-    } finally {
-      void refresh();
-    }
-  }
-
-  return (
-    <div className="h-full flex flex-col gap-2 p-2 bg-[var(--t-panel)] min-h-0 overflow-hidden">
-      {/* Toolbar — mismo que el dashboard */}
-      <div className="flex items-center gap-2 px-2 py-1 border border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <span className="text-[10px] tracking-wider text-[var(--t-text-dim)]">CUENTA</span>
-        <AccountSearch value={account} cuentas={cuentas} onPick={(id) => setAccount(id)} />
-        <span className="ml-auto text-[9px] text-[var(--t-text-muted)] tracking-wide">
-          FCI · suscripción / rescate · orden = cuotapartes @ cuota del día
-        </span>
-      </div>
-
-      {/* Banner de contexto cuando se llega derivado desde Valuaciones. */}
-      {derivedAccount && (() => {
-        const nombre = cuentas.find((c) => c.account_id === derivedAccount)?.nombre;
-        const noOperable =
-          cuentas.length > 0 && !cuentas.some((c) => c.account_id === derivedAccount);
-        return (
-          <div
-            className={`shrink-0 flex items-center gap-2 px-2 py-1 text-[10px] border ${
-              noOperable
-                ? "border-[#f87171]/50 bg-[var(--t-tint-red)] text-[var(--t-neg)]"
-                : "border-[var(--t-accent)]/40 bg-[var(--t-tint-amber)] text-[#ffcf66]"
-            }`}
-          >
-            <span>
-              ↪ Derivado de Valuaciones · operando cuenta{" "}
-              <b className="text-white">{derivedAccount}</b>
-              {nombre ? ` — ${nombre}` : ""}
-              {noOperable && " · ⚠ esta cuenta no figura como operable por API"}
-            </span>
-            <button
-              onClick={() => setDerivedAccount(null)}
-              className="ml-auto text-[var(--t-text-dim)] hover:text-white leading-none"
-              title="Ocultar"
-            >
-              ✕
-            </button>
-          </div>
-        );
-      })()}
-
-      {/* Split 50/50 — espejo del dashboard */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
-        {/* Izquierda: panel FCI (en lugar de los order books) */}
-        <FciOperatePanel
-          account={account}
-          initialFundQuery={fundSeed}
-          onExecuted={() => {
-            void refresh();
-            void refreshPortfolio();
-          }}
-        />
-
-        {/* Derecha: portfolio arriba + órdenes del día abajo (idéntico al dashboard) */}
-        <div className="min-h-0 grid grid-rows-2 gap-2">
-          <div className="min-h-0 overflow-hidden">
-            <PortfolioPanel
-              account={account}
-              accountNombre={cuentas.find((c) => c.account_id === account)?.nombre ?? null}
-              saldo={saldo}
-              detailed={detailed}
-              refresh={refreshPortfolio}
-            />
-          </div>
-          <div className="min-h-0 overflow-hidden">
-            <OrderManagement orders={orders} refresh={refresh} onCancel={cancelOrder} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

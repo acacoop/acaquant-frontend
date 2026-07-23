@@ -2,45 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { DolarMepShell } from "./dolar-mep-shell";
-import { OperarDashboardView } from "./operar-dashboard-view";
-import { OperarFciView } from "./operar-fci-view";
+import { OperarTitulosFciView } from "./operar-titulos-fci-view";
 
-type Tab = "dashboard" | "fci" | "dolar-mep";
+// OPERAR arranca en DÓLAR MEP (lo primero que se ve al entrar — decisión user
+// 2026-07-23). El resto (títulos + FCI) quedó consolidado en UNA vista.
+type Tab = "dolar-mep" | "titulos-fci";
 
 export function OperarShell() {
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>("dolar-mep");
 
-  // Deep-link desde Valuaciones: ?tab=fci abre la tab correcta en mount.
+  // Deep-link desde Valuaciones. Se aceptan los alias viejos (?tab=fci /
+  // ?tab=dashboard) para no romper links guardados: ambos caen en la vista
+  // consolidada, que además lee ?ticker= / ?fci= para abrir en el modo correcto.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const t = new URLSearchParams(window.location.search).get("tab");
-    if (t === "fci" || t === "dolar-mep" || t === "dashboard") {
-      setTab(t as Tab);
-    }
+    if (t === "dolar-mep") setTab("dolar-mep");
+    else if (t === "fci" || t === "dashboard" || t === "titulos-fci") setTab("titulos-fci");
   }, []);
 
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-        <TabBtn active={tab === "dashboard"} onClick={() => setTab("dashboard")}>
-          DASHBOARD
-        </TabBtn>
-        <TabBtn active={tab === "fci"} onClick={() => setTab("fci")}>
-          FCI
-        </TabBtn>
         <TabBtn active={tab === "dolar-mep"} onClick={() => setTab("dolar-mep")}>
-          DOLAR MEP
+          DÓLAR MEP
+        </TabBtn>
+        <TabBtn active={tab === "titulos-fci"} onClick={() => setTab("titulos-fci")}>
+          TÍTULOS Y FCI
         </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "dashboard" ? (
-          <OperarDashboardView />
-        ) : tab === "fci" ? (
-          <OperarFciView />
-        ) : (
-          <DolarMepShell />
-        )}
+        {tab === "dolar-mep" ? <DolarMepShell /> : <OperarTitulosFciView />}
       </div>
     </div>
   );
