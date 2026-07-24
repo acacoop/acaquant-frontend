@@ -7,9 +7,10 @@ import {
 } from "./derivados-agro-view";
 import { AgroMejorasDispo } from "./agro-mejoras-dispo";
 import { AgroDatos } from "./agro-datos";
+import { AgroChicago } from "./agro-chicago";
 import { useIsGuest } from "@/lib/use-is-guest";
 
-type Tab = "mercado" | "mejoras" | "datos";
+type Tab = "mercado" | "mejoras" | "chicago" | "datos";
 
 export function AgroShell({ agroInitial }: { agroInitial: AgroResp | null }) {
   const [tab, setTab] = useState<Tab>("mercado");
@@ -26,6 +27,9 @@ export function AgroShell({ agroInitial }: { agroInitial: AgroResp | null }) {
         </TabBtn>
         <TabBtn active={activeTab === "mejoras"} onClick={() => setTab("mejoras")}>
           Mejoras Precio Dispo
+        </TabBtn>
+        <TabBtn active={activeTab === "chicago"} onClick={() => setTab("chicago")}>
+          Chicago
         </TabBtn>
         {!isGuest && (
           <TabBtn active={activeTab === "datos"} onClick={() => setTab("datos")}>
@@ -47,6 +51,8 @@ export function AgroShell({ agroInitial }: { agroInitial: AgroResp | null }) {
           )
         ) : activeTab === "mejoras" ? (
           <AgroMejorasDispo />
+        ) : activeTab === "chicago" ? (
+          <AgroChicago />
         ) : (
           <AgroDatos />
         )}
