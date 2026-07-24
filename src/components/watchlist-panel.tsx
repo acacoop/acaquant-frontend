@@ -218,38 +218,43 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     if (filtro !== "General") return [];
     const grupos: { label: string; rows: GenRow[] }[] = [];
 
-    // 1) ARGY (lo local: MEP, CCL, canje, cauciones, riesgo, oficial).
-    if (argy.length > 0) {
-      grupos.push({
-        label: "Argentina",
-        rows: argy.map((r): GenRow => {
-          const isPct = r.unit === "%";
-          const valueColor = isPct
-            ? r.label === "CANJE"
-              ? r.value !== null && r.value < 0 ? "var(--t-neg)" : "var(--t-pos)"
-              : "#ffcc00"
-            : "var(--t-pos)";
-          const valueStr = r.value === null
-            ? "—"
-            : isPct
-              ? `${r.value.toFixed(2)}%`
-              : r.label === "DOLAR OFICIAL"
-                ? `$${fmtPriceDlr(r.value)}`
-                : `$${fmtPrice(r.value)}`;
-          return {
-            name: r.label + (r.plazo_dias ? ` ${r.plazo_dias}D` : ""),
-            valueStr,
-            valueColor,
-            pct_day: r.ret_day,
-            ret_7d: r.ret_7d,
-            ret_mtd: r.ret_mtd,
-            ret_ytd: r.ret_ytd,
-            ts: r.ts,
-            selectKey: r.label,
-            clickable: false,
-          };
-        }),
-      });
+    // 1) ARGY (lo local: MEP, CCL, canje, cauciones, riesgo, oficial) + los
+    //    soberanos OFFSHORE (source "eikon_off") como grupo PROPIO
+    //    "Bonos Off Shore" debajo de Argentina (pedido 2026-07-24).
+    const mapArgy = (r: ArgyDoc): GenRow => {
+      const isPct = r.unit === "%";
+      const valueColor = isPct
+        ? r.label === "CANJE"
+          ? r.value !== null && r.value < 0 ? "var(--t-neg)" : "var(--t-pos)"
+          : "#ffcc00"
+        : "var(--t-pos)";
+      const valueStr = r.value === null
+        ? "—"
+        : isPct
+          ? `${r.value.toFixed(2)}%`
+          : r.label === "DOLAR OFICIAL"
+            ? `$${fmtPriceDlr(r.value)}`
+            : `$${fmtPrice(r.value)}`;
+      return {
+        name: r.label + (r.plazo_dias ? ` ${r.plazo_dias}D` : ""),
+        valueStr,
+        valueColor,
+        pct_day: r.ret_day,
+        ret_7d: r.ret_7d,
+        ret_mtd: r.ret_mtd,
+        ret_ytd: r.ret_ytd,
+        ts: r.ts,
+        selectKey: r.label,
+        clickable: false,
+      };
+    };
+    const argyLocal = argy.filter((r) => r.source !== "eikon_off");
+    const argyOff = argy.filter((r) => r.source === "eikon_off");
+    if (argyLocal.length > 0) {
+      grupos.push({ label: "Argentina", rows: argyLocal.map(mapArgy) });
+    }
+    if (argyOff.length > 0) {
+      grupos.push({ label: "Bonos Off Shore", rows: argyOff.map(mapArgy) });
     }
 
     // 2) Índices / Futuros / US Treasury (Market.Quotes).

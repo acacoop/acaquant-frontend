@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { FuturosDlrCurveChart } from "@/components/futuros-dlr-curve-chart";
 import { NewsPanel } from "@/components/news-panel";
-import { CanjeTab, PARES, type Par } from "@/components/canje-tab";
 import { TradingViewChart } from "@/components/tradingview-chart";
 import { WatchlistPanel } from "@/components/watchlist-panel";
 
@@ -27,47 +26,9 @@ function esTickerArgy(t: string): boolean {
   );
 }
 
-// Pill chico reutilizable del header (toggle + curva + ventana).
-function Pill({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-        active
-          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-// Recuadro de la home (abajo-izquierda): UN solo header con toggle
-// RETORNO TOTAL / CARRY / CANJE + (en retorno/carry) pills de curva y ventana.
-// Caja con borde como el box del chart de al lado → alineados, sin título
-// duplicado. CARRY = retorno medido en USD (descuenta la variación del MEP).
-// CANJE (el Retorno Total se movió a Research → RENTA FIJA ARGENTINA, 2026-07-20).
-function CanjeBox() {
-  const [par, setPar] = useState<Par>("AL30");
-  return (
-    <div className="h-full min-h-0 min-w-0 flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap">
-        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">Canje</span>
-        <div className="flex items-center gap-1 ml-auto">
-          {PARES.map((p) => (
-            <Pill key={p} active={par === p} onClick={() => setPar(p)}>{p}</Pill>
-          ))}
-        </div>
-      </div>
-      <div className="flex-1 min-h-0 min-w-0">
-        <CanjeTab par={par} />
-      </div>
-    </div>
-  );
-}
+// El recuadro CANJE que vivía abajo-izquierda se quitó (2026-07-24, pedido de
+// la mesa): la watchlist ocupa toda la columna izquierda. El análisis de canje
+// sigue disponible vía /api/analitica/canje (componente canje-tab).
 
 export function HomeView() {
   const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_TICKER);
@@ -117,19 +78,14 @@ export function HomeView() {
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* Columna izquierda: watchlist arriba · CANJE abajo.
+        {/* Columna izquierda: la WATCHLIST a página completa (el CANJE se quitó).
             min-w-0 evita el grid blowout: sin esto, el contenido ancho empuja la
             columna más allá del 50%. */}
-        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
-          <div className="min-w-0 min-h-0">
-            <WatchlistPanel
-              onSelect={setSelectedTicker}
-              selected={selectedTicker}
-            />
-          </div>
-          <div className="min-w-0 min-h-0">
-            <CanjeBox />
-          </div>
+        <div className="min-w-0 min-h-0">
+          <WatchlistPanel
+            onSelect={setSelectedTicker}
+            selected={selectedTicker}
+          />
         </div>
 
         {/* Columna derecha: news arriba (50%) · chart TradingView abajo (50%) */}
