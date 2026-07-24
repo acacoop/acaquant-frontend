@@ -292,7 +292,10 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
   return (
     <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)]">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2">
+      {/* Header en UNA sola línea (título + estado + chips de filtro + count):
+          ganar altura era el pedido — la watchlist ocupa la columna entera y
+          por poco no entra todo sin scroll (2026-07-24). */}
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           Watchlist
         </span>
@@ -308,26 +311,24 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         <span className="text-[9px] text-[var(--t-text-muted)]">
           · poll {filtro === "CALENDARIO" ? "5m" : filtro === "FUTUROS ROFEX" ? "5s" : "5s/30s"}
         </span>
+        <span className="mx-1 flex items-center gap-1">
+          {gruposPresentes.map((g) => (
+            <button
+              key={g}
+              onClick={() => setFiltro(g)}
+              className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
+                filtro === g
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </span>
         <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">
           {filtro === "CALENDARIO" ? "AR · US · BR" : totalVisibles}
         </span>
-      </div>
-
-      {/* Chips de filtro */}
-      <div className="px-2 py-1.5 border-b border-[var(--t-border)] flex flex-wrap items-center gap-1 shrink-0">
-        {gruposPresentes.map((g) => (
-          <button
-            key={g}
-            onClick={() => setFiltro(g)}
-            className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
-              filtro === g
-                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-            }`}
-          >
-            {g}
-          </button>
-        ))}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
