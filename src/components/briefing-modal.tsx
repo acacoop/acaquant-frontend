@@ -256,7 +256,7 @@ export function BriefingModal() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className={`w-full ${data.research_hoy ? "max-w-[110rem]" : "max-w-6xl"} bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden`}
+            className="w-full max-w-6xl bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--t-border)]">
@@ -273,20 +273,48 @@ export function BriefingModal() {
               </button>
             </div>
 
-            {/* Contenido: la tabla de siempre + (si HAY mail de HOY) el research
-                al costado — cada mitad scrollea POR SU CUENTA */}
-            <div className="flex min-h-0 max-h-[82vh]">
-            <div className="overflow-y-auto p-3 flex-1 min-w-0">
-              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] lg:grid-cols-[1.1fr_1fr_0.85fr] gap-x-3 gap-y-3">
-                {/* IZQUIERDA — Futuros (el bloque grande) */}
-                <div className="self-start">
-                  <Section title="FUTUROS" />
-                  <ColHeader grid={GRID_FUT} />
-                  {renderFuturos(data.futuros)}
+            {/* Contenido en 3 columnas (reordenado 2026-07-24, pedido de la mesa):
+                1) research → futuros → cauciones
+                2) oficial → financieros → dólar futuro
+                3) bonos off → bonos que pagan hoy */}
+            <div className="overflow-y-auto p-3 max-h-[82vh]">
+              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] lg:grid-cols-[1.15fr_1fr_0.9fr] gap-x-3 gap-y-3">
+                {/* COLUMNA 1 — research + futuros + cauciones */}
+                <div className="flex flex-col gap-3 self-start">
+                  {data.research_hoy && (
+                    <div>
+                      <Section title="📰 RESEARCH DEL DÍA" />
+                      <div className="px-2 py-1 text-[10px] text-[var(--t-text-dim)]">
+                        {data.research_hoy.asunto.replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "")}
+                      </div>
+                      {/* Altura acotada con scroll propio para no enterrar los futuros */}
+                      <div className="max-h-56 overflow-y-auto px-2 py-1 border border-[var(--t-border-2)]">
+                        <p className="whitespace-pre-wrap text-[11px] leading-[1.55] text-[var(--t-text)]">
+                          {data.research_hoy.texto}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <Section title="FUTUROS" />
+                    <ColHeader grid={GRID_FUT} />
+                    {renderFuturos(data.futuros)}
+                  </div>
+
+                  {(data.cauciones?.length ?? 0) > 0 && (
+                    <div>
+                      <Section title="CAUCIONES · TNA %" />
+                      <ColHeader />
+                      {data.cauciones!.map((r) => (
+                        <Row key={r.label} r={r} />
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* DERECHA — dólares + bonos, siempre visibles (no enterrados) */}
-                <div className="flex flex-col gap-3">
+                {/* COLUMNA 2 — dólares: oficial + financieros + futuro (DLR) */}
+                <div className="flex flex-col gap-3 self-start">
                   <div>
                     <Section title="DÓLAR OFICIAL" />
                     <ColHeader />
@@ -303,11 +331,45 @@ export function BriefingModal() {
                     ))}
                   </div>
 
-                  {(data.cauciones?.length ?? 0) > 0 && (
+                  <div>
+                    <Section title="DÓLAR FUTURO (DLR)" />
+                    <div className="grid grid-cols-[minmax(0,1fr)_36px_56px_48px] gap-x-1.5 px-2 text-[9px] tracking-widest text-[var(--t-text-dim)] py-1">
+                      <span>TICKER</span>
+                      <span className="text-right">DÍAS</span>
+                      <span className="text-right">ÚLTIMO</span>
+                      <span className="text-right">TNA %</span>
+                    </div>
+                    {(data.futuros_dlr?.length ?? 0) > 0 ? (
+                      data.futuros_dlr!.map((f) => (
+                        <div
+                          key={f.ticker}
+                          className="grid grid-cols-[minmax(0,1fr)_36px_56px_48px] gap-x-1.5 px-2 py-1 border-b border-[var(--t-border-2)] text-[11px] font-mono"
+                        >
+                          <span className="font-semibold text-[var(--t-text)] truncate">{f.ticker}</span>
+                          <span className="text-right text-[var(--t-text-muted)]">{f.dias ?? "—"}</span>
+                          <span className="text-right text-[var(--t-text)]">
+                            {f.ultimo != null ? f.ultimo.toLocaleString("es-AR", { maximumFractionDigits: 1 }) : "—"}
+                          </span>
+                          <span className="text-right text-[var(--t-accent)] font-semibold">
+                            {f.tna != null ? `${f.tna.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%` : "—"}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-[11px] text-[var(--t-text-dim)]">
+                        Sin datos de la curva DLR.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* COLUMNA 3 — bonos: offshore + pagan hoy */}
+                <div className="flex flex-col gap-3 self-start">
+                  {(data.bonos_off?.length ?? 0) > 0 && (
                     <div>
-                      <Section title="CAUCIONES · TNA %" />
+                      <Section title="SOBERANOS EXTERIOR (OFF)" />
                       <ColHeader />
-                      {data.cauciones!.map((r) => (
+                      {data.bonos_off!.map((r) => (
                         <Row key={r.label} r={r} />
                       ))}
                     </div>
@@ -332,70 +394,7 @@ export function BriefingModal() {
                     )}
                   </div>
                 </div>
-
-                {/* TERCERA COLUMNA — curva de futuros de dólar (Matba Rofex) */}
-                <div className="self-start">
-                  <Section title="DÓLAR FUTURO (DLR)" />
-                  <div className="grid grid-cols-[minmax(0,1fr)_36px_56px_48px] gap-x-1.5 px-2 text-[9px] tracking-widest text-[var(--t-text-dim)] py-1">
-                    <span>TICKER</span>
-                    <span className="text-right">DÍAS</span>
-                    <span className="text-right">ÚLTIMO</span>
-                    <span className="text-right">TNA %</span>
-                  </div>
-                  {(data.futuros_dlr?.length ?? 0) > 0 ? (
-                    data.futuros_dlr!.map((f) => (
-                      <div
-                        key={f.ticker}
-                        className="grid grid-cols-[minmax(0,1fr)_36px_56px_48px] gap-x-1.5 px-2 py-1 border-b border-[var(--t-border-2)] text-[11px] font-mono"
-                      >
-                        <span className="font-semibold text-[var(--t-text)] truncate">{f.ticker}</span>
-                        <span className="text-right text-[var(--t-text-muted)]">{f.dias ?? "—"}</span>
-                        <span className="text-right text-[var(--t-text)]">
-                          {f.ultimo != null ? f.ultimo.toLocaleString("es-AR", { maximumFractionDigits: 1 }) : "—"}
-                        </span>
-                        <span className="text-right text-[var(--t-accent)] font-semibold">
-                          {f.tna != null ? `${f.tna.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%` : "—"}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-[11px] text-[var(--t-text-dim)]">
-                      Sin datos de la curva DLR.
-                    </div>
-                  )}
-
-                  {/* Soberanos OFFSHORE (precio USD del exterior, feed Eikon) */}
-                  {(data.bonos_off?.length ?? 0) > 0 && (
-                    <div className="mt-3">
-                      <Section title="SOBERANOS EXTERIOR (OFF)" />
-                      <ColHeader />
-                      {data.bonos_off!.map((r) => (
-                        <Row key={r.label} r={r} />
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
-            </div>
-
-            {/* RESEARCH DEL DÍA (mail 1816) — solo si llegó HOY; scroll propio */}
-            {data.research_hoy && (
-              <aside className="hidden lg:flex w-[360px] shrink-0 border-l border-[var(--t-border)] flex-col min-h-0">
-                <div className="px-3 py-2 border-b border-[var(--t-border)] shrink-0">
-                  <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
-                    📰 RESEARCH DEL DÍA
-                  </span>
-                  <span className="ml-2 text-[10px] text-[var(--t-text-dim)]">
-                    {data.research_hoy.asunto.replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "")}
-                  </span>
-                </div>
-                <div className="flex-1 overflow-y-auto px-3 py-2">
-                  <p className="whitespace-pre-wrap text-[11px] leading-[1.55] text-[var(--t-text)]">
-                    {data.research_hoy.texto}
-                  </p>
-                </div>
-              </aside>
-            )}
             </div>
 
             {/* Footer */}
