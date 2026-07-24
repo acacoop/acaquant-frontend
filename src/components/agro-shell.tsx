@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DerivadosAgroView,
   type AgroResp,
@@ -12,8 +12,18 @@ import { useIsGuest } from "@/lib/use-is-guest";
 
 type Tab = "mercado" | "mejoras" | "chicago" | "datos";
 
+const TABS: Tab[] = ["mercado", "mejoras", "chicago", "datos"];
+
 export function AgroShell({ agroInitial }: { agroInitial: AgroResp | null }) {
   const [tab, setTab] = useState<Tab>("mercado");
+
+  // Tab inicial desde ?tab= (ej. /agro?tab=chicago desde el anuncio). En efecto
+  // y no en el useState inicial: el SSR no ve la query y arrancar distinto en
+  // server y cliente rompe la hidratación.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab") as Tab | null;
+    if (t && TABS.includes(t)) setTab(t);
+  }, []);
   // El invitado (portal www) NO ve la sub-sección Datos (cámara de cereales).
   const isGuest = useIsGuest();
   // Si por algún estado quedó en "datos" y es invitado, lo forzamos a mercado.
