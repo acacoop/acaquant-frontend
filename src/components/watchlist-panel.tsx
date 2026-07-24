@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Quote } from "@/lib/types";
 import { CalendarioPanel } from "@/components/calendario-panel";
+import { WatchlistNews } from "@/components/watchlist-news";
 
 const POLL_MS = 30_000;
 const POLL_LOCAL_MS = 5_000;   // ARGY + futuros DLR refrescan cada 5s (live)
@@ -179,6 +180,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     const out: string[] = [];
     if (argy.length > 0 || quotes.length > 0) out.push("General");
     if (futurosDlr.length > 0) out.push("FUTUROS ROFEX");
+    out.push("NOTICIAS");
     out.push("CALENDARIO");
     return out;
   }, [quotes, futurosDlr, argy]);
@@ -187,7 +189,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     if (!filtro) {
       // Default = General (pedido de la mesa 2026-07-14; antes era FUTUROS ROFEX).
       // CALENDARIO nunca es default (está siempre presente, es tab secundaria).
-      const conDatos = gruposPresentes.filter((g) => g !== "CALENDARIO");
+      const conDatos = gruposPresentes.filter((g) => g !== "CALENDARIO" && g !== "NOTICIAS");
       if (conDatos.length > 0) {
         setFiltro(conDatos.includes("General") ? "General" : conDatos[0]);
       }
@@ -309,7 +311,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
             : "—"}
         </span>
         <span className="text-[9px] text-[var(--t-text-muted)]">
-          · poll {filtro === "CALENDARIO" ? "5m" : filtro === "FUTUROS ROFEX" ? "5s" : "5s/30s"}
+          · poll {filtro === "CALENDARIO" ? "5m" : filtro === "NOTICIAS" ? "60s" : filtro === "FUTUROS ROFEX" ? "5s" : "5s/30s"}
         </span>
         <span className="mx-1 flex items-center gap-1">
           {gruposPresentes.map((g) => (
@@ -327,16 +329,16 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
           ))}
         </span>
         <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">
-          {filtro === "CALENDARIO" ? "AR · US · BR" : totalVisibles}
+          {filtro === "CALENDARIO" ? "AR · US · BR" : filtro === "NOTICIAS" ? "Reuters" : totalVisibles}
         </span>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {error && filtro !== "CALENDARIO" && (
+        {error && filtro !== "CALENDARIO" && filtro !== "NOTICIAS" && (
           <div className="px-3 py-2 text-[10px] text-[var(--t-neg)] font-mono">Error: {error}</div>
         )}
 
-        {!loading && totalVisibles === 0 && !error && filtro !== "CALENDARIO" && (
+        {!loading && totalVisibles === 0 && !error && filtro !== "CALENDARIO" && filtro !== "NOTICIAS" && (
           <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center font-mono">
             Sin tickers en este filtro.
           </div>
@@ -344,6 +346,9 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
         {/* ── CALENDARIO: eventos macro AR/US/BR (contenido sin chrome propio) ── */}
         {filtro === "CALENDARIO" && <CalendarioPanel />}
+
+        {/* ── NOTICIAS: titulares Reuters (feed Eikon de oficina) ── */}
+        {filtro === "NOTICIAS" && <WatchlistNews />}
 
         {/* ── GENERAL: ARGY + Índices + Futuros + US Treasury con separadores ── */}
         {filtro === "General" && totalGeneral > 0 && (
