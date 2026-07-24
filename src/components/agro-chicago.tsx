@@ -33,9 +33,35 @@ interface ChicagoFamilia {
 interface ChicagoResp {
   familias: ChicagoFamilia[];
   unidad: string;
+  updated_at: string | null;
+  online: boolean;
 }
 
-const EMPTY: ChicagoResp = { familias: [], unidad: "USD/t" };
+const EMPTY: ChicagoResp = {
+  familias: [],
+  unidad: "USD/t",
+  updated_at: null,
+  online: false,
+};
+
+// Semáforo del feed de oficina: el backend marca online=true si el heartbeat
+// del script llegó hace <60s. Mismo lenguaje visual que el LIVE de la pizarra.
+function FeedStatus({ online, updatedAt }: { online: boolean; updatedAt: string | null }) {
+  const s = online
+    ? { dot: "bg-[#4ade80] animate-pulse", txt: "text-[var(--t-pos)]", label: "FEED EN LÍNEA" }
+    : { dot: "bg-[#f87171]", txt: "text-[var(--t-neg)]", label: "FEED APAGADO" };
+  return (
+    <div className="flex items-center gap-2 px-1 pb-2.5">
+      <span className={`w-2 h-2 rounded-full ${s.dot}`} />
+      <span className={`text-[11px] font-semibold tracking-wide ${s.txt}`}>{s.label}</span>
+      {updatedAt && (
+        <span className="text-[10px] font-mono text-[var(--t-text-muted)]">
+          · última actualización {fmtTs(updatedAt)}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function VarCell({ v }: { v: number | null }) {
   if (v === null || v === undefined) {
@@ -57,34 +83,34 @@ function VarCell({ v }: { v: number | null }) {
 
 function FamiliaCard({ fam }: { fam: ChicagoFamilia }) {
   return (
-    <div className="w-[290px] shrink-0 rounded-md border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden shadow-sm">
+    <div className="w-[360px] shrink-0 rounded-md border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden shadow-sm">
       {/* Header delineado (banda de acento sutil, mismo lenguaje que Panel) */}
-      <div className="flex items-center px-2.5 py-1.5 border-b border-[var(--t-border-2)] bg-[var(--t-accent)]/10">
-        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
+      <div className="flex items-center px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-accent)]/10">
+        <span className="text-[12px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           {fam.label}
         </span>
         {fam.updated_at && (
-          <span className="ml-auto text-[9px] font-mono text-[var(--t-text-muted)]">
+          <span className="ml-auto text-[10px] font-mono text-[var(--t-text-muted)]">
             {fmtTs(fam.updated_at)}
           </span>
         )}
       </div>
 
       {fam.rows.length === 0 ? (
-        <div className="p-4 text-center text-[10.5px] text-[var(--t-text-dim)]">
+        <div className="p-5 text-center text-[11px] text-[var(--t-text-dim)]">
           Sin datos — feed apagado.
         </div>
       ) : (
-        <table className="w-full text-[11px] font-mono tabular-nums">
-          <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-surface)]/60">
+        <table className="w-full text-[12px] font-mono tabular-nums">
+          <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-surface)]/60">
             <tr>
-              <th className="text-left px-2.5 py-[3px] border-b border-[var(--t-border)]">
+              <th className="text-left px-3 py-1 border-b border-[var(--t-border)]">
                 Mes
               </th>
-              <th className="text-right px-2.5 py-[3px] border-b border-[var(--t-border)]">
+              <th className="text-right px-3 py-1 border-b border-[var(--t-border)]">
                 USD/t
               </th>
-              <th className="text-right px-2.5 py-[3px] border-b border-[var(--t-border)]">
+              <th className="text-right px-3 py-1 border-b border-[var(--t-border)]">
                 Var USD/t
               </th>
             </tr>
@@ -95,13 +121,13 @@ function FamiliaCard({ fam }: { fam: ChicagoFamilia }) {
                 key={r.ric}
                 className="border-b border-[var(--t-border)] last:border-b-0 odd:bg-[var(--t-surface)]/30 hover:bg-[var(--t-surface-2)]"
               >
-                <td className="text-left px-2.5 py-[3px] text-[var(--t-text)]">
+                <td className="text-left px-3 py-1.5 text-[var(--t-text)]">
                   {r.mes ?? "--"}
                 </td>
-                <td className="text-right px-2.5 py-[3px] text-[var(--t-text)] font-semibold">
+                <td className="text-right px-3 py-1.5 text-[var(--t-text)] font-semibold">
                   {fmtPrice(r.precio ?? undefined)}
                 </td>
-                <td className="text-right px-2.5 py-[3px]">
+                <td className="text-right px-3 py-1.5">
                   <VarCell v={r.variacion} />
                 </td>
               </tr>
@@ -129,6 +155,7 @@ export function AgroChicago() {
   // Tarjetas compactas lado a lado; en pantallas angostas van bajando solas.
   return (
     <div className="h-full min-h-0 p-3 overflow-y-auto">
+      <FeedStatus online={data.online} updatedAt={data.updated_at} />
       <div className="flex flex-wrap items-start gap-3">
         {data.familias.map((fam) => (
           <FamiliaCard key={fam.familia} fam={fam} />
