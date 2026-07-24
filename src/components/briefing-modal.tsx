@@ -53,6 +53,9 @@ interface BriefingResp {
   // Mail de research del DÍA (1816) — None si hoy no llegó: el panel ni aparece.
   research_hoy?: { asunto: string; texto: string } | null;
   futuros_dlr?: DlrRow[];
+  // Soberanos offshore ("GD30 OFF", feed Eikon de oficina): precio USD + %día.
+  // [] si el feed no mandó nada → el bloque ni aparece.
+  bonos_off?: MetricRow[];
   pagan_hoy: PagaRow[];
 }
 
@@ -358,6 +361,17 @@ export function BriefingModal() {
                   ) : (
                     <div className="px-3 py-2 text-[11px] text-[var(--t-text-dim)]">
                       Sin datos de la curva DLR.
+                    </div>
+                  )}
+
+                  {/* Soberanos OFFSHORE (precio USD del exterior, feed Eikon) */}
+                  {(data.bonos_off?.length ?? 0) > 0 && (
+                    <div className="mt-3">
+                      <Section title="SOBERANOS EXTERIOR (OFF)" />
+                      <ColHeader />
+                      {data.bonos_off!.map((r) => (
+                        <Row key={r.label} r={r} />
+                      ))}
                     </div>
                   )}
                 </div>
