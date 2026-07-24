@@ -256,7 +256,7 @@ export function BriefingModal() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-6xl bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden"
+            className={`w-full ${data.research_hoy ? "max-w-[110rem]" : "max-w-6xl"} bg-[var(--t-panel)] border border-[var(--t-accent)] flex flex-col overflow-hidden`}
           >
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--t-border)]">
@@ -273,29 +273,32 @@ export function BriefingModal() {
               </button>
             </div>
 
-            {/* Contenido en 3 columnas (reordenado 2026-07-24, pedido de la mesa):
-                1) research → futuros → cauciones
-                2) oficial → financieros → dólar futuro
-                3) bonos off → bonos que pagan hoy */}
-            <div className="overflow-y-auto p-3 max-h-[82vh]">
+            {/* Reordenado 2026-07-24 (pedido de la mesa): RESEARCH como columna
+                propia A LO ALTO del lado izquierdo (scroll propio) + 3 columnas:
+                FUTUROS+CAUCIONES · DÓLARES (oficial/financieros/futuro) ·
+                BONOS (off + pagan hoy). */}
+            <div className="flex min-h-0 max-h-[82vh]">
+            {data.research_hoy && (
+              <aside className="hidden lg:flex w-[360px] shrink-0 border-r border-[var(--t-border)] flex-col min-h-0">
+                <div className="px-3 py-2 border-b border-[var(--t-border)] shrink-0">
+                  <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+                    📰 RESEARCH DEL DÍA
+                  </span>
+                  <span className="ml-2 text-[10px] text-[var(--t-text-dim)]">
+                    {data.research_hoy.asunto.replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "")}
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto px-3 py-2">
+                  <p className="whitespace-pre-wrap text-[11px] leading-[1.55] text-[var(--t-text)]">
+                    {data.research_hoy.texto}
+                  </p>
+                </div>
+              </aside>
+            )}
+            <div className="overflow-y-auto p-3 flex-1 min-w-0">
               <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr] lg:grid-cols-[1.15fr_1fr_0.9fr] gap-x-3 gap-y-3">
-                {/* COLUMNA 1 — research + futuros + cauciones */}
+                {/* COLUMNA 1 — futuros + cauciones */}
                 <div className="flex flex-col gap-3 self-start">
-                  {data.research_hoy && (
-                    <div>
-                      <Section title="📰 RESEARCH DEL DÍA" />
-                      <div className="px-2 py-1 text-[10px] text-[var(--t-text-dim)]">
-                        {data.research_hoy.asunto.replace(/^(RV:|V:|Fwd:|Fw:)\s*/i, "")}
-                      </div>
-                      {/* Altura acotada con scroll propio para no enterrar los futuros */}
-                      <div className="max-h-56 overflow-y-auto px-2 py-1 border border-[var(--t-border-2)]">
-                        <p className="whitespace-pre-wrap text-[11px] leading-[1.55] text-[var(--t-text)]">
-                          {data.research_hoy.texto}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
                   <div>
                     <Section title="FUTUROS" />
                     <ColHeader grid={GRID_FUT} />
@@ -395,6 +398,7 @@ export function BriefingModal() {
                   </div>
                 </div>
               </div>
+            </div>
             </div>
 
             {/* Footer */}
