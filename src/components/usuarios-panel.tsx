@@ -6,6 +6,7 @@ type User = {
   email: string;
   role: string;
   enabled: boolean;
+  control_comercial?: boolean;
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -183,10 +184,11 @@ export function UsuariosPanel() {
 
       {/* Tabla */}
       <div className="flex-1 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-2 border-b border-[var(--t-border)] text-[9px] text-[var(--t-text-dim)] tracking-wide shrink-0">
+        <div className="grid grid-cols-[1fr_120px_90px_130px_1fr_170px_80px] gap-2 px-3 py-2 border-b border-[var(--t-border)] text-[9px] text-[var(--t-text-dim)] tracking-wide shrink-0">
           <div>EMAIL</div>
           <div>ROLE</div>
           <div>ENABLED</div>
+          <div>CONTROL COM.</div>
           <div>NOTAS</div>
           <div>ÚLT. VISTO</div>
           <div></div>
@@ -230,7 +232,7 @@ function UserRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="grid grid-cols-[1fr_120px_90px_1fr_170px_80px] gap-2 px-3 py-1.5 border-b border-[var(--t-border)] text-xs items-center hover:bg-[var(--t-surface)]">
+    <div className="grid grid-cols-[1fr_120px_90px_130px_1fr_170px_80px] gap-2 px-3 py-1.5 border-b border-[var(--t-border)] text-xs items-center hover:bg-[var(--t-surface)]">
       <div className="text-[var(--t-text)] font-mono truncate flex items-center gap-1.5">
         <span className="truncate">{user.email}</span>
         {user.auto_registered && (
@@ -266,6 +268,20 @@ function UserRow({
           className={`text-[10px] ${user.enabled ? "text-[var(--t-pos)]" : "text-[var(--t-text-muted)]"}`}
         >
           {user.enabled ? "ON" : "OFF"}
+        </span>
+      </label>
+      <label className="flex items-center gap-1 cursor-pointer" title="Ver y editar la vista Control Comercial (jefatura)">
+        <input
+          type="checkbox"
+          checked={user.control_comercial ?? false}
+          disabled={busy}
+          onChange={(e) => onPatch({ control_comercial: e.target.checked })}
+          className="accent-[var(--t-accent)]"
+        />
+        <span
+          className={`text-[10px] ${user.control_comercial ? "text-[var(--t-pos)]" : "text-[var(--t-text-muted)]"}`}
+        >
+          {user.control_comercial ? "ON" : "OFF"}
         </span>
       </label>
       <div className="text-[var(--t-text-dim)] text-[11px] truncate">{user.notes || "—"}</div>

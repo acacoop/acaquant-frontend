@@ -122,8 +122,8 @@ export function AunesaAumPanel() {
 
         {!data && !loading && !error && (
           <div className="p-4 text-[11px] text-[var(--t-text-muted)] font-mono">
-            Ingresá una cuenta y dale CONSULTAR. Vas a ver los docs crudos de
-            Valuaciones.AuM — unidad, cantidad, precio, valuación — para validar
+            Ingresá una cuenta y dale CONSULTAR. Vas a ver el detalle de tenencias
+            — unidad, cantidad, precio, valuación — para validar
             que los precios estén bien. La columna CANT×PRECIO es la referencia:
             para acciones/FCI la valuación debería coincidir; para renta fija
             (Títulos, Letras, ONs) la valuación va dividida por 100.

@@ -4,26 +4,44 @@ import { useEffect, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
 /**
- * Back Office → Tenencia Valorizada. Cartera HD de las cuentas propias 100/255/256.
- * Izquierda (50%): 1 fila por día (fecha snapshot) × AuM HD de cada cuenta + total,
- * con el TC (MEP) usado ese día. Derecha (50%): posiciones HD por título del día
- * seleccionado. Switch ARS/USD (USD = ARS ÷ TC congelado del día). Números completos
- * (sin abreviar). Lee Valuaciones.TenenciaHD vía /api/back-office/tenencia-hd.
+ * Back Office → Tenencia Valorizada. Cuentas propias 100/255/256.
+ * Filtro CARTERA arriba (USD = HD hard-dollar / ARS = todo lo no-HD): adapta toda la vista.
+ * Izquierda (50%): 1 fila por día (fecha snapshot) × AuM de cada cuenta + total, con el
+ * TC (MEP) usado ese día. Derecha (50%): posiciones por título del día seleccionado.
+ * Switch ARS/USD = moneda de DISPLAY (USD = ARS ÷ TC congelado del día). Números completos
+ * (sin abreviar). Lee SQL portafolio.tenencia vía /api/back-office/tenencia-hd?cartera=.
  */
 
 const CUENTAS = ["100", "255", "256"] as const;
 type Cuenta = (typeof CUENTAS)[number];
 
 type DiaRow = { fecha: string; tc: number | null; total: number } & Record<Cuenta, number>;
-type PosRow = { unidad: string; total: number } & Record<Cuenta, number>;
-type DiasResp = { cuentas: string[]; dias: DiaRow[]; ultima_fecha: string | null };
-type PosResp = { fecha: string; tc: number | null; total: number; posiciones: PosRow[] };
+type PosRow = {
+  unidad: string; total: number;
+  precio?: number | null; cant?: Record<Cuenta, number>; total_cant?: number;
+  gar?: Record<Cuenta, number>; gar_cant?: Record<Cuenta, number>;
+  gar_total?: number; gar_total_cant?: number;
+  en_alquiler?: boolean; alq?: Record<Cuenta, number>; alq_cant?: Record<Cuenta, number>;
+  alq_total?: number; alq_total_cant?: number;
+} & Record<Cuenta, number>;
+type DiasResp = { cuentas: string[]; cartera?: string; dias: DiaRow[]; ultima_fecha: string | null };
+type PosResp = {
+  fecha: string; cartera?: string; tc: number | null; total: number;
+  total_gar?: number; total_alq?: number; posiciones: PosRow[];
+};
+
+// "sin_alquiler": resta de la tenencia lo cargado en PORTFOLIO ALQUILER
+// (nominales por cuenta/día, carry-forward) — PUEDE dar negativo si se alquiló
+// más de lo que hay en cartera ese día.
+type GarMode = "todos" | "sin_gar" | "solo_gar" | "sin_alquiler";
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : s; };
 // Número completo, sin abreviar (separador de miles es-AR), 0 decimales.
 const fmtFull = (v: number | null | undefined) => (v == null ? "—" : Math.round(v).toLocaleString("es-AR"));
 const fmtTC = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+// Cantidad nominal: hasta 2 decimales, sin abreviar.
+const fmtNum = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: 2 }));
 
 async function getJson<T>(url: string): Promise<T | null> {
   try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
@@ -34,8 +52,26 @@ export function TenenciaValorizadaView() {
   const [sel, setSel] = useState<string | null>(null);
   const [pos, setPos] = useState<PosResp | null>(null);
   const [loading, setLoading] = useState(true);
-  const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("tenencia.moneda", "USD");
-  const usd = moneda === "USD";
+  const [cartera, setCartera] = usePersistedState<"HD" | "ARS">("tenencia.cartera", "HD");
+  // La cartera USD (HD) se puede ver en USD (ARS ÷ TC del día) o PESIFICADA (ARS crudo).
+  // La cartera ARS siempre se muestra en ARS (el toggle no aplica).
+  const [pesificarHD, setPesificarHD] = usePersistedState<boolean>("tenencia.pesificarHD", false);
+  const usd = cartera === "HD" && !pesificarHD;
+  const carteraNom = usd ? "USD" : "ARS";
+  const [vista, setVista] = usePersistedState<"dinero" | "nominal">("tenencia.vista", "dinero");
+  const nominal = vista === "nominal";
+  // Filtro por estado: GARANTÍA (Aunesa) / ALQUILER (portfolio). Key .v2: el
+  // modo viejo "alquiler" (mostrar solo lo alquilado) se reemplazó por
+  // "sin_alquiler" (restarlo) — un valor persistido viejo quedaría inválido.
+  const [garMode, setGarMode] = usePersistedState<GarMode>("tenencia.garMode.v2", "todos");
+  // Valor a mostrar de una celda según el filtro GAR: base total, sin la parte GAR, o solo GAR.
+  const applyGar = (base: number, gar: number): number =>
+    garMode === "sin_gar" ? base - gar : garMode === "solo_gar" ? gar : base;
+  const [edUnidad, setEdUnidad] = useState("");
+  const [edPrecio, setEdPrecio] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [edMsg, setEdMsg] = useState<string | null>(null);
+  const [div100, setDiv100] = useState(true);   // ÷100 (paridad HD) on/off para el cálculo
 
   // Convierte un valor ARS a la moneda elegida usando el TC (MEP) de ESE día.
   const cv = (ars: number | null | undefined, tc: number | null): number | null => {
@@ -45,37 +81,99 @@ export function TenenciaValorizadaView() {
   };
 
   useEffect(() => {
+    let alive = true;
+    setLoading(true);
     void (async () => {
-      const d = await getJson<DiasResp>("/api/back-office/tenencia-hd");
+      const d = await getJson<DiasResp>(`/api/back-office/tenencia-hd?cartera=${cartera}`);
+      if (!alive) return;
       setDias(d?.dias ?? []);
       setSel(d?.ultima_fecha ?? null);
       setLoading(false);
     })();
-  }, []);
+    return () => { alive = false; };
+  }, [cartera]);
 
   useEffect(() => {
     if (!sel) { setPos(null); return; }
     let alive = true;
     void (async () => {
-      const d = await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}`);
+      const d = await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}&cartera=${cartera}`);
       if (alive) setPos(d);
     })();
     return () => { alive = false; };
-  }, [sel]);
+  }, [sel, cartera]);
+
+  // Pre-cargar el precio actual al elegir una unidad en el editor.
+  useEffect(() => {
+    const p = pos?.posiciones.find((x) => x.unidad === edUnidad);
+    setEdPrecio(p?.precio != null ? String(p.precio) : "");
+    setEdMsg(null);
+  }, [edUnidad, pos]);
+
+  const guardarPrecio = async () => {
+    if (!sel || !edUnidad || edPrecio.trim() === "") return;
+    const precio = Number(edPrecio.replace(",", "."));
+    if (!isFinite(precio)) { setEdMsg("precio inválido"); return; }
+    setSaving(true); setEdMsg(null);
+    try {
+      const r = await fetch("/api/back-office/tenencia-hd/precio", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fecha: sel, unidad: edUnidad, precio, dividir_100: div100, cartera }),
+      });
+      const txt = await r.text();
+      let j: { ok?: boolean; error?: string } | null = null;
+      try { j = txt ? JSON.parse(txt) : null; } catch { /* respuesta no-JSON (405/HTML) */ }
+      if (r.ok && j?.ok) {
+        setEdMsg(`✓ ${edUnidad} actualizado`);
+        setPos(await getJson<PosResp>(`/api/back-office/tenencia-hd/posiciones?fecha=${sel}&cartera=${cartera}`));
+        setDias((await getJson<DiasResp>(`/api/back-office/tenencia-hd?cartera=${cartera}`))?.dias ?? []);
+      } else {
+        setEdMsg(j?.error ?? `HTTP ${r.status}${txt ? ": " + txt.slice(0, 100) : ""}`);
+      }
+    } catch (e) { setEdMsg("error de red: " + (e instanceof Error ? e.message : String(e))); }
+    finally { setSaving(false); }
+  };
+
+  // Preview en vivo del editor: posición elegida + valuación nueva = cantidad × precio / 100 (HD).
+  const selPos = pos?.posiciones.find((x) => x.unidad === edUnidad) ?? null;
+  const precioNum = Number(edPrecio.replace(",", "."));
+  const valNuevaBase =
+    selPos && selPos.total_cant != null && edPrecio.trim() !== "" && isFinite(precioNum)
+      ? (selPos.total_cant * precioNum) / (div100 ? 100 : 1)
+      : null;
 
   return (
-    <div className="h-full min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col gap-3 p-3 overflow-hidden">
+      {/* TOP — filtro de CARTERA: adapta toda la vista (USD = HD / ARS = todo lo no-HD) */}
+      <div className="shrink-0 flex items-center gap-3 border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 flex-wrap">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Cartera</span>
+        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          {([["HD", "CARTERA USD"], ["ARS", "CARTERA ARS"]] as const).map(([c, lbl]) => (
+            <button key={c} onClick={() => setCartera(c)}
+              className={"px-3 py-1 text-[10px] font-semibold " + (cartera === c ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
+          ))}
+        </div>
+        {/* Solo cartera USD: ver en USD (÷TC) o PESIFICADA (ARS crudo). */}
+        {cartera === "HD" && (
+          <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+            {([[false, "USD"], [true, "ARS (pesif.)"]] as const).map(([p, lbl]) => (
+              <button key={String(p)} onClick={() => setPesificarHD(p)}
+                className={"px-3 py-1 text-[10px] font-semibold " + (pesificarHD === p ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
+            ))}
+          </div>
+        )}
+        <span className="text-[9px] text-[var(--t-text-muted)]">
+          {cartera === "HD" ? "Hard-dollar (HD)" : "Pesos — todo lo que no es HD"} · cuentas 100 / 255 / 256
+        </span>
+      </div>
+
+      {/* GRID — izquierda serie diaria (más angosta) · derecha posiciones + editor */}
+      <div className="flex-1 min-h-0 grid grid-cols-[0.8fr_1.2fr] gap-3 overflow-hidden">
       {/* IZQUIERDA — serie diaria por cuenta */}
       <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className={HDR}>
-          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Tenencia HD por día · {moneda}</span>
-          <span className="text-[9px] text-[var(--t-text-muted)]">{dias.length} días · 100 / 255 / 256</span>
-          <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-            {(["ARS", "USD"] as const).map((m) => (
-              <button key={m} onClick={() => setMoneda(m)}
-                className={"px-2 py-0.5 text-[10px] font-semibold " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{m}</button>
-            ))}
-          </div>
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Tenencia Cartera {carteraNom} por día</span>
+          <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{dias.length} días · 100 / 255 / 256 · en {carteraNom}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-auto">
           {loading ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
@@ -107,37 +205,167 @@ export function TenenciaValorizadaView() {
         </div>
       </div>
 
-      {/* DERECHA — posiciones del día seleccionado */}
-      <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className={HDR}>
-          <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones HD · {sel ? fmtFecha(sel) : "—"} · {moneda}</span>
-          {pos && <span className="ml-auto text-[9px] font-mono text-[var(--t-text-muted)]">TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.total, pos.tc))}</span></span>}
-        </div>
-        <div className="flex-1 min-h-0 overflow-auto">
-          {!sel ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un día a la izquierda.</p>
-            : !pos ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
-            : usd && !pos.tc ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin TC para ese día — no se puede dolarizar.</p>
-            : pos.posiciones.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posiciones HD ese día.</p>
-            : (
-              <table className="w-full text-[10px]">
-                <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
-                  <th className="text-left !px-2">Título</th>
-                  {CUENTAS.map((c) => <th key={c} className="text-right !px-2">{c}</th>)}
-                  <th className="text-right !px-2">Total</th>
-                </tr></thead>
-                <tbody>
-                  {pos.posiciones.map((p, i) => (
-                    <tr key={`${p.unidad}-${i}`} className="hover:bg-[var(--t-border)]">
-                      <td className="!px-2">{p.unidad}</td>
-                      {CUENTAS.map((c) => <td key={c} className="!px-2 text-right tabular-nums text-[var(--t-text-dim)]">{p[c] ? fmtFull(cv(p[c], pos.tc)) : "—"}</td>)}
-                      <td className="!px-2 text-right tabular-nums font-semibold">{fmtFull(cv(p.total, pos.tc))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* DERECHA — arriba posiciones (DINERO/NOMINAL), abajo editor de precio */}
+      <div className="min-h-0 grid grid-rows-2 gap-3 overflow-hidden">
+        {/* ARRIBA — posiciones del día */}
+        <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+          <div className={HDR}>
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Posiciones {carteraNom} · {sel ? fmtFecha(sel) : "—"} · {nominal ? "NOMINAL" : carteraNom}</span>
+            <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {([["dinero", "DINERO"], ["nominal", "NOMINAL"]] as const).map(([v, lbl]) => (
+                <button key={v} onClick={() => setVista(v)}
+                  className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === v ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{lbl}</button>
+              ))}
+            </div>
+            {/* Filtro por estado: GARANTÍA (Aunesa) + SIN ALQUILER (resta el Portfolio Alquiler) */}
+            <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {([["todos", "TODOS"], ["sin_gar", "SIN GAR"], ["solo_gar", "SOLO GAR"], ["sin_alquiler", "SIN ALQUILER"]] as const).map(([v, lbl]) => (
+                <button key={v} onClick={() => setGarMode(v)}
+                  title={v === "sin_alquiler" ? "Tenencia menos los nominales cargados en Portfolio Alquiler (puede dar negativo)" : undefined}
+                  className={"px-2 py-0.5 text-[10px] font-semibold " + (
+                    garMode === v
+                      ? (v === "sin_alquiler" ? "bg-sky-500 text-black" : "bg-amber-500 text-black")
+                      : "bg-[var(--t-surface)] text-[var(--t-text-dim)] hover:text-amber-400")}>{lbl}</button>
+              ))}
+            </div>
+            {pos && (
+              <span className="w-full text-[9px] font-mono text-[var(--t-text-muted)]">
+                {nominal
+                  ? <>Total nominal <span className="font-semibold text-[var(--t-accent)]">{fmtNum(pos.posiciones.reduce((a, p) => a + applyGar(p.total_cant ?? 0, p.gar_total_cant ?? 0) - (garMode === "sin_alquiler" ? (p.alq_total_cant ?? 0) : 0), 0))}</span></>
+                  : <>TC {fmtTC(pos.tc)} · Total <span className="font-semibold text-[var(--t-accent)]">{fmtFull(cv(pos.posiciones.reduce((a, p) => a + applyGar(p.total, p.gar_total ?? 0) - (garMode === "sin_alquiler" ? (p.alq_total ?? 0) : 0), 0), pos.tc))}</span></>}
+                {(pos.total_gar ?? 0) > 0 && (
+                  <> · En garantía <span className="font-semibold text-amber-400">{nominal ? fmtNum(pos.posiciones.reduce((a, p) => a + (p.gar_total_cant ?? 0), 0)) : fmtFull(cv(pos.total_gar ?? 0, pos.tc))}</span></>
+                )}
+                {(pos.total_alq ?? 0) > 0 && (
+                  <> · En alquiler <span className="font-semibold text-sky-400">{nominal ? fmtNum(pos.posiciones.reduce((a, p) => a + (p.alq_total_cant ?? 0), 0)) : fmtFull(cv(pos.total_alq ?? 0, pos.tc))}</span></>
+                )}
+              </span>
             )}
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {!sel ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Elegí un día a la izquierda.</p>
+              : !pos ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
+              : !nominal && usd && !pos.tc ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin TC para ese día — no se puede dolarizar.</p>
+              : pos.posiciones.length === 0 ? <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin posiciones {carteraNom} ese día.</p>
+              : (
+                <table className="w-full text-[10px]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)]"><tr className="text-[var(--t-text-muted)]">
+                    <th className="text-left !px-2">Título</th>
+                    <th className="text-right !px-2">PX</th>
+                    {CUENTAS.map((c) => <th key={c} className="text-right !px-2">{c}</th>)}
+                    <th className="text-right !px-2">Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {pos.posiciones
+                      // "Solo GAR" oculta lo que no tiene garantía. "SIN ALQUILER"
+                      // muestra TODO (la resta se ve en los números, no ocultando filas).
+                      .filter((p) => (garMode !== "solo_gar" || (p.gar_total ?? 0) > 0))
+                      .map((p, i) => {
+                        const sinAlq = garMode === "sin_alquiler";
+                        const totBase = nominal ? (p.total_cant ?? 0) : p.total;
+                        const totGar = nominal ? (p.gar_total_cant ?? 0) : (p.gar_total ?? 0);
+                        const totAlq = nominal ? (p.alq_total_cant ?? 0) : (p.alq_total ?? 0);
+                        const tot = applyGar(totBase, totGar) - (sinAlq ? totAlq : 0);
+                        return (
+                      <tr key={`${p.unidad}-${i}`} className={"hover:bg-[var(--t-border)] " + (garMode === "todos" ? (p.en_alquiler ? "bg-sky-500/10" : ((p.gar_total ?? 0) > 0 ? "bg-amber-400/5" : "")) : "")}>
+                        <td className="!px-2">
+                          {p.unidad}
+                          {(garMode === "todos" || sinAlq) && p.en_alquiler && <span className="ml-1 text-[8px] font-semibold text-sky-400">ALQ</span>}
+                        </td>
+                        <td className="!px-2 text-right tabular-nums text-[var(--t-text-muted)]">{fmtNum(p.precio)}</td>
+                        {CUENTAS.map((c) => {
+                          const base = applyGar(nominal ? (p.cant?.[c] ?? 0) : (p[c] ?? 0),
+                                                nominal ? (p.gar_cant?.[c] ?? 0) : (p.gar?.[c] ?? 0));
+                          const v = base - (sinAlq ? (nominal ? (p.alq_cant?.[c] ?? 0) : (p.alq?.[c] ?? 0)) : 0);
+                          return (
+                            <td key={c} className={"!px-2 text-right tabular-nums " + (v < 0 ? "text-red-400" : "text-[var(--t-text-dim)]")}>
+                              {v ? (nominal ? fmtNum(v) : fmtFull(cv(v, pos.tc))) : "—"}
+                            </td>
+                          );
+                        })}
+                        <td className={"!px-2 text-right tabular-nums font-semibold " + (tot < 0 ? "text-red-400" : "")}>
+                          {nominal ? fmtNum(tot) : fmtFull(cv(tot, pos.tc))}
+                        </td>
+                      </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              )}
+          </div>
         </div>
+
+        {/* ABAJO — editor manual de precio (recalcula la valuación HD) */}
+        <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+          <div className={HDR}>
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Editar precio</span>
+            <span className="text-[9px] text-[var(--t-text-muted)]">valuación = cantidad × precio{div100 ? " ÷ 100 (paridad)" : " (pleno)"}</span>
+          </div>
+          <div className="p-3 flex flex-col gap-2 text-[11px] overflow-auto">
+            <label className="flex items-center gap-2">
+              <span className="w-14 text-[var(--t-text-muted)]">Día</span>
+              <select value={sel ?? ""} onChange={(e) => setSel(e.target.value)}
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 text-[var(--t-text)] [color-scheme:dark]">
+                {dias.map((d) => <option key={d.fecha} value={d.fecha}>{fmtFecha(d.fecha)}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-14 text-[var(--t-text-muted)]">Unidad</span>
+              <select value={edUnidad} onChange={(e) => setEdUnidad(e.target.value)}
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 text-[var(--t-text)] [color-scheme:dark]">
+                <option value="">— elegí —</option>
+                {(pos?.posiciones ?? []).map((p) => <option key={p.unidad} value={p.unidad}>{p.unidad}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="w-14 text-[var(--t-text-muted)]">Precio</span>
+              <input value={edPrecio} onChange={(e) => setEdPrecio(e.target.value)} inputMode="decimal" placeholder="precio nuevo"
+                className="flex-1 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-1 font-mono text-[var(--t-text)]" />
+            </label>
+            {selPos && (
+              <div className="rounded border border-[var(--t-border-2)] bg-[var(--t-surface)]/40 p-2 flex flex-col gap-1 text-[10px]">
+                <label className="flex items-center justify-between cursor-pointer pb-1 mb-0.5 border-b border-[var(--t-border-2)]">
+                  <span className="text-[var(--t-text-muted)]">Dividir ÷100 (paridad)</span>
+                  <input type="checkbox" checked={div100} onChange={(e) => setDiv100(e.target.checked)} />
+                </label>
+                <div className="flex justify-between">
+                  <span className="text-[var(--t-text-muted)]">Cantidad (nominal)</span>
+                  <span className="font-mono tabular-nums">{fmtNum(selPos.total_cant)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--t-text-muted)]">Precio actual</span>
+                  <span className="font-mono tabular-nums">{selPos.precio != null ? fmtNum(selPos.precio) : "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--t-text-muted)]">Valuación actual</span>
+                  <span className="font-mono tabular-nums">{fmtFull(cv(selPos.total, pos?.tc ?? null))} {carteraNom}</span>
+                </div>
+                <div className="flex justify-between border-t border-[var(--t-border-2)] pt-1">
+                  <span className="text-[var(--t-accent)] font-semibold">Valuación nueva</span>
+                  <span className="font-mono tabular-nums font-semibold text-[var(--t-accent)]">
+                    {valNuevaBase != null ? `${fmtFull(cv(valNuevaBase, pos?.tc ?? null))} ${carteraNom}` : "—"}
+                  </span>
+                </div>
+                <div className="text-[9px] text-[var(--t-text-muted)] text-right">
+                  cantidad × precio{div100 ? " ÷ 100" : ""}
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button onClick={guardarPrecio} disabled={saving || !sel || !edUnidad || edPrecio.trim() === ""}
+                className="px-3 py-1 text-[11px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40">
+                {saving ? "Guardando…" : "Guardar"}
+              </button>
+              {edMsg && <span className={"text-[10px] " + (edMsg.startsWith("✓") ? "text-[var(--t-pos)]" : "text-red-400")}>{edMsg}</span>}
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   );
 }
+
+// (La tenencia viene BRUTA desde 2026-07-14 — ya no se netea server-side. El
+// alquiler se carga en Títulos en Alquiler → PORTFOLIO ALQUILER (nominales por
+// cuenta/día) y esta vista lo resta con el filtro SIN ALQUILER.)

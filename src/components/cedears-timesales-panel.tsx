@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 
 /**
- * TIME & SALES (tape) intradía de un CEDEAR — panel inferior del Scanner.
+ * TIME & SALES (tape) intradía — panel inferior de la vista TRADING.
  *
- * Polea /api/scanner/cedears/trades?ticker=X cada 2s. Los trades los infiere
- * el motor (salto de NV) y viven en Trading.CedearsTimeSales (intradía, se
- * vacía al cierre). Side coloreado: BUY verde, SELL rojo, MID gris.
+ * Polea /api/trading/trades?ticker=X cada 2s. El backend resuelve la fuente por
+ * ticker (igual que /pivots): CEDEAR → tape del motor de CEDEARs; bono → trades
+ * del día de mercado.timesales (misma fuente que el tape de Renta Fija). Ambos
+ * intradía (se vacían/cortan al día). Side coloreado: BUY verde, SELL rojo,
+ * MID gris.
  */
 
 interface Trade {
@@ -18,25 +20,28 @@ interface Trade {
   money: number;
 }
 
-const fmtHora = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-};
+// El backend manda hora ARGENTINA naive ("2026-07-14T16:52:55") — se muestra la
+// hora de pared TAL CUAL, sin pasar por Date (que la interpretaría en la zona
+// del browser y la corría; bug 2026-07-14: el tape marcaba 19:52 a las 16:52).
+const fmtHora = (iso: string) => (iso.length >= 19 ? iso.slice(11, 19) : iso);
 const fmtPx = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtSz = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
-export function CedearsTimeSalesPanel({ ticker }: { ticker: string | null }) {
+export function CedearsTimeSalesPanel({
+  ticker,
+  compact = false,
+}: {
+  ticker: string | null;
+  compact?: boolean;
+}) {
   const [trades, setTrades] = useState<Trade[]>([]);
 
   useEffect(() => {
-    if (!ticker) {
-      setTrades([]);
-      return;
-    }
+    if (!ticker) return;
     let alive = true;
     const fetchTrades = async () => {
       try {
-        const r = await fetch(`/api/scanner/cedears/trades?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" });
+        const r = await fetch(`/api/trading/trades?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" });
         if (!r.ok) return;
         const j: Trade[] = await r.json();
         if (alive) setTrades(Array.isArray(j) ? j : []);
@@ -70,8 +75,8 @@ export function CedearsTimeSalesPanel({ ticker }: { ticker: string | null }) {
               <tr className="text-[var(--t-text-muted)]">
                 <th className="text-left !px-2">HORA</th>
                 <th className="text-right !px-2">PRECIO</th>
-                <th className="text-right !px-2">SIZE</th>
-                <th className="text-center !px-2">SIDE</th>
+                {!compact && <th className="text-right !px-2">SIZE</th>}
+                {!compact && <th className="text-center !px-2">SIDE</th>}
               </tr>
             </thead>
             <tbody>
@@ -82,8 +87,8 @@ export function CedearsTimeSalesPanel({ ticker }: { ticker: string | null }) {
                   <tr key={`${t.timestamp}-${i}`} className="hover:bg-[var(--t-border)]">
                     <td className="!px-2 text-[var(--t-text-dim)]">{fmtHora(t.timestamp)}</td>
                     <td className={`!px-2 text-right font-semibold ${col}`}>{fmtPx(t.price)}</td>
-                    <td className="!px-2 text-right tabular-nums">{fmtSz(t.size)}</td>
-                    <td className={`!px-2 text-center ${col}`}>{t.side}</td>
+                    {!compact && <td className="!px-2 text-right tabular-nums">{fmtSz(t.size)}</td>}
+                    {!compact && <td className={`!px-2 text-center ${col}`}>{t.side}</td>}
                   </tr>
                 );
               })}

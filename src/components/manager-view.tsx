@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { ControlesPanel } from "./manager-controles-panel";
+import { IaPanel } from "./manager-ia-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
 // estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
@@ -10,15 +12,14 @@ import { AunesaExplorarPanel } from "./aunesa-explorar-panel";
 import { AunesaAumPanel } from "./aunesa-aum-panel";
 import { AunesaPosicionPanel } from "./aunesa-posicion-panel";
 import { AunesaBoletosPanel } from "./aunesa-boletos-panel";
-import { JobsRunsPanel } from "./jobs-runs-panel";
+import { JobsGroup } from "./manager-jobs-panel";
 import { GruposPanel } from "./grupos-panel";
-import { ComercialPanel } from "./comercial-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
+import { TabAcaValores } from "./manager-aca-valores-view";
+import { TabDocumentos } from "./manager-documentos-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { ManagerDebugTeaPanel } from "./manager-debug-tea";
-import { ManagerDebugSegmentoPanel } from "./manager-debug-segmento";
-import { ManagerDebugComercialPanel } from "./manager-debug-comercial";
 import { RecursosPanel } from "./recursos-panel";
 import { RolesPanel } from "./roles-panel";
 import { UsuariosPanel } from "./usuarios-panel";
@@ -508,6 +509,18 @@ function TabValidaciones() {
   const [pvLoading, setPvLoading] = useState(false);
   const [pvData, setPvData] = useState<PivotDebugResp | null>(null);
 
+  // Control: títulos (bonos ARS/HD/DL) sin flujo en Curvas
+  const [tsfLoading, setTsfLoading] = useState(false);
+  const [tsfData, setTsfData] = useState<{
+    total: number; en_cartera: number; ok: boolean;
+    titulos: { unidad: string; ticker: string | null; cartera: string;
+               emisor: string | null; motivo: string; en_cartera: boolean }[];
+  } | null>(null);
+
+  // Backfill Tasas — recalcula TEA/TEM de mercado.curvas y rellena las faltantes
+  const [btLoading, setBtLoading] = useState(false);
+  const [btResult, setBtResult] = useState<string | null>(null);
+
   useEffect(() => {
     fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
       setTickers(d);
@@ -515,6 +528,34 @@ function TabValidaciones() {
       if (d.length > 1) setTcB(d[1]);
     }).catch(console.error);
   }, []);
+
+  const runBackfillTasas = async () => {
+    setBtLoading(true);
+    setBtResult(null);
+    try {
+      const start = await fetch("/api/manager/jobs/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "backfill_tasas" }),
+      }).then(r => r.json());
+      const jobId = start?.job_id;
+      if (!jobId) { setBtResult("No se pudo lanzar el job (¿sin permiso?)."); return; }
+      // Poll hasta que termine (el job es rápido, pero damos margen).
+      for (let i = 0; i < 60; i++) {
+        await new Promise(res => setTimeout(res, 2000));
+        const job = await fetch(`/api/manager/jobs/${jobId}`, { cache: "no-store" }).then(r => r.json());
+        if (job?.status && job.status !== "running") {
+          setBtResult(job.result || `(sin salida) status=${job.status}`);
+          return;
+        }
+      }
+      setBtResult("Timeout esperando el job (seguí en JOBS → historial).");
+    } catch (e) {
+      setBtResult(`Error: ${String(e)}`);
+    } finally {
+      setBtLoading(false);
+    }
+  };
 
   const runCp  = () => { setCpLoading(true);  fetch("/api/manager/checks/curvas-pendientes").then(r => r.json()).then(setCpData).finally(() => setCpLoading(false)); };
   const runFwd = () => { setFwdLoading(true); fetch("/api/manager/checks/forwards").then(r => r.json()).then(setFwdData).finally(() => setFwdLoading(false)); };
@@ -564,13 +605,55 @@ function TabValidaciones() {
       .catch((e) => { setSobData(null); setSobError(e instanceof Error ? e.message : String(e)); })
       .finally(() => setSobLoading(false));
   };
+  const runTsf = () => {
+    setTsfLoading(true);
+    fetch("/api/manager/bonos/sin-flujo")
+      .then(r => r.json()).then(setTsfData).finally(() => setTsfLoading(false));
+  };
 
   const ESTADO_LABEL: Record<string, string> = { ok: "✅ En vista", sin_posicion: "⚠️ Sin posición", sin_assets: "❌ Sin Assets" };
 
   return (
     <div className="h-full overflow-y-auto p-3 flex flex-col gap-2">
 
-      <ManagerDebugComercialPanel />
+      <CheckPanel title="Backfill Tasas — recalcular y rellenar TEA/TEM de Renta Fija">
+        <div className="text-[10px] text-[var(--t-text-muted)] mb-2 leading-relaxed">
+          Recalcula la TEA/TEM de todos los bonos y actualiza los valores.
+          Rellena las que están en <b>&quot;--&quot;</b> y refresca las
+          existentes, sin esperar al próximo trade (útil tras corregir un flujo o cuando
+          el motor no las calculó). Solo escribe lo que puede calcular — no pisa datos buenos.
+        </div>
+        <RunBtn onClick={runBackfillTasas} loading={btLoading} />
+        {btResult && (
+          <pre className="text-[10px] text-[var(--t-text)] whitespace-pre-wrap bg-[var(--t-surface)] border border-[var(--t-border)] p-2 mt-1 max-h-64 overflow-y-auto">
+            {btResult}
+          </pre>
+        )}
+      </CheckPanel>
+
+      <CheckPanel title="Títulos sin flujo — bonos ARS/HD/DL sin flujo en Curvas">
+        <RunBtn onClick={runTsf} loading={tsfLoading} />
+        {tsfData && (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <StatusBadge ok={tsfData.ok} label={tsfData.ok ? "Todos con flujo" : `${tsfData.total} sin flujo · ${tsfData.en_cartera} en cartera`} />
+            </div>
+            {!tsfData.ok && (
+              <table><thead><tr><th>CART</th><th>UNIDAD</th><th>TICKER</th><th>HOY</th><th>MOTIVO</th></tr></thead>
+                <tbody>{tsfData.titulos.map(t => (
+                  <tr key={t.unidad}>
+                    <td>{t.cartera}</td>
+                    <td className="text-[var(--t-accent)]">{t.unidad}</td>
+                    <td className="font-mono">{t.ticker ?? "—"}</td>
+                    <td className="text-center">{t.en_cartera ? "🔴" : "·"}</td>
+                    <td className="text-[var(--t-text-dim)]">{t.motivo}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </>
+        )}
+      </CheckPanel>
 
       <CheckPanel title="Curvas Pendientes — docs sin duration en TimeSales">
         <RunBtn onClick={runCp} loading={cpLoading} />
@@ -778,7 +861,7 @@ function TabValidaciones() {
         {tfData && (
           <>
             <div className="flex items-center gap-3 mb-2 text-[10px] font-mono">
-              <span className="text-[var(--t-text-muted)]">Snapshot: {tfData.snapshot ?? "—"}</span>
+              <span className="text-[var(--t-text-muted)]">Corte: {tfData.snapshot ?? "—"}</span>
               <span style={{ color: "var(--t-pos)" }}>✅ {tfData.ok}</span>
               <span style={{ color: "#ff9900" }}>⚠️ {tfData.sin_posicion}</span>
               <span style={{ color: "var(--t-neg)" }}>❌ {tfData.sin_assets}</span>
@@ -1092,7 +1175,7 @@ function TabValidaciones() {
         <RunBtn onClick={runTna} loading={tnaLoading} />
         {tnaData && tnaData.total === 0 && (
           <div className="text-[10px] text-[var(--t-neg)] italic">
-            {tnaData.nota || "Sin datos en FuturosDLRSnapshot."}
+            {tnaData.nota || "Sin datos de futuros DLR."}
           </div>
         )}
         {tnaData && tnaData.total > 0 && (
@@ -1150,7 +1233,7 @@ function TabValidaciones() {
             <div className="text-[10px] text-[var(--t-text-muted)] mt-2">
               <span className="text-[var(--t-pos)]">TNA LIN</span> = directo × 365/días (lineal — terminal Rofex){" "}
               · <span className="text-[var(--t-accent)]">TEA COMP</span> = (1+directo)^(365/días) − 1 (compuesta) ·{" "}
-              <span className="text-[var(--t-text)]">PERSISTIDA</span> = lo que el motor escribe a Mongo (hoy = TEA COMP)
+              <span className="text-[var(--t-text)]">PERSISTIDA</span> = valor calculado y guardado (hoy = TEA COMP)
             </div>
           </>
         )}
@@ -1297,6 +1380,8 @@ type AssetGap = {
   CALIFICACION?: string | null;
   TICKER?: string | null;
   VENCIMIENTO?: string | null;
+  // Código CNV del instrumento (string; puede tener ceros a la izquierda).
+  CODIGO_CNV?: string | null;
   // Fee de administración del FCI: FRACCIÓN decimal (0.01 = 1%). Solo FCI.
   FEE_ADMIN?: number | null;
   actualizado_por?: string | null;
@@ -1312,7 +1397,7 @@ type RowState =
 // Campos UPPERCASE editables — define el orden de columnas de la tabla.
 const ASSET_CAMPOS = [
   "CARTERA", "EMISOR", "CLASE_ACTIVO", "CALIFICACION",
-  "TICKER", "VENCIMIENTO", "INSTRUMENTO",
+  "TICKER", "VENCIMIENTO", "INSTRUMENTO", "CODIGO_CNV",
 ] as const;
 type AssetCampo = (typeof ASSET_CAMPOS)[number];
 type AssetDraft = Record<AssetCampo, string>;
@@ -1324,13 +1409,13 @@ const ASSET_CAMPOS_CERRADOS: readonly AssetCampo[] = ["CARTERA", "CLASE_ACTIVO"]
 function emptyDraft(): AssetDraft {
   return {
     CARTERA: "", EMISOR: "", CLASE_ACTIVO: "", CALIFICACION: "",
-    TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "",
+    TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "", CODIGO_CNV: "",
   };
 }
 function emptyOpts(): Record<AssetCampo, string[]> {
   return {
     CARTERA: [], EMISOR: [], CLASE_ACTIVO: [], CALIFICACION: [],
-    TICKER: [], VENCIMIENTO: [], INSTRUMENTO: [],
+    TICKER: [], VENCIMIENTO: [], INSTRUMENTO: [], CODIGO_CNV: [],
   };
 }
 function draftFromAsset(a: AssetGap): AssetDraft {
@@ -1355,6 +1440,9 @@ function TabAssets() {
   const [filtroEmisor, setFiltroEmisor] = useState<string>("");
   // "mostrar solo los que tienen este campo vacío". "" = sin filtro (todo).
   const [campoVacio, setCampoVacio] = useState<AssetCampo | "">("");
+  // Buscador por unidad — filtro en el CLIENTE sobre el catálogo ya cargado (instantáneo,
+  // sin pegarle al backend en cada tecla). Matchea substring case-insensitive.
+  const [buscaUnidad, setBuscaUnidad] = useState("");
 
   const fetchAssets = () => {
     setLoading(true);
@@ -1506,6 +1594,12 @@ function TabAssets() {
   // Los campos cerrados (CARTERA, CLASE_ACTIVO) van como <select> y no usan list.
   const camposAbiertos = ASSET_CAMPOS.filter((c) => !ASSET_CAMPOS_CERRADOS.includes(c));
 
+  // Filtro por unidad en el cliente (el catálogo entero ya está cargado por fetchAssets).
+  const qUnidad = buscaUnidad.trim().toUpperCase();
+  const assetsVisibles = qUnidad
+    ? assets.filter((a) => (a.unidad || "").toUpperCase().includes(qUnidad))
+    : assets;
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Datalists para autocomplete de los campos abiertos — via list="<campo>-options" */}
@@ -1516,7 +1610,26 @@ function TabAssets() {
       ))}
       <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">ASSETS</span>
-        <span className="text-[10px] text-[var(--t-text-muted)]">{assets.length} resultados</span>
+        <span className="text-[10px] text-[var(--t-text-muted)]">
+          {assetsVisibles.length}{qUnidad ? ` / ${assets.length}` : ""} resultados
+        </span>
+
+        {/* Buscador por unidad (filtra el catálogo ya cargado, en vivo mientras tipeás) */}
+        <input
+          value={buscaUnidad}
+          onChange={(e) => setBuscaUnidad(e.target.value)}
+          placeholder="Buscar unidad…"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none w-[180px]"
+        />
+        {buscaUnidad && (
+          <button
+            onClick={() => setBuscaUnidad("")}
+            className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px]"
+            title="Limpiar búsqueda"
+          >
+            ✕
+          </button>
+        )}
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CARTERA</span>
         <select
@@ -1578,7 +1691,12 @@ function TabAssets() {
               </tr>
             </thead>
             <tbody>
-              {assets.map((a) => {
+              {assetsVisibles.length === 0 && (
+                <tr><td colSpan={20} className="px-3 py-3 text-[11px] text-[var(--t-text-muted)]">
+                  Sin assets que matcheen “{buscaUnidad}”.
+                </td></tr>
+              )}
+              {assetsVisibles.map((a) => {
                 const draft = drafts[a.unidad] || emptyDraft();
                 const state: RowState = rowState[a.unidad] || { kind: "idle" };
                 const dirty = ASSET_CAMPOS.some((c) => draft[c] !== ((a[c] ?? "") as string));
@@ -1738,6 +1856,7 @@ function TabClientesSegmentacion() {
   // Filtros
   const [fOperador, setFOperador] = useState("");
   const [fNivel1, setFNivel1] = useState("");
+  const [fNivel2, setFNivel2] = useState("");
   const [campoVacio, setCampoVacio] = useState<ClienteCampo | "">("");
   const [q, setQ] = useState("");
   // Import de archivo (csv/xlsx)
@@ -1750,6 +1869,7 @@ function TabClientesSegmentacion() {
     const qs = new URLSearchParams();
     if (fOperador) qs.set("operador", fOperador);
     if (fNivel1) qs.set("nivel_1", fNivel1);
+    if (fNivel2) qs.set("nivel_2", fNivel2);
     if (campoVacio) qs.set("campo_vacio", campoVacio);
     if (q.trim()) qs.set("q", q.trim());
     fetch(`/api/manager/clientes?${qs}`)
@@ -1805,8 +1925,22 @@ function TabClientesSegmentacion() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivelFocus, drafts, niveles]);
 
+  // Opciones del FILTRO de nivel 2: solo las que conviven con el nivel 1
+  // elegido (mismo criterio de cascada que los combos de la tabla, sobre los
+  // mismos datos ya cargados — sin pedirle nada más al backend). Una lista
+  // plana mostraría valores de otros nivel_1 que siempre dan cero resultados.
+  const opcionesNivel2 = useMemo(() => {
+    const out = new Set<string>();
+    for (const combo of niveles) {
+      if ((!fNivel1 || combo["nivel_1"] === fNivel1) && combo["nivel_2"]) {
+        out.add(combo["nivel_2"]);
+      }
+    }
+    return [...out].sort();
+  }, [niveles, fNivel1]);
+
   // Re-fetch al cambiar filtros de select. La búsqueda libre va por Enter/botón.
-  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, campoVacio]);
+  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, fNivel2, campoVacio]);
 
   const setDraftField = (id: string, field: ClienteCampo, value: string) => {
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || emptyClienteDraft()), [field]: value } }));
@@ -1972,10 +2106,24 @@ function TabClientesSegmentacion() {
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 1</span>
-        <select value={fNivel1} onChange={(e) => setFNivel1(e.target.value)}
+        <select value={fNivel1}
+          onChange={(e) => {
+            setFNivel1(e.target.value);
+            // el nivel 2 elegido puede no existir dentro del nuevo nivel 1 →
+            // sin esto quedaría un filtro invisible que devuelve cero
+            setFNivel2("");
+          }}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
           {(vals["nivel_1"] || []).map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 2</span>
+        <select value={fNivel2} onChange={(e) => setFNivel2(e.target.value)}
+          title={fNivel1 ? `Subsegmentos dentro de ${fNivel1}` : "Subsegmento (nivel 2)"}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+          <option value="">— todos —</option>
+          {opcionesNivel2.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CAMPO VACÍO</span>
@@ -2924,10 +3072,8 @@ function TabInstrumentos() {
         </div>
         {discData?.generated_at && (
           <div className="text-[9px] text-[var(--t-text-muted)] mt-2">
-            Snapshot generado {new Date(discData.generated_at).toLocaleString("es-AR")}
+            Actualizado {new Date(discData.generated_at).toLocaleString("es-AR")}
             {discData.stale_h !== null && ` (hace ${discData.stale_h}h)`}
-            {" — refresh: "}
-            <code className="text-[var(--t-pos)]">python -m scripts.discovery_pyrofex</code> en el Droplet
           </div>
         )}
       </div>
@@ -2996,16 +3142,16 @@ function TabInstrumentos() {
 }
 
 type Tab =
-  | "diagnostico"
-  | "jobs"
+  | "observabilidad"
   | "validaciones"
   | "titulos"
-  | "comercial"
   | "clientes"
   | "contrapartes"
+  | "aca-valores"
   | "compliance"
   | "aunesa"
   | "operaciones"
+  | "documentos"
   | "usuarios";
 
 // AUNESA es un grupo con tres sub-vistas:
@@ -3017,6 +3163,282 @@ type Tab =
 
 const GROUP_HEADER = "flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0";
 const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2";
+
+// OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
+// (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
+// el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
+// ── OBSERVABILIDAD → USO: heatmap usuario × módulo (manager.uso_modulos) ─────
+// Telemetría de producto: qué usuario pasa tiempo en qué módulo. Tabla con
+// celdas coloreadas por intensidad (sin librería de charts), rango 7/30 días.
+interface UsoResp {
+  dias: number;
+  usuarios: string[];
+  modulos: string[];
+  celdas: Record<string, Record<string, number>>;
+  totales_modulo: Record<string, number>;
+  totales_usuario: Record<string, number>;
+  total: number;
+}
+
+function UsoPanel() {
+  const [dias, setDias] = useState<7 | 30>(7);
+  const [data, setData] = useState<UsoResp | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setErr(null);
+    fetch(`/api/manager/uso?dias=${dias}`, { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: UsoResp) => { if (alive) setData(d); })
+      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
+    return () => { alive = false; };
+  }, [dias]);
+
+  const maxCelda = useMemo(() => {
+    if (!data) return 1;
+    let m = 1;
+    for (const u of data.usuarios) {
+      for (const mod of data.modulos) m = Math.max(m, data.celdas[u]?.[mod] ?? 0);
+    }
+    return m;
+  }, [data]);
+
+  // intensidad por celda: alpha ~ sqrt(hits/max) — el sqrt evita que un power
+  // user aplaste el color del resto
+  const celda = (hits: number) =>
+    hits === 0 ? undefined : { background: `rgba(47,127,224,${0.08 + 0.5 * Math.sqrt(hits / maxCelda)})` };
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">
+          Uso por módulo {data ? `· ${data.total.toLocaleString("es-AR")} requests` : ""}
+        </span>
+        <div className="flex rounded overflow-hidden border border-[var(--t-border-2)] ml-auto">
+          {([7, 30] as const).map((d) => (
+            <button key={d} type="button" onClick={() => setDias(d)}
+              className={`text-[10px] font-semibold px-2.5 py-0.5 ${dias === d ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-muted)]"}`}>
+              {d} días
+            </button>
+          ))}
+        </div>
+      </div>
+      {err && <p className="text-[11px] text-[var(--t-neg)]">No pude cargar el uso ({err}).</p>}
+      {data && data.usuarios.length === 0 && !err && (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          Sin datos todavía — la telemetría acumula desde el deploy (flush cada ~60s).
+        </p>
+      )}
+      {data && data.usuarios.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th className="text-left">USUARIO</th>
+              {data.modulos.map((m) => <th key={m} className="text-right">{m.toUpperCase()}</th>)}
+              <th className="text-right">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.usuarios.map((u) => (
+              <tr key={u}>
+                <td className="text-[var(--t-accent)]">{u.split("@")[0]}</td>
+                {data.modulos.map((m) => {
+                  const hits = data.celdas[u]?.[m] ?? 0;
+                  return (
+                    <td key={m} className="text-right tabular-nums" style={celda(hits)}>
+                      {hits ? hits.toLocaleString("es-AR") : "·"}
+                    </td>
+                  );
+                })}
+                <td className="text-right font-bold">{(data.totales_usuario[u] ?? 0).toLocaleString("es-AR")}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-[var(--t-border-2)]">
+              <td className="text-[10px] uppercase text-[var(--t-text-muted)]">total módulo</td>
+              {data.modulos.map((m) => (
+                <td key={m} className="text-right font-bold tabular-nums">
+                  {(data.totales_modulo[m] ?? 0).toLocaleString("es-AR")}
+                </td>
+              ))}
+              <td className="text-right font-bold">{data.total.toLocaleString("es-AR")}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+      <p className="text-[10px] text-[var(--t-text-muted)] mt-2">
+        Requests autenticados agregados por hora (no incluye invitados ni servicios).
+      </p>
+    </div>
+  );
+}
+
+function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
+  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia" | "uso">(
+    "manager.obs.sub", "controles");
+  // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
+  // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
+  // al rol, no dejar la tab clavada en contenido inaccesible.
+  const canIa = modules == null || modules.includes("ia");
+  const sub = subRaw === "ia" && !canIa ? "controles" : subRaw;
+  const [anomalias, setAnomalias] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/controles?resueltos_dias=0", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { totales?: Record<string, number> } | null) => {
+        if (alive && j?.totales) {
+          setAnomalias(Object.values(j.totales).reduce((s, n) => s + n, 0));
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [sub]); // re-chequea el badge al cambiar de sub-tab (barato: lee la tabla)
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className={GROUP_HEADER}>
+        <span className={GROUP_TITLE}>OBSERVABILIDAD</span>
+        <Pill
+          label={`CONTROLES${anomalias ? ` !${anomalias}` : ""}`}
+          active={sub === "controles"}
+          onClick={() => setSub("controles")}
+        />
+        <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
+        <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
+        <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
+        <Pill label="USO" active={sub === "uso"} onClick={() => setSub("uso")} />
+        {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "controles"   && <ControlesPanel goTo={(t) => goTo(t as Tab)} />}
+        {sub === "diagnostico" && <DiagnosticoGroup />}
+        {sub === "jobs"        && <JobsGroup />}
+        {sub === "base"        && <DbBasePanel />}
+        {sub === "ia"          && <IaPanel />}
+        {sub === "uso"         && <UsoPanel />}
+      </div>
+    </div>
+  );
+}
+
+// BASE: espacio/salud de la base — tamaño total vs límite del plan, por schema,
+// y top tablas con bloat (dead tuples) + último dato. Fuente:
+// /api/manager/db-observabilidad (cache 2 min en el backend).
+type DbTablaObs = {
+  schema: string; tabla: string;
+  total_bytes: number; tabla_bytes: number; indices_bytes: number;
+  filas_vivas: number; filas_muertas: number; dead_pct: number;
+  ultimo_dato: string | null; last_autovacuum: string | null;
+};
+type DbObs = {
+  total_bytes: number; limit_bytes: number; usado_pct: number | null;
+  schemas: { schema: string; bytes: number; tablas: number }[];
+  tablas: DbTablaObs[];
+};
+
+function fmtBytesDb(n: number | null | undefined): string {
+  if (n == null) return "—";
+  let v = n;
+  for (const u of ["B", "KB", "MB", "GB", "TB"]) {
+    if (Math.abs(v) < 1024) return `${v.toFixed(1)}${u}`;
+    v /= 1024;
+  }
+  return `${v.toFixed(1)}PB`;
+}
+
+function DbBasePanel() {
+  const [data, setData] = useState<DbObs | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch("/api/manager/db-observabilidad", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((j: DbObs) => { if (alive) { setData(j); setErr(null); } })
+        .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  if (err) return <p className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</p>;
+  if (!data) return <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>;
+
+  const pct = data.usado_pct ?? 0;
+  const pctColor = pct >= 85 ? "var(--t-neg)" : pct >= 65 ? "#ff9900" : "var(--t-pos)";
+  const maxSchema = Math.max(1, ...data.schemas.map((s) => s.bytes));
+
+  return (
+    <div className="h-full min-h-0 overflow-auto p-3 flex flex-col gap-4">
+      {/* Gauge total vs límite del plan */}
+      <div>
+        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+          <span className="text-[11px] uppercase tracking-widest text-[var(--t-accent)]">Espacio de la base</span>
+          <span className="text-[11px] font-mono">{fmtBytesDb(data.total_bytes)} / {fmtBytesDb(data.limit_bytes)}</span>
+          <span className="ml-auto text-[14px] font-bold font-mono" style={{ color: pctColor }}>{pct}%</span>
+        </div>
+        <div className="h-2.5 w-full bg-[var(--t-border)] rounded-sm overflow-hidden">
+          <div style={{ width: `${Math.min(100, pct)}%`, background: pctColor }} className="h-full" />
+        </div>
+        <div className="text-[9px] text-[var(--t-text-muted)] mt-1">
+          Límite del plan configurable (env <span className="font-mono">DB_DISK_LIMIT_GB</span>, default 8 = Supabase Pro).
+        </div>
+      </div>
+
+      {/* Por schema */}
+      <div>
+        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">Por schema</div>
+        <div className="flex flex-col gap-0.5">
+          {data.schemas.map((s) => (
+            <div key={s.schema} className="flex items-center gap-2 text-[10px]">
+              <span className="w-28 font-mono text-[var(--t-text)] truncate">{s.schema}</span>
+              <div className="flex-1 h-2.5 bg-[var(--t-border)] rounded-sm overflow-hidden">
+                <div style={{ width: `${(s.bytes / maxSchema) * 100}%` }} className="h-full bg-[var(--t-accent)]" />
+              </div>
+              <span className="w-16 text-right font-mono text-[var(--t-text-dim)]">{fmtBytesDb(s.bytes)}</span>
+              <span className="w-16 text-right text-[9px] text-[var(--t-text-muted)]">{s.tablas} tablas</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Top tablas */}
+      <div>
+        <div className="text-[10px] uppercase tracking-widest text-[var(--t-text-dim)] mb-1">Top tablas por tamaño</div>
+        <table className="w-full text-[10px] tabular-nums">
+          <thead className="text-[9px] uppercase text-[var(--t-text-muted)]">
+            <tr>
+              <th className="text-left px-2 py-1">Tabla</th>
+              <th className="text-right px-2 py-1">Total</th>
+              <th className="text-right px-2 py-1">Índices</th>
+              <th className="text-right px-2 py-1">Filas</th>
+              <th className="text-right px-2 py-1">Muertas</th>
+              <th className="text-right px-2 py-1">Dead%</th>
+              <th className="text-right px-2 py-1">Últ. dato</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.tablas.map((t) => {
+              const bloat = t.dead_pct > 20 && t.filas_muertas > 10_000;
+              return (
+                <tr key={`${t.schema}.${t.tabla}`} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                  <td className="px-2 py-1 font-mono text-[var(--t-text-dim)]">{t.schema}.<span className="text-[var(--t-text)]">{t.tabla}</span></td>
+                  <td className="px-2 py-1 text-right font-mono font-semibold">{fmtBytesDb(t.total_bytes)}</td>
+                  <td className="px-2 py-1 text-right font-mono text-[var(--t-text-dim)]">{fmtBytesDb(t.indices_bytes)}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{t.filas_vivas.toLocaleString("es-AR")}</td>
+                  <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{t.filas_muertas.toLocaleString("es-AR")}</td>
+                  <td className="px-2 py-1 text-right font-semibold" style={{ color: bloat ? "var(--t-neg)" : "var(--t-text-dim)" }}>{t.dead_pct}%</td>
+                  <td className="px-2 py-1 text-right text-[9px] text-[var(--t-text-muted)]">{t.ultimo_dato ?? "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 // DIAGNÓSTICO: Motores (rediseñado 50/50) + Recursos + Logs.
 function DiagnosticoGroup() {
@@ -3040,7 +3462,7 @@ function DiagnosticoGroup() {
 
 // VALIDACIONES: checks + Opciones Vto (relocalizado de Backfills) + Debug XIRR.
 function ValidacionesGroup() {
-  const [sub, setSub] = usePersistedState<"checks" | "opciones" | "xirr" | "segmento" | "tea">("manager.valid.sub", "checks");
+  const [sub, setSub] = usePersistedState<"checks" | "opciones" | "xirr" | "tea">("manager.valid.sub", "checks");
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -3049,14 +3471,12 @@ function ValidacionesGroup() {
         <Pill label="OPCIONES VTO" active={sub === "opciones"} onClick={() => setSub("opciones")} />
         <Pill label="DEBUG XIRR" active={sub === "xirr"} onClick={() => setSub("xirr")} />
         <Pill label="DEBUG TEA" active={sub === "tea"} onClick={() => setSub("tea")} />
-        <Pill label="DEBUG SEGMENTO" active={sub === "segmento"} onClick={() => setSub("segmento")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "checks"   && <TabValidaciones />}
         {sub === "opciones" && <div className="h-full overflow-y-auto p-3"><OpcionesExpiriesPanel /></div>}
         {sub === "xirr"     && <ManagerDebugXirrPanel />}
         {sub === "tea"      && <ManagerDebugTeaPanel />}
-        {sub === "segmento" && <ManagerDebugSegmentoPanel />}
       </div>
     </div>
   );
@@ -3104,89 +3524,6 @@ function OnField({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">{label}</span>
       {children}
     </label>
-  );
-}
-
-function TabOnsSegmentar() {
-  const [ons, setOns] = useState<ONMaster[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [state, setState] = useState<Record<string, RowState>>({});
-
-  const fetchOns = () => {
-    setLoading(true);
-    fetch("/api/manager/ons")
-      .then((r) => r.json())
-      .then((d: { ons: ONMaster[] }) => setOns(d.ons || []))
-      .finally(() => setLoading(false));
-  };
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/manager/ons")
-      .then((r) => r.json())
-      .then((d: { ons: ONMaster[] }) => { if (alive) setOns(d.ons || []); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  const setSector = async (asset: string, sector: string) => {
-    setOns((prev) => prev.map((o) => (o.asset === asset ? { ...o, sector } : o)));
-    setState((s) => ({ ...s, [asset]: { kind: "saving" } }));
-    try {
-      const r = await fetch("/api/manager/ons/sector", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ asset, sector }),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setState((s) => ({ ...s, [asset]: { kind: "saved" } }));
-      setTimeout(() => setState((s) => ({ ...s, [asset]: { kind: "idle" } })), 1200);
-    } catch (e) {
-      setState((s) => ({ ...s, [asset]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
-    }
-  };
-
-  return (
-    <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[11px] text-[var(--t-text-dim)]">
-          {ons.length} ONs · cambiar el sector se refleja en la vista al instante
-        </span>
-        <button type="button" onClick={fetchOns} className={_onInput + " w-auto"}>↻</button>
-      </div>
-      <table>
-        <thead>
-          <tr><th>Asset</th><th>Emisor</th><th>Mon</th><th>Vto</th><th>Sector</th><th></th></tr>
-        </thead>
-        <tbody>
-          {ons.map((o) => {
-            const st = state[o.asset] || { kind: "idle" };
-            return (
-              <tr key={o.asset}>
-                <td className="font-semibold">{o.asset}</td>
-                <td>{o.emisor || "--"}</td>
-                <td>{o.moneda_flujo || "--"}</td>
-                <td className="tabular-nums">{(o.vencimiento || "").slice(0, 7) || "--"}</td>
-                <td>
-                  <select
-                    value={(o.sector || "otros").toLowerCase()}
-                    onChange={(e) => setSector(o.asset, e.target.value)}
-                    className={_onInput}
-                  >
-                    {ON_SECTORES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </td>
-                <td className="text-[10px]">
-                  {st.kind === "saving" && <span className="text-[var(--t-text-muted)]">…</span>}
-                  {st.kind === "saved" && <span className="text-emerald-500">✓</span>}
-                  {st.kind === "error" && <span className="text-red-500" title={st.msg}>✗</span>}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
-    </div>
   );
 }
 
@@ -3284,10 +3621,10 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const txt = await r.text();
-      let d: { detail?: string; sync?: { sincronizadas?: number } } = {};
+      let d: { detail?: string } = {};
       try { d = JSON.parse(txt); } catch { /* respuesta no-JSON (ej. 500 HTML) */ }
       if (!r.ok) throw new Error(d.detail || txt.slice(0, 300) || `HTTP ${r.status}`);
-      setMsg({ kind: "ok", text: `Guardada. Sync: ${d.sync?.sincronizadas} en Curvas.` });
+      setMsg({ kind: "ok", text: "Guardada en Curvas (on_*)." });
       fetch("/api/manager/ons").then((x) => x.json()).then((d2: { ons: ONMaster[] }) => setExistentes(d2.ons || [])).catch(() => {});
       onSaved?.();  // avisa al padre → refresca el conciliador (el bono ya no falta)
     } catch (e) {
@@ -3408,114 +3745,1113 @@ function TabOnsAlta({ prefill, onSaved }: { prefill?: ONPrefill | null; onSaved?
         {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
       </div>
       <p className="text-[10px] text-[var(--t-text-muted)]">
-        Al guardar se sincroniza Curvas → la ON aparece en la vista. Para que COTICE
-        en vivo (precio/TEA) hay que reiniciar los motores.
+        Al guardar, la ON aparece en la vista. Puede tardar unos minutos en cotizar
+        en vivo (precio/TEA).
       </p>
     </div>
   );
 }
 
-interface ONGap { unidad: string; ticker: string | null; emisor: string | null; cartera: string }
-interface ONConcil { gap: ONGap[]; resumen: { total: number; cubiertas: number; faltan: number; ignoradas: number; snapshot: string | null } }
+// ── BONOS (tasa_fija / CER / soberanos) — editor directo a Trading.Curvas ──
+// Gemelo de ONs pero para bonos que viven directo en Curvas (sin BondsMaster).
+// Tipos de bono de Trading.Curvas — cada uno habilita sus campos y la shape de flujo
+// (replica EXACTA de Curvas, no se inventa). bullet = solo flujo_vencimiento (sin array).
+const BONO_TIPOS: { tipo: string; label: string; curva: string; bullet?: boolean; cols?: { k: string; label: string }[]; cer?: boolean; cupon?: boolean; tasaRef?: boolean }[] = [
+  { tipo: "lecap",    label: "Lecap (bullet)",     curva: "tasa_fija", bullet: true },
+  { tipo: "boncap",   label: "Boncap (bullet)",    curva: "tasa_fija", bullet: true },
+  { tipo: "bono",     label: "Tasa fija c/ cupón", curva: "tasa_fija", cols: [{ k: "amortizacion", label: "Amort." }, { k: "interes", label: "Interés" }] },
+  { tipo: "cer",      label: "CER",                curva: "cer",       cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }, { k: "residual_previo_pct", label: "Resid. previo %" }], cer: true, cupon: true },
+  { tipo: "dual",     label: "Dual / TAMAR",       curva: "tamar",     cols: [{ k: "amortizacion_pct", label: "Amort. %" }], tasaRef: true },
+  { tipo: "soberano", label: "Soberano (USD)",     curva: "soberanos", cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }] },
+  { tipo: "dolar_linked", label: "Dólar Linked",   curva: "dolar_linked", cols: [{ k: "amortizacion_pct", label: "Amort. %" }, { k: "cupon_sobre_residual", label: "Cupón s/resid." }] },
+];
 
-function TabOnsConciliador({ onDarDeAlta }: { onDarDeAlta: (g: ONGap) => void }) {
-  const [data, setData] = useState<ONConcil | null>(null);
+interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; fuente: string; accion: string; motivo: string; en_cartera: boolean }
+interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_emision?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; cupon_anual?: number; tasa_referencia?: string; flujo_vencimiento?: number; flujos?: Record<string, unknown>[] }
+interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string; editTicker?: string }
+
+interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuente?: { curvas: number; on: number; ninguna: number }; titulos: BonoSinFlujo[] }
+
+function TabBonosControl({ onDarDeAlta }: { onDarDeAlta: (b: BonoSinFlujo) => void }) {
+  const [data, setData] = useState<ConcilResp | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const cargar = () => {
-    setLoading(true);
-    fetch("/api/manager/ons/conciliar").then((r) => r.json()).then(setData).finally(() => setLoading(false));
-  };
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/manager/ons/conciliar").then((r) => r.json()).then((d) => { if (alive) setData(d); }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
+  // Bonos ignorados (ocultados del gap) — para poder revertir un ignore por error.
+  const [ignoradas, setIgnoradas] = useState<{ ticker: string; ignorado_por?: string; at?: string }[]>([]);
+  // Solapa: el gap (sin flujo) o los ignorados — separados para que la lista de
+  // ignorados no crezca hacia abajo empujando el conciliador (pedido del user).
+  const [vista, setVista] = useState<"gap" | "ignorados">("gap");
+  const cargarIgnoradas = () => fetch("/api/manager/ons/ignoradas").then(r => r.json()).then(d => setIgnoradas(d.ignoradas || [])).catch(() => {});
+  const cargar = () => { setLoading(true); fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(setData).finally(() => setLoading(false)); cargarIgnoradas(); };
+  useEffect(() => { let alive = true; fetch("/api/manager/bonos/sin-flujo").then(r => r.json()).then(d => { if (alive) setData(d); }).catch(() => {}); cargarIgnoradas(); return () => { alive = false; }; }, []);
   const ignorar = async (ticker: string | null) => {
     if (!ticker) return;
-    await fetch("/api/manager/ons/ignorar", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }),
-    }).catch(() => {});
+    await fetch("/api/manager/ons/ignorar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker }) }).catch(() => {});
     cargar();
   };
-
-  const r = data?.resumen;
+  const restaurar = async (ticker: string) => {
+    await fetch(`/api/manager/ons/ignorar?ticker=${encodeURIComponent(ticker)}`, { method: "DELETE" }).catch(() => {});
+    cargar();
+  };
+  const pf = data?.por_fuente;
   return (
     <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-3 mb-2 text-[11px]">
-        <span className="text-[var(--t-text-dim)]">
-          {r ? `HD/DL de clientes: ${r.total} · en Curvas: ${r.cubiertas} · faltan: ` : "cargando…"}
-          {r && <span className="text-amber-500 font-semibold">{r.faltan}</span>}
-          {r && r.ignoradas ? <span> · ignoradas: {r.ignoradas}</span> : null}
-        </span>
-        <button type="button" onClick={cargar} className={_onInput + " w-auto"}>↻</button>
+      {/* Solapas: Sin flujo (el gap) · Ignorados (en su propia vista) */}
+      <div className="flex items-center gap-1 mb-2">
+        <button type="button" onClick={() => setVista("gap")}
+          className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === "gap" ? "bg-[#094293] text-white" : "border border-[var(--t-border)] text-[var(--t-text-muted)]")}>
+          Sin flujo{data ? ` (${data.total})` : ""}
+        </button>
+        <button type="button" onClick={() => setVista("ignorados")}
+          className={"px-2 py-0.5 text-[10px] font-semibold " + (vista === "ignorados" ? "bg-[#094293] text-white" : "border border-[var(--t-border)] text-[var(--t-text-muted)]")}>
+          Ignorados ({ignoradas.length})
+        </button>
+        <button type="button" onClick={cargar} className={_onInput + " w-auto ml-1"}>↻</button>
         {loading && <span className="text-[10px] text-[var(--t-text-muted)]">…</span>}
       </div>
+
+      {vista === "gap" && (<>
+      <div className="flex items-center gap-3 mb-2 text-[11px]">
+        <span className="text-[var(--t-text-dim)]">
+          {data ? <>Faltan/incompletos: <span className="text-amber-500 font-semibold">{data.total}</span> · en cartera: <span className="text-red-500 font-semibold">{data.en_cartera}</span>{pf ? <> · Renta Fija {pf.curvas} · ONs {pf.on} · nuevos {pf.ninguna}</> : null}</> : "cargando…"}
+        </span>
+      </div>
       <table>
-        <thead>
-          <tr><th>Ticker</th><th>Emisor</th><th>Cartera</th><th>Unidad (Aunesa)</th><th></th></tr>
-        </thead>
+        <thead><tr><th>Cart</th><th>Unidad</th><th>Ticker</th><th>Hoy</th><th>Fuente</th><th>Motivo</th><th></th></tr></thead>
         <tbody>
-          {(data?.gap || []).map((g) => (
-            <tr key={g.unidad}>
-              <td className="font-semibold">{g.ticker || "--"}</td>
-              <td>{g.emisor || "--"}</td>
-              <td>{g.cartera}</td>
-              <td className="text-[10px] text-[var(--t-text-dim)] truncate max-w-[200px]" title={g.unidad}>{g.unidad}</td>
+          {(data?.titulos || []).map((t) => (
+            <tr key={t.unidad}>
+              <td>{t.cartera}</td>
+              <td className="text-[var(--t-accent)]">{t.unidad}</td>
+              <td className="font-mono">{t.ticker ?? "—"}</td>
+              <td className="text-center">{t.en_cartera ? "🔴" : "·"}</td>
+              <td className="text-[10px] uppercase text-[var(--t-text-dim)]">{t.fuente}</td>
+              <td className="text-[10px] text-[var(--t-text-dim)]">{t.motivo}</td>
               <td className="whitespace-nowrap">
-                <button type="button" onClick={() => onDarDeAlta(g)}
-                  className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">dar de alta</button>
-                <button type="button" onClick={() => ignorar(g.ticker)}
-                  className="px-1.5 py-0.5 text-[10px] text-[var(--t-text-muted)] border border-[var(--t-border)]">ignorar</button>
+                <button type="button" onClick={() => onDarDeAlta(t)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-[#094293] text-white mr-1">{t.fuente === "ninguna" ? "dar de alta" : "editar"}</button>
+                <button type="button" onClick={() => ignorar(t.ticker)} className="px-1.5 py-0.5 text-[10px] text-[var(--t-text-muted)] border border-[var(--t-border)]">ignorar</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {data && data.gap.length === 0 && (
-        <p className="text-[11px] text-emerald-500 mt-2">✓ No falta ninguna HD/DL — todo lo que tienen los clientes está en Curvas.</p>
+      {data && data.ok && <p className="text-[11px] text-emerald-500 mt-2">✓ Todo lo de cartera ARS/DL/HD tiene flujo cargado.</p>}
+      </>)}
+
+      {/* Ignorados — su propia solapa. "restaurar" los vuelve a mostrar en el conciliador. */}
+      {vista === "ignorados" && (
+        ignoradas.length === 0 ? (
+          <p className="text-[10px] text-[var(--t-text-muted)]">Ninguno ignorado. Los que saques del conciliador con “ignorar” aparecen acá para poder restaurarlos.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5 content-start">
+            {ignoradas.map((g) => (
+              <span key={g.ticker} className="inline-flex items-center gap-1.5 border border-[var(--t-border-2)] px-2 py-0.5 text-[10px]">
+                <span className="font-mono text-[var(--t-text)]">{g.ticker}</span>
+                {g.at && <span className="text-[var(--t-text-muted)]">{g.at.slice(0, 10)}</span>}
+                <button type="button" onClick={() => restaurar(g.ticker)} title="Volver a mostrar en el conciliador"
+                  className="text-[var(--t-accent)] hover:underline">restaurar</button>
+              </span>
+            ))}
+          </div>
+        )
       )}
     </div>
   );
 }
 
-function TabONs() {
-  const [sub, setSub] = usePersistedState<"conciliador" | "segmentar" | "alta">("manager.ons.sub", "conciliador");
-  const [prefill, setPrefill] = useState<ONPrefill | null>(null);
-  const [prefillKey, setPrefillKey] = useState(0);
+function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSaved?: () => void }) {
+  const tipoFromCurva = (c?: string) => c === "cer" ? "cer" : c === "soberanos" ? "soberano" : c === "tamar" ? "dual" : c === "dolar_linked" ? "dolar_linked" : "lecap";
+  const [tipo, setTipo] = useState(prefill ? tipoFromCurva(prefill.curva) : "lecap");
+  const cfg = BONO_TIPOS.find((t) => t.tipo === tipo) || BONO_TIPOS[0];
+  const empty = { ticker_corto: "", tkCode: "", moneda_flujo: "ARS", fecha_emision: "", fecha_vencimiento: "", valor_nominal: "100", cer_emision: "", cupon_anual: "0", tasa_referencia: "TAMAR", flujo_vencimiento: "" };
+  const [form, setForm] = useState({ ...empty, ...(prefill ? { ticker_corto: prefill.ticker_corto || "", tkCode: prefill.ticker ? unwrapTicker(prefill.ticker) : (prefill.ticker_corto || "") } : {}) });
+  const [flujos, setFlujos] = useState<Record<string, string>[]>([]);
+  const [existentes, setExistentes] = useState<BonoMaster[]>([]);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  // Subir/pegar Excel de flujos (reusa el parser de ONs; el backend devuelve la shape del tipo)
+  const [flujosText, setFlujosText] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [showPaste, setShowPaste] = useState(false);
+  const [parseMsg, setParseMsg] = useState<string | null>(null);
+  const puedePegar = !cfg.bullet && (tipo === "soberano" || tipo === "bono");
 
-  const darDeAlta = (g: ONGap) => {
-    setPrefill({ asset: g.ticker || "", emisor: g.emisor || "", moneda_flujo: g.cartera === "DL" ? "DL" : "USD" });
-    setPrefillKey((k) => k + 1);
-    setSub("alta");
+  useEffect(() => { let alive = true; fetch("/api/manager/bonos").then(r => r.json()).then((d: { bonos: BonoMaster[] }) => { if (alive) setExistentes(d.bonos || []); }).catch(() => {}); return () => { alive = false; }; }, []);
+
+  const cargarExistente = (tc: string) => {
+    const b = existentes.find((x) => x.ticker_corto === tc);
+    if (!b) { setForm({ ...empty }); setFlujos([]); return; }
+    setTipo(b.tipo && BONO_TIPOS.some((x) => x.tipo === b.tipo) ? b.tipo : tipoFromCurva(b.curva));
+    setForm({
+      ticker_corto: b.ticker_corto, tkCode: b.ticker ? unwrapTicker(b.ticker) : b.ticker_corto,
+      moneda_flujo: (b.moneda_flujo || "ARS").toUpperCase(),
+      fecha_emision: (b.fecha_emision || "").slice(0, 10), fecha_vencimiento: (b.fecha_vencimiento || "").slice(0, 10),
+      valor_nominal: String(b.valor_nominal ?? 100), cer_emision: b.cer_emision != null ? String(b.cer_emision) : "",
+      cupon_anual: b.cupon_anual != null ? String(b.cupon_anual) : "0", tasa_referencia: b.tasa_referencia || "TAMAR",
+      flujo_vencimiento: b.flujo_vencimiento != null ? String(b.flujo_vencimiento) : "",
+    });
+    setFlujos((b.flujos || []).map((f) => {
+      const row: Record<string, string> = { fecha: String(f.fecha ?? "") };
+      ["amortizacion", "interes", "valor_residual", "amortizacion_pct", "cupon_sobre_residual", "residual_previo_pct", "cupon_anual"]
+        .forEach((k) => { if (f[k] != null) row[k] = String(f[k]); });
+      return row;
+    }));
+    setMsg(null);
+  };
+  const setCell = (i: number, k: string, v: string) => setFlujos((fs) => fs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+
+  // Auto-carga al llegar desde el LISTADO con "editar": una vez que están los
+  // existentes, cargo ese bono en el form (una sola vez, vía ref). setTimeout(0)
+  // para no setear estado sincrónicamente dentro del effect.
+  const editLoadedRef = useRef(false);
+  useEffect(() => {
+    const et = prefill?.editTicker;
+    if (!et || editLoadedRef.current || !existentes.some((b) => b.ticker_corto === et)) return;
+    editLoadedRef.current = true;
+    const id = setTimeout(() => cargarExistente(et), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existentes, prefill]);
+
+  const guardar = async () => {
+    if (!form.ticker_corto.trim()) { setMsg({ kind: "err", text: "Falta el ticker corto" }); return; }
+    setSaving(true); setMsg(null);
+    const body: Record<string, unknown> = {
+      ticker_corto: form.ticker_corto.trim(),
+      ticker: wrapTicker(form.tkCode || form.ticker_corto),
+      curva: cfg.curva, tipo,
+      moneda_flujo: form.moneda_flujo || undefined,
+      fecha_emision: form.fecha_emision || undefined,
+      fecha_vencimiento: form.fecha_vencimiento || undefined,
+      valor_nominal: form.valor_nominal ? _onNum(form.valor_nominal) : undefined,
+    };
+    if (cfg.cer) body.cer_emision = form.cer_emision ? _onNum(form.cer_emision) : undefined;
+    if (cfg.cupon) body.cupon_anual = form.cupon_anual !== "" ? _onNum(form.cupon_anual) : undefined;
+    if (cfg.tasaRef) body.tasa_referencia = form.tasa_referencia || undefined;
+    if (cfg.bullet) {
+      body.flujo_vencimiento = form.flujo_vencimiento ? _onNum(form.flujo_vencimiento) : undefined;
+    } else {
+      const rows = flujos.filter((r) => r.fecha).map((r) => {
+        const o: Record<string, unknown> = { fecha: r.fecha };
+        (cfg.cols || []).forEach((c) => { if (r[c.k] != null && r[c.k] !== "") o[c.k] = _onNum(r[c.k]); });
+        return o;
+      });
+      body.flujos = rows.length ? rows : undefined;
+    }
+    try {
+      const r = await fetch("/api/manager/bonos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const txt = await r.text(); let d: { detail?: string } = {}; try { d = JSON.parse(txt); } catch { /* no-JSON */ }
+      if (!r.ok) throw new Error(d.detail || txt.slice(0, 300) || `HTTP ${r.status}`);
+      setMsg({ kind: "ok", text: "Guardado en Curvas." });
+      fetch("/api/manager/bonos").then((x) => x.json()).then((d2: { bonos: BonoMaster[] }) => setExistentes(d2.bonos || [])).catch(() => {});
+      onSaved?.();
+    } catch (e) { setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
+  const borrar = async () => {
+    const tc = form.ticker_corto.trim();
+    if (!tc) return;
+    if (!window.confirm(`¿Dar de baja ${tc}? Se elimina de Curvas → deja de figurar en Renta Fija.`)) return;
+    setSaving(true); setMsg(null);
+    try {
+      const r = await fetch(`/api/manager/bonos?ticker_corto=${encodeURIComponent(tc)}`, { method: "DELETE" });
+      const txt = await r.text(); let d: { detail?: string } = {}; try { d = JSON.parse(txt); } catch { /* no-JSON */ }
+      if (!r.ok) throw new Error(d.detail || txt.slice(0, 300) || `HTTP ${r.status}`);
+      setMsg({ kind: "ok", text: `${tc} dado de baja.` });
+      setForm({ ...empty }); setFlujos([]);
+      fetch("/api/manager/bonos").then((x) => x.json()).then((d2: { bonos: BonoMaster[] }) => setExistentes(d2.bonos || [])).catch(() => {});
+      onSaved?.();
+    } catch (e) { setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) }); }
+    finally { setSaving(false); }
+  };
+
+  // Pega las filas del Excel → el backend las devuelve en la shape del tipo → tabla.
+  const parsearFlujos = async (texto: string) => {
+    if (!texto.trim()) return;
+    try {
+      const r = await fetch("/api/manager/bonos/parse-flujos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto, tipo }),
+      });
+      const d: { flujos?: Record<string, unknown>[]; vencimiento?: string | null; formato?: string; error?: string } = await r.json();
+      const rows = (d.flujos || []).map((f) => {
+        const row: Record<string, string> = { fecha: String(f.fecha ?? "") };
+        (cfg.cols || []).forEach((c) => { if (f[c.k] != null) row[c.k] = String(f[c.k]); });
+        return row;
+      });
+      setFlujos(rows);
+      if (d.vencimiento && !form.fecha_vencimiento) setForm((s) => ({ ...s, fecha_vencimiento: d.vencimiento as string }));
+      setParseMsg(d.error ? `error: ${d.error}` : rows.length ? `${rows.length} flujos · ${d.formato || ""}` : "no se detectaron flujos");
+    } catch (e) { setParseMsg(e instanceof Error ? e.message : "error al parsear"); }
+  };
+
+  // "Examinar archivo": lee el .xlsx/.xls/.csv REAL (SheetJS lazy) → lo pasa a
+  // texto tabulado y lo manda al parser (mismo flujo que "pegar", pero desde archivo).
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      // cellDates + dateNF ISO: evita que SheetJS formatee una fecha como US
+      // (M/D/Y) — el parser lee DMY y "6/8" sería junio en vez de agosto.
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const tsv = XLSX.utils.sheet_to_csv(ws, { FS: "\t", dateNF: "yyyy-mm-dd" });
+      setFlujosText(tsv);
+      await parsearFlujos(tsv);
+    } catch (err) { setParseMsg(err instanceof Error ? err.message : "no pude leer el archivo"); }
+    e.target.value = "";  // permite volver a elegir el mismo archivo
   };
 
   return (
+    <div className="h-full overflow-auto p-3 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Editar existente</span>
+        <select className={_onInput + " w-auto"} value={form.ticker_corto} onChange={(e) => cargarExistente(e.target.value)}>
+          <option value="">— nuevo bono —</option>
+          {existentes.map((b) => <option key={b.ticker_corto} value={b.ticker_corto}>{b.ticker_corto} · {b.tipo || b.curva}</option>)}
+        </select>
+        {form.ticker_corto.trim() && (
+          <button type="button" onClick={borrar} disabled={saving} className="px-2 py-1 text-[10px] font-semibold bg-red-600 text-white disabled:opacity-50" title="Eliminar este bono de Curvas">
+            DAR DE BAJA
+          </button>
+        )}
+      </div>
+
+      <OnField label="Tipo de bono — define los campos y la shape del flujo">
+        <select className={_onInput} value={tipo} onChange={(e) => { setTipo(e.target.value); setFlujos([]); setFlujosText(""); setParseMsg(null); }}>
+          {BONO_TIPOS.map((t) => <option key={t.tipo} value={t.tipo}>{t.label}</option>)}
+        </select>
+      </OnField>
+
+      <div className="grid grid-cols-4 gap-2">
+        <OnField label="Ticker corto"><input className={_onInput} value={form.ticker_corto} onChange={(e) => setForm({ ...form, ticker_corto: e.target.value.toUpperCase() })} placeholder="TX26" /></OnField>
+        <OnField label="Ticker ROFEX (código)">
+          <div className="flex items-center gap-1 text-[11px]">
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">MERV - XMEV -</span>
+            <input className={_onInput + " text-center font-semibold"} value={form.tkCode} onChange={(e) => setForm({ ...form, tkCode: e.target.value.toUpperCase() })} placeholder="TX26" />
+            <span className="text-[var(--t-text-dim)] whitespace-nowrap">- 24hs</span>
+          </div>
+        </OnField>
+        <OnField label="Moneda flujo"><select className={_onInput} value={form.moneda_flujo} onChange={(e) => setForm({ ...form, moneda_flujo: e.target.value })}><option value="ARS">ARS</option><option value="USD">USD</option></select></OnField>
+        <OnField label="Valor nominal"><input className={_onInput} value={form.valor_nominal} onChange={(e) => setForm({ ...form, valor_nominal: e.target.value })} placeholder="100" /></OnField>
+        <OnField label="Fecha emisión"><input type="date" className={_onInput} value={form.fecha_emision} onChange={(e) => setForm({ ...form, fecha_emision: e.target.value })} /></OnField>
+        <OnField label="Vencimiento"><input type="date" className={_onInput} value={form.fecha_vencimiento} onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value })} /></OnField>
+        {cfg.cer && <OnField label="CER emisión"><input className={_onInput} value={form.cer_emision} onChange={(e) => setForm({ ...form, cer_emision: e.target.value })} placeholder="659.6789" /></OnField>}
+        {cfg.cupon && <OnField label="Cupón anual"><input className={_onInput} value={form.cupon_anual} onChange={(e) => setForm({ ...form, cupon_anual: e.target.value })} placeholder="0" /></OnField>}
+        {cfg.tasaRef && <OnField label="Tasa referencia"><input className={_onInput} value={form.tasa_referencia} onChange={(e) => setForm({ ...form, tasa_referencia: e.target.value })} placeholder="TAMAR" /></OnField>}
+      </div>
+
+      {cfg.bullet ? (
+        <OnField label="Flujo de vencimiento (por 100 VN, pago único al vto — Lecap/Boncap)">
+          <input className={_onInput} value={form.flujo_vencimiento} onChange={(e) => setForm({ ...form, flujo_vencimiento: e.target.value })} placeholder="135.278" />
+        </OnField>
+      ) : (
+        <div>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Flujos{puedePegar ? " — subí el Excel (BYMA/IAMC) o cargá a mano" : ` (carga manual, shape ${tipo})`}</span>
+            <button type="button" onClick={() => setFlujos((fs) => [...fs, { fecha: "" }])} className="px-2 py-0.5 text-[10px] font-semibold bg-[#094293] text-white">+ fila</button>
+            {puedePegar && (
+              <label className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-[#094293] text-white cursor-pointer hover:opacity-90">
+                📁 examinar archivo
+                <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFile} className="hidden" />
+              </label>
+            )}
+            {puedePegar && fileName && <span className="text-[10px] text-[var(--t-text)] truncate max-w-[200px]" title={fileName}>{fileName}</span>}
+            {puedePegar && (
+              <button type="button" onClick={() => setShowPaste((v) => !v)} className="px-2 py-0.5 text-[10px] border border-[var(--t-border)]">
+                {showPaste ? "ocultar" : "o pegar"}
+              </button>
+            )}
+            {(flujos.length > 0 || flujosText) && (
+              <button type="button" onClick={() => { setFlujos([]); setFlujosText(""); setFileName(""); setParseMsg(null); }} className="px-2 py-0.5 text-[10px] text-red-500 border border-[var(--t-border)]">limpiar</button>
+            )}
+          </div>
+          {puedePegar && showPaste && (
+            <textarea
+              className={_onInput + " h-20 font-mono text-[10px] mb-1"}
+              placeholder="Pegá las filas del Excel (BYMA/IAMC 'Flujo de fondos c/100 vn', o simple: fecha ⭾ amort ⭾ interés/cupón ⭾ residual)."
+              value={flujosText}
+              onChange={(e) => setFlujosText(e.target.value)}
+              onBlur={() => parsearFlujos(flujosText)}
+            />
+          )}
+          {puedePegar && parseMsg && <div className="text-[10px] text-[var(--t-text-muted)] mb-1">{parseMsg}</div>}
+          <div className="max-h-52 overflow-auto border border-[var(--t-border)]">
+            <table>
+              <thead><tr><th>Fecha</th>{(cfg.cols || []).map((c) => <th key={c.k} className="text-right">{c.label}</th>)}<th></th></tr></thead>
+              <tbody>
+                {flujos.map((r, i) => (
+                  <tr key={i}>
+                    <td><input type="date" className={_onInput} value={r.fecha || ""} onChange={(e) => setCell(i, "fecha", e.target.value)} /></td>
+                    {(cfg.cols || []).map((c) => <td key={c.k}><input className={_onInput + " text-right"} value={r[c.k] || ""} onChange={(e) => setCell(i, c.k, e.target.value)} placeholder="0" /></td>)}
+                    <td className="text-center"><button type="button" onClick={() => setFlujos((fs) => fs.filter((_, j) => j !== i))} className="text-red-500 px-1">×</button></td>
+                  </tr>
+                ))}
+                {flujos.length === 0 && <tr><td colSpan={(cfg.cols?.length || 0) + 2} className="text-[10px] text-[var(--t-text-dim)] p-2">Sin flujos — agregá filas con &quot;+ fila&quot;.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={guardar} disabled={saving} className="px-3 py-1 text-[11px] font-semibold bg-[#094293] text-white disabled:opacity-50">{saving ? "Guardando…" : "GUARDAR BONO"}</button>
+        {msg && <span className={"text-[11px] " + (msg.kind === "ok" ? "text-emerald-500" : "text-red-500")}>{msg.text}</span>}
+      </div>
+      <p className="text-[10px] text-[var(--t-text-muted)]">Guarda el bono con la estructura del tipo elegido. Puede tardar unos minutos en cotizar en vivo (precio/TEA).</p>
+    </div>
+  );
+}
+
+interface TituloPrefill { codigo: string; ticker?: string | null; destino: "curvas" | "ons"; curva?: string; emisor?: string | null; moneda?: string; edit?: boolean }
+
+// Editor UNIFICADO: elegís el TIPO de título (Renta Fija = soberano/CER/tasa fija · ONs).
+// AMBOS viven en la MISMA base SQL `mercado.curvas` (BondsMaster fue retirado); solo
+// cambian los campos del form y el endpoint. Te marca si ya está cargado. El conciliador
+// entra acá directo con el tipo preseleccionado (Renta Fija si ya está como bono; ONs si
+// es ON/nuevo).
+function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; onSaved?: () => void }) {
+  const [destino, setDestino] = useState<"curvas" | "ons">(prefill?.destino ?? "curvas");
+  const [bonos, setBonos] = useState<BonoMaster[]>([]);
+  const [ons, setOns] = useState<ONMaster[]>([]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/bonos").then((r) => r.json()).then((d: { bonos: BonoMaster[] }) => { if (alive) setBonos(d.bonos || []); }).catch(() => {});
+    fetch("/api/manager/ons").then((r) => r.json()).then((d: { ons: ONMaster[] }) => { if (alive) setOns(d.ons || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const code = (prefill?.codigo || "").toUpperCase();
+  const enCurvas = !!code && bonos.some((b) => (b.ticker_corto || "").toUpperCase() === code);
+  const enBm = !!code && ons.some((o) => (o.asset || "").toUpperCase() === code);
+  const bonoPrefill: BonoPrefill | null = prefill ? { ticker_corto: prefill.codigo, ticker: prefill.ticker ?? undefined, curva: prefill.curva || "tasa_fija", editTicker: prefill.edit ? prefill.codigo : undefined } : null;
+  const onPrefill: ONPrefill | null = prefill ? { asset: prefill.codigo, emisor: prefill.emisor ?? "", moneda_flujo: prefill.moneda === "DL" ? "DL" : (prefill.moneda || "USD") } : null;
+  return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
-        <Pill label="CONCILIADOR" active={sub === "conciliador"} onClick={() => setSub("conciliador")} />
-        <Pill label="SEGMENTAR" active={sub === "segmentar"} onClick={() => setSub("segmentar")} />
-        <Pill label="ALTA / EDICIÓN" active={sub === "alta"} onClick={() => setSub("alta")} />
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
+        <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Tipo de título</span>
+        <Pill label="Renta Fija" active={destino === "curvas"} onClick={() => setDestino("curvas")} />
+        <Pill label="ONs" active={destino === "ons"} onClick={() => setDestino("ons")} />
+        {code && (
+          <span className="text-[10px] ml-2 text-[var(--t-text-dim)]">
+            {code}:{" "}
+            {enCurvas ? <span className="text-emerald-500 font-semibold">✓ ya cargado (Renta Fija) </span> : null}
+            {enBm ? <span className="text-emerald-500 font-semibold">✓ ya cargado (ON) </span> : null}
+            {!enCurvas && !enBm ? <span className="text-amber-500 font-semibold">nuevo (no está cargado)</span> : null}
+          </span>
+        )}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "conciliador" && <TabOnsConciliador key={prefillKey} onDarDeAlta={darDeAlta} />}
-        {sub === "segmentar" && <TabOnsSegmentar />}
-        {sub === "alta" && <TabOnsAlta key={prefillKey} prefill={prefill} onSaved={() => { if (prefill) setSub("conciliador"); }} />}
+        {destino === "curvas"
+          ? <TabBonosAlta prefill={bonoPrefill} onSaved={onSaved} />
+          : <TabOnsAlta prefill={onPrefill} onSaved={onSaved} />}
       </div>
     </div>
   );
 }
 
-// TÍTULOS: Instrumentos (solo lectura) + Assets + ONs (edición maestro).
-// Gate fino: INSTRUMENTOS → manager_instrumentos; ASSETS/ONs → manager_titulos.
+// LISTADO: toda la base de bonos (mercado.curvas no-ON) como grilla buscable, con
+// sus flujos expandibles y detección de incompletos (sin flujo / sin vto). Es "ver
+// la base de datos" desde el front: buscar, revisar qué falta, editar o dar de baja.
+function bonoFlujoResumen(b: BonoMaster): { txt: string; falta: boolean } {
+  if (b.flujo_vencimiento != null) return { txt: `bullet ${b.flujo_vencimiento}`, falta: false };
+  const n = b.flujos?.length || 0;
+  if (n > 0) return { txt: `${n} flujos`, falta: false };
+  return { txt: "sin flujo", falta: true };
+}
+
+function FlujosMini({ flujos }: { flujos: Record<string, unknown>[] }) {
+  const cols = Array.from(new Set(flujos.flatMap((f) => Object.keys(f)))).filter((k) => k !== "fecha");
+  return (
+    <table className="w-full">
+      <thead><tr><th>Fecha</th>{cols.map((c) => <th key={c} className="text-right">{c}</th>)}</tr></thead>
+      <tbody>
+        {flujos.map((f, i) => (
+          <tr key={i}>
+            <td className="tabular-nums">{String(f.fecha ?? "").slice(0, 10)}</td>
+            {cols.map((c) => <td key={c} className="tabular-nums text-right">{f[c] != null ? String(f[c]) : ""}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function TabBonosListado({ onEditar }: { onEditar: (tc: string) => void }) {
+  const [bonos, setBonos] = useState<BonoMaster[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [curvaF, setCurvaF] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+
+  const fetchBonos = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manager/bonos").then((r) => r.json())
+      .then((d: { bonos: BonoMaster[] }) => setBonos(d.bonos || []))
+      .catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/bonos").then((r) => r.json())
+      .then((d: { bonos: BonoMaster[] }) => { if (alive) setBonos(d.bonos || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const borrar = async (tc: string) => {
+    if (!window.confirm(`¿Dar de baja ${tc}? Se elimina de Curvas → deja de figurar en Renta Fija.`)) return;
+    setBusy((b) => ({ ...b, [tc]: true }));
+    try {
+      const r = await fetch(`/api/manager/bonos?ticker_corto=${encodeURIComponent(tc)}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setBonos((prev) => prev.filter((x) => x.ticker_corto !== tc));
+    } catch { /* noop */ } finally { setBusy((b) => ({ ...b, [tc]: false })); }
+  };
+
+  const ql = q.trim().toLowerCase();
+  const filtered = bonos
+    .filter((b) => (!curvaF || b.curva === curvaF)
+      && (!ql || [b.ticker_corto, b.ticker, b.tipo, b.curva].some((v) => (v || "").toLowerCase().includes(ql))))
+    .sort((a, b) => (a.fecha_vencimiento || "9999").localeCompare(b.fecha_vencimiento || "9999"));
+  const curvasSet = Array.from(new Set(bonos.map((b) => b.curva).filter(Boolean))) as string[];
+  const nFalta = filtered.filter((b) => bonoFlujoResumen(b).falta || !b.fecha_vencimiento).length;
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <input className={_onInput + " w-48"} placeholder="buscar ticker / tipo…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className={_onInput + " w-auto"} value={curvaF} onChange={(e) => setCurvaF(e.target.value)}>
+          <option value="">todas las curvas</option>
+          {curvasSet.sort().map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <span className="text-[11px] text-[var(--t-text-dim)]">{filtered.length} bonos · {nFalta} incompletos</span>
+        <button type="button" onClick={fetchBonos} className={_onInput + " w-auto"}>↻</button>
+      </div>
+      <table>
+        <thead><tr><th>Ticker</th><th>ROFEX</th><th>Curva</th><th>Tipo</th><th>Vto</th><th>Mon</th><th className="text-right">VN</th><th className="text-right">Cupón</th><th>Flujo</th><th></th></tr></thead>
+        <tbody>
+          {filtered.map((b) => {
+            const fl = bonoFlujoResumen(b);
+            const sinVto = !b.fecha_vencimiento;
+            const open = expanded === b.ticker_corto;
+            return (
+              <Fragment key={b.ticker_corto}>
+                <tr className={fl.falta || sinVto ? "bg-red-500/10" : ""}>
+                  <td className="font-semibold">{b.ticker_corto}</td>
+                  <td className="text-[10px] text-[var(--t-text-dim)]">{b.ticker ? unwrapTicker(b.ticker) : "--"}</td>
+                  <td>{b.curva || "--"}</td>
+                  <td>{b.tipo || "--"}</td>
+                  <td className={"tabular-nums " + (sinVto ? "text-red-500 font-semibold" : "")}>{sinVto ? "⚠️ sin vto" : (b.fecha_vencimiento || "").slice(0, 10)}</td>
+                  <td>{b.moneda_flujo || "--"}</td>
+                  <td className="tabular-nums text-right">{b.valor_nominal ?? "--"}</td>
+                  <td className="tabular-nums text-right">{b.cupon_anual ?? "--"}</td>
+                  <td>
+                    <button type="button" onClick={() => setExpanded(open ? null : b.ticker_corto)} className={fl.falta ? "text-red-500 font-semibold" : "text-[var(--t-accent)]"} title="Ver flujos">
+                      {fl.falta ? "⚠️ sin flujo" : `${fl.txt} ${open ? "▴" : "▾"}`}
+                    </button>
+                  </td>
+                  <td className="text-right whitespace-nowrap">
+                    <button type="button" onClick={() => onEditar(b.ticker_corto)} className={_onInput + " w-auto text-[10px] mr-1"}>editar</button>
+                    <button type="button" disabled={busy[b.ticker_corto]} onClick={() => borrar(b.ticker_corto)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white disabled:opacity-50">baja</button>
+                  </td>
+                </tr>
+                {open && (
+                  <tr>
+                    <td colSpan={10} className="bg-[var(--t-panel)] p-2">
+                      {b.flujos?.length
+                        ? <FlujosMini flujos={b.flujos} />
+                        : <span className="text-[10px] text-[var(--t-text-dim)]">{b.flujo_vencimiento != null ? `Bullet: paga ${b.flujo_vencimiento} por 100 VN al vencimiento.` : "Sin flujos cargados."}</span>}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
+      {!loading && filtered.length === 0 && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">Sin bonos para ese filtro.</p>}
+    </div>
+  );
+}
+
+// Un cuadrante del panel unificado de bonos: header + cuerpo con scroll propio.
+function QuadPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+      <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] text-[10px] font-semibold tracking-widest text-[var(--t-text-muted)] uppercase bg-[var(--t-surface)]">
+        {title}
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+    </div>
+  );
+}
+
+// Cuadrante "errores de tasa": bonos con precio pero sin TEA (los "--"). Lista +
+// botón para recalcular (job backfill_tasas) y refrescar. El "por qué" de cada uno
+// se ve en VALIDACIONES → DEBUG TEA.
+function BonosErroresPanel({ reloadKey }: { reloadKey: number }) {
+  interface Fila { ticker_corto: string; ticker: string; curva: string; fecha_vencimiento: string; last_price: number }
+  const [data, setData] = useState<{ total: number; ok: boolean; bonos: Fila[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [recalc, setRecalc] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manager/bonos/sin-tasa", { cache: "no-store" })
+      .then(r => r.json()).then(setData).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => { load(); }, [load, reloadKey]);
+
+  const recalcular = async () => {
+    setRecalc("Recalculando…");
+    try {
+      const start = await fetch("/api/manager/jobs/run", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "backfill_tasas" }),
+      }).then(r => r.json());
+      const jobId = start?.job_id;
+      if (!jobId) { setRecalc("No se pudo lanzar (¿sin permiso?)."); return; }
+      for (let i = 0; i < 60; i++) {
+        await new Promise(res => setTimeout(res, 2000));
+        const job = await fetch(`/api/manager/jobs/${jobId}`, { cache: "no-store" }).then(r => r.json());
+        if (job?.status && job.status !== "running") {
+          setRecalc(job.result || `status=${job.status}`); load(); return;
+        }
+      }
+      setRecalc("Timeout (ver JOBS).");
+    } catch (e) { setRecalc(`Error: ${String(e)}`); }
+  };
+
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <button onClick={load} disabled={loading}
+          className="px-2 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          {loading ? "…" : "↻ Refrescar"}
+        </button>
+        <button onClick={recalcular}
+          className="px-2 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors">
+          ▶ Recalcular tasas
+        </button>
+        {data && <StatusBadge ok={data.ok} label={data.ok ? "Todos con tasa" : `${data.total} sin TEA`} />}
+      </div>
+      {data && data.bonos.length > 0 && (
+        <table className="w-full text-[10px]">
+          <thead><tr className="text-[var(--t-text-muted)] text-left">
+            <th className="py-0.5">TICKER</th><th>CURVA</th><th>VTO</th><th className="text-right">PRECIO</th>
+          </tr></thead>
+          <tbody>
+            {data.bonos.map(b => (
+              <tr key={b.ticker_corto} className="border-t border-[var(--t-border)]">
+                <td className="py-0.5 text-[var(--t-text)] font-semibold">{b.ticker_corto}</td>
+                <td className="text-[var(--t-text-muted)]">{b.curva}</td>
+                <td className="text-[var(--t-text-muted)]">{d10(b.fecha_vencimiento)}</td>
+                <td className="text-right text-[var(--t-text)]">{b.last_price?.toLocaleString("es-AR")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {recalc && (
+        <pre className="text-[9px] text-[var(--t-text-muted)] whitespace-pre-wrap bg-[var(--t-surface)] border border-[var(--t-border)] p-2 mt-2 max-h-32 overflow-y-auto">{recalc}</pre>
+      )}
+      <div className="text-[9px] text-[var(--t-text-muted)] mt-2 leading-relaxed">
+        El detalle del porqué de cada &quot;--&quot; está en VALIDACIONES → DEBUG TEA (por ticker).
+      </div>
+    </div>
+  );
+}
+
+// Vista unificada de bonos: 4 cuadrantes (ver/editar · agregar · conciliar · errores).
+function TabBonos() {
+  const [prefill, setPrefill] = useState<TituloPrefill | null>(null);
+  const [prefillKey, setPrefillKey] = useState(0);
+  const [dataKey, setDataKey] = useState(0);   // remonta listado/conciliador/errores tras guardar
+
+  const darDeAlta = (b: BonoSinFlujo) => {
+    const destino = b.accion === "editar_on" ? "ons" : "curvas";
+    setPrefill({
+      codigo: b.ticker || b.unidad, ticker: b.ticker, destino,
+      curva: b.cartera === "ARS" ? "tasa_fija" : "soberanos",
+      emisor: b.emisor, moneda: b.cartera,
+    });
+    setPrefillKey((k) => k + 1);
+  };
+  const editarBono = (tc: string) => {
+    setPrefill({ codigo: tc, destino: "curvas", edit: true });
+    setPrefillKey((k) => k + 1);
+  };
+  const onSaved = () => { setDataKey((k) => k + 1); };
+
+  return (
+    <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
+      <QuadPanel title="Ver / editar bonos">
+        <TabBonosListado key={`list-${dataKey}`} onEditar={editarBono} />
+      </QuadPanel>
+      <QuadPanel title="Agregar / editar">
+        <TabAltaTitulo key={`alta-${prefillKey}`} prefill={prefill} onSaved={onSaved} />
+      </QuadPanel>
+      <QuadPanel title="Conciliar — títulos sin flujo">
+        <TabBonosControl key={`conc-${dataKey}`} onDarDeAlta={darDeAlta} />
+      </QuadPanel>
+      <QuadPanel title="Errores de tasa — bonos sin TEA">
+        <BonosErroresPanel reloadKey={dataKey} />
+      </QuadPanel>
+    </div>
+  );
+}
+
+// ── Sub-tab: Renta Variable (CEDEARs — rubro + es_ia) ─────────────────────────
+// Editor en grilla del catálogo de clasificación de CEDEARs. Espejo de la
+// segmentación de clientes: el `rubro` NO se escribe libre — se elige del
+// catálogo (/rubros) o se crea con POST /rubro. PATCH inmediato por fila.
+// Endpoints (SQL-native, gate manager_titulos):
+//   GET   /api/manager/renta-variable          → grid de CEDEARs
+//   GET   /api/manager/renta-variable/rubros    → catálogo de rubros (dropdown)
+//   POST  /api/manager/renta-variable/rubro     → crear rubro
+//   PATCH /api/manager/renta-variable           → setear rubro/es_ia de un CEDEAR
+interface CedearRow {
+  ticker: string;            // ticker BYMA completo (PK)
+  ticker_corto: string;
+  underlying: string | null;
+  activo: boolean | null;
+  rubro: string | null;
+  es_ia: boolean | null;
+  ric: string | null;        // identidad Refinitiv del subyacente (ej. AAPL.O)
+  ratio: number | null;      // CEDEARs por acción (ej. AAPL 10:1 → 10), para el CCL implícito
+  nombre: string | null;
+}
+interface RubroRow { rubro: string; es_ia_def: boolean }
+
+function TabRentaVariable() {
+  const [rows, setRows] = useState<CedearRow[]>([]);
+  const [rubros, setRubros] = useState<RubroRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [rowState, setRowState] = useState<Record<string, RowState>>({});
+  const [q, setQ] = useState("");
+  // Alta de rubro nuevo (input inline → POST /rubro)
+  const [nuevoRubro, setNuevoRubro] = useState("");
+  const [nuevoRubroIa, setNuevoRubroIa] = useState(false);
+  const [creandoRubro, setCreandoRubro] = useState(false);
+  const [rubroMsg, setRubroMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Borradores de los inputs RIC/RATIO por fila (se guardan al salir del campo / Enter).
+  const [ricDrafts, setRicDrafts] = useState<Record<string, string>>({});
+  const [ratioDrafts, setRatioDrafts] = useState<Record<string, string>>({});
+
+  const fetchCedears = () => {
+    setLoading(true);
+    setError(null);
+    fetch("/api/manager/renta-variable", { cache: "no-store" })
+      .then(async (r) => {
+        if (!r.ok) {
+          const txt = await r.text().catch(() => "");
+          throw new Error(`HTTP ${r.status} — ${txt.slice(0, 200) || r.statusText}`);
+        }
+        return r.json();
+      })
+      .then((d: CedearRow[]) => setRows(Array.isArray(d) ? d : []))
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  };
+
+  const fetchRubros = () => {
+    fetch("/api/manager/renta-variable/rubros", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((d: RubroRow[]) => setRubros(Array.isArray(d) ? d : []))
+      .catch(() => { /* silencioso */ });
+  };
+
+  useEffect(() => { fetchCedears(); fetchRubros(); }, []);
+
+  // Filtro en cliente por ticker / nombre / rubro (lista de ~70-160 filas).
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return rows;
+    return rows.filter((c) =>
+      (c.ticker_corto ?? "").toLowerCase().includes(t) ||
+      (c.nombre ?? "").toLowerCase().includes(t) ||
+      (c.underlying ?? "").toLowerCase().includes(t) ||
+      (c.rubro ?? "").toLowerCase().includes(t));
+  }, [rows, q]);
+
+  // PATCH inmediato (optimista) de un campo de la fila.
+  const patchRow = async (c: CedearRow, patch: { rubro?: string | null; es_ia?: boolean; ric?: string | null; ratio?: number | null }) => {
+    setRowState((s) => ({ ...s, [c.ticker]: { kind: "saving" } }));
+    // Optimista: aplicar local antes de la respuesta.
+    setRows((prev) => prev.map((x) => (x.ticker === c.ticker ? { ...x, ...patch } : x)));
+    try {
+      const r = await fetch("/api/manager/renta-variable", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: c.ticker, ...patch }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* texto plano */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      setRowState((s) => ({ ...s, [c.ticker]: { kind: "saved" } }));
+      setTimeout(() => setRowState((s) => ({ ...s, [c.ticker]: { kind: "idle" } })), 1500);
+    } catch (e) {
+      // Revertir el optimismo recargando del backend (estado real).
+      fetchCedears();
+      setRowState((s) => ({ ...s, [c.ticker]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
+  // Borrar un CEDEAR del universo (deja de suscribirse). DELETE master Mongo + SQL.
+  const borrarCedear = async (c: CedearRow) => {
+    if (!window.confirm(
+      `¿Sacar ${c.ticker_corto} del universo de Renta Variable?\n\n` +
+      `Deja de suscribirse en el motor y se borra del master. ` +
+      `Reversible solo volviéndolo a dar de alta.`)) return;
+    setRowState((s) => ({ ...s, [c.ticker]: { kind: "saving" } }));
+    try {
+      const r = await fetch(`/api/manager/renta-variable?ticker=${encodeURIComponent(c.ticker)}`, {
+        method: "DELETE",
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      setRows((prev) => prev.filter((x) => x.ticker !== c.ticker));
+    } catch (e) {
+      setRowState((s) => ({ ...s, [c.ticker]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
+  const crearRubro = async () => {
+    const rub = nuevoRubro.trim();
+    if (!rub) return;
+    setCreandoRubro(true);
+    setRubroMsg(null);
+    try {
+      const r = await fetch("/api/manager/renta-variable/rubro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rubro: rub, es_ia_def: nuevoRubroIa }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      setNuevoRubro("");
+      setNuevoRubroIa(false);
+      setRubroMsg({ ok: true, text: `Rubro "${rub}" creado.` });
+      fetchRubros();
+    } catch (e) {
+      setRubroMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setCreandoRubro(false);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">RENTA VARIABLE</span>
+        <span className="text-[10px] text-[var(--t-text-muted)]">{filtered.length} de {rows.length} CEDEARs</span>
+
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="buscar ticker, nombre o rubro…"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[210px]"
+        />
+
+        {/* Alta de rubro nuevo (igual que la segmentación: catálogo controlado). */}
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)] ml-2">+ CREAR RUBRO</span>
+        <input
+          value={nuevoRubro}
+          onChange={(e) => setNuevoRubro(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") crearRubro(); }}
+          placeholder="nombre del rubro…"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[150px]"
+        />
+        <label className="flex items-center gap-1 text-[10px] text-[var(--t-text-muted)] cursor-pointer" title="Default es_ia del rubro nuevo">
+          <input type="checkbox" checked={nuevoRubroIa} onChange={(e) => setNuevoRubroIa(e.target.checked)} />
+          IA
+        </label>
+        <button onClick={crearRubro} disabled={creandoRubro || !nuevoRubro.trim()}
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          {creandoRubro ? "Creando…" : "+ Crear"}
+        </button>
+
+        <button onClick={fetchCedears} disabled={loading}
+          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          {loading ? "Cargando…" : "↻ Recargar"}
+        </button>
+      </div>
+
+      {rubroMsg && (
+        <div className={`px-3 py-1.5 text-[10px] border-b border-[var(--t-border)] shrink-0 ${rubroMsg.ok ? "bg-[var(--t-tint-green)] text-green-400" : "bg-[var(--t-tint-red)] text-red-400"}`}>
+          {rubroMsg.text}
+          <button onClick={() => setRubroMsg(null)} className="ml-2 text-[var(--t-text-dim)] hover:text-white">✕</button>
+        </div>
+      )}
+
+      <div className="flex-1 min-h-0 overflow-auto">
+        {error && <div className="p-3 text-[11px] text-red-400">Error: {error}</div>}
+        {!error && loading && rows.length === 0 && <div className="p-3 text-[11px] text-[var(--t-text-muted)]">Cargando…</div>}
+        {!error && !loading && filtered.length === 0 && <div className="p-3 text-[11px] text-[var(--t-text-muted)]">Sin resultados.</div>}
+        {filtered.length > 0 && (
+          <table className="text-[11px] font-mono">
+            <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)]">
+              <tr className="text-left text-[var(--t-text-dim)] tracking-widest text-[9px]">
+                <th className="px-3 py-2">TICKER</th>
+                <th className="px-2 py-2">NOMBRE</th>
+                <th className="px-2 py-2">UNDERLYING</th>
+                <th className="px-2 py-2">RUBRO</th>
+                <th className="px-2 py-2 text-center">ES IA</th>
+                <th className="px-2 py-2" title="Identidad Refinitiv del subyacente (ej. AAPL.O) — la usan Research y el feed de precios en vivo">RIC</th>
+                <th className="px-2 py-2" title="Ratio de conversión: cuántos CEDEARs equivalen a 1 acción (ej. 10). Insumo del CCL implícito.">RATIO</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => {
+                const state: RowState = rowState[c.ticker] || { kind: "idle" };
+                return (
+                  <tr key={c.ticker} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
+                    <td className="px-3 py-1.5 text-[var(--t-accent)] whitespace-nowrap">{c.ticker_corto}</td>
+                    <td className="px-2 py-1.5 text-[var(--t-text)] whitespace-nowrap max-w-[240px] truncate" title={c.nombre ?? ""}>{c.nombre ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-[var(--t-text-dim)] whitespace-nowrap">{c.underlying ?? "—"}</td>
+                    <td className="px-2 py-1.5">
+                      <select
+                        value={c.rubro ?? ""}
+                        onChange={(e) => patchRow(c, { rubro: e.target.value || null })}
+                        title={c.rubro ?? "sin rubro"}
+                        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none min-w-[150px]"
+                      >
+                        <option value="">— sin rubro —</option>
+                        {/* Si la fila tiene un rubro que ya no está en el catálogo, igual lo mostramos. */}
+                        {c.rubro && !rubros.some((r) => r.rubro === c.rubro) && (
+                          <option value={c.rubro}>{c.rubro}</option>
+                        )}
+                        {rubros.map((r) => (
+                          <option key={r.rubro} value={r.rubro}>{r.rubro}{r.es_ia_def ? " (IA)" : ""}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1.5 text-center">
+                      <button
+                        onClick={() => patchRow(c, { es_ia: !c.es_ia })}
+                        className={`px-2 py-0.5 text-[10px] font-semibold border transition-colors ${
+                          c.es_ia
+                            ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                            : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+                        }`}
+                      >
+                        {c.es_ia ? "SÍ" : "NO"}
+                      </button>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        value={ricDrafts[c.ticker] ?? c.ric ?? ""}
+                        onChange={(e) => setRicDrafts((d) => ({ ...d, [c.ticker]: e.target.value }))}
+                        onBlur={() => {
+                          const draft = ricDrafts[c.ticker];
+                          if (draft === undefined) return;
+                          setRicDrafts((d) => { const rest = { ...d }; delete rest[c.ticker]; return rest; });
+                          const val = draft.trim() || null;
+                          if (val !== (c.ric ?? null)) patchRow(c, { ric: val });
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        placeholder="AAPL.O"
+                        spellCheck={false}
+                        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none w-[90px]"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        value={ratioDrafts[c.ticker] ?? (c.ratio === null ? "" : String(c.ratio))}
+                        onChange={(e) => setRatioDrafts((d) => ({ ...d, [c.ticker]: e.target.value }))}
+                        onBlur={() => {
+                          const draft = ratioDrafts[c.ticker];
+                          if (draft === undefined) return;
+                          setRatioDrafts((d) => { const rest = { ...d }; delete rest[c.ticker]; return rest; });
+                          const txt = draft.trim().replace(",", ".");
+                          const val = txt === "" ? null : Number(txt);
+                          if (val !== null && (!isFinite(val) || val <= 0)) {
+                            setRowState((s) => ({ ...s, [c.ticker]: { kind: "error", msg: "ratio inválido (número > 0)" } }));
+                            return;
+                          }
+                          if (val !== (c.ratio ?? null)) patchRow(c, { ratio: val });
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        placeholder="10"
+                        inputMode="decimal"
+                        spellCheck={false}
+                        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] text-right focus:border-[var(--t-accent)] focus:outline-none w-[60px]"
+                      />
+                    </td>
+                    <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
+                      {state.kind === "saving" && <span className="text-[var(--t-accent)]">Guardando…</span>}
+                      {state.kind === "saved" && <span className="text-green-400">✓ guardado</span>}
+                      {state.kind === "error" && <span className="text-red-400 cursor-help" title={state.msg}>✗ {state.msg.length > 40 ? state.msg.slice(0, 40) + "…" : state.msg}</span>}
+                      <button
+                        onClick={() => borrarCedear(c)}
+                        title="Sacar del universo (deja de suscribirse)"
+                        className="ml-2 px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-red-400 hover:text-red-400 transition-colors"
+                      >
+                        🗑
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// TÍTULOS: Instrumentos (solo lectura) + Assets + ONs + Bonos + Renta Variable
+// (edición maestro). Gate fino: INSTRUMENTOS → manager_instrumentos;
+// ASSETS/ONs/BONOS/RENTA VARIABLE → manager_titulos.
 // Así asistente_comercial (manager_instrumentos) ve solo Instrumentos.
+// BREAKEVENS: curaduría de pares Lecap↔CER. El motor los empareja solo (vto más
+// cercano) y a veces se equivoca (par con BE absurdo). Acá se EXCLUYE el par malo
+// → desaparece de la vista de Renta Fija al instante (el reader lo filtra; el motor
+// no se toca). Reincluir lo vuelve a mostrar.
+interface BePar {
+  lecap: string;
+  cer: string;
+  mes_inflacion?: string;
+  dias?: number;
+  breakeven_mensual?: number;
+  excluido: boolean;
+}
+
+function fmtBe(n: number | undefined): string {
+  if (n === null || n === undefined || !isFinite(n)) return "--";
+  return `${(n * 100).toFixed(2)}%`;
+}
+
+function TabBreakevens() {
+  const [pares, setPares] = useState<BePar[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [nExcl, setNExcl] = useState(0);
+
+  const fetchPares = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manager/breakevens/pares")
+      .then((r) => r.json())
+      .then((d: { pares?: BePar[]; n_excluidos?: number }) => {
+        setPares(d.pares || []);
+        setNExcl(d.n_excluidos || 0);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  // Carga al montar — fetch inline (setState solo en .then) para no disparar
+  // setState sincrónico dentro del effect.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/breakevens/pares")
+      .then((r) => r.json())
+      .then((d: { pares?: BePar[]; n_excluidos?: number }) => {
+        if (!alive) return;
+        setPares(d.pares || []);
+        setNExcl(d.n_excluidos || 0);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const toggle = async (p: BePar) => {
+    const key = `${p.lecap}|${p.cer}`;
+    setBusy((b) => ({ ...b, [key]: true }));
+    // Optimista: reflejo el cambio antes de la respuesta.
+    setPares((prev) => prev.map((x) => (x.lecap === p.lecap && x.cer === p.cer ? { ...x, excluido: !x.excluido } : x)));
+    try {
+      const r = await fetch("/api/manager/breakevens/exclusion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lecap: p.lecap, cer: p.cer, excluir: !p.excluido }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setNExcl((n) => (p.excluido ? Math.max(0, n - 1) : n + 1));
+    } catch {
+      // revierto si falló
+      setPares((prev) => prev.map((x) => (x.lecap === p.lecap && x.cer === p.cer ? { ...x, excluido: p.excluido } : x)));
+    } finally {
+      setBusy((b) => ({ ...b, [key]: false }));
+    }
+  };
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[11px] text-[var(--t-text-dim)]">
+          {pares.length} pares que arma el motor · {nExcl} excluidos · excluir un par lo oculta de Renta Fija al instante
+        </span>
+        <button type="button" onClick={fetchPares} className={_onInput + " w-auto"}>↻</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Lecap/Boncap</th><th>CER</th><th>IPC mes</th><th>Días</th><th>BE mensual</th><th></th></tr>
+        </thead>
+        <tbody>
+          {pares.map((p) => {
+            const key = `${p.lecap}|${p.cer}`;
+            const beRoto = p.breakeven_mensual !== undefined && (p.breakeven_mensual < 0 || p.breakeven_mensual > 0.15);
+            return (
+              <tr key={key} className={p.excluido ? "opacity-40" : ""}>
+                <td className="font-semibold">{p.lecap}</td>
+                <td>{p.cer}</td>
+                <td className="tabular-nums">{p.mes_inflacion || "--"}</td>
+                <td className="tabular-nums text-right">{p.dias ?? "--"}</td>
+                <td className={"tabular-nums text-right " + (beRoto ? "text-red-500 font-semibold" : "")}>
+                  {fmtBe(p.breakeven_mensual)}
+                </td>
+                <td className="text-right">
+                  <button
+                    type="button"
+                    disabled={busy[key]}
+                    onClick={() => toggle(p)}
+                    className={_onInput + " w-auto text-[10px]"}
+                    title={p.excluido ? "Volver a mostrar este par" : "Ocultar este par de Renta Fija"}
+                  >
+                    {busy[key] ? "…" : p.excluido ? "incluir" : "excluir"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
+      {!loading && pares.length === 0 && (
+        <p className="text-[11px] text-[var(--t-text-muted)] mt-2">
+          Sin pares — ¿el motor de breakevens está corriendo?
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TitulosGroup({ modules }: { modules?: string[] | null }) {
-  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "ons">("manager.titulos.sub", "instrumentos");
+  // "ons" se eliminó como sub-tab (2026-07-09): alta/edición + sector de ONs
+  // viven en BONOS (editor unificado TabAltaTitulo). El persisted state viejo
+  // con "ons" cae al default vía subVisible.
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "bonos" | "breakevens" | "renta_variable">("manager.titulos.sub", "instrumentos");
   const has = (m: string) => modules == null || modules.includes(m);
   const canInstr = has("manager") || has("manager_instrumentos");
   const canMaestro = has("manager") || has("manager_titulos");
-  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "ons") && canMaestro);
+  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "bonos" || sub === "breakevens" || sub === "renta_variable") && canMaestro);
   const eff = subVisible ? sub : (canInstr ? "instrumentos" : "assets");
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -3523,12 +4859,16 @@ function TitulosGroup({ modules }: { modules?: string[] | null }) {
         <span className={GROUP_TITLE}>TÍTULOS</span>
         {canInstr && <Pill label="INSTRUMENTOS" active={eff === "instrumentos"} onClick={() => setSub("instrumentos")} />}
         {canMaestro && <Pill label="ASSETS" active={eff === "assets"} onClick={() => setSub("assets")} />}
-        {canMaestro && <Pill label="ONs" active={eff === "ons"} onClick={() => setSub("ons")} />}
+        {canMaestro && <Pill label="BONOS" active={eff === "bonos"} onClick={() => setSub("bonos")} />}
+        {canMaestro && <Pill label="BREAKEVENS" active={eff === "breakevens"} onClick={() => setSub("breakevens")} />}
+        {canMaestro && <Pill label="RENTA VARIABLE" active={eff === "renta_variable"} onClick={() => setSub("renta_variable")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {eff === "instrumentos" && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
-        {eff === "assets"       && canMaestro && <TabAssets />}
-        {eff === "ons"          && canMaestro && <TabONs />}
+        {eff === "instrumentos"   && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
+        {eff === "assets"         && canMaestro && <TabAssets />}
+        {eff === "bonos"          && canMaestro && <TabBonos />}
+        {eff === "breakevens"     && canMaestro && <TabBreakevens />}
+        {eff === "renta_variable" && canMaestro && <TabRentaVariable />}
       </div>
     </div>
   );
@@ -3554,22 +4894,28 @@ function UsuariosGroup() {
   );
 }
 
-function AunesaGroup() {
-  const [sub, setSub] = usePersistedState<"flujo" | "aum" | "posicion" | "boletos">("manager.aunesa.sub", "flujo");
+function AunesaGroup({ modules }: { modules?: string[] | null }) {
+  const has = (m: string) => modules == null || modules.includes(m);
+  // `manager` (admin) ve todas las sub-vistas; `manager_aunesa` (asistente_comercial) SOLO Importar.
+  const full = has("manager");
+  const [sub, setSub] = usePersistedState<"flujo" | "aum" | "posicion" | "boletos" | "importar">("manager.aunesa.sub", "flujo");
+  const subEff = full ? sub : "importar";
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2">AUNESA</span>
-        <Pill label="FLUJO" active={sub === "flujo"} onClick={() => setSub("flujo")} />
-        <Pill label="AUM" active={sub === "aum"} onClick={() => setSub("aum")} />
-        <Pill label="POSICIÓN" active={sub === "posicion"} onClick={() => setSub("posicion")} />
-        <Pill label="BOLETOS" active={sub === "boletos"} onClick={() => setSub("boletos")} />
+        {full && <Pill label="FLUJO" active={subEff === "flujo"} onClick={() => setSub("flujo")} />}
+        {full && <Pill label="AUM" active={subEff === "aum"} onClick={() => setSub("aum")} />}
+        {full && <Pill label="POSICIÓN" active={subEff === "posicion"} onClick={() => setSub("posicion")} />}
+        {full && <Pill label="BOLETOS" active={subEff === "boletos"} onClick={() => setSub("boletos")} />}
+        <Pill label="IMPORTAR AUM" active={subEff === "importar"} onClick={() => setSub("importar")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "flujo"    && <AunesaExplorarPanel />}
-        {sub === "aum"      && <AunesaAumPanel />}
-        {sub === "posicion" && <AunesaPosicionPanel />}
-        {sub === "boletos"  && <AunesaBoletosPanel />}
+        {full && subEff === "flujo"    && <AunesaExplorarPanel />}
+        {full && subEff === "aum"      && <AunesaAumPanel />}
+        {full && subEff === "posicion" && <AunesaPosicionPanel />}
+        {full && subEff === "boletos"  && <AunesaBoletosPanel />}
+        {subEff === "importar" && <ImportTenenciaPanel />}
       </div>
     </div>
   );
@@ -3709,9 +5055,8 @@ function OperacionesBackfillPanel() {
         <div>
           <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">BACKFILL OPERACIONES</h2>
           <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
-            Subí un CSV con operaciones (fuente: informe de operaciones). Se carga en{" "}
-            <code className="text-[var(--t-text)]">CashFlow.Operaciones</code> con índice único por
-            boleto — un boleto, un documento; re-subir el mismo archivo actualiza, no duplica.
+            Subí un CSV con operaciones (fuente: informe de operaciones). Se carga con
+            índice único por boleto — un boleto, un registro; re-subir el mismo archivo actualiza, no duplica.
             Columnas reconocidas: boleto, cuenta, concertación, denominación, tipo de operación,
             instrumento, condiciones, cantidad, bruto, aranceles.
           </p>
@@ -3749,7 +5094,7 @@ function OperacionesBackfillPanel() {
                 onClick={subir}
                 className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]"
               >
-                {busy ? "Subiendo…" : "SUBIR A CASHFLOW.OPERACIONES"}
+                {busy ? "Subiendo…" : "SUBIR OPERACIONES"}
               </button>
             </div>
           ) : (
@@ -3768,22 +5113,328 @@ function OperacionesBackfillPanel() {
   );
 }
 
+// ── IMPORTAR TENENCIA: pisa Valuaciones.AuM con el Excel del contable ─────────
+// Parsea el Excel en el cliente, PREVISUALIZA contra el backend (commit=false) y
+// recién con confirmación explícita APLICA (commit=true). Pisa por (fecha,cuenta),
+// idempotente. Pensado para corregir los fines de mes que el job dejó mal.
+type ImportResp = {
+  ok: boolean; error?: string; modo?: string;
+  n_filas?: number; n_validas?: number; n_errores?: number;
+  errores?: { fila: number; detalle: string }[];
+  fechas?: string[]; cuentas?: string[]; n_cuentas?: number;
+  total_valuacion?: number;
+  columnas_detectadas?: string[];                    // headers que leyó del Excel
+  matchean?: number; sin_match?: number;             // modo precios (preview)
+  aplicado?: boolean; filas_actualizadas?: number;   // modo precios (commit)
+  borrados?: number; insertados?: number;            // modo aum (commit)
+};
+
+// Paso 2: recalcular valuación (precio×cantidad, /100 renta fija). Divisor por CARTERA.
+type RecalcResp = {
+  ok: boolean; error?: string; aplicado?: boolean; filas_actualizadas?: number;
+  n_recalculadas?: number; total_antes?: number; total_despues?: number;
+  carteras?: { cartera: string; divisor: number; n: number;
+               total_antes: number; total_despues: number; delta: number }[];
+  sin_clasificar?: { cartera: string; n: number; total_antes: number }[];
+};
+
+function ImportTenenciaPanel() {
+  const [modo, setModo] = useState<"precios" | "aum">("precios");
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [prev, setPrev] = useState<ImportResp | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [recalc, setRecalc] = useState<RecalcResp | null>(null);
+  const [recalcBusy, setRecalcBusy] = useState(false);
+
+  const cambiarModo = (m: "precios" | "aum") => {
+    setModo(m); setRows([]); setFileName(""); setPrev(null); setMsg(null); setRecalc(null);
+  };
+
+  const descargarPlantilla = async () => {
+    const XLSX = await import("xlsx");
+    const aoa = modo === "precios"
+      ? [["unidad", "precio", "fecha"], ["[5921] AL30", 91320, "2026-04-30"]]
+      : [["Cuenta", "Unidad", "Cantidad", "Fecha", "Precio", "Valuación"],
+         ["[805] MOLLO NICOLAS", "[5921] AL30", 100, "2026-04-30", 91320, 91320]];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, modo);
+    XLSX.writeFile(wb, `plantilla_${modo}.xlsx`);
+  };
+
+  const onFile = async (file: File) => {
+    setMsg(null); setPrev(null); setRecalc(null); setRows([]); setFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const isCsv = /\.csv$/i.test(file.name);
+      const wb = isCsv
+        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
+        : XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
+      // El backend mapea las columnas (acepta Unidad/Precio/Fecha/Cuenta/... con o sin
+      // mayúscula) → mandamos las filas crudas y validamos contra la previsualización.
+      setRows(json);
+    } catch (e) {
+      setMsg({ ok: false, text: `No se pudo leer el archivo: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
+
+  const enviar = async (commit: boolean) => {
+    if (busy || !rows.length) return;
+    setBusy(true); setMsg(null); setRecalc(null);
+    const url = modo === "precios"
+      ? "/api/manager/import-precios-sql" : "/api/manager/import-aum-sql";
+    try {
+      const res = await fetch(url, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows, commit }),
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+        throw new Error(detail);
+      }
+      const j: ImportResp = await res.json();
+      setPrev(j);
+      if (j.aplicado) {
+        const txt = modo === "precios"
+          ? `✓ ${j.filas_actualizadas ?? 0} precios actualizados. (La valuación se recalcula en el paso 2.)`
+          : `✓ ${j.insertados ?? 0} filas insertadas, ${j.borrados ?? 0} reemplazadas.`;
+        setMsg({ ok: true, text: txt });
+      } else if (!commit) {
+        setMsg({ ok: true, text: "Previsualización lista. Revisá y confirmá para aplicar." });
+      }
+    } catch (e) {
+      setMsg({ ok: false, text: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Paso 2 — recalcular valuación de las fechas recién importadas (divisor por cartera).
+  const recalcularValuacion = async (commit: boolean) => {
+    const fechas = prev?.fechas ?? [];
+    if (recalcBusy || !fechas.length) return;
+    setRecalcBusy(true);
+    try {
+      const res = await fetch("/api/manager/recalcular-valuacion-sql", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fechas, commit }),
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+        throw new Error(detail);
+      }
+      const j: RecalcResp = await res.json();
+      setRecalc(j);
+      if (j.aplicado) setMsg({ ok: true, text: `✓ ${j.filas_actualizadas ?? 0} valuaciones recalculadas.` });
+    } catch (e) {
+      setMsg({ ok: false, text: `Error recalculando: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setRecalcBusy(false);
+    }
+  };
+
+  const money = (n: number | undefined) =>
+    "$" + (n ?? 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+
+  return (
+    <div className="h-full overflow-y-auto p-4 text-[12px] text-[var(--t-text)]">
+      <div className="max-w-[820px] space-y-4">
+        {/* Selector de modo */}
+        <div className="flex items-center gap-2">
+          <Pill label="PRECIOS" active={modo === "precios"} onClick={() => cambiarModo("precios")} />
+          <Pill label="IMPORTAR AUM" active={modo === "aum"} onClick={() => cambiarModo("aum")} />
+        </div>
+
+        <div>
+          {modo === "precios" ? (
+            <>
+              <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">PRECIOS → TENENCIA</h2>
+              <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
+                Excel con <code className="text-[var(--t-text)]">unidad · precio · fecha</code>. Actualiza el{" "}
+                <code className="text-[var(--t-text)]">precio</code> por (fecha, unidad). La valuación NO se
+                recalcula acá (paso 2: precio×cantidad, /100 para bonos).
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">IMPORTAR AUM → TENENCIA</h2>
+              <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
+                Excel con <code className="text-[var(--t-text)]">Cuenta · Unidad · Cantidad · Fecha · Precio · Valuación</code>.
+                Pisa las tenencias de cada fecha (idempotente: re-subir reemplaza). El resto de columnas las resuelve la vista.
+              </p>
+            </>
+          )}
+          <button onClick={descargarPlantilla}
+            className="mt-2 px-2 py-1 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]">
+            ↓ DESCARGAR PLANTILLA
+          </button>
+        </div>
+
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+          <label className="inline-block px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]">
+            ELEGIR ARCHIVO (.xlsx / .csv)
+            <input type="file" accept=".csv,.xlsx,.xls"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
+              className="hidden" />
+          </label>
+          {fileName && rows.length > 0 && (
+            <div className="text-[var(--t-text-muted)]">
+              <span className="text-[var(--t-text)]">{fileName}</span> · {rows.length.toLocaleString("es-AR")} filas
+            </div>
+          )}
+          {rows.length > 0 && (
+            <div className="flex gap-2">
+              <button onClick={() => enviar(false)} disabled={busy}
+                className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-50">
+                {busy ? "…" : "1) PREVISUALIZAR"}
+              </button>
+              {prev && (prev.n_validas ?? 0) > 0 && !prev.aplicado && (
+                <button onClick={() => enviar(true)} disabled={busy}
+                  className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-50">
+                  {busy ? "Aplicando…" : `2) CONFIRMAR E IMPORTAR (${prev.n_validas})`}
+                </button>
+              )}
+            </div>
+          )}
+          {msg && <div className={msg.ok ? "text-green-400" : "text-red-400"}>{msg.text}</div>}
+        </div>
+
+        {prev && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-2">
+            <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">PREVISUALIZACIÓN</div>
+            <div className="flex flex-wrap gap-6">
+              <OpsStat label="FILAS OK" value={(prev.n_validas ?? 0).toLocaleString("es-AR")} />
+              <OpsStat label="ERRORES" value={(prev.n_errores ?? 0).toLocaleString("es-AR")} />
+              {modo === "precios" ? (
+                <>
+                  <OpsStat label="MATCHEAN" value={(prev.matchean ?? 0).toLocaleString("es-AR")} />
+                  <OpsStat label="SIN MATCH" value={(prev.sin_match ?? 0).toLocaleString("es-AR")} />
+                </>
+              ) : (
+                <>
+                  <OpsStat label="CUENTAS" value={String(prev.n_cuentas ?? 0)} />
+                  <OpsStat label="VALUACIÓN TOTAL" value={"$" + (prev.total_valuacion ?? 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })} />
+                </>
+              )}
+            </div>
+            <div className="text-[var(--t-text-muted)]">
+              <span className="text-[var(--t-text-dim)]">Fechas:</span> {(prev.fechas ?? []).join(", ") || "—"}
+            </div>
+            {prev.columnas_detectadas && prev.columnas_detectadas.length > 0 && (
+              <div className="text-[var(--t-text-muted)] text-[10px]">
+                <span className="text-[var(--t-text-dim)]">Columnas detectadas:</span>{" "}
+                {prev.columnas_detectadas.map((c) => `"${c}"`).join(" · ")}
+              </div>
+            )}
+            {prev.errores && prev.errores.length > 0 && (
+              <div className="text-red-400 text-[11px]">
+                <div className="font-semibold">Filas con error (no se importan):</div>
+                {prev.errores.slice(0, 20).map((e) => (
+                  <div key={e.fila}>fila {e.fila}: {e.detalle}</div>
+                ))}
+                {prev.errores.length > 20 ? <div>… +{prev.errores.length - 20} más</div> : null}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── PASO 2: recalcular valuación (sólo tras importar PRECIOS) ── */}
+        {modo === "precios" && prev?.aplicado && (prev.fechas?.length ?? 0) > 0 && (
+          <div className="border border-[var(--t-accent)]/40 bg-[var(--t-panel)] p-3 space-y-3">
+            <div>
+              <h3 className="text-[12px] font-semibold text-[var(--t-accent)] tracking-wide">
+                PASO 2 → RECALCULAR VALUACIÓN
+              </h3>
+              <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
+                <code className="text-[var(--t-text)]">valuación = cantidad × precio</code> (÷100 para renta fija:
+                carteras HD · DL · ARS). FCI · RENTA VARIABLE · MONEDAS · DERIVADOS van directo. Las carteras
+                sin regla (ej. FINANCIAMIENTO) <span className="text-[var(--t-text)]">NO se tocan</span>.
+                Fechas: {(prev.fechas ?? []).join(", ")}.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => recalcularValuacion(false)} disabled={recalcBusy}
+                className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-50">
+                {recalcBusy ? "…" : "PREVISUALIZAR ANTES/DESPUÉS"}
+              </button>
+              {recalc && (recalc.n_recalculadas ?? 0) > 0 && !recalc.aplicado && (
+                <button onClick={() => recalcularValuacion(true)} disabled={recalcBusy}
+                  className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] bg-[var(--t-accent)]/10 text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-50">
+                  {recalcBusy ? "Aplicando…" : `APLICAR (${recalc.n_recalculadas})`}
+                </button>
+              )}
+            </div>
+
+            {recalc && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-6">
+                  <OpsStat label="VALUACIÓN ANTES" value={money(recalc.total_antes)} />
+                  <OpsStat label="VALUACIÓN DESPUÉS" value={money(recalc.total_despues)} />
+                  <OpsStat label="Δ" value={money((recalc.total_despues ?? 0) - (recalc.total_antes ?? 0))} />
+                </div>
+                {recalc.carteras && recalc.carteras.length > 0 && (
+                  <table className="w-full text-[11px]">
+                    <thead className="text-[var(--t-text-muted)] text-left">
+                      <tr>
+                        <th className="py-1">CARTERA</th><th>÷</th><th className="text-right">FILAS</th>
+                        <th className="text-right">ANTES</th><th className="text-right">DESPUÉS</th><th className="text-right">Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recalc.carteras.map((c) => (
+                        <tr key={c.cartera} className="border-t border-[var(--t-border)]">
+                          <td className="py-1 text-[var(--t-text)]">{c.cartera}</td>
+                          <td className="text-[var(--t-text-dim)]">{c.divisor}</td>
+                          <td className="text-right">{c.n.toLocaleString("es-AR")}</td>
+                          <td className="text-right text-[var(--t-text-dim)]">{money(c.total_antes)}</td>
+                          <td className="text-right text-[var(--t-text)]">{money(c.total_despues)}</td>
+                          <td className={"text-right " + (c.delta >= 0 ? "text-green-400" : "text-red-400")}>{money(c.delta)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {recalc.sin_clasificar && recalc.sin_clasificar.length > 0 && (
+                  <div className="text-[11px] text-amber-400">
+                    <div className="font-semibold">Carteras SIN regla (no se tocan — definí el divisor):</div>
+                    {recalc.sin_clasificar.map((s) => (
+                      <div key={s.cartera}>{s.cartera}: {s.n.toLocaleString("es-AR")} filas · {money(s.total_antes)}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Cada tab habilita con CUALQUIERA de los módulos listados (OR). El umbrella
 // `manager` da acceso a todas (admin); las tabs que también listan un sub-módulo
 // (comercial, clientes) son accesibles a `asistente_comercial` aunque NO tenga
 // `manager`. Mantener sincronizado con el gating server-side en
 // api/routers/manager/__init__.py — la API es la fuente de verdad.
 const TAB_MODULES: Record<Tab, string[]> = {
-  diagnostico:  ["manager"],
-  jobs:         ["manager"],
+  observabilidad: ["manager"],
   validaciones: ["manager"],
   titulos:      ["manager", "manager_titulos", "manager_instrumentos"],
-  comercial:    ["manager", "manager_comercial"],
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
+  "aca-valores": ["manager", "manager_clientes"],
   compliance:   ["manager", "manager_compliance"],
-  aunesa:       ["manager"],
+  aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
+  documentos:   ["manager"],
   usuarios:     ["manager"],
 };
 
@@ -3833,6 +5484,30 @@ function ComplianceGroup() {
 
   const filas = (data?.filas ?? []).filter((f) => !soloDif || f.difiere);
 
+  // Descarga la conciliación visible a Excel. CSV con BOM UTF-8 + separador ';'
+  // (Excel es-AR lo abre en columnas directo) + comillas (denominaciones con coma).
+  const descargarExcel = () => {
+    if (!filas.length) return;
+    const esc = (v: string | null | undefined) => `"${(v ?? "").toString().replace(/"/g, '""')}"`;
+    const header = ["CUENTA", "DENOMINACIÓN", "OPERADOR (NUESTRO)", "MAIL (NUESTRO)",
+                    "OPERADOR (AUNESA)", "MAIL (AUNESA)", "ESTADO"];
+    const lineas = [header.map(esc).join(";")];
+    for (const f of filas) {
+      lineas.push([f.id_cuenta, f.denominacion, f.nuestro_nombre, f.nuestro_email,
+                   f.aunesa_nombre, f.aunesa_email, _CMP_LABEL[f.categoria] ?? f.categoria]
+                  .map(esc).join(";"));
+    }
+    const blob = new Blob(["﻿" + lineas.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `conciliacion_operadores_${soloDif ? "difs_" : ""}${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="h-full flex flex-col min-h-0 p-3 gap-2">
       <div className="flex items-center gap-3 shrink-0">
@@ -3848,8 +5523,12 @@ function ComplianceGroup() {
           <input type="checkbox" checked={soloDif} onChange={(e) => setSoloDif(e.target.checked)} />
           solo diferencias
         </label>
-        <button onClick={cargar} disabled={loading}
+        <button onClick={descargarExcel} disabled={loading || filas.length === 0}
           className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
+          ⬇ Excel
+        </button>
+        <button onClick={cargar} disabled={loading}
+          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
           {loading ? "Consultando Aunesa…" : "↻ Re-consultar"}
         </button>
       </div>
@@ -3893,16 +5572,16 @@ function ComplianceGroup() {
 
 export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   const allTabs: { id: Tab; label: string }[] = [
-    { id: "diagnostico",  label: "DIAGNÓSTICO"  },
-    { id: "jobs",         label: "JOBS"         },
+    { id: "observabilidad", label: "OBSERVABILIDAD" },
     { id: "validaciones", label: "VALIDACIONES" },
     { id: "titulos",      label: "TÍTULOS"      },
-    { id: "comercial",    label: "COMERCIAL"    },
     { id: "clientes",     label: "CLIENTES"     },
     { id: "contrapartes", label: "CONTRAPARTES" },
+    { id: "aca-valores",  label: "ACA VALORES"  },
     { id: "compliance",   label: "COMPLIANCE"   },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
+    { id: "documentos",   label: "DOCUMENTOS"   },
     { id: "usuarios",     label: "USUARIOS"     },
   ];
   // modules === null → dev / backend caído: mostrar todo (sin RBAC en cliente).
@@ -3917,7 +5596,12 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     modules === null ||
     modules.includes("manager") ||
     modules.includes("manager_clientes_bulk");
-  const [tab, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "comercial");
+  const [tabRaw, setTab] = usePersistedState<Tab>("manager.tab", tabs[0]?.id ?? "clientes");
+  // Migración de tabs viejas persistidas: diagnostico/controles/jobs se
+  // consolidaron en observabilidad — sin este guard quedaba contenido vacío.
+  const tab: Tab = tabs.some((t) => t.id === tabRaw)
+    ? tabRaw
+    : (tabs[0]?.id ?? "clientes");
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -3931,16 +5615,16 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "diagnostico"  && <DiagnosticoGroup />}
-        {tab === "jobs"         && <JobsRunsPanel />}
+        {tab === "observabilidad" && <ObservabilidadGroup goTo={setTab} modules={modules} />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
-        {tab === "comercial"    && <ComercialPanel />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "contrapartes" && <TabContrapartes />}
+        {tab === "aca-valores"  && <TabAcaValores />}
         {tab === "compliance"   && <ComplianceGroup />}
-        {tab === "aunesa"       && <AunesaGroup />}
+        {tab === "aunesa"       && <AunesaGroup modules={modules} />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
+        {tab === "documentos"   && <TabDocumentos />}
         {tab === "usuarios"     && <UsuariosGroup />}
       </div>
     </div>

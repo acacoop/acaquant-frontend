@@ -266,7 +266,7 @@ export function AgroView() {
                   defaultAgg="MENSUAL" defaultRango="ALL" titulo="Volumen global" etiquetas />
               ) : !serieShare.length ? (
                 <div className="min-h-0 border border-[var(--t-border)] flex items-center justify-center text-center px-4 text-[11px] text-[var(--t-text-muted)] h-full">
-                  Sin volumen de mercado cargado (CashFlow.VolumenMercadoAgro)
+                  Sin volumen de mercado cargado
                 </div>
               ) : shareModo === "total" ? (
                 <OpsBarChart serie={serieShareTotal} series={TOTAL_SERIE} fmt={fmtPct} unidad="%"

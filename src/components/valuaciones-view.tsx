@@ -568,7 +568,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         Sin datos de valuación para cuenta [{idCuenta}].
         <br />
         <span className="text-[var(--t-text-muted)] text-xs">
-          Asegurate que jobs/aum.py haya generado snapshots en Valuaciones.AuM.
+          Todavía no hay valuaciones calculadas para esta cuenta.
         </span>
       </div>
     );
@@ -881,7 +881,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                         }
                         title={
                           active
-                            ? "Click de nuevo para volver al snapshot más reciente"
+                            ? "Click de nuevo para volver a la posición más reciente"
                             : `Ver posición al cierre de ${fmtMesAnio(m.mes)} (${m.ultimo_dia})` +
                               (esUSD && m.mep_cierre ? ` · MEP ${m.mep_cierre.toLocaleString("es-AR")}` : "")
                         }
@@ -970,9 +970,20 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
             {!selectedFecha ? "actual" : "histórica"}
           </span>
+          {/* Buscador por fecha: ver la tenencia a cualquier día con datos. Si
+              ese día no tiene snapshot, el backend resuelve al cierre más
+              cercano anterior (asof) y `ultimoSnap` muestra la fecha real. */}
+          <input
+            type="date"
+            value={selectedFecha ?? ""}
+            onChange={(e) => setSelectedFecha(e.target.value || null)}
+            title="Ver tenencia a una fecha (si no hay dato exacto, usa el cierre más cercano anterior)"
+            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[9px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+          />
           {ultimoSnap && (
-            <span className="text-[9px] text-[var(--t-text-muted)] font-mono">
-              {fmtFechaCorta(ultimoSnap)}
+            <span className="text-[9px] text-[var(--t-text-muted)] font-mono"
+              title={selectedFecha && ultimoSnap !== selectedFecha ? "No había dato exacto: cierre más cercano anterior" : undefined}>
+              {selectedFecha && ultimoSnap !== selectedFecha ? "→ " : ""}{fmtFechaCorta(ultimoSnap)}
             </span>
           )}
           {/* Tabs Posiciones / Variación */}
@@ -1001,7 +1012,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             <button
               onClick={() => setSelectedFecha(null)}
               className="text-[9px] uppercase tracking-wider px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10"
-              title="Volver al snapshot más reciente"
+              title="Volver a la posición más reciente"
             >
               Hoy ×
             </button>

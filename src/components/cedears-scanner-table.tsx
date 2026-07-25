@@ -17,13 +17,13 @@ import { fmtPrice, fmtVol } from "./ui";
 type View = "cedear" | "adr";
 
 type CedearSortKey =
-  | "ticker_corto" | "nombre" | "sector"
+  | "ticker_corto" | "nombre" | "rubro"
   | "last" | "intraday_pct" | "vs_1d_pct" | "vs_1d_usd_pct"
   | "vwap" | "spread_pct" | "volume";
 
 type AdrSortKey =
-  | "ticker_corto" | "nombre" | "sector"
-  | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct"
+  | "ticker_corto" | "nombre" | "rubro"
+  | "adr_last" | "adr_vs_1d_pct" | "adr_ret_7d_pct" | "adr_ret_15r_pct"
   | "adr_ret_mtd_pct" | "adr_ret_ytd_pct";
 
 type SortKey = CedearSortKey | AdrSortKey;
@@ -34,11 +34,15 @@ export function CedearsScannerTable({
   selectedTicker,
   onSelect,
   ccl,
+  rubroFiltro,
+  onClearRubro,
 }: {
   data: CedearScannerRow[];
   selectedTicker?: string | null;
   onSelect?: (ticker: string) => void;
   ccl?: CclLive;
+  rubroFiltro?: string | null;
+  onClearRubro?: () => void;
 }) {
   const [view, setView] = useState<View>("cedear");
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
@@ -50,7 +54,7 @@ export function CedearsScannerTable({
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "ticker_corto" || key === "sector" ? "asc" : "desc");
+      setSortDir(key === "ticker_corto" || key === "rubro" ? "asc" : "desc");
     }
   }
 
@@ -114,10 +118,20 @@ export function CedearsScannerTable({
             ✕
           </button>
         )}
+        {rubroFiltro && (
+          <button
+            onClick={onClearRubro}
+            title="Quitar filtro de rubro (tocá otro en el Pulso para cambiarlo)"
+            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] transition-colors"
+          >
+            <span className="truncate max-w-[130px]">{rubroFiltro}</span>
+            <span>✕</span>
+          </button>
+        )}
         {ccl && (
           <div
             className="ml-auto flex items-center gap-2 pr-1 text-[10px] tabular-nums"
-            title="CCL live (DolarSnapshot._id=current) + variación vs cierre día previo"
+            title="CCL live + variación vs cierre día previo"
           >
             <span className="text-[var(--t-text-dim)] tracking-wide uppercase">CCL</span>
             <span className="text-[var(--t-text)] font-mono">
@@ -149,7 +163,7 @@ export function CedearsScannerTable({
               <tr className="text-[var(--t-text-muted)]">
                 <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                 <SortableTh label="NOMBRE" col="nombre"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
-                <SortableTh label="SECTOR" col="sector"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+                <SortableTh label="RUBRO"  col="rubro"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
                 <SortableTh label="LAST"   col="last"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                 <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
                 <SortableTh label="1D"     col="vs_1d_pct"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Variación ARS vs cierre día anterior" />
@@ -162,10 +176,11 @@ export function CedearsScannerTable({
               <tr className="text-[#5a8aa3]">
                 <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
                 <SortableTh label="NOMBRE"  col="nombre"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
-                <SortableTh label="SECTOR"  col="sector"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
-                <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ, Trading.PreciosAcciones)" />
+                <SortableTh label="RUBRO"   col="rubro"           sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
+                <SortableTh label="LAST"    col="adr_last"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="Último close USD del subyacente (NYSE/NASDAQ)" />
                 <SortableTh label="1D"      col="adr_vs_1d_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / prev close − 1) × 100" />
                 <SortableTh label="7D"      col="adr_ret_7d_pct"  sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close ~7d atrás − 1) × 100" />
+                <SortableTh label="15R"     col="adr_ret_15r_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: retorno de las últimas 15 ruedas (last / close 15 ruedas atrás − 1) × 100" />
                 <SortableTh label="MTD"     col="adr_ret_mtd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del mes − 1) × 100" />
                 <SortableTh label="YTD"     col="adr_ret_ytd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" tone="cyan" title="USD: (last / close 1° del año − 1) × 100" />
               </tr>
@@ -200,7 +215,7 @@ export function CedearsScannerTable({
                       {r.nombre || "--"}
                     </td>
                     <td className="!px-1 text-[var(--t-text-dim)]">
-                      {r.sector || "--"}
+                      {r.rubro || "--"}
                     </td>
 
                     {view === "cedear" ? (
@@ -232,6 +247,7 @@ export function CedearsScannerTable({
                         </td>
                         <PctCell v={r.adr_vs_1d_pct} />
                         <PctCell v={r.adr_ret_7d_pct} />
+                        <PctCell v={r.adr_ret_15r_pct} />
                         <PctCell v={r.adr_ret_mtd_pct} />
                         <PctCell v={r.adr_ret_ytd_pct} />
                       </>

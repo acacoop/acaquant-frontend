@@ -263,34 +263,59 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
   const usdDisponible =
     (t.valor_actual_usd ?? 0) > 0 || data.rows.some((r) => (r.valor_actual_usd ?? 0) > 0);
 
-  // Export de la tabla de POSICIONES a Excel. Los importes van como número
-  // nativo (el helper aplica el number-format de Excel por celda; se pueden
-  // sumar/filtrar). Exporta lo mostrado en la moneda seleccionada (ARS/USD).
-  const exportarPosiciones = async () => {
+  // Export "DESCARGAR TODO" de la cuenta: un solo Excel con 2 hojas —
+  // (1) Posiciones y (2) Movimientos. Trae EXACTAMENTE lo que muestra la
+  // página: por cada posición, los boletos del STOCK ACTUAL (los mismos que
+  // se ven en el detalle y que entran al cálculo del PnL). Es para VALIDAR el
+  // PnL → tiene que reconciliar 1:1 con la pantalla, no traer histórico.
+  // Los importes van como número nativo (number-format de Excel por celda).
+  const exportarTodo = async () => {
+    // Hoja 1 — Posiciones (en la moneda seleccionada ARS/USD).
+    const posiciones = filasOrdenadas.map((r) => {
+      const costoRow = costoVista(r, esUSD);
+      const valorRow = valVista(r, esUSD);
+      const total = totalView(r);
+      return {
+        ticker: r.display_name || r.ticker,
+        unidad: r.unidad,
+        cantidad: r.qty_aum,
+        costo: costoRow,
+        valor: valorRow,
+        pnl_no_real: esUSD ? (r.pnl_no_realizado_usd ?? null) : r.pnl_no_realizado,
+        pnl_cobros: esUSD ? (r.pnl_pasivo_usd ?? 0) : r.pnl_pasivo,
+        pnl_total: total,
+        gan_pct: costoRow > 0 ? (total / costoRow) * 100 : null,
+        fuente: r.valor_actual_source ?? "",
+        estado: r.completeness,
+      };
+    });
+
+    // Hoja 2 — Movimientos: aplanamos los boletos de cada posición. Marcamos
+    // con `en_stock_actual` los que pertenecen al período del stock vivo (los
+    // que se ven en el detalle) vs los históricos ya compensados.
+    const movimientos = filasOrdenadas.flatMap((r) =>
+      _filtrarPeriodoActual(r.boletos).map((b) => ({
+        ticker: r.display_name || r.ticker,
+        unidad: r.unidad,
+        fecha: b.fecha,
+        op: b.op || b.categoria,
+        categoria: b.categoria,
+        cantidad: b.cantidad,
+        precio: b.precio,
+        importe: b.importe,
+        moneda: b.moneda,
+        mep: b.mep,
+        importe_ars: b.importe_ars,
+      })),
+    );
+
     await exportToXlsx({
       filename: `pnl-titulos-${idCuenta}-${moneda}-${timestampSuffix()}.xlsx`,
       sheets: [
         {
           name: "Posiciones",
           title: `PnL Títulos · cuenta ${idCuenta} · ${moneda}${data.fecha_actual ? ` · al ${data.fecha_actual}` : ""}`,
-          rows: filasOrdenadas.map((r) => {
-            const costoRow = costoVista(r, esUSD);
-            const valorRow = valVista(r, esUSD);
-            const total = totalView(r);
-            return {
-              ticker: r.display_name || r.ticker,
-              unidad: r.unidad,
-              cantidad: r.qty_aum,
-              costo: costoRow,
-              valor: valorRow,
-              pnl_no_real: esUSD ? (r.pnl_no_realizado_usd ?? null) : r.pnl_no_realizado,
-              pnl_cobros: esUSD ? (r.pnl_pasivo_usd ?? 0) : r.pnl_pasivo,
-              pnl_total: total,
-              gan_pct: costoRow > 0 ? (total / costoRow) * 100 : null,
-              fuente: r.valor_actual_source ?? "",
-              estado: r.completeness,
-            };
-          }),
+          rows: posiciones,
           columns: [
             { header: "Ticker", key: "ticker", format: "text", width: 28 },
             { header: "Unidad", key: "unidad", format: "text", width: 24 },
@@ -303,6 +328,24 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
             { header: "Gan %", key: "gan_pct", format: "percent", width: 10 },
             { header: "Fuente Valor", key: "fuente", format: "text", width: 12 },
             { header: "Estado", key: "estado", format: "text", width: 12 },
+          ],
+        },
+        {
+          name: "Movimientos",
+          title: `Movimientos · cuenta ${idCuenta} · todas las posiciones`,
+          rows: movimientos,
+          columns: [
+            { header: "Ticker", key: "ticker", format: "text", width: 28 },
+            { header: "Unidad", key: "unidad", format: "text", width: 24 },
+            { header: "Fecha", key: "fecha", format: "date", width: 12 },
+            { header: "Op", key: "op", format: "text", width: 18 },
+            { header: "Categoría", key: "categoria", format: "text", width: 16 },
+            { header: "Cantidad", key: "cantidad", format: "number", width: 14 },
+            { header: "Precio", key: "precio", format: "number", width: 14 },
+            { header: "Importe", key: "importe", format: "number", width: 16 },
+            { header: "Moneda", key: "moneda", format: "text", width: 8 },
+            { header: "MEP", key: "mep", format: "number", width: 10 },
+            { header: "Importe ARS", key: "importe_ars", format: "number", width: 16 },
           ],
         },
       ],
@@ -354,7 +397,7 @@ export function PnLTitulosView({ idCuenta }: { idCuenta: string }) {
           {data.fecha_actual ? ` · al ${data.fecha_actual}` : ""}
         </span>
         {filasOrdenadas.length > 0 && (
-          <DownloadButton onClick={exportarPosiciones} title="Descargar posiciones (Excel)" />
+          <DownloadButton onClick={exportarTodo} title="Descargar TODO — posiciones + movimientos (Excel, 2 hojas)" />
         )}
       </div>
 

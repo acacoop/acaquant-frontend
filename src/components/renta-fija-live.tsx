@@ -77,8 +77,10 @@ export function RentaFijaLiveView({
   const sub = lastAt > 0 ? fmtHoraAR(lastAt) : "";
 
   return (
-    <div className="h-full min-h-0 p-3">
-      <div className="grid grid-cols-2 gap-3 h-full min-h-0">
+    <div className="h-full min-h-0 p-3 flex flex-col gap-2">
+      {/* El botón del copiloto IA de esta vista vive en el Header (slot
+          derecho, ex-TERMINAL) — acá no ocupa fila propia. */}
+      <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
         <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
           <Panel title="RENTA FIJA" count={rentaFija.length} sub={sub} expandable>
             <RentaFijaTable data={rentaFija} flujos={flujos} forwards={forwards} />

@@ -236,7 +236,7 @@ export function FairValueView({ curva, initialDoc }: Props) {
          está en el commit anterior (git log -- fair-value-view.tsx). */}
       {!hayDatos && (
         <p className="text-[var(--t-text-muted)] text-xs py-4 text-center">
-          {doc.error ? doc.error : "SIN DATOS — corré jobs.snapshot_cierre + jobs.fair_value"}
+          {doc.error ? doc.error : "SIN DATOS — todavía no se calcularon los valores del cierre."}
         </p>
       )}
 

@@ -4,8 +4,7 @@ import { useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 import { Panel } from "./panel";
 import { CedearsScannerTable } from "./cedears-scanner-table";
-import { CedearsTimeSalesPanel } from "./cedears-timesales-panel";
-import { MetricasPanel } from "./metricas-panel";
+import { MetricasPanel, rubroDe } from "./metricas-panel";
 import { TickerChartPanel } from "./ticker-chart-panel";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
@@ -47,29 +46,39 @@ export function ScannerView({
     CCL_POLL_MS,
   );
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  // Filtro por rubro: se setea al clickear un rubro en el Pulso (MÉTRICAS) y
+  // recorta la tabla CEDEAR/ADR a los tickers de ese rubro. El Pulso sigue
+  // mostrando TODOS los rubros (se calcula sobre `rows` completo).
+  const [selectedRubro, setSelectedRubro] = useState<string | null>(null);
+  const tableRows = selectedRubro
+    ? rows.filter((r) => rubroDe(r) === selectedRubro)
+    : rows;
 
   return (
     <div className="h-full min-h-0 p-3">
       <div className="grid grid-cols-2 gap-3 h-full min-h-0">
-        {/* IZQUIERDA: 50% tabla CEDEARs (arriba) + 50% Time & Sales (abajo). */}
-        <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
-          <div className="min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <CedearsScannerTable
-              data={rows}
-              selectedTicker={selectedTicker}
-              onSelect={setSelectedTicker}
-              ccl={ccl}
-            />
-          </div>
-          <div className="min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-            <CedearsTimeSalesPanel ticker={selectedTicker} />
-          </div>
+        {/* IZQUIERDA: tabla CEDEARs a alto completo (el Time & Sales se movió a
+            un tab dentro de CHART & RETORNOS, derecha abajo). */}
+        <div className="min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+          <CedearsScannerTable
+            data={tableRows}
+            selectedTicker={selectedTicker}
+            onSelect={setSelectedTicker}
+            ccl={ccl}
+            rubroFiltro={selectedRubro}
+            onClearRubro={() => setSelectedRubro(null)}
+          />
         </div>
 
         {/* DERECHA: 50% MÉTRICAS arriba + 50% CHART abajo (alinea con la izquierda) */}
         <div className="min-w-0 min-h-0 grid grid-rows-2 gap-3">
           <Panel title="MÉTRICAS" expandable>
-            <MetricasPanel rows={rows} ticker={selectedTicker} />
+            <MetricasPanel
+              rows={rows}
+              ticker={selectedTicker}
+              selectedRubro={selectedRubro}
+              onRubroSelect={setSelectedRubro}
+            />
           </Panel>
           <Panel title="CHART & RETORNOS" expandable>
             <TickerChartPanel ticker={selectedTicker} />

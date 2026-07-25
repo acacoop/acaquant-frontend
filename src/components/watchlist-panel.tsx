@@ -2,14 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Quote } from "@/lib/types";
+import { CalendarioPanel } from "@/components/calendario-panel";
+import { WatchlistNews } from "@/components/watchlist-news";
 
 const POLL_MS = 30_000;
 const POLL_LOCAL_MS = 5_000;   // ARGY + futuros DLR refrescan cada 5s (live)
 
 // Default cuando el filtro cambia y el ticker actual no aplica más
-// (ej: estabas viendo curva DLR y volvés a General). MERVAL siempre vive
-// en TradingView (BCBA:IMV vía mapSymbol).
-const DEFAULT_TICKER_AL_SALIR_DE_DLR = "MERVAL";
+// (ej: estabas viendo curva DLR y volvés a General). DXY siempre vive
+// en TradingView (CAPITALCOM:DXY vía mapSymbol).
+const DEFAULT_TICKER_AL_SALIR_DE_DLR = "DXY";
 
 // ── Helpers de formateo ──
 
@@ -173,23 +175,29 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     return () => clearInterval(iv);
   }, [fetchLocal]);
 
-  // ── Filtros: solo 2 tabs ahora (General + FUTUROS ROFEX) ──
+  // ── Filtros: General + FUTUROS ROFEX + CALENDARIO (eventos macro, tab fija) ──
   const gruposPresentes = useMemo(() => {
     const out: string[] = [];
     if (argy.length > 0 || quotes.length > 0) out.push("General");
     if (futurosDlr.length > 0) out.push("FUTUROS ROFEX");
+    out.push("NOTICIAS");
+    out.push("CALENDARIO");
     return out;
   }, [quotes, futurosDlr, argy]);
 
   useEffect(() => {
-    if (!filtro && gruposPresentes.length > 0) {
-      // Default = FUTUROS ROFEX si está (pedido de la mesa); si no, General.
-      setFiltro(gruposPresentes.includes("FUTUROS ROFEX") ? "FUTUROS ROFEX" : gruposPresentes[0]);
+    if (!filtro) {
+      // Default = General (pedido de la mesa 2026-07-14; antes era FUTUROS ROFEX).
+      // CALENDARIO nunca es default (está siempre presente, es tab secundaria).
+      const conDatos = gruposPresentes.filter((g) => g !== "CALENDARIO" && g !== "NOTICIAS");
+      if (conDatos.length > 0) {
+        setFiltro(conDatos.includes("General") ? "General" : conDatos[0]);
+      }
     }
   }, [filtro, gruposPresentes]);
 
   // Sincronización chart ↔ filtro: entrando a FUTUROS ROFEX linkea la curva DLR;
-  // saliendo a General, si veníamos de la curva, volvemos a MERVAL.
+  // saliendo a General, si veníamos de la curva, volvemos a DXY.
   const selectedRef = useRef(selected);
   useEffect(() => {
     selectedRef.current = selected;
@@ -212,38 +220,43 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     if (filtro !== "General") return [];
     const grupos: { label: string; rows: GenRow[] }[] = [];
 
-    // 1) ARGY (lo local: MEP, CCL, canje, cauciones, riesgo, oficial).
-    if (argy.length > 0) {
-      grupos.push({
-        label: "Argentina",
-        rows: argy.map((r): GenRow => {
-          const isPct = r.unit === "%";
-          const valueColor = isPct
-            ? r.label === "CANJE"
-              ? r.value !== null && r.value < 0 ? "var(--t-neg)" : "var(--t-pos)"
-              : "#ffcc00"
-            : "var(--t-pos)";
-          const valueStr = r.value === null
-            ? "—"
-            : isPct
-              ? `${r.value.toFixed(2)}%`
-              : r.label === "DOLAR OFICIAL"
-                ? `$${fmtPriceDlr(r.value)}`
-                : `$${fmtPrice(r.value)}`;
-          return {
-            name: r.label + (r.plazo_dias ? ` ${r.plazo_dias}D` : ""),
-            valueStr,
-            valueColor,
-            pct_day: r.ret_day,
-            ret_7d: r.ret_7d,
-            ret_mtd: r.ret_mtd,
-            ret_ytd: r.ret_ytd,
-            ts: r.ts,
-            selectKey: r.label,
-            clickable: false,
-          };
-        }),
-      });
+    // 1) ARGY (lo local: MEP, CCL, canje, cauciones, riesgo, oficial) + los
+    //    soberanos OFFSHORE (source "eikon_off") como grupo PROPIO
+    //    "Bonos Off Shore" debajo de Argentina (pedido 2026-07-24).
+    const mapArgy = (r: ArgyDoc): GenRow => {
+      const isPct = r.unit === "%";
+      const valueColor = isPct
+        ? r.label === "CANJE"
+          ? r.value !== null && r.value < 0 ? "var(--t-neg)" : "var(--t-pos)"
+          : "#ffcc00"
+        : "var(--t-pos)";
+      const valueStr = r.value === null
+        ? "—"
+        : isPct
+          ? `${r.value.toFixed(2)}%`
+          : r.label === "DOLAR OFICIAL"
+            ? `$${fmtPriceDlr(r.value)}`
+            : `$${fmtPrice(r.value)}`;
+      return {
+        name: r.label + (r.plazo_dias ? ` ${r.plazo_dias}D` : ""),
+        valueStr,
+        valueColor,
+        pct_day: r.ret_day,
+        ret_7d: r.ret_7d,
+        ret_mtd: r.ret_mtd,
+        ret_ytd: r.ret_ytd,
+        ts: r.ts,
+        selectKey: r.label,
+        clickable: false,
+      };
+    };
+    const argyLocal = argy.filter((r) => r.source !== "eikon_off");
+    const argyOff = argy.filter((r) => r.source === "eikon_off");
+    if (argyLocal.length > 0) {
+      grupos.push({ label: "Argentina", rows: argyLocal.map(mapArgy) });
+    }
+    if (argyOff.length > 0) {
+      grupos.push({ label: "Bonos Off Shore", rows: argyOff.map(mapArgy) });
     }
 
     // 2) Índices / Futuros / US Treasury (Market.Quotes).
@@ -281,7 +294,10 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
 
   return (
     <div className="h-full flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)]">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2">
+      {/* Header en UNA sola línea (título + estado + chips de filtro + count):
+          ganar altura era el pedido — la watchlist ocupa la columna entera y
+          por poco no entra todo sin scroll (2026-07-24). */}
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex flex-wrap items-center gap-2">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
           Watchlist
         </span>
@@ -295,38 +311,44 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
             : "—"}
         </span>
         <span className="text-[9px] text-[var(--t-text-muted)]">
-          · poll {filtro === "FUTUROS ROFEX" ? "5s" : "5s/30s"}
+          · poll {filtro === "CALENDARIO" ? "5m" : filtro === "NOTICIAS" ? "60s" : filtro === "FUTUROS ROFEX" ? "5s" : "5s/30s"}
         </span>
-        <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">{totalVisibles}</span>
-      </div>
-
-      {/* Chips de filtro */}
-      <div className="px-2 py-1.5 border-b border-[var(--t-border)] flex flex-wrap items-center gap-1 shrink-0">
-        {gruposPresentes.map((g) => (
-          <button
-            key={g}
-            onClick={() => setFiltro(g)}
-            className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
-              filtro === g
-                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-            }`}
-          >
-            {g}
-          </button>
-        ))}
+        <span className="mx-1 flex items-center gap-1">
+          {gruposPresentes.map((g) => (
+            <button
+              key={g}
+              onClick={() => setFiltro(g)}
+              className={`px-2 py-0.5 text-[9px] font-mono border uppercase tracking-wide ${
+                filtro === g
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </span>
+        <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">
+          {filtro === "CALENDARIO" ? "AR · US · BR" : filtro === "NOTICIAS" ? "Reuters" : totalVisibles}
+        </span>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {error && (
+        {error && filtro !== "CALENDARIO" && filtro !== "NOTICIAS" && (
           <div className="px-3 py-2 text-[10px] text-[var(--t-neg)] font-mono">Error: {error}</div>
         )}
 
-        {!loading && totalVisibles === 0 && !error && (
+        {!loading && totalVisibles === 0 && !error && filtro !== "CALENDARIO" && filtro !== "NOTICIAS" && (
           <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center font-mono">
             Sin tickers en este filtro.
           </div>
         )}
+
+        {/* ── CALENDARIO: eventos macro AR/US/BR (contenido sin chrome propio) ── */}
+        {filtro === "CALENDARIO" && <CalendarioPanel />}
+
+        {/* ── NOTICIAS: titulares Reuters (feed Eikon de oficina) ── */}
+        {filtro === "NOTICIAS" && <WatchlistNews />}
 
         {/* ── GENERAL: ARGY + Índices + Futuros + US Treasury con separadores ── */}
         {filtro === "General" && totalGeneral > 0 && (

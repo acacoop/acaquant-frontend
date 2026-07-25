@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import { RentaVariableShell } from "@/components/renta-variable-shell";
+import { ScannerView } from "@/components/scanner-view";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 export const dynamic = "force-dynamic";
@@ -30,5 +30,7 @@ export default async function RentaVariablePage() {
     ),
   ]);
 
-  return <RentaVariableShell initialScanner={scanner} initialCcl={ccl} />;
+  // Sin shell de tabs: la tab ANÁLISIS FUNDAMENTAL se eliminó (2026-07-24)
+  // y el SCANNER es la vista entera de /renta-variable.
+  return <ScannerView initial={scanner} initialCcl={ccl} />;
 }

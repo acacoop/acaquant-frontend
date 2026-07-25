@@ -14,10 +14,10 @@ type Moneda = "ARS" | "USD" | "USD_DOL";
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 
 type FechaRow = { fecha: string; n: number };
-type OpRow = { operacion: string; bruto: number; n: number };
-type DenomRow = { denominacion: string; bruto: number; n: number };
+type OpRow = { operacion: string; bruto: number; arancel: number; n: number };
+type DenomRow = { denominacion: string; bruto: number; arancel: number; n: number };
 type Meta = { n_boletos: number; ultima_ingesta: string | null };
-type InstrRow = { instrumento: string; bruto: number; n: number };
+type InstrRow = { instrumento: string; bruto: number; arancel: number; n: number };
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
@@ -62,11 +62,24 @@ export function OpsView() {
   const [moneda, setMoneda] = usePersistedState<Moneda>("ops.moneda", "ARS");
   const [segmento, setSegmento] = usePersistedState<string>("ops.segmento", "");
   const [segmentos, setSegmentos] = useState<string[]>([]);
+  const [nivel3, setNivel3] = usePersistedState<string>("ops.nivel3", "");
+  const [niveles3, setNiveles3] = useState<string[]>([]);
+  // Tildado (default) = incluye ACA Valores (todo). Destildado = excluye ACA Valores.
+  const [incluirAca, setIncluirAca] = usePersistedState<boolean>("ops.incluirAca", true);
   const [mercado, setMercado] = usePersistedState<string>("ops.mercado", "");
   const [mercados, setMercados] = useState<string[]>([]);
+  // CARTERA del título (assets): permite ver qué se opera de HD / DL / ARS /
+  // FCI… El backend une por assets.unidad = instrumento (99% del volumen,
+  // medido con diag_ops_cartera).
+  const [cartera, setCartera] = usePersistedState<string>("ops.cartera", "");
+  const [carteras, setCarteras] = useState<string[]>([]);
   const [operador, setOperador] = usePersistedState<string>("ops.operador", "");
   const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>([]);
   const [search, setSearch] = usePersistedState<string>("ops.search", "");
+  // Cuentas ocultas (por denominación). localStorage → preferencia que persiste
+  // entre sesiones, no un filtro transitorio. Se excluyen server-side: tablas,
+  // gráfico y totales descuentan estas cuentas.
+  const [excluidas, setExcluidas] = usePersistedState<string[]>("ops.excluidas", [], "local");
   const [cuentasList, setCuentasList] = useState<{ cuenta: string; denominacion: string }[]>([]);
   const [modo, setModo] = usePersistedState<Modo>("ops.modo", "ULTIMA");
   // Rango custom (modo RANGO). Vacío = se cae al ancla (última fecha con datos).
@@ -74,7 +87,11 @@ export function OpsView() {
   const [rHasta, setRHasta] = usePersistedState<string>("ops.hasta", "");
   const [fechas, setFechas] = useState<FechaRow[]>([]);
   const [selOp, setSelOp] = useState<string | null>(null);
-  const [selDenom, setSelDenom] = useState<string | null>(null);
+  // PERSISTIDO: `search` es solo el texto del buscador; el filtro REAL es
+  // este (viaja como &denominacion= a la API). Sin persistirlo, la navegación
+  // asistida escribía el nombre pero no filtraba nada (bug cazado por el user
+  // 2026-07-21). Ahora el guía puede dejar la cuenta ya seleccionada.
+  const [selDenom, setSelDenom] = usePersistedState<string | null>("ops.denominacion", null);
   const [selInstr, setSelInstr] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [serie, setSerie] = useState<SerieRow[]>([]);
@@ -94,17 +111,36 @@ export function OpsView() {
     return { desde: ultima, hasta: ultima };  // ULTIMA = solo el último día
   }, [modo, fechas, rDesde, rHasta]);
 
-  // Editar cualquiera de los dos date inputs salta a modo RANGO, sembrando el
-  // otro extremo con el valor vigente del rango actual (así no queda a medias).
-  const onDesde = (v: string) => { setRHasta(rHasta || rangoFecha.hasta); setRDesde(v); setModo("RANGO"); };
-  const onHasta = (v: string) => { setRDesde(rDesde || rangoFecha.desde); setRHasta(v); setModo("RANGO"); };
+  // Editar cualquiera de los dos date inputs salta a modo RANGO. Seedea el otro extremo con
+  // el valor vigente, pero lo CLAMPEA si quedó invertido (desde>hasta) — así no se traba: si
+  // elegís un `hasta` en el pasado, el `desde` se baja a esa fecha en vez de quedar en hoy
+  // (posterior e inválido). Después podés mover cada extremo libremente.
+  const onDesde = (v: string) => {
+    const h = rHasta || rangoFecha.hasta;
+    setRDesde(v); setRHasta(h && h >= v ? h : v); setModo("RANGO");
+  };
+  const onHasta = (v: string) => {
+    const d = rDesde || rangoFecha.desde;
+    setRHasta(v); setRDesde(d && d <= v ? d : v); setModo("RANGO");
+  };
 
   const selQS = (selOp ? `&operacion=${encodeURIComponent(selOp)}` : "")
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
     + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
+    + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
+    + (incluirAca ? "" : "&aca_valores=sin")
     + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "")
-    + (operador ? `&operador=${encodeURIComponent(operador)}` : "");
+    + (cartera ? `&cartera=${encodeURIComponent(cartera)}` : "")
+    + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
+    + (excluidas.length ? `&excluir=${encodeURIComponent(excluidas.join("\n"))}` : "");
+
+  // Ocultar / restaurar cuentas (por denominación).
+  const ocultarCuenta = (d: string) => {
+    setExcluidas((prev) => (prev.includes(d) ? prev : [...prev, d]));
+    if (selDenom === d) setSelDenom(null);  // si era la elegida, soltarla
+  };
+  const mostrarCuenta = (d: string) => setExcluidas((prev) => prev.filter((x) => x !== d));
 
   const cargarFechas = useCallback(async () => {
     const f = await getJSON<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas");
@@ -117,8 +153,12 @@ export function OpsView() {
     (async () => {
       const s = await getJSON<{ segmentos: string[] }>("/api/operaciones/ops/segmentos");
       setSegmentos(s?.segmentos ?? []);
+      const n3 = await getJSON<{ niveles3: string[] }>("/api/operaciones/ops/niveles3");
+      setNiveles3(n3?.niveles3 ?? []);
       const m = await getJSON<{ mercados: string[] }>("/api/operaciones/ops/mercados");
       setMercados(m?.mercados ?? []);
+      const ca = await getJSON<{ carteras: string[] }>("/api/operaciones/ops/carteras");
+      setCarteras(ca?.carteras ?? []);
       const c = await getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list");
       setCuentasList(c?.cuentas ?? []);
       const ops = await getJSON<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>("/api/operaciones/comercial/operadores");
@@ -154,6 +194,17 @@ export function OpsView() {
     })();
   }, [modo, fecha, moneda, rangoFecha.desde, rangoFecha.hasta, selQS, fechas.length]);
 
+  // Elegir una cuenta = TODO se adapta a esa cuenta. "Por operación", "Por título"
+  // y el gráfico ya filtran por denominacion (backend); acá colapsamos "Por cuenta"
+  // a esa sola fila para que quede a la vista (antes se perdía en el scroll).
+  const denomRows = useMemo(
+    () => (selDenom ? porDenom.filter((r) => r.denominacion === selDenom) : porDenom),
+    [porDenom, selDenom],
+  );
+  const denomTotal = useMemo(
+    () => (selDenom ? denomRows.reduce((a, r) => a + r.bruto, 0) : total),
+    [denomRows, selDenom, total],
+  );
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* ── Filtros ───────────────────────────────────────────── */}
@@ -180,15 +231,31 @@ export function OpsView() {
             {meta.ultima_ingesta && <> · Últ. ingesta: <span className="text-[var(--t-text)] font-mono">{formatTime(meta.ultima_ingesta)}</span></>}
           </span>
         )}
-        {(selOp || selDenom || selInstr) && (
-          <button onClick={() => { setSelOp(null); setSelDenom(null); setSelInstr(null); setSearch(""); }} className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ filtro: {selOp || selDenom || selInstr}</button>
+        {/* Filtros cruzados activos: se ACUMULAN (cuenta + op + título). Cada chip
+            se saca solo, sin borrar los otros → podés ver "qué operó tal cuenta". */}
+        {selDenom && <FiltroChip label={`cuenta: ${selDenom}`} onClear={() => { setSelDenom(null); setSearch(""); }} />}
+        {cartera && <FiltroChip label={`cartera: ${cartera}`} onClear={() => setCartera("")} />}
+        {selOp && <FiltroChip label={`op: ${selOp}`} onClear={() => setSelOp(null)} />}
+        {selInstr && <FiltroChip label={`título: ${selInstr}`} onClear={() => setSelInstr(null)} />}
+        {/* Cuentas ocultas (excluidas server-side). Cada chip las restaura. */}
+        {excluidas.length > 0 && (
+          <>
+            <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)] ml-1">🚫 {excluidas.length} ocultas:</span>
+            {excluidas.map((d) => (
+              <button key={d} onClick={() => mostrarCuenta(d)} title="Volver a mostrar esta cuenta"
+                className="text-[10px] text-[var(--t-text-dim)] border border-[var(--t-border-2)] px-2 py-0.5 max-w-[180px] truncate hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]">
+                👁 {d}
+              </button>
+            ))}
+            <button onClick={() => setExcluidas([])} className="text-[10px] text-[var(--t-accent)] underline">mostrar todas</button>
+          </>
         )}
         {/* Buscador por cuenta/denominación */}
         <input list="ops-cuentas" value={search}
           onChange={(e) => {
             const v = e.target.value; setSearch(v);
             const hit = cuentasList.find((c) => c.denominacion === v || c.cuenta === v);
-            if (hit) { setSelDenom(hit.denominacion); setSelOp(null); }
+            if (hit) setSelDenom(hit.denominacion);  // acumula con el resto de filtros
           }}
           placeholder="Buscar cuenta…"
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)] outline-none w-[170px]" />
@@ -201,6 +268,26 @@ export function OpsView() {
           <option value="">Todos los segmentos</option>
           {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        {/* Filtro de CARTERA del título (catálogo Assets: HD / DL / ARS / FCI…) */}
+        <select value={cartera} onChange={(e) => setCartera(e.target.value)}
+          title="Cartera del título según el catálogo de Assets"
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
+          <option value="">Todas las carteras</option>
+          {carteras.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {/* Filtro de nivel_3 (segmento del boleto) */}
+        <select value={nivel3} onChange={(e) => setNivel3(e.target.value)}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
+          <option value="">Todos los nivel 3</option>
+          {niveles3.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+        {/* Checkbox ACA VALORES: tildado = incluye (todo); destildado = excluye el set. */}
+        <label className="flex items-center gap-1.5 px-2 py-0.5 text-[11px] text-[var(--t-text)] border border-[var(--t-border-2)] cursor-pointer select-none"
+          title="Tildado: incluye ACA Valores. Destildado: las excluye del total.">
+          <input type="checkbox" checked={incluirAca} onChange={(e) => setIncluirAca(e.target.checked)}
+            className="accent-[var(--t-accent)]" />
+          ACA Valores
+        </label>
         {/* Filtro de mercado (campo `mercado`, ej. A3) */}
         <select value={mercado} onChange={(e) => setMercado(e.target.value)}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
@@ -229,28 +316,49 @@ export function OpsView() {
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
               <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por operación</span>
-              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(total)} {MONEDA_UNIDAD[moneda]}</span>
+              {/* Σ del filtro VIGENTE, no el global: con una cuenta elegida, el
+                  backend arma `total` sobre TODAS las denominaciones (la tabla
+                  "por cuenta" es cross-filter y no se filtra a sí misma) → la
+                  cabecera mostraba el total de la mesa junto a una tabla vacía.
+                  Caso real reportado 2026-07-21. */}
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">Σ {fmtCompact(denomTotal)} {MONEDA_UNIDAD[moneda]}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
+                <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Operación</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Prom./boleto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {porOp.map((r) => {
                     const act = selOp === r.operacion;
                     return (
-                      <tr key={r.operacion} onClick={() => { setSelOp(act ? null : r.operacion); setSelDenom(null); }}
+                      <tr key={r.operacion} onClick={() => setSelOp(act ? null : r.operacion)}
                         className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1">{r.operacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n.toLocaleString("es-AR")}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n ? fmtCompact(r.bruto / r.n) : "—"}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{total ? ((r.bruto / total) * 100).toFixed(0) : "0"}%</td>
                       </tr>
                     );
                   })}
-                  {!porOp.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porOp.length && <tr><td colSpan={6} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
           </div>
-          {/* Gráfico */}
+          {/* Gráfico — recibe la serie COMPLETA (no recortada al modo) y maneja su propio
+              rango con su toolbar; arranca en YTD por defecto (defaultRango="YTD" del componente)
+              → no queda en 1 sola barra cuando el selector de arriba está en ÚLTIMA. El filtro de
+              día (ÚLTIMA) solo resalta la barra del día vía focoFecha. */}
           <OpsBarChart serie={serie} fmt={fmtCompact} unidad={MONEDA_UNIDAD[moneda]} defaultAgg="DIARIO"
             focoFecha={modo === "ULTIMA" ? fecha : null}
             series={[{ key: "bruto", label: "Bruto", color: "var(--t-brand)" }]} />
@@ -261,8 +369,8 @@ export function OpsView() {
           {/* ARRIBA: por cuenta */}
           <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
             <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
-              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cuenta</span>
-              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{porDenom.length} · Σ {fmtCompact(total)} {MONEDA_UNIDAD[moneda]}</span>
+              <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Por cuenta{selDenom ? " (filtrada)" : ""}</span>
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{denomRows.length} · Σ {fmtCompact(denomTotal)} {MONEDA_UNIDAD[moneda]}</span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[11px] font-mono tabular-nums">
@@ -270,22 +378,33 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Denominación</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                    <th className="px-1 py-1.5 border-b border-[var(--t-border)] w-6"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {porDenom.map((r) => {
+                  {denomRows.map((r) => {
                     const act = selDenom === r.denominacion;
                     return (
-                      <tr key={r.denominacion} onClick={() => { setSelDenom(act ? null : r.denominacion); setSelOp(null); }}
-                        className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
+                      <tr key={r.denominacion} onClick={() => setSelDenom(act ? null : r.denominacion)}
+                        className={"group border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1 truncate max-w-[320px]" title={r.denominacion}>{r.denominacion}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                        <td className="px-1 py-1 text-center">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); ocultarCuenta(r.denominacion); }}
+                            title="Ocultar esta cuenta de toda la vista"
+                            className="text-[11px] text-[var(--t-text-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--t-accent)]">
+                            🚫
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
-                  {!porDenom.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!denomRows.length && <tr><td colSpan={5} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -302,6 +421,7 @@ export function OpsView() {
                   <tr>
                     <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Instrumento</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
+                    <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                   </tr>
                 </thead>
@@ -313,11 +433,12 @@ export function OpsView() {
                         className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]" : "hover:bg-[var(--t-surface-2)]")}>
                         <td className="px-3 py-1 truncate max-w-[320px]" title={r.instrumento}>{r.instrumento}</td>
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
+                        <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
                       </tr>
                     );
                   })}
-                  {!porInstr.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porInstr.length && <tr><td colSpan={4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -325,6 +446,15 @@ export function OpsView() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FiltroChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <button onClick={onClear} title="Quitar este filtro"
+      className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5 max-w-[220px] truncate">
+      ✕ {label}
+    </button>
   );
 }
 

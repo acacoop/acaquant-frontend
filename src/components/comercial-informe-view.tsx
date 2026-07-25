@@ -19,13 +19,15 @@ import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 // operador). 4 cuadrantes. Consume /api/operaciones/comercial/informe[-segmento].
 // Ver docs/TABLERO_COMERCIAL.md [5].
 
-type SegCount = { segmento: string; n: number };
+type SegCount = { segmento: string; n: number; ctas_ops?: number };
 type SegmentoResp = {
-  mes: string; mes_min: string; mes_actual: string; total: number; segmentos: SegCount[];
+  mes: string; mes_min: string; mes_actual: string; total: number;
+  total_ctas_ops?: number; segmentos: SegCount[];
 };
 type Comercial = {
   rank: number; operador_email: string | null; operador_nombre: string;
   vol_total: number; vol_mes: number; ar_total: number; ar_mes: number; ticket_promedio: number;
+  ctas_ops: number;  // cuentas distintas que operaron en el mes del corte
 };
 type ArancelSeg = {
   segmento: string; ar_total: number; ar_mes: number; n_cuentas: number; ticket_promedio: number;
@@ -63,11 +65,6 @@ const ymLabel = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
   return `${MESES[m - 1]} ${y}`;
 };
-const ymAdd = (ym: string, delta: number) => {
-  const [y, m] = ym.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-};
 
 async function getJson<T>(url: string, fallback: T): Promise<T> {
   try {
@@ -93,7 +90,17 @@ function Panel({ title, extra, children, fill }: { title: string; extra?: React.
   );
 }
 
-export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" }) {
+const _arrQS = (key: string, vals?: string[]) =>
+  (vals ?? []).map((v) => `&${key}=${encodeURIComponent(v)}`).join("");
+
+export function ComercialInforme({
+  moneda = "ARS", fecha = "", desde = "",
+  operador = [], nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
+}: {
+  moneda?: "ARS" | "USD"; fecha?: string; desde?: string;
+  operador?: string[]; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
+  nivel4?: string[]; nivel5?: string[]; referido?: string[];
+}) {
   const [informe, setInforme] = useState<InformeResp | null>(null);
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
   const [mes, setMes] = useState<string | null>(null);
@@ -102,33 +109,43 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
   const [q4tab, setQ4tab] = useState<"clientes" | "operaciones">("clientes");
   const [selComercial, setSelComercial] = useState<string | null>(null);
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
-  const [q1mode, setQ1mode] = useState<"cuentas" | "aranceles">("cuentas");
+  const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
+
+  const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
+  // Filtros madre: niveles + referido van a los 4 cuadrantes; operador (madre) SOLO
+  // al ranking (Q2) — en Q1/Q3/Q4 el param `operador` es el drill-down del comercial
+  // clickeado. Vacío = sin filtro → el informe queda global como siempre.
+  const madreNiveles = _arrQS("nivel_1", nivel1) + _arrQS("nivel_2", nivel2) + _arrQS("nivel_3", nivel3)
+    + _arrQS("nivel_4", nivel4) + _arrQS("nivel_5", nivel5) + _arrQS("referido", referido);
+  const madreOperador = _arrQS("operador", operador);
 
   useEffect(() => {
-    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}`, null).then(setInforme);
-  }, [moneda]);
+    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}${fQS}${madreOperador}${madreNiveles}`, null).then(setInforme);
+  }, [moneda, fQS, madreOperador, madreNiveles]);
 
-  // Q1 (cuentas por segmento) — se re-scopea al comercial elegido (item 7).
+  // Q1 (cuentas por segmento) — corte por la fecha GLOBAL de la vista + re-scope al comercial.
   useEffect(() => {
     const params = new URLSearchParams();
-    if (mes) params.set("hasta", mes);
+    if (fecha) params.set("fecha", fecha);
+    if (desde) params.set("desde", desde);
     if (selComercial) params.set("operador", selComercial);
-    const q = params.toString() ? `?${params.toString()}` : "";
+    const base = params.toString();
+    const q = base || madreNiveles ? `?${base}${madreNiveles}` : "";
     void getJson<SegmentoResp | null>(`/api/operaciones/comercial/informe-segmento${q}`, null).then((d) => {
       setSeg(d);
-      if (d && !mes) setMes(d.mes); // primer load → fija el mes actual
+      if (d) setMes(d.mes); // refleja el mes del corte (solo display)
     });
-  }, [mes, selComercial]);
+  }, [fecha, desde, selComercial, madreNiveles]);
 
   // Q3 re-scopeada: aranceles por segmento del comercial elegido.
   useEffect(() => {
     if (!selComercial) { setSegScoped(null); return; }
     setSegScoped(null);
     void getJson<{ aranceles_segmento: ArancelSeg[] } | null>(
-      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}`,
+      `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}${fQS}${madreNiveles}`,
       null,
     ).then((d) => setSegScoped(d?.aranceles_segmento ?? []));
-  }, [selComercial, moneda]);
+  }, [selComercial, moneda, fQS, madreNiveles]);
 
   // Detalle (Q4): por defecto TODOS los segmentos; al elegir uno en Q3, filtra.
   // Respeta el comercial elegido en Q2.
@@ -137,13 +154,11 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     const op = selComercial ? `&operador=${encodeURIComponent(selComercial)}` : "";
     const segParam = selSeg ?? "todos";
     void getJson<SegDetalle | null>(
-      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}`,
+      `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}${fQS}${madreNiveles}`,
       null,
     ).then(setDetalle);
-  }, [selSeg, selComercial, moneda]);
+  }, [selSeg, selComercial, moneda, fQS, madreNiveles]);
 
-  const canPrev = !!(seg && mes && mes > seg.mes_min);
-  const canNext = !!(seg && mes && mes < seg.mes_actual);
   const comercialNombre = selComercial
     ? (informe?.comerciales.find((c) => c.operador_email === selComercial)?.operador_nombre ?? selComercial)
     : null;
@@ -154,8 +169,9 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     (a, c) => ({
       vol_total: a.vol_total + c.vol_total, vol_mes: a.vol_mes + c.vol_mes,
       ar_total: a.ar_total + c.ar_total, ar_mes: a.ar_mes + c.ar_mes,
+      ctas_ops: a.ctas_ops + c.ctas_ops,
     }),
-    { vol_total: 0, vol_mes: 0, ar_total: 0, ar_mes: 0 },
+    { vol_total: 0, vol_mes: 0, ar_total: 0, ar_mes: 0, ctas_ops: 0 },
   );
   // Fila de total: si hay un comercial elegido, muestra SU sumatoria; sino el total global.
   const selRow = selComercial
@@ -163,10 +179,24 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     : null;
   const totMostrado = selRow ?? totRanking;
 
-  // Datos del gráfico Q1 según el modo (cuentas por segmento / aranceles por segmento).
+  // Datos del gráfico Q1 según el modo (cuentas / operativas / aranceles por segmento).
+  // En "operativas" el % es la PENETRACIÓN del segmento: cuentas que operaron / cuentas
+  // TOTALES de ESE segmento (no sobre el total de operativas de la mesa). `etiqueta` trae
+  // el texto ya armado ("N · P%") porque el LabelList de recharts solo recibe el valor.
   const q1data = q1mode === "aranceles"
-    ? (q3segs ?? []).map((s) => ({ segmento: s.segmento, valor: s.ar_total }))
-    : (seg?.segmentos ?? []).map((s) => ({ segmento: s.segmento, valor: s.n }));
+    ? (q3segs ?? []).map((s) => ({ segmento: s.segmento, valor: s.ar_total, base: 0, pct: 0, etiqueta: "" }))
+    : q1mode === "operativas"
+    ? (seg?.segmentos ?? [])
+        .map((s) => {
+          const valor = s.ctas_ops ?? 0;
+          const base = s.n;   // cuentas totales del segmento
+          const pct = base > 0 ? Math.round((valor / base) * 100) : 0;
+          return { segmento: s.segmento, valor, base, pct, etiqueta: `${fmtN(valor)} · ${pct}%` };
+        })
+        .sort((a, b) => b.valor - a.valor)
+    : (seg?.segmentos ?? []).map((s) => ({ segmento: s.segmento, valor: s.n, base: 0, pct: 0, etiqueta: "" }));
+  // Total de operativas de la mesa (solo para el subtítulo del panel).
+  const q1total = q1data.reduce((a, d) => a + d.valor, 0);
 
   // ── Export a Excel (item 4) ──────────────────────────────────────────────
   const dlCuentasSeg = () => void exportToXlsx({
@@ -174,6 +204,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     sheets: [{ name: "Cuentas x segmento", rows: seg?.segmentos ?? [], columns: [
       { header: "Segmento", key: "segmento", format: "text", width: 28 },
       { header: "Cuentas", key: "n", format: "integer" },
+      { header: "Operativas", key: "ctas_ops", format: "integer" },
     ] }],
   });
   const dlRanking = () => void exportToXlsx({
@@ -181,6 +212,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
     sheets: [{ name: "Ranking comercial", rows: informe?.comerciales ?? [], columns: [
       { header: "#", key: "rank", format: "integer", width: 5 },
       { header: "Comercial", key: "operador_nombre", format: "text", width: 28 },
+      { header: "Ctas Ops", key: "ctas_ops", format: "integer", width: 10 },
       { header: "Ticket prom.", key: "ticket_promedio", format: "currency" },
       { header: "Vol. total", key: "vol_total", format: "currency", width: 18 },
       { header: "Vol. mes", key: "vol_mes", format: "currency", width: 18 },
@@ -224,24 +256,20 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
       {/* Q1 — Cuentas / Aranceles por segmento (barras HORIZONTALES) + toggle */}
       <Panel
         fill
-        title={`${q1mode === "aranceles" ? "Aranceles" : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${q1mode === "cuentas" && seg ? ` · ${seg.total}` : ""}`}
+        title={`${q1mode === "aranceles" ? "Aranceles" : q1mode === "operativas" ? "Operativas" : "Cuentas"} por segmento${comercialNombre ? ` · ${comercialNombre}` : ""}${q1mode === "cuentas" && seg ? ` · ${seg.total}` : q1mode === "operativas" ? ` · ${q1total}` : ""}`}
         extra={
           <div className="flex items-center gap-1">
             <div className="inline-flex border border-[var(--t-border-2)] mr-1">
-              {(["cuentas", "aranceles"] as const).map((m) => (
+              {(["cuentas", "operativas", "aranceles"] as const).map((m) => (
                 <button key={m} onClick={() => setQ1mode(m)}
                   className={"px-1.5 py-0.5 text-[9px] uppercase tracking-wider " + (q1mode === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
-                  {m === "cuentas" ? "Cuentas" : "Arancel"}
+                  {m === "cuentas" ? "Cuentas" : m === "operativas" ? "Operativas" : "Arancel"}
                 </button>
               ))}
             </div>
-            {q1mode === "cuentas" && (
+            {(q1mode === "cuentas" || q1mode === "operativas") && (
               <>
-                <button disabled={!canPrev} onClick={() => mes && setMes(ymAdd(mes, -1))}
-                  className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]">◀</button>
-                <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center">{mes ? ymLabel(mes) : "…"}</span>
-                <button disabled={!canNext} onClick={() => mes && setMes(ymAdd(mes, 1))}
-                  className="px-1.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-30 disabled:hover:text-[var(--t-text-dim)]">▶</button>
+                <span className="text-[10px] text-[var(--t-text)] font-mono min-w-[64px] text-center" title="Mes del corte (fijado por la fecha 'Al día' del header)">{mes ? ymLabel(mes) : "…"}</span>
                 <DownloadBtn onClick={dlCuentasSeg} />
               </>
             )}
@@ -259,11 +287,24 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 axisLine={{ stroke: "var(--t-border-2)" }} tickLine={false} width={114} interval={0} />
               <Tooltip
                 contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
-                formatter={(v) => [q1mode === "aranceles" ? fmtMoney(Number(v)) : fmtN(Number(v)), q1mode === "aranceles" ? "Arancel" : "Cuentas"]}
+                formatter={(v, _name, it: { payload?: { pct?: number; base?: number } }) => {
+                  const n = Number(v);
+                  if (q1mode === "aranceles") return [fmtMoney(n), "Arancel"];
+                  if (q1mode === "operativas") {
+                    const p = it?.payload;
+                    return [`${fmtN(n)} de ${fmtN(p?.base ?? 0)} · ${p?.pct ?? 0}% del segmento`, "Operativas"];
+                  }
+                  return [fmtN(n), "Cuentas"];
+                }}
                 cursor={{ fill: "color-mix(in srgb, var(--t-text) 10%, transparent)" }} />
               <Bar dataKey="valor" fill="var(--t-brand)" isAnimationActive={false}>
-                <LabelList dataKey="valor" position="right" fontSize={9} fill="var(--t-text)"
-                  formatter={(v) => (q1mode === "aranceles" ? fmtMoney(Number(v)) : fmtN(Number(v)))} />
+                <LabelList dataKey={q1mode === "operativas" ? "etiqueta" : "valor"} position="right" fontSize={9} fill="var(--t-text)"
+                  formatter={(v) => {
+                    if (q1mode === "operativas") return String(v);   // ya viene "N · P%"
+                    const n = Number(v);
+                    if (q1mode === "aranceles") return fmtMoney(n);
+                    return fmtN(n);
+                  }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -292,6 +333,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-2 py-2">#</th>
               <th className="text-left px-1">COMERCIAL</th>
+              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes del corte (acumulado del mes, ≥1 op)">CTAS OPS</th>
               <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">VOL. TOTAL</th>
               <th className="text-right px-2">VOL. MES</th>
@@ -320,6 +362,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
                 <td className="px-1 py-1.5 text-[var(--t-text)] truncate max-w-[160px]" title={c.operador_nombre}>
                   {c.operador_nombre}
                 </td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-text)]">{c.ctas_ops}</td>
                 <td className="text-right px-2 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
                 <td className="text-right px-2 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
@@ -332,6 +375,7 @@ export function ComercialInforme({ moneda = "ARS" }: { moneda?: "ARS" | "USD" })
             <tfoot className="sticky bottom-0 bg-[var(--t-surface)]">
               <tr className="border-t-2 border-[var(--t-border-2)] font-semibold text-[var(--t-text)]">
                 <td className="px-2 py-1.5 truncate max-w-[180px]" colSpan={2}>{selRow ? `Σ ${selRow.operador_nombre}` : "TOTAL"}</td>
+                <td className="text-right px-2 tabular-nums text-[var(--t-text)]">{totMostrado.ctas_ops}</td>
                 <td className="text-right px-2 text-[var(--t-text-muted)]">{selRow ? fmtAum(selRow.ticket_promedio) : "—"}</td>
                 <td className="text-right px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totMostrado.vol_total)}>{fmtMoney(totMostrado.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totMostrado.vol_mes)}>{fmtMoney(totMostrado.vol_mes)}</td>

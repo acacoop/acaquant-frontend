@@ -22,6 +22,13 @@ const FUENTE_COLOR: Record<string, string> = {
   "La Nación":    "#ff6666",
   "Clarín":       "#ffcc00",
   "BAE":          "#66ddcc",
+  // Mundo (renta variable internacional)
+  "WSJ":          "#e85d5d",
+  "Yahoo Finance":"#7b5cff",
+  "Investing":    "#00b8d4",
+  "Fed":          "#caa84a",
+  "CNBC":         "#1f6feb",
+  "MarketWatch":  "#10b981",
 };
 
 const FUENTE_BG: Record<string, string> = {
@@ -32,10 +39,25 @@ const FUENTE_BG: Record<string, string> = {
   "La Nación":    "bg-[#ff6666]/10",
   "Clarín":       "bg-[#ffcc00]/10",
   "BAE":          "bg-[#66ddcc]/10",
+  "WSJ":          "bg-[#e85d5d]/10",
+  "Yahoo Finance":"bg-[#7b5cff]/10",
+  "Investing":    "bg-[#00b8d4]/10",
+  "Fed":          "bg-[#caa84a]/10",
+  "CNBC":         "bg-[#1f6feb]/10",
+  "MarketWatch":  "bg-[#10b981]/10",
+};
+
+// Abreviaturas para el badge de fuente (evita cortes feos en slice).
+const FUENTE_ABBR: Record<string, string> = {
+  "Ámbito":       "AMB",
+  "Yahoo Finance":"YAHOO",
+  "MarketWatch":  "MKTW",
+  "Investing":    "INVST",
 };
 
 const CATEGORIAS = [
   { v: "all",      label: "Todas"    },
+  { v: "mundo",    label: "Mundo"    },
   { v: "economia", label: "Economía" },
   { v: "finanzas", label: "Finanzas" },
   { v: "mercados", label: "Mercados" },
@@ -195,7 +217,7 @@ export function NewsPanel() {
         )}
         {!loading && visibles.length === 0 && (
           <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center font-mono">
-            Sin noticias todavía. El cron las ingesta cada 15 min.
+            Sin noticias todavía. Se actualizan cada 15 min.
           </div>
         )}
         <ul className="font-mono">
@@ -222,7 +244,7 @@ export function NewsPanel() {
                       className={`shrink-0 px-1 ${bg} uppercase tracking-wide font-semibold`}
                       style={{ color }}
                     >
-                      {h.fuente.replace("Ámbito", "AMB").slice(0, 7)}
+                      {FUENTE_ABBR[h.fuente] ?? h.fuente.slice(0, 7)}
                     </span>
                     <span className="text-[11px] text-[var(--t-text)] group-hover:text-white leading-tight">
                       {h.titulo}

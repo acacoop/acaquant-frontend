@@ -39,6 +39,43 @@ interface MejorasResp {
 
 const EMPTY: MejorasResp = { ts: "", spot: null, bloques: [] };
 
+// ─── Config por commodity ────────────────────────────────────────────────────
+// Cada commodity tiene su propia tabla (una fila por LECAP) con TODAS las
+// columnas — se repiten Vto/Días/TNA/tasas a propósito (pedido de la mesa) para
+// que cada bloque se lea aislado. Los colores replican la planilla:
+// Soja=verde, Maíz=amarillo, Trigo=rojo. Se usan tints rgba para que sigan
+// legibles en tema claro y oscuro.
+
+const COMMODITY_CFG: Record<
+  Commodity,
+  { label: string; noun: string; tint: string; accent: string }
+> = {
+  SOJA: {
+    label: "Soja + Lecap",
+    noun: "Soja",
+    tint: "rgba(122,186,96,0.28)",
+    accent: "var(--t-pos)",
+  },
+  MAIZ: {
+    label: "Maíz + Lecap",
+    noun: "Maíz",
+    tint: "rgba(240,201,74,0.28)",
+    accent: "#c79a2e",
+  },
+  TRIGO: {
+    label: "Trigo + Lecap",
+    noun: "Trigo",
+    tint: "rgba(217,138,106,0.30)",
+    accent: "var(--t-neg)",
+  },
+};
+
+const ORDER: Commodity[] = ["SOJA", "MAIZ", "TRIGO"];
+
+// Header de tablas — azul marino de la planilla, legible en ambos temas.
+const HEADER_BG = "#1e2a4a";
+const HEADER_TX = "#e8edf7";
+
 // ─── Formatters ──────────────────────────────────────────────────────────────
 
 function fmtArs(n: number | null | undefined, dec = 2): string {
@@ -76,12 +113,6 @@ function fmtFechaCorta(s: string | null | undefined): string {
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
-const COMMODITIES: { id: Commodity; short: string }[] = [
-  { id: "SOJA",  short: "Soj Ros" },
-  { id: "MAIZ",  short: "Mai Ros" },
-  { id: "TRIGO", short: "Tri Ros" },
-];
-
 export function AgroMejorasDispo() {
   const { data } = usePoll<MejorasResp>(
     "/api/derivados-agro/mejoras-dispo",
@@ -90,124 +121,31 @@ export function AgroMejorasDispo() {
     { fetchOnMount: true },
   );
 
-  // Tickers son los mismos en los 3 bloques — uso el primero como base de
-  // filas y miro los otros dos por (commodity, ticker) para sacar valor_final
-  // y valor_usd. Si un commodity no tiene precio en Cámara, sus celdas quedan
-  // en "—" / "N/A".
-  const base = data.bloques[0]?.filas ?? [];
-  const byComm = new Map<Commodity, Map<string, MejorasRow>>();
-  for (const b of data.bloques) {
-    const m = new Map<string, MejorasRow>();
-    for (const r of b.filas) {
-      m.set(r.ticker ?? r.vencimiento, r);
-    }
-    byComm.set(b.commodity, m);
-  }
+  const byComm = new Map<Commodity, Bloque>();
+  for (const b of data.bloques) byComm.set(b.commodity, b);
 
-  const precioByComm: Record<Commodity, number | null> = {
-    SOJA:  data.bloques.find((b) => b.commodity === "SOJA")?.precio_ars  ?? null,
-    MAIZ:  data.bloques.find((b) => b.commodity === "MAIZ")?.precio_ars  ?? null,
-    TRIGO: data.bloques.find((b) => b.commodity === "TRIGO")?.precio_ars ?? null,
-  };
+  const hasData = data.bloques.some((b) => b.filas.length > 0);
 
   return (
-    <div className="h-full min-h-0 p-2 flex flex-col">
-      <div className="flex-1 min-h-0">
-        <Panel title="MEJORAS PRECIO DISPONIBLE — Soja · Maíz · Trigo" expandable>
-          {base.length === 0 ? (
+    <div className="h-full min-h-0 p-2 flex flex-row gap-2">
+      {/* La tabla ocupa la mitad izquierda; la mitad derecha queda libre para
+          próximos módulos. */}
+      <div className="w-1/2 h-full min-h-0">
+        <Panel title="DISPONIBLE ROSARIO" expandable>
+          {!hasData ? (
             <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
               {data.bloques.length === 0
                 ? "Sin data — backend no responde o falta cargar la Cámara"
                 : "Sin LECAPs vigentes con TNA"}
             </p>
           ) : (
-            <table className="w-full text-[10px] font-mono tabular-nums">
-              <thead className="text-[9px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)] sticky top-0 z-10">
-                <tr>
-                  <th rowSpan={2} className="text-left px-1 py-1 border-b border-[var(--t-border)] align-bottom">
-                    Ticker
-                  </th>
-                  <th rowSpan={2} className="text-center px-1 py-1 border-b border-[var(--t-border)] align-bottom">
-                    Vto
-                  </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
-                    d
-                  </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
-                    TNA
-                  </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
-                    Diaria
-                  </th>
-                  <th rowSpan={2} className="text-right px-1 py-1 border-b border-[var(--t-border)] align-bottom">
-                    Directa
-                  </th>
-                  {COMMODITIES.map((c) => {
-                    const px = precioByComm[c.id];
-                    const hasPx = px !== null;
-                    return (
-                      <th
-                        key={c.id}
-                        colSpan={2}
-                        className={`text-center px-1 py-1 border-b border-[var(--t-border)] border-l border-l-[var(--t-border)] ${
-                          hasPx ? "text-[var(--t-accent)]" : "text-[var(--t-text-muted)]"
-                        }`}
-                      >
-                        {c.short}
-                        <span className="ml-1 text-[9px] font-normal">
-                          {hasPx ? fmtArs(px) : "(sin precio)"}
-                        </span>
-                      </th>
-                    );
-                  })}
-                </tr>
-                <tr>
-                  {COMMODITIES.map((c) => (
-                    <CommodityHeader key={c.id} />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {base.map((r) => {
-                  const key = r.ticker ?? r.vencimiento;
-                  return (
-                    <tr
-                      key={key}
-                      className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
-                    >
-                      <td className="px-1 py-0.5 text-[var(--t-accent)] font-semibold">
-                        {r.ticker ?? "—"}
-                      </td>
-                      <td className="px-1 py-0.5 text-center text-[var(--t-text-dim)]">
-                        {fmtFechaCorta(r.vencimiento)}
-                      </td>
-                      <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
-                        {r.dias}
-                      </td>
-                      <td className="px-1 py-0.5 text-right text-[var(--t-text)]">
-                        {fmtPct(r.tna)}
-                      </td>
-                      <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
-                        {fmtPctMini(r.tasa_diaria)}
-                      </td>
-                      <td className="px-1 py-0.5 text-right text-[var(--t-text-dim)]">
-                        {fmtPct(r.tasa_directa)}
-                      </td>
-                      {COMMODITIES.map((c) => {
-                        const cell = byComm.get(c.id)?.get(key);
-                        return (
-                          <CommodityCells
-                            key={c.id}
-                            valorFinal={cell?.valor_final ?? null}
-                            valorUsd={cell?.valor_usd ?? null}
-                          />
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="flex flex-col gap-4 py-1">
+              {ORDER.map((c) => {
+                const bloque = byComm.get(c);
+                if (!bloque) return null;
+                return <CommodityTable key={c} commodity={c} bloque={bloque} />;
+              })}
+            </div>
           )}
         </Panel>
       </div>
@@ -215,38 +153,94 @@ export function AgroMejorasDispo() {
   );
 }
 
-function CommodityHeader() {
-  return (
-    <>
-      <th className="text-right px-1 py-1 border-b border-[var(--t-border)] border-l border-l-[var(--t-border)]">
-        Final
-      </th>
-      <th className="text-right px-1 py-1 border-b border-[var(--t-border)]">
-        US$
-      </th>
-    </>
-  );
-}
+// ─── Una tabla por commodity ─────────────────────────────────────────────────
 
-function CommodityCells({
-  valorFinal,
-  valorUsd,
+function CommodityTable({
+  commodity,
+  bloque,
 }: {
-  valorFinal: number | null;
-  valorUsd: number | null;
+  commodity: Commodity;
+  bloque: Bloque;
 }) {
+  const cfg = COMMODITY_CFG[commodity];
+  const precio = bloque.precio_ars;
+
+  if (bloque.filas.length === 0) return null;
+
   return (
-    <>
-      <td className="px-1 py-0.5 text-right text-[var(--t-text)] border-l border-l-[var(--t-border)]">
-        {fmtArs(valorFinal)}
-      </td>
-      <td
-        className={`px-1 py-0.5 text-right font-semibold ${
-          valorUsd === null ? "text-[var(--t-text-muted)]" : "text-[var(--t-accent)]"
-        }`}
-      >
-        {fmtUsd(valorUsd)}
-      </td>
-    </>
+    <div className="overflow-x-auto">
+      <table className="w-full text-[10px] font-mono tabular-nums border border-[var(--t-border)]">
+        <thead>
+          <tr style={{ backgroundColor: HEADER_BG, color: HEADER_TX }}>
+            <th className="text-left px-2 py-1.5 font-semibold tracking-wide">
+              {cfg.label}
+            </th>
+            <th className="text-center px-2 py-1.5">Vencimiento</th>
+            <th className="text-right px-2 py-1.5">Días</th>
+            <th className="text-right px-2 py-1.5">TNA</th>
+            <th className="text-right px-2 py-1.5">Tasa diaria</th>
+            <th className="text-right px-2 py-1.5">Tasa directa</th>
+            <th className="text-right px-2 py-1.5">Precio {cfg.noun}</th>
+            <th className="text-right px-2 py-1.5">Interés ganado</th>
+            <th className="text-right px-2 py-1.5">Valor {cfg.noun} Final</th>
+            <th className="text-right px-2 py-1.5">Valor en Us$</th>
+          </tr>
+        </thead>
+        <tbody>
+          {bloque.filas.map((r) => (
+            <tr
+              key={r.ticker ?? r.vencimiento}
+              className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]"
+            >
+              <td
+                className="px-2 py-1 font-semibold"
+                style={{ color: cfg.accent }}
+              >
+                {r.ticker ?? "—"}
+              </td>
+              <td
+                className="px-2 py-1 text-center text-[var(--t-text)]"
+                style={{ backgroundColor: cfg.tint }}
+              >
+                {fmtFechaCorta(r.vencimiento)}
+              </td>
+              <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
+                {r.dias}
+              </td>
+              <td className="px-2 py-1 text-right font-black text-[var(--t-text)]">
+                {fmtPct(r.tna)}
+              </td>
+              <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
+                {fmtPctMini(r.tasa_diaria)}
+              </td>
+              <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
+                {fmtPct(r.tasa_directa)}
+              </td>
+              <td className="px-2 py-1 text-right font-semibold text-[var(--t-text)]">
+                {fmtArs(precio)}
+              </td>
+              <td className="px-2 py-1 text-right font-black text-[var(--t-pos)]">
+                {fmtArs(r.interes_ganado)}
+              </td>
+              <td
+                className="px-2 py-1 text-right font-black text-[var(--t-text)]"
+                style={{ backgroundColor: cfg.tint }}
+              >
+                {fmtArs(r.valor_final)}
+              </td>
+              <td
+                className={`px-2 py-1 text-right font-semibold ${
+                  r.valor_usd === null
+                    ? "text-[var(--t-text-muted)]"
+                    : "text-[var(--t-accent)]"
+                }`}
+              >
+                {fmtUsd(r.valor_usd)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

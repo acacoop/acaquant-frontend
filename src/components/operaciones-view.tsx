@@ -5,21 +5,22 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { AgroView } from "./agro-view";
 import { ArancelesView } from "./aranceles-view";
 import { CashFlowView } from "./cashflow-view";
-import { IntradayView } from "./intraday-view";
 import { OpsView } from "./ops-view";
 
-// /operaciones: OPERACIONES · ARANCELES · AGRO · depósitos & extracciones ·
-// intraday. MOVIMIENTOS (ex NEGOCIO) se movió a Manager.
+// /operaciones: OPERACIONES · ARANCELES · AGRO · depósitos & extracciones.
+// MOVIMIENTOS (ex NEGOCIO) se movió a Manager. INTRADAY se movió a Trading.
 //
 // Keep-alive: cada tab se monta la PRIMERA vez que se abre y luego se oculta con
 // CSS (no se desmonta). Así no re-fetchea fechas/segmentos/data al volver — cambiar
 // de tab es instantáneo después del primer load. El gráfico (recharts) re-mide solo
 // al volver a mostrarse (ResizeObserver del ResponsiveContainer).
-type Tab = "operaciones" | "aranceles" | "agro" | "depositos" | "intraday";
+type Tab = "operaciones" | "aranceles" | "agro" | "depositos";
 
 export function OperacionesView() {
   // tab persiste entre rutas (volvés a /operaciones → misma sub-pestaña).
   const [tab, setTab] = usePersistedState<Tab>("operaciones.tab", "operaciones");
+  // Si quedó guardado "intraday" (movido a Trading), caer a operaciones.
+  if ((tab as string) === "intraday") setTab("operaciones");
   const [visited, setVisited] = useState<Set<Tab>>(() => new Set<Tab>([tab]));
 
   // Asegura que la pestaña activa (incluso la restaurada por el hook al
@@ -37,7 +38,6 @@ export function OperacionesView() {
         <TabBtn active={tab === "aranceles"} onClick={() => open("aranceles")}>ARANCELES</TabBtn>
         <TabBtn active={tab === "agro"} onClick={() => open("agro")}>AGRO</TabBtn>
         <TabBtn active={tab === "depositos"} onClick={() => open("depositos")}>DEPÓSITOS & EXTRACCIONES</TabBtn>
-        <TabBtn active={tab === "intraday"} onClick={() => open("intraday")}>INTRADAY</TabBtn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden relative">
@@ -45,7 +45,6 @@ export function OperacionesView() {
         {visited.has("aranceles") && <Pane active={tab === "aranceles"}><ArancelesView /></Pane>}
         {visited.has("agro") && <Pane active={tab === "agro"}><AgroView /></Pane>}
         {visited.has("depositos") && <Pane active={tab === "depositos"}><CashFlowView /></Pane>}
-        {visited.has("intraday") && <Pane active={tab === "intraday"}><IntradayView /></Pane>}
       </div>
     </div>
   );

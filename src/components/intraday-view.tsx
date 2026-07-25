@@ -2,264 +2,335 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-// Herramienta de sesión: procesa el CSV 100% en el browser, persiste en
-// sessionStorage (sobrevive navegar y recargar, solo para el usuario que
-// subió). Para compartir entre usuarios haría falta un endpoint backend.
+// Monitor intradía de renta variable. Sube el CSV de boletos del día (export
+// ROFEX/Aunesa, formato AR) y el backend (api/services/intraday.py) consolida
+// por (cuenta, especie) con FIFO. Acá: filtro por cuenta, mark editable a mano
+// (cuando el feed no tiene la especie), multiplicador de contrato editable por
+// especie (1 = acción/CEDEAR, 100 = derivado x100 — escala costo/PnL, no el
+// arancel), costo en book, detalle de operaciones por posición y un simulador
+// de precio (en drawer lateral). Persiste en sessionStorage.
 
-interface ResumenFila {
-  simbolo: string;
+interface Trade {
+  hora: string;
+  lado: string;
+  precio: number;
+  cantidad: number;
+  monto: number;
+  pos_acum: number;
+  ponderado_acum: number;
+  interes: number;
+  iva: number;
+}
+interface Posicion {
+  cuenta: string;
+  especie: string;
   moneda: string;
-  plazo: string;       // 'CI' | '24hs' | 'otro'
-  especie: string;     // ticker base sin sufijo D/C (ej AL30D → AL30)
-  cantidad_neta: number;
-  turnover_neto: number;
-  operaciones: number;
+  n_ops: number;
+  compras_qty: number;
+  ventas_qty: number;
+  qty_neta: number;
+  estado: "LONG" | "SHORT" | "CERRADA";
+  precio_ponderado: number | null;
+  mark: number;
+  mark_source: "live" | "csv";
+  mark_updated_at: string | null;
+  pnl_realizado: number;
+  intereses: number;
+  iva: number;
+  trades: Trade[];
 }
-
 interface Resultado {
-  archivo: string;
+  archivo: string | null;
+  filas_validas: number;
+  posiciones: Posicion[];
   timestamp: number;
-  filasCrudas: number;
-  filasFiltradas: number;
-  resumen: ResumenFila[];
 }
 
-const CLIENT_ID_FILTRO = "255";
-const STORAGE_KEY = "intraday_consolidado_v1";
+const STORAGE_KEY = "intraday_fifo_v2";
+const EXCL_KEY = "intraday_excl_v1";
+const PASOS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
-const ALIAS_COLS = {
-  clientId: ["Client ID"],
-  simbolo:  ["Symbol", "Simbolo", "Símbolo"],
-  punta:    ["Side", "Punta"],
-  cantEjec: ["Executed Size", "Cantidad Ejecutada"],
-  turnover: ["Turnover"],
-} as const;
+const keyOf = (p: Posicion) => `${p.especie}|${p.cuenta}`;
 
-const COMPRAR_VALS = new Set(["COMPRAR", "COMPRA", "BUY", "B"]);
-const VENDER_VALS  = new Set(["VENDER", "VENTA", "SELL", "S"]);
+// Puente al copiloto de la vista TRADING: las posiciones ABIERTAS quedan en
+// localStorage (son efímeras — el excel vive en este browser) y el panel IA
+// de /trading las manda como parámetro para aconsejar DESDE la posición.
+const POSICIONES_IA_KEY = "trd-fx-intraday-posiciones-v1";
 
-type FiltroPlazo = "todos" | "CI" | "24hs";
-
-function detectarMoneda(simbolo: string): string {
-  const s = (simbolo || "").toUpperCase();
-  if (s.includes("PESOS") || s.includes("ARS")) return "ARS";
-  if (s.includes("USD") || s.includes("DOLAR") || s.includes("DÓLAR")) return "USD";
-  return "otro";
-}
-
-function detectarPlazo(simbolo: string): string {
-  const s = simbolo || "";
-  // Divisa (PESOS/DOLAR) siempre es CI, sin importar qué token traiga.
-  const u = s.toUpperCase();
-  if (u.includes("PESOS") || u.includes("DOLAR") || u.includes("DÓLAR")) return "CI";
-  if (s.includes("-0001-")) return "CI";
-  if (s.includes("-0002-")) return "24hs";
-  return "otro";
-}
-
-function extraerEspecie(simbolo: string): string {
-  // Primer token antes del '-'. Si termina en 'D' o 'C' (sufijo de
-  // moneda en bonos soberanos: D=MEP/USD, C=CCL), lo saca. Ej:
-  //   AL30D-0001-C-CT-USD → AL30D → AL30
-  //   AL30-0001-C-CT-ARS  → AL30  → AL30
-  //   GGAL-...            → GGAL  → GGAL
-  const base = (simbolo || "").split("-")[0] || simbolo;
-  const last = base.slice(-1);
-  if ((last === "D" || last === "C") && base.length > 1) {
-    return base.slice(0, -1);
+function persistirPosicionesAbiertas(posiciones: Posicion[]) {
+  try {
+    const abiertas = (posiciones ?? [])
+      .filter((p) => p.estado === "LONG" || p.estado === "SHORT")
+      .map((p) => ({
+        especie: p.especie,
+        estado: p.estado,
+        qty: Math.abs(p.qty_neta),
+        precio: p.precio_ponderado,
+      }));
+    localStorage.setItem(POSICIONES_IA_KEY, JSON.stringify(abiertas));
+  } catch {
+    /* storage lleno/bloqueado: el copiloto simplemente no las ve */
   }
-  return base;
 }
 
-function parseNumero(s: string): number {
-  if (!s) return 0;
-  const clean = s.trim();
-  if (!clean) return 0;
-  const lastComma = clean.lastIndexOf(",");
-  const lastDot = clean.lastIndexOf(".");
-  let normalized: string;
-  if (lastComma > lastDot) {
-    normalized = clean.replace(/\./g, "").replace(",", ".");
-  } else if (lastDot > lastComma) {
-    normalized = clean.replace(/,/g, "");
-  } else {
-    normalized = clean;
-  }
-  const n = parseFloat(normalized);
-  return isNaN(n) ? 0 : n;
-}
-
-function stripQuotes(s: string): string {
-  const t = s.trim();
-  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
-    return t.slice(1, -1).trim();
-  }
-  return t;
-}
-
-function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
-  const firstLine = text.split(/\r?\n/)[0] || "";
-  const sep = firstLine.includes(";") ? ";" : ",";
-
-  const parseLine = (line: string): string[] => {
-    const out: string[] = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        inQuotes = !inQuotes;
-        continue;
-      }
-      if (c === sep && !inQuotes) {
-        out.push(cur);
-        cur = "";
-        continue;
-      }
-      cur += c;
+// Especies destildadas (no cuentan como daytrade). Persiste en sessionStorage.
+function loadExcl(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(EXCL_KEY);
+    if (raw) {
+      const a = JSON.parse(raw);
+      if (Array.isArray(a)) return new Set(a as string[]);
     }
-    out.push(cur);
-    return out.map((s) => s.trim());
-  };
-
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-  if (lines.length === 0) return { headers: [], rows: [] };
-
-  const headers = parseLine(lines[0]).map(stripQuotes);
-  const rows: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseLine(lines[i]);
-    const row: Record<string, string> = {};
-    headers.forEach((h, j) => {
-      row[h] = stripQuotes(values[j] ?? "");
-    });
-    rows.push(row);
+  } catch {
+    /* ignore */
   }
-  return { headers, rows };
+  return new Set();
 }
 
-function resolverCol(headers: string[], alias: readonly string[]): string | null {
-  for (const a of alias) {
-    if (headers.includes(a)) return a;
+const MULT_KEY = "intraday_mult_v1";
+
+// Multiplicador de contrato por ESPECIE (no por cuenta: es intrínseco del título).
+// Persiste entre archivos así no reescribís el x100 en cada carga.
+function loadMult(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(MULT_KEY);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && typeof o === "object") return o as Record<string, number>;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
+const EXCT_KEY = "intraday_exct_v1";
+
+function loadExcT(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(EXCT_KEY);
+    if (raw) {
+      const a = JSON.parse(raw);
+      if (Array.isArray(a)) return new Set(a as string[]);
+    }
+  } catch {
+    /* ignore */
+  }
+  return new Set();
+}
+
+function loadResultado(): Resultado | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Resultado;
+      if (parsed?.posiciones && Array.isArray(parsed.posiciones)) return parsed;
+    }
+  } catch {
+    /* storage corrupto/disabled */
   }
   return null;
 }
 
-function consolidar(fileName: string, text: string): Resultado {
-  const { headers, rows } = parseCSV(text);
-
-  const colClient = resolverCol(headers, ALIAS_COLS.clientId);
-  const colSimb   = resolverCol(headers, ALIAS_COLS.simbolo);
-  const colPunta  = resolverCol(headers, ALIAS_COLS.punta);
-  const colCant   = resolverCol(headers, ALIAS_COLS.cantEjec);
-  const colTurn   = resolverCol(headers, ALIAS_COLS.turnover);
-
-  const faltantes = [
-    !colClient && ALIAS_COLS.clientId[0],
-    !colSimb && ALIAS_COLS.simbolo.join("/"),
-    !colPunta && ALIAS_COLS.punta.join("/"),
-    !colCant && ALIAS_COLS.cantEjec.join("/"),
-    !colTurn && ALIAS_COLS.turnover[0],
-  ].filter(Boolean) as string[];
-  if (faltantes.length > 0) {
-    throw new Error(
-      `Faltan columnas: ${faltantes.join(", ")}. Presentes: ${headers.join(", ")}`,
-    );
-  }
-
-  const filasFiltradas = rows.filter(
-    (r) => (r[colClient!] ?? "").trim() === CLIENT_ID_FILTRO,
-  );
-
-  const porSimbolo = new Map<string, ResumenFila>();
-  for (const r of filasFiltradas) {
-    const simbolo = r[colSimb!] || "";
-    const puntaRaw = (r[colPunta!] || "").toUpperCase().trim();
-    const signo = COMPRAR_VALS.has(puntaRaw) ? 1 : VENDER_VALS.has(puntaRaw) ? -1 : 0;
-    const cant = parseNumero(r[colCant!] || "");
-    const turn = parseNumero(r[colTurn!] || "");
-    const cantFirmada = cant * signo;
-    const turnFirmado = turn * -signo;
-
-    const prev = porSimbolo.get(simbolo);
-    if (prev) {
-      prev.cantidad_neta += cantFirmada;
-      prev.turnover_neto += turnFirmado;
-      prev.operaciones += 1;
-    } else {
-      porSimbolo.set(simbolo, {
-        simbolo,
-        moneda:  detectarMoneda(simbolo),
-        plazo:   detectarPlazo(simbolo),
-        especie: extraerEspecie(simbolo),
-        cantidad_neta: cantFirmada,
-        turnover_neto: turnFirmado,
-        operaciones: 1,
-      });
-    }
-  }
-
-  return {
-    archivo: fileName,
-    timestamp: Date.now(),
-    filasCrudas: rows.length,
-    filasFiltradas: filasFiltradas.length,
-    resumen: Array.from(porSimbolo.values()),
-  };
+function fmtNum(n: number | null | undefined, d = 2): string {
+  if (n === null || n === undefined) return "—";
+  return n.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
-
-function fmtNum(n: number, d = 2): string {
-  return n.toLocaleString("es-AR", {
-    minimumFractionDigits: d,
-    maximumFractionDigits: d,
-  });
+function fmtSigned(n: number, d = 0): string {
+  const s = n.toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+  return n > 0 ? `+${s}` : s;
 }
-
-function monedaColor(moneda: string): string {
-  if (moneda === "ARS") return "#4fc3f7";
-  if (moneda === "USD") return "var(--t-pos)";
+function pnlColor(n: number): string {
+  if (Math.abs(n) < 1e-9) return "#888";
+  return n > 0 ? "var(--t-pos)" : "var(--t-neg)";
+}
+function estadoColor(e: string): string {
+  if (e === "LONG") return "var(--t-pos)";
+  if (e === "SHORT") return "var(--t-neg)";
   return "#888";
 }
 
-const MONEDA_ORDEN: Record<string, number> = { ARS: 0, USD: 1, otro: 2 };
+// PnL derivado del mark EFECTIVO (override manual o el del backend) y del
+// multiplicador de contrato `mult` (1 = acción/CEDEAR; 100 = derivado x100).
+// El multiplicador escala la plata (costo, realizado, no realizado); el arancel
+// e IVA NO se tocan (salen del Monto real del boleto).
+function derive(p: Posicion, mark: number, mult = 1) {
+  const abierta = Math.abs(p.qty_neta) > 1e-9;
+  const ponder = p.precio_ponderado ?? 0;
+  const noreal = (abierta ? p.qty_neta * (mark - ponder) : 0) * mult;
+  const real = p.pnl_realizado * mult;
+  const bruto = real + noreal;
+  const neto = bruto - p.intereses - p.iva;
+  const costo = (abierta ? p.qty_neta * ponder : 0) * mult; // plata puesta (long +, short −)
+  return { noreal, real, bruto, neto, costo };
+}
 
 export function IntradayView() {
-  const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [resultado, setResultado] = useState<Resultado | null>(loadResultado);
   const [error, setError] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<FiltroPlazo>("todos");
+  const [cargando, setCargando] = useState(false);
+  const [cuentaFiltro, setCuentaFiltro] = useState<string>("todas");
+  const [simSel, setSimSel] = useState<string>("__todas__");
+  const [simOpen, setSimOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [markOv, setMarkOv] = useState<Record<string, number>>({});
+  // Marks live refrescados por el botón "Actualizar cotizaciones" (keyed por especie).
+  const [liveMarks, setLiveMarks] = useState<Record<string, { last: number; updated_at: string | null }>>({});
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<string | null>(null);
+  const [multOv, setMultOv] = useState<Record<string, number>>(loadMult);
+  const [excluidas, setExcluidas] = useState<Set<string>>(loadExcl);
 
-  // Al montar, restaurar el último consolidado de sessionStorage.
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Resultado;
-        if (parsed?.resumen && Array.isArray(parsed.resumen)) {
-          setResultado(parsed);
-        }
-      }
+      sessionStorage.setItem(MULT_KEY, JSON.stringify(multOv));
     } catch {
-      /* storage corrupto o disabled — no pasa nada */
+      /* ignore */
     }
-  }, []);
+  }, [multOv]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(EXCL_KEY, JSON.stringify([...excluidas]));
+    } catch {
+      /* ignore */
+    }
+  }, [excluidas]);
+
+  const toggleIncl = (p: Posicion) => {
+    const k = keyOf(p);
+    setExcluidas((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  };
+
+  // ── exclusión por-trade individual + recálculo FIFO en el backend ──
+  const [excTrades, setExcTrades] = useState<Set<string>>(loadExcT);
+  const [recomp, setRecomp] = useState<Record<string, Posicion>>({});
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(EXCT_KEY, JSON.stringify([...excTrades]));
+    } catch {
+      /* ignore */
+    }
+  }, [excTrades]);
+
+  const tradeKey = (p: Posicion, i: number) => `${keyOf(p)}#${i}`;
+  const excCount = (p: Posicion) =>
+    p.trades.reduce((n, _t, i) => (excTrades.has(tradeKey(p, i)) ? n + 1 : n), 0);
+  const toggleTrade = (p: Posicion, i: number) => {
+    const tk = tradeKey(p, i);
+    setExcTrades((prev) => {
+      const n = new Set(prev);
+      if (n.has(tk)) n.delete(tk);
+      else n.add(tk);
+      return n;
+    });
+  };
+
+  // Posición efectiva: null si NO cuenta (especie destildada o todos los trades
+  // fuera); `p` si no tiene exclusión por-trade; el recálculo del backend si tiene
+  // algunos trades fuera (cae a `p` mientras llega la respuesta).
+  const effPos = (p: Posicion): Posicion | null => {
+    if (excluidas.has(keyOf(p))) return null;
+    const exc = excCount(p);
+    if (exc === 0) return p;
+    if (exc >= p.trades.length) return null;
+    return recomp[keyOf(p)] ?? p;
+  };
+
+  // Recalcula (debounce) las posiciones con exclusión PARCIAL por-trade.
+  useEffect(() => {
+    const mods = (resultado?.posiciones ?? []).filter((p) => {
+      const exc = p.trades.reduce((n, _t, i) => (excTrades.has(`${keyOf(p)}#${i}`) ? n + 1 : n), 0);
+      return exc > 0 && exc < p.trades.length;
+    });
+    const ctrl = new AbortController();
+    const id = setTimeout(async () => {
+      if (!mods.length) {
+        setRecomp({});
+        return;
+      }
+      try {
+        const body = {
+          posiciones: mods.map((p) => ({
+            cuenta: p.cuenta,
+            especie: p.especie,
+            moneda: p.moneda,
+            trades: p.trades
+              .filter((_t, i) => !excTrades.has(`${keyOf(p)}#${i}`))
+              .map((t) => ({ hora: t.hora, lado: t.lado, precio: t.precio, cantidad: t.cantidad, monto: t.monto })),
+          })),
+        };
+        const r = await fetch("/api/operaciones/intraday/recalcular", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+        if (!r.ok) return;
+        const data = (await r.json()) as { posiciones: Posicion[] };
+        const m: Record<string, Posicion> = {};
+        for (const pos of data.posiciones) m[`${pos.especie}|${pos.cuenta}`] = pos;
+        setRecomp(m);
+        persistirPosicionesAbiertas(data.posiciones);
+      } catch {
+        /* abort / transitorio */
+      }
+    }, 300);
+    return () => {
+      clearTimeout(id);
+      ctrl.abort();
+    };
+  }, [excTrades, resultado]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
-
+    setCargando(true);
     try {
-      const text = await file.text();
-      const r = consolidar(file.name, text);
-      setResultado(r);
+      const buf = await file.arrayBuffer();
+      const text = new TextDecoder("iso-8859-1").decode(buf); // export viene en latin-1
+      const res = await fetch("/api/operaciones/intraday/analizar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ csv: text, archivo: file.name }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.detail || `Error ${res.status}`);
+      }
+      const data = (await res.json()) as Resultado;
+      data.timestamp = Date.now();
+      setResultado(data);
+      persistirPosicionesAbiertas(data.posiciones);
+      setMarkOv({});
+      setLiveMarks({});
+      setLastRefresh(null);
+      setExpanded(new Set());
+      setExcluidas(new Set());
+      setExcTrades(new Set());
+      setRecomp({});
+      setCuentaFiltro("todas");
+      setSimSel("__todas__");
       try {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch {
-        /* quota excedida o browser privado — fallamos silenciosamente */
+        /* quota */
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      setCargando(false);
       e.target.value = "";
     }
   };
@@ -267,105 +338,186 @@ export function IntradayView() {
   const limpiar = () => {
     setResultado(null);
     setError(null);
+    setMarkOv({});
+    setLiveMarks({});
+    setLastRefresh(null);
+    setExpanded(new Set());
+    setExcluidas(new Set());
+    setExcTrades(new Set());
+    setRecomp({});
     sessionStorage.removeItem(STORAGE_KEY);
   };
 
-  // Resumen filtrado por plazo + ordenado por (moneda, turnover desc).
-  const resumenFiltrado = useMemo(() => {
-    if (!resultado) return [];
-    const filtrado = filtro === "todos"
-      ? resultado.resumen
-      : resultado.resumen.filter((r) => r.plazo === filtro);
-    return [...filtrado].sort((a, b) => {
-      const ma = MONEDA_ORDEN[a.moneda] ?? 9;
-      const mb = MONEDA_ORDEN[b.moneda] ?? 9;
-      if (ma !== mb) return ma - mb;
-      return b.turnover_neto - a.turnover_neto;
+  // Refresca los marks live (precios de mercado) sin re-subir el CSV. Pide al
+  // backend el last actual por especie, actualiza `liveMarks` y PISA los precios
+  // editados a mano en las especies que tienen cotización (los overrides de
+  // especies no mapeadas se preservan: no hay live con qué reemplazarlos).
+  const refreshMarks = async () => {
+    if (!resultado || refreshing) return;
+    const especies = Array.from(new Set(resultado.posiciones.map((p) => p.especie)));
+    if (!especies.length) return;
+    setRefreshing(true);
+    try {
+      const r = await fetch("/api/operaciones/intraday/marks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ especies }),
+      });
+      if (r.ok) {
+        const data = (await r.json()) as { marks: Record<string, { last: number; updated_at: string | null }> };
+        const marks = data.marks || {};
+        setLiveMarks(marks);
+        // "↻ Cotizaciones" es autoritativo: descarta el precio editado a mano en las
+        // especies que ahora tienen cotización live, así el refresh SÍ actualiza el
+        // mark (antes el override manual quedaba pegado y el botón "no funcionaba").
+        // Los overrides de especies sin live (no mapeadas) se preservan.
+        setMarkOv((prev) => {
+          const next: Record<string, number> = {};
+          for (const [k, v] of Object.entries(prev)) {
+            if (marks[k.split("|")[0]] === undefined) next[k] = v;
+          }
+          return next;
+        });
+        setLastRefresh(new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+      }
+    } catch {
+      /* transitorio */
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const cuentas = useMemo(() => {
+    const s = new Set<string>();
+    (resultado?.posiciones ?? []).forEach((p) => s.add(p.cuenta));
+    return Array.from(s).sort();
+  }, [resultado]);
+
+  const posiciones = useMemo(() => {
+    const all = resultado?.posiciones ?? [];
+    return cuentaFiltro === "todas" ? all : all.filter((p) => p.cuenta === cuentaFiltro);
+  }, [resultado, cuentaFiltro]);
+
+  // Prioridad: override manual > mark live refrescado (por especie) > mark del CSV.
+  const effMark = (p: Posicion) => markOv[keyOf(p)] ?? liveMarks[p.especie]?.last ?? p.mark;
+  const effMult = (p: Posicion) => multOv[p.especie] ?? 1;
+  const hasLive = (p: Posicion) => liveMarks[p.especie] !== undefined || p.mark_source === "live";
+
+  const abiertas = useMemo(
+    () =>
+      posiciones
+        .map((p) => effPos(p))
+        .filter((p): p is Posicion => !!p && p.estado !== "CERRADA"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [posiciones, excluidas, excTrades, recomp],
+  );
+
+  // Totales (sobre lo tildado, con marks efectivos y FIFO recalculado por-trade).
+  const totales = useMemo(() => {
+    let real = 0, noreal = 0, fees = 0, neto = 0, costoBook = 0;
+    for (const p of posiciones) {
+      const ep = effPos(p);
+      if (!ep) continue; // destildada (especie o todos los trades fuera)
+      const d = derive(ep, effMark(ep), effMult(ep));
+      real += d.real;
+      noreal += d.noreal;
+      fees += ep.intereses + ep.iva;
+      neto += d.neto;
+      if (ep.estado !== "CERRADA") costoBook += d.costo;
+    }
+    return { real, noreal, fees, neto, costoBook };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posiciones, markOv, liveMarks, multOv, excluidas, excTrades, recomp]);
+
+  // Simulador con mark efectivo.
+  const simData = useMemo(() => {
+    if (!abiertas.length) return null;
+    const ladder = PASOS.flatMap((p) => [p, -p]).concat([0]).sort((a, b) => b - a);
+    if (simSel === "__todas__") {
+      const filas = ladder.map((pct) => ({
+        pct,
+        precio: null as number | null,
+        delta: abiertas.reduce((acc, pos) => acc + pos.qty_neta * effMark(pos) * (pct / 100) * effMult(pos), 0),
+      }));
+      return { filas, mark: null as number | null };
+    }
+    const pos = abiertas.find((p) => keyOf(p) === simSel);
+    if (!pos) return null;
+    const m = effMark(pos);
+    const mult = effMult(pos);
+    const filas = ladder.map((pct) => {
+      const precio = m * (1 + pct / 100);
+      return { pct, precio, delta: pos.qty_neta * (precio - m) * mult };
     });
-  }, [resultado, filtro]);
+    return { filas, mark: m };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abiertas, simSel, markOv, liveMarks, multOv]);
 
-  // Totales por moneda (sobre el filtrado).
-  const totalesPorMoneda = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of resumenFiltrado) {
-      map.set(r.moneda, (map.get(r.moneda) ?? 0) + r.turnover_neto);
-    }
-    return Array.from(map.entries())
-      .map(([moneda, turnoverTotal]) => ({ moneda, turnoverTotal }))
-      .sort((a, b) => (MONEDA_ORDEN[a.moneda] ?? 9) - (MONEDA_ORDEN[b.moneda] ?? 9));
-  }, [resumenFiltrado]);
-
-  // Consolidado por especie (agrupa AL30/AL30D/AL30C → AL30).
-  // Usa la cantidad neta — sirve para chequear descalce de títulos
-  // independientemente de la moneda (si vendiste 100 AL30 ARS y
-  // compraste 100 AL30D USD, estás flat en especie).
-  const consolidadoPorEspecie = useMemo(() => {
-    const map = new Map<string, { especie: string; cantidad_neta: number }>();
-    for (const r of resumenFiltrado) {
-      const prev = map.get(r.especie);
-      if (prev) prev.cantidad_neta += r.cantidad_neta;
-      else map.set(r.especie, { especie: r.especie, cantidad_neta: r.cantidad_neta });
-    }
-    return Array.from(map.values())
-      .sort((a, b) => Math.abs(b.cantidad_neta) - Math.abs(a.cantidad_neta));
-  }, [resumenFiltrado]);
-
-  const hayDatos = resultado && resultado.filasFiltradas > 0;
+  const toggleExpand = (p: Posicion) => {
+    const k = keyOf(p);
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+    if (p.estado !== "CERRADA") setSimSel(k);
+  };
 
   return (
-    <div className="h-full flex flex-col min-h-0 p-3 gap-3 overflow-hidden">
-      {/* Upload + filtros */}
-      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex items-center gap-3 shrink-0 flex-wrap">
-        <label className="px-3 py-1.5 text-[11px] font-semibold tracking-wide border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] cursor-pointer transition-colors">
-          EXAMINAR ARCHIVO
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={onFileChange}
-          />
+    <div className="h-full flex flex-col min-h-0 p-3 gap-2 overflow-hidden">
+      {/* Barra sobria: una línea */}
+      <div className="flex items-center gap-3 shrink-0 text-[11px]">
+        <label className="px-2.5 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] cursor-pointer transition-colors">
+          {cargando ? "…" : "Examinar"}
+          <input type="file" accept=".csv,text/csv" className="hidden" onChange={onFileChange} disabled={cargando} />
         </label>
-        <span className="text-[11px] text-[var(--t-text-dim)] font-mono truncate max-w-[280px]">
-          {resultado?.archivo || "Ningún archivo seleccionado"}
-        </span>
-
         {resultado && (
           <>
-            <div className="h-5 w-px bg-[var(--t-border-2)]" />
-
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)] mr-1">
-                Plazo:
-              </span>
-              {(["todos", "CI", "24hs"] as FiltroPlazo[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setFiltro(p)}
-                  className={`px-2 h-[26px] text-[10px] font-semibold tracking-wide border ${
-                    filtro === p
-                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                      : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-                  }`}
-                >
-                  {p === "todos" ? "AMBOS" : p.toUpperCase()}
-                </button>
-              ))}
-            </div>
-
+            <span className="text-[10px] text-[var(--t-text-muted)] font-mono truncate max-w-[180px]">{resultado.archivo}</span>
+            <span className="text-[10px] text-[var(--t-text-muted)] font-mono">
+              {resultado.filas_validas} trades · {posiciones.filter((p) => p.estado !== "CERRADA").length} abiertas
+            </span>
+            {cuentas.length > 0 && (
+              <select
+                value={cuentaFiltro}
+                onChange={(e) => setCuentaFiltro(e.target.value)}
+                className="bg-[var(--t-surface-2)] border border-[var(--t-border-2)] text-[10px] px-1.5 py-0.5 text-[var(--t-text)]"
+              >
+                <option value="todas">Todas las cuentas</option>
+                {cuentas.map((c) => (
+                  <option key={c} value={c}>Cuenta {c}</option>
+                ))}
+              </select>
+            )}
             <button
-              onClick={limpiar}
-              className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline"
-              title="Borra el consolidado de la sesión"
+              onClick={refreshMarks}
+              disabled={refreshing}
+              className="ml-auto px-2.5 py-1 text-[10px] font-semibold tracking-wide border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-pos)] hover:text-[var(--t-pos)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Traer los precios de mercado actuales (sin re-subir el CSV)"
             >
+              {refreshing ? "Actualizando…" : "↻ Cotizaciones"}
+            </button>
+            {lastRefresh && (
+              <span className="text-[9px] text-[var(--t-text-muted)] font-mono" title="Último refresco de cotizaciones">
+                {lastRefresh}
+              </span>
+            )}
+            <button
+              onClick={() => setSimOpen((v) => !v)}
+              disabled={!abiertas.length}
+              className={`px-2.5 py-1 text-[10px] font-semibold tracking-wide border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                simOpen
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+              }`}
+              title={abiertas.length ? "Abrir/cerrar simulador de precio" : "Sin posiciones abiertas para simular"}
+            >
+              Simulador
+            </button>
+            <button onClick={limpiar} className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] underline">
               limpiar
             </button>
-
-            <div className="ml-auto flex items-center gap-3 text-[10px] text-[var(--t-text-dim)] font-mono">
-              <span>{resultado.filasCrudas} filas totales</span>
-              <span className="text-[var(--t-accent)]">
-                {resultado.filasFiltradas} con Client ID {CLIENT_ID_FILTRO}
-              </span>
-            </div>
           </>
         )}
       </div>
@@ -378,137 +530,274 @@ export function IntradayView() {
 
       {!resultado && !error && (
         <div className="flex-1 flex items-center justify-center text-[var(--t-text-muted)] text-[12px] text-center px-6">
-          Cargá un CSV con las columnas: Client ID, Symbol/Símbolo, Side/Punta,
-          Executed Size/Cantidad Ejecutada, Turnover.
+          Cargá el CSV de boletos del día (Especie, Lado, Precio, Cantidad, Cuenta, Monto).
+          Las cauciones (PESOS/DOLARES) se excluyen automáticamente.
         </div>
       )}
 
-      {resultado && resultado.filasFiltradas === 0 && (
-        <div className="flex-1 flex items-center justify-center text-[var(--t-text-dim)] text-[12px]">
-          Sin operaciones con Client ID = {CLIENT_ID_FILTRO} en este archivo.
-        </div>
-      )}
-
-      {hayDatos && (
-        <div className="flex-1 min-h-0 grid grid-cols-[1fr_auto] gap-3 overflow-hidden">
-          {/* Tabla consolidada (agrupada visualmente por moneda). */}
-          <div className="overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
-            <table className="w-full text-[11px] font-mono border-collapse">
-              <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
-                <tr className="border-b border-[var(--t-border)] text-[10px] uppercase tracking-wide text-[var(--t-accent)]">
-                  <th className="!px-2 !py-1.5 text-left">Símbolo</th>
-                  <th className="!px-2 !py-1.5 text-center">Moneda</th>
-                  <th className="!px-2 !py-1.5 text-center">Plazo</th>
-                  <th className="!px-2 !py-1.5 text-right">Ops</th>
-                  <th className="!px-2 !py-1.5 text-right">Cantidad neta</th>
-                  <th className="!px-2 !py-1.5 text-right">Turnover neto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumenFiltrado.map((r, i) => {
-                  const prev = resumenFiltrado[i - 1];
-                  const divisor = !prev || prev.moneda !== r.moneda;
-                  return (
-                    <tr
-                      key={r.simbolo}
-                      className={`border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5 ${
-                        divisor ? "border-t-2 border-t-[var(--t-border)]" : ""
-                      }`}
-                    >
-                      <td className="!px-2 !py-1 text-[var(--t-text)]">{r.simbolo}</td>
-                      <td
-                        className="!px-2 !py-1 text-center font-semibold"
-                        style={{ color: monedaColor(r.moneda) }}
-                      >
-                        {r.moneda}
-                      </td>
-                      <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{r.plazo}</td>
-                      <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">
-                        {r.operaciones}
-                      </td>
-                      <td className="!px-2 !py-1 text-right text-[var(--t-text)]">
-                        {fmtNum(r.cantidad_neta, 0)}
-                      </td>
-                      <td
-                        className="!px-2 !py-1 text-right font-semibold"
-                        style={{ color: r.turnover_neto >= 0 ? "var(--t-pos)" : "var(--t-neg)" }}
-                      >
-                        {fmtNum(r.turnover_neto)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {resultado && (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-5 gap-2 shrink-0">
+            <KpiBox label="Costo en book" val={totales.costoBook} neutral />
+            <KpiBox label="Realizado" val={totales.real} />
+            <KpiBox label="No realizado" val={totales.noreal} />
+            <KpiBox label="Int. + IVA" val={-totales.fees} />
+            <KpiBox label="PnL Neto" val={totales.neto} big />
           </div>
 
-          {/* Sidebar derecho: totales + consolidado por especie */}
-          <div className="shrink-0 w-96 flex flex-col gap-3 overflow-hidden">
-            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col gap-2 shrink-0">
-              <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
-                Totales por moneda
-              </div>
-              {totalesPorMoneda.map((t) => (
-                <div key={t.moneda} className="flex items-baseline justify-between">
-                  <span
-                    className="text-[10px] uppercase tracking-wide font-semibold"
-                    style={{ color: monedaColor(t.moneda) }}
-                  >
-                    {t.moneda}
-                  </span>
-                  <span
-                    className="text-[13px] font-mono font-bold"
-                    style={{ color: t.turnoverTotal >= 0 ? "var(--t-pos)" : "var(--t-neg)" }}
-                  >
-                    {fmtNum(t.turnoverTotal)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Consolidado por especie (descalce de títulos) */}
-            <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 flex flex-col overflow-hidden flex-1 min-h-0">
-              <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-2 shrink-0">
-                Consolidado por especie
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                <table className="w-full text-[10px] font-mono">
-                  <thead className="sticky top-0 bg-[var(--t-panel)]">
-                    <tr className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
-                      <th className="!py-1 text-left">Especie</th>
-                      <th className="!py-1 text-right">Neto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {consolidadoPorEspecie.map((e) => (
-                      <tr key={e.especie} className="border-t border-[var(--t-border)]">
-                        <td className="!py-1 text-[var(--t-text)]">{e.especie}</td>
-                        <td
-                          className="!py-1 text-right font-semibold"
-                          style={{
-                            color:
-                              e.cantidad_neta === 0
-                                ? "#888"
-                                : e.cantidad_neta > 0
-                                ? "var(--t-pos)"
-                                : "var(--t-neg)",
-                          }}
+          {/* tabla a ancho completo; el simulador vive en un drawer lateral */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="h-full overflow-auto border border-[var(--t-border)] bg-[var(--t-panel)]">
+              <table className="w-full text-[11px] font-mono tabular-nums border-collapse">
+                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-wide text-[var(--t-accent)]">
+                  <tr className="border-b border-[var(--t-border)]">
+                    <th className="!px-1 !py-1.5 text-center" title="Contar como daytrade">✓</th>
+                    <th className="!px-2 !py-1.5 text-left">Especie</th>
+                    {cuentaFiltro === "todas" && <th className="!px-2 !py-1.5 text-center">Cta</th>}
+                    <th className="!px-2 !py-1.5 text-center">Estado</th>
+                    <th className="!px-2 !py-1.5 text-right">Qty</th>
+                    <th className="!px-1 !py-1.5 text-center" title="Multiplicador de contrato (100 = derivado x100)">×</th>
+                    <th className="!px-2 !py-1.5 text-right">Costo</th>
+                    <th className="!px-2 !py-1.5 text-right">Ponder.</th>
+                    <th className="!px-2 !py-1.5 text-right">Mark</th>
+                    <th className="!px-2 !py-1.5 text-right">Realiz.</th>
+                    <th className="!px-2 !py-1.5 text-right">No real.</th>
+                    <th className="!px-2 !py-1.5 text-right">Neto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {posiciones.map((p) => {
+                    const k = keyOf(p);
+                    const eff = effPos(p);          // efectiva (recalculada) o null si no cuenta
+                    const dp = eff ?? p;
+                    const m = effMark(dp);
+                    const mult = effMult(dp);
+                    const d = derive(dp, m, mult);
+                    const off = !eff;               // no cuenta (especie o todos los trades fuera)
+                    const hasTradeExc = excCount(p) > 0;
+                    const recalc = !!eff && hasTradeExc; // exclusión por-trade parcial
+                    const sel = !off && k === simSel && dp.estado !== "CERRADA";
+                    const isOpen = expanded.has(k);
+                    const colSpan = cuentaFiltro === "todas" ? 12 : 11;
+                    return (
+                      <FragmentRow key={k}>
+                        <tr
+                          onClick={() => toggleExpand(p)}
+                          className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-accent)]/5 ${
+                            sel ? "bg-[var(--t-accent)]/15" : ""
+                          } ${p.estado === "CERRADA" ? "opacity-75" : ""} ${off ? "opacity-40" : ""}`}
                         >
-                          {fmtNum(e.cantidad_neta, 0)}
-                        </td>
-                      </tr>
+                          <td className="!px-1 !py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={!excluidas.has(k)}
+                              onChange={() => toggleIncl(p)}
+                              className="cursor-pointer accent-[var(--t-accent)]"
+                              title={excluidas.has(k) ? "No cuenta — clic para incluir" : "Cuenta como daytrade — clic para sacar"}
+                            />
+                          </td>
+                          <td className="!px-2 !py-1 text-[var(--t-text)] font-semibold">
+                            <span className="text-[8px] text-[var(--t-text-muted)] mr-1">{isOpen ? "▾" : "▸"}</span>
+                            {p.especie}
+                            {recalc && <span className="ml-1 text-[8px] text-[var(--t-accent)]" title="recalculado: hay trades sacados">✎</span>}
+                          </td>
+                          {cuentaFiltro === "todas" && <td className="!px-2 !py-1 text-center text-[var(--t-text-dim)]">{p.cuenta}</td>}
+                          <td className="!px-2 !py-1 text-center font-semibold" style={{ color: estadoColor(dp.estado) }}>{eff ? eff.estado : "—"}</td>
+                          <td className="!px-2 !py-1 text-right">{eff ? fmtNum(eff.qty_neta, 0) : "—"}</td>
+                          <td className="!px-1 !py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="number"
+                              step="1"
+                              min="1"
+                              value={mult}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value);
+                                setMultOv((prev) => ({ ...prev, [p.especie]: !v || v <= 0 ? 1 : v }));
+                              }}
+                              className={`w-10 bg-transparent text-center text-[11px] border-b border-dashed focus:outline-none ${
+                                mult !== 1
+                                  ? "text-[var(--t-accent)] border-[var(--t-accent)]"
+                                  : "text-[var(--t-text-dim)] border-[var(--t-border-2)] focus:border-[var(--t-accent)]"
+                              }`}
+                              title="Multiplicador de contrato: 1 = acción/CEDEAR, 100 = derivado x100"
+                            />
+                          </td>
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{eff && eff.estado !== "CERRADA" ? fmtNum(d.costo, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right text-[var(--t-text-dim)]">{eff && eff.precio_ponderado != null ? fmtNum(eff.precio_ponderado, 2) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                            <span className="inline-flex items-center justify-end gap-1">
+                              <input
+                                type="number"
+                                step="1"
+                                value={Number.isFinite(m) ? m : ""}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value);
+                                  setMarkOv((prev) => ({ ...prev, [k]: isNaN(v) ? 0 : v }));
+                                }}
+                                className="w-16 bg-transparent text-right text-[11px] text-[var(--t-text)] border-b border-dashed border-[var(--t-border-2)] focus:border-[var(--t-accent)] focus:outline-none"
+                                title={hasLive(dp) ? "precio de mercado (editable) — ↻ Cotizaciones lo refresca" : "no mapeado — escribilo a mano"}
+                              />
+                              <span className="text-[8px]" style={{ color: markOv[k] !== undefined ? "var(--t-accent)" : hasLive(dp) ? "var(--t-pos)" : "var(--t-text-muted)" }}>
+                                {markOv[k] !== undefined ? "✎" : hasLive(dp) ? "●" : "○"}
+                              </span>
+                            </span>
+                          </td>
+                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(eff ? d.real : 0) }}>{eff ? fmtNum(d.real, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right" style={{ color: pnlColor(eff ? d.noreal : 0) }}>{eff && eff.estado !== "CERRADA" ? fmtNum(d.noreal, 0) : "—"}</td>
+                          <td className="!px-2 !py-1 text-right font-semibold" style={{ color: pnlColor(eff ? d.neto : 0) }}>{eff ? fmtNum(d.neto, 0) : "—"}</td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="bg-[var(--t-bg)]">
+                            <td colSpan={colSpan} className="!px-2 !py-2">
+                              <div className="text-[8px] uppercase tracking-widest text-[var(--t-text-muted)] mb-1">
+                                {p.n_ops} operaciones · int.+IVA {fmtNum(p.intereses + p.iva, 0)}
+                              </div>
+                              <table className="w-full text-[10px] font-mono">
+                                <thead className="text-[8px] uppercase tracking-wide text-[var(--t-text-muted)]">
+                                  <tr>
+                                    <th className="!py-0.5 text-center" title="Contar este trade">✓</th>
+                                    <th className="!py-0.5 text-left">Hora</th>
+                                    <th className="!py-0.5 text-left">Lado</th>
+                                    <th className="!py-0.5 text-right">Precio</th>
+                                    <th className="!py-0.5 text-right">Cantidad</th>
+                                    <th className="!py-0.5 text-right">Monto</th>
+                                    <th className="!py-0.5 text-right">Pos. acum.</th>
+                                    <th className="!py-0.5 text-right">Ponder.</th>
+                                    <th className="!py-0.5 text-right">Int.+IVA</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {p.trades.map((tr, i) => {
+                                    const tExc = excTrades.has(tradeKey(p, i));
+                                    return (
+                                      <tr key={i} className={`border-t border-[var(--t-border)] ${tExc ? "opacity-40" : ""}`}>
+                                        <td className="!py-0.5 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={!tExc}
+                                            onChange={() => toggleTrade(p, i)}
+                                            className="cursor-pointer accent-[var(--t-accent)]"
+                                            title={tExc ? "No cuenta — clic para incluir" : "Cuenta — clic para sacar este trade"}
+                                          />
+                                        </td>
+                                        <td className="!py-0.5 text-[var(--t-text-dim)]">{tr.hora}</td>
+                                        <td className="!py-0.5 font-semibold" style={{ color: tr.lado === "Compra" ? "var(--t-pos)" : "var(--t-neg)" }}>{tr.lado}</td>
+                                        <td className="!py-0.5 text-right">{fmtNum(tr.precio, 2)}</td>
+                                        <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{fmtNum(tr.cantidad, 0)}</td>
+                                        <td className="!py-0.5 text-right">{fmtNum(tr.monto, 0)}</td>
+                                        {/* con trades sacados, el acumulado por-fila ya no aplica (ver totales recalculados arriba) */}
+                                        <td className="!py-0.5 text-right font-semibold" style={{ color: hasTradeExc ? "#888" : Math.abs(tr.pos_acum) < 1e-9 ? "#888" : tr.pos_acum > 0 ? "var(--t-pos)" : "var(--t-neg)" }}>{hasTradeExc ? "—" : fmtNum(tr.pos_acum, 0)}</td>
+                                        <td className="!py-0.5 text-right text-[var(--t-text-dim)]">{hasTradeExc || Math.abs(tr.pos_acum) < 1e-9 ? "—" : fmtNum(tr.ponderado_acum, 2)}</td>
+                                        <td className="!py-0.5 text-right text-[var(--t-neg)]">{fmtNum(tr.interes + tr.iva, 0)}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </FragmentRow>
+                    );
+                  })}
+                  {!posiciones.length && (
+                    <tr><td colSpan={12} className="!px-2 !py-3 text-[var(--t-text-muted)]">sin posiciones para esta cuenta</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+          {/* Simulador — drawer lateral, se abre con el botón */}
+          {simOpen && (
+            <div className="fixed inset-0 z-40" onClick={() => setSimOpen(false)}>
+              <div className="absolute inset-0 bg-black/40" />
+              <div
+                className="absolute top-0 right-0 h-full w-[380px] max-w-[90vw] flex flex-col gap-2 overflow-hidden border-l border-[var(--t-border)] bg-[var(--t-panel)] p-3 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between shrink-0">
+                  <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">Simulador de precio</span>
+                  <button onClick={() => setSimOpen(false)} className="text-[var(--t-text-muted)] hover:text-[var(--t-text)] text-[14px] leading-none px-1" title="Cerrar">
+                    ✕
+                  </button>
+                </div>
+              {!abiertas.length ? (
+                <div className="flex-1 flex items-center justify-center text-[11px] text-[var(--t-text-muted)] text-center">
+                  No hay posiciones abiertas para simular.
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={simSel}
+                    onChange={(e) => setSimSel(e.target.value)}
+                    className="bg-[var(--t-surface-2)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 text-[var(--t-text)] shrink-0"
+                  >
+                    <option value="__todas__">TODAS (abiertas)</option>
+                    {abiertas.map((p) => (
+                      <option key={keyOf(p)} value={keyOf(p)}>{p.especie} · {p.estado} {fmtNum(p.qty_neta, 0)}</option>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-2 pt-2 border-t border-[var(--t-border)] text-[9px] text-[var(--t-text-muted)] leading-relaxed shrink-0">
-                Agrupa AL30/AL30D/AL30C como AL30. Si el neto es 0, estás
-                flat en títulos más allá de la moneda.
-              </div>
+                  </select>
+                  {simData?.mark != null && (
+                    <div className="text-[10px] text-[var(--t-text-dim)] font-mono shrink-0">
+                      Mark: <span className="text-[var(--t-text)]">{fmtNum(simData.mark, 2)}</span>
+                    </div>
+                  )}
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-[11px] font-mono tabular-nums">
+                      <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+                        <tr>
+                          <th className="!py-1 text-left">Mov.</th>
+                          {simData?.mark != null && <th className="!py-1 text-right">Precio</th>}
+                          <th className="!py-1 text-right">P&amp;L Δ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {simData?.filas.map((f) => {
+                          const isMark = f.pct === 0;
+                          return (
+                            <tr key={f.pct} className={`border-t border-[var(--t-border)] ${isMark ? "bg-[var(--t-surface-2)]" : ""}`}>
+                              <td className={`!py-1 ${isMark ? "text-[var(--t-accent)] font-semibold" : "text-[var(--t-text-dim)]"}`}>
+                                {isMark ? "actual" : `${fmtSigned(f.pct, 2)}%`}
+                              </td>
+                              {simData?.mark != null && <td className="!py-1 text-right text-[var(--t-text)]">{fmtNum(f.precio, 2)}</td>}
+                              <td className="!py-1 text-right font-semibold" style={{ color: isMark ? "#888" : pnlColor(f.delta) }}>
+                                {isMark ? "—" : fmtSigned(f.delta, 0)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="text-[9px] text-[var(--t-text-muted)] leading-relaxed shrink-0 pt-1 border-t border-[var(--t-border)]">
+                    Impacto sobre el mark si el precio se mueve ese %. Short: suba = pérdida.
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
+          )}
+        </>
       )}
+    </div>
+  );
+}
+
+// Wrapper para devolver dos <tr> (fila + detalle) con una sola key.
+function FragmentRow({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
+
+function KpiBox({ label, val, big, neutral }: { label: string; val: number; big?: boolean; neutral?: boolean }) {
+  return (
+    <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-1.5">
+      <div className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">{label}</div>
+      <div className={`font-mono font-bold ${big ? "text-[17px]" : "text-[13px]"}`} style={{ color: neutral ? "var(--t-text)" : pnlColor(val) }}>
+        {neutral ? fmtNum(val, 0) : fmtSigned(val, 0)}
+      </div>
     </div>
   );
 }

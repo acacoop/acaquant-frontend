@@ -29,7 +29,15 @@ async function proxy(req: Request, path: string[]) {
       headers["x-acaquant-user-email"] = userEmail;
     }
 
-    const res = await fetch(target, { method: "GET", headers, cache: "no-store" });
+    // POST: forward el body + content-type (la vista Intraday manda el CSV).
+    const init: RequestInit = { method: req.method, headers, cache: "no-store" };
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      init.body = await req.text();
+      const ct = req.headers.get("content-type");
+      if (ct) headers["content-type"] = ct;
+    }
+
+    const res = await fetch(target, init);
     const text = await res.text();
     return new NextResponse(text, {
       status: res.status,
@@ -44,6 +52,13 @@ async function proxy(req: Request, path: string[]) {
 }
 
 export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ path?: string[] }> },
+) {
+  return proxy(req, (await params).path ?? []);
+}
+
+export async function POST(
   req: Request,
   { params }: { params: Promise<{ path?: string[] }> },
 ) {

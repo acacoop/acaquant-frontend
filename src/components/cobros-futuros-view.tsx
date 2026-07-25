@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fmtMoney } from "@/lib/fmt-money";
+import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 
 /**
  * COBROS FUTUROS (tab de OPERADORES, dentro de NEGOCIO).
@@ -33,8 +33,9 @@ type Titulo = { fecha_pago: string; ticker: string | null; emisor: string | null
 type ClienteResp = { id_cuenta: string; cliente: string | null; serie: SeriePt[]; titulos: Titulo[]; total_ars: number; total_usd: number };
 type Mon = "ARS" | "USD";
 
-const nivelQS = (n1?: string, n3?: string, ref?: string) =>
+const nivelQS = (n1?: string, n2?: string, n3?: string, ref?: string) =>
   (n1 ? `&nivel_1=${encodeURIComponent(n1)}` : "") +
+  (n2 ? `&nivel_2=${encodeURIComponent(n2)}` : "") +
   (n3 ? `&nivel_3=${encodeURIComponent(n3)}` : "") +
   (ref ? `&referido=${encodeURIComponent(ref)}` : "");
 
@@ -48,6 +49,16 @@ const fmtFecha = (s: string) => {
   const [y, m, d] = s.split("-");
   return d ? `${d}/${m}/${y.slice(-2)}` : s;
 };
+
+// Fecha LOCAL del browser en ISO YYYY-MM-DD, con offset de días opcional.
+function isoLocal(offsetDias = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDias);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${da}`;
+}
 
 const monKey = (m: string | null): "ars" | "usd" => (m === "USD" ? "usd" : "ars");
 
@@ -81,16 +92,18 @@ export function CobrosFuturosView({
   operador,
   moneda = "ARS",
   nivel1 = "",
+  nivel2 = "",
   nivel3 = "",
   referido = "",
 }: {
   operador: string;
   moneda?: Mon;
   nivel1?: string;
+  nivel2?: string;
   nivel3?: string;
   referido?: string;
 }) {
-  const nQS = nivelQS(nivel1, nivel3, referido);
+  const nQS = nivelQS(nivel1, nivel2, nivel3, referido);
 
   // Moneda LOCAL de la vista (arranca del filtro madre, pero el toggle de acá
   // manda y filtra todo: tabla, gráfico, sumatoria y detalle).
@@ -105,10 +118,15 @@ export function CobrosFuturosView({
   const [selBucket, setSelBucket] = useState<string | null>(null);
   const [agg, setAgg] = useState<Agg>("MES");
   const [escala, setEscala] = useState<"lin" | "log">("lin");
+  // Rango por FECHA DE COBRO (ISO 'YYYY-MM-DD'). Default = HOY → HOY+60 (lo más
+  // útil es lo que se viene ya). Vacío ("todo") = todo el futuro.
+  const [desde, setDesde] = useState<string>(() => isoLocal(0));
+  const [hasta, setHasta] = useState<string>(() => isoLocal(60));
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const fechaQS = (desde ? `&desde=${desde}` : "") + (hasta ? `&hasta=${hasta}` : "");
 
-  // Scope (operador + filtros madre) → tabla + serie base. Reset selección.
+  // Scope (operador + filtros madre + rango de cobro) → tabla + serie base. Reset selección.
   useEffect(() => {
     let cancel = false;
     (async () => {
@@ -116,14 +134,10 @@ export function CobrosFuturosView({
         setLoading(true);
         setErr(null);
         const d = await getJson<ScopeResp>(
-          `/api/operaciones/comercial/cobros-futuros?operador=${encodeURIComponent(operador)}${nQS}`,
+          `/api/operaciones/comercial/cobros-futuros?operador=${encodeURIComponent(operador)}${nQS}${fechaQS}`,
         );
         if (cancel) return;
         setScope(d);
-        setSel(null);
-        setDetalle(null);
-        setSelTicker(null);
-        setSelBucket(null);
       } catch (e) {
         if (!cancel) setErr(e instanceof Error ? e.message : "error");
       } finally {
@@ -133,6 +147,14 @@ export function CobrosFuturosView({
     return () => {
       cancel = true;
     };
+  }, [operador, nQS, fechaQS]);
+
+  // Reset de la selección SOLO cuando cambia el universo de clientes (operador/niveles),
+  // NO al mover el rango de fecha → así podés ajustar el rango con una cuenta elegida.
+  useEffect(() => {
+    setSel(null);
+    setSelTicker(null);
+    setSelBucket(null);
   }, [operador, nQS]);
 
   // Detalle del cliente seleccionado (interactivo).
@@ -167,13 +189,32 @@ export function CobrosFuturosView({
     return [...list].sort((a, b) => (mk === "usd" ? b.total_usd - a.total_usd : b.total_ars - a.total_ars));
   }, [scope, mk]);
 
+  // Títulos del cliente ACOTADOS por el rango de fecha de cobro (el endpoint de detalle
+  // trae todo el libro; el rango se aplica acá). Alimenta gráfico + por-título + detalle.
+  const titulosRango = useMemo(() => {
+    const list = detalle?.titulos ?? [];
+    return list.filter(
+      (t) => (!desde || t.fecha_pago >= desde) && (!hasta || t.fecha_pago <= hasta),
+    );
+  }, [detalle, desde, hasta]);
+
+  // Detalle por fecha TOTAL (sin cuenta elegida): la serie del scope ya viene filtrada por
+  // rango desde el backend. {fecha, monto en la moneda activa}.
+  const serieRows = useMemo(() => {
+    return (scope?.serie ?? [])
+      .map((p) => ({ fecha: p.fecha, monto: mk === "usd" ? p.usd : p.ars }))
+      .filter((r) => r.monto !== 0)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }, [scope, mk]);
+  const totalSerie = useMemo(() => serieRows.reduce((s, r) => s + r.monto, 0), [serieRows]);
+
   // Gráfico de BARRAS por fecha (NO acumulado), en la moneda activa.
   //  · sin cliente → serie del scope.
   //  · con cliente → sus títulos (filtrados por moneda y, si hay, por ticker).
   const chartData = useMemo(() => {
     const map: Record<string, number> = {};
     if (sel && detalle) {
-      for (const t of detalle.titulos) {
+      for (const t of titulosRango) {
         if (monKey(t.moneda) !== mk) continue;
         if (selTicker && t.ticker !== selTicker) continue;
         const k = bucketKey(t.fecha_pago, agg);
@@ -188,24 +229,24 @@ export function CobrosFuturosView({
     return Object.keys(map)
       .sort()
       .map((k) => ({ bucket: k, monto: map[k] }));
-  }, [sel, detalle, scope, mk, selTicker, agg]);
+  }, [sel, detalle, titulosRango, scope, mk, selTicker, agg]);
 
   // Sumatoria POR TÍTULO del cliente (moneda activa).
   const porTitulo = useMemo(() => {
     if (!sel || !detalle) return [] as { ticker: string; emisor: string | null; total: number }[];
     const map: Record<string, { ticker: string; emisor: string | null; total: number }> = {};
-    for (const t of detalle.titulos) {
+    for (const t of titulosRango) {
       if (monKey(t.moneda) !== mk) continue;
       const k = t.ticker || "—";
       (map[k] ??= { ticker: k, emisor: t.emisor, total: 0 }).total += t.monto;
     }
     return Object.values(map).sort((a, b) => b.total - a.total);
-  }, [sel, detalle, mk]);
+  }, [sel, detalle, titulosRango, mk]);
 
   // Detalle por fecha (moneda activa + drilldown por ticker / por fecha).
   const detalleRows = useMemo(() => {
     if (!sel || !detalle) return [] as Titulo[];
-    return detalle.titulos
+    return titulosRango
       .filter(
         (t) =>
           monKey(t.moneda) === mk &&
@@ -213,10 +254,14 @@ export function CobrosFuturosView({
           (!selBucket || bucketKey(t.fecha_pago, agg) === selBucket),
       )
       .sort((a, b) => a.fecha_pago.localeCompare(b.fecha_pago) || b.monto - a.monto);
-  }, [sel, detalle, mk, selTicker, selBucket, agg]);
+  }, [sel, detalle, titulosRango, mk, selTicker, selBucket, agg]);
 
   const totalScope = mk === "usd" ? scope?.total_usd ?? 0 : scope?.total_ars ?? 0;
-  const totalCli = detalle ? (mk === "usd" ? detalle.total_usd : detalle.total_ars) : 0;
+  // Total del cliente ACOTADO al rango (suma de sus títulos en la moneda activa).
+  const totalCli = useMemo(
+    () => titulosRango.filter((t) => monKey(t.moneda) === mk).reduce((s, t) => s + t.monto, 0),
+    [titulosRango, mk],
+  );
 
   return (
     <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
@@ -224,11 +269,30 @@ export function CobrosFuturosView({
       <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
         {/* TABLA CLIENTES */}
         <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
+          <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 flex-wrap">
             <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes · cobros futuros</span>
             <MonToggle mon={mon} onChange={setMon} />
+            {/* Rango por fecha de cobro. Vacío = todo el futuro. */}
+            <label className={"inline-flex items-center gap-1.5 border px-2 py-0.5 text-[10px] " + ((desde || hasta) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Filtrar por fecha de cobro. Vacío = todo el futuro.">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
+              <input type="date" value={desde} max={hasta || undefined}
+                onChange={(e) => setDesde(e.target.value)}
+                className="bg-transparent text-[10px] tabular-nums text-[var(--t-text)] outline-none" />
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Hasta</span>
+              <input type="date" value={hasta} min={desde || undefined}
+                onChange={(e) => setHasta(e.target.value)}
+                className="bg-transparent text-[10px] tabular-nums text-[var(--t-text)] outline-none" />
+              {(desde || hasta) && <button onClick={() => { setDesde(""); setHasta(""); }} title="Quitar filtro de fecha" className="text-[9px] text-[var(--t-accent)] hover:underline">todo</button>}
+            </label>
+            <button
+              onClick={() => { const h = isoLocal(0); setDesde(h); setHasta(h); setAgg("DIA"); }}
+              title="Solo lo que se cobra HOY"
+              className="border border-[var(--t-border-2)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+            >
+              HOY
+            </button>
             <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
-            <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoney(totalScope)}</span>
+            <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoneyFull(totalScope)}</span>
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
             {loading ? (
@@ -258,7 +322,7 @@ export function CobrosFuturosView({
                       >
                         <td className="!px-2 truncate max-w-[180px]" title={c.cliente ?? ""}>{c.cliente || c.id_cuenta}</td>
                         <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{c.id_cuenta}</td>
-                        <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoney(tot)}</td>
+                        <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(tot)}</td>
                       </tr>
                     );
                   })}
@@ -314,10 +378,11 @@ export function CobrosFuturosView({
                     cursor={{ fill: "var(--t-border)", opacity: 0.3 }}
                     contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border)", fontSize: 10 }}
                     labelFormatter={(l) => bucketLabel(String(l), agg)}
-                    formatter={(v) => [`${mon} ${fmtMoney(Number(v))}`, "A cobrar"]}
+                    formatter={(v) => [`${mon} ${fmtMoneyFull(Number(v))}`, "A cobrar"]}
                   />
                   <Bar
                     dataKey="monto"
+                    maxBarSize={72}
                     onClick={(d) => {
                       const k = (d as { bucket?: string })?.bucket ?? null;
                       setSelBucket((prev) => (prev === k ? null : k));
@@ -342,10 +407,36 @@ export function CobrosFuturosView({
       {/* DERECHA: 50% sumatoria por título + 50% detalle por fecha */}
       <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
         {!sel || !detalle ? (
-          <div className="flex-1 flex items-center justify-center border border-[var(--t-border)] p-3">
-            <span className="text-[11px] text-[var(--t-text-dim)] text-center">
-              Elegí un cliente (tabla izquierda) para ver su sumatoria por título y el detalle por fecha.
-            </span>
+          /* Sin cuenta elegida → DETALLE POR FECHA TOTAL de todo el scope (serie ya
+             filtrada por rango en el backend). Elegir un cliente enfoca el detalle por título. */
+          <div className="flex-1 min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+            <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Detalle por fecha · Total</span>
+              <span className="text-[9px] text-[var(--t-text-dim)] truncate">todo el scope · elegí un cliente para el detalle por título</span>
+              <span className="ml-auto text-[10px] font-mono font-semibold text-[var(--t-accent)]">{mon} {fmtMoneyFull(totalSerie)}</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              {serieRows.length === 0 ? (
+                <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin cobros futuros para el filtro.</p>
+              ) : (
+                <table className="w-full text-[10px]">
+                  <thead className="sticky top-0 bg-[var(--t-panel)]">
+                    <tr className="text-[var(--t-text-muted)]">
+                      <th className="text-left !px-2">Fecha</th>
+                      <th className="text-right !px-2">Monto {mon}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {serieRows.map((r) => (
+                      <tr key={r.fecha} className="hover:bg-[var(--t-border)]">
+                        <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{fmtFecha(r.fecha)}</td>
+                        <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(r.monto)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         ) : (
           <>
@@ -357,7 +448,7 @@ export function CobrosFuturosView({
                     {detalle.cliente || detalle.id_cuenta}
                   </div>
                   <span className="ml-auto text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">Σ {mon}</span>
-                  <span className="font-mono font-semibold text-[var(--t-accent)] text-[12px]">{fmtMoney(totalCli)}</span>
+                  <span className="font-mono font-semibold text-[var(--t-accent)] text-[12px]">{fmtMoneyFull(totalCli)}</span>
                 </div>
                 <div className="text-[9px] text-[var(--t-text-muted)] tabular-nums">Cuenta {detalle.id_cuenta} · sumatoria por título</div>
               </div>
@@ -384,7 +475,7 @@ export function CobrosFuturosView({
                           >
                             <td className="!px-2 font-semibold">{t.ticker}</td>
                             <td className="!px-2 text-[var(--t-text-dim)] truncate max-w-[140px]" title={t.emisor ?? ""}>{t.emisor || "--"}</td>
-                            <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoney(t.total)}</td>
+                            <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(t.total)}</td>
                           </tr>
                         );
                       })}
@@ -429,7 +520,7 @@ export function CobrosFuturosView({
                           <td className="!px-2 tabular-nums text-[var(--t-text-dim)]">{fmtFecha(t.fecha_pago)}</td>
                           <td className="!px-2 font-semibold">{t.ticker || "--"}</td>
                           <td className="!px-2 text-[var(--t-text-dim)] truncate max-w-[140px]" title={t.emisor ?? ""}>{t.emisor || "--"}</td>
-                          <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoney(t.monto)}</td>
+                          <td className="!px-2 text-right tabular-nums font-semibold">{fmtMoneyFull(t.monto)}</td>
                         </tr>
                       ))}
                     </tbody>

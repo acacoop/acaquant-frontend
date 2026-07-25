@@ -21,8 +21,8 @@ import { isGuestRequest, trustedEmail } from "./lib/cf-access";
 // sub-módulos (asistente_comercial = manager_comercial + manager_clientes).
 // Coincide con require_any_module() del backend en api/auth.py.
 const PATH_MODULES: [string, string[]][] = [
-  ["/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
-  ["/api/manager", ["manager", "manager_comercial", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
+  ["/manager", ["manager", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
+  ["/api/manager", ["manager", "manager_clientes", "manager_clientes_bulk", "manager_titulos"]],
   // /operar (DOLAR MEP, órdenes vivas, saldo) — módulo `operar`
   ["/operar", ["operar"]],
   ["/api/ordenes", ["operar"]],
@@ -30,7 +30,7 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/operar", ["operar"]],
   ["/api/risk", ["operar"]],
   // /operaciones (movimientos, depósitos, intraday) + /operadores (ex comercial)
-  // + /contrapartes (contrapartes + flujo vs aum) — todas módulo `operaciones`
+  // + /contrapartes — todas módulo `operaciones`
   ["/operaciones", ["operaciones"]],
   ["/operadores", ["operaciones"]],
   ["/referidos", ["operaciones"]],
@@ -42,6 +42,15 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/portfolio", ["portfolios"]],
   ["/api/titulos", ["portfolios"]],
   ["/back-office", ["back-office"]],
+  // /research (vista Research: research diario 1816 + market data) — módulo `research`.
+  // Prefijo API distinto de /api/research (Análisis Fundamental de RV) — no colisiona.
+  ["/research", ["research"]],
+  ["/api/research1816", ["research"]],
+  ["/api/research-bcra", ["research"]],
+  ["/api/research-fred", ["research"]],
+  ["/api/research-docs", ["research"]],
+  // /api/ia (briefing + observabilidad IA) — módulo `ia` (marca AI, QuantAI)
+  ["/api/ia", ["ia"]],
   // /renta-variable (Scanner: CEDEARs + métricas quant sobre Trading.PreciosAcciones)
   ["/renta-variable", ["renta-variable"]],
   ["/api/scanner",    ["renta-variable"]],
@@ -171,7 +180,13 @@ export const config = {
     "/aum/:path*",
     "/valuaciones/:path*",
     "/back-office/:path*",
+    "/research/:path*",
     "/api/manager/:path*",
+    "/api/research1816/:path*",
+    "/api/research-bcra/:path*",
+    "/api/research-fred/:path*",
+    "/api/research-docs/:path*",
+    "/api/ia/:path*",
     "/api/operaciones/:path*",
     "/api/ordenes/:path*",
     "/api/operativa/:path*",

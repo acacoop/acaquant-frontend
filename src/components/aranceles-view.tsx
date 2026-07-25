@@ -6,6 +6,7 @@
 // y agrega/filtra en cliente (toolbar idéntico a OPERACIONES). Endpoint /ops/aranceles.
 
 import { useEffect, useMemo, useState } from "react";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 
 type Moneda = "ARS" | "USD";
@@ -43,19 +44,22 @@ type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 export function ArancelesView() {
   // El arancel es un solo valor SIEMPRE en pesos (no existe arancel en USD) → sin toggle.
   const moneda: Moneda = "ARS";
-  const [segmento, setSegmento] = useState("");
+  // Filtros PERSISTIDOS (claves `ar.*`): sobreviven a navegar entre rutas y
+  // habilitan la navegación asistida del guía (v1.82 — el panel escribe estas
+  // mismas claves; ver api/services/copiloto/navegacion.py).
+  const [segmento, setSegmento] = usePersistedState<string>("ar.segmento", "");
   const [segmentos, setSegmentos] = useState<string[]>([]);
-  const [operador, setOperador] = useState("");
+  const [operador, setOperador] = usePersistedState<string>("ar.operador", "");
   const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null }[]>([]);
-  const [dim, setDim] = useState<Dim>("nivel3");
+  const [dim, setDim] = usePersistedState<Dim>("ar.dim", "nivel3");
   const [selDim, setSelDim] = useState<string | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [selInstr, setSelInstr] = useState<string | null>(null);
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
-  const [modo, setModo] = useState<Modo>("ULTIMA");
-  const [rDesde, setRDesde] = useState("");
-  const [rHasta, setRHasta] = useState("");
+  const [modo, setModo] = usePersistedState<Modo>("ar.modo", "ULTIMA");
+  const [rDesde, setRDesde] = usePersistedState<string>("ar.desde", "");
+  const [rHasta, setRHasta] = usePersistedState<string>("ar.hasta", "");
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
   const [meta, setMeta] = useState<{ n_boletos: number } | null>(null);
   // La serie del gráfico llega acotada a ~18m (perf). Al elegir "ALL" pedimos
@@ -63,6 +67,10 @@ export function ArancelesView() {
   const [serieFull, setSerieFull] = useState(false);
 
   const fecha = fechas[0]?.fecha ?? "";   // ancla = fecha más reciente
+  // Rango de DATOS (fechas viene DESC: [0]=última, [last]=primera). Los date inputs se
+  // acotan a esto — NO uno al otro (eso deadlockeaba el hasta en modo ULTIMA).
+  const minFecha = fechas.length ? fechas[fechas.length - 1].fecha : undefined;
+  const maxFecha = fechas.length ? fechas[0].fecha : undefined;
   const rango = useMemo(() => {
     if (!fechas.length) return { desde: "", hasta: "" };
     const ultima = fechas[0].fecha;
@@ -100,7 +108,9 @@ export function ArancelesView() {
   useEffect(() => {
     if (!rango.desde || !rango.hasta) return;
     setLoading(true);
-    const qs = `moneda=${moneda}&desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO&dim=${dim}`
+    // Normalizar por si quedó desde > hasta (ahora los inputs son libres dentro del rango de datos).
+    const [qDesde, qHasta] = rango.desde <= rango.hasta ? [rango.desde, rango.hasta] : [rango.hasta, rango.desde];
+    const qs = `moneda=${moneda}&desde=${qDesde}&hasta=${qHasta}&agg=DIARIO&dim=${dim}`
       + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
       + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
       + (selDim ? `&sel_dim=${encodeURIComponent(selDim)}` : "")
@@ -129,11 +139,11 @@ export function ArancelesView() {
           <button key={m} onClick={() => setModo(m)} className={"px-2 py-0.5 border text-[11px] font-semibold " + (modo === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]")}>{m}</button>
         ))}
         <div className="inline-flex items-center border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          <input type="date" value={rango.desde} max={rango.hasta || undefined} disabled={!fechas.length}
+          <input type="date" value={rango.desde} min={minFecha} max={maxFecha} disabled={!fechas.length}
             onChange={(e) => onDesde(e.target.value)}
             className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
           <span className="px-1 text-[var(--t-text-dim)]">→</span>
-          <input type="date" value={rango.hasta} min={rango.desde || undefined} disabled={!fechas.length}
+          <input type="date" value={rango.hasta} min={minFecha} max={maxFecha} disabled={!fechas.length}
             onChange={(e) => onHasta(e.target.value)}
             className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
         </div>

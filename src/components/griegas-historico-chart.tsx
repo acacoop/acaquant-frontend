@@ -49,6 +49,10 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [griega, setGriega] = useState<GriegaKey>("delta");
+  // Ventana de zoom del brush (índices de fecha). Controlada → el dominio del
+  // eje X la sigue: arrastrar/mover el brush hace zoom+pan real sobre las fechas.
+  // `len` invalida el zoom cuando cambia la cantidad de puntos.
+  const [brush, setBrush] = useState<{ start: number; end: number; len: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +128,13 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
     return serie.map((p) => p.idx);
   }, [serie]);
 
+  // El zoom vale solo mientras la serie no cambie de tamaño (otro contrato). El
+  // cambio de griega NO cambia el tamaño → se respeta el zoom. Derivado en
+  // render, sin setState en un effect.
+  const startIdx = brush && brush.len === serie.length ? brush.start : 0;
+  const endIdx =
+    brush && brush.len === serie.length ? brush.end : Math.max(0, serie.length - 1);
+
   const fmtVal = (v: number) =>
     cfg.pct
       ? `${v.toFixed(1)}%`
@@ -191,7 +202,8 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
             <XAxis
               dataKey="idx"
               type="number"
-              domain={[0, Math.max(0, serie.length - 1)]}
+              domain={[startIdx, endIdx]}
+              allowDataOverflow
               ticks={xTicks}
               tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
@@ -237,6 +249,15 @@ export function GriegasHistoricoChart({ instrumento }: { instrumento: string }) 
               fill="#0a0a0a"
               travellerWidth={8}
               tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
+              startIndex={startIdx}
+              endIndex={endIdx}
+              onChange={(r) => {
+                const s = (r as { startIndex?: number }).startIndex;
+                const e = (r as { endIndex?: number }).endIndex;
+                if (typeof s === "number" && typeof e === "number") {
+                  setBrush({ start: s, end: e, len: serie.length });
+                }
+              }}
             />
           </LineChart>
         </ResponsiveContainer>

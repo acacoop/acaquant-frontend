@@ -4,37 +4,27 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { SensibilidadTable } from "./sensibilidad-table";
 import { DescomposicionTab } from "./descomposicion-tab";
 import { CompararInversionView } from "./comparar-inversion-view";
-import { TradeLabView } from "./trade-lab-view";
-import { CoberturasView } from "./coberturas-view";
 
-// Vista ESTRATEGIA (MERCADOS → Estrategia). Tabs:
-//   TRADE LAB    — asistente de day-trading intradía de CEDEARs (vueltas,
-//                  rango, spread, alertas — /api/scanner/day-trading).
-//   COBERTURAS   — riesgo de un trade puntual + buscador de coberturas
-//                  por correlación (/api/scanner/trade-analysis).
-//   Herramientas RF: COMPARAR INVERSIÓN · ANÁLISIS SENSIBILIDAD · DESCOMPOSICIÓN.
-// "RETORNO TOTAL" y "CANJE" se migraron a la HOME. La tab BOOK & RIESGO se
-// eliminó (2026-06-10) y CORRELACIONES se integró al TRADE LAB ("se mueve
-// con/contra") — pedido del user.
+// Vista ESTRATEGIA (MERCADOS → Estrategia) — herramientas RF:
+//   COMPARAR INVERSIÓN · ANÁLISIS SENSIBILIDAD · DESCOMPOSICIÓN.
+// "RETORNO TOTAL" y "CANJE" se migraron a la HOME. BOOK & RIESGO se eliminó
+// (2026-06-10). TRADE LAB se sacó de acá (2026-06-11) → vista propia
+// /trade-lab, admin-only. COBERTURAS se eliminó (2026-07-13, vista muerta).
 type EstrategiaTab =
-  | "tradelab"
-  | "coberturas"
   | "comparar"
   | "sensibilidad"
   | "descomposicion";
 
 const TABS: { key: EstrategiaTab; label: string }[] = [
-  { key: "tradelab",       label: "TRADE LAB" },
-  { key: "coberturas",     label: "COBERTURAS" },
   { key: "comparar",       label: "COMPARAR INVERSIÓN" },
   { key: "sensibilidad",   label: "ANÁLISIS SENSIBILIDAD" },
   { key: "descomposicion", label: "DESCOMPOSICIÓN" },
 ];
 
-export function RetornoTotalView({ puedeOperar = false }: { puedeOperar?: boolean }) {
-  const [tabRaw, setTab] = usePersistedState<EstrategiaTab>("estrategia.tab", "tradelab");
-  // Valores persistidos de tabs eliminadas (book/correlaciones) → default.
-  const tab: EstrategiaTab = TABS.some((t) => t.key === tabRaw) ? tabRaw : "tradelab";
+export function RetornoTotalView() {
+  const [tabRaw, setTab] = usePersistedState<EstrategiaTab>("estrategia.tab", "comparar");
+  // Valores persistidos de tabs eliminadas (coberturas/tradelab/book) → default.
+  const tab: EstrategiaTab = TABS.some((t) => t.key === tabRaw) ? tabRaw : "comparar";
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -42,16 +32,16 @@ export function RetornoTotalView({ puedeOperar = false }: { puedeOperar?: boolea
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest mr-3">
           ESTRATEGIA
         </span>
-        {TABS.map((t, i) => (
-          <span key={t.key} className="flex items-center gap-1">
-            {i === 2 && <span className="h-4 w-px bg-[var(--t-border-2)] mx-1.5" />}
-            <TabPill label={t.label} active={tab === t.key} onClick={() => setTab(t.key)} />
-          </span>
+        {TABS.map((t) => (
+          <TabPill
+            key={t.key}
+            label={t.label}
+            active={tab === t.key}
+            onClick={() => setTab(t.key)}
+          />
         ))}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "tradelab" && <TradeLabView puedeOperar={puedeOperar} />}
-        {tab === "coberturas" && <CoberturasView />}
         {tab === "comparar" && <CompararInversionView />}
         {/* Sensibilidad sin el panel de cálculos/explicación (se migra a Manager → Debug). */}
         {tab === "sensibilidad" && <SensibilidadTable compact />}

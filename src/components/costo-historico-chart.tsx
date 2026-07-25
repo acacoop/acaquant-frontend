@@ -39,6 +39,11 @@ export function CostoHistoricoChart({
   // 2º eje Y: spot del subyacente (GGAL) desde Opciones.VR-GGal, switch ARS/ADR.
   const [spotMoneda, setSpotMoneda] = useState<"ARS" | "ADR">("ARS");
   const [vrMap, setVrMap] = useState<Record<string, { local?: number; adr?: number }>>({});
+  // Ventana de zoom del brush (en índices de bucket). Controlada: el dominio del
+  // eje X la sigue, así arrastrar/mover el brush hace zoom+pan real sobre las
+  // fechas en vez de comprimir la línea contra el borde (que parecía "borrarla").
+  // Guardamos `len` para invalidar el zoom cuando cambia la cantidad de puntos.
+  const [brush, setBrush] = useState<{ start: number; end: number; len: number } | null>(null);
 
   // Firma estable de los legs para disparar el refetch al cambiar estrategia.
   const legsKey = useMemo(
@@ -140,6 +145,13 @@ export function CostoHistoricoChart({
   }, [data, vrMap, spotMoneda]);
 
   const haySpot2 = useMemo(() => serie.some((p) => p.spot2 != null), [serie]);
+
+  // El zoom vale solo mientras la serie no cambie de tamaño (otra estrategia /
+  // bucket distinto). Si cambió, volvemos a full — derivado en render, sin
+  // setState en un effect.
+  const startIdx = brush && brush.len === serie.length ? brush.start : 0;
+  const endIdx =
+    brush && brush.len === serie.length ? brush.end : Math.max(0, serie.length - 1);
 
   const stats = useMemo(() => {
     if (!serie.length) return null;
@@ -300,7 +312,8 @@ export function CostoHistoricoChart({
             <XAxis
               dataKey="idx"
               type="number"
-              domain={[0, Math.max(0, serie.length - 1)]}
+              domain={[startIdx, endIdx]}
+              allowDataOverflow
               ticks={xTicks}
               tick={{ fill: "var(--t-text-dim)", fontSize: 9 }}
               axisLine={{ stroke: "var(--t-border-2)" }}
@@ -396,6 +409,15 @@ export function CostoHistoricoChart({
               fill="var(--t-surface)"
               travellerWidth={8}
               tickFormatter={(idx: number) => fmtTickFecha(Number(idx))}
+              startIndex={startIdx}
+              endIndex={endIdx}
+              onChange={(r) => {
+                const s = (r as { startIndex?: number }).startIndex;
+                const e = (r as { endIndex?: number }).endIndex;
+                if (typeof s === "number" && typeof e === "number") {
+                  setBrush({ start: s, end: e, len: serie.length });
+                }
+              }}
             />
           </LineChart>
         </ResponsiveContainer>

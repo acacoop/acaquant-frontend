@@ -20,6 +20,7 @@ import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 import { ComercialInforme } from "./comercial-informe-view";
 import { CobrosFuturosView } from "./cobros-futuros-view";
+import { ComercialControlView } from "./comercial-control-view";
 
 // Vista COMERCIAL (en OPERACIONES) — lente por operador.
 // Layout:
@@ -39,6 +40,7 @@ type Resumen = {
 };
 type Ficha = {
   denominacion: string | null;
+  operador_nombre: string | null;
   telefono: string | null;
   email: string | null;
   nivel_1: string | null;
@@ -195,6 +197,7 @@ function filtrarRango(serie: SeriePoint[], rango: RangoKey, offset = 0): SeriePo
 
 // Campos de la ficha (tab "Datos") — se muestran SIEMPRE, incluso null.
 const FICHA_DATOS: [keyof Ficha, string][] = [
+  ["operador_nombre", "Operador"],
   ["telefono", "Teléfono"], ["email", "Email"],
   ["nivel_1", "Nivel 1"], ["nivel_2", "Nivel 2"], ["nivel_3", "Nivel 3"],
   ["nivel_4", "Nivel 4"], ["nivel_5", "Nivel 5"],
@@ -203,7 +206,7 @@ const FICHA_DATOS: [keyof Ficha, string][] = [
 ];
 
 // Sub-vistas de COMERCIAL (sub-nav arriba-izquierda).
-type SubView = "portfolio" | "analisis" | "informe" | "cobros_futuros";
+type SubView = "portfolio" | "analisis" | "informe" | "cobros_futuros" | "control_comercial";
 
 // Estado comercial: color + label para las badges de la vista Análisis.
 const ESTADO_COLOR: Record<string, string> = {
@@ -237,17 +240,33 @@ type AnalisisCliente = {
 // operaciones-view.tsx (margen superior derecho) → llega como prop.
 // Query-string de los filtros madre nivel_1/nivel_3/referido (vacío = sin filtro).
 // Se appendea a cada fetch comercial para que el backend cruce el scope.
-const nivelQS = (nivel1?: string, nivel3?: string, referido?: string) =>
-  (nivel1 ? `&nivel_1=${encodeURIComponent(nivel1)}` : "")
-  + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
-  + (referido ? `&referido=${encodeURIComponent(referido)}` : "");
+// Query-params REPETIDOS para un filtro multi-valor: ?key=a&key=b (= ANY en el backend).
+const arrQS = (key: string, vals: string[]) =>
+  (vals ?? []).map((v) => `&${key}=${encodeURIComponent(v)}`).join("");
+const nivelQS = (nivel1: string[], nivel2: string[], nivel3: string[], referido: string[],
+                 nivel4: string[] = [], nivel5: string[] = []) =>
+  arrQS("nivel_1", nivel1) + arrQS("nivel_2", nivel2) + arrQS("nivel_3", nivel3)
+  + arrQS("nivel_4", nivel4) + arrQS("nivel_5", nivel5) + arrQS("referido", referido);
 
 export function ComercialOperacionesView(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string },
+  { operador, moneda = "ARS", nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
+    controlComercial = false }:
+  { operador: string[]; moneda?: "ARS" | "USD"; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
+    nivel4?: string[]; nivel5?: string[]; referido?: string[]; controlComercial?: boolean },
 ) {
-  const nQS = nivelQS(nivel1, nivel3, referido);
+  const nQS = nivelQS(nivel1, nivel2, nivel3, referido, nivel4, nivel5);
+  const opQS = arrQS("operador", operador);
   const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
+  // Si el user no tiene permiso de Control Comercial pero quedó parado ahí (estado
+  // persistido), lo devolvemos a Portfolio → nunca ve la vista restringida.
+  useEffect(() => {
+    if (subview === "control_comercial" && !controlComercial) setSubview("portfolio");
+  }, [subview, controlComercial, setSubview]);
+  // Corte = HASTA de la vista (Informe + Análisis). Vacío = hoy (live).
+  const [fechaCorte, setFechaCorte] = useState<string>("");
+  // Inicio del período (Desde). Vacío = mes del corte (comportamiento viejo). Si se setea,
+  // las columnas MES (volumen/arancel/ctas ops) pasan a ser la suma de [Desde, Hasta].
+  const [desdeCorte, setDesdeCorte] = useState<string>("");
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
@@ -299,8 +318,9 @@ export function ComercialOperacionesView(
     setSelCuenta(null);
     void (async () => {
       try {
+        const fQS = (fechaCorte ? `&fecha=${fechaCorte}` : "") + (desdeCorte ? `&desde=${desdeCorte}` : "");
         const d = await getJson<OperadorResp>(
-          `/api/operaciones/comercial/operador?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}`,
+          `/api/operaciones/comercial/operador?moneda=${moneda}${opQS}${nQS}${fQS}`,
         );
         if (cancelled) return;
         setResumen(d.resumen);
@@ -315,7 +335,7 @@ export function ComercialOperacionesView(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS]);
+  }, [opQS, moneda, nQS, fechaCorte, desdeCorte]);
 
   // Serie del gráfico: operador completo o, si hay cliente, esa cuenta.
   useEffect(() => {
@@ -324,7 +344,7 @@ export function ComercialOperacionesView(
     setLoadingSerie(true);
     void (async () => {
       try {
-        let q = `operador=${encodeURIComponent(operador)}&metric=${metric}&moneda=${moneda}${nQS}`;
+        let q = `metric=${metric}&moneda=${moneda}${opQS}${nQS}`;
         if (selCuenta) q += `&id_cuenta=${encodeURIComponent(selCuenta)}`;
         const d = await getJson<{ serie: SeriePoint[] }>(`/api/operaciones/comercial/serie?${q}`);
         if (!cancelled) setSerie(Array.isArray(d.serie) ? d.serie : []);
@@ -335,7 +355,7 @@ export function ComercialOperacionesView(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, metric, selCuenta, moneda, nQS]);
+  }, [opQS, metric, selCuenta, moneda, nQS]);
 
   // Tenencia del cliente seleccionado.
   useEffect(() => {
@@ -405,7 +425,7 @@ export function ComercialOperacionesView(
     setLoadingPeriodo(true);
     void (async () => {
       try {
-        const q = `operador=${encodeURIComponent(operador)}&desde=${desde}&hasta=${hasta}&moneda=${moneda}${nQS}`;
+        const q = `desde=${desde}&hasta=${hasta}&moneda=${moneda}${opQS}${nQS}`;
         const d = await getJson<ClientesPeriodoResp>(`/api/operaciones/comercial/clientes-por-fecha?${q}`);
         setPeriodo(Array.isArray(d.clientes) ? d.clientes : []);
       } catch (e) {
@@ -444,17 +464,21 @@ export function ComercialOperacionesView(
   // ── Export a Excel (item 4) ──────────────────────────────────────────────
   const dlClientes = () => void exportToXlsx({
     filename: `comercial-clientes-${timestampSuffix()}.xlsx`,
+    // Volcamos TODA la ficha (no solo cuenta/AuM/YTD): la ficha ya viaja completa
+    // en cada cliente. Las columnas de ficha se generan de FICHA_DATOS → mismo set
+    // y orden que la ficha en pantalla (queda siempre sincronizado).
     sheets: [{ name: "Clientes", rows: clientesFiltrados.map((c) => ({
-      id_cuenta: c.id_cuenta, denominacion: c.denominacion, aum: c.aum, volumen_ytd: c.volumen_ytd,
-      nivel_1: c.ficha.nivel_1, nivel_2: c.ficha.nivel_2, nivel_3: c.ficha.nivel_3,
+      ...c.ficha,
+      id_cuenta: c.id_cuenta, denominacion: c.denominacion,
+      aum: c.aum, volumen_ytd: c.volumen_ytd,
     })), columns: [
       { header: "Cuenta", key: "id_cuenta", format: "text", width: 10 },
       { header: "Cliente", key: "denominacion", format: "text", width: 32 },
       { header: "AuM", key: "aum", format: "currency", width: 16 },
       { header: "Vol. YTD", key: "volumen_ytd", format: "currency", width: 16 },
-      { header: "Nivel 1", key: "nivel_1", format: "text", width: 18 },
-      { header: "Nivel 2", key: "nivel_2", format: "text", width: 18 },
-      { header: "Nivel 3", key: "nivel_3", format: "text", width: 18 },
+      ...FICHA_DATOS.map(([k, label]) => ({
+        header: label, key: k as string, format: "text" as const, width: 18,
+      })),
     ] }],
   });
   const dlPortafolio = () => void exportToXlsx({
@@ -482,7 +506,7 @@ export function ComercialOperacionesView(
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
         <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"]] as [SubView, string][]).map(
+          {([["portfolio", "Portfolio & Operaciones"], ["analisis", "Análisis Comercial"], ["cobros_futuros", "Cobros Futuros"], ["informe", "Informe"], ...(controlComercial ? [["control_comercial", "Control Comercial"] as [SubView, string]] : [])] as [SubView, string][]).map(
             ([v, label]) => (
               <button
                 key={v}
@@ -497,6 +521,20 @@ export function ComercialOperacionesView(
             ),
           )}
         </div>
+        {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy. */}
+        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: TOTAL acumula hasta HASTA; las columnas MES (volumen/arancel/ctas ops) se calculan en [Desde, Hasta]. AuM = foto a HASTA. Vacío = hoy / mes del corte.">
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
+          {/* Sin min/max en el DOM: las restricciones cruzadas (Desde≤Hasta) + max=hoy hacían
+              que el input nativo clampee a HOY mientras tipeás. El orden lo resuelve el backend. */}
+          <input type="date" value={desdeCorte}
+            onChange={(e) => setDesdeCorte(e.target.value)}
+            className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
+          <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Hasta</span>
+          <input type="date" value={fechaCorte}
+            onChange={(e) => setFechaCorte(e.target.value)}
+            className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
+          {(fechaCorte || desdeCorte) && <button onClick={() => { setFechaCorte(""); setDesdeCorte(""); }} title="Volver a hoy" className="text-[10px] text-[var(--t-accent)] hover:underline">hoy</button>}
+        </label>
         {loading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
         {subview !== "informe" && (
@@ -510,9 +548,11 @@ export function ComercialOperacionesView(
       </div>
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
-      {subview === "informe" && <ComercialInforme moneda={moneda} />}
-      {subview === "cobros_futuros" && <CobrosFuturosView operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
-      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel3={nivel3} referido={referido} />}
+      {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} desde={desdeCorte} operador={operador} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} />}
+      {subview === "control_comercial" && controlComercial && <ComercialControlView moneda={moneda} operador={operador} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} />}
+      {/* CobrosFuturos (acreencias, Mongo) sigue siendo single → toma el 1er valor de cada filtro. */}
+      {subview === "cobros_futuros" && <CobrosFuturosView operador={operador[0] ?? "__todos__"} moneda={moneda} nivel1={nivel1[0] ?? ""} nivel2={nivel2[0] ?? ""} nivel3={nivel3[0] ?? ""} referido={referido[0] ?? ""} />}
+      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} fecha={fechaCorte} desde={desdeCorte} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
@@ -1003,10 +1043,12 @@ function Field({ label, value }: { label: string; value: string | null }) {
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
 function AnalisisComercial(
-  { operador, moneda = "ARS", nivel1 = "", nivel3 = "", referido = "" }:
-  { operador: string; moneda?: "ARS" | "USD"; nivel1?: string; nivel3?: string; referido?: string },
+  { operador, moneda = "ARS", nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [], fecha = "", desde = "" }:
+  { operador: string[]; moneda?: "ARS" | "USD"; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
+    nivel4?: string[]; nivel5?: string[]; referido?: string[]; fecha?: string; desde?: string },
 ) {
-  const nQS = nivelQS(nivel1, nivel3, referido);
+  const nQS = nivelQS(nivel1, nivel2, nivel3, referido, nivel4, nivel5);
+  const opQS = arrQS("operador", operador);
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
   type SortCol = "cuenta" | "estado" | "dias" | "aum" | "cupo_trans" | "cupo_usado";
@@ -1043,8 +1085,9 @@ function AnalisisComercial(
     setEstadoSel(null);
     void (async () => {
       try {
+        const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
         const d = await getJson<{ clientes: AnalisisCliente[]; dias_activa?: number; dias_dormida?: number }>(
-          `/api/operaciones/comercial/analisis?operador=${encodeURIComponent(operador)}&moneda=${moneda}${nQS}`,
+          `/api/operaciones/comercial/analisis?moneda=${moneda}${opQS}${nQS}${fQS}`,
         );
         if (cancelled) return;
         setUmbral({ activa: d.dias_activa ?? 30, dormida: d.dias_dormida ?? 90 });
@@ -1056,7 +1099,7 @@ function AnalisisComercial(
       }
     })();
     return () => { cancelled = true; };
-  }, [operador, moneda, nQS]);
+  }, [opQS, moneda, nQS, fecha, desde]);
 
   const nivelDe = (c: AnalisisCliente) => c.nivel_1 || "(sin segmentar)";
 
@@ -1263,7 +1306,8 @@ function AnalisisComercial(
           <span className="font-semibold tabular-nums text-[var(--t-text)]">{sinOperarYtd}</span>
         </button>
 
-        {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. */}
+        {/* KPIs de cupo — totales del operador, SIEMPRE en USD al MEP del día. El selector de
+            fecha de corte vive en el header global de la vista (maneja Informe + Análisis). */}
         <div className="ml-auto flex items-center gap-2">
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-2 inline-flex flex-col gap-0.5" title="Cupo transaccional asignado por el custodio (suma USD).">
             <span className="text-[10px] text-[var(--t-text-muted)] uppercase tracking-widest leading-none">Cupo trans.</span>
@@ -1295,7 +1339,7 @@ function AnalisisComercial(
             <p><span style={{ color: ESTADO_COLOR.ENFRIANDOSE }}>● Enfriándose</span><span className="text-[var(--t-text-dim)]">: última op entre {umbral.activa} y {umbral.dormida} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.DORMIDA }}>● Dormida</span><span className="text-[var(--t-text-dim)]">: operó alguna vez, pero hace más de {umbral.dormida} días.</span></p>
             <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Sin Operaciones</span><span className="text-[var(--t-text-dim)]">: nunca operó.</span></p>
-            <p className="mt-1.5 text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin AuM</span>: cuenta con AuM = $0 en el último snapshot.</p>
+            <p className="mt-1.5 text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin AuM</span>: cuenta con AuM = $0 en la última foto de cartera.</p>
             <p className="text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
             <p className="mt-1.5 text-[var(--t-text-muted)]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
           </div>

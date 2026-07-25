@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  CartesianGrid,
   ComposedChart,
   Line,
   Scatter,
@@ -215,7 +216,7 @@ export function BreakevensBlock({
 function BreakevensTabla({ pares }: { pares: BreakevenPar[] }) {
   if (pares.length === 0) return null;
   return (
-    <div className="overflow-y-auto shrink-0">
+    <div className="overflow-y-auto shrink-0 border-r border-[var(--t-border)] pr-3">
       <table>
         <thead>
           <tr>
@@ -362,17 +363,38 @@ function BreakevensGrafico({
   // de la mesa; arranca siempre desde el mes presente.
   const xTicksShown = data.map((d) => d.vencTs);
 
+  // Escala AJUSTADA A LOS DATOS (antes forzaba el 3% dentro del eje → con BEs en
+  // 1.5-2.0% las curvas quedaban aplastadas abajo con media pantalla vacía). La
+  // referencia del 3% se dibuja solo si cae dentro del rango visible.
   const allVals = data.flatMap((d) =>
     [d.be, d.rem_mensual, d.rem_acum].filter((v): v is number => v != null),
   );
   const yScale = allVals.length
-    ? niceScale(Math.min(...allVals, 3), Math.max(...allVals, 3), 6)
+    ? niceScale(Math.min(...allVals), Math.max(...allVals), 6)
     : { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5] };
+  const umbralVisible = 3 >= yScale.min && 3 <= yScale.max;
 
   return (
-    <div className="h-full min-h-0 min-w-0">
+    <div className="h-full min-h-0 min-w-0 flex flex-col">
+      {/* Leyenda compacta — antes no se sabía qué línea era qué */}
+      <div className="flex items-center gap-4 px-2 pt-1 shrink-0 text-[9px] text-[var(--t-text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-[2px] rounded" style={{ background: "#e0803c" }} />
+          BE mercado
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 h-[2px] rounded" style={{ background: "#3a9bd5" }} />
+          REM mensual
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-4 border-t-2 border-dashed" style={{ borderColor: "#3a9bd5", opacity: 0.6 }} />
+          REM prom. acum.
+        </span>
+      </div>
+      <div className="flex-1 min-h-0 min-w-0">
       <ResponsiveContainer key={vpKey} width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 20, right: 20, bottom: 30, left: 10 }}>
+        <ComposedChart data={data} margin={{ top: 12, right: 20, bottom: 30, left: 10 }}>
+          <CartesianGrid stroke="var(--t-border)" vertical={false} />
           <XAxis
             dataKey="vencTs"
             type="number"
@@ -397,7 +419,9 @@ function BreakevensGrafico({
             tickLine={false}
             tickFormatter={(v: number) => `${v.toFixed(1)}%`}
           />
-          <ReferenceLine y={3} stroke="var(--t-neg)" strokeDasharray="6 3" strokeOpacity={0.5} />
+          {umbralVisible && (
+            <ReferenceLine y={3} stroke="var(--t-neg)" strokeDasharray="6 3" strokeOpacity={0.5} />
+          )}
           <Tooltip
             contentStyle={{ background: "var(--t-surface)", border: "1px solid var(--t-border-2)", fontSize: 11, fontFamily: "JetBrains Mono, monospace" }}
             labelStyle={{ color: "var(--t-text-dim)" }}
@@ -415,7 +439,7 @@ function BreakevensGrafico({
           <Line
             dataKey="rem_mensual"
             type="monotone"
-            stroke="#4fc3f7"
+            stroke="#3a9bd5"
             strokeWidth={1.5}
             dot={false}
             isAnimationActive={false}
@@ -425,7 +449,7 @@ function BreakevensGrafico({
           <Line
             dataKey="rem_acum"
             type="monotone"
-            stroke="#4fc3f7"
+            stroke="#3a9bd5"
             strokeOpacity={0.55}
             strokeWidth={1.5}
             strokeDasharray="4 3"
@@ -438,15 +462,16 @@ function BreakevensGrafico({
           <Line
             dataKey="be"
             type="monotone"
-            stroke="#ff9900"
+            stroke="#e0803c"
             strokeWidth={2}
             dot={false}
             isAnimationActive={false}
             connectNulls
           />
-          <Scatter dataKey="be" fill="#ff9900" isAnimationActive={false} />
+          <Scatter dataKey="be" fill="#e0803c" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

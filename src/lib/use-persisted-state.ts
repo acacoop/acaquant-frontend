@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { ESTADO_APLICADO_EVENT } from "@/lib/aplicar-estado";
+
 /**
  * useState que SOBREVIVE a la navegación entre rutas (y a un F5) durante la
  * sesión del tab del browser. Respaldado en sessionStorage.
@@ -23,9 +25,13 @@ import { useEffect, useRef, useState } from "react";
 export function usePersistedState<T>(
   key: string,
   initial: T,
+  storage: "session" | "local" = "session",
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [value, setValue] = useState<T>(initial);
   const hydrated = useRef(false);
+  // "local" sobrevive al cierre de la app (preferencias persistentes, ej. cuentas
+  // ocultas). "session" (default) arranca limpio cada sesión (filtros transitorios).
+  const getStore = () => (storage === "local" ? localStorage : sessionStorage);
 
   // Al montar (solo cliente): leé lo guardado y aplicalo. El setState dentro del
   // effect es DELIBERADO y correcto acá: sincronizar con un sistema externo
@@ -33,13 +39,36 @@ export function usePersistedState<T>(
   // effect. El lazy-initializer daría hydration mismatch (server no ve storage).
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(key);
+      const raw = getStore().getItem(key);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw !== null) setValue(JSON.parse(raw) as T);
     } catch {
-      // sessionStorage no disponible / JSON corrupto → quedate con `initial`.
+      // storage no disponible / JSON corrupto → quedate con `initial`.
     }
     hydrated.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  // NAVEGACIÓN ASISTIDA (v1.82): cuando el guía aplica un estado de vista
+  // (aplicarEstado escribe las claves y avisa), releemos — así los filtros
+  // también entran si la vista YA estaba montada (misma ruta). Si la clave no
+  // fue parte de lo aplicado, el valor no cambia y no hay re-render inútil.
+  useEffect(() => {
+    const onAplicado = () => {
+      try {
+        const raw = getStore().getItem(key);
+        if (raw === null) return;
+        const nuevo = JSON.parse(raw) as T;
+        setValue((actual) =>
+          JSON.stringify(actual) === JSON.stringify(nuevo) ? actual : nuevo,
+        );
+      } catch {
+        // storage no disponible / JSON corrupto → dejamos el valor actual
+      }
+    };
+    window.addEventListener(ESTADO_APLICADO_EVENT, onAplicado);
+    return () => window.removeEventListener(ESTADO_APLICADO_EVENT, onAplicado);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   // Cada cambio POST-rehidratación se persiste. (Antes de hidratar no escribimos
@@ -47,10 +76,11 @@ export function usePersistedState<T>(
   useEffect(() => {
     if (!hydrated.current) return;
     try {
-      sessionStorage.setItem(key, JSON.stringify(value));
+      getStore().setItem(key, JSON.stringify(value));
     } catch {
       // cuota llena / modo privado → no es crítico, seguimos en memoria.
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, value]);
 
   return [value, setValue];

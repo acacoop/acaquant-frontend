@@ -12,7 +12,6 @@ export const dynamic = "force-dynamic";
 
 const MANAGER_MODULES = [
   "manager",
-  "manager_comercial",
   "manager_clientes",
   "manager_clientes_bulk",
 ];

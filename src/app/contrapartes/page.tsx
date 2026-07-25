@@ -1,7 +1,7 @@
-import { ContrapartesShell } from "@/components/contrapartes-shell";
+import { ContrapartesView } from "@/components/contrapartes-view";
 
 export const dynamic = "force-dynamic";
 
 export default function ContrapartesPage() {
-  return <ContrapartesShell />;
+  return <ContrapartesView />;
 }
