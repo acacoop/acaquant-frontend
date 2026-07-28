@@ -11,7 +11,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
-  Bar, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
@@ -31,7 +31,6 @@ type Resp = {
 
 const POS = "#22c55e"; // verde: diferencia a favor
 const NEG = "#ef4444"; // rojo: diferencia en contra
-const ACUM = "#eab308"; // amarillo: línea de acumulado
 
 const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
@@ -55,6 +54,8 @@ const fmtC = (n: number) => {
   if (a >= 1e3) return (n / 1e3).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + "k";
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 };
+// Número completo SIN abreviar y sin decimales (para la columna NETO).
+const fmtFull = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
 export function DiferenciasDiariasView() {
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
@@ -202,7 +203,7 @@ export function DiferenciasDiariasView() {
                     <tr key={r.producto} onClick={() => setSelProd(act ? null : r.producto)}
                       className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
                       <td className="px-3 py-1">{r.producto}</td>
-                      <td className={"px-3 py-1 text-right font-semibold " + (r.importe >= 0 ? "text-[#22c55e]" : "text-[#ef4444]")}>{fmtC(r.importe)}</td>
+                      <td className={"px-3 py-1 text-right font-semibold " + (r.importe >= 0 ? "text-[#22c55e]" : "text-[#ef4444]")}>{fmtFull(r.importe)}</td>
                       <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
                     </tr>
                   );
@@ -228,7 +229,7 @@ export function DiferenciasDiariasView() {
                     <tr key={r.cuenta} onClick={() => setSelCuenta(act ? null : r.cuenta)}
                       className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
                       <td className="px-3 py-1 truncate max-w-[220px]" title={r.cuenta}>{r.cuenta}</td>
-                      <td className={"px-3 py-1 text-right font-semibold " + (r.importe >= 0 ? "text-[#22c55e]" : "text-[#ef4444]")}>{fmtC(r.importe)}</td>
+                      <td className={"px-3 py-1 text-right font-semibold " + (r.importe >= 0 ? "text-[#22c55e]" : "text-[#ef4444]")}>{fmtFull(r.importe)}</td>
                       <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
                     </tr>
                   );
@@ -261,7 +262,7 @@ export function DiferenciasDiariasView() {
                     <tr key={r.instrumento} onClick={() => setSelInstr(act ? null : r.instrumento)}
                       className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
                       <td className="px-3 py-1 truncate max-w-[220px]" title={r.instrumento}>{r.instrumento}</td>
-                      <td className={"px-3 py-1 text-right font-semibold " + (r.importe >= 0 ? "text-[#22c55e]" : "text-[#ef4444]")}>{fmtC(r.importe)}</td>
+                      <td className={"px-3 py-1 text-right font-semibold " + (r.importe >= 0 ? "text-[#22c55e]" : "text-[#ef4444]")}>{fmtFull(r.importe)}</td>
                       <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
                     </tr>
                   );
@@ -318,18 +319,14 @@ export function DiferenciasDiariasView() {
               <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
               <YAxis yAxisId="dif" tickFormatter={fmtC} width={52}
                 tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
-              <YAxis yAxisId="acum" orientation="right" tickFormatter={fmtC} width={52}
-                tick={{ fontSize: 9, fill: ACUM }} />
               <Tooltip
-                formatter={(v, n) => [`${fmtC(Number(v))} ${unidad}`, n === "acum" ? "Acumulado" : "Diferencia"]}
+                formatter={(v) => [`${fmtC(Number(v))} ${unidad}`, "Diferencia"]}
                 contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }}
                 labelStyle={{ color: "var(--t-text)" }}
                 cursor={{ fill: "var(--t-border)", opacity: 0.3 }} />
               <Bar yAxisId="dif" dataKey="importe" isAnimationActive={false} maxBarSize={64}>
                 {data.map((d, i) => <Cell key={i} fill={d.importe >= 0 ? POS : NEG} />)}
               </Bar>
-              <Line yAxisId="acum" type="monotone" dataKey="acum" stroke={ACUM} strokeWidth={2}
-                dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
