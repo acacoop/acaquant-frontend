@@ -2,8 +2,8 @@
 
 // OPERACIONES → DÓLAR FUTURO: NOCIONAL (USD) de los futuros DLR (mercado A3).
 // 1 contrato = USD 1000 → nocional = |cantidad| × 1000 (lo calcula el backend).
-// Layout 2×2 (4 paneles al 50%): POR TIPO (Compra/Venta) · POR CUENTA ·
-// POR INSTRUMENTO (vencimientos) · gráfico de barras (nocional por periodo).
+// Layout 2 columnas: IZQ = POR TIPO (chico, 2 filas) + POR CUENTA (llena el resto).
+// DER = gráfico de barras (arriba) + POR INSTRUMENTO (abajo).
 // Toolbar estilo OPERACIONES: pills ULTIMA/SEMANA/MES/RANGO + inputs de fecha
 // nativos (calendario visible en dark) + filtro nivel_5. Cross-filter por click
 // (re-click = limpiar). Endpoint: /api/operaciones/ops/dolar-futuro.
@@ -171,105 +171,109 @@ export function DolarFuturoView() {
         </span>
       </div>
 
-      {/* Grid 2×2: 4 paneles al 50%. */}
-      <div className="flex-1 min-h-0 grid grid-rows-2 grid-cols-2 gap-3 p-3 overflow-hidden">
-        {/* Por tipo de operación (Compra/Venta) */}
-        <TablePanel titulo="Por tipo de operación" extra={`US$ ${fmtC(total.nocional)}`}>
-          <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
-              <tr>
-                <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Operación</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Nocional (US$)</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Arancel (ARS)</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tipos.map((r) => {
-                const act = selTipo === r.tipo;
-                const col = SERIES.find((s) => s.key === r.tipo)?.color;
-                const pct = total.nocional ? (r.nocional / total.nocional) * 100 : 0;
-                return (
-                  <tr key={r.tipo} onClick={() => setSelTipo(act ? null : r.tipo)}
-                    className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
-                    <td className="px-3 py-1">
-                      <span className="inline-block w-2 h-2 mr-2" style={{ background: col }} />{r.tipo}
-                    </td>
-                    <td className="px-3 py-1 text-right font-semibold">{fmtC(r.nocional)}</td>
-                    <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtC(r.arancel)}</td>
-                    <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
-                    <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{pct.toFixed(0)}%</td>
-                  </tr>
-                );
-              })}
-              {!tipos.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
-            </tbody>
-          </table>
-        </TablePanel>
+      {/* 2 columnas: IZQ tablas (tipo + cuenta) · DER gráfico + instrumento */}
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
+        {/* ── Columna izquierda ── */}
+        <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+          {/* Por tipo de operación (Compra/Venta) — sólo 2 filas, altura mínima */}
+          <TablePanel titulo="Por tipo de operación" extra={`US$ ${fmtC(total.nocional)}`} fixed>
+            <table className="w-full text-[11px] font-mono tabular-nums">
+              <thead className="bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                <tr>
+                  <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Operación</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Nocional (US$)</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Arancel (ARS)</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tipos.map((r) => {
+                  const act = selTipo === r.tipo;
+                  const col = SERIES.find((s) => s.key === r.tipo)?.color;
+                  const pct = total.nocional ? (r.nocional / total.nocional) * 100 : 0;
+                  return (
+                    <tr key={r.tipo} onClick={() => setSelTipo(act ? null : r.tipo)}
+                      className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
+                      <td className="px-3 py-1">
+                        <span className="inline-block w-2 h-2 mr-2" style={{ background: col }} />{r.tipo}
+                      </td>
+                      <td className="px-3 py-1 text-right font-semibold">{fmtC(r.nocional)}</td>
+                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtC(r.arancel)}</td>
+                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{pct.toFixed(0)}%</td>
+                    </tr>
+                  );
+                })}
+                {!tipos.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+              </tbody>
+            </table>
+          </TablePanel>
 
-        {/* Por cuenta */}
-        <TablePanel titulo="Por cuenta" extra={`${cuentas.length}`}>
-          <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
-              <tr>
-                <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cuenta</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Nocional (US$)</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Arancel (ARS)</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cuentas.map((r) => {
-                const act = selCuenta === r.denominacion;
-                return (
-                  <tr key={r.denominacion} onClick={() => setSelCuenta(act ? null : r.denominacion)}
-                    className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
-                    <td className="px-3 py-1 truncate max-w-[220px]" title={r.denominacion}>{r.denominacion}</td>
-                    <td className="px-3 py-1 text-right font-semibold">{fmtC(r.nocional)}</td>
-                    <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtC(r.arancel)}</td>
-                    <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
-                  </tr>
-                );
-              })}
-              {!cuentas.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
-            </tbody>
-          </table>
-        </TablePanel>
+          {/* Por cuenta — llena el resto de la columna */}
+          <TablePanel titulo="Por cuenta" extra={`${cuentas.length}`}>
+            <table className="w-full text-[11px] font-mono tabular-nums">
+              <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                <tr>
+                  <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cuenta</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Nocional (US$)</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Arancel (ARS)</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cuentas.map((r) => {
+                  const act = selCuenta === r.denominacion;
+                  return (
+                    <tr key={r.denominacion} onClick={() => setSelCuenta(act ? null : r.denominacion)}
+                      className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
+                      <td className="px-3 py-1 truncate max-w-[220px]" title={r.denominacion}>{r.denominacion}</td>
+                      <td className="px-3 py-1 text-right font-semibold">{fmtC(r.nocional)}</td>
+                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtC(r.arancel)}</td>
+                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                    </tr>
+                  );
+                })}
+                {!cuentas.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+              </tbody>
+            </table>
+          </TablePanel>
+        </div>
 
-        {/* Por instrumento (vencimientos DLR) */}
-        <TablePanel titulo="Por instrumento (vencimiento)" extra={`${instrumentos.length}`}>
-          <table className="w-full text-[11px] font-mono tabular-nums">
-            <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
-              <tr>
-                <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Vencimiento</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Nocional (US$)</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Arancel (ARS)</th>
-                <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
-              </tr>
-            </thead>
-            <tbody>
-              {instrumentos.map((r) => {
-                const act = selInstr === r.instrumento;
-                return (
-                  <tr key={r.instrumento} onClick={() => setSelInstr(act ? null : r.instrumento)}
-                    className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
-                    <td className="px-3 py-1 truncate max-w-[220px]" title={r.instrumento}>{r.instrumento}</td>
-                    <td className="px-3 py-1 text-right font-semibold">{fmtC(r.nocional)}</td>
-                    <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtC(r.arancel)}</td>
-                    <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
-                  </tr>
-                );
-              })}
-              {!instrumentos.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
-            </tbody>
-          </table>
-        </TablePanel>
+        {/* ── Columna derecha: gráfico arriba + instrumento abajo ── */}
+        <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+          <div className="flex-1 min-h-0">
+            <OpsBarChart serie={serie} series={chartSeries} fmt={fmtC} unidad="US$"
+              defaultAgg="MENSUAL" defaultRango="ALL" titulo="Nocional" etiquetas wmSoft />
+          </div>
 
-        {/* Gráfico de barras: nocional por periodo (Compra/Venta) */}
-        <div className="min-h-0 overflow-hidden">
-          <OpsBarChart serie={serie} series={chartSeries} fmt={fmtC} unidad="US$ nocional"
-            defaultAgg="MENSUAL" defaultRango="ALL" titulo="Volumen nocional (US$)" etiquetas />
+          <TablePanel titulo="Por instrumento (vencimiento)" extra={`${instrumentos.length}`}>
+            <table className="w-full text-[11px] font-mono tabular-nums">
+              <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+                <tr>
+                  <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Vencimiento</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Nocional (US$)</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Arancel (ARS)</th>
+                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                </tr>
+              </thead>
+              <tbody>
+                {instrumentos.map((r) => {
+                  const act = selInstr === r.instrumento;
+                  return (
+                    <tr key={r.instrumento} onClick={() => setSelInstr(act ? null : r.instrumento)}
+                      className={"border-t border-[var(--t-border)] cursor-pointer " + (act ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")}>
+                      <td className="px-3 py-1 truncate max-w-[220px]" title={r.instrumento}>{r.instrumento}</td>
+                      <td className="px-3 py-1 text-right font-semibold">{fmtC(r.nocional)}</td>
+                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtC(r.arancel)}</td>
+                      <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                    </tr>
+                  );
+                })}
+                {!instrumentos.length && <tr><td className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+              </tbody>
+            </table>
+          </TablePanel>
         </div>
       </div>
     </div>
@@ -285,14 +289,15 @@ function Pill({ active, onClick, children }: { active: boolean; onClick: () => v
   );
 }
 
-function TablePanel({ titulo, extra, children }: { titulo: string; extra?: string; children: ReactNode }) {
+// fixed=true → panel de altura mínima (contenido), para tablas cortas (Por tipo).
+function TablePanel({ titulo, extra, children, fixed = false }: { titulo: string; extra?: string; children: ReactNode; fixed?: boolean }) {
   return (
-    <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+    <div className={"border border-[var(--t-border)] flex flex-col overflow-hidden " + (fixed ? "shrink-0" : "flex-1 min-h-0")}>
       <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0">
         <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">{titulo}</span>
         {extra && <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">{extra}</span>}
       </div>
-      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
+      <div className={fixed ? "overflow-hidden" : "flex-1 min-h-0 overflow-auto"}>{children}</div>
     </div>
   );
 }

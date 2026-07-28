@@ -146,6 +146,10 @@
   background-size: min(24%, 145px);
   opacity: 0.8;
 }
+/* Aún más tenue en charts marcados `wm-soft` (ej. Dólar futuro). */
+.light .wm-corner.wm-soft .recharts-wrapper::before {
+  opacity: 0.3;
+}
 
 @theme inline {
   /* ACA Valores + Bloomberg palette */

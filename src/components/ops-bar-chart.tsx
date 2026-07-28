@@ -60,7 +60,7 @@ function aggSerie(serie: SerieRow[], keys: string[], agg: Agg): ChartRow[] {
 
 export function OpsBarChart({
   serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", defaultRango = "YTD",
-  onAllSelected, titulo, soloMensual = false, etiquetas = false,
+  onAllSelected, titulo, soloMensual = false, etiquetas = false, wmSoft = false,
 }: {
   serie: SerieRow[];
   series: SerieDef[];
@@ -73,6 +73,7 @@ export function OpsBarChart({
   titulo?: string;           // título del header (default "Volumen operado")
   soloMensual?: boolean;     // fuerza MENSUAL y oculta toggles agg/rango/foco + total (modo share)
   etiquetas?: boolean;       // muestra el valor arriba de cada barra (sin sufijo)
+  wmSoft?: boolean;          // marca de agua del logo más tenue (solo este chart)
 }) {
   const [agg, setAgg] = useState<Agg>(defaultAgg);
   const [rango, setRango] = useState<RangoKey>(defaultRango);
@@ -152,16 +153,17 @@ export function OpsBarChart({
     </div>
   );
 
+  const wmCls = "flex-1 min-h-0 p-2 wm-corner" + (wmSoft ? " wm-soft" : "");
   return (
     <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden h-full">
       {chartHeader}
-      <div className="flex-1 min-h-0 p-2 wm-corner"><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
+      <div className={wmCls}><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
 
       {maxi && (
         <div className="fixed inset-0 z-50 bg-[var(--t-bg)]/95 flex flex-col p-4">
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col flex-1 min-h-0 overflow-hidden">
             {chartHeader}
-            <div className="flex-1 min-h-0 p-2 wm-corner"><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
+            <div className={wmCls}><ResponsiveContainer width="100%" height="100%">{Chart}</ResponsiveContainer></div>
           </div>
         </div>
       )}
