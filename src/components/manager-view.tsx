@@ -1683,11 +1683,11 @@ function TabAssets() {
           <table className="w-full text-[11px] font-mono">
             <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)]">
               <tr className="text-left text-[var(--t-text-dim)] tracking-widest text-[9px]">
-                <th className="px-3 py-2">UNIDAD</th>
+                <th className="px-3 py-2 min-w-[280px]">UNIDAD</th>
                 {ASSET_CAMPOS.map((c) => <th key={c} className="px-2 py-2">{c}</th>)}
-                <th className="px-2 py-2">FEE ADMIN<span className="text-[var(--t-text-muted)]"> (frac.)</span></th>
-                <th className="px-3 py-2">EDITADO</th>
-                <th className="px-3 py-2"></th>
+                <th className="px-2 py-2 w-px whitespace-nowrap">FEE ADMIN<span className="text-[var(--t-text-muted)]"> (frac.)</span></th>
+                <th className="px-2 py-2 w-px whitespace-nowrap">EDITADO</th>
+                <th className="px-3 py-2 w-px"></th>
               </tr>
             </thead>
             <tbody>
@@ -1703,7 +1703,7 @@ function TabAssets() {
                 return (
                   <tr key={a.unidad} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface-2)]">
                     <td
-                      className="px-3 py-1.5 text-[var(--t-text)] whitespace-nowrap max-w-[280px] truncate"
+                      className="px-3 py-1.5 text-[var(--t-text)] whitespace-nowrap max-w-[520px] min-w-[280px] truncate"
                       title={a.unidad}
                     >
                       {a.unidad}
@@ -1749,7 +1749,7 @@ function TabAssets() {
                         </td>
                       );
                     })}
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-1.5 w-px whitespace-nowrap">
                       {(a.CARTERA || "").toUpperCase().includes("FCI") ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -1768,7 +1768,7 @@ function TabAssets() {
                         </div>
                       ) : <span className="text-[var(--t-text-muted)]">—</span>}
                     </td>
-                    <td className="px-3 py-1.5 text-[var(--t-text-muted)] text-[10px] whitespace-nowrap">
+                    <td className="px-2 py-1.5 text-[var(--t-text-muted)] text-[10px] w-px whitespace-nowrap">
                       {a.actualizado_at ? (
                         <>
                           {new Date(a.actualizado_at).toLocaleString("es-AR", {
@@ -1779,7 +1779,7 @@ function TabAssets() {
                         </>
                       ) : "—"}
                     </td>
-                    <td className="px-3 py-1.5 text-[10px] whitespace-nowrap">
+                    <td className="px-3 py-1.5 text-[10px] w-px whitespace-nowrap">
                       {state.kind === "saving" && <span className="text-[var(--t-accent)]">Guardando…</span>}
                       {state.kind === "saved"  && <span className="text-green-400">✓ guardado</span>}
                       {state.kind === "error"  && (
