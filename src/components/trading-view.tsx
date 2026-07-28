@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { CedearsTimeSalesPanel } from "@/components/cedears-timesales-panel";
 import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
 import { OrderBookPanel } from "@/components/order-book-panel";
+import { PivotPctChart } from "@/components/pivot-pct-chart";
 import { TradingRadarPanel } from "@/components/trading-radar-panel";
 import { usePoll } from "@/lib/use-poll";
 import {
@@ -280,7 +280,11 @@ export function TradingView() {
     };
   }, []);
 
-  const csv = cards.map((c) => c.ticker).filter(Boolean).join(",");
+  const csv = useMemo(() => {
+    const set = new Set(cards.map((c) => c.ticker).filter(Boolean));
+    set.add("QQQ"); // índice de referencia del chart "% vs pivots" (aunque no sea card)
+    return [...set].join(",");
+  }, [cards]);
   const { data: rows } = usePoll<PivotRow[]>(
     `/api/trading/pivots?tickers=${encodeURIComponent(csv)}`,
     [],
@@ -305,6 +309,9 @@ export function TradingView() {
     }
     return byTicker.get(shownTicker)?.pivots ?? null;
   }, [overrides, shownTicker, byTicker]);
+
+  // Pivots del índice (QQQ) para el chart "% vs pivots" — eje izquierdo.
+  const qqqPivots = useMemo(() => byTicker.get("QQQ")?.pivots ?? null, [byTicker]);
 
   function setTicker(id: string, ticker: string) {
     setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ticker: ticker.toUpperCase() } : c)));
@@ -422,42 +429,39 @@ export function TradingView() {
         </div>
       )}
 
-      {/* split 60 (cards) / 40 (chart + tape) */}
+      {/* split 60 (cards + radar + libro) / 40 (2 charts) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
-        {/* izquierda: cards (arriba, 4/fila × 3 filas, llenan el alto) + order book (abajo) */}
+        {/* izquierda: arriba cards (2/fila) + radar lado a lado; abajo order book */}
         <div className="min-h-0 grid grid-rows-[7fr_3fr] gap-2">
-          {/* Filas con altura MÍNIMA (170px = card completa hasta S3): en un
-              monitor grande siguen llenando el alto (1fr); en uno chico ya no
-              se aplastan — el contenedor scrollea y se ve la card entera. */}
-          <div className="min-h-0 grid grid-cols-4 auto-rows-[minmax(170px,1fr)] gap-1.5 overflow-y-auto">
-          {cards.map((c) => (
-            <PivotCard
-              key={c.id}
-              ticker={c.ticker}
-              row={c.ticker ? byTicker.get(c.ticker) : undefined}
-              mode={mode}
-              universo={universo}
-              selected={!!c.ticker && c.ticker === shownTicker}
-              override={c.ticker ? overrides[c.ticker] : undefined}
-              onPick={(tk) => setTicker(c.id, tk)}
-              onSelect={() => c.ticker && setSelected(c.ticker)}
-              onEdit={(ov) => c.ticker && setOverride(c.ticker, ov)}
-              onResetEdit={() => c.ticker && setOverride(c.ticker, null)}
-            />
-          ))}
-          </div>
-          {/* abajo izquierda: order book (mayor parte) + time sales (slice) */}
-          <div className="min-h-0 grid grid-cols-[13fr_7fr] gap-2">
-            <OrderBookPanel key={shownTicker} ticker={shownTicker} />
-            <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
-              <CedearsTimeSalesPanel ticker={shownTicker || null} compact />
+          <div className="min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-2">
+            {/* cards: 2 por fila (más comprimidas), scroll si no entran en el alto */}
+            <div className="min-h-0 grid grid-cols-2 auto-rows-[minmax(150px,1fr)] gap-1.5 overflow-y-auto">
+            {cards.map((c) => (
+              <PivotCard
+                key={c.id}
+                ticker={c.ticker}
+                row={c.ticker ? byTicker.get(c.ticker) : undefined}
+                mode={mode}
+                universo={universo}
+                selected={!!c.ticker && c.ticker === shownTicker}
+                override={c.ticker ? overrides[c.ticker] : undefined}
+                onPick={(tk) => setTicker(c.id, tk)}
+                onSelect={() => c.ticker && setSelected(c.ticker)}
+                onEdit={(ov) => c.ticker && setOverride(c.ticker, ov)}
+                onResetEdit={() => c.ticker && setOverride(c.ticker, null)}
+              />
+            ))}
             </div>
+            {/* radar (MOVERS/PIVOTES/VOLUMENES/RENTA FIJA) — sin columna RUBRO para entrar acá */}
+            <TradingRadarPanel onSelect={loadTicker} selectedTicker={shownTicker || null} hideRubro />
           </div>
+          {/* abajo izquierda: order book a todo el ancho (el time sales se movió fuera) */}
+          <OrderBookPanel key={shownTicker} ticker={shownTicker} />
         </div>
 
-        {/* derecha: chart LIVE full arriba (60%) / radar hot-movers abajo (40%) */}
-        <div className="min-h-0 hidden lg:grid grid-rows-[3fr_2fr] gap-2">
-          {/* chart live — ocupa todo el ancho (ya no comparte con el tape) */}
+        {/* derecha: 50 chart LIVE (precio) / 50 chart % vs pivots (índice vs activo) */}
+        <div className="min-h-0 hidden lg:grid grid-rows-2 gap-2">
+          {/* chart live — precio intradía del activo seleccionado */}
           <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
             <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
               Live <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">{shownTicker || "—"}</span>
@@ -476,8 +480,29 @@ export function TradingView() {
               )}
             </div>
           </div>
-          {/* radar con 2 tabs: MOVERS ±4% + PIVOTES (proximidad a pivote) */}
-          <TradingRadarPanel onSelect={loadTicker} selectedTicker={shownTicker || null} />
+          {/* chart nuevo: % vs pivots — QQQ (eje izq) vs card seleccionada (eje der) */}
+          <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
+            <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
+              % vs Pivots{" "}
+              <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">
+                QQQ · {shownTicker || "—"}
+              </span>
+            </div>
+            <div className="flex-1 min-h-0">
+              {shownTicker ? (
+                <PivotPctChart
+                  tickerA="QQQ"
+                  pivotsA={qqqPivots}
+                  tickerB={shownTicker}
+                  pivotsB={shownPivots}
+                />
+              ) : (
+                <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
+                  elegí una card
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

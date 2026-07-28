@@ -21,9 +21,11 @@ type Tab = "movers" | "pivotes" | "volumenes" | "renta_fija";
 export function TradingRadarPanel({
   onSelect,
   selectedTicker,
+  hideRubro,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
+  hideRubro?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("movers");
 
@@ -45,7 +47,7 @@ export function TradingRadarPanel({
       </div>
       <div className="flex-1 min-h-0">
         {tab === "movers" ? (
-          <TradingMoversScanner onSelect={onSelect} selectedTicker={selectedTicker} />
+          <TradingMoversScanner onSelect={onSelect} selectedTicker={selectedTicker} hideRubro={hideRubro} />
         ) : tab === "pivotes" ? (
           <TradingPivotRadar onSelect={onSelect} selectedTicker={selectedTicker} />
         ) : tab === "volumenes" ? (

@@ -31,9 +31,11 @@ function esMover(r: CedearScannerRow): boolean {
 export function TradingMoversScanner({
   onSelect,
   selectedTicker,
+  hideRubro,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
+  hideRubro?: boolean;
 }) {
   const { data: rows } = usePoll<CedearScannerRow[]>(
     "/api/scanner/cedears",
@@ -65,6 +67,7 @@ export function TradingMoversScanner({
         ccl={ccl}
         onSelect={onSelect}
         selectedTicker={selectedTicker}
+        hideRubro={hideRubro}
       />
     </div>
   );
