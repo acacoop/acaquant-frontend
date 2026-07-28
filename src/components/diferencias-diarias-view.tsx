@@ -86,13 +86,16 @@ export function DiferenciasDiariasView() {
   const [ordCuenta, setOrdCuenta] = useState<Ord>("");
   const [ordInstr, setOrdInstr] = useState<Ord>("");
 
-  // Fechas con datos → seed RANGO = YTD del último año con operaciones.
+  // Fechas con datos PROPIAS de esta vista (Diferencias Diarias por moneda) →
+  // seed RANGO = YTD + anclaje de ULTIMA/SEMANA/MES sobre fechas reales. NO usar
+  // /ops/fechas (ésas son de operaciones.operaciones, llegan hasta hoy aunque las
+  // diferencias estén rezagadas → los botones caían en ventanas vacías).
   useEffect(() => {
-    fetch("/api/operaciones/ops/fechas", { cache: "no-store" })
+    fetch(`/api/operaciones/ops/diferencias-fechas?moneda=${moneda}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const f: { fecha: string }[] = d?.fechas ?? [];
-        if (!f.length) return;
+        if (!f.length) { setFechas([]); return; }
         setFechas(f);
         const max = f[0].fecha;
         const min = f[f.length - 1].fecha;
@@ -101,7 +104,7 @@ export function DiferenciasDiariasView() {
         setRHasta(max);
       })
       .catch(() => {});
-  }, []);
+  }, [moneda]);
 
   // Valores de nivel_5 (Comitentes) para el filtro.
   useEffect(() => {
