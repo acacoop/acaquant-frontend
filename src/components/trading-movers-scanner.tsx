@@ -33,11 +33,13 @@ export function TradingMoversScanner({
   selectedTicker,
   hideRubro,
   hideTicker,
+  headerLeading,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
   hideRubro?: boolean;
   hideTicker?: boolean;
+  headerLeading?: React.ReactNode;
 }) {
   const { data: rows } = usePoll<CedearScannerRow[]>(
     "/api/scanner/cedears",
@@ -57,8 +59,15 @@ export function TradingMoversScanner({
   // Content-only: el borde y las tabs los pone TradingRadarPanel.
   if (movers.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-3">
-        sin movimientos fuertes ahora — nada supera ±{UMBRAL}%
+      <div className="h-full min-h-0 flex flex-col">
+        {headerLeading && (
+          <div className="flex flex-wrap items-center gap-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
+            {headerLeading}
+          </div>
+        )}
+        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-3">
+          sin movimientos fuertes ahora — nada supera ±{UMBRAL}%
+        </div>
       </div>
     );
   }
@@ -71,6 +80,8 @@ export function TradingMoversScanner({
         selectedTicker={selectedTicker}
         hideRubro={hideRubro}
         hideTicker={hideTicker}
+        compact
+        headerLeading={headerLeading}
       />
     </div>
   );

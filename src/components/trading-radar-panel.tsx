@@ -29,18 +29,23 @@ export function TradingRadarPanel({
 }) {
   const [top, setTop] = useState<TopTab>("movers");
 
+  // Las tabs MOVERS/VOLUMENES viven en la MISMA barra que los controles de cada
+  // tabla (CEDEAR/ADR/CCL o Σ cash) para no gastar una fila extra de alto.
+  const tabs = (
+    <div className="flex items-center gap-1 mr-1">
+      <TabBtn active={top === "movers"} onClick={() => setTop("movers")}>
+        MOVERS ±4%
+      </TabBtn>
+      <TabBtn active={top === "volumenes"} onClick={() => setTop("volumenes")}>
+        VOLUMENES ACCIONES
+      </TabBtn>
+    </div>
+  );
+
   return (
     <div className="min-h-0 h-full grid grid-rows-2 gap-2">
-      {/* ARRIBA: MOVERS / VOLÚMENES (tabs) */}
+      {/* ARRIBA: MOVERS / VOLÚMENES — tabs embebidas en la barra de la tabla */}
       <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
-          <TabBtn active={top === "movers"} onClick={() => setTop("movers")}>
-            MOVERS ±4%
-          </TabBtn>
-          <TabBtn active={top === "volumenes"} onClick={() => setTop("volumenes")}>
-            VOLUMENES ACCIONES
-          </TabBtn>
-        </div>
         <div className="flex-1 min-h-0">
           {top === "movers" ? (
             <TradingMoversScanner
@@ -48,9 +53,14 @@ export function TradingRadarPanel({
               selectedTicker={selectedTicker}
               hideRubro={hideRubro}
               hideTicker={hideTicker}
+              headerLeading={tabs}
             />
           ) : (
-            <TradingVolumenScanner onSelect={onSelect} selectedTicker={selectedTicker} />
+            <TradingVolumenScanner
+              onSelect={onSelect}
+              selectedTicker={selectedTicker}
+              headerLeading={tabs}
+            />
           )}
         </div>
       </div>

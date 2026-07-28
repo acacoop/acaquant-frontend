@@ -34,9 +34,11 @@ function pctColor(n: number | null | undefined): string {
 export function TradingVolumenScanner({
   onSelect,
   selectedTicker,
+  headerLeading,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
+  headerLeading?: React.ReactNode;
 }) {
   const { data: rows } = usePoll<CedearScannerRow[]>(
     "/api/scanner/cedears",
@@ -59,15 +61,23 @@ export function TradingVolumenScanner({
 
   if (ranking.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-3">
-        sin volumen operado todavía en la rueda
+      <div className="h-full min-h-0 flex flex-col">
+        {headerLeading && (
+          <div className="flex flex-wrap items-center gap-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
+            {headerLeading}
+          </div>
+        )}
+        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-3">
+          sin volumen operado todavía en la rueda
+        </div>
       </div>
     );
   }
 
   return (
     <div className="h-full min-h-0 flex flex-col">
-      <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
+      <div className="flex flex-wrap items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
+        {headerLeading}
         <span className="text-[9px] text-[var(--t-text-muted)]">más operados por</span>
         <span className="text-[9px] font-semibold text-[var(--t-pos)]">CASH</span>
         <span className="text-[9px] text-[var(--t-text-muted)]">(no nominal)</span>

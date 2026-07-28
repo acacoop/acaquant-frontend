@@ -17,11 +17,11 @@ import {
 } from "@/lib/types-trading";
 
 const POLL_MS = 4_000;
-const LS_CARDS = "trd-fx-trading-pivot-cards-v1";
+const LS_CARDS = "trd-fx-trading-pivot-cards-v2";
 
 type Card = { id: string; ticker: string };
 
-const SLOTS = 12; // 4 por fila × 3 filas — algunas pueden quedar vacías
+const SLOTS = 6; // 2 por fila × 3 filas — algunas pueden quedar vacías
 
 const DEFAULT_CARDS: Card[] = [
   { id: "c1", ticker: "RKLB" },
@@ -30,12 +30,6 @@ const DEFAULT_CARDS: Card[] = [
   { id: "c4", ticker: "" },
   { id: "c5", ticker: "" },
   { id: "c6", ticker: "" },
-  { id: "c7", ticker: "" },
-  { id: "c8", ticker: "" },
-  { id: "c9", ticker: "" },
-  { id: "c10", ticker: "" },
-  { id: "c11", ticker: "" },
-  { id: "c12", ticker: "" },
 ];
 
 // Rellena/recorta a SLOTS cards (para que siempre haya la grilla completa, con vacías).
@@ -435,8 +429,9 @@ export function TradingView() {
         <div className="min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-2">
           {/* cards (2/fila) arriba + order book comprimido abajo — mismo ancho */}
           <div className="min-h-0 grid grid-rows-[7fr_3fr] gap-2">
-            {/* cards: 2 por fila (más comprimidas), scroll si no entran en el alto */}
-            <div className="min-h-0 grid grid-cols-2 auto-rows-[minmax(150px,1fr)] gap-1.5 overflow-y-auto">
+            {/* cards: 2 por fila, cada una a su ALTO natural (entra entera, con
+                todos los niveles R3…S3); si no entran en el alto, scrollea */}
+            <div className="min-h-0 grid grid-cols-2 auto-rows-min content-start gap-1.5 overflow-y-auto">
             {cards.map((c) => (
               <PivotCard
                 key={c.id}

@@ -38,6 +38,8 @@ export function CedearsScannerTable({
   onClearRubro,
   hideRubro = false,
   hideTicker = false,
+  compact = false,
+  headerLeading,
 }: {
   data: CedearScannerRow[];
   selectedTicker?: string | null;
@@ -51,6 +53,12 @@ export function CedearsScannerTable({
   // TRADING radar: oculta también la columna TICKER (queda solo NOMBRE) — el
   // ticker se ve al hacer click y cargar el papel en una card.
   hideTicker?: boolean;
+  // TRADING radar: layout compacto — saca la columna USD y el buscador, y mueve
+  // VOL al lado de 1D. El Scanner de Renta Variable (sin compact) queda igual.
+  compact?: boolean;
+  // Nodo opcional (ej. las tabs MOVERS/VOLUMENES) que se renderiza al inicio de
+  // la barra de herramientas para compartir la MISMA fila y ahorrar alto.
+  headerLeading?: React.ReactNode;
 }) {
   const [view, setView] = useState<View>("cedear");
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
@@ -104,27 +112,32 @@ export function CedearsScannerTable({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="flex items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
+      <div className="flex flex-wrap items-center gap-1 mb-1 shrink-0 px-1 py-1 border-b border-[var(--t-border)]">
+        {headerLeading}
         <ViewBtn active={view === "cedear"} onClick={() => changeView("cedear")} tone="orange">
           CEDEAR
         </ViewBtn>
         <ViewBtn active={view === "adr"} onClick={() => changeView("adr")} tone="cyan">
           ADR
         </ViewBtn>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar ticker…"
-          className="ml-2 w-[150px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none placeholder:text-[var(--t-text-muted)]"
-        />
-        {query && (
-          <button
-            onClick={() => setQuery("")}
-            className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px] px-1"
-            title="Limpiar búsqueda"
-          >
-            ✕
-          </button>
+        {!compact && (
+          <>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar ticker…"
+              className="ml-2 w-[150px] bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-text)] text-[10px] px-2 py-0.5 font-mono focus:border-[var(--t-accent)] outline-none placeholder:text-[var(--t-text-muted)]"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] text-[12px] px-1"
+                title="Limpiar búsqueda"
+              >
+                ✕
+              </button>
+            )}
+          </>
         )}
         {rubroFiltro && (
           <button
@@ -179,10 +192,17 @@ export function CedearsScannerTable({
                 <SortableTh label="LAST"   col="last"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" />
                 <SortableTh label="INTRA"  col="intraday_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="% intradía: (last/open − 1) × 100" />
                 <SortableTh label="1D"     col="vs_1d_pct"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Variación ARS vs cierre día anterior" />
-                <SortableTh label="USD"    col="vs_1d_usd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Retorno USD real descontando variación CCL" />
+                {compact && (
+                  <SortableTh label="VOL"    col="volume"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Volumen nominal operado en el día" />
+                )}
+                {!compact && (
+                  <SortableTh label="USD"    col="vs_1d_usd_pct" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Retorno USD real descontando variación CCL" />
+                )}
                 <SortableTh label="VWAP"   col="vwap"         sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Precio promedio ponderado por volumen (EV/NV)" />
                 <SortableTh label="SPREAD" col="spread_pct"   sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Spread de puntas: (offer − bid) / mid × 100" />
-                <SortableTh label="VOL"    col="volume"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Volumen nominal operado en el día" />
+                {!compact && (
+                  <SortableTh label="VOL"    col="volume"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="right" title="Volumen nominal operado en el día" />
+                )}
               </tr>
             ) : (
               <tr className="text-[#5a8aa3]">
@@ -205,7 +225,7 @@ export function CedearsScannerTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={10 - (hideRubro ? 1 : 0) - (hideTicker ? 1 : 0)} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+                <td colSpan={10 - (hideRubro ? 1 : 0) - (hideTicker ? 1 : 0) - (compact ? 1 : 0)} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                   SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
                 </td>
               </tr>
@@ -245,10 +265,15 @@ export function CedearsScannerTable({
                         </td>
                         <PctCell v={r.intraday_pct} />
                         <PctCell v={r.vs_1d_pct} />
-                        <PctCell v={r.vs_1d_usd_pct} />
+                        {compact && (
+                          <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtVol(r.volume ?? undefined)}</td>
+                        )}
+                        {!compact && <PctCell v={r.vs_1d_usd_pct} />}
                         <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtPrice(r.vwap ?? undefined)}</td>
                         <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{r.spread_pct != null ? `${r.spread_pct.toFixed(2)}%` : "--"}</td>
-                        <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtVol(r.volume ?? undefined)}</td>
+                        {!compact && (
+                          <td className="!px-1 text-right tabular-nums text-[var(--t-text-dim)]">{fmtVol(r.volume ?? undefined)}</td>
+                        )}
                       </>
                     ) : (
                       <>
