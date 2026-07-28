@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { AnuncioChicagoModal } from "@/components/anuncio-chicago-modal";
+import { AnuncioDolarFuturoModal } from "@/components/anuncio-dolar-futuro-modal";
 import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { Header } from "@/components/header";
@@ -65,6 +66,9 @@ export default async function RootLayout({
 
         {/* Anuncio de los precios de CHICAGO en AGRO (solo 24 jul 2026). */}
         <AnuncioChicagoModal />
+
+        {/* Anuncio de la nueva vista OPERACIONES → DÓLAR FUTURO (mesa, no invitado). */}
+        <AnuncioDolarFuturoModal />
 
 
         <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">
