@@ -431,9 +431,10 @@ export function TradingView() {
 
       {/* split 60 (cards + radar + libro) / 40 (2 charts) */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-2">
-        {/* izquierda: arriba cards (2/fila) + radar lado a lado; abajo order book */}
-        <div className="min-h-0 grid grid-rows-[7fr_3fr] gap-2">
-          <div className="min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-2">
+        {/* izquierda: sub-col cards+libro (comprimido) | radar a todo el alto */}
+        <div className="min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-2">
+          {/* cards (2/fila) arriba + order book comprimido abajo — mismo ancho */}
+          <div className="min-h-0 grid grid-rows-[7fr_3fr] gap-2">
             {/* cards: 2 por fila (más comprimidas), scroll si no entran en el alto */}
             <div className="min-h-0 grid grid-cols-2 auto-rows-[minmax(150px,1fr)] gap-1.5 overflow-y-auto">
             {cards.map((c) => (
@@ -452,11 +453,17 @@ export function TradingView() {
               />
             ))}
             </div>
-            {/* radar (MOVERS/PIVOTES/VOLUMENES/RENTA FIJA) — sin columna RUBRO para entrar acá */}
-            <TradingRadarPanel onSelect={loadTicker} selectedTicker={shownTicker || null} hideRubro />
+            {/* order book comprimido: ocupa solo el ancho de las cards */}
+            <OrderBookPanel key={shownTicker} ticker={shownTicker} />
           </div>
-          {/* abajo izquierda: order book a todo el ancho (el time sales se movió fuera) */}
-          <OrderBookPanel key={shownTicker} ticker={shownTicker} />
+          {/* radar a todo el alto: 50 MOVERS/VOLUMENES (tabs) / 50 PIVOTES —
+              sin RUBRO ni TICKER para entrar en poco ancho */}
+          <TradingRadarPanel
+            onSelect={loadTicker}
+            selectedTicker={shownTicker || null}
+            hideRubro
+            hideTicker
+          />
         </div>
 
         {/* derecha: 50 chart LIVE (precio) / 50 chart % vs pivots (índice vs activo) */}

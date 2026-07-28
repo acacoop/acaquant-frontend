@@ -4,57 +4,67 @@ import { useState } from "react";
 
 import { TradingMoversScanner } from "./trading-movers-scanner";
 import { TradingPivotRadar } from "./trading-pivot-radar";
-import { TradingRentaFijaScanner } from "./trading-renta-fija-scanner";
 import { TradingVolumenScanner } from "./trading-volumen-scanner";
 
 /**
- * RADAR de TRADING (panel abajo-derecha) con 4 tabs:
- *   - MOVERS ±4%:        CEDEARs que se movieron ±4% (1D o intradía).
- *   - PIVOTES:           CEDEARs con el last pegado a un pivote (≤ umbral%).
- *   - VOLUMENES ACCIONES: CEDEARs más operados del día por CASH (no nominal).
- *   - RENTA FIJA:        bonos en pesos suscriptos (tasa fija + CER) con last,
- *                        TNA y volumen — click carga el bono en la card.
- * Click en una fila → onSelect (carga el ticker en el chart/libro/tape).
+ * RADAR de TRADING (columna derecha del panel izquierdo) — DOS tablas apiladas
+ * 50/50 a todo el alto:
+ *   ARRIBA  → tabs MOVERS ±4% / VOLÚMENES ACCIONES (CEDEARs al palo / más operados).
+ *   ABAJO   → PIVOTES: CEDEARs con el last pegado a un pivote (≤ umbral%).
+ * (RENTA FIJA se removió — no se usa.)
+ * Click en una fila → onSelect (carga el ticker en el chart/libro/pivot%).
  */
-type Tab = "movers" | "pivotes" | "volumenes" | "renta_fija";
+type TopTab = "movers" | "volumenes";
 
 export function TradingRadarPanel({
   onSelect,
   selectedTicker,
   hideRubro,
+  hideTicker,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
   hideRubro?: boolean;
+  hideTicker?: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>("movers");
+  const [top, setTop] = useState<TopTab>("movers");
 
   return (
-    <div className="min-h-0 h-full border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-      <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
-        <TabBtn active={tab === "movers"} onClick={() => setTab("movers")}>
-          MOVERS ±4%
-        </TabBtn>
-        <TabBtn active={tab === "pivotes"} onClick={() => setTab("pivotes")}>
-          PIVOTES
-        </TabBtn>
-        <TabBtn active={tab === "volumenes"} onClick={() => setTab("volumenes")}>
-          VOLUMENES ACCIONES
-        </TabBtn>
-        <TabBtn active={tab === "renta_fija"} onClick={() => setTab("renta_fija")}>
-          RENTA FIJA
-        </TabBtn>
+    <div className="min-h-0 h-full grid grid-rows-2 gap-2">
+      {/* ARRIBA: MOVERS / VOLÚMENES (tabs) */}
+      <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
+          <TabBtn active={top === "movers"} onClick={() => setTop("movers")}>
+            MOVERS ±4%
+          </TabBtn>
+          <TabBtn active={top === "volumenes"} onClick={() => setTop("volumenes")}>
+            VOLUMENES ACCIONES
+          </TabBtn>
+        </div>
+        <div className="flex-1 min-h-0">
+          {top === "movers" ? (
+            <TradingMoversScanner
+              onSelect={onSelect}
+              selectedTicker={selectedTicker}
+              hideRubro={hideRubro}
+              hideTicker={hideTicker}
+            />
+          ) : (
+            <TradingVolumenScanner onSelect={onSelect} selectedTicker={selectedTicker} />
+          )}
+        </div>
       </div>
-      <div className="flex-1 min-h-0">
-        {tab === "movers" ? (
-          <TradingMoversScanner onSelect={onSelect} selectedTicker={selectedTicker} hideRubro={hideRubro} />
-        ) : tab === "pivotes" ? (
+
+      {/* ABAJO: PIVOTES (proximidad a pivote) */}
+      <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
+          <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--t-accent)]">
+            PIVOTES
+          </span>
+        </div>
+        <div className="flex-1 min-h-0">
           <TradingPivotRadar onSelect={onSelect} selectedTicker={selectedTicker} />
-        ) : tab === "volumenes" ? (
-          <TradingVolumenScanner onSelect={onSelect} selectedTicker={selectedTicker} />
-        ) : (
-          <TradingRentaFijaScanner onSelect={onSelect} selectedTicker={selectedTicker} />
-        )}
+        </div>
       </div>
     </div>
   );

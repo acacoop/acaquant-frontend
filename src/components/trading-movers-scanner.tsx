@@ -32,10 +32,12 @@ export function TradingMoversScanner({
   onSelect,
   selectedTicker,
   hideRubro,
+  hideTicker,
 }: {
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
   hideRubro?: boolean;
+  hideTicker?: boolean;
 }) {
   const { data: rows } = usePoll<CedearScannerRow[]>(
     "/api/scanner/cedears",
@@ -68,6 +70,7 @@ export function TradingMoversScanner({
         onSelect={onSelect}
         selectedTicker={selectedTicker}
         hideRubro={hideRubro}
+        hideTicker={hideTicker}
       />
     </div>
   );

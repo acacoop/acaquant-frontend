@@ -37,6 +37,7 @@ export function CedearsScannerTable({
   rubroFiltro,
   onClearRubro,
   hideRubro = false,
+  hideTicker = false,
 }: {
   data: CedearScannerRow[];
   selectedTicker?: string | null;
@@ -47,6 +48,9 @@ export function CedearsScannerTable({
   // TRADING radar: oculta la columna RUBRO para ganar ancho (la vista embebida
   // al lado de las cards es angosta). El Scanner de Renta Variable la mantiene.
   hideRubro?: boolean;
+  // TRADING radar: oculta también la columna TICKER (queda solo NOMBRE) — el
+  // ticker se ve al hacer click y cargar el papel en una card.
+  hideTicker?: boolean;
 }) {
   const [view, setView] = useState<View>("cedear");
   const [sortKey, setSortKey] = useState<SortKey>("intraday_pct");
@@ -165,7 +169,9 @@ export function CedearsScannerTable({
           <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
             {view === "cedear" ? (
               <tr className="text-[var(--t-text-muted)]">
-                <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+                {!hideTicker && (
+                  <SortableTh label="TICKER" col="ticker_corto" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
+                )}
                 <SortableTh label="NOMBRE" col="nombre"       sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" />
                 {!hideRubro && (
                   <SortableTh label="RUBRO"  col="rubro"        sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
@@ -180,7 +186,9 @@ export function CedearsScannerTable({
               </tr>
             ) : (
               <tr className="text-[#5a8aa3]">
-                <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
+                {!hideTicker && (
+                  <SortableTh label="TICKER"  col="ticker_corto"    sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
+                )}
                 <SortableTh label="NOMBRE"  col="nombre"          sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" />
                 {!hideRubro && (
                   <SortableTh label="RUBRO"   col="rubro"           sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} align="left"  tone="cyan" title="Clasificación de negocio (editable en Manager → Renta Variable)" />
@@ -197,7 +205,7 @@ export function CedearsScannerTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={hideRubro ? 9 : 10} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
+                <td colSpan={10 - (hideRubro ? 1 : 0) - (hideTicker ? 1 : 0)} className="text-[var(--t-text-muted)] text-xs py-4 text-center">
                   SIN CEDEARS ACTIVOS — correr scripts/seed_cedears.py
                 </td>
               </tr>
@@ -216,9 +224,11 @@ export function CedearsScannerTable({
                         : ""
                     }`}
                   >
-                    <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[var(--t-accent)]"}`}>
-                      {r.ticker_corto}
-                    </td>
+                    {!hideTicker && (
+                      <td className={`!px-1 font-semibold ${view === "adr" ? "text-[#5fb3d4]" : "text-[var(--t-accent)]"}`}>
+                        {r.ticker_corto}
+                      </td>
+                    )}
                     <td className="!px-1 text-[var(--t-text)] truncate max-w-[180px]" title={r.nombre ?? ""}>
                       {r.nombre || "--"}
                     </td>
