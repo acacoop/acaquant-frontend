@@ -5,16 +5,17 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { AgroView } from "./agro-view";
 import { ArancelesView } from "./aranceles-view";
 import { CashFlowView } from "./cashflow-view";
+import { DolarFuturoView } from "./dolar-futuro-view";
 import { OpsView } from "./ops-view";
 
-// /operaciones: OPERACIONES · ARANCELES · AGRO · depósitos & extracciones.
+// /operaciones: OPERACIONES · ARANCELES · AGRO · DÓLAR FUTURO · depósitos & extracciones.
 // MOVIMIENTOS (ex NEGOCIO) se movió a Manager. INTRADAY se movió a Trading.
 //
 // Keep-alive: cada tab se monta la PRIMERA vez que se abre y luego se oculta con
 // CSS (no se desmonta). Así no re-fetchea fechas/segmentos/data al volver — cambiar
 // de tab es instantáneo después del primer load. El gráfico (recharts) re-mide solo
 // al volver a mostrarse (ResizeObserver del ResponsiveContainer).
-type Tab = "operaciones" | "aranceles" | "agro" | "depositos";
+type Tab = "operaciones" | "aranceles" | "agro" | "dolarfuturo" | "depositos";
 
 export function OperacionesView() {
   // tab persiste entre rutas (volvés a /operaciones → misma sub-pestaña).
@@ -37,6 +38,7 @@ export function OperacionesView() {
         <TabBtn active={tab === "operaciones"} onClick={() => open("operaciones")}>OPERACIONES</TabBtn>
         <TabBtn active={tab === "aranceles"} onClick={() => open("aranceles")}>ARANCELES</TabBtn>
         <TabBtn active={tab === "agro"} onClick={() => open("agro")}>AGRO</TabBtn>
+        <TabBtn active={tab === "dolarfuturo"} onClick={() => open("dolarfuturo")}>DÓLAR FUTURO</TabBtn>
         <TabBtn active={tab === "depositos"} onClick={() => open("depositos")}>DEPÓSITOS & EXTRACCIONES</TabBtn>
       </div>
 
@@ -44,6 +46,7 @@ export function OperacionesView() {
         {visited.has("operaciones") && <Pane active={tab === "operaciones"}><OpsView /></Pane>}
         {visited.has("aranceles") && <Pane active={tab === "aranceles"}><ArancelesView /></Pane>}
         {visited.has("agro") && <Pane active={tab === "agro"}><AgroView /></Pane>}
+        {visited.has("dolarfuturo") && <Pane active={tab === "dolarfuturo"}><DolarFuturoView /></Pane>}
         {visited.has("depositos") && <Pane active={tab === "depositos"}><CashFlowView /></Pane>}
       </div>
     </div>
