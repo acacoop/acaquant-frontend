@@ -57,6 +57,17 @@ const fmtC = (n: number) => {
 // Número completo SIN abreviar y sin decimales (para la columna NETO).
 const fmtFull = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 
+// Orden de la columna NETO: "" = orden del backend (por |importe|), luego
+// desc/asc por importe firmado al clickear el header.
+type Ord = "" | "desc" | "asc";
+const nextOrd = (o: Ord): Ord => (o === "" ? "desc" : o === "desc" ? "asc" : "");
+const arrowOrd = (o: Ord) => (o === "desc" ? " ↓" : o === "asc" ? " ↑" : "");
+function sortByImporte<T extends { importe: number }>(rows: T[], dir: Ord): T[] {
+  if (!dir) return rows;
+  const s = [...rows].sort((a, b) => a.importe - b.importe);
+  return dir === "desc" ? s.reverse() : s;
+}
+
 export function DiferenciasDiariasView() {
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
   const [modo, setModo] = useState<Modo>("RANGO");
@@ -70,6 +81,10 @@ export function DiferenciasDiariasView() {
   const [niveles5, setNiveles5] = useState<string[]>([]);
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
+  const [buscarCuenta, setBuscarCuenta] = useState("");
+  const [ordProd, setOrdProd] = useState<Ord>("");
+  const [ordCuenta, setOrdCuenta] = useState<Ord>("");
+  const [ordInstr, setOrdInstr] = useState<Ord>("");
 
   // Fechas con datos → seed RANGO = YTD del último año con operaciones.
   useEffect(() => {
@@ -135,9 +150,20 @@ export function DiferenciasDiariasView() {
     setMoneda(m); setSelProd(null); setSelCuenta(null); setSelInstr(null);
   };
 
-  const productos = data?.por_producto ?? [];
-  const cuentas = data?.por_cuenta ?? [];
-  const instrumentos = data?.por_instrumento ?? [];
+  const productos = useMemo(
+    () => sortByImporte(data?.por_producto ?? [], ordProd),
+    [data, ordProd],
+  );
+  const cuentas = useMemo(() => {
+    const q = buscarCuenta.trim().toLowerCase();
+    const base = data?.por_cuenta ?? [];
+    const filtradas = q ? base.filter((c) => c.cuenta.toLowerCase().includes(q)) : base;
+    return sortByImporte(filtradas, ordCuenta);
+  }, [data, buscarCuenta, ordCuenta]);
+  const instrumentos = useMemo(
+    () => sortByImporte(data?.por_instrumento ?? [], ordInstr),
+    [data, ordInstr],
+  );
   const total = data?.total ?? { importe: 0, n: 0, pos: 0, neg: 0 };
   const serie = data?.serie ?? [];
   const unidad = moneda === "USDL" ? "US$" : "ARS";
@@ -176,6 +202,15 @@ export function DiferenciasDiariasView() {
           <option value="">Todos los nivel 5</option>
           {niveles5.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
+        <div className="inline-flex items-center border border-[var(--t-border-2)]">
+          <input value={buscarCuenta} onChange={(e) => setBuscarCuenta(e.target.value)}
+            placeholder="Buscar cuenta…"
+            className="bg-[var(--t-panel)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none placeholder:text-[var(--t-text-muted)] w-[150px]" />
+          {buscarCuenta && (
+            <button onClick={() => setBuscarCuenta("")} aria-label="Limpiar búsqueda"
+              className="px-1.5 text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">✕</button>
+          )}
+        </div>
         <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
           {total.n} diferencias · NETO: <span className={"font-semibold " + (total.importe >= 0 ? "text-[#22c55e]" : "text-[#ef4444]")}>{unidad} {fmtC(total.importe)}</span>
           {" "}· <span className="text-[#22c55e]">{total.pos}↑</span> / <span className="text-[#ef4444]">{total.neg}↓</span>
@@ -192,7 +227,8 @@ export function DiferenciasDiariasView() {
               <thead className="bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                 <tr>
                   <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Producto</th>
-                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Neto ({unidad})</th>
+                  <th onClick={() => setOrdProd(nextOrd(ordProd))}
+                    className="px-3 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]">Neto ({unidad}){arrowOrd(ordProd)}</th>
                   <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Diferencias</th>
                 </tr>
               </thead>
@@ -218,7 +254,8 @@ export function DiferenciasDiariasView() {
               <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                 <tr>
                   <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Cuenta</th>
-                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Neto ({unidad})</th>
+                  <th onClick={() => setOrdCuenta(nextOrd(ordCuenta))}
+                    className="px-3 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]">Neto ({unidad}){arrowOrd(ordCuenta)}</th>
                   <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                 </tr>
               </thead>
@@ -251,7 +288,8 @@ export function DiferenciasDiariasView() {
               <thead className="sticky top-0 bg-[var(--t-panel)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
                 <tr>
                   <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Instrumento</th>
-                  <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Neto ({unidad})</th>
+                  <th onClick={() => setOrdInstr(nextOrd(ordInstr))}
+                    className="px-3 py-1.5 text-right border-b border-[var(--t-border)] cursor-pointer select-none hover:text-[var(--t-accent)]">Neto ({unidad}){arrowOrd(ordInstr)}</th>
                   <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
                 </tr>
               </thead>
