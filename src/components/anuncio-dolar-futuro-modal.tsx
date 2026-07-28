@@ -12,8 +12,7 @@
 import { useEffect, useState } from "react";
 
 const KEY = "anuncio.dolarfuturo.lanzamiento.2026-07";
-const DESDE = "2026-07-28";   // ventana de lanzamiento (ART, inclusive)
-const HASTA = "2026-08-15";
+const VENTANA = new Set(["2026-07-28", "2026-07-29"]);   // solo hoy y mañana (ART)
 const ROLES_OK = new Set(["admin", "trader", "sales", "asistente_comercial"]);
 
 function hoyART(): string {
@@ -35,8 +34,7 @@ export function AnuncioDolarFuturoModal() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const hoy = hoyART();
-    if (hoy < DESDE || hoy > HASTA) return;
+    if (!VENTANA.has(hoyART())) return;
     try { if (localStorage.getItem(KEY) === "1") return; } catch { return; }
     // Gate por rol: solo la mesa, nunca el invitado. El backend igual protege
     // los datos (default-deny); esto es solo UX del anuncio.
