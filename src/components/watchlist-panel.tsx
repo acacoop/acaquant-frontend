@@ -114,6 +114,8 @@ interface GenRow {
   ts: string | null;
   selectKey: string;
   clickable: boolean;
+  // Los bonos offshore no muestran MTD/YTD (pedido 2026-07-28).
+  hideExtRet?: boolean;
 }
 
 // GENERAL consolida estos sub-grupos (en este orden, con separadores). ARGY va
@@ -220,9 +222,9 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     if (filtro !== "General") return [];
     const grupos: { label: string; rows: GenRow[] }[] = [];
 
-    // 1) ARGY (lo local: MEP, CCL, canje, cauciones, riesgo, oficial) + los
-    //    soberanos OFFSHORE (source "eikon_off") como grupo PROPIO
-    //    "Bonos Off Shore" debajo de Argentina (pedido 2026-07-24).
+    // 1) ARGY (lo local: MEP, CCL, canje, cauciones, riesgo, oficial). Los
+    //    soberanos OFFSHORE (source "eikon_off") van como grupo PROPIO
+    //    "Bonos Off Shore" al FINAL de todo (pedido 2026-07-28).
     const mapArgy = (r: ArgyDoc): GenRow => {
       const isPct = r.unit === "%";
       const valueColor = isPct
@@ -255,9 +257,6 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     if (argyLocal.length > 0) {
       grupos.push({ label: "Argentina", rows: argyLocal.map(mapArgy) });
     }
-    if (argyOff.length > 0) {
-      grupos.push({ label: "Bonos Off Shore", rows: argyOff.map(mapArgy) });
-    }
 
     // 2) Índices / Futuros / US Treasury (Market.Quotes).
     for (const g of SUBGRUPOS_GLOBALES) {
@@ -278,6 +277,14 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
           clickable: !!onSelect,
         }));
       if (rows.length > 0) grupos.push({ label: g, rows });
+    }
+
+    // 3) Bonos Off Shore AL FINAL, sin MTD/YTD (pedido 2026-07-28).
+    if (argyOff.length > 0) {
+      grupos.push({
+        label: "Bonos Off Shore",
+        rows: argyOff.map((r) => ({ ...mapArgy(r), hideExtRet: true })),
+      });
     }
 
     return grupos;
@@ -491,8 +498,17 @@ function GeneralGrupo({
             </td>
             <PctCell v={r.pct_day} />
             <PctCell v={r.ret_7d} />
-            <PctCell v={r.ret_mtd} />
-            <PctCell v={r.ret_ytd} />
+            {r.hideExtRet ? (
+              <>
+                <td className="px-2 py-0.5" />
+                <td className="px-2 py-0.5" />
+              </>
+            ) : (
+              <>
+                <PctCell v={r.ret_mtd} />
+                <PctCell v={r.ret_ytd} />
+              </>
+            )}
             <td className="px-2 py-0.5 text-right text-[var(--t-text-muted)] tabular-nums">{fmtAct(r.ts)}</td>
           </tr>
         );

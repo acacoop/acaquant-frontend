@@ -109,7 +109,7 @@ function Hoy({ v }: { v: number | null }) {
   return <span className="text-right font-mono font-bold tabular-nums text-[11px] text-[var(--t-text)]">{nf.format(v)}</span>;
 }
 
-function Row({ r, grid = GRID }: { r: MetricRow; grid?: string }) {
+function Row({ r, grid = GRID, hideMtd = false }: { r: MetricRow; grid?: string; hideMtd?: boolean }) {
   return (
     <div className={`${grid} items-baseline py-1.5 border-b border-[var(--t-border-2)]`}>
       <span className={LBL} title={r.label}>
@@ -120,7 +120,7 @@ function Row({ r, grid = GRID }: { r: MetricRow; grid?: string }) {
       <Hoy v={r.hoy} />
       <Pct v={r.ret_1d} />
       <Pct v={r.ret_wtd} />
-      <Pct v={r.ret_mtd} />
+      {hideMtd ? <span /> : <Pct v={r.ret_mtd} />}
     </div>
   );
 }
@@ -133,14 +133,14 @@ function Section({ title }: { title: string }) {
   );
 }
 
-function ColHeader({ grid = GRID }: { grid?: string }) {
+function ColHeader({ grid = GRID, hideMtd = false }: { grid?: string; hideMtd?: boolean }) {
   return (
     <div className={`${grid} py-1 border-b border-[var(--t-border-2)] bg-[var(--t-bg)]`}>
       <span />
       <span className={HEAD}>HOY</span>
       <span className={HEAD}>1D</span>
       <span className={HEAD}>WTD</span>
-      <span className={HEAD}>MTD</span>
+      {hideMtd ? <span /> : <span className={HEAD}>MTD</span>}
     </div>
   );
 }
@@ -371,9 +371,9 @@ export function BriefingModal() {
                   {(data.bonos_off?.length ?? 0) > 0 && (
                     <div>
                       <Section title="SOBERANOS EXTERIOR (OFF)" />
-                      <ColHeader />
+                      <ColHeader hideMtd />
                       {data.bonos_off!.map((r) => (
-                        <Row key={r.label} r={r} />
+                        <Row key={r.label} r={r} hideMtd />
                       ))}
                     </div>
                   )}
