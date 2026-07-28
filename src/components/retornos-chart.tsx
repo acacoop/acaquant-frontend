@@ -147,7 +147,7 @@ export function RetornosChart({ ticker }: { ticker: string | null }) {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={datos} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+            <BarChart data={datos} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="2 2" stroke="var(--t-border-2)" vertical={false} />
               <XAxis
                 dataKey="fecha"
@@ -160,7 +160,7 @@ export function RetornosChart({ ticker }: { ticker: string | null }) {
                 tickFormatter={(v: number) => `${v.toFixed(0)}%`}
                 tick={{ fontSize: 9, fill: "var(--t-text-dim)" }}
                 stroke="var(--t-border-2)"
-                width={38}
+                width={44}
               />
               <ReferenceLine y={0} stroke="var(--t-border)" />
               <Tooltip
