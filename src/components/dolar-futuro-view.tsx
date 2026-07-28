@@ -4,13 +4,14 @@
 // 1 contrato = USD 1000 → nocional = |cantidad| × 1000 (lo calcula el backend).
 // Layout 2×2 (4 paneles al 50%): POR TIPO (Compra/Venta) · POR CUENTA ·
 // POR INSTRUMENTO (vencimientos) · gráfico de barras (nocional por periodo).
-// Toolbar: rango desde→hasta + filtro nivel_5. Cross-filter por click (re-click =
-// limpiar). Endpoint: /api/operaciones/ops/dolar-futuro.
+// Toolbar estilo OPERACIONES: pills ULTIMA/SEMANA/MES/RANGO + inputs de fecha
+// nativos (calendario visible en dark) + filtro nivel_5. Cross-filter por click
+// (re-click = limpiar). Endpoint: /api/operaciones/ops/dolar-futuro.
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { DatePickerCompact } from "./date-picker";
 import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
 
+type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 type Tipo = "Compra" | "Venta";
 type TipoRow = { tipo: Tipo; nocional: number; arancel: number; n: number };
 type CuentaRow = { denominacion: string; nocional: number; arancel: number; n: number };
@@ -29,6 +30,20 @@ const SERIES: SerieDef[] = [
   { key: "Venta", label: "Venta", color: "#ef4444" },   // rojo
 ];
 
+const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
+const fmtFechaDisplay = (s: string) => { const [y, m, d] = s.split("-").map(Number); return `${d} ${MESES[m - 1]} ${y}`; };
+
+// Anclas de SEMANA / MES sobre la fecha más reciente con datos (no en hoy).
+function lunesDeSemana(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay();
+  dt.setUTCDate(dt.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  return dt.toISOString().slice(0, 10);
+}
+const primerDiaMes = (iso: string) => iso.slice(0, 7) + "-01";
+
 // Compacto es-AR (B/M/k) para nocional (US$) y arancel (ARS).
 const fmtC = (n: number) => {
   const a = Math.abs(n);
@@ -41,9 +56,10 @@ const toSerieRows = (s: SerieResp[]): SerieRow[] =>
   s.map((p) => ({ fecha: p.periodo, Compra: p.Compra, Venta: p.Venta }));
 
 export function DolarFuturoView() {
-  const [bounds, setBounds] = useState<{ min: string; max: string } | null>(null);
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
+  const [modo, setModo] = useState<Modo>("RANGO");
+  const [rDesde, setRDesde] = useState("");
+  const [rHasta, setRHasta] = useState("");
   const [selTipo, setSelTipo] = useState<Tipo | null>(null);
   const [selCuenta, setSelCuenta] = useState<string | null>(null);
   const [selInstr, setSelInstr] = useState<string | null>(null);
@@ -52,20 +68,21 @@ export function DolarFuturoView() {
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Bounds del calendario + default YTD del último año con datos.
+  // Fechas con datos → seed RANGO = YTD del último año con operaciones.
   useEffect(() => {
-    (async () => {
-      const r = await fetch("/api/operaciones/ops/fechas", { cache: "no-store" })
-        .then((x) => (x.ok ? x.json() : null)).catch(() => null);
-      const fechas: { fecha: string }[] = r?.fechas ?? [];
-      if (!fechas.length) return;
-      const max = fechas[0].fecha;
-      const min = fechas[fechas.length - 1].fecha;
-      const ytd = `${max.slice(0, 4)}-01-01`;
-      setBounds({ min, max });
-      setDesde(ytd < min ? min : ytd);
-      setHasta(max);
-    })();
+    fetch("/api/operaciones/ops/fechas", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const f: { fecha: string }[] = d?.fechas ?? [];
+        if (!f.length) return;
+        setFechas(f);
+        const max = f[0].fecha;
+        const min = f[f.length - 1].fecha;
+        const ytd = `${max.slice(0, 4)}-01-01`;
+        setRDesde(ytd < min ? min : ytd);
+        setRHasta(max);
+      })
+      .catch(() => {});
   }, []);
 
   // Valores de nivel_5 (Comitentes) para el filtro.
@@ -76,11 +93,31 @@ export function DolarFuturoView() {
       .catch(() => {});
   }, []);
 
+  const fechasAsc = useMemo(() => fechas.map((f) => f.fecha).sort(), [fechas]);
+  const rango = useMemo(() => {
+    if (!fechasAsc.length) return { desde: rDesde, hasta: rHasta };
+    const ultima = fechasAsc[fechasAsc.length - 1];
+    if (modo === "SEMANA") return { desde: lunesDeSemana(ultima), hasta: ultima };
+    if (modo === "MES") return { desde: primerDiaMes(ultima), hasta: ultima };
+    if (modo === "RANGO") return { desde: rDesde || ultima, hasta: rHasta || ultima };
+    return { desde: ultima, hasta: ultima }; // ULTIMA
+  }, [modo, fechasAsc, rDesde, rHasta]);
+
+  // Editar cualquiera de los dos date inputs salta a modo RANGO.
+  const onDesde = (v: string) => {
+    const h = rHasta || rango.hasta;
+    setRDesde(v); setRHasta(h && h >= v ? h : v); setModo("RANGO");
+  };
+  const onHasta = (v: string) => {
+    const d = rDesde || rango.desde;
+    setRHasta(v); setRDesde(d && d <= v ? d : v); setModo("RANGO");
+  };
+
   // Fetch: serie DIARIA (el chart agrega en cliente) + tablas acotadas al rango.
   useEffect(() => {
-    if (!desde || !hasta) return;
+    if (!rango.desde || !rango.hasta) return;
     setLoading(true);
-    const qs = `desde=${desde}&hasta=${hasta}&agg=DIARIO`
+    const qs = `desde=${rango.desde}&hasta=${rango.hasta}&agg=DIARIO`
       + (selTipo ? `&tipo=${selTipo}` : "")
       + (selCuenta ? `&cuenta=${encodeURIComponent(selCuenta)}` : "")
       + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
@@ -88,31 +125,40 @@ export function DolarFuturoView() {
     fetch(`/api/operaciones/ops/dolar-futuro?${qs}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).then(setData)
       .catch(() => setData(null)).finally(() => setLoading(false));
-  }, [desde, hasta, selTipo, selCuenta, selInstr, nivel5]);
+  }, [rango.desde, rango.hasta, selTipo, selCuenta, selInstr, nivel5]);
 
   const tipos = data?.por_tipo ?? [];
   const cuentas = data?.por_cuenta ?? [];
   const instrumentos = data?.por_instrumento ?? [];
   const total = data?.total ?? { nocional: 0, arancel: 0, n: 0 };
   const serie = useMemo(() => toSerieRows(data?.serie ?? []), [data]);
-  // Si hay un tipo seleccionado, el chart muestra sólo esa serie.
   const chartSeries = useMemo(
     () => (selTipo ? SERIES.filter((s) => s.key === selTipo) : SERIES),
     [selTipo],
   );
+  const maxFecha = fechasAsc[fechasAsc.length - 1];
 
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
-      {/* Toolbar: rango desde → hasta + nivel_5 + total nocional */}
+      {/* Toolbar estilo OPERACIONES: pills de rango + date inputs nativos + nivel_5 */}
       <div className="flex items-center flex-wrap gap-2 px-4 py-2 border-b border-[var(--t-border)] shrink-0 text-[11px]">
-        <span className="text-[10px] uppercase tracking-wider text-[var(--t-text-muted)]">Desde</span>
-        {bounds && desde && (
-          <DatePickerCompact value={desde} onChange={setDesde} min={bounds.min} max={hasta || bounds.max} />
-        )}
-        <span className="text-[10px] uppercase tracking-wider text-[var(--t-text-muted)]">Hasta</span>
-        {bounds && hasta && (
-          <DatePickerCompact value={hasta} onChange={setHasta} min={desde || bounds.min} max={bounds.max} />
-        )}
+        {(["ULTIMA", "SEMANA", "MES", "RANGO"] as Modo[]).map((m) => (
+          <Pill key={m} active={modo === m} onClick={() => setModo(m)}>{m}</Pill>
+        ))}
+        <div className="inline-flex items-center border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          <input type="date" value={rango.desde} max={rango.hasta || maxFecha || undefined}
+            disabled={!fechas.length} onChange={(e) => onDesde(e.target.value)}
+            className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
+          <span className="px-1 text-[var(--t-text-dim)]">→</span>
+          <input type="date" value={rango.hasta} min={rango.desde || undefined} max={maxFecha || undefined}
+            disabled={!fechas.length} onChange={(e) => onHasta(e.target.value)}
+            className="bg-[var(--t-panel)] px-2 py-0.5 text-[12px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
+        </div>
+        <span className="font-mono text-[12px] text-[var(--t-accent)] mx-1">
+          {modo === "ULTIMA" ? (rango.hasta ? fmtFechaDisplay(rango.hasta) : "—")
+            : `${fmtFechaCorta(rango.desde)} → ${fmtFechaCorta(rango.hasta)}`}
+        </span>
+        <span className="text-[#333]">│</span>
         <select value={nivel5} onChange={(e) => setNivel5(e.target.value)}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark] max-w-[200px]">
           <option value="">Todos los nivel 5</option>
@@ -227,6 +273,15 @@ export function DolarFuturoView() {
         </div>
       </div>
     </div>
+  );
+}
+
+function Pill({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className={"px-2 py-0.5 border text-[11px] font-semibold " + (active ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]" : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]")}>
+      {children}
+    </button>
   );
 }
 
