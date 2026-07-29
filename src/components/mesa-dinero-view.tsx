@@ -16,6 +16,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -68,6 +69,15 @@ const fmtFechaCorta = (iso: string) => {
 };
 const signClass = (n: number | null | undefined) =>
   n == null ? "" : n < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]";
+// Abreviado para labels del chart: 19.696.422 → "19,7M"; 12.970 → "13k".
+const fmtAbrev = (n: number) => {
+  const a = Math.abs(n);
+  const f = (x: number) => x.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+  if (a >= 1e9) return f(n / 1e9) + "B";
+  if (a >= 1e6) return f(n / 1e6) + "M";
+  if (a >= 1e3) return f(n / 1e3) + "k";
+  return f(n);
+};
 
 const mesActual = () => new Date().toISOString().slice(0, 7); // YYYY-MM
 const rangoDeMes = (mes: string): { desde: string; hasta: string } => {
@@ -118,11 +128,12 @@ function opAForm(op: Op): FormState {
   };
 }
 
-function OpForm({ opciones, editando, onGuardado, onCancelar }: {
+function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
   opciones: Opciones;
   editando: Op | null;
   onGuardado: () => void;
   onCancelar: () => void;
+  onBorrar: () => void;
 }) {
   const [f, setF] = useState<FormState>(editando ? opAForm(editando) : FORM_VACIO);
   const [busy, setBusy] = useState(false);
@@ -226,6 +237,12 @@ function OpForm({ opciones, editando, onGuardado, onCancelar }: {
           className="px-3 py-1 text-[10px] border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]">
           Cancelar
         </button>
+        {editando && (
+          <button onClick={onBorrar}
+            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-neg)] text-[var(--t-neg)] hover:bg-[var(--t-neg)] hover:text-white">
+            BORRAR
+          </button>
+        )}
         <span className="text-[9px] text-[var(--t-text-muted)] ml-auto">
           Monto = VN × Px / 100 · Resultado = Venta − Compra · % = Resultado / Monto compra
         </span>
@@ -306,9 +323,10 @@ export function MesaDineroView() {
   }, []);
 
   const borrar = async (op: Op) => {
-    if (!window.confirm(`¿Borrar el registro de ${op.activo ?? "—"} del ${fmtFecha(op.fecha)}? Queda auditado.`)) return;
+    if (!window.confirm(`¿Borrar el registro de ${op.activo ?? "—"} del ${fmtFecha(op.fecha)}? Queda auditado.`)) return false;
     await fetch(`/api/mesa-dinero/ops/${op.id}`, { method: "DELETE" });
     cargar();
+    return true;
   };
 
   const setTc = async (fecha: string, tc: number) => {
@@ -362,16 +380,19 @@ export function MesaDineroView() {
       </div>
 
       {tab === "operaciones" && (
-      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3">
+      <div className="flex-1 min-h-0 grid grid-cols-[55fr_45fr] gap-3 p-3">
         {/* IZQUIERDA: operaciones */}
-        <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+        <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
           <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
             <span className="text-[11px] font-semibold text-[var(--t-text)]">OPERACIONES</span>
           </div>
           {formAbierto && (
             <OpForm key={editando?.id ?? "nueva"} opciones={opciones} editando={editando}
               onGuardado={() => { setFormAbierto(false); setEditando(null); cargar(); }}
-              onCancelar={() => { setFormAbierto(false); setEditando(null); }} />
+              onCancelar={() => { setFormAbierto(false); setEditando(null); }}
+              onBorrar={async () => {
+                if (editando && await borrar(editando)) { setFormAbierto(false); setEditando(null); }
+              }} />
           )}
           <div className="flex-1 min-h-0 overflow-auto">
             {ops.length === 0 ? (
@@ -392,8 +413,7 @@ export function MesaDineroView() {
                     const conPatas = op.monto_compra != null || op.monto_venta != null;
                     return (
                       <Rows key={op.id} op={op} conPatas={conPatas} puedeEscribir={puedeEscribir}
-                        onEditar={() => { setEditando(op); setFormAbierto(true); }}
-                        onBorrar={() => borrar(op)} />
+                        onEditar={() => { setEditando(op); setFormAbierto(true); }} />
                     );
                   })}
                 </tbody>
@@ -405,7 +425,7 @@ export function MesaDineroView() {
         {/* DERECHA: resultado + gráfico */}
         <div className="grid grid-rows-2 gap-3 min-h-0">
           {/* Arriba: resultado diario */}
-          <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+          <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
             <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex items-center gap-2">
               <span className="text-[11px] font-semibold text-[var(--t-text)]">RESULTADO</span>
               <span className="text-[9px] text-[var(--t-text-muted)]">Σ de las operaciones · TC manual{puedeEscribir ? " (click para editar)" : ""}</span>
@@ -450,7 +470,7 @@ export function MesaDineroView() {
           </div>
 
           {/* Abajo: gráfico de barras */}
-          <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+          <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
             <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex items-center gap-2">
               <span className="text-[11px] font-semibold text-[var(--t-text)]">RESULTADO POR DÍA</span>
               <div className="ml-auto flex gap-1">
@@ -468,7 +488,7 @@ export function MesaDineroView() {
             </div>
             <div className="flex-1 min-h-0 p-2">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
+                <BarChart data={chartData} margin={{ top: 16, right: 8, bottom: 4, left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
                   <XAxis dataKey="fecha" tick={{ fontSize: 9 }} />
                   <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => fmt0(v)} width={70} />
@@ -476,6 +496,8 @@ export function MesaDineroView() {
                     formatter={(v) => [fmt2(Number(v)) + (moneda === "USD" ? " U$S" : " $"), "Resultado"]}
                     contentStyle={{ fontSize: 10, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
                   <Bar dataKey="valor">
+                    <LabelList dataKey="valor" position="top" fontSize={8} fill="var(--t-text-muted)"
+                      formatter={(v) => fmtAbrev(Number(v))} />
                     {chartData.map((d, i) => (
                       <Cell key={i} fill={d.valor < 0 ? "var(--t-neg)" : "var(--t-pos)"} />
                     ))}
@@ -491,7 +513,7 @@ export function MesaDineroView() {
       {tab === "resultados" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3">
         {/* IZQUIERDA: resultado por cliente */}
-        <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+        <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
           <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex items-center gap-2">
             <span className="text-[11px] font-semibold text-[var(--t-text)]">RESULTADO POR CLIENTE</span>
             {(resultados?.dias_sin_tc ?? 0) > 0 && (
@@ -531,7 +553,7 @@ export function MesaDineroView() {
 
         {/* DERECHA: por comercial (arriba) + n° de operaciones (abajo), 50/50 */}
         <div className="grid grid-rows-2 gap-3 min-h-0">
-          <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+          <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
             <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
               <span className="text-[11px] font-semibold text-[var(--t-text)]">RESULTADO POR COMERCIAL</span>
               <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">según observación de cada operación</span>
@@ -571,7 +593,7 @@ export function MesaDineroView() {
             </div>
           </div>
 
-          <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+          <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
             <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
               <span className="text-[11px] font-semibold text-[var(--t-text)]">N° DE OPERACIONES</span>
             </div>
@@ -611,20 +633,19 @@ export function MesaDineroView() {
 
 // Registro = 2 filas (Compra / Venta) con celdas compartidas (rowSpan), como la
 // planilla original. Los registros sin patas (Pase OPS) van en una sola fila.
-function Rows({ op, conPatas, puedeEscribir, onEditar, onBorrar }: {
+function Rows({ op, conPatas, puedeEscribir, onEditar }: {
   op: Op; conPatas: boolean; puedeEscribir: boolean;
-  onEditar: () => void; onBorrar: () => void;
+  onEditar: () => void;
 }) {
   const span = conPatas ? 2 : 1;
   const acciones = puedeEscribir && (
     <td rowSpan={span} className="text-right pr-2 whitespace-nowrap">
-      <button onClick={onEditar} className="text-[9px] text-[var(--t-accent)] hover:underline mr-2">editar</button>
-      <button onClick={onBorrar} className="text-[9px] text-[var(--t-neg)] hover:underline">borrar</button>
+      <button onClick={onEditar} className="text-[9px] text-[var(--t-accent)] hover:underline">editar</button>
     </td>
   );
   return (
     <>
-      <tr className="border-t border-[var(--t-border)]">
+      <tr className="border-t border-[var(--t-border-2)]">
         <td rowSpan={span} className="px-2 py-0.5 font-mono text-[var(--t-text-dim)]">{fmtFecha(op.fecha)}</td>
         <td rowSpan={span}>{op.trader}</td>
         <td rowSpan={span} className="font-mono text-[var(--t-text)]">{op.activo ?? "—"}</td>
