@@ -333,7 +333,7 @@ export function ComercialInforme({
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-2 py-2">#</th>
               <th className="text-left px-1">COMERCIAL</th>
-              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes del corte (acumulado del mes, ≥1 op)">CTAS OPS</th>
+              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes calendario en curso (≥1 op)">CTAS OPS</th>
               <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">VOL. TOTAL</th>
               <th className="text-right px-2">VOL. MES</th>

@@ -522,7 +522,7 @@ export function ComercialOperacionesView(
           )}
         </div>
         {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy. */}
-        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: TOTAL acumula hasta HASTA; las columnas MES (volumen/arancel/ctas ops) se calculan en [Desde, Hasta]. AuM = foto a HASTA. Vacío = hoy / mes del corte.">
+        <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: las columnas TOTAL (volumen/arancel) = el período elegido [Desde, Hasta]; las columnas MES + CTAS OPS = el mes calendario EN CURSO (siempre el mes actual, no depende del período). AuM = foto a HASTA. Vacío = histórico hasta hoy / mes actual.">
           <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
           {/* Sin min/max en el DOM: las restricciones cruzadas (Desde≤Hasta) + max=hoy hacían
               que el input nativo clampee a HOY mientras tipeás. El orden lo resuelve el backend. */}
