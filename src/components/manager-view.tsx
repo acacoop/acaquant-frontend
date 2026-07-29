@@ -16,6 +16,7 @@ import { JobsGroup } from "./manager-jobs-panel";
 import { GruposPanel } from "./grupos-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
 import { TabAcaValores } from "./manager-aca-valores-view";
+import { TabMesa } from "./manager-mesa-panel";
 import { TabDocumentos } from "./manager-documentos-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
@@ -3234,6 +3235,7 @@ type Tab =
   | "compliance"
   | "aunesa"
   | "operaciones"
+  | "mesa"
   | "documentos"
   | "usuarios";
 
@@ -5517,6 +5519,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   compliance:   ["manager", "manager_compliance"],
   aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
+  mesa:         ["manager"],
   documentos:   ["manager"],
   usuarios:     ["manager"],
 };
@@ -5664,6 +5667,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "compliance",   label: "COMPLIANCE"   },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
+    { id: "mesa",         label: "MESA"         },
     { id: "documentos",   label: "DOCUMENTOS"   },
     { id: "usuarios",     label: "USUARIOS"     },
   ];
@@ -5707,6 +5711,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "compliance"   && <ComplianceGroup />}
         {tab === "aunesa"       && <AunesaGroup modules={modules} />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
+        {tab === "mesa"         && <TabMesa />}
         {tab === "documentos"   && <TabDocumentos />}
         {tab === "usuarios"     && <UsuariosGroup />}
       </div>

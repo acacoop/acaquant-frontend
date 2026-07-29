@@ -35,6 +35,10 @@ const PATH_MODULES: [string, string[]][] = [
   ["/operadores", ["operaciones"]],
   ["/referidos", ["operaciones"]],
   ["/contrapartes", ["operaciones"]],
+  // /mesa-dinero (Mesa de Dinero, NEGOCIO) — lectura módulo `operaciones`;
+  // la escritura tiene allowlist per-usuario server-side (backend).
+  ["/mesa-dinero", ["operaciones"]],
+  ["/api/mesa-dinero", ["operaciones"]],
   ["/api/operaciones", ["operaciones"]],
   ["/api/cuentas", ["operaciones"]],
   ["/aum", ["portfolios"]],
