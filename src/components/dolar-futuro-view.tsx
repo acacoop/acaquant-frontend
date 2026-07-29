@@ -57,7 +57,7 @@ const toSerieRows = (s: SerieResp[]): SerieRow[] =>
 
 export function DolarFuturoView() {
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
-  const [modo, setModo] = useState<Modo>("RANGO");
+  const [modo, setModo] = useState<Modo>("MES");
   const [rDesde, setRDesde] = useState("");
   const [rHasta, setRHasta] = useState("");
   const [selTipo, setSelTipo] = useState<Tipo | null>(null);
@@ -244,7 +244,7 @@ export function DolarFuturoView() {
         <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
           <div className="flex-1 min-h-0">
             <OpsBarChart serie={serie} series={chartSeries} fmt={fmtC} unidad="US$"
-              defaultAgg="MENSUAL" defaultRango="ALL" titulo="Nocional" etiquetas wmSoft />
+              defaultAgg="DIARIO" defaultRango="ALL" titulo="Nocional" etiquetas wmSoft />
           </div>
 
           <TablePanel titulo="Por instrumento (vencimiento)" extra={`${instrumentos.length}`}>

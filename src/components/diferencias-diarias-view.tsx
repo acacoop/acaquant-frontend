@@ -13,6 +13,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { niceScale } from "./ops-bar-chart";
 
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 type Moneda = "USDL" | "ARS";
@@ -70,7 +71,7 @@ function sortByImporte<T extends { importe: number }>(rows: T[], dir: Ord): T[] 
 
 export function DiferenciasDiariasView() {
   const [fechas, setFechas] = useState<{ fecha: string }[]>([]);
-  const [modo, setModo] = useState<Modo>("RANGO");
+  const [modo, setModo] = useState<Modo>("MES");
   const [rDesde, setRDesde] = useState("");
   const [rHasta, setRHasta] = useState("");
   const [moneda, setMoneda] = useState<Moneda>("USDL");
@@ -335,6 +336,13 @@ export function DiferenciasDiariasView() {
       });
     }, [serie, agg]);
 
+    // Dominio Y "lindo" con 0 incluido (datos firmados ±): ticks 1/2/5×10^k,
+    // sin barras cortadas contra el borde del chart.
+    const yScale = useMemo(() => {
+      const vals = data.map((d) => d.importe);
+      return niceScale(Math.min(0, ...vals), Math.max(0, ...vals));
+    }, [data]);
+
     return (
       <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden h-full">
         <div className="flex items-center flex-wrap gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0">
@@ -359,11 +367,13 @@ export function DiferenciasDiariasView() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
               <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
               <YAxis yAxisId="dif" tickFormatter={fmtC} width={52}
-                tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
+                tick={{ fontSize: 9, fill: "var(--t-text-muted)" }}
+                domain={[yScale.lo, yScale.hi]} ticks={yScale.ticks} />
               <Tooltip
                 formatter={(v) => [`${fmtC(Number(v))} ${unidad}`, "Diferencia"]}
                 contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }}
                 labelStyle={{ color: "var(--t-text)" }}
+                itemStyle={{ color: "var(--t-text)" }}
                 cursor={{ fill: "var(--t-border)", opacity: 0.3 }} />
               <Bar yAxisId="dif" dataKey="importe" isAnimationActive={false} maxBarSize={64}>
                 {data.map((d, i) => <Cell key={i} fill={d.importe >= 0 ? POS : NEG} />)}

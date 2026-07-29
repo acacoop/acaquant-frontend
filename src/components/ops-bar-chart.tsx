@@ -58,6 +58,27 @@ function aggSerie(serie: SerieRow[], keys: string[], agg: Agg): ChartRow[] {
     .map(([k, v]) => ({ key: k, x: bucketLabel(k, agg), ...v }));
 }
 
+// Escala Y "linda" (algoritmo nice-numbers de Heckbert): dominio y ticks
+// redondeados a 1/2/5×10^k (250k, 500k, 1M…) e incluye siempre el 0 como
+// baseline. Evita ejes arbitrarios (25,3M) y barras cortadas en el borde.
+export function niceScale(min: number, max: number, maxTicks = 6): { lo: number; hi: number; ticks: number[] } {
+  if (!isFinite(min) || !isFinite(max)) return { lo: 0, hi: 1, ticks: [0, 1] };
+  min = Math.min(min, 0); max = Math.max(max, 0);
+  if (min === max) max = 1;
+  const niceNum = (range: number, round: boolean) => {
+    const exp = Math.floor(Math.log10(range));
+    const f = range / 10 ** exp;
+    const nf = round ? (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) : (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10);
+    return nf * 10 ** exp;
+  };
+  const step = niceNum(niceNum(max - min, false) / (maxTicks - 1), true);
+  const lo = Math.floor(min / step) * step;
+  const hi = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let v = lo; v <= hi + step / 2; v += step) ticks.push(Math.round(v * 1e6) / 1e6);
+  return { lo, hi, ticks };
+}
+
 export function OpsBarChart({
   serie, series, fmt, unidad, focoFecha = null, defaultAgg = "DIARIO", defaultRango = "YTD",
   onAllSelected, titulo, soloMensual = false, etiquetas = false, wmSoft = false,
@@ -97,13 +118,19 @@ export function OpsBarChart({
   );
   const focoKey = focoDia && focoFecha ? bucketKey(focoFecha, effAgg) : null;
   const multi = series.length > 1;
+  // Dominio Y "lindo": techo redondeado a 1/2/5×10^k + ticks parejos (las barras
+  // son side-by-side, no apiladas → el máximo es el mayor valor individual).
+  const yScale = useMemo(() => {
+    const max = Math.max(0, ...chartData.flatMap((r) => keys.map((k) => Number(r[k] ?? 0))));
+    return niceScale(0, max || 1);
+  }, [chartData, keySig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const Chart = (
     <BarChart data={chartData} margin={{ top: 6, right: 10, left: 6, bottom: 4 }}>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
       <XAxis dataKey="x" tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} />
       <YAxis tickFormatter={fmt} tick={{ fontSize: 9, fill: "var(--t-text-muted)" }} width={52}
-        domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]} />
+        domain={[yScale.lo, yScale.hi]} ticks={yScale.ticks} />
       <Tooltip formatter={(v, n) => multi ? [`${fmt(Number(v))} ${unidad}`, String(n)] : `${fmt(Number(v))} ${unidad}`}
         contentStyle={{ fontSize: 11, background: "var(--t-panel)", border: "1px solid var(--t-border)" }}
         labelStyle={{ color: "var(--t-text)" }}
