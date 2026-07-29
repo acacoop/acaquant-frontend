@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { TradingEstrategiaRadar } from "./trading-estrategia-radar";
 import { TradingMoversScanner } from "./trading-movers-scanner";
 import { TradingPivotRadar } from "./trading-pivot-radar";
 import { TradingVolumenScanner } from "./trading-volumen-scanner";
@@ -10,11 +11,13 @@ import { TradingVolumenScanner } from "./trading-volumen-scanner";
  * RADAR de TRADING (columna derecha del panel izquierdo) — DOS tablas apiladas
  * 50/50 a todo el alto:
  *   ARRIBA  → tabs MOVERS ±4% / VOLÚMENES ACCIONES (CEDEARs al palo / más operados).
- *   ABAJO   → PIVOTES: CEDEARs con el last pegado a un pivote (≤ umbral%).
+ *   ABAJO   → tabs PIVOTES (last pegado a un pivote) / ESTRATEGIA (señal quant
+ *             live del motor — docs/ESTRATEGIA_QUANT.md backend).
  * (RENTA FIJA se removió — no se usa.)
  * Click en una fila → onSelect (carga el ticker en el chart/libro/pivot%).
  */
 type TopTab = "movers" | "volumenes";
+type BottomTab = "pivotes" | "estrategia";
 
 export function TradingRadarPanel({
   onSelect,
@@ -28,6 +31,7 @@ export function TradingRadarPanel({
   hideTicker?: boolean;
 }) {
   const [top, setTop] = useState<TopTab>("movers");
+  const [bottom, setBottom] = useState<BottomTab>("pivotes");
 
   // Las tabs MOVERS/VOLUMENES viven en la MISMA barra que los controles de cada
   // tabla (CEDEAR/ADR/CCL o Σ cash) para no gastar una fila extra de alto.
@@ -65,15 +69,22 @@ export function TradingRadarPanel({
         </div>
       </div>
 
-      {/* ABAJO: PIVOTES (proximidad a pivote) */}
+      {/* ABAJO: PIVOTES / ESTRATEGIA (tabs) */}
       <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
         <div className="flex items-center gap-1 px-1.5 py-1 border-b border-[var(--t-border)] shrink-0">
-          <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--t-accent)]">
+          <TabBtn active={bottom === "pivotes"} onClick={() => setBottom("pivotes")}>
             PIVOTES
-          </span>
+          </TabBtn>
+          <TabBtn active={bottom === "estrategia"} onClick={() => setBottom("estrategia")}>
+            ESTRATEGIA
+          </TabBtn>
         </div>
         <div className="flex-1 min-h-0">
-          <TradingPivotRadar onSelect={onSelect} selectedTicker={selectedTicker} />
+          {bottom === "pivotes" ? (
+            <TradingPivotRadar onSelect={onSelect} selectedTicker={selectedTicker} />
+          ) : (
+            <TradingEstrategiaRadar onSelect={onSelect} selectedTicker={selectedTicker} />
+          )}
         </div>
       </div>
     </div>
