@@ -45,7 +45,7 @@ type Resultados = {
   por_cliente: PorCliente[]; por_comercial: PorComercial[];
   total_ars: number; total_usd: number; n_total: number; dias_sin_tc: number;
 };
-type Opciones = { traders: string[]; observaciones: string[]; puede_escribir: boolean };
+type Opciones = { traders: string[]; observaciones: string[]; clientes: string[]; puede_escribir: boolean };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const INPUT =
@@ -184,7 +184,11 @@ function OpForm({ opciones, editando, onGuardado, onCancelar }: {
           <input value={f.activo} onChange={set("activo")} placeholder="TZXD6…" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">CLIENTE
-          <input value={f.cliente} onChange={set("cliente")} placeholder="La Segunda…" className={INPUT} />
+          <input value={f.cliente} onChange={set("cliente")} placeholder="elegir o tipear nuevo…"
+            list="mesa-dinero-clientes" className={INPUT} />
+          <datalist id="mesa-dinero-clientes">
+            {opciones.clientes.map((c) => <option key={c} value={c} />)}
+          </datalist>
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">VN OPERACIÓN
           <input value={conMiles(f.vn)} onChange={setNum("vn")} inputMode="decimal" className={INPUT} />
@@ -275,7 +279,7 @@ export function MesaDineroView() {
   const [ops, setOps] = useState<Op[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [resultados, setResultados] = useState<Resultados | null>(null);
-  const [opciones, setOpciones] = useState<Opciones>({ traders: [], observaciones: [], puede_escribir: false });
+  const [opciones, setOpciones] = useState<Opciones>({ traders: [], observaciones: [], clientes: [], puede_escribir: false });
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("mesaDinero.moneda", "ARS");
   const [formAbierto, setFormAbierto] = useState(false);
   const [editando, setEditando] = useState<Op | null>(null);
