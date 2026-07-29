@@ -1857,6 +1857,9 @@ function TabClientesSegmentacion() {
   const [fOperador, setFOperador] = useState("");
   const [fNivel1, setFNivel1] = useState("");
   const [fNivel2, setFNivel2] = useState("");
+  const [fNivel3, setFNivel3] = useState("");
+  const [fNivel4, setFNivel4] = useState("");
+  const [fNivel5, setFNivel5] = useState("");
   const [campoVacio, setCampoVacio] = useState<ClienteCampo | "">("");
   const [q, setQ] = useState("");
   // Import de archivo (csv/xlsx)
@@ -1870,6 +1873,9 @@ function TabClientesSegmentacion() {
     if (fOperador) qs.set("operador", fOperador);
     if (fNivel1) qs.set("nivel_1", fNivel1);
     if (fNivel2) qs.set("nivel_2", fNivel2);
+    if (fNivel3) qs.set("nivel_3", fNivel3);
+    if (fNivel4) qs.set("nivel_4", fNivel4);
+    if (fNivel5) qs.set("nivel_5", fNivel5);
     if (campoVacio) qs.set("campo_vacio", campoVacio);
     if (q.trim()) qs.set("q", q.trim());
     fetch(`/api/manager/clientes?${qs}`)
@@ -1939,8 +1945,42 @@ function TabClientesSegmentacion() {
     return [...out].sort();
   }, [niveles, fNivel1]);
 
+  // Opciones del FILTRO de nivel 3: las que conviven con el nivel_1 / nivel_2
+  // ya elegidos (mismo criterio de cascada).
+  const opcionesNivel3 = useMemo(() => {
+    const out = new Set<string>();
+    for (const combo of niveles) {
+      if ((!fNivel1 || combo["nivel_1"] === fNivel1) && (!fNivel2 || combo["nivel_2"] === fNivel2) && combo["nivel_3"]) {
+        out.add(combo["nivel_3"]);
+      }
+    }
+    return [...out].sort();
+  }, [niveles, fNivel1, fNivel2]);
+
+  // Opciones del FILTRO de nivel 4: conviven con nivel_1..3 elegidos.
+  const opcionesNivel4 = useMemo(() => {
+    const out = new Set<string>();
+    for (const combo of niveles) {
+      if ((!fNivel1 || combo["nivel_1"] === fNivel1) && (!fNivel2 || combo["nivel_2"] === fNivel2) && (!fNivel3 || combo["nivel_3"] === fNivel3) && combo["nivel_4"]) {
+        out.add(combo["nivel_4"]);
+      }
+    }
+    return [...out].sort();
+  }, [niveles, fNivel1, fNivel2, fNivel3]);
+
+  // Opciones del FILTRO de nivel 5: conviven con nivel_1..4 elegidos.
+  const opcionesNivel5 = useMemo(() => {
+    const out = new Set<string>();
+    for (const combo of niveles) {
+      if ((!fNivel1 || combo["nivel_1"] === fNivel1) && (!fNivel2 || combo["nivel_2"] === fNivel2) && (!fNivel3 || combo["nivel_3"] === fNivel3) && (!fNivel4 || combo["nivel_4"] === fNivel4) && combo["nivel_5"]) {
+        out.add(combo["nivel_5"]);
+      }
+    }
+    return [...out].sort();
+  }, [niveles, fNivel1, fNivel2, fNivel3, fNivel4]);
+
   // Re-fetch al cambiar filtros de select. La búsqueda libre va por Enter/botón.
-  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, fNivel2, campoVacio]);
+  useEffect(() => { fetchClientes(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fOperador, fNivel1, fNivel2, fNivel3, fNivel4, fNivel5, campoVacio]);
 
   const setDraftField = (id: string, field: ClienteCampo, value: string) => {
     setDrafts((prev) => ({ ...prev, [id]: { ...(prev[id] || emptyClienteDraft()), [field]: value } }));
@@ -2109,9 +2149,12 @@ function TabClientesSegmentacion() {
         <select value={fNivel1}
           onChange={(e) => {
             setFNivel1(e.target.value);
-            // el nivel 2 elegido puede no existir dentro del nuevo nivel 1 →
+            // el nivel 2..5 elegido puede no existir dentro del nuevo nivel 1 →
             // sin esto quedaría un filtro invisible que devuelve cero
             setFNivel2("");
+            setFNivel3("");
+            setFNivel4("");
+            setFNivel5("");
           }}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
@@ -2119,11 +2162,51 @@ function TabClientesSegmentacion() {
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 2</span>
-        <select value={fNivel2} onChange={(e) => setFNivel2(e.target.value)}
+        <select value={fNivel2}
+          onChange={(e) => {
+            setFNivel2(e.target.value);
+            // idem: los niveles inferiores pueden no convivir con el nuevo nivel 2
+            setFNivel3("");
+            setFNivel4("");
+            setFNivel5("");
+          }}
           title={fNivel1 ? `Subsegmentos dentro de ${fNivel1}` : "Subsegmento (nivel 2)"}
           className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
           <option value="">— todos —</option>
           {opcionesNivel2.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 3</span>
+        <select value={fNivel3}
+          onChange={(e) => {
+            setFNivel3(e.target.value);
+            setFNivel4("");
+            setFNivel5("");
+          }}
+          title={fNivel2 ? `Subsegmentos dentro de ${fNivel2}` : "Subsegmento (nivel 3)"}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+          <option value="">— todos —</option>
+          {opcionesNivel3.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 4</span>
+        <select value={fNivel4}
+          onChange={(e) => {
+            setFNivel4(e.target.value);
+            setFNivel5("");
+          }}
+          title={fNivel3 ? `Subsegmentos dentro de ${fNivel3}` : "Subsegmento (nivel 4)"}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+          <option value="">— todos —</option>
+          {opcionesNivel4.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+
+        <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">NIVEL 5</span>
+        <select value={fNivel5} onChange={(e) => setFNivel5(e.target.value)}
+          title={fNivel4 ? `Subsegmentos dentro de ${fNivel4}` : "Subsegmento (nivel 5)"}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[10px] px-2 py-0.5 text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none">
+          <option value="">— todos —</option>
+          {opcionesNivel5.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
 
         <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">CAMPO VACÍO</span>
