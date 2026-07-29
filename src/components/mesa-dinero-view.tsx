@@ -39,6 +39,12 @@ type Dia = {
   acumulado_ars: number; acumulado_usd: number | null;
 };
 type Resumen = { dias: Dia[]; total_ars: number; total_usd: number };
+type PorCliente = { cliente: string; resultado_ars: number; resultado_usd: number; n: number };
+type PorComercial = { observacion: string; resultado_ars: number; resultado_usd: number; n: number };
+type Resultados = {
+  por_cliente: PorCliente[]; por_comercial: PorComercial[];
+  total_ars: number; total_usd: number; n_total: number; dias_sin_tc: number;
+};
 type Opciones = { traders: string[]; observaciones: string[]; puede_escribir: boolean };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -244,8 +250,10 @@ function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: 
 // ── Vista principal ────────────────────────────────────────────────────────
 export function MesaDineroView() {
   const [mes, setMes] = usePersistedState<string>("mesaDinero.mes", mesActual());
+  const [tab, setTab] = usePersistedState<"operaciones" | "resultados">("mesaDinero.tab", "operaciones");
   const [ops, setOps] = useState<Op[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [resultados, setResultados] = useState<Resultados | null>(null);
   const [opciones, setOpciones] = useState<Opciones>({ traders: [], observaciones: [], puede_escribir: false });
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("mesaDinero.moneda", "ARS");
   const [formAbierto, setFormAbierto] = useState(false);
@@ -260,8 +268,9 @@ export function MesaDineroView() {
     Promise.all([
       getJson<{ operaciones: Op[] }>(`/api/mesa-dinero/ops${qs}`),
       getJson<Resumen>(`/api/mesa-dinero/resumen${qs}`),
+      getJson<Resultados>(`/api/mesa-dinero/resultados${qs}`),
     ])
-      .then(([o, r]) => { setOps(o.operaciones); setResumen(r); })
+      .then(([o, r, res]) => { setOps(o.operaciones); setResumen(r); setResultados(res); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [desde, hasta]);
@@ -301,9 +310,21 @@ export function MesaDineroView() {
       {/* Header */}
       <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">MESA DE DINERO</span>
+        <div className="flex gap-1">
+          {([["operaciones", "OPERACIONES"], ["resultados", "RESULTADOS"]] as const).map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className={`px-2 py-0.5 text-[10px] font-semibold border ${
+                tab === id
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value || mesActual())} className={INPUT} />
         <span className="text-[10px] text-[var(--t-text-muted)]">{ops.length} registros</span>
-        {puedeEscribir && !formAbierto && (
+        {puedeEscribir && !formAbierto && tab === "operaciones" && (
           <button onClick={() => { setEditando(null); setFormAbierto(true); }}
             className="px-3 py-1 text-[10px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)]">
             + NUEVA OPERACIÓN
@@ -315,6 +336,7 @@ export function MesaDineroView() {
         </button>
       </div>
 
+      {tab === "operaciones" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3">
         {/* IZQUIERDA: operaciones */}
         <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
@@ -439,6 +461,125 @@ export function MesaDineroView() {
           </div>
         </div>
       </div>
+      )}
+
+      {tab === "resultados" && (
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3">
+        {/* IZQUIERDA: resultado por cliente */}
+        <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+          <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-[var(--t-text)]">RESULTADO POR CLIENTE</span>
+            {(resultados?.dias_sin_tc ?? 0) > 0 && (
+              <span className="text-[9px] text-[var(--t-warn,orange)]">U$S parcial: {resultados!.dias_sin_tc} día(s) sin TC</span>
+            )}
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
+                  <th className="px-2 py-1">CLIENTE</th>
+                  <th className="text-right">RESULTADO EN $</th>
+                  <th className="text-right pr-2">RESULTADO EN U$S</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(resultados?.por_cliente ?? []).map((c) => (
+                  <tr key={c.cliente} className="border-t border-[var(--t-border)]">
+                    <td className="px-2 py-0.5">{c.cliente}</td>
+                    <td className={`text-right font-mono ${signClass(c.resultado_ars)}`}>{fmt2(c.resultado_ars)}</td>
+                    <td className={`text-right font-mono pr-2 ${signClass(c.resultado_usd)}`}>{fmt2(c.resultado_usd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {resultados && (
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                    <td className="px-2 py-1">TOTAL</td>
+                    <td className={`text-right font-mono ${signClass(resultados.total_ars)}`}>{fmt2(resultados.total_ars)}</td>
+                    <td className={`text-right font-mono pr-2 ${signClass(resultados.total_usd)}`}>{fmt2(resultados.total_usd)}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+
+        {/* DERECHA: por comercial (arriba) + n° de operaciones (abajo), 50/50 */}
+        <div className="grid grid-rows-2 gap-3 min-h-0">
+          <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+            <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+              <span className="text-[11px] font-semibold text-[var(--t-text)]">RESULTADO POR COMERCIAL</span>
+              <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">según observación de cada operación</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
+                    <th className="px-2 py-1">COMERCIAL</th>
+                    <th className="text-right">RESULTADO EN $</th>
+                    <th className="text-right pr-2">RESULTADO EN U$S</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(resultados?.por_comercial ?? []).map((c) => (
+                    <tr key={c.observacion} className="border-t border-[var(--t-border)]">
+                      <td className="px-2 py-0.5">{c.observacion}</td>
+                      <td className={`text-right font-mono ${c.n === 0 ? "text-[var(--t-text-muted)]" : signClass(c.resultado_ars)}`}>
+                        {c.n === 0 ? "—" : fmt2(c.resultado_ars)}
+                      </td>
+                      <td className={`text-right font-mono pr-2 ${c.n === 0 ? "text-[var(--t-text-muted)]" : signClass(c.resultado_usd)}`}>
+                        {c.n === 0 ? "—" : fmt2(c.resultado_usd)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {resultados && (
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                      <td className="px-2 py-1">TOTAL</td>
+                      <td className={`text-right font-mono ${signClass(resultados.total_ars)}`}>{fmt2(resultados.total_ars)}</td>
+                      <td className={`text-right font-mono pr-2 ${signClass(resultados.total_usd)}`}>{fmt2(resultados.total_usd)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+
+          <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
+            <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+              <span className="text-[11px] font-semibold text-[var(--t-text)]">N° DE OPERACIONES</span>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
+                    <th className="px-2 py-1">COMERCIAL</th>
+                    <th className="text-right pr-2">OPERACIONES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(resultados?.por_comercial ?? []).map((c) => (
+                    <tr key={c.observacion} className="border-t border-[var(--t-border)]">
+                      <td className="px-2 py-0.5">{c.observacion}</td>
+                      <td className="text-right font-mono pr-2">{c.n}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {resultados && (
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                      <td className="px-2 py-1">TOTAL</td>
+                      <td className="text-right font-mono pr-2">{resultados.n_total}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
     </div>
   );
 }
