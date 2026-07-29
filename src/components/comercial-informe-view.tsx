@@ -66,6 +66,69 @@ const ymLabel = (ym: string) => {
   return `${MESES[m - 1]} ${y}`;
 };
 
+// Modal explicativo de las métricas de la pantalla Informe. Se abre con el botón
+// "¿Cómo se calculan?". Explica qué es TOTAL vs MES y cómo impactan Desde/Hasta.
+function ComoSeCalcula({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl max-h-[85vh] overflow-auto border border-[var(--t-border-2)] bg-[var(--t-panel)] text-[var(--t-text)] shadow-2xl"
+      >
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--t-border)] sticky top-0 bg-[var(--t-panel)]">
+          <span className="text-[12px] uppercase tracking-widest text-[var(--t-accent)]">¿Cómo se calculan los datos?</span>
+          <button onClick={onClose} title="Cerrar" className="text-[16px] leading-none text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">×</button>
+        </div>
+        <div className="px-4 py-3 text-[12px] leading-relaxed space-y-3">
+          <p>
+            Toda esta pantalla se recalcula según el filtro <b>Desde / Hasta</b> del header.
+            Si está vacío, se usa el histórico hasta hoy y el mes en curso.
+          </p>
+          <div>
+            <p className="text-[var(--t-accent)] uppercase tracking-wider text-[10px] mb-1">Columnas TOTAL</p>
+            <p>
+              Suman <b>todo el período elegido</b> [Desde → Hasta]. Ej.: Desde 01/01 y Hasta 30/06
+              → acumulado de enero a junio. Sin Desde, es todo el histórico hasta el Hasta.
+            </p>
+          </div>
+          <div>
+            <p className="text-[var(--t-accent)] uppercase tracking-wider text-[10px] mb-1">Columnas MES + CTAS OPS</p>
+            <p>
+              Son solo el <b>mes calendario del Hasta</b> (del día 1 de ese mes al Hasta), sin
+              importar el Desde. Ej.: Hasta 30/06 → junio completo; Hasta en mayo → mayo. Por eso
+              cada header MES muestra entre paréntesis de qué mes se trata.
+            </p>
+          </div>
+          <div>
+            <p className="text-[var(--t-accent)] uppercase tracking-wider text-[10px] mb-1">Qué operaciones cuentan</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><b>Volumen</b>: monto bruto operado. Excluye los cierres de caución (evita doble conteo).</li>
+              <li><b>Arancel</b>: comisión cobrada. <b>Incluye</b> los cierres (ahí vive el arancel de caución). El detalle solo lista filas con arancel &gt; 0.</li>
+              <li>Siempre se excluyen las solicitudes sin liquidar (solo operaciones concretadas).</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-[var(--t-accent)] uppercase tracking-wider text-[10px] mb-1">Gráficos por segmento</p>
+            <p>
+              El <b>segmento</b> es el <i>nivel 1</i> del cliente (Productores, Empleados, etc.).
+              En modo <b>Operativas</b>, el % es la <b>penetración</b>: cuentas que operaron en el mes
+              sobre el total de cuentas de ese segmento (no sobre el total de la mesa).
+              <b> Cuentas</b> = padrón del segmento; <b>Arancel</b> = comisión total del período.
+            </p>
+          </div>
+          <p className="text-[var(--t-text-dim)] text-[11px]">
+            AuM = foto de tenencias a la fecha Hasta. Clic en un comercial o segmento re-scopea el
+            gráfico y las tablas a esa selección.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 async function getJson<T>(url: string, fallback: T): Promise<T> {
   try {
     const r = await fetch(url, { cache: "no-store" });
@@ -110,6 +173,7 @@ export function ComercialInforme({
   const [selComercial, setSelComercial] = useState<string | null>(null);
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
   const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
+  const [showHelp, setShowHelp] = useState(false);
 
   const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
   // Filtros madre: niveles + referido van a los 4 cuadrantes; operador (madre) SOLO
@@ -163,6 +227,14 @@ export function ComercialInforme({
     ? (informe?.comerciales.find((c) => c.operador_email === selComercial)?.operador_nombre ?? selComercial)
     : null;
   const q3segs = selComercial ? segScoped : (informe?.aranceles_segmento ?? null);
+
+  // Etiqueta del mes de las columnas MES = mes calendario del HASTA (o mes en curso si
+  // no hay fecha). Se muestra en los headers "MES" para que el usuario sepa qué mes es.
+  const mesYm = fecha ? fecha.slice(0, 7) : (informe?.mes_actual ?? mes ?? null);
+  const mesTag = mesYm ? ymLabel(mesYm) : "";
+  const MesTag = mesTag
+    ? <span className="ml-1 text-[8px] font-normal normal-case tracking-normal text-[var(--t-accent)]">({mesTag})</span>
+    : null;
 
   // Totales del ranking (fila fija abajo). El ticket promedio no se suma.
   const totRanking = (informe?.comerciales ?? []).reduce(
@@ -252,7 +324,14 @@ export function ComercialInforme({
   });
 
   return (
-    <div className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
+    <div className="relative flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
+      {/* Botón de ayuda — abre el modal "¿Cómo se calculan los datos?" */}
+      <button
+        onClick={() => setShowHelp(true)}
+        title="¿Cómo se calculan estas métricas?"
+        className="absolute top-1 right-3 z-20 text-[9px] uppercase tracking-wider text-[var(--t-text-dim)] hover:text-[var(--t-accent)] border border-[var(--t-border-2)] hover:border-[var(--t-accent)] px-1.5 py-0.5 bg-[var(--t-panel)]"
+      >ⓘ ¿Cómo se calculan?</button>
+      {showHelp && <ComoSeCalcula onClose={() => setShowHelp(false)} />}
       {/* Q1 — Cuentas / Aranceles por segmento (barras HORIZONTALES) + toggle */}
       <Panel
         fill
@@ -333,12 +412,12 @@ export function ComercialInforme({
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-2 py-2">#</th>
               <th className="text-left px-1">COMERCIAL</th>
-              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 op)">CTAS OPS</th>
+              <th className="text-right px-2" title="Cuentas distintas que operaron en el mes calendario del HASTA (≥1 op)">CTAS OPS{MesTag}</th>
               <th className="text-right px-2">TICKET PROM.</th>
               <th className="text-right px-2">VOL. TOTAL</th>
-              <th className="text-right px-2">VOL. MES</th>
+              <th className="text-right px-2">VOL. MES{MesTag}</th>
               <th className="text-right px-2">ARANC. TOTAL</th>
-              <th className="text-right px-3">ARANC. MES</th>
+              <th className="text-right px-3">ARANC. MES{MesTag}</th>
             </tr>
           </thead>
           <tbody>
@@ -397,7 +476,7 @@ export function ComercialInforme({
             <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
               <th className="text-left px-3 py-2">SEGMENTO</th>
               <th className="text-right px-2">ARANC. TOTAL</th>
-              <th className="text-right px-2">ARANC. MES</th>
+              <th className="text-right px-2">ARANC. MES{MesTag}</th>
               <th className="text-right px-3">TICKET PROM.</th>
             </tr>
           </thead>
@@ -463,7 +542,7 @@ export function ComercialInforme({
               <tr className="text-[9px] text-[var(--t-text-muted)] tracking-wide">
                 <th className="text-left px-3 py-2">CLIENTE</th>
                 <th className="text-right px-2">ARANC. TOTAL</th>
-                <th className="text-right px-3">ARANC. MES</th>
+                <th className="text-right px-3">ARANC. MES{MesTag}</th>
               </tr>
             </thead>
             <tbody>

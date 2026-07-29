@@ -501,7 +501,17 @@ export function ComercialOperacionesView(
   });
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-[var(--t-panel)] text-[var(--t-text)] overflow-hidden">
+    <div className="relative h-full flex flex-col min-h-0 bg-[var(--t-panel)] text-[var(--t-text)] overflow-hidden">
+
+      {/* Overlay de carga centrado — visible mientras se recalcula por Desde/Hasta */}
+      {loading && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 pointer-events-none">
+          <div className="flex items-center gap-2 border border-[var(--t-border-2)] bg-[var(--t-panel)] px-4 py-2.5 shadow-xl">
+            <span className="inline-block h-3 w-3 border-2 border-[var(--t-accent)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[11px] uppercase tracking-widest text-[var(--t-text)]">Cargando…</span>
+          </div>
+        </div>
+      )}
 
       {/* ── HEADER: sub-nav (izq) + KPIs generales (der) ─────────────────── */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex-wrap">
@@ -535,7 +545,6 @@ export function ComercialOperacionesView(
             className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
           {(fechaCorte || desdeCorte) && <button onClick={() => { setFechaCorte(""); setDesdeCorte(""); }} title="Volver a hoy" className="text-[10px] text-[var(--t-accent)] hover:underline">hoy</button>}
         </label>
-        {loading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
         {subview !== "informe" && (
           <div className="ml-auto flex items-center gap-3">
