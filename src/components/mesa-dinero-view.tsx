@@ -82,26 +82,38 @@ async function getJson<T>(url: string): Promise<T> {
   return (await r.json()) as T;
 }
 
+// Inputs numéricos es-AR: estado guarda el crudo ("1234567,89"), se muestra
+// con separador de miles ("1.234.567,89") mientras se tipea.
+const desformatear = (s: string) => s.replace(/\./g, "");
+const conMiles = (s: string) => {
+  if (!s) return "";
+  const neg = s.startsWith("-");
+  const [int, dec] = (neg ? s.slice(1) : s).split(",");
+  const intF = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return (neg ? "-" : "") + (dec !== undefined ? `${intF},${dec}` : intF);
+};
+
 // ── Formulario de alta/edición ─────────────────────────────────────────────
 type FormState = {
   fecha: string; trader: string; activo: string;
-  vn_compra: string; px_compra: string; vn_venta: string; px_venta: string;
+  vn: string; px_compra: string; px_venta: string;
   resultado: string; cliente: string; observacion: string;
 };
 const FORM_VACIO: FormState = {
   fecha: new Date().toISOString().slice(0, 10), trader: "", activo: "",
-  vn_compra: "", px_compra: "", vn_venta: "", px_venta: "",
+  vn: "", px_compra: "", px_venta: "",
   resultado: "", cliente: "", observacion: "Mesa",
 };
+
+const aCrudo = (n: number | null) => (n != null ? String(n).replace(".", ",") : "");
 
 function opAForm(op: Op): FormState {
   return {
     fecha: op.fecha, trader: op.trader, activo: op.activo ?? "",
-    vn_compra: op.vn_compra != null ? String(op.vn_compra) : "",
-    px_compra: op.px_compra != null ? String(op.px_compra) : "",
-    vn_venta: op.vn_venta != null ? String(op.vn_venta) : "",
-    px_venta: op.px_venta != null ? String(op.px_venta) : "",
-    resultado: op.resultado != null && op.monto_compra == null ? String(op.resultado) : "",
+    vn: aCrudo(op.vn_compra ?? op.vn_venta),
+    px_compra: aCrudo(op.px_compra),
+    px_venta: aCrudo(op.px_venta),
+    resultado: op.resultado != null && op.monto_compra == null ? aCrudo(op.resultado) : "",
     cliente: op.cliente ?? "", observacion: op.observacion ?? "",
   };
 }
@@ -117,13 +129,19 @@ function OpForm({ opciones, editando, onGuardado, onCancelar }: {
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
+  // Inputs numéricos: acepta dígitos + coma decimal, guarda crudo, muestra con miles.
+  const setNum = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = desformatear(e.target.value);
+    if (raw !== "" && !/^-?\d*(,\d*)?$/.test(raw)) return;
+    setF((prev) => ({ ...prev, [k]: raw }));
+  };
 
   // Preview de derivados (informativo — la fuente de verdad es el backend).
   const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")));
-  const montoC = num(f.vn_compra) != null && num(f.px_compra) != null
-    ? (num(f.vn_compra)! * num(f.px_compra)!) / 100 : null;
-  const montoV = num(f.vn_venta) != null && num(f.px_venta) != null
-    ? (num(f.vn_venta)! * num(f.px_venta)!) / 100 : null;
+  const montoC = num(f.vn) != null && num(f.px_compra) != null
+    ? (num(f.vn)! * num(f.px_compra)!) / 100 : null;
+  const montoV = num(f.vn) != null && num(f.px_venta) != null
+    ? (num(f.vn)! * num(f.px_venta)!) / 100 : null;
   const resultado = montoC != null && montoV != null ? montoV - montoC : num(f.resultado);
   const sinPatas = montoC == null || montoV == null;
 
@@ -132,8 +150,9 @@ function OpForm({ opciones, editando, onGuardado, onCancelar }: {
     try {
       const body = {
         fecha: f.fecha, trader: f.trader, activo: f.activo || null,
-        vn_compra: num(f.vn_compra), px_compra: num(f.px_compra),
-        vn_venta: num(f.vn_venta), px_venta: num(f.px_venta),
+        // Un solo VN para las dos patas (siempre se opera el mismo nominal).
+        vn_compra: num(f.vn), px_compra: num(f.px_compra),
+        vn_venta: num(f.vn), px_venta: num(f.px_venta),
         resultado: sinPatas ? num(f.resultado) : null,
         cliente: f.cliente || null, observacion: f.observacion || null,
       };
@@ -167,17 +186,14 @@ function OpForm({ opciones, editando, onGuardado, onCancelar }: {
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">CLIENTE
           <input value={f.cliente} onChange={set("cliente")} placeholder="La Segunda…" className={INPUT} />
         </label>
-        <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">VN COMPRA
-          <input value={f.vn_compra} onChange={set("vn_compra")} inputMode="decimal" className={INPUT} />
+        <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">VN OPERACIÓN
+          <input value={conMiles(f.vn)} onChange={setNum("vn")} inputMode="decimal" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">PX COMPRA
-          <input value={f.px_compra} onChange={set("px_compra")} inputMode="decimal" className={INPUT} />
-        </label>
-        <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">VN VENTA
-          <input value={f.vn_venta} onChange={set("vn_venta")} inputMode="decimal" className={INPUT} />
+          <input value={conMiles(f.px_compra)} onChange={setNum("px_compra")} inputMode="decimal" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">PX VENTA
-          <input value={f.px_venta} onChange={set("px_venta")} inputMode="decimal" className={INPUT} />
+          <input value={conMiles(f.px_venta)} onChange={setNum("px_venta")} inputMode="decimal" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">OBSERVACIÓN
           <select value={f.observacion} onChange={set("observacion")} className={INPUT}>
@@ -187,7 +203,7 @@ function OpForm({ opciones, editando, onGuardado, onCancelar }: {
         </label>
         {sinPatas && (
           <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">RESULTADO (sin patas)
-            <input value={f.resultado} onChange={set("resultado")} inputMode="decimal"
+            <input value={conMiles(f.resultado)} onChange={setNum("resultado")} inputMode="decimal"
               placeholder="ej. Pase OPS" className={INPUT} />
           </label>
         )}
@@ -217,12 +233,12 @@ function OpForm({ opciones, editando, onGuardado, onCancelar }: {
 // ── Celda de TC editable (resumen) ─────────────────────────────────────────
 function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: (fecha: string, tc: number) => Promise<void> }) {
   const [editando, setEditando] = useState(false);
-  const [v, setV] = useState(dia.tc != null ? String(dia.tc) : "");
+  const [v, setV] = useState(aCrudo(dia.tc));
   const [busy, setBusy] = useState(false);
   if (!editable) return <span className="font-mono">{fmt2(dia.tc)}</span>;
   if (!editando) {
     return (
-      <button onClick={() => { setV(dia.tc != null ? String(dia.tc) : ""); setEditando(true); }}
+      <button onClick={() => { setV(aCrudo(dia.tc)); setEditando(true); }}
         className="font-mono hover:text-[var(--t-accent)] underline decoration-dotted underline-offset-2"
         title="Editar TC del día (carga manual)">
         {dia.tc != null ? fmt2(dia.tc) : "cargar"}
@@ -231,7 +247,12 @@ function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: 
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <input autoFocus value={v} onChange={(e) => setV(e.target.value)} inputMode="decimal"
+      <input autoFocus value={conMiles(v)} inputMode="decimal"
+        onChange={(e) => {
+          const raw = desformatear(e.target.value);
+          if (raw !== "" && !/^\d*(,\d*)?$/.test(raw)) return;
+          setV(raw);
+        }}
         className={`${INPUT} w-20 text-right`}
         onKeyDown={async (e) => {
           if (e.key === "Escape") setEditando(false);
