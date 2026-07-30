@@ -114,12 +114,39 @@ function fmtFechaCorta(s: string | null | undefined): string {
 // ─── Componente principal ────────────────────────────────────────────────────
 
 export function AgroMejorasDispo() {
-  const { data } = usePoll<MejorasResp>(
-    "/api/derivados-agro/mejoras-dispo",
-    EMPTY,
-    POLL_MS,
-    { fetchOnMount: true },
+  return (
+    <div className="h-full min-h-0 p-2 flex flex-row gap-2">
+      {/* Izquierda: precio disponible de la Cámara de Rosario.
+          Derecha: precio disponible de la Cámara de Bahía. Misma fórmula
+          (LECAP + futuro DLR), solo cambia la fuente del precio. */}
+      <div className="w-1/2 h-full min-h-0">
+        <DisponiblePanel
+          title="DISPONIBLE ROSARIO"
+          endpoint="/api/derivados-agro/mejoras-dispo"
+        />
+      </div>
+      <div className="w-1/2 h-full min-h-0">
+        <DisponiblePanel
+          title="DISPONIBLE BAHÍA"
+          endpoint="/api/derivados-agro/mejoras-dispo-bahia"
+        />
+      </div>
+    </div>
   );
+}
+
+// ─── Un panel (Rosario o Bahía) ──────────────────────────────────────────────
+
+function DisponiblePanel({
+  title,
+  endpoint,
+}: {
+  title: string;
+  endpoint: string;
+}) {
+  const { data } = usePoll<MejorasResp>(endpoint, EMPTY, POLL_MS, {
+    fetchOnMount: true,
+  });
 
   const byComm = new Map<Commodity, Bloque>();
   for (const b of data.bloques) byComm.set(b.commodity, b);
@@ -127,29 +154,23 @@ export function AgroMejorasDispo() {
   const hasData = data.bloques.some((b) => b.filas.length > 0);
 
   return (
-    <div className="h-full min-h-0 p-2 flex flex-row gap-2">
-      {/* La tabla ocupa la mitad izquierda; la mitad derecha queda libre para
-          próximos módulos. */}
-      <div className="w-1/2 h-full min-h-0">
-        <Panel title="DISPONIBLE ROSARIO" expandable>
-          {!hasData ? (
-            <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
-              {data.bloques.length === 0
-                ? "Sin data — backend no responde o falta cargar la Cámara"
-                : "Sin LECAPs vigentes con TNA"}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-4 py-1">
-              {ORDER.map((c) => {
-                const bloque = byComm.get(c);
-                if (!bloque) return null;
-                return <CommodityTable key={c} commodity={c} bloque={bloque} />;
-              })}
-            </div>
-          )}
-        </Panel>
-      </div>
-    </div>
+    <Panel title={title} expandable>
+      {!hasData ? (
+        <p className="text-[var(--t-text-muted)] text-xs py-6 text-center">
+          {data.bloques.length === 0
+            ? "Sin data — backend no responde o falta cargar la Cámara"
+            : "Sin LECAPs vigentes con TNA"}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4 py-1">
+          {ORDER.map((c) => {
+            const bloque = byComm.get(c);
+            if (!bloque) return null;
+            return <CommodityTable key={c} commodity={c} bloque={bloque} />;
+          })}
+        </div>
+      )}
+    </Panel>
   );
 }
 

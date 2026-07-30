@@ -108,6 +108,20 @@ const EMPTY: CamaraResp = {
   })),
 };
 
+// Bahía: todos los cereales se cargan en USD (la pata ARS se deriva).
+const EMPTY_BAHIA: CamaraResp = {
+  ts: "",
+  dolar_bna: null,
+  cereales: CEREALES.map((c) => ({
+    cereal: c,
+    precio_ars: null,
+    precio_usd: null,
+    manual_leg: "usd",
+    updated_by: null,
+    updated_at: null,
+  })),
+};
+
 function fmtNum(n: number | null | undefined, dec = 2): string {
   if (n === null || n === undefined || !isFinite(n)) return "";
   return n.toLocaleString("es-AR", {
@@ -132,7 +146,7 @@ export function AgroDatos() {
         <CostoPasePanel />
         <DescuentoCaucionPanel />
       </div>
-      <div>
+      <div className="flex flex-col gap-3">
         <Panel title="CÁMARA ARBITRAL DE CEREALES — ROSARIO" expandable>
           <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
             El trader carga <span className="text-[var(--t-text-dim)]">UNA sola
@@ -179,12 +193,19 @@ export function AgroDatos() {
             </tbody>
           </table>
         </Panel>
+        <CamaraBahiaPanel />
       </div>
     </div>
   );
 }
 
-function CerealRow({ row }: { row: CamaraRow }) {
+function CerealRow({
+  row,
+  endpoint = "/api/derivados-agro/camara",
+}: {
+  row: CamaraRow;
+  endpoint?: string;
+}) {
   const legArs = row.manual_leg === "ars";
   // Valor de la pata MANUAL (el editable) y de la DERIVADA (read-only).
   const manualVal = legArs ? row.precio_ars : row.precio_usd;
@@ -226,7 +247,7 @@ function CerealRow({ row }: { row: CamaraRow }) {
       try {
         // Solo se manda la pata manual; la otra la calcula el backend.
         const body = legArs ? { precio_ars: n } : { precio_usd: n };
-        const res = await fetch(`/api/derivados-agro/camara/${row.cereal}`, {
+        const res = await fetch(`${endpoint}/${row.cereal}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -288,6 +309,73 @@ function CerealRow({ row }: { row: CamaraRow }) {
         {editHint}
       </td>
     </tr>
+  );
+}
+
+// ─── Cámara de Cereales — BAHÍA BLANCA ───────────────────────────────────────
+// Igual que Rosario pero el trader carga TODOS los cereales en USD (no hay
+// excepción SOJA-en-ARS): la pata ARS la deriva el backend con el dólar BNA.
+
+function CamaraBahiaPanel() {
+  const { data } = usePoll<CamaraResp>(
+    "/api/derivados-agro/camara-bahia",
+    EMPTY_BAHIA,
+    POLL_MS,
+    { fetchOnMount: true },
+  );
+
+  return (
+    <Panel title="CÁMARA DE CEREALES — BAHÍA" expandable>
+      <div className="px-2 pt-1 pb-2 text-[10px] text-[var(--t-text-muted)] leading-snug">
+        El trader carga los 5 cereales{" "}
+        <span className="text-[var(--t-text-dim)]">en USD</span>. La celda ARS es
+        automática: se calcula con el{" "}
+        <span className="text-[var(--t-text-dim)]">Dólar Banco Nación</span>{" "}
+        {data.dolar_bna
+          ? `($${fmtNum(data.dolar_bna, 2)})`
+          : "(⚠ cargalo en Dólares de Referencia)"}
+        . Se reutiliza en Mejoras Dispo — Bahía.
+      </div>
+      <table className="w-full text-[11px] font-mono tabular-nums">
+        <thead className="text-[10px] text-[var(--t-text-dim)] uppercase tracking-wide bg-[var(--t-panel)]">
+          <tr>
+            <th className="text-left px-2 py-1 border-b border-[var(--t-border)]">
+              Cereal
+            </th>
+            <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
+              Precio ARS
+            </th>
+            <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
+              Precio USD
+            </th>
+            <th className="text-right px-2 py-1 border-b border-[var(--t-border)]">
+              Últ. edición
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {CEREALES.map((cereal) => {
+            const row =
+              data.cereales.find((r) => r.cereal === cereal) ??
+              ({
+                cereal,
+                precio_ars: null,
+                precio_usd: null,
+                manual_leg: "usd",
+                updated_by: null,
+                updated_at: null,
+              } as CamaraRow);
+            return (
+              <CerealRow
+                key={cereal}
+                row={row}
+                endpoint="/api/derivados-agro/camara-bahia"
+              />
+            );
+          })}
+        </tbody>
+      </table>
+    </Panel>
   );
 }
 
