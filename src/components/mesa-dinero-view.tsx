@@ -298,6 +298,7 @@ export function MesaDineroView() {
   const [resultados, setResultados] = useState<Resultados | null>(null);
   const [opciones, setOpciones] = useState<Opciones>({ traders: [], observaciones: [], clientes: [], puede_escribir: false });
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("mesaDinero.moneda", "ARS");
+  const [filtroTrader, setFiltroTrader] = useState<string>("");
   const [formAbierto, setFormAbierto] = useState(false);
   const [editando, setEditando] = useState<Op | null>(null);
   const [loading, setLoading] = useState(false);
@@ -306,7 +307,8 @@ export function MesaDineroView() {
 
   const cargar = useCallback(() => {
     setLoading(true);
-    const qs = `?desde=${desde}&hasta=${hasta}`;
+    const qs = `?desde=${desde}&hasta=${hasta}` +
+      (filtroTrader ? `&trader=${encodeURIComponent(filtroTrader)}` : "");
     Promise.all([
       getJson<{ operaciones: Op[] }>(`/api/mesa-dinero/ops${qs}`),
       getJson<Resumen>(`/api/mesa-dinero/resumen${qs}`),
@@ -315,7 +317,7 @@ export function MesaDineroView() {
       .then(([o, r, res]) => { setOps(o.operaciones); setResumen(r); setResultados(res); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [desde, hasta]);
+  }, [desde, hasta, filtroTrader]);
 
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => {
@@ -366,6 +368,11 @@ export function MesaDineroView() {
           ))}
         </div>
         <input type="month" value={mes} onChange={(e) => setMes(e.target.value || mesActual())} className={INPUT} />
+        <select value={filtroTrader} onChange={(e) => setFiltroTrader(e.target.value)}
+          className={INPUT} title="Filtrar toda la vista por trader">
+          <option value="">Todos los traders</option>
+          {opciones.traders.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
         <span className="text-[10px] text-[var(--t-text-muted)]">{ops.length} registros</span>
         {puedeEscribir && !formAbierto && tab === "operaciones" && (
           <button onClick={() => { setEditando(null); setFormAbierto(true); }}
