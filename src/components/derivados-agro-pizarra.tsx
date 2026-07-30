@@ -571,10 +571,8 @@ function PaseConCoberturaTable({
                 })
               }
               className={`border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
-                grupoInicio && i > 0 ? "border-t-2 border-t-[var(--t-border-2)]" : ""
-              } ${grupoInicio ? "bg-[var(--t-surface-2)]" : ""} ${
-                card ? "cursor-pointer" : ""
-              }`}
+                grupoInicio ? "border-t border-[#3a2c0a] bg-[var(--t-tint-amber)]" : ""
+              } ${card ? "cursor-pointer" : ""}`}
             >
               <td className="px-1.5 py-0.5 text-[var(--t-text)] font-semibold">
                 {posicionFromVto(f.commodity, f.vto)}
@@ -1085,7 +1083,7 @@ function PizarraRow({
   const arsBg = useFlashBg(row.ars);
 
   return (
-    <tr className="border-y border-[#3a2c0a] bg-[var(--t-tint-amber)]">
+    <tr className="border-y border-[#3a2c0a] bg-[var(--t-tint-amber)] font-semibold">
       <td className="px-1.5 py-1 text-[#e0c890]">
         {fmtFechaVtoFuturo(row.vencimiento)}
       </td>
