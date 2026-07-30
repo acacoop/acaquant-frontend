@@ -396,7 +396,11 @@ export function DerivadosAgroPizarra({
               </div>
             </div>
           ) : (
-            <PaseCoberturaCards pase={data.pase_cobertura ?? null} dim={dim} />
+            <PaseCoberturaTarjetas
+              rosario={data.pase_cobertura ?? null}
+              bahia={data.pase_cobertura_bahia ?? null}
+              dim={dim}
+            />
           )}
         </Panel>
       </div>
@@ -870,6 +874,34 @@ function fmtFechaISO(iso: string | null): string {
   if (!iso || iso.length < 10) return "—";
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${Number(d)}/${Number(m)}/${y}`;
+}
+
+// Tarjetas del Pase con Cobertura con tab de plaza (Rosario / Bahía Blanca):
+// se elige la cámara y se muestran solo esas tarjetas, no todas juntas.
+function PaseCoberturaTarjetas({
+  rosario,
+  bahia,
+  dim,
+}: {
+  rosario: PaseCoberturaResp | null;
+  bahia: PaseCoberturaResp | null;
+  dim: string;
+}) {
+  const [plaza, setPlaza] = useState<"rosario" | "bahia">("rosario");
+  const pase = plaza === "bahia" ? bahia : rosario;
+  return (
+    <div className={`flex flex-col gap-2 ${dim}`}>
+      <div className="flex gap-0.5">
+        <VistaBtn active={plaza === "rosario"} onClick={() => setPlaza("rosario")}>
+          Rosario
+        </VistaBtn>
+        <VistaBtn active={plaza === "bahia"} onClick={() => setPlaza("bahia")}>
+          Bahía Blanca
+        </VistaBtn>
+      </div>
+      <PaseCoberturaCards pase={pase} dim="" />
+    </div>
+  );
 }
 
 function PaseCoberturaCards({
