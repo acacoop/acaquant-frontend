@@ -70,6 +70,13 @@ interface PaseCard {
   tc_pagare: number | null;
   compra_usd_pagare: number | null;
   ganancia_pagare_usd: number | null;
+  // Sintético (tasa desde Mercados → Sintéticos, mismo mes que el pase)
+  sintetico_ticker: string | null;
+  tasa_sintetico: number | null;
+  interes_sintetico: number | null;
+  tc_sintetico: number | null;
+  compra_usd_sintetico: number | null;
+  ganancia_sintetico_usd: number | null;
 }
 
 interface PaseCoberturaCommodity {
@@ -403,7 +410,8 @@ function VistaBtn({
 // Replica la planilla: una fila por (commodity, vencimiento) — solo futuros.
 // Posición = "TRIGO JULIO 26". Pase Lleno = (pizarra USD − futuro USD) NETO
 // del costo pase (gastos MATBA+ALyC 0,45%, lo calcula el backend; ver panel
-// COSTO PASE en DATOS). Sintético queda en "—" hasta definir la fórmula.
+// COSTO PASE en DATOS). Columna Sintético: misma fórmula que ON pero la tasa
+// sale de la TNA del sintético del mismo mes (Mercados › Sintéticos), no manual.
 
 const MESES_ES: Record<string, string> = {
   "01": "ENERO",
@@ -531,6 +539,9 @@ function PaseConCoberturaTable({
           </th>
           <th className="text-right px-1.5 py-1 border-b border-[var(--t-border)]">
             Sintético
+            <span className="block text-[8px] font-normal text-[var(--t-text-muted)]">
+              tasa por mes
+            </span>
           </th>
         </tr>
       </thead>
@@ -540,6 +551,7 @@ function PaseConCoberturaTable({
           const card = cardByKey.get(key) ?? null;
           const gOn = card?.ganancia_on_usd ?? null;
           const gPag = card?.ganancia_pagare_usd ?? null;
+          const gSint = card?.ganancia_sintetico_usd ?? null;
           // Pase Lleno neto (backend le resta el costo pase). Sin card todavía
           // (payload viejo en caché), cae al pase bruto del bloque.
           const paseLleno = card?.pase_lleno ?? f.pase;
@@ -580,10 +592,14 @@ function PaseConCoberturaTable({
                 {gOn === null ? "—" : fmtPx(gOn)}
               </td>
               <td
-                className="px-1.5 py-0.5 text-right text-[var(--t-text-muted)]"
-                title="Pendiente — próxima iteración"
+                className={`px-1.5 py-0.5 text-right font-semibold ${pasecolor(gSint)}`}
+                title={
+                  card?.sintetico_ticker
+                    ? `Ganancia Pase (Sintético ${card.sintetico_ticker}, tasa ${fmtTasa(card.tasa_sintetico)}) en US$/Tn`
+                    : "Sin sintético en ese mes"
+                }
               >
-                —
+                {gSint === null ? "—" : fmtPx(gSint)}
               </td>
             </tr>
           );
@@ -727,6 +743,43 @@ function PaseCalcModal({
               strong
               color={pasecolor(card.ganancia_pagare_usd)}
             />
+          </CalcBlock>
+
+          <CalcBlock
+            title={
+              card.sintetico_ticker
+                ? `Sintético (${card.sintetico_ticker} — Mercados › Sintéticos)`
+                : "Sintético"
+            }
+          >
+            {card.sintetico_ticker ? (
+              <>
+                <CalcLine
+                  label="Tasa = TNA del sintético del mismo mes (Long Rofex + Long Lecap)"
+                  value={fmtTasa(card.tasa_sintetico)}
+                />
+                <CalcLine
+                  label={`Interés = TC − TC / (1 + ${fmtTasa(card.tasa_sintetico)}/365 × ${card.dias ?? "—"} días)`}
+                  value={fmtPx(card.interes_sintetico)}
+                />
+                <CalcLine label="TC Sintético = TC − Interés" value={fmtPx(card.tc_sintetico)} />
+                <CalcLine
+                  label="Compra USD = Venta Dispo / TC Sintético"
+                  value={fmtPx(card.compra_usd_sintetico)}
+                />
+                <CalcLine
+                  label="Ganancia Sintético = Compra USD − Compra Futuro"
+                  value={fmtPx(card.ganancia_sintetico_usd)}
+                  strong
+                  color={pasecolor(card.ganancia_sintetico_usd)}
+                />
+              </>
+            ) : (
+              <CalcLine
+                label="Sin sintético en el mes del pase — no se calcula"
+                value="—"
+              />
+            )}
           </CalcBlock>
         </div>
       </div>
