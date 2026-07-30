@@ -192,7 +192,9 @@ function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
           </select>
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">ACTIVO
-          <input value={f.activo} onChange={set("activo")} placeholder="TZXD6…" className={INPUT} />
+          <input value={f.activo}
+            onChange={(e) => setF((prev) => ({ ...prev, activo: e.target.value.toUpperCase() }))}
+            placeholder="TZXD6…" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">CLIENTE
           <input value={f.cliente} onChange={set("cliente")} placeholder="elegir o tipear nuevo…"
