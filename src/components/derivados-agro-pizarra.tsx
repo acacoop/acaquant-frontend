@@ -571,8 +571,8 @@ function PaseConCoberturaTable({
                 })
               }
               className={`border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
-                grupoInicio && i > 0 ? "border-t border-[var(--t-border-2)]" : ""
-              } ${grupoInicio ? "bg-[var(--t-surface)]/50" : ""} ${
+                grupoInicio && i > 0 ? "border-t-2 border-t-[var(--t-border-2)]" : ""
+              } ${grupoInicio ? "bg-[var(--t-surface-2)]" : ""} ${
                 card ? "cursor-pointer" : ""
               }`}
             >
