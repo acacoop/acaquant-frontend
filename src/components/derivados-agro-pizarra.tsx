@@ -546,7 +546,7 @@ function PaseConCoberturaTable({
         </tr>
       </thead>
       <tbody className={dim}>
-        {filas.map((f) => {
+        {filas.map((f, i) => {
           const key = f.ticker ?? `${f.commodity}-${f.vto}`;
           const card = cardByKey.get(key) ?? null;
           const gOn = card?.ganancia_on_usd ?? null;
@@ -555,6 +555,10 @@ function PaseConCoberturaTable({
           // Pase Lleno neto (backend le resta el costo pase). Sin card todavía
           // (payload viejo en caché), cae al pase bruto del bloque.
           const paseLleno = card?.pase_lleno ?? f.pase;
+          // Primer pase de cada commodity (TRIGO/MAÍZ/SOJA): corte visual leve
+          // — borde superior + fondo apenas más oscuro. Es un screen que se
+          // pasa a clientes, así que la división es sutil (no a lo ancho).
+          const grupoInicio = i === 0 || filas[i - 1].commodity !== f.commodity;
           return (
             <tr
               key={`${f.commodity}-${f.ticker ?? f.vto}`}
@@ -567,6 +571,8 @@ function PaseConCoberturaTable({
                 })
               }
               className={`border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
+                grupoInicio && i > 0 ? "border-t border-[var(--t-border-2)]" : ""
+              } ${grupoInicio ? "bg-[var(--t-surface)]/50" : ""} ${
                 card ? "cursor-pointer" : ""
               }`}
             >
