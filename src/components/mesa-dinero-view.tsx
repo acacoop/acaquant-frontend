@@ -350,6 +350,10 @@ export function MesaDineroView() {
     [resumen, moneda],
   );
 
+  // Tabla RESULTADO: más reciente arriba. El acumulado se calcula cronológico
+  // en el backend; acá solo invertimos para mostrar (el chart sigue viejo→nuevo).
+  const diasDesc = useMemo(() => [...(resumen?.dias ?? [])].reverse(), [resumen]);
+
   const puedeEscribir = opciones.puede_escribir;
 
   return (
@@ -451,7 +455,7 @@ export function MesaDineroView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(resumen?.dias ?? []).map((d) => (
+                  {diasDesc.map((d) => (
                     <tr key={d.fecha} className="border-t border-[var(--t-border)]">
                       <td className="px-2 py-0.5 font-mono">{fmtFecha(d.fecha)}</td>
                       <td className={`text-right font-mono ${signClass(d.resultado_ars)}`}>{fmt2(d.resultado_ars)}</td>
