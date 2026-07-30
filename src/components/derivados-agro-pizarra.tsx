@@ -111,6 +111,8 @@ export interface AgroResp {
   tasas_cobertura?: TasasCobertura | null;
   // Cards + ganancia ON del Pase con Cobertura (calculado en backend).
   pase_cobertura?: PaseCoberturaResp | null;
+  // Misma tabla con el disponible de la Cámara de Bahía Blanca.
+  pase_cobertura_bahia?: PaseCoberturaResp | null;
 }
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
@@ -369,12 +371,30 @@ export function DerivadosAgroPizarra({
               </tbody>
             </table>
           ) : vista === "cobertura" ? (
-            <PaseConCoberturaTable
-              bloques={data.bloques}
-              dim={dim}
-              tasas={data.tasas_cobertura ?? null}
-              pase={data.pase_cobertura ?? null}
-            />
+            <div className="flex flex-col gap-3">
+              <div>
+                <div className="px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--t-accent)]">
+                  Cámara Rosario
+                </div>
+                <PaseConCoberturaTable
+                  bloques={data.bloques}
+                  dim={dim}
+                  tasas={data.tasas_cobertura ?? null}
+                  pase={data.pase_cobertura ?? null}
+                />
+              </div>
+              <div>
+                <div className="px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--t-accent)] border-t border-[var(--t-border)] pt-2">
+                  Cámara Bahía Blanca
+                </div>
+                <PaseConCoberturaTable
+                  bloques={data.bloques}
+                  dim={dim}
+                  tasas={data.tasas_cobertura ?? null}
+                  pase={data.pase_cobertura_bahia ?? null}
+                />
+              </div>
+            </div>
           ) : (
             <PaseCoberturaCards pase={data.pase_cobertura ?? null} dim={dim} />
           )}
