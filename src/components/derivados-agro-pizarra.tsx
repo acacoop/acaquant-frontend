@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -560,8 +561,13 @@ function PaseConCoberturaTable({
           // pasa a clientes, así que la división es sutil (no a lo ancho).
           const grupoInicio = i === 0 || filas[i - 1].commodity !== f.commodity;
           return (
+            <Fragment key={`${f.commodity}-${f.ticker ?? f.vto}`}>
+              {grupoInicio && i > 0 && (
+                <tr aria-hidden>
+                  <td colSpan={5} className="h-2" />
+                </tr>
+              )}
             <tr
-              key={`${f.commodity}-${f.ticker ?? f.vto}`}
               onClick={() =>
                 card &&
                 setDetalle({
@@ -606,6 +612,7 @@ function PaseConCoberturaTable({
                 {gSint === null ? "—" : fmtPx(gSint)}
               </td>
             </tr>
+            </Fragment>
           );
         })}
       </tbody>
