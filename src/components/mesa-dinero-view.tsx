@@ -825,7 +825,10 @@ export function MesaDineroView() {
                       formatter={(v) => [fmt0(Number(v)), "Cash"]}
                       contentStyle={{ fontSize: 10, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
                     <Bar dataKey="valor" cursor="pointer"
-                      onClick={(d: { fecha?: string }) => d?.fecha && toggle(fFecha, d.fecha, setFFecha)}>
+                      onClick={(data) => {
+                        const fecha = (data as unknown as { payload?: { fecha?: string } })?.payload?.fecha;
+                        if (fecha) toggle(fFecha, fecha, setFFecha);
+                      }}>
                       <LabelList dataKey="valor" position="top" fontSize={8} fill="var(--t-text-dim)"
                         formatter={(v) => fmtAbrev(Number(v))} />
                       {porDia.map((d) => (
