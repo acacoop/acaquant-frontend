@@ -47,6 +47,12 @@ type Resultados = {
   total_ars: number; total_usd: number; n_total: number; dias_sin_tc: number;
 };
 type Opciones = { traders: string[]; observaciones: string[]; clientes: string[]; puede_escribir: boolean };
+// ACA VALORES RETORNO TOTAL — Σ Valor Nominal agrupado (operación / agente / papel).
+type RetGrupo = { clave: string; vn: number; n: number; share?: number };
+type Retorno = {
+  periodos: string[]; periodo: string | null; total_vn: number;
+  por_operacion: RetGrupo[]; por_agente: RetGrupo[]; por_papel: RetGrupo[];
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const INPUT =
@@ -310,10 +316,12 @@ function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: 
 // ── Vista principal ────────────────────────────────────────────────────────
 export function MesaDineroView() {
   const [mes, setMes] = usePersistedState<string>("mesaDinero.mes", mesActual());
-  const [tab, setTab] = usePersistedState<"operaciones" | "resultados">("mesaDinero.tab", "operaciones");
+  const [tab, setTab] = usePersistedState<"operaciones" | "resultados" | "retorno">("mesaDinero.tab", "operaciones");
   const [ops, setOps] = useState<Op[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [resultados, setResultados] = useState<Resultados | null>(null);
+  const [retorno, setRetorno] = useState<Retorno | null>(null);
+  const [retPeriodo, setRetPeriodo] = usePersistedState<string>("mesaDinero.retPeriodo", "");
   const [opciones, setOpciones] = useState<Opciones>({ traders: [], observaciones: [], clientes: [], puede_escribir: false });
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("mesaDinero.moneda", "ARS");
   const [filtroTrader, setFiltroTrader] = useState<string>("");
@@ -341,6 +349,22 @@ export function MesaDineroView() {
   useEffect(() => {
     getJson<Opciones>("/api/mesa-dinero/opciones").then(setOpciones).catch(console.error);
   }, []);
+
+  // ACA VALORES RETORNO TOTAL — se carga solo al entrar a la tab / cambiar período.
+  // El período (YYYY-MM) es el del archivo Excel importado, independiente del
+  // selector de mes de la vista de operaciones.
+  useEffect(() => {
+    if (tab !== "retorno") return;
+    const qs = retPeriodo ? `?periodo=${retPeriodo}` : "";
+    getJson<Retorno>(`/api/mesa-dinero/retorno${qs}`)
+      .then((r) => { setRetorno(r); if (!retPeriodo && r.periodo) setRetPeriodo(r.periodo); })
+      .catch(console.error);
+  }, [tab, retPeriodo, setRetPeriodo]);
+
+  const retChartData = useMemo(
+    () => (retorno?.por_operacion ?? []).map((g) => ({ clave: g.clave, valor: g.vn })),
+    [retorno],
+  );
 
   const borrar = async (op: Op) => {
     if (!window.confirm(`¿Borrar el registro de ${op.activo ?? "—"} del ${fmtFecha(op.fecha)}? Queda auditado.`)) return false;
@@ -378,7 +402,7 @@ export function MesaDineroView() {
       <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">MESA DE DINERO</span>
         <div className="flex gap-1">
-          {([["operaciones", "OPERACIONES"], ["resultados", "RESULTADOS"]] as const).map(([id, label]) => (
+          {([["operaciones", "OPERACIONES"], ["resultados", "RESULTADOS"], ["retorno", "ACA VALORES RETORNO TOTAL"]] as const).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className={`px-2 py-0.5 text-[10px] font-semibold border ${
                 tab === id
@@ -651,6 +675,161 @@ export function MesaDineroView() {
                   </tfoot>
                 )}
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {tab === "retorno" && (
+      <div className="flex-1 min-h-0 flex flex-col p-3 gap-2">
+        {/* Toolbar: selector de período (del archivo importado) + total */}
+        <div className="shrink-0 flex items-center gap-3">
+          <span className="text-[10px] text-[var(--t-text-muted)]">PERÍODO</span>
+          <select value={retPeriodo} onChange={(e) => setRetPeriodo(e.target.value)} className={INPUT}
+            title="Período del informe Excel importado">
+            {(retorno?.periodos ?? []).map((p) => <option key={p} value={p}>{p}</option>)}
+            {(retorno?.periodos ?? []).length === 0 && <option value="">— sin datos —</option>}
+          </select>
+          <span className="text-[10px] text-[var(--t-text-muted)]">
+            Σ VALOR NOMINAL: <span className="font-mono text-[var(--t-text)]">{fmt0(retorno?.total_vn)}</span>
+          </span>
+        </div>
+
+        <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
+          {/* IZQUIERDA: tabla por operación (arriba) + chart (abajo) */}
+          <div className="grid grid-rows-2 gap-3 min-h-0">
+            <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
+              <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR OPERACIÓN</span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
+                      <th className="px-2 py-1">OPERACIÓN</th>
+                      <th className="text-right">N°</th>
+                      <th className="text-right pr-2">VALOR NOMINAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(retorno?.por_operacion ?? []).map((g) => (
+                      <tr key={g.clave} className="border-t border-[var(--t-border)]">
+                        <td className="px-2 py-0.5">{g.clave}</td>
+                        <td className="text-right font-mono text-[var(--t-text-dim)]">{g.n}</td>
+                        <td className="text-right font-mono pr-2 text-[var(--t-text)]">{fmt0(g.vn)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {retorno && (
+                    <tfoot>
+                      <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                        <td className="px-2 py-1">TOTAL</td>
+                        <td></td>
+                        <td className="text-right font-mono pr-2">{fmt0(retorno.total_vn)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
+              <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR OPERACIÓN</span>
+              </div>
+              <div className="flex-1 min-h-0 p-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={retChartData} margin={{ top: 16, right: 8, bottom: 4, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
+                    <XAxis dataKey="clave" tick={{ fontSize: 9 }} interval={0} />
+                    <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => fmtAbrev(v)} width={56} />
+                    <Tooltip
+                      formatter={(v) => [fmt0(Number(v)), "Valor Nominal"]}
+                      contentStyle={{ fontSize: 10, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
+                    <Bar dataKey="valor" fill="var(--t-accent)">
+                      <LabelList dataKey="valor" position="top" fontSize={8} fill="var(--t-text-dim)"
+                        formatter={(v) => fmtAbrev(Number(v))} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* DERECHA: por agente + share (arriba) + por papel (abajo) */}
+          <div className="grid grid-rows-2 gap-3 min-h-0">
+            <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
+              <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR AGENTE</span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
+                      <th className="px-2 py-1">AGENTE</th>
+                      <th className="text-right">N°</th>
+                      <th className="text-right">VALOR NOMINAL</th>
+                      <th className="text-right pr-2">SHARE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(retorno?.por_agente ?? []).map((g) => (
+                      <tr key={g.clave} className="border-t border-[var(--t-border)]">
+                        <td className="px-2 py-0.5">{g.clave}</td>
+                        <td className="text-right font-mono text-[var(--t-text-dim)]">{g.n}</td>
+                        <td className="text-right font-mono text-[var(--t-text)]">{fmt0(g.vn)}</td>
+                        <td className="text-right font-mono pr-2 text-[var(--t-accent)]">{fmtPct(g.share)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {retorno && (
+                    <tfoot>
+                      <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                        <td className="px-2 py-1">TOTAL</td>
+                        <td></td>
+                        <td className="text-right font-mono">{fmt0(retorno.total_vn)}</td>
+                        <td className="text-right font-mono pr-2">100,00%</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
+              <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR PAPEL</span>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
+                      <th className="px-2 py-1">PAPEL</th>
+                      <th className="text-right">N°</th>
+                      <th className="text-right pr-2">VALOR NOMINAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(retorno?.por_papel ?? []).map((g) => (
+                      <tr key={g.clave} className="border-t border-[var(--t-border)]">
+                        <td className="px-2 py-0.5">{g.clave}</td>
+                        <td className="text-right font-mono text-[var(--t-text-dim)]">{g.n}</td>
+                        <td className="text-right font-mono pr-2 text-[var(--t-text)]">{fmt0(g.vn)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {retorno && (
+                    <tfoot>
+                      <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                        <td className="px-2 py-1">TOTAL</td>
+                        <td></td>
+                        <td className="text-right font-mono pr-2">{fmt0(retorno.total_vn)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </div>
           </div>
         </div>
