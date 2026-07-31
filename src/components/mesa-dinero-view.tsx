@@ -386,7 +386,12 @@ export function MesaDineroView() {
 
   // Cross-filter: cada panel se filtra por las OTRAS dimensiones (no la propia),
   // así siempre podés cambiar la selección dentro de ese panel.
-  const filas = useMemo(() => retorno?.filas ?? [], [retorno]);
+  // El CASH se toma en valor absoluto: no distinguimos compra/venta (el signo
+  // solo le importa al fondo, a nosotros nos distorsiona los totales).
+  const filas = useMemo(
+    () => (retorno?.filas ?? []).map((f) => ({ ...f, cash: Math.abs(f.cash) })),
+    [retorno],
+  );
   const pasa = (f: RetFila, excl: "op" | "ag" | "pa" | "fe") =>
     (excl === "op" || !fOp || f.operacion === fOp) &&
     (excl === "ag" || !fAg || f.agente === fAg) &&
