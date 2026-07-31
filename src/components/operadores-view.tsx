@@ -21,6 +21,9 @@ type Combo = {
   n_cuentas: number;
 };
 
+const SIN_CLASIFICAR_DIVISION = "__sin_clasificar__";
+const SIN_CLASIFICAR_LABEL = "SIN CLASIFICAR";
+
 // ── Multi-select (dropdown con checkboxes) ────────────────────────────────
 type Opt = { value: string; label: string; n?: number };
 function MultiSelect({
@@ -224,7 +227,10 @@ export function OperadoresView() {
             <MultiSelect label="Referido" selected={referido} onChange={setReferido}
               options={referidos.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
             <MultiSelect label="División" selected={division} onChange={setDivision}
-              options={divisiones.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
+              options={divisiones.map((n) => ({
+                value: n,
+                label: n === SIN_CLASIFICAR_DIVISION ? SIN_CLASIFICAR_LABEL : n,
+              }))} width="max-w-[180px]" />
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["ARS", "USD"] as const).map((m) => (
                 <button
