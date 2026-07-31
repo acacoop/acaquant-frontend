@@ -92,36 +92,28 @@ async function getJson<T>(url: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-// Inputs numéricos es-AR: estado guarda el crudo ("1234567,89"), se muestra
-// con separador de miles ("1.234.567,89") mientras se tipea.
-// Acepta coma O punto como separador decimal (teclados distintos) y normaliza
-// todo al formato interno con coma.
+// Inputs numéricos: el estado guarda el crudo con coma decimal ("1234567,89").
+// El usuario puede tipear coma O punto y ambos significan lo MISMO (decimal) —
+// distintos teclados. Se muestra el crudo tal cual (sin separador de miles
+// mientras se tipea) para que no haya ambigüedad punto-miles vs punto-decimal.
+// El SEGUNDO separador que se tipee se ignora (ya hay decimal).
 const normalizarNumeroInput = (s: string) => {
   const src = (s ?? "").replace(/\s/g, "");
   if (!src) return "";
 
   const neg = src.startsWith("-");
+  // Todo lo que no sea dígito o separador se descarta. El PRIMER separador
+  // (coma o punto) es el decimal; los siguientes se ignoran.
   const clean = src.replace(/[^\d.,]/g, "");
-  const lastComma = clean.lastIndexOf(",");
-  const lastDot = clean.lastIndexOf(".");
-  const decIdx = Math.max(lastComma, lastDot);
+  const sepIdx = clean.search(/[.,]/);
 
-  if (decIdx < 0) {
-    const ints = clean.replace(/\D/g, "");
-    return (neg ? "-" : "") + ints;
+  if (sepIdx < 0) {
+    return (neg ? "-" : "") + clean.replace(/\D/g, "");
   }
 
-  const ints = clean.slice(0, decIdx).replace(/\D/g, "");
-  const decs = clean.slice(decIdx + 1).replace(/\D/g, "");
+  const ints = clean.slice(0, sepIdx).replace(/\D/g, "");
+  const decs = clean.slice(sepIdx + 1).replace(/\D/g, "");
   return (neg ? "-" : "") + ints + "," + decs;
-};
-
-const conMiles = (s: string) => {
-  if (!s) return "";
-  const neg = s.startsWith("-");
-  const [int, dec] = (neg ? s.slice(1) : s).split(",");
-  const intF = int.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return (neg ? "-" : "") + (dec !== undefined ? `${intF},${dec}` : intF);
 };
 
 // ── Formulario de alta/edición ─────────────────────────────────────────────
@@ -229,13 +221,13 @@ function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
           </datalist>
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">VN OPERACIÓN
-          <input value={conMiles(f.vn)} onChange={setNum("vn")} inputMode="decimal" className={INPUT} />
+          <input value={f.vn} onChange={setNum("vn")} inputMode="decimal" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">PX COMPRA
-          <input value={conMiles(f.px_compra)} onChange={setNum("px_compra")} inputMode="decimal" className={INPUT} />
+          <input value={f.px_compra} onChange={setNum("px_compra")} inputMode="decimal" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">PX VENTA
-          <input value={conMiles(f.px_venta)} onChange={setNum("px_venta")} inputMode="decimal" className={INPUT} />
+          <input value={f.px_venta} onChange={setNum("px_venta")} inputMode="decimal" className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">OBSERVACIÓN
           <select value={f.observacion} onChange={set("observacion")} className={INPUT}>
@@ -245,7 +237,7 @@ function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
         </label>
         {sinPatas && (
           <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">RESULTADO (sin patas)
-            <input value={conMiles(f.resultado)} onChange={setNum("resultado")} inputMode="decimal"
+            <input value={f.resultado} onChange={setNum("resultado")} inputMode="decimal"
               placeholder="ej. Pase OPS" className={INPUT} />
           </label>
         )}
@@ -295,7 +287,7 @@ function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: 
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <input autoFocus value={conMiles(v)} inputMode="decimal"
+      <input autoFocus value={v} inputMode="decimal"
         onChange={(e) => {
           setV(normalizarNumeroInput(e.target.value));
         }}
