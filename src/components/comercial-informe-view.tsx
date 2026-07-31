@@ -41,6 +41,7 @@ type OperacionArancel = {
 };
 type SegDetalle = {
   segmento: string; n_clientes: number; clientes: ClienteArancel[]; operaciones: OperacionArancel[];
+  n_operaciones?: number;
 };
 
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
@@ -594,6 +595,11 @@ export function ComercialInforme({
             <tbody>
               {detalle.operaciones.length === 0 && (
                 <tr><td colSpan={5} className="text-center text-[var(--t-text-muted)] py-4">Sin operaciones.</td></tr>
+              )}
+              {(detalle.n_operaciones ?? 0) > detalle.operaciones.length && (
+                <tr><td colSpan={5} className="text-center text-[10px] text-[var(--t-text-muted)] py-1.5 border-b border-[var(--t-border)]">
+                  Mostrando las {fmtN(detalle.operaciones.length)} más recientes de {fmtN(detalle.n_operaciones!)} operaciones — acotá el período (Desde/Hasta) para ver todas.
+                </td></tr>
               )}
               {detalle.operaciones.map((o, i) => (
                 <tr key={o.comprobante + i} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
