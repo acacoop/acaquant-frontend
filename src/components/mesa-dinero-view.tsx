@@ -94,7 +94,28 @@ async function getJson<T>(url: string): Promise<T> {
 
 // Inputs numéricos es-AR: estado guarda el crudo ("1234567,89"), se muestra
 // con separador de miles ("1.234.567,89") mientras se tipea.
-const desformatear = (s: string) => s.replace(/\./g, "");
+// Acepta coma O punto como separador decimal (teclados distintos) y normaliza
+// todo al formato interno con coma.
+const normalizarNumeroInput = (s: string) => {
+  const src = (s ?? "").replace(/\s/g, "");
+  if (!src) return "";
+
+  const neg = src.startsWith("-");
+  const clean = src.replace(/[^\d.,]/g, "");
+  const lastComma = clean.lastIndexOf(",");
+  const lastDot = clean.lastIndexOf(".");
+  const decIdx = Math.max(lastComma, lastDot);
+
+  if (decIdx < 0) {
+    const ints = clean.replace(/\D/g, "");
+    return (neg ? "-" : "") + ints;
+  }
+
+  const ints = clean.slice(0, decIdx).replace(/\D/g, "");
+  const decs = clean.slice(decIdx + 1).replace(/\D/g, "");
+  return (neg ? "-" : "") + ints + "," + decs;
+};
+
 const conMiles = (s: string) => {
   if (!s) return "";
   const neg = s.startsWith("-");
@@ -140,15 +161,19 @@ function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
-  // Inputs numéricos: acepta dígitos + coma decimal, guarda crudo, muestra con miles.
+  // Inputs numéricos: acepta coma o punto decimal, guarda crudo normalizado.
   const setNum = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = desformatear(e.target.value);
-    if (raw !== "" && !/^-?\d*(,\d*)?$/.test(raw)) return;
+    const raw = normalizarNumeroInput(e.target.value);
     setF((prev) => ({ ...prev, [k]: raw }));
   };
 
   // Preview de derivados (informativo — la fuente de verdad es el backend).
-  const num = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")));
+  const num = (s: string) => {
+    const raw = normalizarNumeroInput(s);
+    if (raw === "" || raw === "-" || raw === "," || raw === "-,") return null;
+    const n = Number(raw.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  };
   const montoC = num(f.vn) != null && num(f.px_compra) != null
     ? (num(f.vn)! * num(f.px_compra)!) / 100 : null;
   const montoV = num(f.vn) != null && num(f.px_venta) != null
@@ -272,15 +297,14 @@ function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: 
     <span className="inline-flex items-center gap-1">
       <input autoFocus value={conMiles(v)} inputMode="decimal"
         onChange={(e) => {
-          const raw = desformatear(e.target.value);
-          if (raw !== "" && !/^\d*(,\d*)?$/.test(raw)) return;
-          setV(raw);
+          setV(normalizarNumeroInput(e.target.value));
         }}
         className={`${INPUT} w-20 text-right`}
         onKeyDown={async (e) => {
           if (e.key === "Escape") setEditando(false);
           if (e.key === "Enter") {
-            const n = Number(v.replace(",", "."));
+            const raw = normalizarNumeroInput(v);
+            const n = Number(raw.replace(",", "."));
             if (!Number.isFinite(n) || n <= 0) return;
             setBusy(true);
             try { await onSet(dia.fecha, n); setEditando(false); } finally { setBusy(false); }
@@ -509,7 +533,7 @@ export function MesaDineroView() {
                     formatter={(v) => [fmt2(Number(v)) + (moneda === "USD" ? " U$S" : " $"), "Resultado"]}
                     contentStyle={{ fontSize: 10, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
                   <Bar dataKey="valor">
-                    <LabelList dataKey="valor" position="top" fontSize={8} fill="var(--t-text-muted)"
+                    <LabelList dataKey="valor" position="top" fontSize={8} fill="var(--t-text-dim)"
                       formatter={(v) => fmtAbrev(Number(v))} />
                     {chartData.map((d, i) => (
                       <Cell key={i} fill={d.valor < 0 ? "var(--t-neg)" : "var(--t-pos)"} />
