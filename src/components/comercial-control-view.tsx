@@ -112,10 +112,11 @@ function AyudaKpis() {
 
 export function ComercialControlView({
   moneda = "ARS", operador = [], nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
+  division = [],
 }: {
   moneda?: "ARS" | "USD";
   operador?: string[]; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
-  nivel4?: string[]; nivel5?: string[]; referido?: string[];
+  nivel4?: string[]; nivel5?: string[]; referido?: string[]; division?: string[];
 }) {
   const hoy = new Date();
   const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -126,8 +127,9 @@ export function ComercialControlView({
   // alguna selección → dispara los 3 fetch. join("") lo hace estable para deps de efectos.
   const filtQS = useMemo(() =>
     arrQS("operador", operador) + arrQS("nivel_1", nivel1) + arrQS("nivel_2", nivel2) +
-    arrQS("nivel_3", nivel3) + arrQS("nivel_4", nivel4) + arrQS("nivel_5", nivel5) + arrQS("referido", referido),
-    [operador, nivel1, nivel2, nivel3, nivel4, nivel5, referido]);
+    arrQS("nivel_3", nivel3) + arrQS("nivel_4", nivel4) + arrQS("nivel_5", nivel5) + arrQS("referido", referido) +
+    arrQS("division", division),
+    [operador, nivel1, nivel2, nivel3, nivel4, nivel5, referido, division]);
 
   const [totales, setTotales] = useState<FilaTotal[]>([]);
   const [porOp, setPorOp] = useState<FilaOperador[]>([]);
@@ -201,7 +203,16 @@ export function ComercialControlView({
       : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]");
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3 bg-[var(--t-panel)] text-[var(--t-text)]">
+    <div className="relative flex-1 min-h-0 overflow-auto p-3 space-y-3 bg-[var(--t-panel)] text-[var(--t-text)]">
+      {/* Overlay "Cargando…" centrado (mismo patrón que el resto de las vistas). */}
+      {loading && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/30 pointer-events-none">
+          <div className="flex items-center gap-2 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-4 py-2.5 shadow-lg">
+            <div className="h-3 w-3 border-2 border-[var(--t-accent)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[11px] font-semibold text-[var(--t-text)]">Cargando…</span>
+          </div>
+        </div>
+      )}
       {/* Header: Desde/Hasta (afecta Tablas 2 y 3; la 1 es fija) + acciones (editar/ayuda/xlsx) */}
       <div className="flex items-center gap-2 flex-wrap text-[11px]">
         <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)] font-semibold mr-2">Control Comercial</span>
@@ -212,7 +223,6 @@ export function ComercialControlView({
         <input type="date" value={hasta} min={desde} onChange={(e) => setHasta(e.target.value)}
           className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
         <span className="text-[9px] text-[var(--t-text-muted)]">({moneda}) · afecta &laquo;Por operador&raquo; y &laquo;Objetivos&raquo;; la tabla de totales es fija</span>
-        {loading && <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>}
 
         {/* Acciones a la derecha */}
         <div className="ml-auto flex items-center gap-1">
@@ -251,7 +261,7 @@ export function ComercialControlView({
                 <Pct v={r.clientes_activos_pct} />
                 <td className="px-2 py-1 text-right font-semibold text-[var(--t-accent)]">{fmtMoney(r.volumen)}</td>
                 <Pct v={r.volumen_pct} />
-                <td className="px-2 py-1 text-right text-[#9fb8d0]">{fmtMoney(r.comisiones)}</td>
+                <td className="px-2 py-1 text-right text-[var(--t-data-arancel)]">{fmtMoney(r.comisiones)}</td>
                 <Pct v={r.comisiones_pct} />
               </tr>
             ))}
@@ -275,11 +285,11 @@ export function ComercialControlView({
                 <Pct v={r.clientes_activos_pct} />
                 <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtN(r.clientes_inactivos)}</td>
                 <td className="px-2 py-1 text-right text-[var(--t-text)]">{pctActivos(r) == null ? "—" : `${pctActivos(r)!.toFixed(0)}%`}</td>
-                <td className="px-2 py-1 text-right font-semibold text-[#7fd4b0]">{fmtMoney(r.aum)}</td>
+                <td className="px-2 py-1 text-right font-semibold text-[var(--t-data-aum)]">{fmtMoney(r.aum)}</td>
                 <Pct v={r.aum_pct} />
                 <td className="px-2 py-1 text-right font-semibold text-[var(--t-accent)]">{fmtMoney(r.volumen)}</td>
                 <Pct v={r.volumen_pct} />
-                <td className="px-2 py-1 text-right text-[#9fb8d0]">{fmtMoney(r.comisiones)}</td>
+                <td className="px-2 py-1 text-right text-[var(--t-data-arancel)]">{fmtMoney(r.comisiones)}</td>
                 <Pct v={r.comisiones_pct} />
               </tr>
             ))}
@@ -301,7 +311,7 @@ export function ComercialControlView({
                 <td className="px-2 py-1 truncate" title={r.operador_nombre}>{r.operador_nombre}</td>
                 <td className="px-2 py-1 text-right font-semibold text-[var(--t-accent)]">{fmtMoney(r.volumen_actual)}</td>
                 <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{r.volumen_objetivo ? fmtMoney(r.volumen_objetivo) : "—"}</td>
-                <td className="px-2 py-1 text-right text-[#9fb8d0]">{fmtMoney(r.comisiones_actual)}</td>
+                <td className="px-2 py-1 text-right text-[var(--t-data-arancel)]">{fmtMoney(r.comisiones_actual)}</td>
                 <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{r.comisiones_objetivo ? fmtMoney(r.comisiones_objetivo) : "—"}</td>
                 <td className={"px-2 py-1 text-right font-semibold " + (r.pct_alcanzado == null ? "text-[var(--t-text-muted)]" : r.pct_alcanzado >= 100 ? "text-[var(--t-pos)]" : "text-[var(--t-text)]")}>
                   {r.pct_alcanzado == null ? "—" : `${r.pct_alcanzado.toFixed(0)}%`}

@@ -102,7 +102,7 @@ export function NewsReader({ url, fuente, tituloFallback, fechaFallback, onClose
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[var(--t-accent)] hover:text-[#ffb84d] underline decoration-dotted"
+                className="text-[var(--t-accent)] hover:text-[var(--t-accent-hover)] underline decoration-dotted"
               >
                 abrir original ↗
               </a>

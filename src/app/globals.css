@@ -40,6 +40,10 @@
   /* Colores de datos P&L (verde sube / rojo baja). Oscuro = el hex de siempre. */
   --t-pos: #00cc66;
   --t-neg: #ff3333;
+  /* Dato ARANCEL / comisiones (azul-gris suave). Hover del acento (naranja claro). */
+  --t-data-arancel: #9fb8d0;
+  --t-data-aum: #7fd4b0;
+  --t-accent-hover: #ffb84d;
 }
 
 /* Modo claro: blanco + azul de empresa. Se activa con class="light" en <html>.
@@ -66,6 +70,11 @@
   /* P&L en claro: tonos más oscuros/saturados para leerse sobre blanco. */
   --t-pos: #0a8f43;
   --t-neg: #c81e1e;
+  /* Arancel/comisiones en claro: azul legible sobre blanco (el gris-azul de oscuro se
+     lavaba). Hover del acento = un azul más claro que el acento. */
+  --t-data-arancel: #2f5c8f;
+  --t-data-aum: #0f7a52;
+  --t-accent-hover: #1e6fd0;
 }
 
 /* Modo claro: TODO el texto en negrita. Sobre blanco el peso fino se lee flojo

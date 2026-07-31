@@ -158,11 +158,11 @@ const _arrQS = (key: string, vals?: string[]) =>
 
 export function ComercialInforme({
   moneda = "ARS", fecha = "", desde = "",
-  operador = [], nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
+  operador = [], nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [], division = [],
 }: {
   moneda?: "ARS" | "USD"; fecha?: string; desde?: string;
   operador?: string[]; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
-  nivel4?: string[]; nivel5?: string[]; referido?: string[];
+  nivel4?: string[]; nivel5?: string[]; referido?: string[]; division?: string[];
 }) {
   const [informe, setInforme] = useState<InformeResp | null>(null);
   const [seg, setSeg] = useState<SegmentoResp | null>(null);
@@ -174,17 +174,24 @@ export function ComercialInforme({
   const [segScoped, setSegScoped] = useState<ArancelSeg[] | null>(null);
   const [q1mode, setQ1mode] = useState<"cuentas" | "operativas" | "aranceles">("cuentas");
   const [showHelp, setShowHelp] = useState(false);
+  // Contador de fetches en vuelo → overlay "Cargando…" centrado (evita que el usuario
+  // vea cuadrantes cargando a destiempo y se confunda). >0 = hay algo cargando.
+  const [pending, setPending] = useState(0);
 
   const fQS = (fecha ? `&fecha=${fecha}` : "") + (desde ? `&desde=${desde}` : "");
   // Filtros madre: niveles + referido van a los 4 cuadrantes; operador (madre) SOLO
   // al ranking (Q2) — en Q1/Q3/Q4 el param `operador` es el drill-down del comercial
   // clickeado. Vacío = sin filtro → el informe queda global como siempre.
   const madreNiveles = _arrQS("nivel_1", nivel1) + _arrQS("nivel_2", nivel2) + _arrQS("nivel_3", nivel3)
-    + _arrQS("nivel_4", nivel4) + _arrQS("nivel_5", nivel5) + _arrQS("referido", referido);
+    + _arrQS("nivel_4", nivel4) + _arrQS("nivel_5", nivel5) + _arrQS("referido", referido)
+    + _arrQS("division", division);
   const madreOperador = _arrQS("operador", operador);
 
   useEffect(() => {
-    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}${fQS}${madreOperador}${madreNiveles}`, null).then(setInforme);
+    setPending((n) => n + 1);
+    void getJson<InformeResp | null>(`/api/operaciones/comercial/informe?moneda=${moneda}${fQS}${madreOperador}${madreNiveles}`, null)
+      .then(setInforme)
+      .finally(() => setPending((n) => n - 1));
   }, [moneda, fQS, madreOperador, madreNiveles]);
 
   // Q1 (cuentas por segmento) — corte por la fecha GLOBAL de la vista + re-scope al comercial.
@@ -195,20 +202,22 @@ export function ComercialInforme({
     if (selComercial) params.set("operador", selComercial);
     const base = params.toString();
     const q = base || madreNiveles ? `?${base}${madreNiveles}` : "";
+    setPending((n) => n + 1);
     void getJson<SegmentoResp | null>(`/api/operaciones/comercial/informe-segmento${q}`, null).then((d) => {
       setSeg(d);
       if (d) setMes(d.mes); // refleja el mes del corte (solo display)
-    });
+    }).finally(() => setPending((n) => n - 1));
   }, [fecha, desde, selComercial, madreNiveles]);
 
   // Q3 re-scopeada: aranceles por segmento del comercial elegido.
   useEffect(() => {
     if (!selComercial) { setSegScoped(null); return; }
     setSegScoped(null);
+    setPending((n) => n + 1);
     void getJson<{ aranceles_segmento: ArancelSeg[] } | null>(
       `/api/operaciones/comercial/informe-aranceles-segmento?operador=${encodeURIComponent(selComercial)}&moneda=${moneda}${fQS}${madreNiveles}`,
       null,
-    ).then((d) => setSegScoped(d?.aranceles_segmento ?? []));
+    ).then((d) => setSegScoped(d?.aranceles_segmento ?? [])).finally(() => setPending((n) => n - 1));
   }, [selComercial, moneda, fQS, madreNiveles]);
 
   // Detalle (Q4): por defecto TODOS los segmentos; al elegir uno en Q3, filtra.
@@ -217,10 +226,11 @@ export function ComercialInforme({
     setDetalle(null);
     const op = selComercial ? `&operador=${encodeURIComponent(selComercial)}` : "";
     const segParam = selSeg ?? "todos";
+    setPending((n) => n + 1);
     void getJson<SegDetalle | null>(
       `/api/operaciones/comercial/informe-segmento-detalle?segmento=${encodeURIComponent(segParam)}${op}&moneda=${moneda}${fQS}${madreNiveles}`,
       null,
-    ).then(setDetalle);
+    ).then(setDetalle).finally(() => setPending((n) => n - 1));
   }, [selSeg, selComercial, moneda, fQS, madreNiveles]);
 
   const comercialNombre = selComercial
@@ -325,6 +335,16 @@ export function ComercialInforme({
 
   return (
     <div className="relative flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3 overflow-hidden">
+      {/* Overlay de carga centrado — visible mientras hay algún cuadrante recargando.
+          pointer-events-none: no bloquea el click en el resto (patrón de Operaciones). */}
+      {pending > 0 && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/30 pointer-events-none">
+          <div className="flex items-center gap-2 border border-[var(--t-border-2)] bg-[var(--t-panel)] px-4 py-2.5 shadow-xl">
+            <span className="inline-block h-3 w-3 border-2 border-[var(--t-accent)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[11px] uppercase tracking-widest text-[var(--t-text)]">Cargando…</span>
+          </div>
+        </div>
+      )}
       {/* Botón de ayuda — abre el modal "¿Cómo se calculan los datos?" */}
       <button
         onClick={() => setShowHelp(true)}
@@ -398,7 +418,7 @@ export function ComercialInforme({
             {selComercial ? (
               <button
                 onClick={() => { setSelComercial(null); setSelSeg(null); }}
-                className="text-[10px] text-[var(--t-accent)] hover:text-[#ffb84d]"
+                className="text-[10px] text-[var(--t-accent)] hover:text-[var(--t-accent-hover)]"
               >✕ quitar filtro</button>
             ) : (
               <span className="text-[9px] text-[var(--t-text-muted)]">click = filtrar</span>
@@ -445,8 +465,8 @@ export function ComercialInforme({
                 <td className="text-right px-2 text-[var(--t-text)]" title={fmtMoneyFull(c.ticket_promedio)}>{fmtAum(c.ticket_promedio)}</td>
                 <td className="text-right px-2 font-semibold text-[var(--t-accent)]" title={fmtMoneyFull(c.vol_total)}>{fmtAum(c.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(c.vol_mes)}>{fmtAum(c.vol_mes)}</td>
-                <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
-                <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
+                <td className="text-right px-2 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_total)}>{fmtAr(c.ar_total)}</td>
+                <td className="text-right px-3 text-[var(--t-data-arancel)]" title={fmtMoneyFull(c.ar_mes)}>{fmtAr(c.ar_mes)}</td>
               </tr>
             ))}
           </tbody>
@@ -458,8 +478,8 @@ export function ComercialInforme({
                 <td className="text-right px-2 text-[var(--t-text-muted)]">{selRow ? fmtAum(selRow.ticket_promedio) : "—"}</td>
                 <td className="text-right px-2 text-[var(--t-accent)]" title={fmtMoneyFull(totMostrado.vol_total)}>{fmtMoney(totMostrado.vol_total)}</td>
                 <td className="text-right px-2 text-[var(--t-text-dim)]" title={fmtMoneyFull(totMostrado.vol_mes)}>{fmtMoney(totMostrado.vol_mes)}</td>
-                <td className="text-right px-2 text-[#9fb8d0]" title={fmtMoneyFull(totMostrado.ar_total)}>{fmtMoney(totMostrado.ar_total)}</td>
-                <td className="text-right px-3 text-[#9fb8d0]" title={fmtMoneyFull(totMostrado.ar_mes)}>{fmtMoney(totMostrado.ar_mes)}</td>
+                <td className="text-right px-2 text-[var(--t-data-arancel)]" title={fmtMoneyFull(totMostrado.ar_total)}>{fmtMoney(totMostrado.ar_total)}</td>
+                <td className="text-right px-3 text-[var(--t-data-arancel)]" title={fmtMoneyFull(totMostrado.ar_mes)}>{fmtMoney(totMostrado.ar_mes)}</td>
               </tr>
             </tfoot>
           )}
@@ -495,8 +515,8 @@ export function ComercialInforme({
                 }
               >
                 <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={s.segmento}>{s.segmento}</td>
-                <td className="text-right px-2 font-semibold text-[#9fb8d0]">{fmtAr(s.ar_total)}</td>
-                <td className="text-right px-2 text-[#9fb8d0]">{fmtAr(s.ar_mes)}</td>
+                <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtAr(s.ar_total)}</td>
+                <td className="text-right px-2 text-[var(--t-data-arancel)]">{fmtAr(s.ar_mes)}</td>
                 <td className="text-right px-3 text-[var(--t-text)]">{fmtAum(s.ticket_promedio)}</td>
               </tr>
             ))}
@@ -513,7 +533,7 @@ export function ComercialInforme({
               <button
                 onClick={() => setSelSeg(null)}
                 title="Ver todos los segmentos"
-                className="text-[10px] text-[var(--t-accent)] hover:text-[#ffb84d]"
+                className="text-[10px] text-[var(--t-accent)] hover:text-[var(--t-accent-hover)]"
               >✕ todos</button>
             )}
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
@@ -554,8 +574,8 @@ export function ComercialInforme({
                   <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[200px]" title={c.denominacion}>
                     <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
                   </td>
-                  <td className="text-right px-2 font-semibold text-[#9fb8d0]">{fmtAr(c.arancel_total)}</td>
-                  <td className="text-right px-3 text-[#9fb8d0]">{fmtAr(c.arancel_mes)}</td>
+                  <td className="text-right px-2 font-semibold text-[var(--t-data-arancel)]">{fmtAr(c.arancel_total)}</td>
+                  <td className="text-right px-3 text-[var(--t-data-arancel)]">{fmtAr(c.arancel_mes)}</td>
                 </tr>
               ))}
             </tbody>
@@ -581,7 +601,7 @@ export function ComercialInforme({
                   <td className="px-1 py-1.5 text-[var(--t-text)] truncate max-w-[120px]" title={o.denominacion}>{o.denominacion}</td>
                   <td className="px-1 py-1.5 text-[var(--t-text-dim)]">{o.ticker ?? o.categoria}</td>
                   <td className="text-right px-2 text-[var(--t-text-dim)]">{fmtAum(o.importe)}</td>
-                  <td className="text-right px-3 font-semibold text-[#9fb8d0]">{fmtAr(o.arancel)}</td>
+                  <td className="text-right px-3 font-semibold text-[var(--t-data-arancel)]">{fmtAr(o.arancel)}</td>
                 </tr>
               ))}
             </tbody>

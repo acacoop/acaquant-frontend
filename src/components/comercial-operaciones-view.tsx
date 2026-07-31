@@ -244,17 +244,18 @@ type AnalisisCliente = {
 const arrQS = (key: string, vals: string[]) =>
   (vals ?? []).map((v) => `&${key}=${encodeURIComponent(v)}`).join("");
 const nivelQS = (nivel1: string[], nivel2: string[], nivel3: string[], referido: string[],
-                 nivel4: string[] = [], nivel5: string[] = []) =>
+                 nivel4: string[] = [], nivel5: string[] = [], division: string[] = []) =>
   arrQS("nivel_1", nivel1) + arrQS("nivel_2", nivel2) + arrQS("nivel_3", nivel3)
-  + arrQS("nivel_4", nivel4) + arrQS("nivel_5", nivel5) + arrQS("referido", referido);
+  + arrQS("nivel_4", nivel4) + arrQS("nivel_5", nivel5) + arrQS("referido", referido)
+  + arrQS("division", division);
 
 export function ComercialOperacionesView(
   { operador, moneda = "ARS", nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [],
-    controlComercial = false }:
+    division = [], controlComercial = false }:
   { operador: string[]; moneda?: "ARS" | "USD"; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
-    nivel4?: string[]; nivel5?: string[]; referido?: string[]; controlComercial?: boolean },
+    nivel4?: string[]; nivel5?: string[]; referido?: string[]; division?: string[]; controlComercial?: boolean },
 ) {
-  const nQS = nivelQS(nivel1, nivel2, nivel3, referido, nivel4, nivel5);
+  const nQS = nivelQS(nivel1, nivel2, nivel3, referido, nivel4, nivel5, division);
   const opQS = arrQS("operador", operador);
   const [subview, setSubview] = usePersistedState<SubView>("comercial.subview", "portfolio");
   // Si el user no tiene permiso de Control Comercial pero quedó parado ahí (estado
@@ -557,11 +558,11 @@ export function ComercialOperacionesView(
       </div>
 
       {/* ── BODY ───────────────────────────────────────────────────────────── */}
-      {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} desde={desdeCorte} operador={operador} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} />}
-      {subview === "control_comercial" && controlComercial && <ComercialControlView moneda={moneda} operador={operador} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} />}
+      {subview === "informe" && <ComercialInforme moneda={moneda} fecha={fechaCorte} desde={desdeCorte} operador={operador} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} division={division} />}
+      {subview === "control_comercial" && controlComercial && <ComercialControlView moneda={moneda} operador={operador} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} division={division} />}
       {/* CobrosFuturos (acreencias, Mongo) sigue siendo single → toma el 1er valor de cada filtro. */}
       {subview === "cobros_futuros" && <CobrosFuturosView operador={operador[0] ?? "__todos__"} moneda={moneda} nivel1={nivel1[0] ?? ""} nivel2={nivel2[0] ?? ""} nivel3={nivel3[0] ?? ""} referido={referido[0] ?? ""} />}
-      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} fecha={fechaCorte} desde={desdeCorte} />}
+      {subview === "analisis" && <AnalisisComercial operador={operador} moneda={moneda} nivel1={nivel1} nivel2={nivel2} nivel3={nivel3} nivel4={nivel4} nivel5={nivel5} referido={referido} division={division} fecha={fechaCorte} desde={desdeCorte} />}
       {subview === "portfolio" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3 overflow-hidden">
 
@@ -1052,11 +1053,11 @@ function Field({ label, value }: { label: string; value: string | null }) {
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
 function AnalisisComercial(
-  { operador, moneda = "ARS", nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [], fecha = "", desde = "" }:
+  { operador, moneda = "ARS", nivel1 = [], nivel2 = [], nivel3 = [], nivel4 = [], nivel5 = [], referido = [], division = [], fecha = "", desde = "" }:
   { operador: string[]; moneda?: "ARS" | "USD"; nivel1?: string[]; nivel2?: string[]; nivel3?: string[];
-    nivel4?: string[]; nivel5?: string[]; referido?: string[]; fecha?: string; desde?: string },
+    nivel4?: string[]; nivel5?: string[]; referido?: string[]; division?: string[]; fecha?: string; desde?: string },
 ) {
-  const nQS = nivelQS(nivel1, nivel2, nivel3, referido, nivel4, nivel5);
+  const nQS = nivelQS(nivel1, nivel2, nivel3, referido, nivel4, nivel5, division);
   const opQS = arrQS("operador", operador);
   const [clientes, setClientes] = useState<AnalisisCliente[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1274,7 +1275,16 @@ function AnalisisComercial(
   if (clientes.length === 0) return <Empty msg="Sin clientes." />;
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-3 p-3 overflow-hidden">
+    <div className="relative flex-1 min-h-0 flex flex-col gap-3 p-3 overflow-hidden">
+      {/* Overlay "Cargando…" centrado al refrescar con datos ya en pantalla. */}
+      {loading && clientes.length > 0 && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/30 pointer-events-none">
+          <div className="flex items-center gap-2 bg-[var(--t-surface)] border border-[var(--t-border-2)] px-4 py-2.5 shadow-lg">
+            <div className="h-3 w-3 border-2 border-[var(--t-accent)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[11px] font-semibold text-[var(--t-text)]">Cargando…</span>
+          </div>
+        </div>
+      )}
       {/* Resumen por estado */}
       <div className="flex items-center gap-2 shrink-0 flex-wrap">
         {(["ACTIVA", "ENFRIANDOSE", "DORMIDA", "NUEVA"] as const).map((e) => (

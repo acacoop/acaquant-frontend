@@ -17,6 +17,7 @@ type Combo = {
   nivel_4: string | null;
   nivel_5: string | null;
   referido: string | null;
+  division: string | null;
   n_cuentas: number;
 };
 
@@ -110,6 +111,7 @@ export function OperadoresView() {
   const [nivel4, setNivel4] = usePersistedState<string[]>("operadores.nivel4", []);
   const [nivel5, setNivel5] = usePersistedState<string[]>("operadores.nivel5", []);
   const [referido, setReferido] = usePersistedState<string[]>("operadores.referido", []);
+  const [division, setDivision] = usePersistedState<string[]>("operadores.division", []);
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("operadores.moneda", "ARS");
   // Permiso per-usuario para ver/editar Control Comercial (viene de /api/me).
   const [puedeControl, setPuedeControl] = useState(false);
@@ -146,7 +148,7 @@ export function OperadoresView() {
   // ── Cross-filter: cada dropdown ofrece SOLO lo compatible con los OTROS. ──
   const S = (a: string[]) => new Set(a);
   const opSet = S(operador), n1Set = S(nivel1), n2Set = S(nivel2), n3Set = S(nivel3),
-        n4Set = S(nivel4), n5Set = S(nivel5), refSet = S(referido);
+        n4Set = S(nivel4), n5Set = S(nivel5), refSet = S(referido), divSet = S(division);
   const mOp  = (c: Combo) => opSet.size === 0 || (!!c.operador_email && opSet.has(c.operador_email));
   const mN1  = (c: Combo) => n1Set.size === 0 || (!!c.nivel_1 && n1Set.has(c.nivel_1));
   const mN2  = (c: Combo) => n2Set.size === 0 || (!!c.nivel_2 && n2Set.has(c.nivel_2));
@@ -154,12 +156,13 @@ export function OperadoresView() {
   const mN4  = (c: Combo) => n4Set.size === 0 || (!!c.nivel_4 && n4Set.has(c.nivel_4));
   const mN5  = (c: Combo) => n5Set.size === 0 || (!!c.nivel_5 && n5Set.has(c.nivel_5));
   const mRef = (c: Combo) => refSet.size === 0 || (!!c.referido && refSet.has(c.referido));
+  const mDiv = (c: Combo) => divSet.size === 0 || (!!c.division && divSet.has(c.division));
 
   // Operadores compatibles con los OTROS filtros (con nº de cuentas sumado).
   const operadores = useMemo(() => {
     const m = new Map<string, { email: string; nombre: string | null; n: number }>();
     for (const c of combos) {
-      if (!mN1(c) || !mN2(c) || !mN3(c) || !mN4(c) || !mN5(c) || !mRef(c)) continue;
+      if (!mN1(c) || !mN2(c) || !mN3(c) || !mN4(c) || !mN5(c) || !mRef(c) || !mDiv(c)) continue;
       if (!c.operador_email) continue;
       const cur = m.get(c.operador_email) ?? { email: c.operador_email, nombre: c.operador_nombre, n: 0 };
       cur.n += c.n_cuentas;
@@ -178,18 +181,20 @@ export function OperadoresView() {
     }
     return [...s].sort();
   };
-  const niveles1 = useMemo(() => valoresDe("nivel_1", (c) => !(mOp(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c))),
-    [combos, operador, nivel2, nivel3, nivel4, nivel5, referido]);
-  const niveles2 = useMemo(() => valoresDe("nivel_2", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c))),
-    [combos, operador, nivel1, nivel3, nivel4, nivel5, referido]);
-  const niveles3 = useMemo(() => valoresDe("nivel_3", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN4(c) && mN5(c) && mRef(c))),
-    [combos, operador, nivel1, nivel2, nivel4, nivel5, referido]);
-  const niveles4 = useMemo(() => valoresDe("nivel_4", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN5(c) && mRef(c))),
-    [combos, operador, nivel1, nivel2, nivel3, nivel5, referido]);
-  const niveles5 = useMemo(() => valoresDe("nivel_5", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mRef(c))),
-    [combos, operador, nivel1, nivel2, nivel3, nivel4, referido]);
-  const referidos = useMemo(() => valoresDe("referido", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c))),
-    [combos, operador, nivel1, nivel2, nivel3, nivel4, nivel5]);
+  const niveles1 = useMemo(() => valoresDe("nivel_1", (c) => !(mOp(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c) && mDiv(c))),
+    [combos, operador, nivel2, nivel3, nivel4, nivel5, referido, division]);
+  const niveles2 = useMemo(() => valoresDe("nivel_2", (c) => !(mOp(c) && mN1(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c) && mDiv(c))),
+    [combos, operador, nivel1, nivel3, nivel4, nivel5, referido, division]);
+  const niveles3 = useMemo(() => valoresDe("nivel_3", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN4(c) && mN5(c) && mRef(c) && mDiv(c))),
+    [combos, operador, nivel1, nivel2, nivel4, nivel5, referido, division]);
+  const niveles4 = useMemo(() => valoresDe("nivel_4", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN5(c) && mRef(c) && mDiv(c))),
+    [combos, operador, nivel1, nivel2, nivel3, nivel5, referido, division]);
+  const niveles5 = useMemo(() => valoresDe("nivel_5", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mRef(c) && mDiv(c))),
+    [combos, operador, nivel1, nivel2, nivel3, nivel4, referido, division]);
+  const referidos = useMemo(() => valoresDe("referido", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c) && mDiv(c))),
+    [combos, operador, nivel1, nivel2, nivel3, nivel4, nivel5, division]);
+  const divisiones = useMemo(() => valoresDe("division", (c) => !(mOp(c) && mN1(c) && mN2(c) && mN3(c) && mN4(c) && mN5(c) && mRef(c))),
+    [combos, operador, nivel1, nivel2, nivel3, nivel4, nivel5, referido]);
 
   // NO se podan las selecciones cuando el cross-filter achica las opciones de otro nivel:
   // marcar en Nivel 2 ya no borra lo elegido en Nivel 1 (se rompían las selecciones previas).
@@ -218,6 +223,8 @@ export function OperadoresView() {
               options={niveles5.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
             <MultiSelect label="Referido" selected={referido} onChange={setReferido}
               options={referidos.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
+            <MultiSelect label="División" selected={division} onChange={setDivision}
+              options={divisiones.map((n) => ({ value: n, label: n }))} width="max-w-[180px]" />
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
               {(["ARS", "USD"] as const).map((m) => (
                 <button
@@ -244,6 +251,7 @@ export function OperadoresView() {
           nivel4={nivel4}
           nivel5={nivel5}
           referido={referido}
+          division={division}
           controlComercial={puedeControl}
         />
       </div>
