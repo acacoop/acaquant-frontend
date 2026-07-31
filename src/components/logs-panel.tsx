@@ -17,7 +17,7 @@ const TODOS = "__todos__";
 const SERVICES_FALLBACK: string[] = [
   "motor_rofex", "motor_options", "motor_curvas", "motor_forwards", "motor_breakevens",
   "motor_caucion", "motor_futuros_dlr", "motor_dolares", "motor_agro", "motor_agro_opciones",
-  "motor_cedears", "motor_portfolio_snapshot", "motor_ordenes", "api", "partner_api", "cloudflared",
+  "motor_cedears", "motor_portfolio_snapshot", "motor_ordenes", "api", "cloudflared",
 ];
 
 const PRIORITY_COLOR: Record<string, string> = {
