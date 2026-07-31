@@ -47,12 +47,12 @@ type Resultados = {
   total_ars: number; total_usd: number; n_total: number; dias_sin_tc: number;
 };
 type Opciones = { traders: string[]; observaciones: string[]; clientes: string[]; puede_escribir: boolean };
-// ACA VALORES RETORNO TOTAL — Σ Valor Nominal agrupado (operación / agente / papel).
-type RetGrupo = { clave: string; vn: number; n: number; share?: number };
-type Retorno = {
-  periodos: string[]; periodo: string | null; total_vn: number;
-  por_operacion: RetGrupo[]; por_agente: RetGrupo[]; por_papel: RetGrupo[];
-};
+// ACA VALORES RETORNO TOTAL — filas crudas del período (se agregan en el cliente
+// para el cross-filter interactivo: tocar un agente/operación/papel/día filtra el resto).
+// La métrica `cash` = columna "Moneda de Concertación Bruto" del informe.
+type RetFila = { fecha: string | null; operacion: string; agente: string; papel: string; cash: number };
+type Retorno = { periodos: string[]; periodo: string | null; filas: RetFila[] };
+type RetGrupo = { clave: string; cash: number; n: number; share: number };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const INPUT =
@@ -322,6 +322,12 @@ export function MesaDineroView() {
   const [resultados, setResultados] = useState<Resultados | null>(null);
   const [retorno, setRetorno] = useState<Retorno | null>(null);
   const [retPeriodo, setRetPeriodo] = usePersistedState<string>("mesaDinero.retPeriodo", "");
+  // Cross-filter de la tab: null = sin filtro en esa dimensión. Tocar una fila
+  // togglea el filtro de SU dimensión; los demás paneles se recalculan.
+  const [fOp, setFOp] = useState<string | null>(null);
+  const [fAg, setFAg] = useState<string | null>(null);
+  const [fPa, setFPa] = useState<string | null>(null);
+  const [fFecha, setFFecha] = useState<string | null>(null);
   const [opciones, setOpciones] = useState<Opciones>({ traders: [], observaciones: [], clientes: [], puede_escribir: false });
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("mesaDinero.moneda", "ARS");
   const [filtroTrader, setFiltroTrader] = useState<string>("");
@@ -361,10 +367,62 @@ export function MesaDineroView() {
       .catch(console.error);
   }, [tab, retPeriodo, setRetPeriodo]);
 
-  const retChartData = useMemo(
-    () => (retorno?.por_operacion ?? []).map((g) => ({ clave: g.clave, valor: g.vn })),
-    [retorno],
+  // Al cambiar de período se limpian los filtros cruzados.
+  useEffect(() => { setFOp(null); setFAg(null); setFPa(null); setFFecha(null); }, [retPeriodo]);
+
+  // Agrupa Σ cash por `campo` sobre un subconjunto de filas.
+  const agrupar = useCallback((filas: RetFila[], campo: keyof RetFila): RetGrupo[] => {
+    const map = new Map<string, { cash: number; n: number }>();
+    for (const f of filas) {
+      const k = String(f[campo] ?? "(sin dato)");
+      const cur = map.get(k) ?? { cash: 0, n: 0 };
+      cur.cash += f.cash; cur.n += 1; map.set(k, cur);
+    }
+    const total = filas.reduce((s, f) => s + f.cash, 0) || 0;
+    return [...map.entries()]
+      .map(([clave, v]) => ({ clave, cash: v.cash, n: v.n, share: total ? v.cash / total : 0 }))
+      .sort((a, b) => b.cash - a.cash);
+  }, []);
+
+  // Cross-filter: cada panel se filtra por las OTRAS dimensiones (no la propia),
+  // así siempre podés cambiar la selección dentro de ese panel.
+  const filas = useMemo(() => retorno?.filas ?? [], [retorno]);
+  const pasa = (f: RetFila, excl: "op" | "ag" | "pa" | "fe") =>
+    (excl === "op" || !fOp || f.operacion === fOp) &&
+    (excl === "ag" || !fAg || f.agente === fAg) &&
+    (excl === "pa" || !fPa || f.papel === fPa) &&
+    (excl === "fe" || !fFecha || f.fecha === fFecha);
+
+  const porOperacion = useMemo(() => agrupar(filas.filter((f) => pasa(f, "op")), "operacion"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filas, fAg, fPa, fFecha, agrupar]);
+  const porAgente = useMemo(() => agrupar(filas.filter((f) => pasa(f, "ag")), "agente"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filas, fOp, fPa, fFecha, agrupar]);
+  const porPapel = useMemo(() => agrupar(filas.filter((f) => pasa(f, "pa")), "papel"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filas, fOp, fAg, fFecha, agrupar]);
+  const porDia = useMemo(() => {
+    const grupos = agrupar(filas.filter((f) => pasa(f, "fe")), "fecha");
+    return grupos
+      .filter((g) => g.clave && g.clave !== "(sin dato)")
+      .sort((a, b) => a.clave.localeCompare(b.clave))
+      .map((g) => ({ fecha: g.clave, label: fmtFechaCorta(g.clave), valor: g.cash }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filas, fOp, fAg, fPa, agrupar]);
+
+  // Total del slice actualmente seleccionado (todos los filtros activos).
+  const retTotal = useMemo(
+    () => filas
+      .filter((f) => (!fOp || f.operacion === fOp) && (!fAg || f.agente === fAg)
+        && (!fPa || f.papel === fPa) && (!fFecha || f.fecha === fFecha))
+      .reduce((s, f) => s + f.cash, 0),
+    [filas, fOp, fAg, fPa, fFecha],
   );
+  const hayFiltro = fOp != null || fAg != null || fPa != null || fFecha != null;
+  const limpiarFiltros = () => { setFOp(null); setFAg(null); setFPa(null); setFFecha(null); };
+  const toggle = (cur: string | null, v: string, set: (x: string | null) => void) =>
+    set(cur === v ? null : v);
 
   const borrar = async (op: Op) => {
     if (!window.confirm(`¿Borrar el registro de ${op.activo ?? "—"} del ${fmtFecha(op.fecha)}? Queda auditado.`)) return false;
@@ -683,8 +741,8 @@ export function MesaDineroView() {
 
       {tab === "retorno" && (
       <div className="flex-1 min-h-0 flex flex-col p-3 gap-2">
-        {/* Toolbar: selector de período (del archivo importado) + total */}
-        <div className="shrink-0 flex items-center gap-3">
+        {/* Toolbar: período + total del slice + chips de filtro activo */}
+        <div className="shrink-0 flex items-center gap-3 flex-wrap">
           <span className="text-[10px] text-[var(--t-text-muted)]">PERÍODO</span>
           <select value={retPeriodo} onChange={(e) => setRetPeriodo(e.target.value)} className={INPUT}
             title="Período del informe Excel importado">
@@ -692,16 +750,34 @@ export function MesaDineroView() {
             {(retorno?.periodos ?? []).length === 0 && <option value="">— sin datos —</option>}
           </select>
           <span className="text-[10px] text-[var(--t-text-muted)]">
-            Σ VALOR NOMINAL: <span className="font-mono text-[var(--t-text)]">{fmt0(retorno?.total_vn)}</span>
+            Σ CASH{hayFiltro ? " (filtrado)" : ""}:{" "}
+            <span className="font-mono text-[var(--t-text)]">{fmt0(retTotal)}</span>
           </span>
+          {([["Op", fOp, setFOp], ["Agente", fAg, setFAg], ["Papel", fPa, setFPa],
+             ["Día", fFecha, setFFecha]] as const).map(([lbl, val, set]) =>
+            val ? (
+              <button key={lbl} onClick={() => set(null)}
+                className="px-2 py-0.5 text-[9px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-surface)]"
+                title="Quitar este filtro">
+                {lbl}: {lbl === "Día" ? fmtFechaCorta(String(val)) : val} ✕
+              </button>
+            ) : null,
+          )}
+          {hayFiltro && (
+            <button onClick={limpiarFiltros}
+              className="px-2 py-0.5 text-[9px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">
+              limpiar todo
+            </button>
+          )}
         </div>
 
         <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
-          {/* IZQUIERDA: tabla por operación (arriba) + chart (abajo) */}
+          {/* IZQUIERDA: tabla por operación (arriba) + chart por día (abajo) */}
           <div className="grid grid-rows-2 gap-3 min-h-0">
             <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
               <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
-                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR OPERACIÓN</span>
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">CASH POR OPERACIÓN</span>
+                <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">tocá una fila para filtrar</span>
               </div>
               <div className="flex-1 min-h-0 overflow-auto">
                 <table className="w-full text-[10px]">
@@ -709,47 +785,53 @@ export function MesaDineroView() {
                     <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
                       <th className="px-2 py-1">OPERACIÓN</th>
                       <th className="text-right">N°</th>
-                      <th className="text-right pr-2">VALOR NOMINAL</th>
+                      <th className="text-right pr-2">CASH</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(retorno?.por_operacion ?? []).map((g) => (
-                      <tr key={g.clave} className="border-t border-[var(--t-border)]">
+                    {porOperacion.map((g) => (
+                      <tr key={g.clave} onClick={() => toggle(fOp, g.clave, setFOp)}
+                        className={`border-t border-[var(--t-border)] cursor-pointer ${
+                          fOp === g.clave ? "bg-[var(--t-surface)] text-[var(--t-accent)] font-semibold" : "hover:bg-[var(--t-surface)]"}`}>
                         <td className="px-2 py-0.5">{g.clave}</td>
                         <td className="text-right font-mono text-[var(--t-text-dim)]">{g.n}</td>
-                        <td className="text-right font-mono pr-2 text-[var(--t-text)]">{fmt0(g.vn)}</td>
+                        <td className="text-right font-mono pr-2">{fmt0(g.cash)}</td>
                       </tr>
                     ))}
                   </tbody>
-                  {retorno && (
-                    <tfoot>
-                      <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
-                        <td className="px-2 py-1">TOTAL</td>
-                        <td></td>
-                        <td className="text-right font-mono pr-2">{fmt0(retorno.total_vn)}</td>
-                      </tr>
-                    </tfoot>
-                  )}
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                      <td className="px-2 py-1">TOTAL</td>
+                      <td></td>
+                      <td className="text-right font-mono pr-2">{fmt0(porOperacion.reduce((s, g) => s + g.cash, 0))}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
 
             <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
               <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
-                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR OPERACIÓN</span>
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">CASH POR DÍA</span>
+                <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">tocá una barra para filtrar por día</span>
               </div>
               <div className="flex-1 min-h-0 p-2">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={retChartData} margin={{ top: 16, right: 8, bottom: 4, left: 8 }}>
+                  <BarChart data={porDia} margin={{ top: 16, right: 8, bottom: 4, left: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-                    <XAxis dataKey="clave" tick={{ fontSize: 9 }} interval={0} />
+                    <XAxis dataKey="label" tick={{ fontSize: 9 }} interval={0} />
                     <YAxis tick={{ fontSize: 9 }} tickFormatter={(v: number) => fmtAbrev(v)} width={56} />
                     <Tooltip
-                      formatter={(v) => [fmt0(Number(v)), "Valor Nominal"]}
+                      formatter={(v) => [fmt0(Number(v)), "Cash"]}
                       contentStyle={{ fontSize: 10, background: "var(--t-panel)", border: "1px solid var(--t-border)" }} />
-                    <Bar dataKey="valor" fill="var(--t-accent)">
+                    <Bar dataKey="valor" cursor="pointer"
+                      onClick={(d: { fecha?: string }) => d?.fecha && toggle(fFecha, d.fecha, setFFecha)}>
                       <LabelList dataKey="valor" position="top" fontSize={8} fill="var(--t-text-dim)"
                         formatter={(v) => fmtAbrev(Number(v))} />
+                      {porDia.map((d) => (
+                        <Cell key={d.fecha}
+                          fill={fFecha && fFecha !== d.fecha ? "var(--t-border-2)" : "var(--t-accent)"} />
+                      ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -761,7 +843,8 @@ export function MesaDineroView() {
           <div className="grid grid-rows-2 gap-3 min-h-0">
             <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
               <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
-                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR AGENTE</span>
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">CASH POR AGENTE</span>
+                <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">tocá una fila para filtrar</span>
               </div>
               <div className="flex-1 min-h-0 overflow-auto">
                 <table className="w-full text-[10px]">
@@ -769,37 +852,38 @@ export function MesaDineroView() {
                     <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
                       <th className="px-2 py-1">AGENTE</th>
                       <th className="text-right">N°</th>
-                      <th className="text-right">VALOR NOMINAL</th>
+                      <th className="text-right">CASH</th>
                       <th className="text-right pr-2">SHARE</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(retorno?.por_agente ?? []).map((g) => (
-                      <tr key={g.clave} className="border-t border-[var(--t-border)]">
+                    {porAgente.map((g) => (
+                      <tr key={g.clave} onClick={() => toggle(fAg, g.clave, setFAg)}
+                        className={`border-t border-[var(--t-border)] cursor-pointer ${
+                          fAg === g.clave ? "bg-[var(--t-surface)] text-[var(--t-accent)] font-semibold" : "hover:bg-[var(--t-surface)]"}`}>
                         <td className="px-2 py-0.5">{g.clave}</td>
                         <td className="text-right font-mono text-[var(--t-text-dim)]">{g.n}</td>
-                        <td className="text-right font-mono text-[var(--t-text)]">{fmt0(g.vn)}</td>
+                        <td className="text-right font-mono">{fmt0(g.cash)}</td>
                         <td className="text-right font-mono pr-2 text-[var(--t-accent)]">{fmtPct(g.share)}</td>
                       </tr>
                     ))}
                   </tbody>
-                  {retorno && (
-                    <tfoot>
-                      <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
-                        <td className="px-2 py-1">TOTAL</td>
-                        <td></td>
-                        <td className="text-right font-mono">{fmt0(retorno.total_vn)}</td>
-                        <td className="text-right font-mono pr-2">100,00%</td>
-                      </tr>
-                    </tfoot>
-                  )}
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                      <td className="px-2 py-1">TOTAL</td>
+                      <td></td>
+                      <td className="text-right font-mono">{fmt0(porAgente.reduce((s, g) => s + g.cash, 0))}</td>
+                      <td className="text-right font-mono pr-2">{porAgente.length ? "100,00%" : "—"}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
 
             <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
               <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
-                <span className="text-[11px] font-semibold text-[var(--t-text)]">VALOR NOMINAL POR PAPEL</span>
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">CASH POR PAPEL</span>
+                <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">tocá una fila para filtrar</span>
               </div>
               <div className="flex-1 min-h-0 overflow-auto">
                 <table className="w-full text-[10px]">
@@ -807,27 +891,27 @@ export function MesaDineroView() {
                     <tr className="text-[var(--t-text-muted)] text-left sticky top-0 bg-[var(--t-panel)] z-10">
                       <th className="px-2 py-1">PAPEL</th>
                       <th className="text-right">N°</th>
-                      <th className="text-right pr-2">VALOR NOMINAL</th>
+                      <th className="text-right pr-2">CASH</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(retorno?.por_papel ?? []).map((g) => (
-                      <tr key={g.clave} className="border-t border-[var(--t-border)]">
+                    {porPapel.map((g) => (
+                      <tr key={g.clave} onClick={() => toggle(fPa, g.clave, setFPa)}
+                        className={`border-t border-[var(--t-border)] cursor-pointer ${
+                          fPa === g.clave ? "bg-[var(--t-surface)] text-[var(--t-accent)] font-semibold" : "hover:bg-[var(--t-surface)]"}`}>
                         <td className="px-2 py-0.5">{g.clave}</td>
                         <td className="text-right font-mono text-[var(--t-text-dim)]">{g.n}</td>
-                        <td className="text-right font-mono pr-2 text-[var(--t-text)]">{fmt0(g.vn)}</td>
+                        <td className="text-right font-mono pr-2">{fmt0(g.cash)}</td>
                       </tr>
                     ))}
                   </tbody>
-                  {retorno && (
-                    <tfoot>
-                      <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
-                        <td className="px-2 py-1">TOTAL</td>
-                        <td></td>
-                        <td className="text-right font-mono pr-2">{fmt0(retorno.total_vn)}</td>
-                      </tr>
-                    </tfoot>
-                  )}
+                  <tfoot>
+                    <tr className="border-t-2 border-[var(--t-border-2)] font-semibold sticky bottom-0 bg-[var(--t-surface)]">
+                      <td className="px-2 py-1">TOTAL</td>
+                      <td></td>
+                      <td className="text-right font-mono pr-2">{fmt0(porPapel.reduce((s, g) => s + g.cash, 0))}</td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
