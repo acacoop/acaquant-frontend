@@ -282,9 +282,23 @@ export function CobrosFuturosView({
       {/* IZQUIERDA: tabla clientes (arriba) + gráfico de barras por fecha (abajo) */}
       <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
         {/* TABLA CLIENTES */}
-        <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+        <div className="flex-[3_1_0%] min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
           <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes · cobros futuros</span>
+            <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">Clientes</span>
+            <label className={"inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] " + (q ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Buscar por nombre de cliente o número de cuenta">
+              <input
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="buscar cliente o cuenta"
+                className="w-[150px] bg-transparent text-[10px] text-[var(--t-text)] outline-none placeholder:text-[var(--t-text-muted)]"
+              />
+              {q && (
+                <button onClick={() => setQ("")} title="Limpiar búsqueda" className="text-[9px] text-[var(--t-accent)] hover:underline">
+                  ✕
+                </button>
+              )}
+            </label>
             <MonToggle mon={mon} onChange={setMon} />
             {/* Rango por fecha de cobro. Vacío = todo el futuro. */}
             <label className={"inline-flex items-center gap-1.5 border px-2 py-0.5 text-[10px] " + ((desde || hasta) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Filtrar por fecha de cobro. Vacío = todo el futuro.">
@@ -305,21 +319,6 @@ export function CobrosFuturosView({
             >
               HOY
             </button>
-            <label className={"inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] " + (q ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Buscar por nombre de cliente o número de cuenta">
-              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Buscar</span>
-              <input
-                type="text"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="cliente o cuenta"
-                className="w-[130px] bg-transparent text-[10px] text-[var(--t-text)] outline-none placeholder:text-[var(--t-text-muted)]"
-              />
-              {q && (
-                <button onClick={() => setQ("")} title="Limpiar búsqueda" className="text-[9px] text-[var(--t-accent)] hover:underline">
-                  ✕
-                </button>
-              )}
-            </label>
             <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
             <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoneyFull(totalScope)}</span>
           </div>
@@ -364,7 +363,7 @@ export function CobrosFuturosView({
         </div>
 
         {/* GRÁFICO DE BARRAS POR FECHA */}
-        <div className="flex-[3_1_0%] min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
+        <div className="flex-[2_1_0%] min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
           <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2 flex-wrap">
             <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)]">A cobrar · {mon}</span>
             <span className="text-[9px] text-[var(--t-text-muted)] truncate">

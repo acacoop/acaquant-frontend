@@ -532,7 +532,9 @@ export function ComercialOperacionesView(
             ),
           )}
         </div>
-        {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy. */}
+        {/* Fecha de corte ÚNICA: Informe + Análisis se recalculan a esta fecha. Vacío = hoy.
+            Cobros Futuros la oculta: mira hacia ADELANTE y tiene su propio rango de cobro. */}
+        {subview !== "cobros_futuros" && (
         <label className={"inline-flex items-center gap-1.5 border px-2 py-1 text-[11px] " + ((fechaCorte || desdeCorte) ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Período Desde/Hasta: las columnas TOTAL (volumen/arancel) = el período elegido [Desde, Hasta]; las columnas MES + CTAS OPS = el mes calendario del HASTA (hasta=30/06 → junio; hasta=31/05 → mayo). AuM = foto a HASTA. Vacío = histórico hasta hoy / mes actual.">
           <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">Desde</span>
           {/* Sin min/max en el DOM: las restricciones cruzadas (Desde≤Hasta) + max=hoy hacían
@@ -546,6 +548,7 @@ export function ComercialOperacionesView(
             className="bg-transparent text-[11px] tabular-nums text-[var(--t-text)] outline-none" />
           {(fechaCorte || desdeCorte) && <button onClick={() => { setFechaCorte(""); setDesdeCorte(""); }} title="Volver a hoy" className="text-[10px] text-[var(--t-accent)] hover:underline">hoy</button>}
         </label>
+        )}
         {err && <span className="text-[9px] text-[#ff7777]">{err}</span>}
         {subview !== "informe" && (
           <div className="ml-auto flex items-center gap-3">
