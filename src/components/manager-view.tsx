@@ -5006,10 +5006,21 @@ function AunesaGroup({ modules }: { modules?: string[] | null }) {
   );
 }
 
-// OPERACIONES: backfill de CashFlow.Operaciones por CSV (fuente de verdad de
-// operaciones desde la API informes). Parsea el CSV en el cliente y lo sube en
-// lotes a /api/manager/operaciones/backfill (upsert por boleto, índice único).
+// OPERACIONES: carga de operaciones.operaciones por Excel/CSV. Parsea el archivo
+// en el cliente y lo sube en lotes. Dos modos:
+//   FALTANTES (default) → /api/manager/operaciones/faltantes. Solo inserta los
+//     boletos que NO están; nunca pisa lo que vino de Aunesa. Previsualiza antes.
+//   REEMPLAZAR → /api/manager/operaciones/backfill. Upsert por boleto.
 type OpsStats = { n: number; n_cuentas: number; min_concertacion: string | null; max_concertacion: string | null };
+
+type FaltantesResp = {
+  recibidas: number; sin_boleto: number; otc_excluidas: number; duplicadas_archivo: number;
+  validas: number; ya_existen: number; nuevos: number; insertados: number;
+  sin_concertacion?: number; desde?: string | null; hasta?: string | null;
+  bruto_ars?: number; bruto_usd?: number; arancel_total?: number;
+  sin_mercado?: string[]; cuentas_sin_segmento?: string[];
+  muestra?: Record<string, unknown>[];
+};
 
 const OPS_BATCH = 2000;
 
@@ -5022,13 +5033,18 @@ function OpsStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+const opsNum = (n: number | undefined) =>
+  (n ?? 0).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+
 function OperacionesBackfillPanel() {
   const [stats, setStats] = useState<OpsStats | null>(null);
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string>("");
+  const [modo, setModo] = useState<"faltantes" | "reemplazar">("faltantes");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [preview, setPreview] = useState<FaltantesResp | null>(null);
   const [result, setResult] = useState<{ recibidas: number; upsertadas: number; modificadas: number; sin_boleto: number } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -5038,7 +5054,7 @@ function OperacionesBackfillPanel() {
   useEffect(() => { loadStats(); }, [loadStats]);
 
   const onFile = async (file: File) => {
-    setMsg(null); setResult(null); setRows([]); setHeaders([]); setFileName(file.name);
+    setMsg(null); setResult(null); setPreview(null); setRows([]); setHeaders([]); setFileName(file.name);
     try {
       const buf = await file.arrayBuffer();
       const XLSX = await import("xlsx");
@@ -5050,7 +5066,9 @@ function OperacionesBackfillPanel() {
         ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
         : XLSX.read(buf, { type: "array" });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      // raw:false → las fechas llegan como texto formateado (dd/mm/yyyy) en vez
+      // de serial de Excel, que el backend no sabe parsear.
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, unknown>[];
       if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
       setRows(json);
       setHeaders(Object.keys(json[0]).filter((h) => h.trim() !== ""));
@@ -5059,15 +5077,12 @@ function OperacionesBackfillPanel() {
     }
   };
 
-  const subir = async () => {
-    if (busy || !rows.length) return;
-    setBusy(true); setMsg(null); setResult(null);
-
-    // Dedup por boleto en TODO el archivo (última fila gana). Así ningún boleto
-    // aparece en dos lotes → se pueden mandar EN PARALELO sin chocar contra el
-    // índice único (y de paso achica el total).
+  // Dedup por boleto en TODO el archivo (última fila gana). Así ningún boleto
+  // aparece en dos lotes → se pueden mandar EN PARALELO sin chocar contra el
+  // índice único (y de paso achica el total).
+  const lotes = useCallback(() => {
     const normH = (h: string) =>
-      h.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      h.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const bHeader = headers.find((h) => normH(h) === "boleto");
     let unique: Record<string, unknown>[] = rows;
     if (bHeader) {
@@ -5078,54 +5093,118 @@ function OperacionesBackfillPanel() {
       }
       unique = [...map.values()];
     }
+    const out: Record<string, unknown>[][] = [];
+    for (let i = 0; i < unique.length; i += OPS_BATCH) out.push(unique.slice(i, i + OPS_BATCH));
+    return out;
+  }, [rows, headers]);
 
-    const batches: Record<string, unknown>[][] = [];
-    for (let i = 0; i < unique.length; i += OPS_BATCH) batches.push(unique.slice(i, i + OPS_BATCH));
-    const total = batches.length;
-    const acc = { recibidas: 0, upsertadas: 0, modificadas: 0, sin_boleto: 0 };
-    let done = 0;
-
-    const send = async (batch: Record<string, unknown>[], crear: boolean) => {
-      let lastErr: unknown;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const res = await fetch("/api/manager/operaciones/backfill", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rows: batch, crear_indice: crear }),
-          });
-          if (!res.ok) {
-            let detail = `HTTP ${res.status}`;
-            try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
-            throw new Error(detail);
-          }
-          const j = await res.json();
-          acc.recibidas += j.recibidas ?? 0;
-          acc.upsertadas += j.upsertadas ?? 0;
-          acc.modificadas += j.modificadas ?? 0;
-          acc.sin_boleto += j.sin_boleto ?? 0;
-          done++;
-          setProgress({ done, total });
-          return;
-        } catch (e) {
-          lastErr = e;
-          await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));  // backoff y reintenta
+  const post = async (url: string, body: unknown) => {
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          let detail = `HTTP ${res.status}`;
+          try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+          throw new Error(detail);
         }
+        return await res.json();
+      } catch (e) {
+        lastErr = e;
+        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));  // backoff y reintenta
       }
-      throw lastErr;  // falló las 3 veces
+    }
+    throw lastErr;  // falló las 3 veces
+  };
+
+  // ── MODO FALTANTES: analiza (commit=false) o inserta (commit=true) ──────────
+  const correrFaltantes = async (commit: boolean) => {
+    if (busy || !rows.length) return;
+    setBusy(true); setMsg(null); setResult(null);
+    if (!commit) setPreview(null);
+    const batches = lotes();
+    const total = batches.length;
+    let done = 0;
+    const acc: FaltantesResp = {
+      recibidas: 0, sin_boleto: 0, otc_excluidas: 0, duplicadas_archivo: 0,
+      validas: 0, ya_existen: 0, nuevos: 0, insertados: 0, sin_concertacion: 0,
+      bruto_ars: 0, bruto_usd: 0, arancel_total: 0,
+      desde: null, hasta: null, sin_mercado: [], cuentas_sin_segmento: [], muestra: [],
+    };
+    const sinMercado = new Set<string>();
+    const sinSegmento = new Set<string>();
+
+    const send = async (batch: Record<string, unknown>[]) => {
+      const j = await post("/api/manager/operaciones/faltantes", { rows: batch, commit }) as FaltantesResp;
+      acc.recibidas += j.recibidas ?? 0;
+      acc.sin_boleto += j.sin_boleto ?? 0;
+      acc.otc_excluidas += j.otc_excluidas ?? 0;
+      acc.duplicadas_archivo += j.duplicadas_archivo ?? 0;
+      acc.validas += j.validas ?? 0;
+      acc.ya_existen += j.ya_existen ?? 0;
+      acc.nuevos += j.nuevos ?? 0;
+      acc.insertados += j.insertados ?? 0;
+      acc.sin_concertacion = (acc.sin_concertacion ?? 0) + (j.sin_concertacion ?? 0);
+      acc.bruto_ars = (acc.bruto_ars ?? 0) + (j.bruto_ars ?? 0);
+      acc.bruto_usd = (acc.bruto_usd ?? 0) + (j.bruto_usd ?? 0);
+      acc.arancel_total = (acc.arancel_total ?? 0) + (j.arancel_total ?? 0);
+      if (j.desde && (!acc.desde || j.desde < acc.desde)) acc.desde = j.desde;
+      if (j.hasta && (!acc.hasta || j.hasta > acc.hasta)) acc.hasta = j.hasta;
+      (j.sin_mercado ?? []).forEach((t) => sinMercado.add(t));
+      (j.cuentas_sin_segmento ?? []).forEach((c) => sinSegmento.add(c));
+      if (!acc.muestra?.length && j.muestra?.length) acc.muestra = j.muestra;
+      done++; setProgress({ done, total });
     };
 
     try {
       if (!total) { setMsg({ ok: false, text: "Nada para subir." }); return; }
-      // Primer lote solo (crea el índice) y después el resto en paralelo (pool de 6).
-      await send(batches[0], true);
-      let next = 1;
-      const worker = async () => {
-        for (let i = next++; i < total; i = next++) await send(batches[i], false);
-      };
-      await Promise.all(Array.from({ length: Math.min(4, Math.max(total - 1, 1)) }, worker));
+      let next = 0;
+      const worker = async () => { for (let i = next++; i < total; i = next++) await send(batches[i]); };
+      await Promise.all(Array.from({ length: Math.min(4, total) }, worker));
+      acc.sin_mercado = [...sinMercado].sort();
+      acc.cuentas_sin_segmento = [...sinSegmento].sort();
+      setPreview(acc);
+      setMsg(commit
+        ? { ok: true, text: `Listo: se insertaron ${opsNum(acc.insertados)} boletos nuevos. Los ${opsNum(acc.ya_existen)} que ya estaban quedaron intactos.` }
+        : { ok: true, text: `Análisis listo — revisá abajo y confirmá.` });
+      if (commit) loadStats();
+    } catch (e) {
+      setMsg({ ok: false, text: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(false); setProgress(null);
+    }
+  };
+
+  // ── MODO REEMPLAZAR: upsert por boleto (el archivo pisa lo que había) ───────
+  const subirUpsert = async () => {
+    if (busy || !rows.length) return;
+    if (!window.confirm("Este modo PISA los boletos que ya existen con lo que traiga el archivo. ¿Seguro?")) return;
+    setBusy(true); setMsg(null); setResult(null); setPreview(null);
+    const batches = lotes();
+    const total = batches.length;
+    const acc = { recibidas: 0, upsertadas: 0, modificadas: 0, sin_boleto: 0 };
+    let done = 0;
+
+    const send = async (batch: Record<string, unknown>[]) => {
+      const j = await post("/api/manager/operaciones/backfill", { rows: batch });
+      acc.recibidas += j.recibidas ?? 0;
+      acc.upsertadas += j.upsertadas ?? 0;
+      acc.modificadas += j.modificadas ?? 0;
+      acc.sin_boleto += j.sin_boleto ?? 0;
+      done++; setProgress({ done, total });
+    };
+
+    try {
+      if (!total) { setMsg({ ok: false, text: "Nada para subir." }); return; }
+      let next = 0;
+      const worker = async () => { for (let i = next++; i < total; i = next++) await send(batches[i]); };
+      await Promise.all(Array.from({ length: Math.min(4, total) }, worker));
       setResult(acc);
-      setMsg({ ok: true, text: `Listo: ${acc.upsertadas} nuevas, ${acc.modificadas} actualizadas, ${acc.sin_boleto} sin boleto.` });
+      setMsg({ ok: true, text: `Listo: ${acc.upsertadas} escritas, ${acc.sin_boleto} sin boleto.` });
       loadStats();
     } catch (e) {
       setMsg({ ok: false, text: `Error al subir: ${e instanceof Error ? e.message : String(e)}` });
@@ -5134,16 +5213,21 @@ function OperacionesBackfillPanel() {
     }
   };
 
+  const btn = "px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-40 disabled:cursor-not-allowed";
+
   return (
     <div className="h-full overflow-y-auto p-4 text-[12px] text-[var(--t-text)]">
-      <div className="max-w-[780px] space-y-4">
+      <div className="max-w-[860px] space-y-4">
         <div>
-          <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">BACKFILL OPERACIONES</h2>
+          <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">CARGAR OPERACIONES</h2>
           <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
-            Subí un CSV con operaciones (fuente: informe de operaciones). Se carga con
-            índice único por boleto — un boleto, un registro; re-subir el mismo archivo actualiza, no duplica.
-            Columnas reconocidas: boleto, cuenta, concertación, denominación, tipo de operación,
-            instrumento, condiciones, cantidad, bruto, aranceles.
+            Subí un Excel/CSV con operaciones para tapar huecos del histórico. La clave es el
+            <strong className="text-[var(--t-text)]"> boleto</strong>: un boleto, un registro.
+            Columnas reconocidas: boleto, id_cuenta (o cuenta), concertacion, denominacion,
+            tipo_operacion, instrumento, condiciones, cantidad, bruto, arancel, tasa.
+            El arancel puede venir con el prefijo <code>ARS </code> — se limpia solo.
+            Las columnas derivadas (moneda, mercado, operacion, segmento, nivel_3, commodity,
+            es_cierre, mep) NO hay que ponerlas: el backend las calcula igual que la ingesta diaria.
           </p>
         </div>
 
@@ -5160,8 +5244,24 @@ function OperacionesBackfillPanel() {
         </div>
 
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+          <div className="flex gap-4 items-center">
+            {(["faltantes", "reemplazar"] as const).map((m) => (
+              <label key={m} className="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" checked={modo === m} onChange={() => { setModo(m); setPreview(null); setResult(null); setMsg(null); }} />
+                <span className={modo === m ? "text-[var(--t-text)]" : "text-[var(--t-text-muted)]"}>
+                  {m === "faltantes" ? "SOLO FALTANTES (recomendado)" : "REEMPLAZAR EXISTENTES"}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="text-[var(--t-text-muted)] text-[11px]">
+            {modo === "faltantes"
+              ? "Inserta únicamente los boletos que no están en la base. Los que ya existen no se tocan."
+              : "⚠ Pisa con el archivo todos los boletos que ya existan. Usalo solo para corregir datos malos."}
+          </div>
+
           <label className="inline-block px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]">
-            ELEGIR ARCHIVO (.csv / .xlsx)
+            ELEGIR ARCHIVO (.xlsx / .csv)
             <input
               type="file" accept=".csv,.xlsx,.xls"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }}
@@ -5173,26 +5273,94 @@ function OperacionesBackfillPanel() {
               <span className="text-[var(--t-text)]">{fileName}</span> · {rows.length.toLocaleString("es-AR")} filas · columnas: {headers.join(", ")}
             </div>
           )}
+
           {rows.length > 0 ? (
-            <div>
-              <button
-                onClick={subir}
-                className="px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]"
-              >
-                {busy ? "Subiendo…" : "SUBIR OPERACIONES"}
-              </button>
+            <div className="flex gap-2">
+              {modo === "faltantes" ? (
+                <>
+                  <button onClick={() => correrFaltantes(false)} disabled={busy} className={btn}>
+                    {busy && !preview ? "ANALIZANDO…" : "1 · ANALIZAR"}
+                  </button>
+                  <button
+                    onClick={() => correrFaltantes(true)}
+                    disabled={busy || !preview || !preview.nuevos || !!preview.insertados}
+                    className={btn}
+                  >
+                    {preview?.insertados ? "INSERTADO ✓" : `2 · INSERTAR ${preview ? opsNum(preview.nuevos) : ""} FALTANTES`}
+                  </button>
+                </>
+              ) : (
+                <button onClick={subirUpsert} disabled={busy} className={btn}>
+                  {busy ? "Subiendo…" : "SUBIR (PISA EXISTENTES)"}
+                </button>
+              )}
             </div>
           ) : (
             <div className="text-[var(--t-text-muted)]">Elegí un archivo para habilitar la subida.</div>
           )}
           {progress && <div className="text-[var(--t-text-muted)]">lote {progress.done}/{progress.total}…</div>}
+          {msg && <div className={msg.ok ? "text-green-400" : "text-red-400"}>{msg.text}</div>}
           {result && (
             <div className="text-[var(--t-text)]">
-              ✓ {result.upsertadas.toLocaleString("es-AR")} nuevas · {result.modificadas.toLocaleString("es-AR")} actualizadas · {result.sin_boleto} sin boleto · {result.recibidas.toLocaleString("es-AR")} procesadas
+              ✓ {result.upsertadas.toLocaleString("es-AR")} escritas · {result.sin_boleto} sin boleto · {result.recibidas.toLocaleString("es-AR")} procesadas
             </div>
           )}
-          {msg && <div className={msg.ok ? "text-green-400" : "text-red-400"}>{msg.text}</div>}
         </div>
+
+        {preview && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+            <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">
+              {preview.insertados ? "RESULTADO" : "PREVISUALIZACIÓN (todavía no se escribió nada)"}
+            </div>
+            <div className="flex flex-wrap gap-8">
+              <OpsStat label="BOLETOS NUEVOS" value={opsNum(preview.nuevos)} />
+              <OpsStat label="YA EXISTÍAN" value={opsNum(preview.ya_existen)} />
+              <OpsStat label="DESCARTADAS" value={opsNum(preview.sin_boleto + preview.otc_excluidas + preview.duplicadas_archivo)} />
+              <OpsStat label="DESDE" value={preview.desde ?? "—"} />
+              <OpsStat label="HASTA" value={preview.hasta ?? "—"} />
+            </div>
+            <div className="flex flex-wrap gap-8">
+              <OpsStat label="BRUTO ARS" value={opsNum(preview.bruto_ars)} />
+              <OpsStat label="BRUTO USD" value={opsNum(preview.bruto_usd)} />
+              <OpsStat label="ARANCEL (ARS)" value={opsNum(preview.arancel_total)} />
+            </div>
+            {!!preview.sin_concertacion && (
+              <div className="text-amber-400">
+                ⚠ {opsNum(preview.sin_concertacion)} boletos sin fecha de concertación válida — entran, pero no aparecen en ninguna serie por fecha.
+              </div>
+            )}
+            {!!preview.sin_mercado?.length && (
+              <div className="text-amber-400">
+                ⚠ Tipos de operación fuera del catálogo (quedan sin mercado): {preview.sin_mercado.join(" · ")}
+              </div>
+            )}
+            {!!preview.cuentas_sin_segmento?.length && (
+              <div className="text-amber-400">
+                ⚠ {preview.cuentas_sin_segmento.length} cuenta(s) sin segmento en el maestro de comitentes: {preview.cuentas_sin_segmento.slice(0, 15).join(", ")}
+                {preview.cuentas_sin_segmento.length > 15 && "…"}
+              </div>
+            )}
+            {!!preview.muestra?.length && (
+              <div className="overflow-x-auto">
+                <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mb-1">MUESTRA (primeros 20)</div>
+                <table className="text-[11px] w-full">
+                  <thead className="text-[var(--t-text-muted)]">
+                    <tr>{Object.keys(preview.muestra[0]).map((k) => <th key={k} className="text-left pr-3 font-normal">{k}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {preview.muestra.map((r, i) => (
+                      <tr key={i} className="border-t border-[var(--t-border)]">
+                        {Object.keys(preview.muestra![0]).map((k) => (
+                          <td key={k} className="pr-3 py-0.5 whitespace-nowrap">{r[k] === null || r[k] === undefined ? "—" : String(r[k])}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
