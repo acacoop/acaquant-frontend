@@ -5017,6 +5017,7 @@ type FaltantesResp = {
   recibidas: number; sin_boleto: number; otc_excluidas: number; duplicadas_archivo: number;
   validas: number; ya_existen: number; nuevos: number; insertados: number;
   sin_concertacion?: number; desde?: string | null; hasta?: string | null;
+  boletos_sin_fecha?: string[];
   bruto_ars?: number; bruto_usd?: number; arancel_total?: number;
   sin_mercado?: string[]; cuentas_sin_segmento?: string[];
   muestra?: Record<string, unknown>[];
@@ -5063,13 +5064,22 @@ function OperacionesBackfillPanel() {
       // se lee binario.
       const isCsv = /\.csv$/i.test(file.name);
       const wb = isCsv
-        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
-        : XLSX.read(buf, { type: "array" });
+        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", cellDates: true })
+        : XLSX.read(buf, { type: "array", cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      // raw:false → las fechas llegan como texto formateado (dd/mm/yyyy) en vez
-      // de serial de Excel, que el backend no sabe parsear.
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false }) as Record<string, unknown>[];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
       if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
+      // Las celdas de fecha llegan como Date → las paso a YYYY-MM-DD con los
+      // getters LOCALES. Si las dejara serializar solas (toJSON = UTC) un
+      // 01/07 a medianoche se iría al 30/06.
+      for (const r of json) {
+        for (const k of Object.keys(r)) {
+          const v = r[k];
+          if (v instanceof Date && !isNaN(v.getTime())) {
+            r[k] = `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
+          }
+        }
+      }
       setRows(json);
       setHeaders(Object.keys(json[0]).filter((h) => h.trim() !== ""));
     } catch (e) {
@@ -5325,8 +5335,16 @@ function OperacionesBackfillPanel() {
               <OpsStat label="ARANCEL (ARS)" value={opsNum(preview.arancel_total)} />
             </div>
             {!!preview.sin_concertacion && (
-              <div className="text-amber-400">
-                ⚠ {opsNum(preview.sin_concertacion)} boletos sin fecha de concertación válida — entran, pero no aparecen en ninguna serie por fecha.
+              <div className="text-amber-400 space-y-1">
+                <div>
+                  ⚠ {opsNum(preview.sin_concertacion)} boletos sin fecha de concertación en el archivo — entran, pero no aparecen en ninguna serie por fecha. Conviené completarlos en el Excel y volver a subir.
+                </div>
+                {!!preview.boletos_sin_fecha?.length && (
+                  <div className="text-[10px] text-[var(--t-text-muted)] break-all">
+                    {preview.boletos_sin_fecha.join(" · ")}
+                    {preview.sin_concertacion > preview.boletos_sin_fecha.length && " …"}
+                  </div>
+                )}
               </div>
             )}
             {!!preview.sin_mercado?.length && (
