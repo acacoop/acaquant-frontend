@@ -5007,9 +5007,11 @@ function AunesaGroup({ modules }: { modules?: string[] | null }) {
 }
 
 // OPERACIONES: carga de operaciones.operaciones por Excel/CSV. Parsea el archivo
-// en el cliente y lo sube en lotes. Dos modos:
+// en el cliente y lo sube en lotes. Tres modos:
 //   FALTANTES (default) → /api/manager/operaciones/faltantes. Solo inserta los
 //     boletos que NO están; nunca pisa lo que vino de Aunesa. Previsualiza antes.
+//   FECHAS → /api/manager/operaciones/fechas. Corrige SOLO concertacion contra el
+//     archivo (arregla el día/mes dado vuelta de una carga histórica vieja).
 //   REEMPLAZAR → /api/manager/operaciones/backfill. Upsert por boleto.
 type OpsStats = { n: number; n_cuentas: number; min_concertacion: string | null; max_concertacion: string | null };
 
@@ -5021,6 +5023,15 @@ type FaltantesResp = {
   bruto_ars?: number; bruto_usd?: number; arancel_total?: number;
   sin_mercado?: string[]; cuentas_sin_segmento?: string[];
   muestra?: Record<string, unknown>[];
+};
+
+type CambioFecha = { boleto: string; actual: string | null; nueva: string; tipo: string };
+
+type FechasResp = {
+  recibidas: number; sin_boleto: number; sin_fecha_archivo: number; duplicadas_archivo: number;
+  con_fecha: number; iguales: number; swap: number; otra_dif: number;
+  sin_fecha_base: number; no_existen: number; a_corregir: number; corregidos: number;
+  muestra: CambioFecha[];
 };
 
 const OPS_BATCH = 2000;
@@ -5042,10 +5053,11 @@ function OperacionesBackfillPanel() {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [fileName, setFileName] = useState<string>("");
-  const [modo, setModo] = useState<"faltantes" | "reemplazar">("faltantes");
+  const [modo, setModo] = useState<"faltantes" | "fechas" | "reemplazar">("faltantes");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [preview, setPreview] = useState<FaltantesResp | null>(null);
+  const [pFechas, setPFechas] = useState<FechasResp | null>(null);
   const [result, setResult] = useState<{ recibidas: number; upsertadas: number; modificadas: number; sin_boleto: number } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -5055,7 +5067,7 @@ function OperacionesBackfillPanel() {
   useEffect(() => { loadStats(); }, [loadStats]);
 
   const onFile = async (file: File) => {
-    setMsg(null); setResult(null); setPreview(null); setRows([]); setHeaders([]); setFileName(file.name);
+    setMsg(null); setResult(null); setPreview(null); setPFechas(null); setRows([]); setHeaders([]); setFileName(file.name);
     try {
       const buf = await file.arrayBuffer();
       const XLSX = await import("xlsx");
@@ -5189,11 +5201,52 @@ function OperacionesBackfillPanel() {
     }
   };
 
+  // ── MODO FECHAS: corrige SOLO concertacion contra el archivo ────────────────
+  const correrFechas = async (commit: boolean) => {
+    if (busy || !rows.length) return;
+    if (commit && !window.confirm("Se va a actualizar ÚNICAMENTE la fecha de concertación de los boletos listados. Ningún otro dato se toca. ¿Confirmás?")) return;
+    setBusy(true); setMsg(null); setResult(null);
+    if (!commit) setPFechas(null);
+    const batches = lotes();
+    const total = batches.length;
+    let done = 0;
+    const acc: FechasResp = {
+      recibidas: 0, sin_boleto: 0, sin_fecha_archivo: 0, duplicadas_archivo: 0,
+      con_fecha: 0, iguales: 0, swap: 0, otra_dif: 0, sin_fecha_base: 0,
+      no_existen: 0, a_corregir: 0, corregidos: 0, muestra: [],
+    };
+
+    const send = async (batch: Record<string, unknown>[]) => {
+      const j = await post("/api/manager/operaciones/fechas", { rows: batch, commit }) as FechasResp;
+      (Object.keys(acc) as (keyof FechasResp)[]).forEach((k) => {
+        if (k !== "muestra") (acc[k] as number) += (j[k] as number) ?? 0;
+      });
+      if (acc.muestra.length < 30) acc.muestra = acc.muestra.concat(j.muestra ?? []).slice(0, 30);
+      done++; setProgress({ done, total });
+    };
+
+    try {
+      if (!total) { setMsg({ ok: false, text: "Nada para analizar." }); return; }
+      let next = 0;
+      const worker = async () => { for (let i = next++; i < total; i = next++) await send(batches[i]); };
+      await Promise.all(Array.from({ length: Math.min(4, total) }, worker));
+      setPFechas(acc);
+      setMsg(commit
+        ? { ok: true, text: `Listo: se corrigió la fecha de ${opsNum(acc.corregidos)} boletos. Ningún otro dato se modificó.` }
+        : { ok: true, text: acc.a_corregir ? "Análisis listo — revisá los cambios abajo y confirmá." : "Todas las fechas del archivo ya coinciden con la base. No hay nada que corregir." });
+      if (commit) loadStats();
+    } catch (e) {
+      setMsg({ ok: false, text: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(false); setProgress(null);
+    }
+  };
+
   // ── MODO REEMPLAZAR: upsert por boleto (el archivo pisa lo que había) ───────
   const subirUpsert = async () => {
     if (busy || !rows.length) return;
     if (!window.confirm("Este modo PISA los boletos que ya existen con lo que traiga el archivo. ¿Seguro?")) return;
-    setBusy(true); setMsg(null); setResult(null); setPreview(null);
+    setBusy(true); setMsg(null); setResult(null); setPreview(null); setPFechas(null);
     const batches = lotes();
     const total = batches.length;
     const acc = { recibidas: 0, upsertadas: 0, modificadas: 0, sin_boleto: 0 };
@@ -5255,11 +5308,11 @@ function OperacionesBackfillPanel() {
 
         <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
           <div className="flex gap-4 items-center">
-            {(["faltantes", "reemplazar"] as const).map((m) => (
+            {(["faltantes", "fechas", "reemplazar"] as const).map((m) => (
               <label key={m} className="flex items-center gap-1.5 cursor-pointer">
-                <input type="radio" checked={modo === m} onChange={() => { setModo(m); setPreview(null); setResult(null); setMsg(null); }} />
+                <input type="radio" checked={modo === m} onChange={() => { setModo(m); setPreview(null); setPFechas(null); setResult(null); setMsg(null); }} />
                 <span className={modo === m ? "text-[var(--t-text)]" : "text-[var(--t-text-muted)]"}>
-                  {m === "faltantes" ? "SOLO FALTANTES (recomendado)" : "REEMPLAZAR EXISTENTES"}
+                  {m === "faltantes" ? "SOLO FALTANTES (recomendado)" : m === "fechas" ? "CORREGIR FECHAS" : "REEMPLAZAR EXISTENTES"}
                 </span>
               </label>
             ))}
@@ -5267,7 +5320,9 @@ function OperacionesBackfillPanel() {
           <div className="text-[var(--t-text-muted)] text-[11px]">
             {modo === "faltantes"
               ? "Inserta únicamente los boletos que no están en la base. Los que ya existen no se tocan."
-              : "⚠ Pisa con el archivo todos los boletos que ya existan. Usalo solo para corregir datos malos."}
+              : modo === "fechas"
+                ? "Compara la fecha de concertación del archivo contra la base y corrige solo esa columna. Ningún otro dato se modifica. Sirve para arreglar los boletos que quedaron con día y mes dados vuelta."
+                : "⚠ Pisa con el archivo todos los boletos que ya existan. Usalo solo para corregir datos malos."}
           </div>
 
           <label className="inline-block px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]">
@@ -5299,6 +5354,19 @@ function OperacionesBackfillPanel() {
                     {preview?.insertados ? "INSERTADO ✓" : `2 · INSERTAR ${preview ? opsNum(preview.nuevos) : ""} FALTANTES`}
                   </button>
                 </>
+              ) : modo === "fechas" ? (
+                <>
+                  <button onClick={() => correrFechas(false)} disabled={busy} className={btn}>
+                    {busy && !pFechas ? "ANALIZANDO…" : "1 · ANALIZAR FECHAS"}
+                  </button>
+                  <button
+                    onClick={() => correrFechas(true)}
+                    disabled={busy || !pFechas || !pFechas.a_corregir || !!pFechas.corregidos}
+                    className={btn}
+                  >
+                    {pFechas?.corregidos ? "CORREGIDO ✓" : `2 · CORREGIR ${pFechas ? opsNum(pFechas.a_corregir) : ""} FECHAS`}
+                  </button>
+                </>
               ) : (
                 <button onClick={subirUpsert} disabled={busy} className={btn}>
                   {busy ? "Subiendo…" : "SUBIR (PISA EXISTENTES)"}
@@ -5316,6 +5384,59 @@ function OperacionesBackfillPanel() {
             </div>
           )}
         </div>
+
+        {pFechas && (
+          <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+            <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">
+              {pFechas.corregidos ? "RESULTADO" : "PREVISUALIZACIÓN (todavía no se escribió nada)"}
+            </div>
+            <div className="flex flex-wrap gap-8">
+              <OpsStat label="A CORREGIR" value={opsNum(pFechas.a_corregir)} />
+              <OpsStat label="DÍA/MES AL REVÉS" value={opsNum(pFechas.swap)} />
+              <OpsStat label="OTRA DIFERENCIA" value={opsNum(pFechas.otra_dif)} />
+              <OpsStat label="YA COINCIDÍAN" value={opsNum(pFechas.iguales)} />
+              <OpsStat label="NO ESTÁN EN LA BASE" value={opsNum(pFechas.no_existen)} />
+              <OpsStat label="SIN FECHA EN EL ARCHIVO" value={opsNum(pFechas.sin_fecha_archivo)} />
+            </div>
+            {!!pFechas.otra_dif && (
+              <div className="text-amber-400">
+                ⚠ {opsNum(pFechas.otra_dif)} boletos difieren de una forma que NO es día/mes dado vuelta. Revisalos en la muestra antes de confirmar: puede ser un error del archivo.
+              </div>
+            )}
+            {!!pFechas.no_existen && (
+              <div className="text-amber-400">
+                ⚠ {opsNum(pFechas.no_existen)} boletos del archivo no existen en la base — este modo no los inserta. Para cargarlos usá SOLO FALTANTES.
+              </div>
+            )}
+            {!!pFechas.muestra.length && (
+              <div className="overflow-x-auto">
+                <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mb-1">
+                  CAMBIOS (primeros {pFechas.muestra.length})
+                </div>
+                <table className="text-[11px] w-full">
+                  <thead className="text-[var(--t-text-muted)]">
+                    <tr>
+                      <th className="text-left pr-3 font-normal">BOLETO</th>
+                      <th className="text-left pr-3 font-normal">FECHA ACTUAL</th>
+                      <th className="text-left pr-3 font-normal">FECHA NUEVA</th>
+                      <th className="text-left pr-3 font-normal">DIAGNÓSTICO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pFechas.muestra.map((c) => (
+                      <tr key={c.boleto} className="border-t border-[var(--t-border)]">
+                        <td className="pr-3 py-0.5 whitespace-nowrap">{c.boleto}</td>
+                        <td className="pr-3 py-0.5 whitespace-nowrap text-red-400">{c.actual ?? "—"}</td>
+                        <td className="pr-3 py-0.5 whitespace-nowrap text-green-400">{c.nueva}</td>
+                        <td className="pr-3 py-0.5 whitespace-nowrap text-[var(--t-text-muted)]">{c.tipo}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {preview && (
           <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
