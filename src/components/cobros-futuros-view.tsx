@@ -122,6 +122,7 @@ export function CobrosFuturosView({
   // útil es lo que se viene ya). Vacío ("todo") = todo el futuro.
   const [desde, setDesde] = useState<string>(() => isoLocal(0));
   const [hasta, setHasta] = useState<string>(() => isoLocal(60));
+  const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fechaQS = (desde ? `&desde=${desde}` : "") + (hasta ? `&hasta=${hasta}` : "");
@@ -186,8 +187,16 @@ export function CobrosFuturosView({
 
   const clientes = useMemo(() => {
     const list = scope?.clientes ?? [];
-    return [...list].sort((a, b) => (mk === "usd" ? b.total_usd - a.total_usd : b.total_ars - a.total_ars));
-  }, [scope, mk]);
+    const term = q.trim().toLowerCase();
+    const filtrada = term
+      ? list.filter(
+          (c) =>
+            (c.cliente ?? "").toLowerCase().includes(term) ||
+            c.id_cuenta.toLowerCase().includes(term),
+        )
+      : list;
+    return [...filtrada].sort((a, b) => (mk === "usd" ? b.total_usd - a.total_usd : b.total_ars - a.total_ars));
+  }, [scope, mk, q]);
 
   // Títulos del cliente ACOTADOS por el rango de fecha de cobro (el endpoint de detalle
   // trae todo el libro; el rango se aplica acá). Alimenta gráfico + por-título + detalle.
@@ -256,7 +265,12 @@ export function CobrosFuturosView({
       .sort((a, b) => a.fecha_pago.localeCompare(b.fecha_pago) || b.monto - a.monto);
   }, [sel, detalle, titulosRango, mk, selTicker, selBucket, agg]);
 
-  const totalScope = mk === "usd" ? scope?.total_usd ?? 0 : scope?.total_ars ?? 0;
+  // Con búsqueda activa el total del header acompaña a lo que se ve en la tabla.
+  const totalScope = q.trim()
+    ? clientes.reduce((s, c) => s + (mk === "usd" ? c.total_usd : c.total_ars), 0)
+    : mk === "usd"
+      ? scope?.total_usd ?? 0
+      : scope?.total_ars ?? 0;
   // Total del cliente ACOTADO al rango (suma de sus títulos en la moneda activa).
   const totalCli = useMemo(
     () => titulosRango.filter((t) => monKey(t.moneda) === mk).reduce((s, t) => s + t.monto, 0),
@@ -291,6 +305,21 @@ export function CobrosFuturosView({
             >
               HOY
             </button>
+            <label className={"inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] " + (q ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10" : "border-[var(--t-border-2)] bg-[var(--t-panel)]")} title="Buscar por nombre de cliente o número de cuenta">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Buscar</span>
+              <input
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="cliente o cuenta"
+                className="w-[130px] bg-transparent text-[10px] text-[var(--t-text)] outline-none placeholder:text-[var(--t-text-muted)]"
+              />
+              {q && (
+                <button onClick={() => setQ("")} title="Limpiar búsqueda" className="text-[9px] text-[var(--t-accent)] hover:underline">
+                  ✕
+                </button>
+              )}
+            </label>
             <span className="text-[9px] text-[var(--t-text-muted)]">{clientes.length}</span>
             <span className="ml-auto text-[10px] font-mono">{mon} {fmtMoneyFull(totalScope)}</span>
           </div>
@@ -300,7 +329,9 @@ export function CobrosFuturosView({
             ) : err ? (
               <p className="p-3 text-[11px] text-[#ff7777]">{err}</p>
             ) : clientes.length === 0 ? (
-              <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin cobros futuros para este scope.</p>
+              <p className="p-3 text-[11px] text-[var(--t-text-dim)]">
+                {q ? `Sin resultados para "${q}".` : "Sin cobros futuros para este scope."}
+              </p>
             ) : (
               <table className="w-full text-[10px]">
                 <thead className="sticky top-0 bg-[var(--t-panel)]">
