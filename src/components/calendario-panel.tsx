@@ -75,11 +75,13 @@ export function CalendarioPanel() {
   return (
     <>
       {err ? (
-          <p className="p-3 text-[11px] text-[var(--t-neg)]">Error: {err}</p>
+          <p className="p-3 text-[11px] text-[var(--t-neg)]" title={err}>
+            No se pudo cargar el calendario.
+          </p>
         ) : !data ? (
           <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
         ) : grupos.length === 0 ? (
-          <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin eventos próximos. (¿Corrió el job del calendario con FMP?)</p>
+          <p className="p-3 text-[11px] text-[var(--t-text-dim)]">Sin eventos próximos.</p>
         ) : (
           <table className="w-full text-[10px]">
             <tbody>
