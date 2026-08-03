@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AdrZonasChart } from "@/components/adr-zonas-chart";
 import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { LiveIntradayChart } from "@/components/live-intraday-chart";
 import { OrderBookPanel } from "@/components/order-book-panel";
-import { PivotPctChart } from "@/components/pivot-pct-chart";
 import { TradingRadarPanel } from "@/components/trading-radar-panel";
 import { usePoll } from "@/lib/use-poll";
 import {
@@ -276,7 +276,6 @@ export function TradingView() {
 
   const csv = useMemo(() => {
     const set = new Set(cards.map((c) => c.ticker).filter(Boolean));
-    set.add("QQQ"); // índice de referencia del chart "% vs pivots" (aunque no sea card)
     return [...set].join(",");
   }, [cards]);
   const { data: rows } = usePoll<PivotRow[]>(
@@ -303,9 +302,6 @@ export function TradingView() {
     }
     return byTicker.get(shownTicker)?.pivots ?? null;
   }, [overrides, shownTicker, byTicker]);
-
-  // Pivots del índice (QQQ) para el chart "% vs pivots" — eje izquierdo.
-  const qqqPivots = useMemo(() => byTicker.get("QQQ")?.pivots ?? null, [byTicker]);
 
   function setTicker(id: string, ticker: string) {
     setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ticker: ticker.toUpperCase() } : c)));
@@ -461,7 +457,7 @@ export function TradingView() {
           />
         </div>
 
-        {/* derecha: 50 chart LIVE (precio) / 50 chart % vs pivots (índice vs activo) */}
+        {/* derecha: 50 chart LIVE (CEDEAR intradía ARS) / 50 zonas del ADR (velas diarias USD) */}
         <div className="min-h-0 hidden lg:grid grid-rows-2 gap-2">
           {/* chart live — precio intradía del activo seleccionado */}
           <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
@@ -482,22 +478,17 @@ export function TradingView() {
               )}
             </div>
           </div>
-          {/* chart nuevo: % vs pivots — QQQ (eje izq) vs card seleccionada (eje der) */}
+          {/* zonas del ADR: velas diarias USD + pivots del timeframe elegido (default SEMANAL) */}
           <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col">
             <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0 text-[10px] uppercase tracking-widest text-[var(--t-accent)]">
-              % vs Pivots{" "}
+              Zonas ADR{" "}
               <span className="text-[var(--t-text-muted)] font-mono ml-1 normal-case">
-                QQQ · {shownTicker || "—"}
+                {shownTicker || "—"} · USD
               </span>
             </div>
             <div className="flex-1 min-h-0">
               {shownTicker ? (
-                <PivotPctChart
-                  tickerA="QQQ"
-                  pivotsA={qqqPivots}
-                  tickerB={shownTicker}
-                  pivotsB={shownPivots}
-                />
+                <AdrZonasChart ticker={shownTicker} />
               ) : (
                 <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-muted)]">
                   elegí una card
