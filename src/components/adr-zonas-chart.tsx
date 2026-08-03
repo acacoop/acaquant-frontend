@@ -67,6 +67,18 @@ const RANGOS = [
 type FrameKey = (typeof FRAMES)[number]["k"];
 type RangoKey = (typeof RANGOS)[number]["k"];
 
+// Al cambiar de timeframe la ventana se acomoda sola (zonas del mes previo con
+// medio año de velas no se leen). Tocar un botón de rango pisa esto hasta el
+// próximo cambio de timeframe.
+const RANGO_POR_FRAME: Record<FrameKey, RangoKey> = {
+  diario: "1m",
+  semanal: "1m",
+  mensual: "3m",
+  anual: "1a",
+};
+
+const COLOR_BASE = "#ff9900"; // velas del período del que salen los niveles
+
 type Levels = { pp: number; r1: number; r2: number; r3: number; s1: number; s2: number; s3: number };
 
 type Frame = {
@@ -106,19 +118,35 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
   const [frame, setFrame] = usePersistedState<FrameKey>("trading.zonas.frame", "semanal");
   const [rango, setRango] = usePersistedState<RangoKey>("trading.zonas.rango", "1m");
 
+  // Cambio de timeframe → ventana acorde. Solo ante un cambio REAL (no al
+  // montar), para no pisar el rango que el usuario dejó elegido.
+  const frameAnterior = useRef(frame);
+  useEffect(() => {
+    if (frameAnterior.current !== frame) {
+      frameAnterior.current = frame;
+      setRango(RANGO_POR_FRAME[frame]);
+    }
+  }, [frame, setRango]);
+
   // Etiquetas de nivel ancladas a la altura de su línea (el title nativo de las
-  // price lines no se dibuja) — mismo patrón que el chart LIVE.
+  // price lines no se dibuja) — mismo patrón que el chart LIVE. Cuando dos
+  // niveles quedan pegados, la de abajo se corre para que ambas se lean.
   const reposicionar = useCallback(() => {
     const series = seriesRef.current;
     if (!series) return;
-    for (const { el, price } of labelItemsRef.current) {
-      const y = series.priceToCoordinate(price);
+    const items = labelItemsRef.current
+      .map(({ el, price }) => ({ el, y: series.priceToCoordinate(price) }))
+      .sort((a, b) => (a.y ?? 0) - (b.y ?? 0));
+    let ultima = -Infinity;
+    for (const { el, y } of items) {
       if (y == null || y < 0) {
         el.style.display = "none";
-      } else {
-        el.style.display = "block";
-        el.style.top = `${y}px`;
+        continue;
       }
+      const top = Math.max(y, ultima + 11);
+      ultima = top;
+      el.style.display = "block";
+      el.style.top = `${top}px`;
     }
   }, []);
 
@@ -201,7 +229,7 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
       priceScaleId: "left",
       upColor: "#10b981",
       downColor: "#ef4444",
-      borderVisible: false,
+      borderVisible: true,
       wickUpColor: "#10b981",
       wickDownColor: "#ef4444",
       priceLineVisible: false,
@@ -272,11 +300,28 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
     const series = seriesRef.current;
     if (!series) return;
     const velas = data?.velas ?? [];
+    // Las velas del período base del timeframe van resaltadas: se ve de dónde
+    // salen los niveles (H/L/C de esa semana / mes / año).
+    const f = data?.frames?.[frame];
+    const desde = f?.fecha_desde?.slice(0, 10) ?? "";
+    const hasta = f?.fecha_hasta?.slice(0, 10) ?? "";
     series.setData(
-      velas.map((v) => ({ time: v.t as Time, open: v.o, high: v.h, low: v.l, close: v.c })),
+      velas.map((v) => {
+        const base = !!desde && v.t >= desde && v.t <= hasta;
+        const cuerpo = v.c >= v.o ? "#10b981" : "#ef4444";
+        return {
+          time: v.t as Time,
+          open: v.o,
+          high: v.h,
+          low: v.l,
+          close: v.c,
+          borderColor: base ? COLOR_BASE : cuerpo,
+          wickColor: base ? COLOR_BASE : cuerpo,
+        };
+      }),
     );
     if (velas.length) encuadrar();
-  }, [data, ready, encuadrar]);
+  }, [data, frame, ready, encuadrar]);
 
   // ── Niveles del frame elegido + last live, como líneas horizontales ──
   useEffect(() => {
@@ -306,30 +351,36 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
         right: "2px",
         top: "0px",
         transform: "translateY(-100%)",
+        padding: "0 2px",
         fontSize: "8px",
-        lineHeight: "1",
+        lineHeight: "1.3",
         fontFamily: "JetBrains Mono, monospace",
         fontWeight: "600",
         color,
+        background: "var(--t-panel)",
+        border: `1px solid ${color}`,
         display: "none",
         pointerEvents: "none",
+        whiteSpace: "nowrap",
       } as CSSStyleDeclaration);
       layer.appendChild(el);
       labelItemsRef.current.push({ el, price });
     };
 
     const f = data?.frames?.[frame];
+    const last = data?.last;
     const niveles: number[] = [];
     if (f?.levels) {
       for (const n of NIVELES) {
         const y = f.levels[n.k];
         if (y == null || !Number.isFinite(y)) continue;
         niveles.push(y);
-        nivel(y, n.label, n.color, false);
+        // "R1 149,07 +3,2%" — el nivel y cuánto falta para tocarlo desde el last.
+        const dist = last && last > 0 ? ` ${(((y - last) / last) * 100).toFixed(1)}%` : "";
+        nivel(y, `${n.label} ${fmt(y)}${dist}`, n.color, false);
       }
     }
-    const last = data?.last;
-    if (last != null && Number.isFinite(last)) nivel(last, "LAST", "#ff9900", true);
+    if (last != null && Number.isFinite(last)) nivel(last, `LAST ${fmt(last)}`, "#ff9900", true);
     levelsRef.current = niveles;
     chartRef.current?.priceScale("left").applyOptions({ autoScale: true });
     requestAnimationFrame(reposicionar);
