@@ -56,25 +56,29 @@ const FRAMES = [
   { k: "anual", label: "ANUAL" },
 ] as const;
 
-// Ventana visible en RUEDAS (~21 por mes). 0 = toda la serie que trajo el fetch.
+// Ventana visible en DÍAS CORRIDOS. Se traduce a ruedas (~5 hábiles cada 7
+// corridos) porque la serie no tiene velas de fin de semana ni feriados.
 const RANGOS = [
-  { k: "1m", label: "1M", velas: 21 },
-  { k: "3m", label: "3M", velas: 63 },
-  { k: "6m", label: "6M", velas: 126 },
-  { k: "1a", label: "1A", velas: 0 },
+  { k: "7d", label: "7D", dias: 7 },
+  { k: "15d", label: "15D", dias: 15 },
+  { k: "30d", label: "30D", dias: 30 },
+  { k: "45d", label: "45D", dias: 45 },
 ] as const;
 
 type FrameKey = (typeof FRAMES)[number]["k"];
 type RangoKey = (typeof RANGOS)[number]["k"];
 
+const ruedasDe = (r: RangoKey) =>
+  Math.max(3, Math.round(((RANGOS.find((x) => x.k === r)?.dias ?? 30) * 5) / 7));
+
 // Al cambiar de timeframe la ventana se acomoda sola (zonas del mes previo con
-// medio año de velas no se leen). Tocar un botón de rango pisa esto hasta el
+// una semana de velas no se leen). Tocar un botón de rango pisa esto hasta el
 // próximo cambio de timeframe.
 const RANGO_POR_FRAME: Record<FrameKey, RangoKey> = {
-  diario: "1m",
-  semanal: "1m",
-  mensual: "3m",
-  anual: "1a",
+  diario: "7d",
+  semanal: "15d",
+  mensual: "45d",
+  anual: "45d",
 };
 
 const COLOR_BASE = "#ff9900"; // velas del período del que salen los niveles
@@ -116,7 +120,9 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
   const [ready, setReady] = useState(0);
   const [data, setData] = useState<Zonas | null>(null);
   const [frame, setFrame] = usePersistedState<FrameKey>("trading.zonas.frame", "semanal");
-  const [rango, setRango] = usePersistedState<RangoKey>("trading.zonas.rango", "1m");
+  const [rangoRaw, setRango] = usePersistedState<RangoKey>("trading.zonas.rango", "15d");
+  // La clave persistía claves viejas (1M/3M…) → cae al default si no es válida.
+  const rango: RangoKey = RANGOS.some((r) => r.k === rangoRaw) ? rangoRaw : "15d";
 
   // Cambio de timeframe → ventana acorde. Solo ante un cambio REAL (no al
   // montar), para no pisar el rango que el usuario dejó elegido.
@@ -150,16 +156,16 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
     }
   }, []);
 
-  // Encuadra la ventana elegida (últimas N ruedas) y devuelve la escala Y al
+  // Encuadra la ventana elegida (últimos N días) y devuelve la escala Y al
   // automático — también es el "volver" del doble click / botón ⟲.
   const encuadrar = useCallback(() => {
     const chart = chartRef.current;
     if (!chart) return;
     chart.priceScale("left").applyOptions({ autoScale: true });
-    const n = RANGOS.find((r) => r.k === rango)?.velas ?? 0;
+    const n = ruedasDe(rango);
     const total = data?.velas?.length ?? 0;
-    if (n > 0 && total > n) {
-      chart.timeScale().setVisibleLogicalRange({ from: total - n, to: total + 2 });
+    if (total > n) {
+      chart.timeScale().setVisibleLogicalRange({ from: total - n, to: total + 1 });
     } else {
       chart.timeScale().fitContent();
     }
@@ -416,7 +422,7 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
               key={k}
               type="button"
               onClick={() => setRango(k)}
-              title="Cuántas ruedas se ven"
+              title="Últimos días visibles"
               className={
                 "px-1.5 py-0.5 font-semibold tracking-wide border transition-colors " +
                 (rango === k
