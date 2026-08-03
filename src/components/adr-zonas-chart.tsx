@@ -7,6 +7,7 @@ import {
   CrosshairMode,
   createChart,
   LineStyle,
+  type AutoscaleInfo,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
@@ -21,13 +22,21 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *
  * Es el panel MÉTRICAS → ZONAS de Renta Variable pero GRAFICADO: velas diarias
  * del subyacente USD (el ADR, no el CEDEAR) con los pivots Floor Trader del
- * timeframe elegido como líneas horizontales. Default SEMANAL — el chart de
- * arriba ya cubre el intradía/diario del CEDEAR en ARS; acá se lee dónde está
- * el papel contra las zonas de la semana/mes/año previos.
+ * timeframe elegido como líneas horizontales. Default SEMANAL + ventana 1M — el
+ * chart de arriba cubre el intradía del CEDEAR en ARS; acá se opera contra las
+ * zonas de la semana/mes previos SIN tener que mirar medio año de velas.
+ *
+ * Del ADR solo hay velas DIARIAS (mercado.precios_acciones): `adr_snapshot` es
+ * un único quote live por papel, sin histórico → no hay serie intradía USD que
+ * graficar. La ventana más corta posible es 1 mes de velas diarias.
  *
  * Feed: /api/trading/adr-zonas (velas + los 4 frames en un solo hit, mismos
  * niveles que /api/scanner/pivot). Los niveles son estáticos (período previo
  * cerrado); el `last` es live del ADR → repoll cada 60s.
+ *
+ * Escala Y MANIPULABLE: se arrastra el eje de precios (y doble click / ⟲
+ * vuelven al encuadre automático). El autoscale incluye los niveles del frame
+ * activo, así R3/S3 nunca quedan fuera de pantalla.
  */
 
 const NIVELES: { k: keyof Levels; label: string; color: string }[] = [
@@ -47,7 +56,16 @@ const FRAMES = [
   { k: "anual", label: "ANUAL" },
 ] as const;
 
+// Ventana visible en RUEDAS (~21 por mes). 0 = toda la serie que trajo el fetch.
+const RANGOS = [
+  { k: "1m", label: "1M", velas: 21 },
+  { k: "3m", label: "3M", velas: 63 },
+  { k: "6m", label: "6M", velas: 126 },
+  { k: "1a", label: "1A", velas: 0 },
+] as const;
+
 type FrameKey = (typeof FRAMES)[number]["k"];
+type RangoKey = (typeof RANGOS)[number]["k"];
 
 type Levels = { pp: number; r1: number; r2: number; r3: number; s1: number; s2: number; s3: number };
 
@@ -80,9 +98,13 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
   const linesRef = useRef<IPriceLine[]>([]);
   const labelLayerRef = useRef<HTMLDivElement | null>(null);
   const labelItemsRef = useRef<{ el: HTMLSpanElement; price: number }[]>([]);
+  // Niveles del frame activo — los lee el autoscaleInfoProvider de la serie
+  // (las price lines por sí solas NO estiran la escala).
+  const levelsRef = useRef<number[]>([]);
   const [ready, setReady] = useState(0);
   const [data, setData] = useState<Zonas | null>(null);
   const [frame, setFrame] = usePersistedState<FrameKey>("trading.zonas.frame", "semanal");
+  const [rango, setRango] = usePersistedState<RangoKey>("trading.zonas.rango", "1m");
 
   // Etiquetas de nivel ancladas a la altura de su línea (el title nativo de las
   // price lines no se dibuja) — mismo patrón que el chart LIVE.
@@ -99,6 +121,29 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
       }
     }
   }, []);
+
+  // Encuadra la ventana elegida (últimas N ruedas) y devuelve la escala Y al
+  // automático — también es el "volver" del doble click / botón ⟲.
+  const encuadrar = useCallback(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.priceScale("left").applyOptions({ autoScale: true });
+    const n = RANGOS.find((r) => r.k === rango)?.velas ?? 0;
+    const total = data?.velas?.length ?? 0;
+    if (n > 0 && total > n) {
+      chart.timeScale().setVisibleLogicalRange({ from: total - n, to: total + 2 });
+    } else {
+      chart.timeScale().fitContent();
+    }
+    requestAnimationFrame(reposicionar);
+  }, [rango, data, reposicionar]);
+
+  // El listener de doble click se registra una vez con el chart → lee el
+  // encuadre vigente por ref (cambia con el rango y los datos).
+  const encuadrarRef = useRef(encuadrar);
+  useEffect(() => {
+    encuadrarRef.current = encuadrar;
+  }, [encuadrar]);
 
   const [isLight, setIsLight] = useState(false);
   useEffect(() => {
@@ -139,7 +184,9 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
         scaleMargins: { top: 0.08, bottom: 0.08 },
       },
       rightPriceScale: { visible: false },
-      handleScale: { axisPressedMouseMove: { time: true, price: false } },
+      // El eje de PRECIOS se arrastra (pedido de la mesa: la escala fija no
+      // sirve para operar). El botón ⟲ / doble click devuelven el automático.
+      handleScale: { axisPressedMouseMove: { time: true, price: true } },
       timeScale: { borderColor: border, timeVisible: false, rightOffset: 3 },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -158,16 +205,25 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
       wickUpColor: "#10b981",
       wickDownColor: "#ef4444",
       priceLineVisible: false,
+      // La escala tiene que entrar los niveles del frame, no solo las velas.
+      autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
+        const res = original();
+        const lv = levelsRef.current;
+        if (!res?.priceRange || !lv.length) return res;
+        return {
+          ...res,
+          priceRange: {
+            minValue: Math.min(res.priceRange.minValue, ...lv),
+            maxValue: Math.max(res.priceRange.maxValue, ...lv),
+          },
+        };
+      },
     });
     chartRef.current = chart;
     seriesRef.current = series;
     setReady((n) => n + 1);
 
-    const reset = () => {
-      chart.priceScale("left").applyOptions({ autoScale: true });
-      chart.timeScale().fitContent();
-      requestAnimationFrame(reposicionar);
-    };
+    const reset = () => encuadrarRef.current();
     el.addEventListener("dblclick", reset);
     const onRange = () => reposicionar();
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
@@ -192,9 +248,10 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
     let alive = true;
     const load = async () => {
       try {
-        const r = await fetch(`/api/trading/adr-zonas?ticker=${encodeURIComponent(ticker)}`, {
-          cache: "no-store",
-        });
+        const r = await fetch(
+          `/api/trading/adr-zonas?ticker=${encodeURIComponent(ticker)}&dias=400`,
+          { cache: "no-store" },
+        );
         if (!r.ok || !alive) return;
         setData((await r.json()) as Zonas);
       } catch {
@@ -210,21 +267,16 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
     };
   }, [ticker]);
 
-  // ── Velas al chart ──
+  // ── Velas al chart (el encuadre lo pone la ventana elegida) ──
   useEffect(() => {
     const series = seriesRef.current;
-    const chart = chartRef.current;
-    if (!series || !chart) return;
+    if (!series) return;
     const velas = data?.velas ?? [];
     series.setData(
       velas.map((v) => ({ time: v.t as Time, open: v.o, high: v.h, low: v.l, close: v.c })),
     );
-    if (velas.length) {
-      chart.priceScale("left").applyOptions({ autoScale: true });
-      chart.timeScale().fitContent();
-    }
-    requestAnimationFrame(reposicionar);
-  }, [data, ready, reposicionar]);
+    if (velas.length) encuadrar();
+  }, [data, ready, encuadrar]);
 
   // ── Niveles del frame elegido + last live, como líneas horizontales ──
   useEffect(() => {
@@ -267,15 +319,19 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
     };
 
     const f = data?.frames?.[frame];
+    const niveles: number[] = [];
     if (f?.levels) {
       for (const n of NIVELES) {
         const y = f.levels[n.k];
         if (y == null || !Number.isFinite(y)) continue;
+        niveles.push(y);
         nivel(y, n.label, n.color, false);
       }
     }
     const last = data?.last;
     if (last != null && Number.isFinite(last)) nivel(last, "LAST", "#ff9900", true);
+    levelsRef.current = niveles;
+    chartRef.current?.priceScale("left").applyOptions({ autoScale: true });
     requestAnimationFrame(reposicionar);
   }, [data, frame, ready, reposicionar]);
 
@@ -285,13 +341,14 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
 
   return (
     <div className="h-full w-full flex flex-col min-h-0">
-      {/* selector de timeframe + contexto del período previo */}
+      {/* timeframe de los niveles | ventana visible | contexto del período previo */}
       <div className="flex items-center gap-1 px-1 py-0.5 shrink-0 border-b border-[var(--t-border)] text-[9px]">
         {FRAMES.map(({ k, label }) => (
           <button
             key={k}
             type="button"
             onClick={() => setFrame(k)}
+            title={`Zonas del ${label.toLowerCase()} previo`}
             className={
               "px-1.5 py-0.5 font-semibold tracking-wide border transition-colors " +
               (frame === k
@@ -302,10 +359,36 @@ export function AdrZonasChart({ ticker }: { ticker: string }) {
             {label}
           </button>
         ))}
+        <span className="flex items-center gap-1 pl-1.5 ml-0.5 border-l border-[var(--t-border)]">
+          {RANGOS.map(({ k, label }) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setRango(k)}
+              title="Cuántas ruedas se ven"
+              className={
+                "px-1.5 py-0.5 font-semibold tracking-wide border transition-colors " +
+                (rango === k
+                  ? "bg-[var(--t-text-dim)] text-[var(--t-panel)] border-[var(--t-text-dim)]"
+                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]")
+              }
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={encuadrar}
+            title="Reencuadrar (también con doble click). El eje de precios se arrastra."
+            className="px-1 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+          >
+            ⟲
+          </button>
+        </span>
         <span className="ml-auto font-mono text-[var(--t-text-muted)] truncate">
           {f ? (
             <>
-              {f.fecha_desde.slice(0, 10)} → {f.fecha_hasta.slice(0, 10)} · H {fmt(f.h)} L {fmt(f.l)} C{" "}
+              {f.fecha_desde.slice(5, 10)}→{f.fecha_hasta.slice(5, 10)} · H {fmt(f.h)} L {fmt(f.l)} C{" "}
               {fmt(f.c)}
             </>
           ) : (
