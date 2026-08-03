@@ -47,7 +47,7 @@ export function TradingEstrategiaRadar({
   onSelect?: (ticker: string) => void;
   selectedTicker?: string | null;
 }) {
-  const { data: rows } = usePoll<Contexto[]>(
+  const { data: rows, error } = usePoll<Contexto[]>(
     "/api/estrategia/contexto",
     [],
     POLL_MS,
@@ -64,8 +64,12 @@ export function TradingEstrategiaRadar({
       </div>
 
       {ctx.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-[10px] text-[var(--t-text-muted)] text-center px-3">
-          sin datos de contexto
+        <div className="flex-1 flex items-center justify-center text-[10px] text-center px-3">
+          {error ? (
+            <span className="text-[var(--t-neg)]">error de contexto · {error}</span>
+          ) : (
+            <span className="text-[var(--t-text-muted)]">sin datos de contexto</span>
+          )}
         </div>
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto">

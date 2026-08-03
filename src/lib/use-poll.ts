@@ -12,15 +12,21 @@ import { useEffect, useRef, useState } from "react";
  *
  *   lastAt === 0   → todavía no hubo ningún poll (solo SSR).
  *   lastAt > 0     → hora del último poll exitoso.
+ *   error          → motivo del último poll FALLIDO (null si viene bien).
+ *
+ * `error` existe porque tragarse el fallo en silencio hacía que un panel roto
+ * (404 del proxy, 403 de RBAC, 502 del backend) se viera idéntico a uno
+ * legítimamente vacío — así se perdió una semana la tab ESTRATEGIA.
  */
 export function usePoll<T>(
   endpoint: string,
   initial: T,
   intervalMs: number,
   options: { fetchOnMount?: boolean } = {},
-): { data: T; lastAt: number } {
+): { data: T; lastAt: number; error: string | null } {
   const { fetchOnMount = false } = options;
   const [data, setData] = useState<T>(initial);
+  const [error, setError] = useState<string | null>(null);
   // 0 = "todavía no hubo fetch"; se setea al timestamp real en el primer
   // poll exitoso. Evita llamar Date.now() dentro del render
   // (react-hooks/purity).
@@ -38,7 +44,10 @@ export function usePoll<T>(
     async function tick() {
       try {
         const r = await fetch(endpoint, { cache: "no-store" });
-        if (!r.ok) return;
+        if (!r.ok) {
+          if (alive) setError(`HTTP ${r.status}`);
+          return;
+        }
         const raw = await r.text();
         if (!alive) return;
         if (raw !== lastRawRef.current) {
@@ -46,8 +55,10 @@ export function usePoll<T>(
           setData(JSON.parse(raw) as T);
         }
         setLastAt(Date.now());
-      } catch {
+        setError(null);
+      } catch (e) {
         // mantener data vieja si falló un poll puntual
+        if (alive) setError(e instanceof Error ? e.message : "error de red");
       }
     }
 
@@ -75,7 +86,8 @@ export function usePoll<T>(
     lastRawRef.current = null;
     setData(initial);
     setLastAt(0);
+    setError(null);
   }, [endpoint, initial]);
 
-  return { data, lastAt };
+  return { data, lastAt, error };
 }
