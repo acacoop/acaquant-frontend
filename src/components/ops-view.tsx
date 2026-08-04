@@ -14,10 +14,15 @@ type Moneda = "ARS" | "USD" | "USD_DOL";
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 
 type FechaRow = { fecha: string; n: number };
-type OpRow = { operacion: string; bruto: number; arancel: number; n: number };
+// `tasa_pond`: tasa PONDERADA POR VOLUMEN que ya viene calculada del backend
+// (`Σ(tasa·bruto)/Σ(bruto)`, ver docs/API.md §7.5) — acá NO se pondera nada, se
+// pinta. `null` = ese grupo no tiene tasa: es lo normal fuera de MAV, donde la
+// tasa no existe como concepto (sólo los pagarés/cheques del MAV se negocian a
+// tasa). OJO: `0` es una tasa REAL y no debe confundirse con "sin dato".
+type OpRow = { operacion: string; bruto: number; arancel: number; n: number; tasa_pond?: number | null };
 type DenomRow = { denominacion: string; bruto: number; arancel: number; n: number };
 type Meta = { n_boletos: number; ultima_ingesta: string | null };
-type InstrRow = { instrumento: string; bruto: number; arancel: number; n: number };
+type InstrRow = { instrumento: string; bruto: number; arancel: number; n: number; tasa_pond?: number | null };
 
 const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
@@ -29,6 +34,15 @@ function fmtCompact(n: number): string {
   if (abs >= 1e3) return sign + (abs / 1e3).toFixed(1) + "k";
   return sign + abs.toFixed(0);
 }
+// Tasa en %: 6 → "6,00%", -0.5 → "-0,50%". Sin dato → celda VACÍA (no "—" ni "0%"):
+// la mayoría de las filas fuera de MAV no tienen tasa y un guion en cada una sería
+// ruido; y un "0%" sería directamente un dato falso (0 es una tasa posible).
+// `== null` cubre null y undefined a la vez, pero NO el 0, que sí se muestra.
+const fmtTasa = (v?: number | null): string =>
+  v == null || Number.isNaN(v)
+    ? ""
+    : v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
+
 const fmtFechaDisplay = (s: string) => { const [y,m,d] = s.split("-").map(Number); return `${d} ${MESES[m-1]} ${y}`; };
 const fmtFechaCorta = (s: string) => { const [y,m,d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
 
@@ -205,6 +219,12 @@ export function OpsView() {
     () => (selDenom ? denomRows.reduce((a, r) => a + r.bruto, 0) : total),
     [denomRows, selDenom, total],
   );
+  // ¿Se muestra la columna TASA? Se decide por los DATOS (¿alguna fila trae tasa?),
+  // no comparando el filtro de mercado contra el string "MAV". Así también aparece
+  // con "Todos los mercados" cuando hay boletos MAV en el resultado —si se atara al
+  // filtro, esa tasa quedaría invisible— y se oculta sola donde no aplica.
+  const hayTasaOp = useMemo(() => porOp.some((r) => r.tasa_pond != null), [porOp]);
+  const hayTasaInstr = useMemo(() => porInstr.some((r) => r.tasa_pond != null), [porInstr]);
   return (
     <div className="h-full flex flex-col min-h-0 overflow-hidden bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* ── Filtros ───────────────────────────────────────────── */}
@@ -331,6 +351,10 @@ export function OpsView() {
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Boletos</th>
+                    {hayTasaOp && (
+                      <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]"
+                        title="Tasa ponderada por volumen (MAV). Calculada en el backend.">Tasa pond.</th>
+                    )}
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Prom./boleto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">%</th>
                   </tr>
@@ -345,12 +369,15 @@ export function OpsView() {
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n.toLocaleString("es-AR")}</td>
+                        {hayTasaOp && (
+                          <td className="px-3 py-1 text-right font-semibold">{fmtTasa(r.tasa_pond)}</td>
+                        )}
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n ? fmtCompact(r.bruto / r.n) : "—"}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-12">{total ? ((r.bruto / total) * 100).toFixed(0) : "0"}%</td>
                       </tr>
                     );
                   })}
-                  {!porOp.length && <tr><td colSpan={6} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porOp.length && <tr><td colSpan={hayTasaOp ? 7 : 6} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -423,6 +450,10 @@ export function OpsView() {
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Bruto</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">Σ Arancel</th>
                     <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]">N</th>
+                    {hayTasaInstr && (
+                      <th className="px-3 py-1.5 text-right border-b border-[var(--t-border)]"
+                        title="Tasa del título (MAV). Calculada en el backend.">Tasa</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -435,10 +466,13 @@ export function OpsView() {
                         <td className="px-3 py-1 text-right font-semibold">{fmtCompact(r.bruto)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{fmtCompact(r.arancel)}</td>
                         <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">{r.n}</td>
+                        {hayTasaInstr && (
+                          <td className="px-3 py-1 text-right font-semibold">{fmtTasa(r.tasa_pond)}</td>
+                        )}
                       </tr>
                     );
                   })}
-                  {!porInstr.length && <tr><td colSpan={4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porInstr.length && <tr><td colSpan={hayTasaInstr ? 5 : 4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
                 </tbody>
               </table>
             </div>
