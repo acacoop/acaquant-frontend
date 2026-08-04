@@ -5500,7 +5500,281 @@ function OperacionesBackfillPanel() {
             )}
           </div>
         )}
+        <AnuladosPanel />
       </div>
+    </div>
+  );
+}
+
+// ── ANULADOS: boletos que Aunesa anuló (les agrega el sufijo " (A)") ──────────
+// Dos caminos, misma regla: el número de boleto es la MISMA identidad en
+// operaciones.operaciones (col. boleto) y en negocio_movimientos (col.
+// comprobante) → una anulación se marca en las DOS tablas a la vez.
+//   BARRIDO  → /api/manager/operaciones/anulados/barrido. Busca el sufijo "(A)"
+//     que ya está en la base y arrastra el gemelo sin marca (mismo número).
+//   LISTA    → /api/manager/operaciones/anulados. Subís un Excel con la columna
+//     BOLETO y busca cada uno probando CON y SIN "(A)".
+// Los dos previsualizan primero (commit=false) y son idempotentes.
+type AnulFila = {
+  tabla: string; boleto: string; fecha: string | null; id_cuenta: string | null;
+  cliente: string | null; operacion: string | null; instrumento: string | null;
+  importe: number | null; moneda: string | null; ya_anulado: boolean;
+};
+
+type AnulTabla = {
+  con_marca_a: AnulFila[]; gemelos_sin_marca: AnulFila[];
+  n_con_marca: number; n_gemelos: number; n_ya_anuladas: number; marcadas: number;
+};
+
+type BarridoResp = { commit: boolean; marcadas: number; tablas: Record<string, AnulTabla> };
+
+type ListaResp = {
+  commit: boolean; pedidos: number; marcadas: number;
+  sin_prefijo: string[]; no_encontrados: string[]; detalle: AnulFila[];
+  tablas: Record<string, { encontradas: number; marcadas: number }>;
+};
+
+const anulImporte = (n: number | null) =>
+  n === null || n === undefined ? "—" : n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function AnulTablaDetalle({ titulo, filas }: { titulo: string; filas: AnulFila[] }) {
+  if (!filas.length) return null;
+  return (
+    <div className="overflow-x-auto">
+      <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mb-1">
+        {titulo} — {filas.length}
+      </div>
+      <table className="text-[11px] w-full">
+        <thead className="text-[var(--t-text-muted)]">
+          <tr>
+            <th className="text-left pr-3 font-normal">FECHA</th>
+            <th className="text-left pr-3 font-normal">CTA</th>
+            <th className="text-left pr-3 font-normal">BOLETO</th>
+            <th className="text-left pr-3 font-normal">CLIENTE</th>
+            <th className="text-left pr-3 font-normal">OPERACIÓN</th>
+            <th className="text-right pr-3 font-normal">IMPORTE</th>
+            <th className="text-left pr-3 font-normal">MON</th>
+            <th className="text-left pr-3 font-normal">ESTADO</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f, i) => (
+            <tr key={`${f.tabla}-${f.boleto}-${i}`} className="border-t border-[var(--t-border)]">
+              <td className="pr-3 py-0.5 whitespace-nowrap">{f.fecha ?? "—"}</td>
+              <td className="pr-3 py-0.5 whitespace-nowrap">{f.id_cuenta ?? "—"}</td>
+              <td className="pr-3 py-0.5 whitespace-nowrap text-[var(--t-accent)]">{f.boleto}</td>
+              <td className="pr-3 py-0.5 whitespace-nowrap">{(f.cliente ?? "—").slice(0, 32)}</td>
+              <td className="pr-3 py-0.5 whitespace-nowrap">{(f.operacion ?? "—").slice(0, 30)}</td>
+              <td className="pr-3 py-0.5 whitespace-nowrap text-right">{anulImporte(f.importe)}</td>
+              <td className="pr-3 py-0.5 whitespace-nowrap">{f.moneda ?? "—"}</td>
+              <td className="pr-3 py-0.5 whitespace-nowrap text-[var(--t-text-muted)]">
+                {f.ya_anulado ? "ya anulado" : "vivo"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AnuladosPanel() {
+  const [resumen, setResumen] = useState<Record<string, { con_marca_a: number; ya_anuladas: number }> | null>(null);
+  const [barrido, setBarrido] = useState<BarridoResp | null>(null);
+  const [lista, setLista] = useState<ListaResp | null>(null);
+  const [boletos, setBoletos] = useState<string[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const loadResumen = useCallback(() => {
+    fetch("/api/manager/operaciones/anulados/resumen").then((r) => r.json()).then(setResumen).catch(() => {});
+  }, []);
+  useEffect(() => { loadResumen(); }, [loadResumen]);
+
+  const call = async (url: string, body?: unknown) => {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j?.detail) detail = String(j.detail); } catch { /* */ }
+      throw new Error(detail);
+    }
+    return res.json();
+  };
+
+  const correrBarrido = async (commit: boolean) => {
+    if (busy) return;
+    if (commit && !window.confirm("Se van a marcar como ANULADOS los boletos con la marca (A) y sus gemelos sin marca, en las dos tablas. ¿Confirmás?")) return;
+    setBusy(true); setMsg(null);
+    try {
+      const j = await call(`/api/manager/operaciones/anulados/barrido?commit=${commit}`) as BarridoResp;
+      setBarrido(j);
+      setMsg(commit
+        ? { ok: true, text: `Listo: ${j.marcadas} fila(s) marcadas como anuladas.` }
+        : { ok: true, text: "Análisis listo — revisá el detalle y confirmá." });
+      if (commit) loadResumen();
+    } catch (e) {
+      setMsg({ ok: false, text: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
+
+  // Excel/CSV con UNA columna: BOLETO. Se acepta con o sin la marca " (A)".
+  const onFileAnul = async (file: File) => {
+    setMsg(null); setLista(null); setBoletos([]); setFileName(file.name);
+    try {
+      const buf = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const isCsv = /\.csv$/i.test(file.name);
+      const wb = isCsv
+        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
+        : XLSX.read(buf, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
+      const normH = (h: string) =>
+        h.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const cols = Object.keys(json[0]);
+      const col = cols.find((h) => ["boleto", "comprobante"].includes(normH(h))) ?? cols[0];
+      const vals = [...new Set(json.map((r) => String(r[col] ?? "").trim()).filter(Boolean))];
+      if (!vals.length) { setMsg({ ok: false, text: `No encontré boletos en la columna "${col}".` }); return; }
+      setBoletos(vals);
+    } catch (e) {
+      setMsg({ ok: false, text: `No se pudo leer el archivo: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  };
+
+  const correrLista = async (commit: boolean) => {
+    if (busy || !boletos.length) return;
+    if (commit && !window.confirm(`Se van a marcar como ANULADOS ${lista?.detalle.length ?? 0} registros en las dos tablas. ¿Confirmás?`)) return;
+    setBusy(true); setMsg(null);
+    try {
+      const j = await call("/api/manager/operaciones/anulados", { boletos, commit }) as ListaResp;
+      setLista(j);
+      setMsg(commit
+        ? { ok: true, text: `Listo: ${j.marcadas} fila(s) marcadas como anuladas.` }
+        : { ok: true, text: `Encontrados ${j.detalle.length} registro(s) para ${j.pedidos} boleto(s). Revisá y confirmá.` });
+      if (commit) loadResumen();
+    } catch (e) {
+      setMsg({ ok: false, text: `Error: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
+
+  const btn = "px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)] disabled:opacity-40 disabled:cursor-not-allowed";
+
+  return (
+    <div className="space-y-4 pt-6 border-t border-[var(--t-border)]">
+      <div>
+        <h2 className="text-[13px] font-semibold text-[var(--t-accent)] tracking-wide">BOLETOS ANULADOS</h2>
+        <p className="text-[var(--t-text-muted)] mt-1 leading-relaxed">
+          Cuando Aunesa anula un boleto le agrega el sufijo <code>(A)</code> al número. Como la ingesta
+          guarda por número, el boleto marcado entró como registro NUEVO y convive con el original →
+          la misma operación se cuenta dos veces. Anular lo saca de TODA la app (volumen, aranceles,
+          PnL, actividad comercial) sin borrar el registro.
+        </p>
+      </div>
+
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+        <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">
+          1 · BARRIDO AUTOMÁTICO — lo que YA está en la base con la marca (A)
+        </div>
+        {resumen && (
+          <div className="flex flex-wrap gap-8">
+            {Object.entries(resumen).map(([t, r]) => (
+              <OpsStat key={t} label={t.toUpperCase()} value={`${opsNum(r.con_marca_a)} con (A) · ${opsNum(r.ya_anuladas)} ya anulados`} />
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button onClick={() => correrBarrido(false)} disabled={busy} className={btn}>
+            {busy && !barrido ? "ANALIZANDO…" : "1 · ANALIZAR"}
+          </button>
+          <button onClick={() => correrBarrido(true)} disabled={busy || !barrido || barrido.commit} className={btn}>
+            {barrido?.commit ? "ANULADO ✓" : "2 · ANULAR EN LAS DOS TABLAS"}
+          </button>
+        </div>
+      </div>
+
+      {barrido && Object.entries(barrido.tablas).map(([tabla, d]) => (
+        <div key={tabla} className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+          <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">{tabla.toUpperCase()}</div>
+          <div className="flex flex-wrap gap-8">
+            <OpsStat label="CON MARCA (A)" value={opsNum(d.n_con_marca)} />
+            <OpsStat label="GEMELOS SIN MARCA" value={opsNum(d.n_gemelos)} />
+            <OpsStat label="YA ANULADAS" value={opsNum(d.n_ya_anuladas)} />
+            <OpsStat label="MARCADAS AHORA" value={opsNum(d.marcadas)} />
+          </div>
+          <AnulTablaDetalle titulo="CON LA MARCA (A) — anulados por Aunesa" filas={d.con_marca_a} />
+          <AnulTablaDetalle titulo="GEMELOS SIN MARCA — mismo número, ingestados antes de la anulación" filas={d.gemelos_sin_marca} />
+        </div>
+      ))}
+
+      <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+        <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">
+          2 · SUBIR UNA LISTA DE BOLETOS ANULADOS
+        </div>
+        <div className="text-[var(--t-text-muted)] text-[11px]">
+          Un Excel/CSV con una sola columna <strong className="text-[var(--t-text)]">BOLETO</strong>.
+          Da igual si viene con la marca (<code>BOL 2026109006 (A)</code>) o sin ella
+          (<code>BOL 2026109006</code>): se busca de las dos formas, en las dos tablas.
+        </div>
+        <label className="inline-block px-3 py-1.5 text-[11px] font-semibold border border-[var(--t-accent)] text-[var(--t-accent)] cursor-pointer hover:bg-[var(--t-accent)] hover:text-[var(--t-bg)]">
+          ELEGIR ARCHIVO (.xlsx / .csv)
+          <input
+            type="file" accept=".csv,.xlsx,.xls"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) onFileAnul(f); e.target.value = ""; }}
+            className="hidden"
+          />
+        </label>
+        {fileName && boletos.length > 0 && (
+          <div className="text-[var(--t-text-muted)]">
+            <span className="text-[var(--t-text)]">{fileName}</span> · {boletos.length.toLocaleString("es-AR")} boletos únicos
+          </div>
+        )}
+        {boletos.length > 0 && (
+          <div className="flex gap-2">
+            <button onClick={() => correrLista(false)} disabled={busy} className={btn}>
+              {busy && !lista ? "BUSCANDO…" : "1 · BUSCAR EN LA BASE"}
+            </button>
+            <button onClick={() => correrLista(true)} disabled={busy || !lista || lista.commit || !lista.detalle.length} className={btn}>
+              {lista?.commit ? "ANULADO ✓" : `2 · ANULAR ${lista ? lista.detalle.length : ""} REGISTRO(S)`}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {msg && <div className={msg.ok ? "text-green-400" : "text-red-400"}>{msg.text}</div>}
+
+      {lista && (
+        <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 space-y-3">
+          <div className="text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest">
+            {lista.commit ? "RESULTADO" : "PREVISUALIZACIÓN (todavía no se escribió nada)"}
+          </div>
+          <div className="flex flex-wrap gap-8">
+            <OpsStat label="BOLETOS PEDIDOS" value={opsNum(lista.pedidos)} />
+            {Object.entries(lista.tablas).map(([t, d]) => (
+              <OpsStat key={t} label={t.toUpperCase()} value={`${opsNum(d.encontradas)} encontradas`} />
+            ))}
+            <OpsStat label="NO ENCONTRADOS" value={opsNum(lista.no_encontrados.length)} />
+          </div>
+          {!!lista.sin_prefijo.length && (
+            <div className="text-amber-400 text-[11px]">
+              ⚠ {lista.sin_prefijo.length} valor(es) sin prefijo (falta el <code>BOL </code>/<code>CL </code>/<code>DOC </code>): {lista.sin_prefijo.slice(0, 20).join(" · ")}
+              {lista.sin_prefijo.length > 20 && " …"}
+            </div>
+          )}
+          {!!lista.no_encontrados.length && (
+            <div className="text-amber-400 text-[11px] break-all">
+              ⚠ No están en ninguna de las dos tablas: {lista.no_encontrados.slice(0, 30).join(" · ")}
+              {lista.no_encontrados.length > 30 && " …"}
+            </div>
+          )}
+          <AnulTablaDetalle titulo="REGISTROS ENCONTRADOS" filas={lista.detalle} />
+        </div>
+      )}
     </div>
   );
 }
