@@ -75,6 +75,15 @@ export function SensibilidadTable({ compact = false }: { compact?: boolean }) {
   const tirsInput = modo === "absoluta" ? tirsAbs : tirsRel;
   const tiposParam = tipos.slice().sort().join(",");
 
+  // Debounce del input de TIRs: el fetch (cálculo pesado sobre toda la curva)
+  // sale 500ms después de dejar de tipear — antes salía un request POR TECLA
+  // (mismo patrón que agro-datos.tsx).
+  const [tirsAplicado, setTirsAplicado] = useState(tirsInput);
+  useEffect(() => {
+    const t = setTimeout(() => setTirsAplicado(tirsInput), 500);
+    return () => clearTimeout(t);
+  }, [tirsInput]);
+
   const toggleTipo = (t: Tipo) => {
     setTipos((prev) => {
       if (prev.includes(t)) {
@@ -93,7 +102,7 @@ export function SensibilidadTable({ compact = false }: { compact?: boolean }) {
         if (!cancelled) setLoading(true);
         const res = await fetch(
           `/api/analitica/sensibilidad-retorno?curva=soberanos&modo=${modo}&tirs=${encodeURIComponent(
-            tirsInput,
+            tirsAplicado,
           )}&horizonte_dias=${horizonteDias}&tipos=${encodeURIComponent(tiposParam)}`,
           { cache: "no-store" },
         );
@@ -123,7 +132,7 @@ export function SensibilidadTable({ compact = false }: { compact?: boolean }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [tirsInput, horizonteDias, modo, tiposParam]);
+  }, [tirsAplicado, horizonteDias, modo, tiposParam]);
 
   // Clamping derivado (no state) para que la celda seleccionada sobreviva
   // cambios de shape sin violar react-hooks/set-state-in-effect.

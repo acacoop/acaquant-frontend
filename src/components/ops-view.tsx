@@ -192,9 +192,11 @@ export function OpsView() {
   }, [moneda, selQS]);
 
   // Meta + resumen (cross-filter) para el scope.
+  const [loadingResumen, setLoadingResumen] = useState(true);
   useEffect(() => {
     if (!fechas.length) return;
     (async () => {
+      setLoadingResumen(true);
       const [mt, rs] = await Promise.all([
         modo === "ULTIMA"
           ? getJSON<{ meta: Meta }>(`/api/operaciones/ops/meta?fecha=${fecha}`)
@@ -208,6 +210,7 @@ export function OpsView() {
       setPorDenom(rs?.por_denominacion ?? []);
       setPorInstr(rs?.por_instrumento ?? []);
       setTotal(rs?.total ?? 0);
+      setLoadingResumen(false);
     })();
   }, [modo, fecha, moneda, rangoFecha.desde, rangoFecha.hasta, selQS, fechas.length]);
 
@@ -380,7 +383,7 @@ export function OpsView() {
                       </tr>
                     );
                   })}
-                  {!porOp.length && <tr><td colSpan={hayTasaOp ? 7 : 6} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porOp.length && <tr><td colSpan={hayTasaOp ? 7 : 6} className="px-3 py-3 text-[var(--t-text-muted)]">{loadingResumen ? "Cargando…" : "sin datos"}</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -434,7 +437,7 @@ export function OpsView() {
                       </tr>
                     );
                   })}
-                  {!denomRows.length && <tr><td colSpan={5} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!denomRows.length && <tr><td colSpan={5} className="px-3 py-3 text-[var(--t-text-muted)]">{loadingResumen ? "Cargando…" : "sin datos"}</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -475,7 +478,7 @@ export function OpsView() {
                       </tr>
                     );
                   })}
-                  {!porInstr.length && <tr><td colSpan={hayTasaInstr ? 5 : 4} className="px-3 py-3 text-[var(--t-text-muted)]">sin datos</td></tr>}
+                  {!porInstr.length && <tr><td colSpan={hayTasaInstr ? 5 : 4} className="px-3 py-3 text-[var(--t-text-muted)]">{loadingResumen ? "Cargando…" : "sin datos"}</td></tr>}
                 </tbody>
               </table>
             </div>

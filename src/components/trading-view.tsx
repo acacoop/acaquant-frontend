@@ -203,6 +203,21 @@ export function TradingView() {
 
   // EL VIGÍA: pollea los disparadores deterministas (tarjeta en nivel /
   // candidato del radar) — cero tokens; los toasts son templates del server.
+  // La dep es un STRING estable (tickers + overrides parseados): editar un
+  // input de máx/mín/cierre re-creaba el efecto por CADA tecla → un POST por
+  // carácter. Con la key + debounce, el POST sale una vez, 500ms después de
+  // dejar de tipear.
+  const vigiaPayload = useMemo(() => JSON.stringify({
+    params: {
+      tickers: cards.map((c) => c.ticker).filter(Boolean),
+      overrides: Object.fromEntries(
+        Object.entries(overrides).map(([tk, ov]) => [
+          tk,
+          { high: parseFloat(ov.h), low: parseFloat(ov.l), close: parseFloat(ov.c) },
+        ]),
+      ),
+    },
+  }), [cards, overrides]);
   useEffect(() => {
     let vivo = true;
     const consultar = async () => {
@@ -210,33 +225,26 @@ export function TradingView() {
         const r = await fetch("/api/ia/copiloto/vigia", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            params: {
-              tickers: cards.map((c) => c.ticker).filter(Boolean),
-              overrides: Object.fromEntries(
-                Object.entries(overrides).map(([tk, ov]) => [
-                  tk,
-                  { high: parseFloat(ov.h), low: parseFloat(ov.l), close: parseFloat(ov.c) },
-                ]),
-              ),
-            },
-          }),
+          body: vigiaPayload,
         });
         if (!r.ok || !vivo) return; // 403 = sin módulo ia → sin vigía, silencioso
         const j = (await r.json()) as { alertas?: VigiaAlerta[] };
         const nuevas = (j.alertas ?? []).filter((a) => !vigiaVistos.current.has(a.id));
-        setVigiaAlertas(nuevas.slice(0, 3));
+        // Bail-out: sin alertas antes y ahora → conservar la MISMA referencia
+        // ([] nuevo por tick forzaba un re-render completo de la vista cada 15s).
+        setVigiaAlertas((prev) => (nuevas.length === 0 && prev.length === 0 ? prev : nuevas.slice(0, 3)));
       } catch {
         /* transitorio */
       }
     };
-    void consultar();
+    const debounce = setTimeout(() => { void consultar(); }, 500);
     const t = setInterval(consultar, VIGIA_POLL_MS);
     return () => {
       vivo = false;
+      clearTimeout(debounce);
       clearInterval(t);
     };
-  }, [cards, overrides]);
+  }, [vigiaPayload]);
 
   function vigiaDescartar(id: string) {
     vigiaVistos.current.add(id);
