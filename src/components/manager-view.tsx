@@ -3106,11 +3106,124 @@ type Tab =
 const GROUP_HEADER = "flex items-center gap-1 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0";
 const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] tracking-widest mr-2";
 
+// ── OBSERVABILIDAD → LATENCIA: ranking endpoint × latencia ────────────────────
+// Lee /api/manager/latencia (agregado endpoint × hora que flushea el
+// middleware del backend). Responde "¿qué vista está lenta hoy?" sin correr
+// diags a mano: ranking por tiempo total consumido + tendencia horaria.
+interface LatenciaResp {
+  ventana_horas: number;
+  endpoints: { endpoint: string; n: number; avg_ms: number; max_ms: number;
+               lentas: number; errores: number; pct_lentas: number }[];
+  serie: { hora: string; n: number; avg_ms: number; max_ms: number }[];
+  total_requests: number;
+}
+
+function LatenciaPanel() {
+  const [horas, setHoras] = useState<24 | 168 | 720>(24);
+  const [data, setData] = useState<LatenciaResp | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setErr(null);
+    fetch(`/api/manager/latencia?horas=${horas}`, { cache: "no-store" })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((d: LatenciaResp) => { if (alive) setData(d); })
+      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
+    return () => { alive = false; };
+  }, [horas]);
+
+  const maxAvgSerie = useMemo(
+    () => Math.max(1, ...(data?.serie ?? []).map((p) => p.avg_ms)),
+    [data],
+  );
+
+  // Semáforo del avg: <500ms ok · 500-1000 atención · >1s problema.
+  const colorAvg = (ms: number) =>
+    ms >= 1000 ? "var(--t-neg)" : ms >= 500 ? "#ff9900" : "var(--t-text)";
+
+  const VENTANAS = [[24, "24 h"], [168, "7 d"], [720, "30 d"]] as const;
+
+  return (
+    <div className="h-full overflow-auto p-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">
+          Latencia por endpoint {data ? `· ${data.total_requests.toLocaleString("es-AR")} requests` : ""}
+        </span>
+        <div className="flex rounded overflow-hidden border border-[var(--t-border-2)] ml-auto">
+          {VENTANAS.map(([h, label]) => (
+            <button key={h} type="button" onClick={() => setHoras(h)}
+              className={`text-[10px] font-semibold px-2.5 py-0.5 ${horas === h ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-muted)]"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {err && <p className="text-[11px] text-[var(--t-neg)]">No pude cargar la latencia ({err}).</p>}
+      {data && data.serie.length > 1 && (
+        <div className="flex items-end gap-[2px] h-10 mb-3" title="Latencia promedio por hora (toda la API)">
+          {data.serie.map((p) => (
+            <div key={p.hora} className="flex-1 min-w-[2px]"
+              title={`${new Date(p.hora).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit" })}h · avg ${p.avg_ms}ms · max ${p.max_ms}ms · ${p.n.toLocaleString("es-AR")} req`}
+              style={{
+                height: `${Math.max(6, Math.round((p.avg_ms / maxAvgSerie) * 100))}%`,
+                background: colorAvg(p.avg_ms) === "var(--t-text)" ? "var(--t-accent)" : colorAvg(p.avg_ms),
+                opacity: 0.85,
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {data && data.endpoints.length === 0 && !err && (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          Sin datos todavía — la telemetría acumula desde el deploy (flush cada ~60s).
+        </p>
+      )}
+      {data && data.endpoints.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th className="text-left">ENDPOINT</th>
+              <th className="text-right">REQ</th>
+              <th className="text-right">AVG MS</th>
+              <th className="text-right">MAX MS</th>
+              <th className="text-right">&gt;1s</th>
+              <th className="text-right">ERRORES</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.endpoints.map((e) => (
+              <tr key={e.endpoint}>
+                <td className="font-mono text-[var(--t-accent)]">{e.endpoint}</td>
+                <td className="text-right tabular-nums">{e.n.toLocaleString("es-AR")}</td>
+                <td className="text-right tabular-nums font-semibold" style={{ color: colorAvg(e.avg_ms) }}>
+                  {e.avg_ms.toLocaleString("es-AR")}
+                </td>
+                <td className="text-right tabular-nums text-[var(--t-text-dim)]">{e.max_ms.toLocaleString("es-AR")}</td>
+                <td className="text-right tabular-nums" style={{ color: e.pct_lentas >= 10 ? "var(--t-neg)" : e.lentas ? "#ff9900" : "var(--t-text-dim)" }}>
+                  {e.lentas ? `${e.lentas.toLocaleString("es-AR")} (${e.pct_lentas}%)` : "·"}
+                </td>
+                <td className="text-right tabular-nums" style={{ color: e.errores ? "var(--t-neg)" : "var(--t-text-dim)" }}>
+                  {e.errores ? e.errores.toLocaleString("es-AR") : "·"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="text-[10px] text-[var(--t-text-muted)] mt-2">
+        Ordenado por tiempo total consumido (req × avg) — lo que más &quot;factura&quot; latencia
+        arriba. &gt;1s = requests sobre el umbral de lentitud del backend.
+      </p>
+    </div>
+  );
+}
+
 // OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
 // (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
 // el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
 function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
-  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia" | "uso">(
+  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
     "manager.obs.sub", "controles");
   // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
   // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
@@ -3144,6 +3257,7 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
         <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
+        <Pill label="LATENCIA" active={sub === "latencia"} onClick={() => setSub("latencia")} />
         {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -3151,6 +3265,7 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         {sub === "diagnostico" && <DiagnosticoGroup />}
         {sub === "jobs"        && <JobsGroup />}
         {sub === "base"        && <DbBasePanel />}
+        {sub === "latencia"    && <LatenciaPanel />}
         {sub === "ia"          && <IaPanel />}
       </div>
     </div>
