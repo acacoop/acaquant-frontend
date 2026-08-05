@@ -6,10 +6,11 @@ import { AcreenciasView } from "./acreencias-view";
 import { TenenciaValorizadaView } from "./tenencia-valorizada-view";
 import { TitulosEnAlquilerView } from "./titulos-en-alquiler-view";
 import { TesoreriaView } from "./tesoreria-view";
+import { SenebisView } from "./senebis-view";
 
-// Tabs del Back Office. Tenencia Valorizada + Títulos en Alquiler + Tesorería +
-// Títulos / Mercado + Acreencias Clientes; cuando vengan nuevas se suman acá.
-type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "tesoreria";
+// Tabs del Back Office. Senebis + Tenencia Valorizada + Títulos en Alquiler +
+// Tesorería + Títulos / Mercado + Acreencias Clientes; nuevas se suman acá.
+type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "tesoreria" | "senebis";
 
 export function BackOfficeShell() {
   // Default = Tenencia Valorizada (primera en la barra). Persistido: la
@@ -20,6 +21,12 @@ export function BackOfficeShell() {
   return (
     <div className="h-full min-h-0 flex flex-col">
       <div className="border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex items-center gap-1 shrink-0">
+        <TabBtn
+          active={tab === "senebis"}
+          onClick={() => setTab("senebis")}
+        >
+          Senebis
+        </TabBtn>
         <TabBtn
           active={tab === "tenencia"}
           onClick={() => setTab("tenencia")}
@@ -53,6 +60,7 @@ export function BackOfficeShell() {
       </div>
 
       <div className="flex-1 min-h-0">
+        {tab === "senebis" && <SenebisView />}
         {tab === "tesoreria" && <TesoreriaView />}
         {tab === "titulos_mercado" && <TitulosMercadoView />}
         {tab === "acreencias" && <AcreenciasView />}
