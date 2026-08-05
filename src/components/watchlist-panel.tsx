@@ -135,12 +135,21 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
   const [filtro, setFiltro] = useState<string>("");
 
+  // Dedupe por payload crudo (patrón usePoll): identidad preservada si el
+  // payload no cambió → los memos de filas/grupos no recomputan por tick.
+  const lastQuotesRef = useRef("");
+  const lastFutRef = useRef("");
+  const lastArgyRef = useRef("");
   const fetchQuotes = useCallback(async () => {
     try {
       const res = await fetch("/api/market/quotes", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: Quote[] = await res.json();
-      setQuotes(Array.isArray(data) ? data : []);
+      const raw = await res.text();
+      if (raw !== lastQuotesRef.current) {
+        lastQuotesRef.current = raw;
+        const data: Quote[] = JSON.parse(raw);
+        setQuotes(Array.isArray(data) ? data : []);
+      }
       setLastFetch(new Date());
       setError(null);
     } catch (e) {
@@ -157,8 +166,14 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
         fetch("/api/futuros-dlr", { cache: "no-store" }),
         fetch("/api/argy", { cache: "no-store" }),
       ]);
-      if (fRes.ok) setFuturosDlr(await fRes.json());
-      if (aRes.ok) setArgy(await aRes.json());
+      if (fRes.ok) {
+        const raw = await fRes.text();
+        if (raw !== lastFutRef.current) { lastFutRef.current = raw; setFuturosDlr(JSON.parse(raw)); }
+      }
+      if (aRes.ok) {
+        const raw = await aRes.text();
+        if (raw !== lastArgyRef.current) { lastArgyRef.current = raw; setArgy(JSON.parse(raw)); }
+      }
     } catch {
       // best-effort, no rompemos la UI por estos
     }

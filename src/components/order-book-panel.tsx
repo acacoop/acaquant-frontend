@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 
 // DOM (order book / profundidad) de un CEDEAR — reusa el pipeline de OPERAR:
 // GET /api/operar/order-book resuelve el ticker, SUSCRIBE on-demand (202 mientras
@@ -35,10 +35,15 @@ export function OrderBookPanel({ ticker }: { ticker: string }) {
   const [plazo, setPlazo] = useState<"CI" | "24hs">("24hs");
   const [resp, setResp] = useState<BookResp | null>(null);
   const [subscribing, setSubscribing] = useState(false);
+  // Dedupe por payload crudo (patrón usePoll): con tick de 1s, si el book no
+  // cambió NO se re-setea el estado → la identidad de `resp` se preserva y
+  // los useMemo de bids/offers no recomputan (entre trades, casi siempre).
+  const lastRawRef = useRef("");
 
   useEffect(() => {
     if (!ticker) return;
     let alive = true;
+    lastRawRef.current = "";
     const tick = async () => {
       try {
         const r = await fetch(
@@ -51,8 +56,12 @@ export function OrderBookPanel({ ticker }: { ticker: string }) {
           return;
         }
         if (!r.ok) return;
-        const j = (await r.json()) as BookResp;
-        setResp(j);
+        const raw = await r.text();
+        if (!alive) return;
+        if (raw !== lastRawRef.current) {
+          lastRawRef.current = raw;
+          setResp(JSON.parse(raw) as BookResp);
+        }
         setSubscribing(false);
       } catch {
         /* transitorio */

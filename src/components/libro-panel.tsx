@@ -72,21 +72,30 @@ export function LibroPanel({ data }: { data: RentaFijaDoc[] }) {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  // Dedupe por payload crudo (patrón usePoll): si el tape no cambió, no se
+  // re-setea el estado (identidad preservada). loading solo en la 1ra carga
+  // del instrumento — antes cada tick de 5s hacía setLoading(true/false).
+  const lastRawRef = useRef("");
   useEffect(() => {
     if (!effectiveSelected) return;
     let cancelled = false;
+    lastRawRef.current = "";
 
     async function fetchTrades() {
       try {
-        setLoading(true);
+        if (!lastRawRef.current) setLoading(true);
         const res = await fetch(
           `/api/trades?instrumento=${encodeURIComponent(effectiveSelected!)}`,
           { cache: "no-store" }
         );
         if (!res.ok) return;
-        const json: Trade[] = await res.json();
+        const raw = await res.text();
         if (cancelled) return;
-        setTrades(Array.isArray(json) ? json : []);
+        if (raw !== lastRawRef.current) {
+          lastRawRef.current = raw;
+          const json: Trade[] = JSON.parse(raw);
+          setTrades(Array.isArray(json) ? json : []);
+        }
       } catch {
         // silent
       } finally {

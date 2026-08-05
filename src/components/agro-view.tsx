@@ -10,6 +10,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { DatePickerCompact } from "./date-picker";
 import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
+import { fetchShared } from "@/lib/fetch-shared";
 
 type Commodity = "SOJA" | "TRIGO" | "MAIZ";
 type ShareTab = Commodity | "TOTAL";
@@ -81,8 +82,7 @@ export function AgroView() {
   // Bounds del calendario + defaults (YTD del último año con datos).
   useEffect(() => {
     (async () => {
-      const r = await fetch("/api/operaciones/ops/fechas", { cache: "no-store" })
-        .then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      const r = await fetchShared<{ fechas: { fecha: string }[] }>("/api/operaciones/ops/fechas");
       const fechas: { fecha: string }[] = r?.fechas ?? [];
       if (!fechas.length) return;
       const max = fechas[0].fecha;

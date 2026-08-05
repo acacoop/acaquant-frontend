@@ -11,6 +11,7 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 import { getJSON } from "@/lib/fetch-json";
 import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
+import { fetchShared } from "@/lib/fetch-shared";
 
 type Moneda = "ARS" | "USD" | "USD_DOL";
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
@@ -152,7 +153,7 @@ export function OpsView() {
   const mostrarCuenta = (d: string) => setExcluidas((prev) => prev.filter((x) => x !== d));
 
   const cargarFechas = useCallback(async () => {
-    const f = await getJSON<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas");
+    const f = await fetchShared<{ fechas: FechaRow[] }>("/api/operaciones/ops/fechas");
     setFechas(f?.fechas ?? []);
   }, []);
   useEffect(() => { cargarFechas(); }, [cargarFechas]);
@@ -162,12 +163,12 @@ export function OpsView() {
   useEffect(() => {
     (async () => {
       const [s, n3, m, ca, c, ops] = await Promise.all([
-        getJSON<{ segmentos: string[] }>("/api/operaciones/ops/segmentos"),
+        fetchShared<{ segmentos: string[] }>("/api/operaciones/ops/segmentos"),
         getJSON<{ niveles3: string[] }>("/api/operaciones/ops/niveles3"),
         getJSON<{ mercados: string[] }>("/api/operaciones/ops/mercados"),
         getJSON<{ carteras: string[] }>("/api/operaciones/ops/carteras"),
         getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list"),
-        getJSON<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>("/api/operaciones/comercial/operadores"),
+        fetchShared<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>("/api/operaciones/comercial/operadores"),
       ]);
       setSegmentos(s?.segmentos ?? []);
       setNiveles3(n3?.niveles3 ?? []);

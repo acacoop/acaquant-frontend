@@ -11,6 +11,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
 import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
+import { fetchShared } from "@/lib/fetch-shared";
 
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 type Tipo = "Compra" | "Venta";
@@ -69,8 +70,7 @@ export function DolarFuturoView() {
 
   // Fechas con datos → seed RANGO = YTD del último año con operaciones.
   useEffect(() => {
-    fetch("/api/operaciones/ops/fechas", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
+    fetchShared<{ fechas: { fecha: string }[] }>("/api/operaciones/ops/fechas")
       .then((d) => {
         const f: { fecha: string }[] = d?.fechas ?? [];
         if (!f.length) return;

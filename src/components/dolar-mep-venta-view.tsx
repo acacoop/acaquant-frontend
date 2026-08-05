@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Cotizacion,
   CuentaDescubierta,
@@ -58,12 +58,19 @@ export function DolarMepVentaView({
   const [submitting, setSubmitting] = useState(false);
   const [detalleId, setDetalleId] = useState<string | null>(null);
 
+  // Dedupe por payload crudo (patrón usePoll): el poll de 3s solo re-setea
+  // el estado si las operativas del día CAMBIARON.
+  const lastOpsRef = useRef("");
   async function fetchOperativas() {
     try {
       const r = await fetch("/api/operativa/mep/dia", { cache: "no-store" });
       if (r.ok) {
-        const data = await r.json();
-        setOperativas(Array.isArray(data) ? data : []);
+        const raw = await r.text();
+        if (raw !== lastOpsRef.current) {
+          lastOpsRef.current = raw;
+          const data = JSON.parse(raw);
+          setOperativas(Array.isArray(data) ? data : []);
+        }
       }
     } catch {
       // ignore

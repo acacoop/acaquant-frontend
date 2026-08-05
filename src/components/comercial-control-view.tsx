@@ -5,6 +5,7 @@ import { fmtMoney } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 import { getJSON as getJson } from "@/lib/fetch-json";
 import { MESES_CORTOS as MESES } from "@/lib/fmt";
+import { fetchShared } from "@/lib/fetch-shared";
 
 // CONTROL COMERCIAL (jefatura) — 3 bloques (ver docs/img_1.png):
 //  1) Datos totales ALyC: períodos fijos (no usa Desde/Hasta).
@@ -347,7 +348,7 @@ function EditorObjetivos({ onSaved }: { onSaved: () => void }) {
   const [savingRow, setSavingRow] = useState<string | null>(null);
 
   useEffect(() => {
-    void getJson<Operador[]>("/api/operaciones/comercial/operadores").then((d) => setOperadores(d ?? []));
+    void fetchShared<Operador[]>("/api/operaciones/comercial/operadores").then((d) => setOperadores(d ?? []));
   }, []);
 
   const recargarObjetivos = useCallback(() => {

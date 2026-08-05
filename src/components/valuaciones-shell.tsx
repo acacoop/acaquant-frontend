@@ -55,15 +55,19 @@ export function ValuacionesShell() {
       .then((d: { cuentas: CuentaDoc[] }) => {
         const list = d.cuentas || [];
         setCuentas(list);
-        if (list.length && !valCuenta) {
-          const def = list.find((c) => c.id_cuenta === "100") || list[0];
-          setValCuenta(def.id_cuenta);
+        // Default via updater: no leer valCuenta del closure → la dep queda []
+        // (con [valCuenta] la lista COMPLETA se re-bajaba en cada cambio de
+        // cuenta — navegar 10 cuentas con ▶ eran 10 fetches redundantes).
+        if (list.length) {
+          setValCuenta((prev) =>
+            prev || (list.find((c) => c.id_cuenta === "100") || list[0]).id_cuenta);
         }
       })
       .catch(() => {
         /* sin lista — el selector queda vacío */
       });
-  }, [valCuenta]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const idx = cuentas.findIndex((c) => c.id_cuenta === valCuenta);
   const prev = idx > 0 ? cuentas[idx - 1].id_cuenta : null;
