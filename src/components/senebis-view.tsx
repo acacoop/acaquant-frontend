@@ -2,11 +2,14 @@
 
 // SENEBIS (Back Office → SENEBIS) — órdenes que cargan los TRADERS para que
 // el BACK OFFICE las procese en el sistema externo (Quantex) y las marque
-// COMPLETADA. Dos sub-tabs:
+// COMPLETADA. Tres sub-tabs:
 //   ÓRDENES      → carga/edición (form estilo Mesa de Dinero) + toggle estado.
 //   EXCEL QUANTEX→ espejo EN VIVO del archivo destino (las filas salen del
 //                  backend vía /excel con las MISMAS reglas que el .xlsx —
 //                  acá no se recalcula nada) + botón GENERAR EXCEL.
+//   EXCEL MAE    → espejo del archivo del MAE (solo pendientes es_mae) con
+//                  DESTINO resuelto en vivo por el backend (/excel-mae):
+//                  interno → contrapartes.codigo_mae · externo → cód. agente.
 // Presencia: el poll de la lista marca "estoy en la vista" y trae quiénes
 // más están (para no pisarse al completar). Derivados (monto, liquidación,
 // plazo, número de agente, denominación) los resuelve el backend.
@@ -65,6 +68,10 @@ type ExcelResp = {
   proximo_id: number;
 };
 type Comitente = { id_cuenta: string; denominacion: string | null };
+// Excel MAE: mismas filas que el archivo del MAE; sin_destino = la
+// contraparte/agente todavía no tiene código MAE cargado (celda vacía).
+type ExcelMaeFila = ExcelFila & { sin_destino: boolean };
+type ExcelMaeResp = { headers: string[]; filas: ExcelMaeFila[]; conectados: Conectado[] };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const INPUT =
@@ -630,7 +637,7 @@ function AgentesModal({ agentes, onCambio, onCerrar }: {
 
 // ── Vista principal ────────────────────────────────────────────────────────
 export function SenebisView() {
-  const [tab, setTab] = usePersistedState<"ordenes" | "quantex">("senebis.tab", "ordenes");
+  const [tab, setTab] = usePersistedState<"ordenes" | "quantex" | "mae">("senebis.tab", "ordenes");
   const [rango, setRango] = usePersistedState<"hoy" | "todo">("senebis.rango", "hoy");
   const [fEstado, setFEstado] = useState<"" | "pendiente" | "completada">("");
   // MAE: "" = todas (con MAE) · "sin" = excluir MAE · "solo" = solo MAE.
@@ -638,6 +645,7 @@ export function SenebisView() {
 
   const [data, setData] = useState<OpsResp | null>(null);
   const [excel, setExcel] = useState<ExcelResp | null>(null);
+  const [excelMae, setExcelMae] = useState<ExcelMaeResp | null>(null);
   const [opciones, setOpciones] = useState<Opciones | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -661,12 +669,14 @@ export function SenebisView() {
 
   const cargar = useCallback(async () => {
     // /ops marca presencia y trae conectados; /excel es el espejo del archivo.
-    const [o, x] = await Promise.all([
+    const [o, x, m] = await Promise.all([
       getJson<OpsResp>(`/api/back-office/senebis/ops${qs}`),
       getJson<ExcelResp>(`/api/back-office/senebis/excel${qsExcel}`),
+      getJson<ExcelMaeResp>(`/api/back-office/senebis/excel-mae${qsExcel}`),
     ]);
     if (o) { setData(o); setErr(null); } else { setErr("no se pudo actualizar la lista"); }
     if (x) setExcel(x);
+    if (m) setExcelMae(m);
   }, [qs, qsExcel]);
 
   const cargarOpciones = useCallback(async () => {
@@ -762,7 +772,9 @@ export function SenebisView() {
   };
 
   const generarExcel = async () => {
-    const r = await fetch(`/api/back-office/senebis/export${qsExcel}`);
+    // En la tab MAE el botón descarga el archivo del MAE; en el resto, Quantex.
+    const endpoint = tab === "mae" ? "export-mae" : "export";
+    const r = await fetch(`/api/back-office/senebis/${endpoint}${qsExcel}`);
     if (!r.ok) { setErr(`export falló (HTTP ${r.status})`); return; }
     const blob = await r.blob();
     const disp = r.headers.get("content-disposition") || "";
@@ -785,6 +797,7 @@ export function SenebisView() {
         <div className="flex gap-1">
           <SubTab active={tab === "ordenes"} onClick={() => setTab("ordenes")}>Órdenes</SubTab>
           <SubTab active={tab === "quantex"} onClick={() => setTab("quantex")}>Excel Quantex</SubTab>
+          <SubTab active={tab === "mae"} onClick={() => setTab("mae")}>Excel MAE</SubTab>
         </div>
 
         <div className="flex items-center gap-4 flex-wrap">
@@ -853,11 +866,13 @@ export function SenebisView() {
             ordenes={ordenes} busyId={busyId} puedeEscribir={puedeEscribir}
             onEstado={toggleEstado} onEditar={abrirEdicion} onVisto={marcarVisto}
           />
-        ) : (
+        ) : tab === "quantex" ? (
           <TablaQuantex
             excel={excel} ordenes={ordenes} busyId={busyId}
             onEditar={abrirEdicion} onReasignar={reasignarId}
           />
+        ) : (
+          <TablaMae excel={excelMae} ordenes={ordenes} onEditar={abrirEdicion} />
         )}
       </div>
 
@@ -1101,6 +1116,67 @@ function TablaQuantex({ excel, ordenes, busyId, onEditar, onReasignar }: {
           {!excel.filas.length && (
             <tr><td colSpan={excel.headers.length + 1} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
               Sin filas en el filtro actual — el Excel saldría vacío.
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Tab EXCEL MAE (espejo del archivo del MAE) ─────────────────────────────
+function TablaMae({ excel, ordenes, onEditar }: {
+  excel: ExcelMaeResp | null;
+  ordenes: Orden[];
+  onEditar: (o: Orden) => void;
+}) {
+  const porId = useMemo(() => new Map(ordenes.map((o) => [o.id, o])), [ordenes]);
+  const TH = "text-center text-[9px] uppercase px-3 py-1 whitespace-nowrap bg-[#1F4E79] text-white";
+  const TD = "px-3 py-1 text-[11px] whitespace-nowrap text-center border-b border-[var(--t-border-2)]";
+  if (!excel) return <div className="p-3 text-[11px] text-[var(--t-text-dim)]">Cargando…</div>;
+  return (
+    <div className="p-2">
+      <div className="text-[9px] text-[var(--t-text-muted)] uppercase mb-1">
+        Solo lo PENDIENTE marcado MAE. DESTINO sale solo: interno → cód. MAE de la
+        contraparte (Manager → CONTRAPARTES) · externo → cód. MAE del agente. Fila roja =
+        falta cargar ese código. Precio unitario (px ÷ 100) · Moneda ARS fija por ahora ·
+        Segmento se completa a mano en el archivo. “Generar Excel” descarga exactamente esto.
+      </div>
+      <table className="border-collapse">
+        <thead className="sticky top-0 z-10">
+          <tr>
+            {excel.headers.map((h) => <th key={h} className={TH}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {excel.filas.map((f) => {
+            const o = porId.get(f.id);
+            return (
+              <tr
+                key={f.id}
+                onClick={() => o && onEditar(o)}
+                title={f.sin_destino
+                  ? "SIN DESTINO: la contraparte/agente no tiene código MAE cargado — completarlo en Manager → CONTRAPARTES (interno) o en el catálogo de agentes (externo)"
+                  : "pendiente MAE — click para editar"}
+                className={`cursor-pointer hover:bg-[var(--t-surface)] ${
+                  f.sin_destino ? "bg-[rgba(255,80,80,0.14)]" : ""
+                }`}
+              >
+                {f.valores.map((v, i) => (
+                  <td key={i} className={`${TD} ${i === 6 && f.sin_destino ? "text-[var(--t-neg)] text-[9px] uppercase" : ""}`}>
+                    {v == null
+                      ? (i === 6 && f.sin_destino ? "falta cód." : "")
+                      : typeof v === "number"
+                        ? (i === 4 ? fmtNum(v, 4) : fmtNum(v, 0))
+                        : String(v)}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+          {!excel.filas.length && (
+            <tr><td colSpan={excel.headers.length} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
+              Sin órdenes MAE pendientes en el filtro actual — el Excel saldría vacío.
             </td></tr>
           )}
         </tbody>
