@@ -24,6 +24,7 @@ import { ManagerDebugTeaPanel } from "./manager-debug-tea";
 import { RecursosPanel } from "./recursos-panel";
 import { RolesPanel } from "./roles-panel";
 import { UsuariosPanel } from "./usuarios-panel";
+import { readSheetRows, readSheetTsv } from "@/lib/xlsx-read";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1909,11 +1910,7 @@ function TabClientesSegmentacion() {
   const onImportFile = async (file: File) => {
     setImportMsg(null);
     try {
-      const buf = await file.arrayBuffer();
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(buf, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      const json = await readSheetRows(file);
       if (!json.length) { setImportMsg({ ok: false, text: "El archivo está vacío." }); return; }
 
       const norm = (h: string) => h.trim().toLowerCase().replace(/[-\s]+/g, "_").replace(/\//g, "_");
@@ -2339,11 +2336,7 @@ function TabClientesFondeos() {
   const onImportFile = async (file: File) => {
     setImportMsg(null);
     try {
-      const buf = await file.arrayBuffer();
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(buf, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      const json = await readSheetRows(file);
       if (!json.length) { setImportMsg({ ok: false, text: "El archivo está vacío." }); return; }
 
       const norm = (h: string) => h.trim().toLowerCase().replace(/[-\s]+/g, "_").replace(/\//g, "_");
@@ -2562,11 +2555,7 @@ function TabControlAutomatico() {
   const onFile = async (file: File) => {
     setMsg(null); setData(null); setFileName(file.name);
     try {
-      const buf = await file.arrayBuffer();
-      const XLSX = await import("xlsx");
-      const wb = XLSX.read(buf, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      const json = await readSheetRows(file);
       if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
       const cols = Object.keys(json[0]);
       // El CUIT está en 'Nº ident.fis.1' (normalizado → contiene 'identfis1').
@@ -3943,13 +3932,7 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
     if (!file) return;
     setFileName(file.name);
     try {
-      const buf = await file.arrayBuffer();
-      const XLSX = await import("xlsx");
-      // cellDates + dateNF ISO: evita que SheetJS formatee una fecha como US
-      // (M/D/Y) — el parser lee DMY y "6/8" sería junio en vez de agosto.
-      const wb = XLSX.read(buf, { type: "array", cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const tsv = XLSX.utils.sheet_to_csv(ws, { FS: "\t", dateNF: "yyyy-mm-dd" });
+      const tsv = await readSheetTsv(file);
       setFlujosText(tsv);
       await parsearFlujos(tsv);
     } catch (err) { setParseMsg(err instanceof Error ? err.message : "no pude leer el archivo"); }
@@ -4935,29 +4918,8 @@ function OperacionesBackfillPanel() {
   const onFile = async (file: File) => {
     setMsg(null); setResult(null); setPreview(null); setPFechas(null); setRows([]); setHeaders([]); setFileName(file.name);
     try {
-      const buf = await file.arrayBuffer();
-      const XLSX = await import("xlsx");
-      // CSV: decodificar como UTF-8 explícito (si no, los acentos llegan rotos:
-      // "Concertación" → "ConcertaciÃ³n" y el mapeo de columnas falla). XLSX
-      // se lee binario.
-      const isCsv = /\.csv$/i.test(file.name);
-      const wb = isCsv
-        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string", cellDates: true })
-        : XLSX.read(buf, { type: "array", cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      const json = await readSheetRows(file, { cellDates: true, fechasLocalISO: true });
       if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
-      // Las celdas de fecha llegan como Date → las paso a YYYY-MM-DD con los
-      // getters LOCALES. Si las dejara serializar solas (toJSON = UTC) un
-      // 01/07 a medianoche se iría al 30/06.
-      for (const r of json) {
-        for (const k of Object.keys(r)) {
-          const v = r[k];
-          if (v instanceof Date && !isNaN(v.getTime())) {
-            r[k] = `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}`;
-          }
-        }
-      }
       setRows(json);
       setHeaders(Object.keys(json[0]).filter((h) => h.trim() !== ""));
     } catch (e) {
@@ -5492,14 +5454,7 @@ function AnuladosPanel() {
   const onFileAnul = async (file: File) => {
     setMsg(null); setLista(null); setBoletos([]); setFileName(file.name);
     try {
-      const buf = await file.arrayBuffer();
-      const XLSX = await import("xlsx");
-      const isCsv = /\.csv$/i.test(file.name);
-      const wb = isCsv
-        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
-        : XLSX.read(buf, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      const json = await readSheetRows(file);
       if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
       const normH = (h: string) =>
         h.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -5699,14 +5654,7 @@ function ImportTenenciaPanel() {
   const onFile = async (file: File) => {
     setMsg(null); setPrev(null); setRecalc(null); setRows([]); setFileName(file.name);
     try {
-      const buf = await file.arrayBuffer();
-      const XLSX = await import("xlsx");
-      const isCsv = /\.csv$/i.test(file.name);
-      const wb = isCsv
-        ? XLSX.read(new TextDecoder("utf-8").decode(buf), { type: "string" })
-        : XLSX.read(buf, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, unknown>[];
+      const json = await readSheetRows(file);
       if (!json.length) { setMsg({ ok: false, text: "El archivo está vacío." }); return; }
       // El backend mapea las columnas (acepta Unidad/Precio/Fecha/Cuenta/... con o sin
       // mayúscula) → mandamos las filas crudas y validamos contra la previsualización.

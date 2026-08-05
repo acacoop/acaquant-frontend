@@ -1,7 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Send, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+// Íconos inline (paths de lucide, MIT) — eran los únicos 5 usos de la dep
+// lucide-react en todo el repo; inline evita mantener la dependencia.
+type IconProps = { size?: number; className?: string };
+const _icon = ({ size = 24, className }: IconProps) => ({
+  width: size, height: size, className,
+  viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+  strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
+});
+const ArrowRight = (p: IconProps) => (
+  <svg {..._icon(p)}><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
+);
+const Send = (p: IconProps) => (
+  <svg {..._icon(p)}><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><path d="m21.854 2.147-10.94 10.939" /></svg>
+);
+const Sparkles = (p: IconProps) => (
+  <svg {..._icon(p)}><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" /><path d="M20 3v4" /><path d="M22 5h-4" /><path d="M4 17v2" /><path d="M5 18H3" /></svg>
+);
+const ThumbsUp = (p: IconProps) => (
+  <svg {..._icon(p)}><path d="M7 10v12" /><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" /></svg>
+);
+const ThumbsDown = (p: IconProps) => (
+  <svg {..._icon(p)}><path d="M17 14V2" /><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" /></svg>
+);
 
 import { aplicarEstado } from "@/lib/aplicar-estado";
 
