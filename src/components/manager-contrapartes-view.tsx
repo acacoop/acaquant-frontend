@@ -14,8 +14,8 @@ type Contraparte = {
   denominacion: string | null;
   contraparte: string | null;
   segmento: string | null;
-  // Código DESTINO del MAE (FXXX fondo / C+CUIT / SXXX aseguradora) — lo
-  // consume el futuro Excel MAE de SENEBIS resolviendo por la cc de la orden.
+  // Nº DESTINO del MAE — SOLO el número: la letra la agrega el sistema al
+  // armar el Excel MAE de SENEBIS (interno → F), resolviendo por la cc.
   codigo_mae: string | null;
 };
 type Candidate = {
@@ -190,7 +190,7 @@ export function TabContrapartes() {
                 <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Denominación</th>
                 <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Contraparte</th>
                 <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Segmento</th>
-                <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]" title="código DESTINO del Excel MAE: FXXX fondo · C+CUIT comitente · SXXX aseguradora">Cód. MAE</th>
+                <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]" title="Nº DESTINO del Excel MAE — cargá SOLO el número (ej. 062): la letra la pone el sistema según la orden (interno → F de fondo)">Nº MAE</th>
                 <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]"></th>
               </tr>
             </thead>
@@ -211,7 +211,7 @@ export function TabContrapartes() {
                       <input list="cp-segmentos" value={d.segmento} onChange={(e) => setField(c.cuenta, "segmento", e.target.value)} className={INPUT + " w-[120px]"} />
                     </td>
                     <td className="px-3 py-1">
-                      <input value={d.codigo_mae ?? ""} placeholder="F062"
+                      <input value={d.codigo_mae ?? ""} placeholder="062"
                         onChange={(e) => setField(c.cuenta, "codigo_mae", e.target.value.toUpperCase())}
                         className={INPUT + " w-[90px] uppercase"} />
                     </td>

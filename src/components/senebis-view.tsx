@@ -591,16 +591,17 @@ function AgentesModal({ agentes, onCambio, onCerrar }: {
           <button onClick={onCerrar} className="text-[var(--t-text-dim)] hover:text-[var(--t-text)] text-[12px]">✕</button>
         </div>
         <span className="text-[9px] text-[var(--t-text-muted)]">
-          Nombre (lo elige el trader) → Nº (CONTRAPARTE del Excel Quantex) · CÓD. MAE
-          (AAAOO, DESTINO del futuro Excel MAE — opcional, se completa de a poco).
+          Nombre (lo elige el trader) → Nº (CONTRAPARTE del Excel Quantex) · Nº MAE
+          (solo el número — la letra A la pone el sistema en el DESTINO del Excel MAE;
+          opcional, se completa de a poco).
         </span>
         <div className="flex gap-2">
           <input className={`${INPUT} flex-1 uppercase`} placeholder="COCOS"
             value={nombre} onChange={(e) => setNombre(e.target.value.toUpperCase())} />
           <input className={`${INPUT} w-20 text-right`} placeholder="733"
             value={numero} onChange={(e) => setNumero(e.target.value)} />
-          <input className={`${INPUT} w-24 uppercase`} placeholder="CÓD. MAE"
-            title="código MAE del agente (AAAOO) — vacío no pisa el ya cargado"
+          <input className={`${INPUT} w-24 uppercase`} placeholder="Nº MAE"
+            title="Nº MAE del agente (solo el número — la A la pone el sistema) · vacío no pisa el ya cargado"
             value={codigoMae} onChange={(e) => setCodigoMae(e.target.value.toUpperCase())} />
           <button
             onClick={agregar}
@@ -619,9 +620,9 @@ function AgentesModal({ agentes, onCambio, onCerrar }: {
                 <span className="text-[var(--t-accent)]">{a.numero}</span>
                 <span
                   className={a.codigo_mae ? "text-[#7fc491]" : "text-[var(--t-text-dim)]"}
-                  title="código MAE (DESTINO del Excel MAE)"
+                  title="Nº MAE (el DESTINO sale A + número)"
                 >
-                  {a.codigo_mae ?? "sin cód. MAE"}
+                  {a.codigo_mae ?? "sin nº MAE"}
                 </span>
                 <button onClick={() => borrar(a.nombre)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)] text-[10px]">✕</button>
               </span>
