@@ -47,7 +47,12 @@ type Opciones = {
   puede_escribir: boolean;
 };
 type ExcelFila = { id: number; estado: string; valores: (string | number | null)[] };
-type ExcelResp = { headers: string[]; filas: ExcelFila[]; conectados: Conectado[] };
+type ExcelResp = {
+  headers: string[]; filas: ExcelFila[]; conectados: Conectado[];
+  // Próximo ID de la secuencia — mientras conviva el Excel viejo hay que
+  // alinearlo a mano (último ID de allá + 1) antes de arrancar a cargar.
+  proximo_id: number;
+};
 type Comitente = { id_cuenta: string; denominacion: string | null };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -582,6 +587,32 @@ export function SenebisView() {
     setEditando(o); setShowForm(true);
   };
 
+  const ajustarProximoId = async () => {
+    const actual = excel?.proximo_id;
+    const v = window.prompt(
+      "PRÓXIMO ID que va a asignar la app.\n" +
+      "Mientras se use el Excel viejo: mirar el último ID de allá y poner ese + 1.",
+      actual != null ? String(actual) : "");
+    if (!v) return;
+    const n = Number(v.trim());
+    if (!Number.isInteger(n) || n <= 0) { setErr("el próximo ID tiene que ser un entero positivo"); return; }
+    const r = await fetch("/api/back-office/senebis/proximo-id", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siguiente: n }),
+    });
+    if (!r.ok) {
+      let msg = `HTTP ${r.status}`;
+      try {
+        const j = (await r.json()) as { detail?: string };
+        if (typeof j?.detail === "string") msg = j.detail;
+      } catch { /* body no era JSON */ }
+      setErr(msg);
+      return;
+    }
+    setErr(null);
+    cargar();
+  };
+
   const generarExcel = async () => {
     const r = await fetch(`/api/back-office/senebis/export${qs}`);
     if (!r.ok) { setErr(`export falló (HTTP ${r.status})`); return; }
@@ -622,6 +653,19 @@ export function SenebisView() {
 
         <div className="ml-auto flex items-center gap-3">
           {err && <span className="text-[9px] text-[var(--t-neg)]">{err}</span>}
+          {excel && (
+            <button
+              onClick={puedeEscribir ? ajustarProximoId : undefined}
+              title={puedeEscribir
+                ? "El próximo ID que asigna la app. Mientras se use el Excel viejo, alinearlo acá: último ID de allá + 1. Click para ajustar."
+                : "El próximo ID que asigna la app (lo alinea un escritor de la mesa)."}
+              className={`text-[9px] uppercase px-1.5 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text)] ${
+                puedeEscribir ? "hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]" : "cursor-default"
+              }`}
+            >
+              Próximo ID: <span className="text-[var(--t-accent)]">{excel.proximo_id}</span>
+            </button>
+          )}
           <Presencia conectados={conectados} />
           <button
             onClick={() => setShowAgentes(true)}
