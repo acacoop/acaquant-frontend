@@ -24,6 +24,7 @@ import {
 } from "recharts";
 import { fetchJson as getJson } from "@/lib/fetch-json";
 import { fmtDiaMes as fmtFechaCorta } from "@/lib/fmt";
+import { NumeroInput } from "./numero-input";
 
 // ── Types (contrato /api/mesa-dinero) ─────────────────────────────────────
 type Op = {
@@ -149,13 +150,13 @@ function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
   const [f, setF] = useState<FormState>(editando ? opAForm(editando) : FORM_VACIO);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>)  =>
     setF((prev) => ({ ...prev, [k]: e.target.value }));
-  // Inputs numéricos: acepta coma o punto decimal, guarda crudo normalizado.
-  const setNum = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = normalizarNumeroInput(e.target.value);
+  // Números: NumeroInput muestra separadores de miles EN VIVO (crucial con
+  // montos grandes) y coma/punto tipeados son ambos el decimal. Entrega el
+  // crudo "123,45" — el mismo formato que ya parsea num().
+  const setNum = (k: keyof FormState) => (raw: string) =>
     setF((prev) => ({ ...prev, [k]: raw }));
-  };
 
   // Preview de derivados (informativo — la fuente de verdad es el backend).
   const num = (s: string) => {
@@ -219,13 +220,13 @@ function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
           </datalist>
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">VN OPERACIÓN
-          <input value={f.vn} onChange={setNum("vn")} inputMode="decimal" className={INPUT} />
+          <NumeroInput value={f.vn} onChange={setNum("vn")} className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">PX COMPRA
-          <input value={f.px_compra} onChange={setNum("px_compra")} inputMode="decimal" className={INPUT} />
+          <NumeroInput value={f.px_compra} onChange={setNum("px_compra")} className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">PX VENTA
-          <input value={f.px_venta} onChange={setNum("px_venta")} inputMode="decimal" className={INPUT} />
+          <NumeroInput value={f.px_venta} onChange={setNum("px_venta")} className={INPUT} />
         </label>
         <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">OBSERVACIÓN
           <select value={f.observacion} onChange={set("observacion")} className={INPUT}>
@@ -235,7 +236,7 @@ function OpForm({ opciones, editando, onGuardado, onCancelar, onBorrar }: {
         </label>
         {sinPatas && (
           <label className="flex flex-col gap-0.5 text-[9px] text-[var(--t-text-muted)]">RESULTADO (sin patas)
-            <input value={f.resultado} onChange={setNum("resultado")} inputMode="decimal"
+            <NumeroInput value={f.resultado} onChange={setNum("resultado")}
               placeholder="ej. Pase OPS" className={INPUT} />
           </label>
         )}
@@ -285,16 +286,12 @@ function TcCell({ dia, editable, onSet }: { dia: Dia; editable: boolean; onSet: 
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <input autoFocus value={v} inputMode="decimal"
-        onChange={(e) => {
-          setV(normalizarNumeroInput(e.target.value));
-        }}
+      <NumeroInput autoFocus value={v} onChange={setV}
         className={`${INPUT} w-20 text-right`}
         onKeyDown={async (e) => {
           if (e.key === "Escape") setEditando(false);
           if (e.key === "Enter") {
-            const raw = normalizarNumeroInput(v);
-            const n = Number(raw.replace(",", "."));
+            const n = Number(v.replace(",", "."));
             if (!Number.isFinite(n) || n <= 0) return;
             setBusy(true);
             try { await onSet(dia.fecha, n); setEditando(false); } finally { setBusy(false); }

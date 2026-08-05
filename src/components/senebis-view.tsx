@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { fetchJson, getJSON as getJson } from "@/lib/fetch-json";
+import { NumeroInput } from "./numero-input";
 
 // ── Types (contrato /api/back-office/senebis) ──────────────────────────────
 type Orden = {
@@ -161,8 +162,9 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
   const set = (k: keyof FormState) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const setNum = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setF((p) => ({ ...p, [k]: normalizarNumeroInput(e.target.value) }));
+  // Números: NumeroInput muestra miles en vivo y entrega el crudo "123,45".
+  const setNum = (k: keyof FormState) => (raw: string) =>
+    setF((p) => ({ ...p, [k]: raw }));
 
   const buscarCC = (q: string, actualizarForm = true) => {
     if (actualizarForm) setF((p) => ({ ...p, cc: q }));
@@ -266,10 +268,10 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
             />
           </Campo>
           <Campo label="VN">
-            <input className={`${INPUT} text-right`} inputMode="decimal" value={f.vn} onChange={setNum("vn")} />
+            <NumeroInput className={`${INPUT} text-right`} value={f.vn} onChange={setNum("vn")} />
           </Campo>
           <Campo label="PX (cada 100 VN)">
-            <input className={`${INPUT} text-right`} inputMode="decimal" value={f.px} onChange={setNum("px")} />
+            <NumeroInput className={`${INPUT} text-right`} value={f.px} onChange={setNum("px")} />
           </Campo>
         </div>
 
