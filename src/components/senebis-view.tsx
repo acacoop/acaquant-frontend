@@ -189,6 +189,9 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
     useState<"cerrado" | "buscando" | "ok" | "error">("cerrado");
   const [sugErr, setSugErr] = useState<string>("");
   const sugTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Agente externo: se escribe para filtrar, pero el valor tiene que salir del
+  // catálogo (el backend rechaza cualquier nombre que no esté cargado).
+  const [agenteAbierto, setAgenteAbierto] = useState(false);
 
   const set = (k: keyof FormState) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
@@ -261,6 +264,11 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
   };
 
   const agentes = opciones?.agentes ?? [];
+  const agenteQ = f.agente.trim().toUpperCase();
+  const agentesFiltrados = agenteQ
+    ? agentes.filter((a) => `${a.nombre} ${a.numero}`.toUpperCase().includes(agenteQ))
+    : agentes;
+  const agenteValido = agentes.some((a) => a.nombre.toUpperCase() === agenteQ);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
@@ -349,16 +357,54 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
           </div>
 
           {f.tipo_contraparte === "externo" ? (
-            <Campo label="AGENTE" hint="el número del catálogo va al Excel">
-              <select className={INPUT} value={f.agente} onChange={set("agente")}>
-                <option value="">— elegir —</option>
-                {agentes.map((a) => (
-                  <option key={a.nombre} value={a.nombre}>{a.nombre} · {a.numero}</option>
-                ))}
-              </select>
-              {!agentes.length && (
+            <Campo label="AGENTE" hint="escribí para filtrar · el número del catálogo va al Excel">
+              <div className="relative">
+                <input
+                  className={`${INPUT} w-full uppercase ${
+                    agenteQ && !agenteValido ? "border-[var(--t-neg)]" : ""
+                  }`}
+                  placeholder="escribí el agente…"
+                  value={f.agente}
+                  onChange={(e) => {
+                    setF((p) => ({ ...p, agente: e.target.value.toUpperCase() }));
+                    setAgenteAbierto(true);
+                  }}
+                  onFocus={() => setAgenteAbierto(true)}
+                  onBlur={() => setTimeout(() => setAgenteAbierto(false), 200)}
+                />
+                {agenteAbierto && (
+                  <div className="absolute z-20 top-full left-0 right-0 max-h-40 overflow-y-auto border border-[var(--t-accent)] bg-[var(--t-panel)] shadow-lg">
+                    {!agentes.length && (
+                      <div className="px-2 py-1 text-[10px] text-[var(--t-neg)]">
+                        catálogo vacío — cargarlo desde el botón AGENTES de la vista
+                      </div>
+                    )}
+                    {!!agentes.length && !agentesFiltrados.length && (
+                      <div className="px-2 py-1 text-[10px] text-[var(--t-neg)]">
+                        ningún agente coincide — tiene que estar en el catálogo
+                      </div>
+                    )}
+                    {agentesFiltrados.map((a) => (
+                      <button
+                        key={a.nombre}
+                        type="button"
+                        className="block w-full text-left px-2 py-1 text-[10px] text-[var(--t-text)] hover:bg-[var(--t-surface)]"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setF((p) => ({ ...p, agente: a.nombre }));
+                          setAgenteAbierto(false);
+                        }}
+                      >
+                        <span className="text-[var(--t-accent)]">{a.nombre}</span>
+                        <span className="text-[var(--t-text-dim)]"> · {a.numero}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {agenteQ && !agenteValido && (
                 <span className="text-[9px] text-[var(--t-neg)]">
-                  catálogo vacío — cargarlo desde el botón AGENTES de la vista
+                  elegilo del desplegable — el nombre tiene que existir en el catálogo
                 </span>
               )}
             </Campo>
