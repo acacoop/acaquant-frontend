@@ -419,28 +419,12 @@ interface PivotDebugResp {
 }
 
 function TabValidaciones() {
-  // Curvas pendientes
-  const [cpLoading, setCpLoading] = useState(false);
-  const [cpData, setCpData] = useState<{ total: number; ok: boolean; tickers: { ticker: string; pendientes: number }[] } | null>(null);
-
-  // Forwards
-  const [fwdLoading, setFwdLoading] = useState(false);
-  const [fwdData, setFwdData] = useState<{ curva: string; tickers: { ticker: string; vto: string; tea: number | null; duration: number | null; ultimo: string | null; ok: boolean }[]; live_ok: boolean }[] | null>(null);
-
-  // CER
-  const [cerLoading, setCerLoading] = useState(false);
-  const [cerData, setCerData] = useState<{ cer_reciente: string | null; dias_habiles: number; instrumentos: { ticker: string; ultimo_trade?: string; settlement?: string; cer_fecha?: string; cer_valor?: number; cer_emision?: number; ratio?: number; paridad?: number; ok: boolean }[] } | null>(null);
-
   // Tasa Fija
   const [tfLoading, setTfLoading] = useState(false);
   const [tfData, setTfData] = useState<{ snapshot: string | null; ok: number; sin_posicion: number; sin_assets: number; instrumentos: { ticker: string; estado: string }[] } | null>(null);
 
-  // Debug Forward
+  // Tickers de curvas (para los selects de Debug Soberano)
   const [tickers, setTickers] = useState<string[]>([]);
-  const [tcA, setTcA] = useState("");
-  const [tcB, setTcB] = useState("");
-  const [dbfLoading, setDbfLoading] = useState(false);
-  const [dbfData, setDbfData] = useState<{ tc_a: string; tc_b: string; tea_a: number | null; duration_a: number | null; ts_a: string | null; tea_b: number | null; duration_b: number | null; ts_b: string | null; forward: number | null; error: string | null; pasos: { paso: string; valor: string }[] } | null>(null);
 
   // Debug Breakevens (por fila, compara Buscar Objetivo vs Fisher)
   const [bkvDebugLoading, setBkvDebugLoading] = useState(false);
@@ -525,8 +509,6 @@ function TabValidaciones() {
   useEffect(() => {
     fetch("/api/manager/checks/tickers-curvas").then(r => r.json()).then((d: string[]) => {
       setTickers(d);
-      if (d.length > 0) setTcA(d[0]);
-      if (d.length > 1) setTcB(d[1]);
     }).catch(console.error);
   }, []);
 
@@ -558,20 +540,11 @@ function TabValidaciones() {
     }
   };
 
-  const runCp  = () => { setCpLoading(true);  fetch("/api/manager/checks/curvas-pendientes").then(r => r.json()).then(setCpData).finally(() => setCpLoading(false)); };
-  const runFwd = () => { setFwdLoading(true); fetch("/api/manager/checks/forwards").then(r => r.json()).then(setFwdData).finally(() => setFwdLoading(false)); };
-  const runCer = () => { setCerLoading(true); fetch("/api/manager/checks/cer").then(r => r.json()).then(setCerData).finally(() => setCerLoading(false)); };
   const runTf  = () => { setTfLoading(true);  fetch("/api/manager/checks/tasa-fija").then(r => r.json()).then(setTfData).finally(() => setTfLoading(false)); };
   const runBkvDebug = () => {
     setBkvDebugLoading(true);
     fetch("/api/manager/checks/breakevens-debug")
       .then(r => r.json()).then(setBkvDebugData).finally(() => setBkvDebugLoading(false));
-  };
-  const runDbf = () => {
-    if (!tcA || !tcB || tcA === tcB) return;
-    setDbfLoading(true);
-    fetch(`/api/manager/checks/debug-forward?tc_a=${tcA}&tc_b=${tcB}`)
-      .then(r => r.json()).then(setDbfData).finally(() => setDbfLoading(false));
   };
   const runTna = () => {
     setTnaLoading(true);
@@ -652,72 +625,6 @@ function TabValidaciones() {
                 ))}</tbody>
               </table>
             )}
-          </>
-        )}
-      </CheckPanel>
-
-      <CheckPanel title="Curvas Pendientes — docs sin duration en TimeSales">
-        <RunBtn onClick={runCp} loading={cpLoading} />
-        {cpData && (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <StatusBadge ok={cpData.ok} label={cpData.ok ? "Sin pendientes" : `${cpData.total.toLocaleString()} pendientes`} />
-            </div>
-            {!cpData.ok && (
-              <table><thead><tr><th>TICKER</th><th className="text-right">PENDIENTES</th></tr></thead>
-                <tbody>{cpData.tickers.map(t => (
-                  <tr key={t.ticker}><td className="text-[var(--t-accent)]">{t.ticker}</td><td className="text-right font-mono">{t.pendientes.toLocaleString()}</td></tr>
-                ))}</tbody>
-              </table>
-            )}
-          </>
-        )}
-      </CheckPanel>
-
-      <CheckPanel title="Check Forwards — TEA disponible por instrumento">
-        <RunBtn onClick={runFwd} loading={fwdLoading} />
-        {fwdData && fwdData.map(curva => (
-          <div key={curva.curva} className="mb-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[11px] font-semibold text-[var(--t-text)]">{curva.curva.toUpperCase()}</span>
-              <StatusBadge ok={curva.live_ok} label={curva.live_ok ? "ForwardsLive OK" : "ForwardsLive difiere"} />
-            </div>
-            <table><thead><tr><th>TICKER</th><th>VTO.</th><th className="text-right">TEA</th><th className="text-right">DURATION</th><th>ÚLTIMO</th><th>ESTADO</th></tr></thead>
-              <tbody>{curva.tickers.map(t => (
-                <tr key={t.ticker}>
-                  <td className="text-[var(--t-accent)]">{t.ticker}</td>
-                  <td className="text-[var(--t-text-dim)]">{t.vto}</td>
-                  <td className="text-right font-mono">{t.tea != null ? `${t.tea.toFixed(2)}%` : "—"}</td>
-                  <td className="text-right font-mono">{t.duration != null ? t.duration.toFixed(3) : "—"}</td>
-                  <td className="text-[var(--t-text-dim)]">{t.ultimo ?? "—"}</td>
-                  <td><StatusBadge ok={t.ok} label={t.ok ? "✅" : "❌"} /></td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        ))}
-      </CheckPanel>
-
-      <CheckPanel title="Check CER — CER usado en último trade enriquecido">
-        <RunBtn onClick={runCer} loading={cerLoading} />
-        {cerData && (
-          <>
-            <div className="text-[10px] text-[var(--t-text-muted)] mb-2">
-              CER más reciente: {cerData.cer_reciente ?? "—"} · Días hábiles: {cerData.dias_habiles}
-            </div>
-            <table><thead><tr><th>TICKER</th><th>ÚLTIMO TRADE</th><th>SETTLEMENT</th><th>CER FECHA</th><th className="text-right">CER VALOR</th><th className="text-right">RATIO</th><th className="text-right">PARIDAD</th></tr></thead>
-              <tbody>{cerData.instrumentos.map(r => (
-                <tr key={r.ticker}>
-                  <td className="text-[var(--t-accent)]">{r.ticker}</td>
-                  <td className="text-[var(--t-text-dim)] font-mono">{r.ultimo_trade ?? "—"}</td>
-                  <td className="text-[var(--t-text-dim)]">{r.settlement ?? "—"}</td>
-                  <td className="text-[var(--t-text-dim)]">{r.cer_fecha ?? "—"}</td>
-                  <td className="text-right font-mono">{r.cer_valor?.toFixed(6) ?? "—"}</td>
-                  <td className="text-right font-mono">{r.ratio?.toFixed(6) ?? "—"}</td>
-                  <td className="text-right font-mono">{r.paridad?.toFixed(2) ?? "—"}</td>
-                </tr>
-              ))}</tbody>
-            </table>
           </>
         )}
       </CheckPanel>
@@ -877,55 +784,6 @@ function TabValidaciones() {
                 </tr>
               ))}</tbody>
             </table>
-          </>
-        )}
-      </CheckPanel>
-
-      <CheckPanel title="Debug Forward — cálculo paso a paso entre dos instrumentos">
-        <div className="flex items-center gap-2 mb-2">
-          <select value={tcA} onChange={e => setTcA(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-accent)] text-[10px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none">
-            {tickers.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <span className="text-[var(--t-text-muted)] text-[10px]">→</span>
-          <select value={tcB} onChange={e => setTcB(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[var(--t-accent)] text-[10px] px-2 py-1 font-mono focus:border-[var(--t-accent)] outline-none">
-            {tickers.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <button onClick={runDbf} disabled={dbfLoading || tcA === tcB}
-            className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
-            {dbfLoading ? "Calculando…" : "Calcular"}
-          </button>
-        </div>
-        {dbfData && (
-          <>
-            {dbfData.error ? (
-              <p className="text-[var(--t-neg)] text-[10px]">{dbfData.error}</p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3 mb-2">
-                  {[{ tc: dbfData.tc_a, tea: dbfData.tea_a, dur: dbfData.duration_a, ts: dbfData.ts_a },
-                    { tc: dbfData.tc_b, tea: dbfData.tea_b, dur: dbfData.duration_b, ts: dbfData.ts_b }].map(x => (
-                    <div key={x.tc} className="border border-[var(--t-border)] p-2">
-                      <div className="text-[11px] font-semibold text-[var(--t-accent)]">{x.tc}</div>
-                      <div className="text-[10px] font-mono text-[var(--t-text)]">TEA: {x.tea != null ? `${(x.tea * 100).toFixed(4)}%` : "—"}</div>
-                      <div className="text-[10px] font-mono text-[var(--t-text-dim)]">Duration: {x.dur?.toFixed(6) ?? "—"}</div>
-                      <div className="text-[9px] text-[var(--t-text-muted)]">{x.ts ?? ""}</div>
-                    </div>
-                  ))}
-                </div>
-                {dbfData.forward != null && (
-                  <div className="text-[14px] font-semibold text-[var(--t-pos)] font-mono mb-2">
-                    Forward {dbfData.tc_a} → {dbfData.tc_b}: {dbfData.forward.toFixed(4)}%
-                  </div>
-                )}
-                <table><thead><tr><th>PASO</th><th className="text-right">VALOR</th></tr></thead>
-                  <tbody>{dbfData.pasos.map((p, i) => (
-                    <tr key={i}><td className="text-[var(--t-text-dim)]">{p.paso}</td><td className="text-right font-mono">{p.valor}</td></tr>
-                  ))}</tbody>
-                </table>
-              </>
-            )}
           </>
         )}
       </CheckPanel>
@@ -3232,7 +3090,6 @@ type Tab =
   | "clientes"
   | "contrapartes"
   | "aca-valores"
-  | "compliance"
   | "aunesa"
   | "operaciones"
   | "mesa"
@@ -3252,112 +3109,6 @@ const GROUP_TITLE = "text-[9px] font-semibold text-[var(--t-text-muted)] trackin
 // OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
 // (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
 // el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
-// ── OBSERVABILIDAD → USO: heatmap usuario × módulo (manager.uso_modulos) ─────
-// Telemetría de producto: qué usuario pasa tiempo en qué módulo. Tabla con
-// celdas coloreadas por intensidad (sin librería de charts), rango 7/30 días.
-interface UsoResp {
-  dias: number;
-  usuarios: string[];
-  modulos: string[];
-  celdas: Record<string, Record<string, number>>;
-  totales_modulo: Record<string, number>;
-  totales_usuario: Record<string, number>;
-  total: number;
-}
-
-function UsoPanel() {
-  const [dias, setDias] = useState<7 | 30>(7);
-  const [data, setData] = useState<UsoResp | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    setErr(null);
-    fetch(`/api/manager/uso?dias=${dias}`, { cache: "no-store" })
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((d: UsoResp) => { if (alive) setData(d); })
-      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
-    return () => { alive = false; };
-  }, [dias]);
-
-  const maxCelda = useMemo(() => {
-    if (!data) return 1;
-    let m = 1;
-    for (const u of data.usuarios) {
-      for (const mod of data.modulos) m = Math.max(m, data.celdas[u]?.[mod] ?? 0);
-    }
-    return m;
-  }, [data]);
-
-  // intensidad por celda: alpha ~ sqrt(hits/max) — el sqrt evita que un power
-  // user aplaste el color del resto
-  const celda = (hits: number) =>
-    hits === 0 ? undefined : { background: `rgba(47,127,224,${0.08 + 0.5 * Math.sqrt(hits / maxCelda)})` };
-
-  return (
-    <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">
-          Uso por módulo {data ? `· ${data.total.toLocaleString("es-AR")} requests` : ""}
-        </span>
-        <div className="flex rounded overflow-hidden border border-[var(--t-border-2)] ml-auto">
-          {([7, 30] as const).map((d) => (
-            <button key={d} type="button" onClick={() => setDias(d)}
-              className={`text-[10px] font-semibold px-2.5 py-0.5 ${dias === d ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-muted)]"}`}>
-              {d} días
-            </button>
-          ))}
-        </div>
-      </div>
-      {err && <p className="text-[11px] text-[var(--t-neg)]">No pude cargar el uso ({err}).</p>}
-      {data && data.usuarios.length === 0 && !err && (
-        <p className="text-[11px] text-[var(--t-text-muted)]">
-          Sin datos todavía — la telemetría acumula desde el deploy (flush cada ~60s).
-        </p>
-      )}
-      {data && data.usuarios.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th className="text-left">USUARIO</th>
-              {data.modulos.map((m) => <th key={m} className="text-right">{m.toUpperCase()}</th>)}
-              <th className="text-right">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.usuarios.map((u) => (
-              <tr key={u}>
-                <td className="text-[var(--t-accent)]">{u.split("@")[0]}</td>
-                {data.modulos.map((m) => {
-                  const hits = data.celdas[u]?.[m] ?? 0;
-                  return (
-                    <td key={m} className="text-right tabular-nums" style={celda(hits)}>
-                      {hits ? hits.toLocaleString("es-AR") : "·"}
-                    </td>
-                  );
-                })}
-                <td className="text-right font-bold">{(data.totales_usuario[u] ?? 0).toLocaleString("es-AR")}</td>
-              </tr>
-            ))}
-            <tr className="border-t border-[var(--t-border-2)]">
-              <td className="text-[10px] uppercase text-[var(--t-text-muted)]">total módulo</td>
-              {data.modulos.map((m) => (
-                <td key={m} className="text-right font-bold tabular-nums">
-                  {(data.totales_modulo[m] ?? 0).toLocaleString("es-AR")}
-                </td>
-              ))}
-              <td className="text-right font-bold">{data.total.toLocaleString("es-AR")}</td>
-            </tr>
-          </tbody>
-        </table>
-      )}
-      <p className="text-[10px] text-[var(--t-text-muted)] mt-2">
-        Requests autenticados agregados por hora (no incluye invitados ni servicios).
-      </p>
-    </div>
-  );
-}
-
 function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
   const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia" | "uso">(
     "manager.obs.sub", "controles");
@@ -3365,7 +3116,9 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
   // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
   // al rol, no dejar la tab clavada en contenido inaccesible.
   const canIa = modules == null || modules.includes("ia");
-  const sub = subRaw === "ia" && !canIa ? "controles" : subRaw;
+  // "uso" quedó en el union solo para migrar el estado persistido viejo (la
+  // telemetría de USO fue decomisada del backend) — cae a "controles".
+  const sub = (subRaw === "ia" && !canIa) || subRaw === "uso" ? "controles" : subRaw;
   const [anomalias, setAnomalias] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
@@ -3391,7 +3144,6 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
         <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
-        <Pill label="USO" active={sub === "uso"} onClick={() => setSub("uso")} />
         {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -3400,7 +3152,6 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         {sub === "jobs"        && <JobsGroup />}
         {sub === "base"        && <DbBasePanel />}
         {sub === "ia"          && <IaPanel />}
-        {sub === "uso"         && <UsoPanel />}
       </div>
     </div>
   );
@@ -6097,145 +5848,12 @@ const TAB_MODULES: Record<Tab, string[]> = {
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
   "aca-valores": ["manager", "manager_clientes"],
-  compliance:   ["manager", "manager_compliance"],
   aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
   mesa:         ["manager"],
   documentos:   ["manager"],
   usuarios:     ["manager"],
 };
-
-// ── Tab: COMPLIANCE — operador nuestro vs Aunesa (live, no persiste) ──────────
-interface ComplianceFila {
-  id_cuenta: string;
-  denominacion: string | null;
-  nuestro_email: string | null;
-  nuestro_nombre: string | null;
-  aunesa_email: string | null;
-  aunesa_nombre: string | null;
-  categoria: "ok" | "distinto" | "falta_en_nuestra_base" | "falta_en_aunesa";
-  difiere: boolean;
-}
-
-const _CMP_LABEL: Record<string, string> = {
-  ok: "OK",
-  distinto: "DISTINTO",
-  falta_en_nuestra_base: "FALTA (n/base)",
-  falta_en_aunesa: "FALTA (Aunesa)",
-};
-const _CMP_COLOR: Record<string, string> = {
-  ok: "var(--t-pos)",
-  distinto: "var(--t-neg)",
-  falta_en_nuestra_base: "#ff9900",
-  falta_en_aunesa: "#ff9900",
-};
-
-function ComplianceGroup() {
-  const [data, setData] = useState<{ filas: ComplianceFila[]; total: number; difieren: number } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  // Por default mostrar solo las diferencias (lo que el auditor quiere ver).
-  const [soloDif, setSoloDif] = usePersistedState<boolean>("manager.compliance.soloDif", true);
-
-  const cargar = useCallback(() => {
-    setLoading(true);
-    setErr(null);
-    fetch("/api/manager/compliance/operadores", { cache: "no-store" })
-      .then(async (r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((d: { filas: ComplianceFila[]; total: number; difieren: number }) => setData(d))
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => { cargar(); }, [cargar]);
-
-  const filas = (data?.filas ?? []).filter((f) => !soloDif || f.difiere);
-
-  // Descarga la conciliación visible a Excel. CSV con BOM UTF-8 + separador ';'
-  // (Excel es-AR lo abre en columnas directo) + comillas (denominaciones con coma).
-  const descargarExcel = () => {
-    if (!filas.length) return;
-    const esc = (v: string | null | undefined) => `"${(v ?? "").toString().replace(/"/g, '""')}"`;
-    const header = ["CUENTA", "DENOMINACIÓN", "OPERADOR (NUESTRO)", "MAIL (NUESTRO)",
-                    "OPERADOR (AUNESA)", "MAIL (AUNESA)", "ESTADO"];
-    const lineas = [header.map(esc).join(";")];
-    for (const f of filas) {
-      lineas.push([f.id_cuenta, f.denominacion, f.nuestro_nombre, f.nuestro_email,
-                   f.aunesa_nombre, f.aunesa_email, _CMP_LABEL[f.categoria] ?? f.categoria]
-                  .map(esc).join(";"));
-    }
-    const blob = new Blob(["﻿" + lineas.join("\r\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `conciliacion_operadores_${soloDif ? "difs_" : ""}${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="h-full flex flex-col min-h-0 p-3 gap-2">
-      <div className="flex items-center gap-3 shrink-0">
-        <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">
-          COMPLIANCE — OPERADOR NUESTRO vs AUNESA
-        </span>
-        {data && (
-          <span className="text-[10px] text-[var(--t-text-muted)]">
-            <span className="text-[var(--t-neg)] font-semibold">{data.difieren}</span> difieren / {data.total} cuentas
-          </span>
-        )}
-        <label className="flex items-center gap-1 text-[10px] text-[var(--t-text-dim)] ml-2 cursor-pointer">
-          <input type="checkbox" checked={soloDif} onChange={(e) => setSoloDif(e.target.checked)} />
-          solo diferencias
-        </label>
-        <button onClick={descargarExcel} disabled={loading || filas.length === 0}
-          className="ml-auto px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
-          ⬇ Excel
-        </button>
-        <button onClick={cargar} disabled={loading}
-          className="px-3 py-1 text-[10px] font-semibold border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] transition-colors disabled:opacity-40">
-          {loading ? "Consultando Aunesa…" : "↻ Re-consultar"}
-        </button>
-      </div>
-      {err && <div className="text-[10px] text-[var(--t-neg)] shrink-0">Error consultando Aunesa: {err}</div>}
-      <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)]">
-        <table className="w-full">
-          <thead>
-            <tr>
-              <th>CUENTA</th>
-              <th>DENOMINACIÓN</th>
-              <th>OPERADOR (NUESTRO)</th>
-              <th>OPERADOR (AUNESA)</th>
-              <th>ESTADO</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((f) => (
-              <tr key={f.id_cuenta} className={f.difiere ? "bg-[var(--t-neg)]/10" : ""}>
-                <td className="font-mono text-[var(--t-text-dim)]">{f.id_cuenta}</td>
-                <td className="text-[var(--t-text)]">{f.denominacion ?? "—"}</td>
-                <td className="font-mono">{f.nuestro_nombre || f.nuestro_email || "—"}</td>
-                <td className="font-mono">{f.aunesa_nombre || f.aunesa_email || "—"}</td>
-                <td>
-                  <span className="text-[10px] font-semibold" style={{ color: _CMP_COLOR[f.categoria] }}>
-                    {_CMP_LABEL[f.categoria] ?? f.categoria}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {data && !loading && filas.length === 0 && (
-          <div className="p-3 text-[10px] text-[var(--t-text-muted)]">
-            {soloDif ? "Sin diferencias — todos los operadores coinciden con Aunesa. 🎉" : "Sin datos."}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export function ManagerView({ modules = null }: { modules?: string[] | null }) {
   const allTabs: { id: Tab; label: string }[] = [
@@ -6245,7 +5863,6 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "clientes",     label: "CLIENTES"     },
     { id: "contrapartes", label: "CONTRAPARTES" },
     { id: "aca-valores",  label: "ACA VALORES"  },
-    { id: "compliance",   label: "COMPLIANCE"   },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
     { id: "mesa",         label: "MESA"         },
@@ -6289,7 +5906,6 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "contrapartes" && <TabContrapartes />}
         {tab === "aca-valores"  && <TabAcaValores />}
-        {tab === "compliance"   && <ComplianceGroup />}
         {tab === "aunesa"       && <AunesaGroup modules={modules} />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
         {tab === "mesa"         && <TabMesa />}

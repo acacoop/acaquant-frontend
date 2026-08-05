@@ -27,8 +27,8 @@ function esTickerArgy(t: string): boolean {
 }
 
 // El recuadro CANJE que vivía abajo-izquierda se quitó (2026-07-24, pedido de
-// la mesa): la watchlist ocupa toda la columna izquierda. El análisis de canje
-// sigue disponible vía /api/analitica/canje (componente canje-tab).
+// la mesa): la watchlist ocupa toda la columna izquierda. El dato de canje
+// sigue disponible vía el endpoint /api/analitica/canje (sin UI propia).
 
 export function HomeView() {
   const [selectedTicker, setSelectedTicker] = useState<string>(DEFAULT_TICKER);
