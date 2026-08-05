@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
+import { getJSON } from "@/lib/fetch-json";
 
 type Moneda = "ARS" | "USD" | "USD_DOL";
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
@@ -66,11 +67,6 @@ function formatTime(iso: string | null): string {
   try { return new Date(new Date(iso).getTime() - 3 * 3600_000).toISOString().slice(11, 19) + " ART"; }
   catch { return "—"; }
 }
-async function getJSON<T>(url: string): Promise<T | null> {
-  try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? (await r.json()) as T : null; }
-  catch { return null; }
-}
-
 export function OpsView() {
   // Filtros (elección del usuario) → persisten entre rutas con sessionStorage.
   const [moneda, setMoneda] = usePersistedState<Moneda>("ops.moneda", "ARS");

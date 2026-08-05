@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { safeFetch } from "@/lib/api";
 import { DerivadosShell } from "@/components/derivados-shell";
 import type { OpcionDoc } from "@/lib/estrategias";
 import { getMe } from "@/lib/me";
@@ -10,14 +10,6 @@ interface Meta {
   vr_local: number;
   vr_adr: number;
   updated_at?: string;
-}
-
-async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<T> {
-  try {
-    return await apiFetch<T>(path, { revalidate });
-  } catch {
-    return fallback;
-  }
 }
 
 export default async function DerivadosPage() {

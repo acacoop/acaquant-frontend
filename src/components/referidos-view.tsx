@@ -6,6 +6,7 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Too
 import { fmtMoney } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix, type ColumnDef } from "@/lib/xlsx-export";
 import { ReferidoFciTable } from "@/components/referido-fci-table";
+import { getJSON as getJson } from "@/lib/fetch-json";
 
 /**
  * /referidos — vista para la EMPRESA referidora. Solo sus cuentas: cuánto operan,
@@ -53,10 +54,6 @@ const TODOS = "__todos__";
 const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${d}/${m}/${y.slice(2)}` : `${m}/${y.slice(2)}`; };
 const pnlColor = (v: number | null | undefined) => (v == null ? "var(--t-text-muted)" : v >= 0 ? "var(--t-pos)" : "var(--t-neg)");
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2";
-
-async function getJson<T>(url: string): Promise<T | null> {
-  try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
-}
 
 // Filtra una serie (asc) por rango, contando desde su última fecha.
 function filtrarRango(data: SeriePt[], rango: string): SeriePt[] {

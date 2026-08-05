@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getJSON as getJson } from "@/lib/fetch-json";
 
 /**
  * Back Office → Títulos en Alquiler → tab PORTFOLIO ALQUILER.
@@ -31,10 +32,6 @@ const fmtFecha = (s: string) => { const [y, m, d] = s.split("-"); return d ? `${
 const fmtFull = (v: number | null | undefined) => (v == null ? "—" : Math.round(v).toLocaleString("es-AR"));
 const fmtTC = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const fmtNum = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: 2 }));
-
-async function getJson<T>(url: string): Promise<T | null> {
-  try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
-}
 
 export function PortfolioAlquilerView() {
   const [dias, setDias] = useState<DiaRow[]>([]);

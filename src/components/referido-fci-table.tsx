@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { fmtMoney } from "@/lib/fmt-money";
+import { getJSON as getJson } from "@/lib/fetch-json";
 
 /**
  * Tabla FCI de /referidos — la COMISIÓN a la coop, por fondo, agrupada por gerente.
@@ -18,10 +19,6 @@ type FciResp = {
 };
 
 const HDR = "px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 flex items-center gap-2 flex-wrap";
-
-async function getJson<T>(url: string): Promise<T | null> {
-  try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
-}
 
 function defaultRange(): { desde: string; hasta: string } {
   const now = new Date();

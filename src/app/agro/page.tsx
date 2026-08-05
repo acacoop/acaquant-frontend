@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { safeFetch } from "@/lib/api";
 import { AgroShell } from "@/components/agro-shell";
 
 export const dynamic = "force-dynamic";
@@ -19,14 +19,6 @@ interface AgroResp {
       tnav_us: number | null;
     }[];
   }[];
-}
-
-async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<T> {
-  try {
-    return await apiFetch<T>(path, { revalidate });
-  } catch {
-    return fallback;
-  }
 }
 
 export default async function AgroPage() {

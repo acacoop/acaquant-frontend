@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { getJSON as getJson } from "@/lib/fetch-json";
 
 /**
  * Back Office → Tenencia Valorizada. Cuentas propias 100/255/256.
@@ -42,10 +43,6 @@ const fmtFull = (v: number | null | undefined) => (v == null ? "—" : Math.roun
 const fmtTC = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 // Cantidad nominal: hasta 2 decimales, sin abreviar.
 const fmtNum = (v: number | null | undefined) => (v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: 2 }));
-
-async function getJson<T>(url: string): Promise<T | null> {
-  try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? ((await r.json()) as T) : null; } catch { return null; }
-}
 
 export function TenenciaValorizadaView() {
   const [dias, setDias] = useState<DiaRow[]>([]);

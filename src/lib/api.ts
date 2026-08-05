@@ -137,3 +137,15 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
     if (timer) clearTimeout(timer);
   }
 }
+
+
+// Wrapper SSR tolerante: fallback ante cualquier fallo (antes copiado idéntico
+// en 6 pages). Para páginas que prefieren renderizar con datos vacíos antes
+// que romper el SSR cuando el backend está caído.
+export async function safeFetch<T>(path: string, fallback: T, revalidate = 0): Promise<T> {
+  try {
+    return await apiFetch<T>(path, { revalidate });
+  } catch {
+    return fallback;
+  }
+}

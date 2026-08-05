@@ -22,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { fetchJson as getJson } from "@/lib/fetch-json";
 
 // ── Types (contrato /api/mesa-dinero) ─────────────────────────────────────
 type Op = {
@@ -91,12 +92,6 @@ const rangoDeMes = (mes: string): { desde: string; hasta: string } => {
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   return { desde: `${mes}-01`, hasta: `${mes}-${String(last).padStart(2, "0")}` };
 };
-
-async function getJson<T>(url: string): Promise<T> {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return (await r.json()) as T;
-}
 
 // Inputs numéricos: el estado guarda el crudo con coma decimal ("1234567,89").
 // El usuario puede tipear coma O punto y ambos significan lo MISMO (decimal) —

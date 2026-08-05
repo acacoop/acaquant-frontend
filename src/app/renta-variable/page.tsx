@@ -1,20 +1,8 @@
-import { apiFetch } from "@/lib/api";
+import { safeFetch } from "@/lib/api";
 import { ScannerView } from "@/components/scanner-view";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 
 export const dynamic = "force-dynamic";
-
-async function safeFetch<T>(
-  path: string,
-  fallback: T,
-  revalidate = 60,
-): Promise<T> {
-  try {
-    return await apiFetch<T>(path, { revalidate });
-  } catch {
-    return fallback;
-  }
-}
 
 export default async function RentaVariablePage() {
   const [scanner, ccl] = await Promise.all([

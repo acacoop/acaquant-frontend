@@ -1,16 +1,8 @@
-import { apiFetch } from "@/lib/api";
+import { safeFetch } from "@/lib/api";
 import { ONsLiveView } from "@/components/ons-live";
 import type { ONPago, ONRow } from "@/components/ons-live";
 
 export const dynamic = "force-dynamic";
-
-async function safeFetch<T>(path: string, fallback: T, revalidate = 30): Promise<T> {
-  try {
-    return await apiFetch<T>(path, { revalidate });
-  } catch {
-    return fallback;
-  }
-}
 
 export default async function ONsPage() {
   // SSR inicial — la tabla + curva pollean listar-curva?curva=on client-side;

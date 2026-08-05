@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PortfolioAlquilerView } from "./portfolio-alquiler-view";
+import { getJSON as getJson } from "@/lib/fetch-json";
 
 /**
  * Back Office → Títulos en Alquiler. Cuentas propias 100/255/256. Dos tabs:
@@ -37,15 +38,6 @@ const fmtNum = (v: number | null | undefined) =>
   v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: 2 });
 const fmtFull = (v: number | null | undefined) =>
   v == null ? "—" : Math.round(v).toLocaleString("es-AR");
-
-async function getJson<T>(url: string): Promise<T | null> {
-  try {
-    const r = await fetch(url, { cache: "no-store" });
-    return r.ok ? ((await r.json()) as T) : null;
-  } catch {
-    return null;
-  }
-}
 
 export function TitulosEnAlquilerView() {
   const [subTab, setSubTab] = useState<"portfolio" | "marcas">("portfolio");

@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { safeFetch } from "@/lib/api";
 import { ResearchView } from "@/components/research-view";
 import type { ResearchData } from "@/components/research-view";
 
@@ -7,14 +7,6 @@ import type { ResearchData } from "@/components/research-view";
 // a la izquierda como placeholder hasta la API key.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-async function safeFetch<T>(path: string, fallback: T): Promise<T> {
-  try {
-    return await apiFetch<T>(path, { revalidate: 0 });
-  } catch {
-    return fallback;
-  }
-}
 
 export default async function ResearchPage() {
   const data = await safeFetch<ResearchData>(

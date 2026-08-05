@@ -21,6 +21,7 @@ import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 import { ComercialInforme } from "./comercial-informe-view";
 import { CobrosFuturosView } from "./cobros-futuros-view";
 import { ComercialControlView } from "./comercial-control-view";
+import { fetchJson as getJson } from "@/lib/fetch-json";
 
 // Vista COMERCIAL (en OPERACIONES) — lente por operador.
 // Layout:
@@ -113,12 +114,6 @@ const fmtUsd = (n: number | null | undefined): string => {
   const s = fmtAum(n);
   return s === "—" ? s : "USD " + s.replace("$", "").trimStart();
 };
-
-async function getJson<T>(url: string): Promise<T> {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return (await r.json()) as T;
-}
 
 // ── Agregación + rango del gráfico (estilo NEGOCIO/AUM) ───────────────────
 type AggKey = "DIARIO" | "SEMANAL" | "MENSUAL";

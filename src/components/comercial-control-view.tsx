@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtMoney } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
+import { getJSON as getJson } from "@/lib/fetch-json";
 
 // CONTROL COMERCIAL (jefatura) — 3 bloques (ver docs/img_1.png):
 //  1) Datos totales ALyC: períodos fijos (no usa Desde/Hasta).
@@ -47,11 +48,6 @@ const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov"
 // igual en todas y las columnas de métricas arrancan en el MISMO x (alineadas).
 const LABEL_W = 200;
 const NUM_W = 120;
-
-async function getJson<T>(url: string): Promise<T | null> {
-  try { const r = await fetch(url, { cache: "no-store" }); return r.ok ? (await r.json()) as T : null; }
-  catch { return null; }
-}
 
 // Filtros madre → query-string (repite el param por cada valor: nivel_1=a&nivel_1=b).
 const arrQS = (name: string, arr: string[]) =>

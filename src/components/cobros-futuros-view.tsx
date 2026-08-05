@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
+import { fetchJson as getJson } from "@/lib/fetch-json";
 
 /**
  * COBROS FUTUROS (tab de OPERADORES, dentro de NEGOCIO).
@@ -38,12 +39,6 @@ const nivelQS = (n1?: string, n2?: string, n3?: string, ref?: string) =>
   (n2 ? `&nivel_2=${encodeURIComponent(n2)}` : "") +
   (n3 ? `&nivel_3=${encodeURIComponent(n3)}` : "") +
   (ref ? `&referido=${encodeURIComponent(ref)}` : "");
-
-async function getJson<T>(url: string): Promise<T> {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return (await r.json()) as T;
-}
 
 const fmtFecha = (s: string) => {
   const [y, m, d] = s.split("-");

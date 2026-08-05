@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { safeFetch } from "@/lib/api";
 import type {
   BreakevenDoc,
   BreakevenHistDoc,
@@ -12,18 +12,6 @@ import type {
 import { RentaFijaLiveView } from "@/components/renta-fija-live";
 
 export const dynamic = "force-dynamic";
-
-async function safeFetch<T>(
-  path: string,
-  fallback: T,
-  revalidate = 30
-): Promise<T> {
-  try {
-    return await apiFetch<T>(path, { revalidate });
-  } catch {
-    return fallback;
-  }
-}
 
 export default async function Home() {
   // SSR inicial — carga rápida con datos del último snapshot. El polling

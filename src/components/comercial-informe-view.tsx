@@ -14,6 +14,7 @@ import {
 
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
+import { getJSON } from "@/lib/fetch-json";
 
 // Vista INFORME (sub-vista de COMERCIAL) — reporte GLOBAL de la mesa (no por
 // operador). 4 cuadrantes. Consume /api/operaciones/comercial/informe[-segmento].
@@ -131,13 +132,7 @@ function ComoSeCalcula({ onClose }: { onClose: () => void }) {
 }
 
 async function getJson<T>(url: string, fallback: T): Promise<T> {
-  try {
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) return fallback;
-    return (await r.json()) as T;
-  } catch {
-    return fallback;
-  }
+  return (await getJSON<T>(url)) ?? fallback;
 }
 
 function Panel({ title, extra, children, fill }: { title: string; extra?: React.ReactNode; children: React.ReactNode; fill?: boolean }) {
