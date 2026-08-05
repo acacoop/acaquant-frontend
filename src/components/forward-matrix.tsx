@@ -1,14 +1,11 @@
 "use client";
+import { shortTicker } from "@/components/ui";
 
 interface ForwardMatrixProps {
   tickers: string[];
   matrix: Record<string, Record<string, number>>;
 }
 
-function shortTicker(full: string): string {
-  const parts = full.split(" - ");
-  return parts.length >= 3 ? parts[2] : full;
-}
 
 function heatmapColor(value: number, min: number, median: number, max: number): string {
   if (min === max) return "#ffaa00";

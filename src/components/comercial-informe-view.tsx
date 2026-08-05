@@ -15,6 +15,7 @@ import {
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 import { getJSON } from "@/lib/fetch-json";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 // Vista INFORME (sub-vista de COMERCIAL) — reporte GLOBAL de la mesa (no por
 // operador). 4 cuadrantes. Consume /api/operaciones/comercial/informe[-segmento].
@@ -62,7 +63,6 @@ function DownloadBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
-const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 const ymLabel = (ym: string) => {
   const [y, m] = ym.split("-").map(Number);
   return `${MESES[m - 1]} ${y}`;

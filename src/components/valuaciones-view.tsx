@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { DownloadButton } from "@/components/download-button";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -189,7 +190,6 @@ interface Props { idCuenta: string; nombreCuenta?: string }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
 function fmtCompact(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";

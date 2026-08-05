@@ -22,6 +22,7 @@ import { ComercialInforme } from "./comercial-informe-view";
 import { CobrosFuturosView } from "./cobros-futuros-view";
 import { ComercialControlView } from "./comercial-control-view";
 import { fetchJson as getJson } from "@/lib/fetch-json";
+import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
 
 // Vista COMERCIAL (en OPERACIONES) — lente por operador.
 // Layout:
@@ -122,12 +123,7 @@ type RangoKey = "1W" | "1M" | "3M" | "6M" | "YTD" | "1A" | "ALL";
 const RANGO_N: Record<Exclude<RangoKey, "YTD" | "ALL">, number> = {
   "1W": 5, "1M": 22, "3M": 65, "6M": 130, "1A": 252,
 };
-const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-const fmtFechaCorta = (s: string) => {
-  const [y, m, d] = s.split("-");
-  return `${d}/${m}/${y.slice(-2)}`;
-};
 const fmtMesCorto = (s: string) => {
   const [y, m] = s.split("-").map(Number);
   return `${MESES[m - 1]} ${String(y).slice(-2)}`;

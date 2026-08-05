@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { FairValueHistorico } from "@/lib/types";
+import { fmtDiaMes as fmtFechaCorta } from "@/lib/fmt";
 
 interface Props {
   ticker: string;
@@ -19,12 +20,6 @@ interface Props {
   onClose: () => void;
 }
 
-function fmtFechaCorta(s: string): string {
-  const iso = s.length >= 10 ? s.slice(0, 10) : s;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export function FairValueModal({ ticker, tickerCorto, onClose }: Props) {
   const [data, setData] = useState<FairValueHistorico | null>(null);

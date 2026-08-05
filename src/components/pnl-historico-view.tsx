@@ -14,6 +14,7 @@ import {
 
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 // TRADING → PNL HISTÓRICO. Cuaderno de carga MANUAL: el usuario tipea el PnL de
 // cada día hábil (desde el 1-jul-2026) y el sistema acumula (total + mensual) y
@@ -31,7 +32,6 @@ type Dia = {
 };
 type Resp = { cuenta: string; inicio: string; cuentas: string[]; dias: Dia[] };
 
-const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 function fmtDia(iso: string): string {
   const [, m, d] = iso.split("-");

@@ -13,6 +13,7 @@ import { useMemo, useState } from "react";
 import {
   Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
+import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
 
 export type Agg = "DIARIO" | "SEMANAL" | "MENSUAL";
 type RangoKey = "1W" | "1M" | "3M" | "YTD" | "1A" | "ALL";
@@ -20,10 +21,8 @@ export type SerieDef = { key: string; label: string; color: string };
 export type SerieRow = { fecha: string; [k: string]: number | string };
 type ChartRow = { key: string; x: string; [k: string]: number | string };
 
-const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 const MUTED = "var(--t-border-2)";
 
-const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
 const fmtMesCorto = (s: string) => { const [y, m] = s.split("-").map(Number); return `${MESES[m - 1]} ${String(y).slice(-2)}`; };
 
 function lunesDeSemana(fecha: string): string {

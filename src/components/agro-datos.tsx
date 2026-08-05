@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel, fmtHoraAR } from "./ui";
 import { usePoll } from "@/lib/use-poll";
+import { fmtDiaMes as fmtFechaCorta } from "@/lib/fmt";
 
 const POLL_MS = 10_000;
 const SAVE_DEBOUNCE_MS = 800;
@@ -20,10 +21,6 @@ function manualLeg(cereal: string): ManualLeg {
 
 // "2026-07-13" → "13/07". La fecha viene como día calendario (sin hora): se parte
 // el string en vez de usar Date, que la interpretaría en UTC y la correría un día.
-function fmtFechaCorta(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return d && m ? `${d}/${m}` : iso;
-}
 
 interface CamaraRow {
   cereal: Cereal;

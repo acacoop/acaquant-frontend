@@ -14,6 +14,7 @@ import {
   Bar, CartesianGrid, Cell, ComposedChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { niceScale } from "./ops-bar-chart";
+import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
 
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 type Moneda = "USDL" | "ARS";
@@ -33,8 +34,6 @@ type Resp = {
 const POS = "#22c55e"; // verde: diferencia a favor
 const NEG = "#ef4444"; // rojo: diferencia en contra
 
-const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
 const fmtFechaDisplay = (s: string) => { const [y, m, d] = s.split("-").map(Number); return `${d} ${MESES[m - 1]} ${y}`; };
 const fmtMesCorto = (s: string) => { const [y, m] = s.split("-").map(Number); return `${MESES[m - 1]} ${String(y).slice(-2)}`; };
 

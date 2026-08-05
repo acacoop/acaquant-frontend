@@ -14,6 +14,7 @@ import {
 
 import { useViewportKey } from "@/lib/use-viewport-key";
 import { DualRange } from "./dual-range";
+import { fmtDiaMes as fmtFechaCorta } from "@/lib/fmt";
 
 // ─────────────────────────────────────────────────────────────────
 // Types — espejan el shape devuelto por
@@ -130,12 +131,6 @@ function colorRet(n: number): string {
   return "text-[var(--t-text-dim)]";
 }
 
-function fmtFechaCorta(s: string): string {
-  const iso = s.length >= 10 ? s.slice(0, 10) : s;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 // Ventana default = ~22 ruedas (≈ 1 mes hábil).
 const VENTANA_DEFAULT_RUEDAS = 22;

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { fmtMoney } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 import { getJSON as getJson } from "@/lib/fetch-json";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 // CONTROL COMERCIAL (jefatura) — 3 bloques (ver docs/img_1.png):
 //  1) Datos totales ALyC: períodos fijos (no usa Desde/Hasta).
@@ -42,7 +43,6 @@ type Operador = { operador_email: string; operador_nombre: string | null; n_cuen
 type Objetivo = { operador_email: string; mes: number; volumen_objetivo: number | null; comisiones_objetivo: number | null };
 
 const fmtN = (n: number) => Math.round(n).toLocaleString("es-AR");
-const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
 // Anchos fijos compartidos por las 3 tablas → la 1ª columna (Período/Comercial) mide
 // igual en todas y las columnas de métricas arrancan en el MISMO x (alineadas).

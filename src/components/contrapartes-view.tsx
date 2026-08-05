@@ -11,6 +11,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 // Fila del resumen agregado que arma el backend: una por (día, contraparte,
 // moneda), con el grupo ya joineado. Reemplaza a bajar 2 años de ops crudas.
@@ -39,20 +40,6 @@ interface FlujoDoc {
 
 const COLOR_ARS = "#094293";
 const COLOR_USD = "var(--t-pos)";
-const MESES = [
-  "Ene",
-  "Feb",
-  "Mar",
-  "Abr",
-  "May",
-  "Jun",
-  "Jul",
-  "Ago",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dic",
-];
 
 function fmtCompact(n: number): string {
   const abs = Math.abs(n);

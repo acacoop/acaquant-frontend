@@ -23,6 +23,7 @@ import {
   YAxis,
 } from "recharts";
 import { fetchJson as getJson } from "@/lib/fetch-json";
+import { fmtDiaMes as fmtFechaCorta } from "@/lib/fmt";
 
 // ── Types (contrato /api/mesa-dinero) ─────────────────────────────────────
 type Op = {
@@ -69,10 +70,6 @@ const fmtPct = (n: number | null | undefined) =>
 const fmtFecha = (iso: string) => {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
-};
-const fmtFechaCorta = (iso: string) => {
-  const [, m, d] = iso.split("-");
-  return `${d}/${m}`;
 };
 const signClass = (n: number | null | undefined) =>
   n == null ? "" : n < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]";

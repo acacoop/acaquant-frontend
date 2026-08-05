@@ -10,6 +10,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { OpsBarChart, type SerieDef, type SerieRow } from "./ops-bar-chart";
+import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
 
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 type Tipo = "Compra" | "Venta";
@@ -30,8 +31,6 @@ const SERIES: SerieDef[] = [
   { key: "Venta", label: "Venta", color: "#ef4444" },   // rojo
 ];
 
-const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
 const fmtFechaDisplay = (s: string) => { const [y, m, d] = s.split("-").map(Number); return `${d} ${MESES[m - 1]} ${y}`; };
 
 // Anclas de SEMANA / MES sobre la fecha más reciente con datos (no en hoy).

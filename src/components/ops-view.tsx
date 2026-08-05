@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 import { getJSON } from "@/lib/fetch-json";
+import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
 
 type Moneda = "ARS" | "USD" | "USD_DOL";
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
@@ -25,7 +26,6 @@ type DenomRow = { denominacion: string; bruto: number; arancel: number; n: numbe
 type Meta = { n_boletos: number; ultima_ingesta: string | null };
 type InstrRow = { instrumento: string; bruto: number; arancel: number; n: number; tasa_pond?: number | null };
 
-const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
 
 function fmtCompact(n: number): string {
   if (n == null || Number.isNaN(n)) return "—";
@@ -45,7 +45,6 @@ const fmtTasa = (v?: number | null): string =>
     : v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
 
 const fmtFechaDisplay = (s: string) => { const [y,m,d] = s.split("-").map(Number); return `${d} ${MESES[m-1]} ${y}`; };
-const fmtFechaCorta = (s: string) => { const [y,m,d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
 
 // Etiqueta del botón de moneda y unidad mostrada. USD_DOL = volumen dolarizado
 // (ARS+USD convertidos a USD con el mep de cada boleto) → la unidad sigue siendo USD.

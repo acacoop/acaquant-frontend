@@ -5,6 +5,7 @@ import type { FairValueBono, FairValueDoc } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
 import { FairValueModal } from "./fair-value-modal";
 import { InfoIcon } from "./info-icon";
+import { shortTicker } from "@/components/ui";
 
 type Curva = "tasa_fija" | "cer";
 
@@ -40,10 +41,6 @@ function fmtBps(v: number): string {
   return `${sign}${v.toFixed(0)}`;
 }
 
-function shortTicker(full: string): string {
-  const parts = full.split(" - ");
-  return parts.length >= 3 ? parts[2] : full;
-}
 
 // Texto explicativo del tooltip — separado del componente principal
 // para que sea fácil de editar/mantener.

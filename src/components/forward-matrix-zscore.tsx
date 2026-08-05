@@ -1,6 +1,7 @@
 "use client";
 
 import type { ForwardZscoreStats } from "@/lib/types";
+import { shortTicker } from "@/components/ui";
 
 interface Props {
   tickers: string[];
@@ -8,10 +9,6 @@ interface Props {
   stats?: Record<string, Record<string, ForwardZscoreStats>>;
 }
 
-function shortTicker(full: string): string {
-  const parts = full.split(" - ");
-  return parts.length >= 3 ? parts[2] : full;
-}
 
 // Coloreado INVERTIDO respecto al modo LIVE: verde = z bajo (forward
 // descontado vs su historia), rojo = z alto (caro vs su historia).

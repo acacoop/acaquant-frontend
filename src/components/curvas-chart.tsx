@@ -14,6 +14,7 @@ import {
 import { useViewportKey } from "@/lib/use-viewport-key";
 import { FairValueView } from "./fair-value-view";
 import type { FairValueDoc } from "@/lib/types";
+import { fmtFechaCorta } from "@/lib/fmt";
 
 interface ForwardDoc {
   curva: string;
@@ -64,12 +65,6 @@ const COLORES: Record<string, { scatter: string; fit: string; label: string }> =
   default:  { scatter: "var(--t-pos)", fit: "#4488ff", label: "" },
 };
 
-function fmtFechaCorta(s: string): string {
-  const iso = s.length >= 10 ? s.slice(0, 10) : s;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
-}
 
 function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: number; ticks: number[] } {
   if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };

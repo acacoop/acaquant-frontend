@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { fmtFechaCorta } from "@/lib/fmt";
 
 /**
  * COMPARAR INVERSIÓN — tab dentro de /retorno.
@@ -98,11 +99,6 @@ const fmtPct = (n: number | null | undefined): string =>
 const fmtMoney = (n: number | null | undefined, moneda: string): string =>
   n == null ? "—" : `${moneda === "USD" ? "US$" : "$"}${Math.round(n).toLocaleString("es-AR")}`;
 
-function fmtFechaCorta(s: string): string {
-  const d = new Date(s.slice(0, 10));
-  if (isNaN(d.getTime())) return s;
-  return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCFullYear()).slice(2)}`;
-}
 
 // Display compacto: sólo el ticker. El detalle (curva/vto/moneda) se ve en la
 // tabla de métricas una vez elegido; acá el foco es elegir/escribir rápido.

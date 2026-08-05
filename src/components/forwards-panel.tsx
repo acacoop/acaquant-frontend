@@ -18,6 +18,7 @@ import { fmtTs, shortTicker } from "./ui";
 import { useViewportKey } from "@/lib/use-viewport-key";
 import { usePoll } from "@/lib/use-poll";
 import type { ForwardZscoreDoc } from "@/lib/types";
+import { fmtDiaMes as fmtFechaCorta } from "@/lib/fmt";
 
 interface ForwardDoc {
   curva: string;
@@ -51,12 +52,6 @@ const PALETA = [
   "#ff66aa",
 ];
 
-function fmtFechaCorta(s: string): string {
-  const iso = s.length >= 10 ? s.slice(0, 10) : s;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export function ForwardsPanel({
   forwards,

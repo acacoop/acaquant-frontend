@@ -2,6 +2,7 @@
 
 import { Panel } from "./ui";
 import { usePoll } from "@/lib/use-poll";
+import { fmtFechaCorta } from "@/lib/fmt";
 
 const POLL_MS = 5_000;
 
@@ -104,12 +105,6 @@ function fmtPctMini(n: number | null | undefined): string {
   return `${(n * 100).toFixed(3)}%`;
 }
 
-function fmtFechaCorta(s: string | null | undefined): string {
-  if (!s) return "—";
-  const t = s.slice(0, 10);
-  if (t.length !== 10) return s;
-  return `${t.slice(8, 10)}/${t.slice(5, 7)}/${t.slice(2, 4)}`;
-}
 
 // ─── Componente principal ────────────────────────────────────────────────────
 

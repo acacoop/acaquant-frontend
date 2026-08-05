@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 // Fila del resumen agregado que arma el backend: una por (día, cuenta, unidad),
 // con entradas (Σ ≥0) y salidas (Σ <0) separadas. Reemplaza a bajar 2 años de
@@ -88,20 +89,6 @@ function niceScale(
   return { min: niceMin, max: niceMax, ticks };
 }
 
-const MESES = [
-  "Ene",
-  "Feb",
-  "Mar",
-  "Abr",
-  "May",
-  "Jun",
-  "Jul",
-  "Ago",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dic",
-];
 
 function fmtMesAnio(key: string): string {
   const [y, m] = key.split("-");

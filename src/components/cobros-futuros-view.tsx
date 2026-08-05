@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { fetchJson as getJson } from "@/lib/fetch-json";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 /**
  * COBROS FUTUROS (tab de OPERADORES, dentro de NEGOCIO).
@@ -60,7 +61,6 @@ const monKey = (m: string | null): "ars" | "usd" => (m === "USD" ? "usd" : "ars"
 // Agregación temporal del gráfico (solo el gráfico — las tablas no se tocan).
 type Agg = "DIA" | "SEM" | "MES" | "ANIO";
 const AGGS: [Agg, string][] = [["DIA", "Día"], ["SEM", "Sem"], ["MES", "Mes"], ["ANIO", "Año"]];
-const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 function lunesDeSemana(fechaIso: string): string {
   const d = new Date(fechaIso + "T00:00:00Z");

@@ -15,6 +15,7 @@ import { Maximizable } from "@/components/maximizable";
 import { ResearchLab } from "@/components/research-lab";
 import { ResearchRetornoTotal } from "@/components/research-retorno-total";
 import { ReutersView } from "@/components/reuters-view";
+import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
 export interface ResearchDestilado { resumen?: string; temas?: string[]; hechos?: { hecho: string }[] }
 export interface ResearchMail {
@@ -29,7 +30,6 @@ export interface ResearchMail {
 }
 export interface ResearchData { items: ResearchMail[]; total: number }
 
-const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 function fmtFecha(iso: string | null): string {
   if (!iso) return "—";
   const [y, m, d] = iso.slice(0, 10).split("-");

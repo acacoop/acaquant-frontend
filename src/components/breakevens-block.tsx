@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import { shortTicker } from "./ui";
 import { useViewportKey } from "@/lib/use-viewport-key";
+import { fmtFechaCorta, MESES_CORTOS } from "@/lib/fmt";
 
 interface BreakevenPar {
   n: number;
@@ -50,7 +51,6 @@ interface RemAcumResp {
 
 type Modo = "live" | "hist";
 
-const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
 function fmtMesAnio(iso: string): string {
   const d = new Date(iso);
@@ -76,12 +76,6 @@ function fmtPeriodoMensual(yyyy_mm: string): string {
   return `${MESES_CORTOS[m - 1]} ${String(y).slice(-2)}`;
 }
 
-function fmtFechaCorta(s: string): string {
-  const iso = s.length >= 10 ? s.slice(0, 10) : s;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
-}
 
 function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: number; ticks: number[] } {
   if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };

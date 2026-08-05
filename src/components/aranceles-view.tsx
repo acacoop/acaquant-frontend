@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
+import { fmtFechaCorta } from "@/lib/fmt";
 
 type Moneda = "ARS" | "USD";
 type Dim = "nivel3" | "operacion" | "operador";
@@ -28,7 +29,6 @@ function fmtCompact(n: number): string {
   return s + a.toFixed(0);
 }
 
-const fmtFechaCorta = (s: string) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y.slice(-2)}`; };
 // Límites de SEMANA/MES anclados en la última fecha con datos (no en hoy).
 function lunesDeSemana(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
