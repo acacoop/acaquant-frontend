@@ -30,6 +30,7 @@ type Orden = {
   cargan_ellos: string | null; tipo: string | null;
   tipo_contraparte: "interno" | "externo";
   agente: string | null; agente_numero: string | null;
+  es_mae: boolean;
   estado: "pendiente" | "completada";
   completada_por: string | null; completada_at: string | null;
   creado_por: string | null; creado_at: string | null;
@@ -110,12 +111,14 @@ type FormState = {
   tipo_contraparte: "interno" | "externo";
   agente: string; cc: string;
   cp: string; mercado: string; cargan_ellos: string; tipo: string;
+  es_mae: boolean;
 };
 const FORM_VACIO: FormState = {
   operacion: "COMPRA", concertacion: hoyIso(), plazo: "CI",
   especie: "", vn: "", px: "",
   tipo_contraparte: "interno", agente: "", cc: "",
   cp: "255", mercado: "", cargan_ellos: "", tipo: "",
+  es_mae: false,
 };
 
 function ordenAForm(o: Orden): FormState {
@@ -126,6 +129,7 @@ function ordenAForm(o: Orden): FormState {
     agente: o.agente ?? "", cc: o.cc ?? "",
     cp: o.cp ?? "255", mercado: o.mercado ?? "",
     cargan_ellos: o.cargan_ellos ?? "", tipo: o.tipo ?? "",
+    es_mae: o.es_mae,
   };
 }
 
@@ -195,6 +199,7 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
         tipo_contraparte: f.tipo_contraparte,
         agente: f.tipo_contraparte === "externo" ? f.agente || null : null,
         cc: f.tipo_contraparte === "interno" ? f.cc || null : null,
+        es_mae: f.es_mae,
       };
       const r = await fetch(
         editando ? `/api/back-office/senebis/ops/${editando.id}` : "/api/back-office/senebis/ops",
@@ -261,6 +266,29 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
           <Campo label="PX (cada 100 VN)">
             <input className={`${INPUT} text-right`} inputMode="decimal" value={f.px} onChange={setNum("px")} />
           </Campo>
+        </div>
+
+        {/* MAE: se carga en el MAE, no en Quantex → no sale en el Excel. */}
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] text-[var(--t-text-muted)] uppercase">¿MAE?</span>
+          {([false, true] as const).map((v) => (
+            <button
+              key={String(v)}
+              onClick={() => setF((p) => ({ ...p, es_mae: v }))}
+              className={`text-[10px] uppercase px-2 py-0.5 border ${
+                f.es_mae === v
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"
+              }`}
+            >
+              {v ? "SÍ" : "NO"}
+            </button>
+          ))}
+          {f.es_mae && (
+            <span className="text-[9px] text-[#7fa6d9]">
+              se carga por MAE — NO sale en el Excel Quantex · tipo = MAE automático
+            </span>
+          )}
         </div>
 
         {/* Contraparte: interno (cliente ALyC) vs externo (agente) */}
@@ -357,7 +385,14 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
             <input className={INPUT} value={f.cargan_ellos} onChange={set("cargan_ellos")} />
           </Campo>
           <Campo label="TIPO (obs)">
-            <input className={INPUT} placeholder="pasada" value={f.tipo} onChange={set("tipo")} />
+            <input
+              className={`${INPUT} disabled:opacity-60`}
+              placeholder="pasada"
+              value={f.es_mae ? "MAE" : f.tipo}
+              onChange={set("tipo")}
+              disabled={f.es_mae}
+              title={f.es_mae ? "orden MAE: el tipo queda MAE automático" : undefined}
+            />
           </Campo>
         </div>
 
@@ -677,12 +712,18 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar }: {
       <tbody>
         {ordenes.map((o) => {
           const pend = o.estado === "pendiente";
+          // Colores: MAE → tinte azul sobrio (no va a Quantex); pendiente →
+          // tinte ámbar apenas más llamativo (es lo que falta cargar);
+          // completada → atenuada.
+          const tinte = !pend
+            ? "opacity-60"
+            : o.es_mae
+              ? "bg-[rgba(90,130,190,0.10)]"
+              : "bg-[rgba(224,168,0,0.07)]";
           return (
             <tr
               key={o.id}
-              className={`border-b border-[var(--t-border-2)] hover:bg-[var(--t-surface)] ${
-                pend ? "" : "opacity-60"
-              }`}
+              className={`border-b border-[var(--t-border-2)] hover:bg-[var(--t-surface)] ${tinte}`}
             >
               <td className={TD}>
                 <button
@@ -729,7 +770,16 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar }: {
               <td className={TD}>{o.cp ?? "—"}</td>
               <td className={`${TD} text-[10px]`}>{o.mercado ?? "—"}</td>
               <td className={`${TD} text-[10px] text-[var(--t-text-dim)]`}>
-                {[o.cargan_ellos, o.tipo].filter(Boolean).join(" · ") || "—"}
+                {o.es_mae && (
+                  <span
+                    title="se carga por MAE — no sale en el Excel Quantex"
+                    className="text-[9px] uppercase px-1 py-0.5 border border-[#5a82be] text-[#7fa6d9] mr-1"
+                  >
+                    MAE
+                  </span>
+                )}
+                {[o.cargan_ellos, !o.es_mae ? o.tipo : null].filter(Boolean).join(" · ")
+                  || (o.es_mae ? "" : "—")}
               </td>
               <td className={`${TD} text-[9px] text-[var(--t-text-dim)]`}>
                 {o.creado_por?.split("@")[0] ?? "—"}
