@@ -28,7 +28,9 @@ type Orden = {
   cp: string | null; cc: string | null; cc_denominacion: string | null;
   contraparte: string | null; nro_contraparte: string | null;
   mercado: string | null;
-  cargan_ellos: string | null; tipo: string | null;
+  // SI/NO (2026-08-05, antes texto libre): la carga la CONTRAPARTE en
+  // Quantex → no sale en el Excel/espejo (igual que MAE).
+  cargan_ellos: boolean; tipo: string | null;
   tipo_contraparte: "interno" | "externo";
   agente: string | null; agente_numero: string | null;
   es_mae: boolean;
@@ -148,14 +150,14 @@ type FormState = {
   especie: string; vn: string; px: string;
   tipo_contraparte: "interno" | "externo";
   agente: string; cc: string;
-  cp: string; mercado: string; cargan_ellos: string; tipo: string;
+  cp: string; mercado: string; cargan_ellos: boolean; tipo: string;
   es_mae: boolean;
 };
 const FORM_VACIO: FormState = {
   operacion: "COMPRA", concertacion: hoyIso(), plazo: "CI",
   especie: "", vn: "", px: "",
   tipo_contraparte: "interno", agente: "", cc: "",
-  cp: "255", mercado: "", cargan_ellos: "", tipo: "",
+  cp: "255", mercado: "", cargan_ellos: false, tipo: "",
   es_mae: false,
 };
 
@@ -166,7 +168,7 @@ function ordenAForm(o: Orden): FormState {
     tipo_contraparte: o.tipo_contraparte,
     agente: o.agente ?? "", cc: o.cc ?? "",
     cp: o.cp ?? "255", mercado: o.mercado ?? "",
-    cargan_ellos: o.cargan_ellos ?? "", tipo: o.tipo ?? "",
+    cargan_ellos: !!o.cargan_ellos, tipo: o.tipo ?? "",
     es_mae: o.es_mae,
   };
 }
@@ -236,7 +238,7 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
         vn: num(f.vn), px: num(f.px),
         cp: f.cp || null,
         mercado: f.mercado || null,
-        cargan_ellos: f.cargan_ellos || null,
+        cargan_ellos: f.cargan_ellos,
         tipo: f.tipo || null,
         tipo_contraparte: f.tipo_contraparte,
         agente: f.tipo_contraparte === "externo" ? f.agente || null : null,
@@ -466,8 +468,27 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
               <option value="NO GARANTIZADO">NO GARANTIZADO</option>
             </select>
           </Campo>
-          <Campo label="CARGAN ELLOS (obs)">
-            <input className={INPUT} value={f.cargan_ellos} onChange={set("cargan_ellos")} />
+          {/* SI/NO (antes texto libre): SI = la carga la contraparte en
+              Quantex → no sale en el Excel/espejo (igual que MAE). */}
+          <Campo label="¿CARGAN ELLOS?">
+            <div
+              className="flex items-center gap-2 py-1"
+              title="SI: la orden la carga la CONTRAPARTE en Quantex — no sale en el Excel Quantex"
+            >
+              {([false, true] as const).map((v) => (
+                <button
+                  key={String(v)}
+                  onClick={() => setF((p) => ({ ...p, cargan_ellos: v }))}
+                  className={`text-[10px] uppercase px-2 py-0.5 border ${
+                    f.cargan_ellos === v
+                      ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                      : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"
+                  }`}
+                >
+                  {v ? "SÍ" : "NO"}
+                </button>
+              ))}
+            </div>
           </Campo>
           <Campo label="TIPO (obs)">
             <input
@@ -964,8 +985,15 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
                     MAE
                   </span>
                 )}
-                {[o.cargan_ellos, !o.es_mae ? o.tipo : null].filter(Boolean).join(" · ")
-                  || (o.es_mae ? "" : "—")}
+                {o.cargan_ellos && (
+                  <span
+                    title="la cargan ELLOS (la contraparte) en Quantex — no sale en el Excel Quantex"
+                    className="text-[9px] uppercase px-1 py-0.5 border border-[#5a9e6f] text-[#7fc491] mr-1"
+                  >
+                    ELLOS
+                  </span>
+                )}
+                {(!o.es_mae ? o.tipo : null) || (o.es_mae || o.cargan_ellos ? "" : "—")}
                 <Ed o={o} campos={["cargan_ellos", "tipo", "es_mae"]} />
               </td>
               <td className={`${TD} text-[9px] text-[var(--t-text-dim)]`}>
@@ -1009,7 +1037,7 @@ function TablaQuantex({ excel, ordenes, busyId, onEditar, onReasignar }: {
   return (
     <div className="p-2">
       <div className="text-[9px] text-[var(--t-text-muted)] uppercase mb-1">
-        Solo lo PENDIENTE (no MAE): al marcar completada la orden sale de acá —
+        Solo lo PENDIENTE (no MAE, no “cargan ellos”): al marcar completada la orden sale de acá —
         el archivo se sube varias veces por día y lo completado ya está cargado en Quantex.
         Click en una fila para editar. “Generar Excel” descarga exactamente esto.
       </div>
