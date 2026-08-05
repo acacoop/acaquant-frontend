@@ -49,14 +49,8 @@ type OpsResp = { total: number; pendientes: number; ordenes: Orden[]; conectados
 // numero = BYMA/Quantex (va a CONTRAPARTE del Excel Quantex);
 // codigo_mae = AAAOO (va a DESTINO del futuro Excel MAE).
 type Agente = { nombre: string; numero: string; codigo_mae?: string | null };
-// Destino MAE por cuenta interna: FXXX fondo · C+CUIT comitente · SXXX aseg.
-type DestinoMae = { cc: string; codigo: string; descripcion: string | null };
-// Sugerencia = contraparte de la base (clientes.contrapartes — ahí ya viven
-// los fondos) + su código MAE si lo tiene. La cuenta se ELIGE, no se tipea.
-type DestinoSug = { cc: string; nombre: string | null; segmento: string | null; codigo: string | null };
 type Opciones = {
-  agentes: Agente[]; destinos_mae?: DestinoMae[];
-  tipos_contraparte: string[]; plazos: string[];
+  agentes: Agente[]; tipos_contraparte: string[]; plazos: string[];
   conectados: Conectado[];
   // Cargar/editar/borrar: MISMA allowlist que Mesa de Dinero (+ admin).
   // El front esconde la edición; el enforcement real es server-side.
@@ -553,13 +547,8 @@ function Campo({ label, hint, children }: {
 }
 
 // ── Gestión de catálogos (modal): agentes + destinos MAE ───────────────────
-function AgentesModal({ agentes, destinos, sugs, onRecargarSugs, onCambio, onCerrar }: {
+function AgentesModal({ agentes, onCambio, onCerrar }: {
   agentes: Agente[];
-  destinos: DestinoMae[];
-  // Contrapartes de la base (fondos primero) — las carga el padre al abrir
-  // el modal (sin effect acá) y se refrescan tras cada alta/baja.
-  sugs: DestinoSug[];
-  onRecargarSugs: () => Promise<void>;
   onCambio: () => void;
   onCerrar: () => void;
 }) {
@@ -567,15 +556,6 @@ function AgentesModal({ agentes, destinos, sugs, onRecargarSugs, onCambio, onCer
   const [numero, setNumero] = useState("");
   const [codigoMae, setCodigoMae] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  // Destinos MAE: las cuentas salen de clientes.contrapartes (los fondos ya
-  // están ahí) — solo se tipea el CÓDIGO al lado de cada una. Queda un alta
-  // manual chica para cuentas que no estén en contrapartes.
-  const [sugQ, setSugQ] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [dCc, setDCc] = useState("");
-  const [dCodigo, setDCodigo] = useState("");
-  const [dErr, setDErr] = useState<string | null>(null);
-
   const agregar = async () => {
     setErr(null);
     const r = await fetch("/api/back-office/senebis/agentes", {
@@ -592,36 +572,6 @@ function AgentesModal({ agentes, destinos, sugs, onRecargarSugs, onCambio, onCer
     onCambio();
   };
 
-  // La descripción NO se manda: el backend la snapshotea solo del nombre en
-  // clientes.contrapartes.
-  const guardarDestino = async (cc: string, codigo: string) => {
-    setDErr(null);
-    const r = await fetch("/api/back-office/senebis/destinos-mae", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cc, codigo }),
-    });
-    if (!r.ok) { setDErr(`HTTP ${r.status}`); return false; }
-    await onRecargarSugs();
-    onCambio();
-    return true;
-  };
-  const agregarDestino = async () => {
-    if (await guardarDestino(dCc, dCodigo)) { setDCc(""); setDCodigo(""); }
-  };
-  const borrarDestino = async (cc: string) => {
-    if (!window.confirm(`¿Quitar el destino MAE de la cuenta ${cc}? Queda auditado.`)) return;
-    await fetch(`/api/back-office/senebis/destinos-mae/${encodeURIComponent(cc)}`, { method: "DELETE" });
-    await onRecargarSugs();
-    onCambio();
-  };
-
-  const sugsFiltradas = sugQ.trim()
-    ? sugs.filter((s) => `${s.cc} ${s.nombre ?? ""} ${s.segmento ?? ""}`
-        .toUpperCase().includes(sugQ.trim().toUpperCase()))
-    : sugs;
-  // Cuentas con código que NO están en contrapartes (alta manual) — se listan
-  // aparte para poder verlas/quitarlas.
-  const manuales = destinos.filter((d) => !sugs.some((s) => s.cc === d.cc));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
@@ -673,93 +623,6 @@ function AgentesModal({ agentes, destinos, sugs, onRecargarSugs, onCambio, onCer
           {!agentes.length && <span className="text-[10px] text-[var(--t-text-dim)] py-2">Sin agentes cargados todavía.</span>}
         </div>
 
-        {/* Destinos MAE — las cuentas YA están en la base (clientes.contrapartes,
-            fondos primero): solo se completa el CÓDIGO al lado de cada una. */}
-        <div className="border-t border-[var(--t-border)] pt-2 flex flex-col gap-2">
-          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">DESTINOS MAE (CUENTAS INTERNAS)</span>
-          <span className="text-[9px] text-[var(--t-text-muted)]">
-            Las cuentas salen de CONTRAPARTES (fondos primero) — completá solo el código
-            DESTINO del Excel MAE: FXXX fondo · C+CUIT comitente · SXXX aseguradora.
-          </span>
-          <input className={INPUT} placeholder="filtrar por cuenta / nombre / segmento…"
-            value={sugQ} onChange={(e) => setSugQ(e.target.value)} />
-          {dErr && <span className="text-[9px] text-[var(--t-neg)]">{dErr}</span>}
-          <div className="max-h-48 overflow-y-auto flex flex-col">
-            {sugsFiltradas.map((s) => (
-              <div key={s.cc} className="flex items-center justify-between gap-2 px-1 py-1 border-b border-[var(--t-border-2)] text-[11px]">
-                <span className="min-w-0 truncate text-[var(--t-text)]" title={`${s.cc} · ${s.nombre ?? ""}`}>
-                  {s.cc}
-                  {s.nombre && <span className="text-[var(--t-text-dim)]"> · {s.nombre}</span>}
-                  {s.segmento && (
-                    <span className="text-[8px] uppercase text-[var(--t-text-muted)] ml-1">{s.segmento}</span>
-                  )}
-                </span>
-                {s.codigo ? (
-                  <span className="flex items-center gap-2 shrink-0">
-                    <span className="text-[#7fc491]">{s.codigo}</span>
-                    <button onClick={() => borrarDestino(s.cc)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)] text-[10px]">✕</button>
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 shrink-0">
-                    <input
-                      className={`${INPUT} w-20 uppercase`} placeholder="F062"
-                      value={drafts[s.cc] ?? ""}
-                      onChange={(e) => setDrafts((p) => ({ ...p, [s.cc]: e.target.value.toUpperCase() }))}
-                    />
-                    <button
-                      onClick={async () => {
-                        if (await guardarDestino(s.cc, (drafts[s.cc] ?? "").trim())) {
-                          setDrafts((p) => ({ ...p, [s.cc]: "" }));
-                        }
-                      }}
-                      disabled={!(drafts[s.cc] ?? "").trim()}
-                      className="text-[10px] uppercase px-2 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black disabled:opacity-40"
-                    >
-                      ✓
-                    </button>
-                  </span>
-                )}
-              </div>
-            ))}
-            {!sugsFiltradas.length && (
-              <span className="text-[10px] text-[var(--t-text-dim)] py-2">
-                {sugs.length ? "Nada coincide con el filtro." : "Sin contrapartes en la base todavía."}
-              </span>
-            )}
-          </div>
-          {!!manuales.length && (
-            <div className="flex flex-col">
-              <span className="text-[9px] text-[var(--t-text-muted)] uppercase">Cargadas a mano (fuera de contrapartes)</span>
-              {manuales.map((d) => (
-                <div key={d.cc} className="flex items-center justify-between px-1 py-1 border-b border-[var(--t-border-2)] text-[11px]">
-                  <span className="text-[var(--t-text)]">
-                    {d.cc}
-                    {d.descripcion && <span className="text-[var(--t-text-dim)]"> · {d.descripcion}</span>}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-[#7fc491]">{d.codigo}</span>
-                    <button onClick={() => borrarDestino(d.cc)} className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)] text-[10px]">✕</button>
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Fallback: una cuenta que no esté en contrapartes (aseguradora,
-              comitente suelto) se carga a mano. */}
-          <div className="flex gap-2">
-            <input className={`${INPUT} w-28`} placeholder="otra cuenta…"
-              value={dCc} onChange={(e) => setDCc(e.target.value)} />
-            <input className={`${INPUT} w-24 uppercase`} placeholder="S010"
-              value={dCodigo} onChange={(e) => setDCodigo(e.target.value.toUpperCase())} />
-            <button
-              onClick={agregarDestino}
-              disabled={!dCc.trim() || !dCodigo.trim()}
-              className="text-[10px] uppercase px-2 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black disabled:opacity-40"
-            >
-              +
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -781,16 +644,6 @@ export function SenebisView() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Orden | null>(null);
   const [showAgentes, setShowAgentes] = useState(false);
-  // Sugerencias de destino MAE (contrapartes de la base, fondos primero) —
-  // se cargan al ABRIR el modal, no en un effect.
-  const [sugsMae, setSugsMae] = useState<DestinoSug[]>([]);
-  const cargarSugsMae = useCallback(async () => {
-    try {
-      const r = await fetchJson<{ sugerencias: DestinoSug[] }>(
-        "/api/back-office/senebis/destinos-mae/sugerencias");
-      setSugsMae(r.sugerencias ?? []);
-    } catch { /* el modal muestra la lista vacía */ }
-  }, []);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const qs = useMemo(() => {
@@ -971,11 +824,11 @@ export function SenebisView() {
           )}
           <Presencia conectados={conectados} />
           <button
-            onClick={() => { setShowAgentes(true); void cargarSugsMae(); }}
-            title="agentes externos (nº Quantex + cód. MAE) y destinos MAE por cuenta interna"
+            onClick={() => setShowAgentes(true)}
+            title="agentes externos: nº Quantex + cód. MAE (el destino MAE de cuentas internas se edita en Manager → CONTRAPARTES)"
             className="text-[10px] uppercase px-2 py-1 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"
           >
-            Agentes · MAE
+            Agentes
           </button>
           <button
             onClick={generarExcel}
@@ -1020,9 +873,6 @@ export function SenebisView() {
       {showAgentes && (
         <AgentesModal
           agentes={opciones?.agentes ?? []}
-          destinos={opciones?.destinos_mae ?? []}
-          sugs={sugsMae}
-          onRecargarSugs={cargarSugsMae}
           onCambio={cargarOpciones}
           onCerrar={() => setShowAgentes(false)}
         />

@@ -14,6 +14,9 @@ type Contraparte = {
   denominacion: string | null;
   contraparte: string | null;
   segmento: string | null;
+  // Código DESTINO del MAE (FXXX fondo / C+CUIT / SXXX aseguradora) — lo
+  // consume el futuro Excel MAE de SENEBIS resolviendo por la cc de la orden.
+  codigo_mae: string | null;
 };
 type Candidate = {
   cuenta: string;
@@ -24,7 +27,7 @@ type Candidate = {
   tipo_cliente: string | null;
 };
 type Opts = { segmentos: string[]; contrapartes: string[] };
-type Draft = { contraparte: string; segmento: string };
+type Draft = { contraparte: string; segmento: string; codigo_mae?: string };
 type RowKind = "idle" | "saving" | "saved" | "error";
 
 const INPUT =
@@ -66,7 +69,7 @@ export function TabContrapartes() {
         if (seq !== reqSeq.current) return;  // respuesta vieja → ignorar
         setRows(d.contrapartes || []);
         const init: Record<string, Draft> = {};
-        for (const c of d.contrapartes || []) init[c.cuenta] = { contraparte: c.contraparte || "", segmento: c.segmento || "" };
+        for (const c of d.contrapartes || []) init[c.cuenta] = { contraparte: c.contraparte || "", segmento: c.segmento || "", codigo_mae: c.codigo_mae || "" };
         setDrafts(init);
       })
       .catch((e) => { if (seq === reqSeq.current) setError(e instanceof Error ? e.message : String(e)); })
@@ -91,17 +94,18 @@ export function TabContrapartes() {
   const saveRow = async (c: Contraparte) => {
     const d = drafts[c.cuenta];
     if (!d) return;
-    if (d.contraparte === (c.contraparte || "") && d.segmento === (c.segmento || "")) return;
+    if (d.contraparte === (c.contraparte || "") && d.segmento === (c.segmento || "")
+      && (d.codigo_mae ?? "") === (c.codigo_mae || "")) return;
     setRowState((s) => ({ ...s, [c.cuenta]: { kind: "saving" } }));
     setSaveErr(null);
     try {
       const r = await fetch("/api/manager/contrapartes", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuenta: c.cuenta, contraparte: d.contraparte, segmento: d.segmento }),
+        body: JSON.stringify({ cuenta: c.cuenta, contraparte: d.contraparte, segmento: d.segmento, codigo_mae: d.codigo_mae ?? "" }),
       });
       if (!r.ok) throw new Error(`HTTP ${r.status} · ${await detail(r)}`);
       const up: Contraparte = await r.json();
-      setRows((prev) => prev.map((x) => (x.cuenta === c.cuenta ? { ...x, contraparte: up.contraparte, segmento: up.segmento } : x)));
+      setRows((prev) => prev.map((x) => (x.cuenta === c.cuenta ? { ...x, contraparte: up.contraparte, segmento: up.segmento, codigo_mae: up.codigo_mae } : x)));
       setRowState((s) => ({ ...s, [c.cuenta]: { kind: "saved" } }));
       setTimeout(() => setRowState((s) => ({ ...s, [c.cuenta]: { kind: "idle" } })), 1500);
     } catch (e) {
@@ -186,6 +190,7 @@ export function TabContrapartes() {
                 <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Denominación</th>
                 <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Contraparte</th>
                 <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]">Segmento</th>
+                <th className="px-3 py-1.5 text-left border-b border-[var(--t-border)]" title="código DESTINO del Excel MAE: FXXX fondo · C+CUIT comitente · SXXX aseguradora">Cód. MAE</th>
                 <th className="px-2 py-1.5 text-right border-b border-[var(--t-border)]"></th>
               </tr>
             </thead>
@@ -193,7 +198,8 @@ export function TabContrapartes() {
               {rows.map((c) => {
                 const d = drafts[c.cuenta] || { contraparte: "", segmento: "" };
                 const st = rowState[c.cuenta]?.kind ?? "idle";
-                const dirty = d.contraparte !== (c.contraparte || "") || d.segmento !== (c.segmento || "");
+                const dirty = d.contraparte !== (c.contraparte || "") || d.segmento !== (c.segmento || "")
+                  || (d.codigo_mae ?? "") !== (c.codigo_mae || "");
                 return (
                   <tr key={c.cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                     <td className="px-3 py-1 text-[var(--t-text-muted)] whitespace-nowrap">{c.cuenta}</td>
@@ -203,6 +209,11 @@ export function TabContrapartes() {
                     </td>
                     <td className="px-3 py-1">
                       <input list="cp-segmentos" value={d.segmento} onChange={(e) => setField(c.cuenta, "segmento", e.target.value)} className={INPUT + " w-[120px]"} />
+                    </td>
+                    <td className="px-3 py-1">
+                      <input value={d.codigo_mae ?? ""} placeholder="F062"
+                        onChange={(e) => setField(c.cuenta, "codigo_mae", e.target.value.toUpperCase())}
+                        className={INPUT + " w-[90px] uppercase"} />
                     </td>
                     <td className="px-2 py-1 text-right whitespace-nowrap">
                       {st === "error"
@@ -216,7 +227,7 @@ export function TabContrapartes() {
                   </tr>
                 );
               })}
-              {!rows.length && !loading && <tr><td colSpan={5} className="px-3 py-6 text-center text-[var(--t-text-muted)]">Sin contrapartes.</td></tr>}
+              {!rows.length && !loading && <tr><td colSpan={6} className="px-3 py-6 text-center text-[var(--t-text-muted)]">Sin contrapartes.</td></tr>}
             </tbody>
           </table>
         </div>
