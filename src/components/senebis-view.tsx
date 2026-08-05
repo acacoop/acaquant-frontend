@@ -38,7 +38,13 @@ type Orden = {
 type Conectado = { email: string; visto_at: string };
 type OpsResp = { total: number; pendientes: number; ordenes: Orden[]; conectados: Conectado[] };
 type Agente = { nombre: string; numero: string };
-type Opciones = { agentes: Agente[]; tipos_contraparte: string[]; plazos: string[]; conectados: Conectado[] };
+type Opciones = {
+  agentes: Agente[]; tipos_contraparte: string[]; plazos: string[];
+  conectados: Conectado[];
+  // Cargar/editar/borrar: MISMA allowlist que Mesa de Dinero (+ admin).
+  // El front esconde la edición; el enforcement real es server-side.
+  puede_escribir: boolean;
+};
 type ExcelFila = { id: number; estado: string; valores: (string | number | null)[] };
 type ExcelResp = { headers: string[]; filas: ExcelFila[]; conectados: Conectado[] };
 type Comitente = { id_cuenta: string; denominacion: string | null };
@@ -123,11 +129,12 @@ function ordenAForm(o: Orden): FormState {
   };
 }
 
-function OrdenForm({ opciones, editando, onGuardado, onCerrar }: {
+function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
   opciones: Opciones | null;
   editando: Orden | null;
   onGuardado: () => void;
   onCerrar: () => void;
+  onBorrar: (o: Orden) => Promise<void>;
 }) {
   const [f, setF] = useState<FormState>(editando ? ordenAForm(editando) : FORM_VACIO);
   const [busy, setBusy] = useState(false);
@@ -360,6 +367,17 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar }: {
           </span>
           <div className="flex items-center gap-2">
             {err && <span className="text-[9px] text-[var(--t-neg)] max-w-[240px] truncate" title={err}>{err}</span>}
+            {editando && (
+              // Eliminar SOLO desde acá (decisión 2026-08-05: nada de ✕ en la
+              // tabla — borrar es una acción consciente dentro de la edición).
+              <button
+                onClick={async () => { setBusy(true); await onBorrar(editando); }}
+                disabled={busy}
+                className="text-[10px] uppercase px-3 py-1 border border-[var(--t-neg)] text-[var(--t-neg)] hover:bg-[var(--t-neg)] hover:text-black disabled:opacity-40"
+              >
+                Eliminar
+              </button>
+            )}
             <button
               onClick={guardar}
               disabled={busy || !f.especie}
@@ -514,13 +532,20 @@ export function SenebisView() {
     } finally { setBusyId(null); }
   };
 
+  const puedeEscribir = opciones?.puede_escribir ?? false;
+
+  // Borrar: SOLO desde el modal de edición (no hay ✕ en la tabla).
   const borrar = async (o: Orden) => {
-    if (!window.confirm(`¿Borrar la orden #${o.id} (${o.especie})? Queda auditado.`)) return;
+    if (!window.confirm(`¿Eliminar la orden #${o.id} (${o.especie})? Queda auditado.`)) return;
     await fetch(`/api/back-office/senebis/ops/${o.id}`, { method: "DELETE" });
+    setShowForm(false); setEditando(null);
     cargar();
   };
 
-  const abrirEdicion = (o: Orden) => { setEditando(o); setShowForm(true); };
+  const abrirEdicion = (o: Orden) => {
+    if (!puedeEscribir) return;
+    setEditando(o); setShowForm(true);
+  };
 
   const generarExcel = async () => {
     const r = await fetch(`/api/back-office/senebis/export${qs}`);
@@ -575,20 +600,22 @@ export function SenebisView() {
           >
             ⬇ Generar Excel
           </button>
-          <button
-            onClick={() => { setEditando(null); setShowForm(true); }}
-            className="text-[10px] uppercase px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black"
-          >
-            + Nueva orden
-          </button>
+          {puedeEscribir && (
+            <button
+              onClick={() => { setEditando(null); setShowForm(true); }}
+              className="text-[10px] uppercase px-2 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black"
+            >
+              + Nueva orden
+            </button>
+          )}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
         {tab === "ordenes" ? (
           <TablaOrdenes
-            ordenes={ordenes} busyId={busyId}
-            onEstado={toggleEstado} onEditar={abrirEdicion} onBorrar={borrar}
+            ordenes={ordenes} busyId={busyId} puedeEscribir={puedeEscribir}
+            onEstado={toggleEstado} onEditar={abrirEdicion}
           />
         ) : (
           <TablaQuantex excel={excel} ordenes={ordenes} onEditar={abrirEdicion} />
@@ -601,6 +628,7 @@ export function SenebisView() {
           editando={editando}
           onGuardado={() => { setShowForm(false); setEditando(null); cargar(); }}
           onCerrar={() => { setShowForm(false); setEditando(null); }}
+          onBorrar={borrar}
         />
       )}
       {showAgentes && (
@@ -615,12 +643,12 @@ export function SenebisView() {
 }
 
 // ── Tab ÓRDENES ────────────────────────────────────────────────────────────
-function TablaOrdenes({ ordenes, busyId, onEstado, onEditar, onBorrar }: {
+function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar }: {
   ordenes: Orden[];
   busyId: number | null;
+  puedeEscribir: boolean;
   onEstado: (o: Orden) => void;
   onEditar: (o: Orden) => void;
-  onBorrar: (o: Orden) => void;
 }) {
   const TH = "text-left text-[9px] uppercase text-[var(--t-text-muted)] px-2 py-1 whitespace-nowrap";
   const TD = "px-2 py-1 text-[11px] whitespace-nowrap";
@@ -707,12 +735,12 @@ function TablaOrdenes({ ordenes, busyId, onEstado, onEditar, onBorrar }: {
                 {o.creado_por?.split("@")[0] ?? "—"}
               </td>
               <td className={`${TD} text-right`}>
-                <button onClick={() => onEditar(o)} className="text-[9px] uppercase text-[var(--t-text-dim)] hover:text-[var(--t-accent)] mr-2">
-                  editar
-                </button>
-                <button onClick={() => onBorrar(o)} className="text-[9px] uppercase text-[var(--t-text-dim)] hover:text-[var(--t-neg)]">
-                  ✕
-                </button>
+                {/* Eliminar vive DENTRO de editar (como en la mesa) — sin ✕ suelta. */}
+                {puedeEscribir && (
+                  <button onClick={() => onEditar(o)} className="text-[9px] uppercase text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">
+                    editar
+                  </button>
+                )}
               </td>
             </tr>
           );
