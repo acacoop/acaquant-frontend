@@ -700,7 +700,15 @@ export function SenebisView() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ estado: nuevo }),
       });
-      if (r.ok) await cargar();
+      if (r.ok) { await cargar(); setErr(null); }
+      else {
+        let msg = `HTTP ${r.status}`;
+        try {
+          const j = (await r.json()) as { detail?: string };
+          if (typeof j?.detail === "string") msg = j.detail;
+        } catch { /* body no era JSON */ }
+        setErr(msg);
+      }
     } finally { setBusyId(null); }
   };
 
@@ -863,7 +871,7 @@ export function SenebisView() {
       <div className="flex-1 min-h-0 overflow-auto">
         {tab === "ordenes" ? (
           <TablaOrdenes
-            ordenes={ordenes} busyId={busyId} puedeEscribir={puedeEscribir}
+            ordenes={ordenes} busyId={busyId} puedeEscribir={puedeEscribir} esAdmin={esAdmin}
             onEstado={toggleEstado} onEditar={abrirEdicion} onVisto={marcarVisto}
           />
         ) : tab === "quantex" ? (
@@ -897,10 +905,11 @@ export function SenebisView() {
 }
 
 // ── Tab ÓRDENES ────────────────────────────────────────────────────────────
-function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVisto }: {
+function TablaOrdenes({ ordenes, busyId, puedeEscribir, esAdmin, onEstado, onEditar, onVisto }: {
   ordenes: Orden[];
   busyId: number | null;
   puedeEscribir: boolean;
+  esAdmin: boolean;
   onEstado: (o: Orden) => void;
   onEditar: (o: Orden) => void;
   onVisto: (o: Orden) => void;
@@ -934,6 +943,10 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
       <tbody>
         {ordenes.map((o) => {
           const pend = o.estado === "pendiente";
+          // El estado de un día anterior no se toca (server-side igual lo
+          // rechaza) — solo admin, como corrección consciente.
+          const vieja = o.concertacion < hoyIso();
+          const estadoBloqueado = vieja && !esAdmin;
           // El AMARILLO significa UNA sola cosa: se editó algo que ya estaba
           // completada → el back office la cargó en Quantex con datos viejos.
           // Pendiente NO se pinta (ya lo dice el botón de estado), así el
@@ -954,10 +967,12 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
                 <div className="flex items-center justify-center gap-1">
                   <button
                     onClick={() => onEstado(o)}
-                    disabled={busyId === o.id}
-                    title={pend
-                      ? "Marcar COMPLETADA (procesada en Quantex)"
-                      : `Completada por ${o.completada_por ?? "—"} — click para volver a pendiente`}
+                    disabled={busyId === o.id || estadoBloqueado}
+                    title={estadoBloqueado
+                      ? "orden de un día anterior: el estado no se cambia (solo un admin puede corregirlo)"
+                      : pend
+                        ? "Marcar COMPLETADA (procesada en Quantex)"
+                        : `Completada por ${o.completada_por ?? "—"} — click para volver a pendiente`}
                     className={`text-[9px] uppercase px-1.5 py-0.5 border ${
                       pend
                         ? "border-[var(--t-warn,#b8860b)] text-[var(--t-warn,#e0a800)]"
