@@ -854,8 +854,10 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
   onEditar: (o: Orden) => void;
   onVisto: (o: Orden) => void;
 }) {
-  const TH = "text-left text-[9px] uppercase text-[var(--t-text-muted)] px-2 py-1 whitespace-nowrap";
-  const TD = "px-2 py-1 text-[11px] whitespace-nowrap";
+  // Todo centrado (header y valores), igual que el espejo Quantex: con headers
+  // a la izquierda y números a la derecha el valor quedaba lejos de su columna.
+  const TH = "text-center text-[9px] uppercase text-[var(--t-text-muted)] px-2 py-1 whitespace-nowrap";
+  const TD = "px-2 py-1 text-[11px] whitespace-nowrap text-center";
   return (
     <table className="w-full border-collapse">
       <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
@@ -867,9 +869,9 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
           <th className={TH}>Liquid.</th>
           <th className={TH}>Plazo</th>
           <th className={TH}>Especie</th>
-          <th className={`${TH} text-right`}>VN</th>
-          <th className={`${TH} text-right`}>PX</th>
-          <th className={`${TH} text-right`}>Monto</th>
+          <th className={TH}>VN</th>
+          <th className={TH}>PX</th>
+          <th className={TH}>Monto</th>
           <th className={TH}>Contraparte</th>
           <th className={TH}>CP</th>
           <th className={TH}>Mercado</th>
@@ -898,7 +900,7 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
               className={`border-b border-[var(--t-border-2)] hover:bg-[var(--t-surface)] ${tinte}`}
             >
               <td className={TD}>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center justify-center gap-1">
                   <button
                     onClick={() => onEstado(o)}
                     disabled={busyId === o.id}
@@ -932,9 +934,9 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
               <td className={TD}>{fmtFecha(o.liquidacion)}<Ed o={o} campos={["liquidacion"]} /></td>
               <td className={TD}>{o.plazo ?? "—"}<Ed o={o} campos={["plazo"]} /></td>
               <td className={`${TD} text-[var(--t-accent)]`}>{o.especie}<Ed o={o} campos={["especie"]} /></td>
-              <td className={`${TD} text-right`}>{fmtNum(o.vn, 0)}<Ed o={o} campos={["vn"]} /></td>
-              <td className={`${TD} text-right`}>{fmtNum(o.px, 3)}<Ed o={o} campos={["px"]} /></td>
-              <td className={`${TD} text-right`}>{fmtNum(o.monto)}<Ed o={o} campos={["monto"]} /></td>
+              <td className={TD}>{fmtNum(o.vn, 0)}<Ed o={o} campos={["vn"]} /></td>
+              <td className={TD}>{fmtNum(o.px, 3)}<Ed o={o} campos={["px"]} /></td>
+              <td className={TD}>{fmtNum(o.monto)}<Ed o={o} campos={["monto"]} /></td>
               <td className={TD}>
                 {o.tipo_contraparte === "externo" ? (
                   <span title={`agente nº ${o.agente_numero ?? "?"}`}>
@@ -969,7 +971,7 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
               <td className={`${TD} text-[9px] text-[var(--t-text-dim)]`}>
                 {o.creado_por?.split("@")[0] ?? "—"}
               </td>
-              <td className={`${TD} text-right`}>
+              <td className={TD}>
                 {/* Eliminar vive DENTRO de editar (como en la mesa) — sin ✕ suelta. */}
                 {puedeEscribir && (
                   <button onClick={() => onEditar(o)} className="text-[9px] uppercase text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">
