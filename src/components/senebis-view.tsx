@@ -688,22 +688,24 @@ export function SenebisView() {
           <SubTab active={tab === "quantex"} onClick={() => setTab("quantex")}>Excel Quantex</SubTab>
         </div>
 
-        <div className="flex gap-1">
-          <Chip active={rango === "hoy"} onClick={() => setRango("hoy")}>HOY</Chip>
-          <Chip active={rango === "todo"} onClick={() => setRango("todo")}>TODO</Chip>
-        </div>
-        <div className="flex gap-1">
-          <Chip active={fEstado === ""} onClick={() => setFEstado("")}>TODAS</Chip>
-          <Chip active={fEstado === "pendiente"} onClick={() => setFEstado("pendiente")}>
-            PENDIENTES{data ? ` (${data.pendientes})` : ""}
-          </Chip>
-          <Chip active={fEstado === "completada"} onClick={() => setFEstado("completada")}>COMPLETADAS</Chip>
-        </div>
-        {/* MAE: las órdenes que se cargan en el MAE y NO van al Excel Quantex. */}
-        <div className="flex gap-1">
-          <Chip active={fMae === ""} onClick={() => setFMae("")}>CON MAE</Chip>
-          <Chip active={fMae === "sin"} onClick={() => setFMae("sin")}>SIN MAE</Chip>
-          <Chip active={fMae === "solo"} onClick={() => setFMae("solo")}>SOLO MAE</Chip>
+        <div className="flex items-center gap-4 flex-wrap">
+          <FiltroGrupo label="Fecha">
+            <Chip active={rango === "hoy"} onClick={() => setRango("hoy")}>HOY</Chip>
+            <Chip active={rango === "todo"} onClick={() => setRango("todo")}>TODO</Chip>
+          </FiltroGrupo>
+          <FiltroGrupo label="Estado">
+            <Chip active={fEstado === ""} onClick={() => setFEstado("")}>TODAS</Chip>
+            <Chip active={fEstado === "pendiente"} onClick={() => setFEstado("pendiente")}>
+              PENDIENTES{data ? ` (${data.pendientes})` : ""}
+            </Chip>
+            <Chip active={fEstado === "completada"} onClick={() => setFEstado("completada")}>COMPLETADAS</Chip>
+          </FiltroGrupo>
+          {/* MAE: las órdenes que se cargan en el MAE y NO van al Excel Quantex. */}
+          <FiltroGrupo label="MAE">
+            <Chip active={fMae === ""} onClick={() => setFMae("")}>CON</Chip>
+            <Chip active={fMae === "sin"} onClick={() => setFMae("sin")}>SIN</Chip>
+            <Chip active={fMae === "solo"} onClick={() => setFMae("solo")}>SOLO</Chip>
+          </FiltroGrupo>
         </div>
 
         <div className="ml-auto flex items-center gap-3">
@@ -812,17 +814,17 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
       <tbody>
         {ordenes.map((o) => {
           const pend = o.estado === "pendiente";
-          // Colores: EDITADA-SOBRE-COMPLETADA gana sobre todo (amarillo fuerte,
-          // = el que se pintaba a mano: el back office ya la cargó en Quantex
-          // y tiene que revisarla). Si no: MAE → tinte azul sobrio (no va a
-          // Quantex); pendiente → ámbar apenas; completada → atenuada.
+          // El AMARILLO significa UNA sola cosa: se editó algo que ya estaba
+          // completada → el back office la cargó en Quantex con datos viejos.
+          // Pendiente NO se pinta (ya lo dice el botón de estado), así el
+          // amarillo no pierde significado. MAE → azul sobrio (no va a Quantex).
           const tinte = o.editada_completada
             ? "bg-[rgba(224,168,0,0.22)]"
             : !pend
               ? "opacity-60"
               : o.es_mae
                 ? "bg-[rgba(90,130,190,0.10)]"
-                : "bg-[rgba(224,168,0,0.07)]";
+                : "";
           return (
             <tr
               key={o.id}
@@ -858,9 +860,7 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
                 </div>
               </td>
               <td className={`${TD} text-[var(--t-text-dim)]`}>{o.id}</td>
-              <td className={`${TD} ${o.operacion === "COMPRA" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
-                {o.operacion}<Ed o={o} campos={["operacion"]} />
-              </td>
+              <td className={TD}>{o.operacion}<Ed o={o} campos={["operacion"]} /></td>
               <td className={TD}>{fmtFecha(o.concertacion)}<Ed o={o} campos={["concertacion"]} /></td>
               <td className={TD}>{fmtFecha(o.liquidacion)}<Ed o={o} campos={["liquidacion"]} /></td>
               <td className={TD}>{o.plazo ?? "—"}<Ed o={o} campos={["plazo"]} /></td>
@@ -1000,16 +1000,29 @@ function SubTab({ active, onClick, children }: {
   );
 }
 
+/** Filtros agrupados por criterio: etiqueta + botonera segmentada, para que se
+ *  vea qué chips pertenecen al mismo filtro y que son clickeables. */
+function FiltroGrupo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-muted)]">{label}</span>
+      <div className="flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function Chip({ active, onClick, children }: {
   active: boolean; onClick: () => void; children: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`text-[9px] uppercase px-1.5 py-0.5 border ${
+      className={`text-[9px] uppercase px-2 py-0.5 ${
         active
-          ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-          : "border-transparent text-[var(--t-text-dim)] hover:text-[var(--t-text)]"
+          ? "bg-[var(--t-accent)] text-[var(--t-bg)] font-semibold"
+          : "text-[var(--t-text-dim)] hover:bg-[var(--t-surface)] hover:text-[var(--t-text)]"
       }`}
     >
       {children}
