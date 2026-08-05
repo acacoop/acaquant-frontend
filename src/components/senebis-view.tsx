@@ -32,6 +32,11 @@ type Orden = {
   tipo_contraparte: "interno" | "externo";
   agente: string | null; agente_numero: string | null;
   es_mae: boolean;
+  // Marcas de edición persistentes (reemplazan al amarillo que se pintaba a
+  // mano en la planilla vieja): qué campos se tocaron post-alta (→ *) y si el
+  // cambio se hizo sobre una orden YA completada (→ fila amarilla).
+  campos_editados: string[];
+  editada_completada: boolean;
   estado: "pendiente" | "completada";
   completada_por: string | null; completada_at: string | null;
   creado_por: string | null; creado_at: string | null;
@@ -89,6 +94,32 @@ const num = (s: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 const aCrudo = (n: number | null) => (n != null ? String(n).replace(".", ",") : "");
+
+// Nombres lindos de los campos para el tooltip de las marcas de edición.
+const LABEL_CAMPO: Record<string, string> = {
+  operacion: "operación", concertacion: "concertación", liquidacion: "liquidación",
+  plazo: "plazo", especie: "especie", vn: "VN", px: "PX", monto: "monto",
+  cp: "CP", cc: "cuenta comitente", contraparte: "contraparte",
+  nro_contraparte: "nro contraparte", mercado: "mercado",
+  cargan_ellos: "cargan ellos", tipo: "tipo",
+  tipo_contraparte: "tipo de contraparte", agente: "agente", es_mae: "MAE",
+};
+
+// Marca de edición de un campo: * ámbar al lado del valor que se tocó después
+// del alta. `campos` es una lista porque una columna puede mapear a varios
+// campos (ej. CONTRAPARTE = cc | agente | tipo_contraparte).
+function Ed({ o, campos }: { o: Orden; campos: string[] }) {
+  const tocados = campos.filter((c) => o.campos_editados?.includes(c));
+  if (!tocados.length) return null;
+  return (
+    <span
+      title={`editado después del alta: ${tocados.map((c) => LABEL_CAMPO[c] ?? c).join(", ")}`}
+      className="text-[#e0a800] font-bold ml-0.5"
+    >
+      *
+    </span>
+  );
+}
 
 // ── Presencia (avatares de quién tiene la vista abierta) ───────────────────
 function Presencia({ conectados }: { conectados: Conectado[] }) {
@@ -520,6 +551,8 @@ export function SenebisView() {
   const [tab, setTab] = usePersistedState<"ordenes" | "quantex">("senebis.tab", "ordenes");
   const [rango, setRango] = usePersistedState<"hoy" | "todo">("senebis.rango", "hoy");
   const [fEstado, setFEstado] = useState<"" | "pendiente" | "completada">("");
+  // MAE: "" = todas (con MAE) · "sin" = excluir MAE · "solo" = solo MAE.
+  const [fMae, setFMae] = usePersistedState<"" | "sin" | "solo">("senebis.mae", "");
 
   const [data, setData] = useState<OpsResp | null>(null);
   const [excel, setExcel] = useState<ExcelResp | null>(null);
@@ -535,9 +568,10 @@ export function SenebisView() {
     const p = new URLSearchParams();
     if (rango === "hoy") p.set("desde", hoyIso());
     if (fEstado) p.set("estado", fEstado);
+    if (fMae) p.set("mae", fMae);
     const s = p.toString();
     return s ? `?${s}` : "";
-  }, [rango, fEstado]);
+  }, [rango, fEstado, fMae]);
   // El Excel Quantex NO recibe filtro de estado: el backend ya manda solo
   // pendientes no-MAE (lo completado ya se cargó en Quantex).
   const qsExcel = useMemo(
@@ -579,6 +613,15 @@ export function SenebisView() {
   };
 
   const puedeEscribir = opciones?.puede_escribir ?? false;
+
+  // "Visto": baja el * y el amarillo de una orden ya revisada en Quantex.
+  const marcarVisto = async (o: Orden) => {
+    setBusyId(o.id);
+    try {
+      const r = await fetch(`/api/back-office/senebis/ops/${o.id}/visto`, { method: "POST" });
+      if (r.ok) await cargar();
+    } finally { setBusyId(null); }
+  };
 
   // Borrar: SOLO desde el modal de edición (no hay ✕ en la tabla).
   const borrar = async (o: Orden) => {
@@ -656,6 +699,12 @@ export function SenebisView() {
           </Chip>
           <Chip active={fEstado === "completada"} onClick={() => setFEstado("completada")}>COMPLETADAS</Chip>
         </div>
+        {/* MAE: las órdenes que se cargan en el MAE y NO van al Excel Quantex. */}
+        <div className="flex gap-1">
+          <Chip active={fMae === ""} onClick={() => setFMae("")}>CON MAE</Chip>
+          <Chip active={fMae === "sin"} onClick={() => setFMae("sin")}>SIN MAE</Chip>
+          <Chip active={fMae === "solo"} onClick={() => setFMae("solo")}>SOLO MAE</Chip>
+        </div>
 
         <div className="ml-auto flex items-center gap-3">
           {err && <span className="text-[9px] text-[var(--t-neg)]">{err}</span>}
@@ -700,7 +749,7 @@ export function SenebisView() {
         {tab === "ordenes" ? (
           <TablaOrdenes
             ordenes={ordenes} busyId={busyId} puedeEscribir={puedeEscribir}
-            onEstado={toggleEstado} onEditar={abrirEdicion}
+            onEstado={toggleEstado} onEditar={abrirEdicion} onVisto={marcarVisto}
           />
         ) : (
           <TablaQuantex excel={excel} ordenes={ordenes} onEditar={abrirEdicion} />
@@ -728,12 +777,13 @@ export function SenebisView() {
 }
 
 // ── Tab ÓRDENES ────────────────────────────────────────────────────────────
-function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar }: {
+function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVisto }: {
   ordenes: Orden[];
   busyId: number | null;
   puedeEscribir: boolean;
   onEstado: (o: Orden) => void;
   onEditar: (o: Orden) => void;
+  onVisto: (o: Orden) => void;
 }) {
   const TH = "text-left text-[9px] uppercase text-[var(--t-text-muted)] px-2 py-1 whitespace-nowrap";
   const TD = "px-2 py-1 text-[11px] whitespace-nowrap";
@@ -762,46 +812,62 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar }: {
       <tbody>
         {ordenes.map((o) => {
           const pend = o.estado === "pendiente";
-          // Colores: MAE → tinte azul sobrio (no va a Quantex); pendiente →
-          // tinte ámbar apenas más llamativo (es lo que falta cargar);
-          // completada → atenuada.
-          const tinte = !pend
-            ? "opacity-60"
-            : o.es_mae
-              ? "bg-[rgba(90,130,190,0.10)]"
-              : "bg-[rgba(224,168,0,0.07)]";
+          // Colores: EDITADA-SOBRE-COMPLETADA gana sobre todo (amarillo fuerte,
+          // = el que se pintaba a mano: el back office ya la cargó en Quantex
+          // y tiene que revisarla). Si no: MAE → tinte azul sobrio (no va a
+          // Quantex); pendiente → ámbar apenas; completada → atenuada.
+          const tinte = o.editada_completada
+            ? "bg-[rgba(224,168,0,0.22)]"
+            : !pend
+              ? "opacity-60"
+              : o.es_mae
+                ? "bg-[rgba(90,130,190,0.10)]"
+                : "bg-[rgba(224,168,0,0.07)]";
           return (
             <tr
               key={o.id}
               className={`border-b border-[var(--t-border-2)] hover:bg-[var(--t-surface)] ${tinte}`}
             >
               <td className={TD}>
-                <button
-                  onClick={() => onEstado(o)}
-                  disabled={busyId === o.id}
-                  title={pend
-                    ? "Marcar COMPLETADA (procesada en Quantex)"
-                    : `Completada por ${o.completada_por ?? "—"} — click para volver a pendiente`}
-                  className={`text-[9px] uppercase px-1.5 py-0.5 border ${
-                    pend
-                      ? "border-[var(--t-warn,#b8860b)] text-[var(--t-warn,#e0a800)]"
-                      : "border-[var(--t-pos)] text-[var(--t-pos)]"
-                  } disabled:opacity-40`}
-                >
-                  {busyId === o.id ? "…" : pend ? "PENDIENTE" : "✓ COMPLETADA"}
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => onEstado(o)}
+                    disabled={busyId === o.id}
+                    title={pend
+                      ? "Marcar COMPLETADA (procesada en Quantex)"
+                      : `Completada por ${o.completada_por ?? "—"} — click para volver a pendiente`}
+                    className={`text-[9px] uppercase px-1.5 py-0.5 border ${
+                      pend
+                        ? "border-[var(--t-warn,#b8860b)] text-[var(--t-warn,#e0a800)]"
+                        : "border-[var(--t-pos)] text-[var(--t-pos)]"
+                    } disabled:opacity-40`}
+                  >
+                    {busyId === o.id ? "…" : pend ? "PENDIENTE" : "✓ COMPLETADA"}
+                  </button>
+                  {o.editada_completada && (
+                    <button
+                      onClick={() => onVisto(o)}
+                      disabled={busyId === o.id}
+                      title={"Se editó DESPUÉS de haberse completado — ya está cargada en " +
+                        "Quantex con los datos viejos. Click para marcar VISTO y bajar el amarillo."}
+                      className="text-[9px] uppercase px-1.5 py-0.5 border border-[#e0a800] bg-[#e0a800] text-black font-semibold disabled:opacity-40"
+                    >
+                      ⚠ EDITADA
+                    </button>
+                  )}
+                </div>
               </td>
               <td className={`${TD} text-[var(--t-text-dim)]`}>{o.id}</td>
               <td className={`${TD} ${o.operacion === "COMPRA" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}`}>
-                {o.operacion}
+                {o.operacion}<Ed o={o} campos={["operacion"]} />
               </td>
-              <td className={TD}>{fmtFecha(o.concertacion)}</td>
-              <td className={TD}>{fmtFecha(o.liquidacion)}</td>
-              <td className={TD}>{o.plazo ?? "—"}</td>
-              <td className={`${TD} text-[var(--t-accent)]`}>{o.especie}</td>
-              <td className={`${TD} text-right`}>{fmtNum(o.vn, 0)}</td>
-              <td className={`${TD} text-right`}>{fmtNum(o.px, 3)}</td>
-              <td className={`${TD} text-right`}>{fmtNum(o.monto)}</td>
+              <td className={TD}>{fmtFecha(o.concertacion)}<Ed o={o} campos={["concertacion"]} /></td>
+              <td className={TD}>{fmtFecha(o.liquidacion)}<Ed o={o} campos={["liquidacion"]} /></td>
+              <td className={TD}>{o.plazo ?? "—"}<Ed o={o} campos={["plazo"]} /></td>
+              <td className={`${TD} text-[var(--t-accent)]`}>{o.especie}<Ed o={o} campos={["especie"]} /></td>
+              <td className={`${TD} text-right`}>{fmtNum(o.vn, 0)}<Ed o={o} campos={["vn"]} /></td>
+              <td className={`${TD} text-right`}>{fmtNum(o.px, 3)}<Ed o={o} campos={["px"]} /></td>
+              <td className={`${TD} text-right`}>{fmtNum(o.monto)}<Ed o={o} campos={["monto"]} /></td>
               <td className={TD}>
                 {o.tipo_contraparte === "externo" ? (
                   <span title={`agente nº ${o.agente_numero ?? "?"}`}>
@@ -816,9 +882,10 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar }: {
                     ) : null}
                   </span>
                 )}
+                <Ed o={o} campos={["tipo_contraparte", "agente", "cc", "contraparte", "nro_contraparte"]} />
               </td>
-              <td className={TD}>{o.cp ?? "—"}</td>
-              <td className={`${TD} text-[10px]`}>{o.mercado ?? "—"}</td>
+              <td className={TD}>{o.cp ?? "—"}<Ed o={o} campos={["cp"]} /></td>
+              <td className={`${TD} text-[10px]`}>{o.mercado ?? "—"}<Ed o={o} campos={["mercado"]} /></td>
               <td className={`${TD} text-[10px] text-[var(--t-text-dim)]`}>
                 {o.es_mae && (
                   <span
@@ -830,6 +897,7 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar }: {
                 )}
                 {[o.cargan_ellos, !o.es_mae ? o.tipo : null].filter(Boolean).join(" · ")
                   || (o.es_mae ? "" : "—")}
+                <Ed o={o} campos={["cargan_ellos", "tipo", "es_mae"]} />
               </td>
               <td className={`${TD} text-[9px] text-[var(--t-text-dim)]`}>
                 {o.creado_por?.split("@")[0] ?? "—"}
@@ -862,8 +930,10 @@ function TablaQuantex({ excel, ordenes, onEditar }: {
   onEditar: (o: Orden) => void;
 }) {
   const porId = useMemo(() => new Map(ordenes.map((o) => [o.id, o])), [ordenes]);
-  const TH = "text-left text-[9px] uppercase px-2 py-1 whitespace-nowrap bg-[#1F4E79] text-white";
-  const TD = "px-2 py-1 text-[11px] whitespace-nowrap border-b border-[var(--t-border-2)]";
+  // Todo CENTRADO (header y valores): la mezcla de headers a la izquierda con
+  // números a la derecha dejaba el valor lejos de su columna y confundía.
+  const TH = "text-center text-[9px] uppercase px-3 py-1 whitespace-nowrap bg-[#1F4E79] text-white";
+  const TD = "px-3 py-1 text-[11px] whitespace-nowrap text-center border-b border-[var(--t-border-2)]";
   if (!excel) return <div className="p-3 text-[11px] text-[var(--t-text-dim)]">Cargando…</div>;
   return (
     <div className="p-2">
@@ -881,15 +951,20 @@ function TablaQuantex({ excel, ordenes, onEditar }: {
         <tbody>
           {excel.filas.map((f) => {
             const o = porId.get(f.id);
+            const editada = o?.editada_completada ?? false;
             return (
               <tr
                 key={f.id}
                 onClick={() => o && onEditar(o)}
-                title="pendiente — click para editar"
-                className="cursor-pointer hover:bg-[var(--t-surface)]"
+                title={editada
+                  ? "editada después de haberse completado — revisar contra Quantex"
+                  : "pendiente — click para editar"}
+                className={`cursor-pointer hover:bg-[var(--t-surface)] ${
+                  editada ? "bg-[rgba(224,168,0,0.22)]" : ""
+                }`}
               >
                 {f.valores.map((v, i) => (
-                  <td key={i} className={`${TD} ${typeof v === "number" && i > 0 ? "text-right" : ""}`}>
+                  <td key={i} className={TD}>
                     {v == null ? "" : typeof v === "number" && i >= 4 && i <= 5 ? fmtNum(v, 3) : String(v)}
                   </td>
                 ))}
