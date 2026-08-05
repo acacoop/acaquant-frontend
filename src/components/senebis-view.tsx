@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { getJSON as getJson } from "@/lib/fetch-json";
+import { fetchJson, getJSON as getJson } from "@/lib/fetch-json";
 
 // ── Types (contrato /api/back-office/senebis) ──────────────────────────────
 type Orden = {
@@ -133,8 +133,13 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // Autocomplete de comitentes (interno): busca por número o denominación.
+  // El dropdown SIEMPRE muestra su estado (buscando / sin coincidencias /
+  // error) — un fallo silencioso se ve idéntico a "no hay desplegable" y ya
+  // nos pasó (ver lib/use-poll.ts): mejor decir qué está pasando.
   const [sug, setSug] = useState<Comitente[]>([]);
-  const [sugOpen, setSugOpen] = useState(false);
+  const [sugEstado, setSugEstado] =
+    useState<"cerrado" | "buscando" | "ok" | "error">("cerrado");
+  const [sugErr, setSugErr] = useState<string>("");
   const sugTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const set = (k: keyof FormState) => (
@@ -143,15 +148,23 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar }: {
   const setNum = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF((p) => ({ ...p, [k]: normalizarNumeroInput(e.target.value) }));
 
-  const buscarCC = (q: string) => {
-    setF((p) => ({ ...p, cc: q }));
+  const buscarCC = (q: string, actualizarForm = true) => {
+    if (actualizarForm) setF((p) => ({ ...p, cc: q }));
     if (sugTimer.current) clearTimeout(sugTimer.current);
-    if (!q.trim()) { setSug([]); setSugOpen(false); return; }
+    const term = q.trim();
+    if (!term) { setSug([]); setSugEstado("cerrado"); return; }
+    setSugEstado("buscando");
     sugTimer.current = setTimeout(async () => {
-      const r = await getJson<{ comitentes: Comitente[] }>(
-        `/api/back-office/senebis/comitentes?q=${encodeURIComponent(q.trim())}`);
-      setSug(r?.comitentes ?? []);
-      setSugOpen(true);
+      try {
+        const r = await fetchJson<{ comitentes: Comitente[] }>(
+          `/api/back-office/senebis/comitentes?q=${encodeURIComponent(term)}`);
+        setSug(r.comitentes ?? []);
+        setSugEstado("ok");
+      } catch (e) {
+        setSug([]);
+        setSugErr(e instanceof Error ? e.message : String(e));
+        setSugEstado("error");
+      }
     }, 250);
   };
 
@@ -280,19 +293,35 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar }: {
             <Campo label="CUENTA COMITENTE (número o nombre)" hint="se normaliza al número">
               <div className="relative">
                 <input
-                  className={`${INPUT} w-full`} placeholder="219 / ACME SA" value={f.cc}
+                  className={`${INPUT} w-full`} placeholder="escribí número o nombre…" value={f.cc}
                   onChange={(e) => buscarCC(e.target.value)}
-                  onBlur={() => setTimeout(() => setSugOpen(false), 150)}
+                  onFocus={() => { if (f.cc.trim()) buscarCC(f.cc, false); }}
+                  onBlur={() => setTimeout(() => setSugEstado("cerrado"), 200)}
                 />
-                {sugOpen && sug.length > 0 && (
-                  <div className="absolute z-10 top-full left-0 right-0 max-h-40 overflow-y-auto border border-[var(--t-border-2)] bg-[var(--t-panel)]">
-                    {sug.map((c) => (
+                {sugEstado !== "cerrado" && (
+                  <div className="absolute z-20 top-full left-0 right-0 max-h-40 overflow-y-auto border border-[var(--t-accent)] bg-[var(--t-panel)] shadow-lg">
+                    {sugEstado === "buscando" && (
+                      <div className="px-2 py-1 text-[10px] text-[var(--t-text-dim)]">buscando…</div>
+                    )}
+                    {sugEstado === "error" && (
+                      <div className="px-2 py-1 text-[10px] text-[var(--t-neg)]">
+                        no se pudo buscar ({sugErr}) — ¿backend actualizado?
+                      </div>
+                    )}
+                    {sugEstado === "ok" && !sug.length && (
+                      <div className="px-2 py-1 text-[10px] text-[var(--t-text-dim)]">
+                        sin coincidencias — queda como texto libre
+                      </div>
+                    )}
+                    {sugEstado === "ok" && sug.map((c) => (
                       <button
                         key={c.id_cuenta}
+                        type="button"
                         className="block w-full text-left px-2 py-1 text-[10px] text-[var(--t-text)] hover:bg-[var(--t-surface)]"
-                        onMouseDown={() => {
+                        onMouseDown={(e) => {
+                          e.preventDefault();
                           setF((p) => ({ ...p, cc: c.id_cuenta }));
-                          setSugOpen(false);
+                          setSugEstado("cerrado");
                         }}
                       >
                         <span className="text-[var(--t-accent)]">{c.id_cuenta}</span>
