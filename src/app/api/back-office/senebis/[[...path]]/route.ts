@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 
 // Proxy catch-all de SENEBIS (Back Office → SENEBIS) hacia
 // /api/back-office/senebis/* del backend: /ops (+/{id}, /{id}/estado),
@@ -25,12 +26,21 @@ async function proxy(req: Request, path: string[] | undefined) {
       headers["CF-Access-Client-Id"] = CF_CLIENT_ID;
       headers["CF-Access-Client-Secret"] = CF_CLIENT_SECRET;
     }
-    // CF Access estripa cf-access-authenticated-user-email con service token;
-    // x-acaquant-user-email pasa intacto y el backend lo lee con prioridad.
-    const userEmail = req.headers.get("cf-access-authenticated-user-email");
+    // Identidad de CONFIANZA: con CF activo sale del sello firmado (JWT), el
+    // header de texto plano se ignora → no spoofeable. CF Access estripa
+    // cf-access-authenticated-user-email con service token; x-acaquant-user-email
+    // pasa intacto y el backend lo lee con prioridad.
+    const userEmail = await trustedEmail((n) => req.headers.get(n));
     if (userEmail) {
       headers["cf-access-authenticated-user-email"] = userEmail;
       headers["x-acaquant-user-email"] = userEmail;
+    }
+    // Portal invitado (www): SIN esta marca el backend resolvería el rol por
+    // email (default `sales`, que SÍ tiene back-office) y un invitado vería
+    // las órdenes de la mesa — REGLA #8. Con la marca fuerza rol invitado
+    // (sin back-office) → 403. Mismo cierre que hace apiFetch.
+    if (await isGuestRequest((n) => req.headers.get(n))) {
+      headers["x-acaquant-portal"] = "guest";
     }
 
     const method = req.method.toUpperCase();

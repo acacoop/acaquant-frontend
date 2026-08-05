@@ -46,6 +46,10 @@ const PATH_MODULES: [string, string[]][] = [
   ["/api/portfolio", ["portfolios"]],
   ["/api/titulos", ["portfolios"]],
   ["/back-office", ["back-office"]],
+  // /api/back-office (SENEBIS, tenencia, tesorería…) — módulo `back-office`.
+  // Además de pre-gatear, el matcher SANITIZA los headers de identidad de
+  // todo lo que pasa por acá (borra el email spoofeable y setea el verificado).
+  ["/api/back-office", ["back-office"]],
   // /research (vista Research: research diario 1816 + market data) — módulo `research`.
   // Prefijo API distinto de /api/research (Análisis Fundamental de RV) — no colisiona.
   ["/research", ["research"]],
@@ -184,6 +188,7 @@ export const config = {
     "/aum/:path*",
     "/valuaciones/:path*",
     "/back-office/:path*",
+    "/api/back-office/:path*",
     "/research/:path*",
     "/api/manager/:path*",
     "/api/research1816/:path*",
