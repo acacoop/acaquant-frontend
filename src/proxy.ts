@@ -199,5 +199,9 @@ export const config = {
     "/api/cuentas/:path*",
     "/api/portfolio/:path*",
     "/api/titulos/:path*",
+    "/mesa-dinero/:path*",
+    "/api/mesa-dinero/:path*",
+    "/renta-variable/:path*",
+    "/api/scanner/:path*",
   ],
 };

@@ -87,12 +87,14 @@ export function ArancelesView() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch("/api/operaciones/ops/fechas", { cache: "no-store" });
-        const j = r.ok ? await r.json() : null;
+        // 3 requests independientes → en paralelo (antes iban encadenadas).
+        const [j, s, o] = await Promise.all([
+          fetch("/api/operaciones/ops/fechas", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null),
+          fetch("/api/operaciones/ops/segmentos", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null),
+          fetch("/api/operaciones/comercial/operadores", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null),
+        ]);
         setFechas(j?.fechas ?? []);
-        const s = await fetch("/api/operaciones/ops/segmentos", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null);
         setSegmentos(s?.segmentos ?? []);
-        const o = await fetch("/api/operaciones/comercial/operadores", { cache: "no-store" }).then((x) => x.ok ? x.json() : null).catch(() => null);
         setOperadores(Array.isArray(o) ? o : []);
       } catch { /* */ }
     })();

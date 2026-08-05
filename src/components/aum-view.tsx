@@ -168,6 +168,10 @@ export function AumView() {
   // Operadores para el filtro madre (una vez). Si el usuario logueado está
   // registrado como operador, el filtro arranca scopeado a SUS cuentas; si no
   // (manager/admin/trader), queda en "TODOS" como antes.
+  // `opsListo` gatea serie/snapshot: resolver el operador ANTES del primer
+  // fetch evita que un operador dispare serie+snapshot dos veces (una sin
+  // scope y otra scopeada, porque `operador` es dependencia de ambos efectos).
+  const [opsListo, setOpsListo] = useState(false);
   useEffect(() => {
     (async () => {
       try {
@@ -194,6 +198,8 @@ export function AumView() {
         if (mio) setOperador((s) => s || mio.operador_email);
       } catch {
         // silencioso — sin operadores el selector queda en "TODOS".
+      } finally {
+        setOpsListo(true);
       }
     })();
   }, []);
@@ -216,6 +222,7 @@ export function AumView() {
   const [snapErr, setSnapErr] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SnapshotRow[]>([]);
   const [fechaSel, setFechaSel] = useState<string>("");
+  const snapKeyRef = useRef<string>("");
   const [emisorSel, setEmisorSel] = useState<string | null>(null);
 
   // Serie histórica — depende de tab / moneda / cuentaFilter.
@@ -227,6 +234,7 @@ export function AumView() {
     // aunque no use el chart — lo aprovechamos para alimentar los presets
     // de plazo (Día anterior, MTD, etc).
     if (tab !== "fci" && tab !== "total" && tab !== "analisis_dinero") return;
+    if (!opsListo) return;  // esperar el operador resuelto (evita doble fetch)
     let cancelled = false;
     (async () => {
       try {
@@ -267,20 +275,27 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, moneda, cuentaFilter, operador, nivel1]);
+  }, [tab, moneda, cuentaFilter, operador, nivel1, opsListo]);
 
   // Snapshot — depende de fecha + cuentaFilter + moneda. Es lo que cambia
   // cuando el usuario juega con los filtros; el chart de evolución se queda
-  // quieto.
+  // quieto. En TOTAL, sin fechaSel se pide SIN fecha (el backend resuelve la
+  // última y la devuelve) → serie y snapshot salen EN PARALELO al montar.
+  // `snapKeyRef` guarda la clave de lo ya cargado: cuando la serie resuelve y
+  // setea fechaSel a la misma fecha que el snapshot ya trajo, no re-fetchea.
   useEffect(() => {
     if (tab !== "fci" && tab !== "total") return;
-    if (!fechaSel) return;
+    if (!opsListo) return;  // esperar el operador resuelto (evita doble fetch)
+    if (tab === "fci" && !fechaSel) return;  // FCI no soporta "última" server-side
+    const key = [tab, fechaSel, cuentaFilter, moneda, operador, nivel1].join("|");
+    if (key === snapKeyRef.current) return;  // ya está cargado exactamente esto
     let cancelled = false;
     (async () => {
       try {
         setLoadingSnap(true);
         const base = tab === "total" ? "/api/aum-total/snapshot" : "/api/aum-fci/snapshot";
-        const q = new URLSearchParams({ fecha: fechaSel, moneda });
+        const q = new URLSearchParams({ moneda });
+        if (fechaSel) q.set("fecha", fechaSel);
         if (cuentaFilter !== "todas") q.set("cuenta_filter", cuentaFilter);
         if (operador) q.set("operador", operador);
         if (nivel1 && tab === "total") q.set("nivel_1", nivel1);
@@ -288,6 +303,9 @@ export function AumView() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         if (cancelled) return;
+        const fechaResuelta: string = (typeof json.fecha === "string" && json.fecha) || fechaSel;
+        snapKeyRef.current = [tab, fechaResuelta, cuentaFilter, moneda, operador, nivel1].join("|");
+        if (!fechaSel && fechaResuelta) setFechaSel(fechaResuelta);
         const rawDocs = Array.isArray(json.docs) ? json.docs : [];
         const rows: SnapshotRow[] = rawDocs.map((d: { unidad: string; emisor?: string; cartera?: string; ticker?: string; cuenta: string; id_cuenta: string; valuacion: number; cantidad: number }) => ({
           unidad:    d.unidad,
@@ -310,7 +328,7 @@ export function AumView() {
     return () => {
       cancelled = true;
     };
-  }, [tab, fechaSel, cuentaFilter, moneda, operador, nivel1]);
+  }, [tab, fechaSel, cuentaFilter, moneda, operador, nivel1, opsListo]);
 
   const fechasAll = useMemo(() => serie.map((s) => s.fecha), [serie]);
 

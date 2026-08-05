@@ -162,20 +162,23 @@ export function OpsView() {
   }, []);
   useEffect(() => { cargarFechas(); }, [cargarFechas]);
 
-  // Listas para filtros (una vez): segmentos + cuentas (buscador).
+  // Listas para filtros (una vez): son 6 requests independientes → en paralelo
+  // (encadenadas sumaban ~1-4s de cascada antes de poder filtrar).
   useEffect(() => {
     (async () => {
-      const s = await getJSON<{ segmentos: string[] }>("/api/operaciones/ops/segmentos");
+      const [s, n3, m, ca, c, ops] = await Promise.all([
+        getJSON<{ segmentos: string[] }>("/api/operaciones/ops/segmentos"),
+        getJSON<{ niveles3: string[] }>("/api/operaciones/ops/niveles3"),
+        getJSON<{ mercados: string[] }>("/api/operaciones/ops/mercados"),
+        getJSON<{ carteras: string[] }>("/api/operaciones/ops/carteras"),
+        getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list"),
+        getJSON<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>("/api/operaciones/comercial/operadores"),
+      ]);
       setSegmentos(s?.segmentos ?? []);
-      const n3 = await getJSON<{ niveles3: string[] }>("/api/operaciones/ops/niveles3");
       setNiveles3(n3?.niveles3 ?? []);
-      const m = await getJSON<{ mercados: string[] }>("/api/operaciones/ops/mercados");
       setMercados(m?.mercados ?? []);
-      const ca = await getJSON<{ carteras: string[] }>("/api/operaciones/ops/carteras");
       setCarteras(ca?.carteras ?? []);
-      const c = await getJSON<{ cuentas: { cuenta: string; denominacion: string }[] }>("/api/operaciones/ops/cuentas-list");
       setCuentasList(c?.cuentas ?? []);
-      const ops = await getJSON<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>("/api/operaciones/comercial/operadores");
       setOperadores(Array.isArray(ops) ? ops : []);
     })();
   }, []);

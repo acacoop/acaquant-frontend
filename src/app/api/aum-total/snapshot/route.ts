@@ -16,6 +16,7 @@ interface BackendResp {
   moneda: "ARS" | "USD";
   mep_used: number | null;
   mep_missing: boolean;
+  fecha: string | null;
 }
 
 export const dynamic = "force-dynamic";
@@ -26,13 +27,13 @@ const NO_STORE = { "Cache-Control": "no-store" };
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
+    // fecha ausente = el backend resuelve la última disponible (y la devuelve
+    // en el campo `fecha` de la respuesta) — evita el waterfall serie→snapshot.
     const fecha = url.searchParams.get("fecha");
-    if (!fecha) {
-      return NextResponse.json({ error: "fecha requerido" }, { status: 400 });
-    }
     const cf = url.searchParams.get("cuenta_filter");
     const moneda = url.searchParams.get("moneda");
-    const q = new URLSearchParams({ fecha });
+    const q = new URLSearchParams();
+    if (fecha) q.set("fecha", fecha);
     if (cf) q.set("cuenta_filter", cf);
     if (moneda) q.set("moneda", moneda);
     const operador = url.searchParams.get("operador");

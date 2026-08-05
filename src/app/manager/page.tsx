@@ -10,10 +10,13 @@ import { getMe } from "@/lib/me";
 // header ya está oculto, esto evita el bypass por URL directa).
 export const dynamic = "force-dynamic";
 
+// Mantener sincronizado con PATH_MODULES["/manager"] en src/proxy.ts y el
+// gating de tabs en manager-view.tsx — 3 listas para lo mismo.
 const MANAGER_MODULES = [
   "manager",
   "manager_clientes",
   "manager_clientes_bulk",
+  "manager_titulos",
 ];
 
 export default async function ManagerPage() {
