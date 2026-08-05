@@ -51,6 +51,7 @@ type Opciones = {
   // Cargar/editar/borrar: MISMA allowlist que Mesa de Dinero (+ admin).
   // El front esconde la edición; el enforcement real es server-side.
   puede_escribir: boolean;
+  es_admin: boolean;
 };
 type ExcelFila = { id: number; estado: string; valores: (string | number | null)[] };
 type ExcelResp = {
@@ -659,6 +660,23 @@ export function SenebisView() {
   };
 
   const puedeEscribir = opciones?.puede_escribir ?? false;
+  const esAdmin = opciones?.es_admin ?? false;
+
+  // Quantex ya consumió el número aunque la orden después falle por mercado:
+  // al reintentar hay que mandarla con uno nuevo.
+  const reasignarId = async (o: Orden) => {
+    if (!window.confirm(
+      `¿Darle un ID NUEVO a la orden #${o.id} (${o.especie})?\n\n` +
+      `Usalo cuando Quantex ya se quedó con el ${o.id} y la carga falló: el ` +
+      `${o.id} queda quemado y la orden pasa al siguiente número libre. ` +
+      "El resto de las órdenes NO se renumera. Queda auditado.")) return;
+    setBusyId(o.id);
+    try {
+      const r = await fetch(`/api/back-office/senebis/ops/${o.id}/reasignar-id`, { method: "POST" });
+      if (!r.ok) setErr(`no se pudo reasignar el ID (HTTP ${r.status})`);
+      await cargar();
+    } finally { setBusyId(null); }
+  };
 
   // "Visto": baja el * y el amarillo de una orden ya revisada en Quantex.
   const marcarVisto = async (o: Orden) => {
@@ -758,12 +776,12 @@ export function SenebisView() {
           {err && <span className="text-[9px] text-[var(--t-neg)]">{err}</span>}
           {excel && (
             <button
-              onClick={puedeEscribir ? ajustarProximoId : undefined}
-              title={puedeEscribir
+              onClick={esAdmin ? ajustarProximoId : undefined}
+              title={esAdmin
                 ? "El próximo ID que asigna la app. Mientras se use el Excel viejo, alinearlo acá: último ID de allá + 1. Click para ajustar."
-                : "El próximo ID que asigna la app (lo alinea un escritor de la mesa)."}
+                : "El próximo ID que asigna la app (lo alinea un admin — la secuencia es global)."}
               className={`text-[9px] uppercase px-1.5 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text)] ${
-                puedeEscribir ? "hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]" : "cursor-default"
+                esAdmin ? "hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]" : "cursor-default"
               }`}
             >
               Próximo ID: <span className="text-[var(--t-accent)]">{excel.proximo_id}</span>
@@ -800,7 +818,10 @@ export function SenebisView() {
             onEstado={toggleEstado} onEditar={abrirEdicion} onVisto={marcarVisto}
           />
         ) : (
-          <TablaQuantex excel={excel} ordenes={ordenes} onEditar={abrirEdicion} />
+          <TablaQuantex
+            excel={excel} ordenes={ordenes} busyId={busyId}
+            onEditar={abrirEdicion} onReasignar={reasignarId}
+          />
         )}
       </div>
 
@@ -970,10 +991,12 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, onEstado, onEditar, onVi
 }
 
 // ── Tab EXCEL QUANTEX (espejo en vivo del archivo destino) ─────────────────
-function TablaQuantex({ excel, ordenes, onEditar }: {
+function TablaQuantex({ excel, ordenes, busyId, onEditar, onReasignar }: {
   excel: ExcelResp | null;
   ordenes: Orden[];
+  busyId: number | null;
   onEditar: (o: Orden) => void;
+  onReasignar: (o: Orden) => void;
 }) {
   const porId = useMemo(() => new Map(ordenes.map((o) => [o.id, o])), [ordenes]);
   // Todo CENTRADO (header y valores): la mezcla de headers a la izquierda con
@@ -992,6 +1015,7 @@ function TablaQuantex({ excel, ordenes, onEditar }: {
         <thead className="sticky top-0 z-10">
           <tr>
             {excel.headers.map((h) => <th key={h} className={TH}>{h}</th>)}
+            <th className="bg-[var(--t-panel)]" />
           </tr>
         </thead>
         <tbody>
@@ -1014,11 +1038,23 @@ function TablaQuantex({ excel, ordenes, onEditar }: {
                     {v == null ? "" : typeof v === "number" && i >= 4 && i <= 5 ? fmtNum(v, 3) : String(v)}
                   </td>
                 ))}
+                <td className="px-2 py-1 border-b border-[var(--t-border-2)]">
+                  {o && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onReasignar(o); }}
+                      disabled={busyId === o.id}
+                      title={`Quantex se quedó con el ${f.id} y la carga falló → darle el siguiente número libre`}
+                      className="text-[9px] uppercase px-1.5 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+                    >
+                      {busyId === o.id ? "…" : "ID nuevo"}
+                    </button>
+                  )}
+                </td>
               </tr>
             );
           })}
           {!excel.filas.length && (
-            <tr><td colSpan={excel.headers.length} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
+            <tr><td colSpan={excel.headers.length + 1} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
               Sin filas en el filtro actual — el Excel saldría vacío.
             </td></tr>
           )}
