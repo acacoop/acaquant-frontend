@@ -538,16 +538,20 @@ export function SenebisView() {
     const s = p.toString();
     return s ? `?${s}` : "";
   }, [rango, fEstado]);
+  // El Excel Quantex NO recibe filtro de estado: el backend ya manda solo
+  // pendientes no-MAE (lo completado ya se cargó en Quantex).
+  const qsExcel = useMemo(
+    () => (rango === "hoy" ? `?desde=${hoyIso()}` : ""), [rango]);
 
   const cargar = useCallback(async () => {
     // /ops marca presencia y trae conectados; /excel es el espejo del archivo.
     const [o, x] = await Promise.all([
       getJson<OpsResp>(`/api/back-office/senebis/ops${qs}`),
-      getJson<ExcelResp>(`/api/back-office/senebis/excel${qs}`),
+      getJson<ExcelResp>(`/api/back-office/senebis/excel${qsExcel}`),
     ]);
     if (o) { setData(o); setErr(null); } else { setErr("no se pudo actualizar la lista"); }
     if (x) setExcel(x);
-  }, [qs]);
+  }, [qs, qsExcel]);
 
   const cargarOpciones = useCallback(async () => {
     const op = await getJson<Opciones>("/api/back-office/senebis/opciones");
@@ -616,7 +620,7 @@ export function SenebisView() {
   };
 
   const generarExcel = async () => {
-    const r = await fetch(`/api/back-office/senebis/export${qs}`);
+    const r = await fetch(`/api/back-office/senebis/export${qsExcel}`);
     if (!r.ok) { setErr(`export falló (HTTP ${r.status})`); return; }
     const blob = await r.blob();
     const disp = r.headers.get("content-disposition") || "";
@@ -864,8 +868,9 @@ function TablaQuantex({ excel, ordenes, onEditar }: {
   return (
     <div className="p-2">
       <div className="text-[9px] text-[var(--t-text-muted)] uppercase mb-1">
-        Espejo en vivo del Excel destino — se completa solo a medida que los traders cargan.
-        Click en una fila para editar la orden. “Generar Excel” descarga exactamente esto.
+        Solo lo PENDIENTE (no MAE): al marcar completada la orden sale de acá —
+        el archivo se sube varias veces por día y lo completado ya está cargado en Quantex.
+        Click en una fila para editar. “Generar Excel” descarga exactamente esto.
       </div>
       <table className="border-collapse">
         <thead className="sticky top-0 z-10">
@@ -880,10 +885,8 @@ function TablaQuantex({ excel, ordenes, onEditar }: {
               <tr
                 key={f.id}
                 onClick={() => o && onEditar(o)}
-                title={f.estado === "completada" ? "completada" : "pendiente — click para editar"}
-                className={`cursor-pointer hover:bg-[var(--t-surface)] ${
-                  f.estado === "completada" ? "opacity-60" : ""
-                }`}
+                title="pendiente — click para editar"
+                className="cursor-pointer hover:bg-[var(--t-surface)]"
               >
                 {f.valores.map((v, i) => (
                   <td key={i} className={`${TD} ${typeof v === "number" && i > 0 ? "text-right" : ""}`}>
