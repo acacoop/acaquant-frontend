@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { TesoreriaAl2 } from "@/components/tesoreria-al2";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
 /**
@@ -9,12 +10,14 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  * consultaMovDocsSolicitados). Ingreso = Depósito, Egreso = Extracción; el monto viene
  * siempre positivo (la dirección la da el tipo).
  *
- * Dos tabs:
+ * Tres tabs:
  *   MOVIMIENTOS — detalle a pantalla completa (solo las columnas relevantes; el resto
  *                 se prende desde COLUMNAS) con los totales por moneda en la barra.
  *   BANCOS      — grilla estilo planilla: una columna por cuenta operativa (TODAS las
  *                 del catálogo, operen o no ese día), filas Saldo inicial (carga
  *                 manual) / Ingresos / Egresos / Neto / Saldo final.
+ *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
+ *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
  * Vista crítica: poll cada 20s (silencioso), reloj de última actualización y presencia
  * de quién más la tiene abierta — mismo patrón que SENEBIS.
@@ -73,7 +76,8 @@ const fmt = (v: number) => v.toLocaleString("es-AR", { minimumFractionDigits: 2,
 const hhmmss = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("es-AR", { hour12: false }) : "—");
 
 export function TesoreriaView() {
-  const [tab, setTab] = usePersistedState<"movimientos" | "bancos">("tes.tab", "movimientos");
+  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "saldo al2">(
+    "tes.tab", "movimientos");
   const [fecha, setFecha] = useState(hoyISO());
   const [estado, setEstado] = usePersistedState("tes.estado", "Procesado");
   const [visibles, setVisibles] = usePersistedState<string[]>("tes.cols", COL_DEFAULT, "local");
@@ -141,7 +145,7 @@ export function TesoreriaView() {
     <div className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* Barra: tabs + fecha + estado + estado de conexión + presencia */}
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap shrink-0 text-[11px]">
-        {(["movimientos", "bancos"] as const).map((t) => (
+        {(["movimientos", "bancos", "saldo al2"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={"px-2 py-0.5 text-[10px] uppercase tracking-widest font-semibold border " +
               (tab === t
@@ -250,9 +254,11 @@ export function TesoreriaView() {
             </table>
           </div>
         </div>
-      ) : (
+      ) : tab === "bancos" ? (
         <BancosGrid cuentas={cuentas} fecha={fecha} vacio={!loading && !err}
           editable={!!data?.puede_editar_saldo} onSaved={() => cargar(true)} />
+      ) : (
+        <TesoreriaAl2 />
       )}
     </div>
   );
