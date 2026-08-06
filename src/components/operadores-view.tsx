@@ -24,8 +24,11 @@ type Combo = {
 const SIN_CLASIFICAR_DIVISION = "__sin_clasificar__";
 const SIN_CLASIFICAR_LABEL = "SIN CLASIFICAR";
 
-// ── Multi-select (dropdown con checkboxes) ────────────────────────────────
+// ── Multi-select (dropdown con checkboxes + buscador) ──────────────────────
 type Opt = { value: string; label: string; n?: number };
+
+// Sin acentos ni mayúsculas: "división" matchea tipeando "division".
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 function MultiSelect({
   label, options, selected, onChange, width = "max-w-[220px]",
 }: {
@@ -36,7 +39,9 @@ function MultiSelect({
   width?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
@@ -44,6 +49,10 @@ function MultiSelect({
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+  useEffect(() => {
+    if (open) searchRef.current?.focus();
+    else setQ("");
   }, [open]);
 
   const sel = new Set(selected);
@@ -56,6 +65,8 @@ function MultiSelect({
     ...options,
     ...selected.filter((v) => !optVals.has(v)).map((v) => ({ value: v, label: v })),
   ];
+  const nq = norm(q);
+  const visibleOpts = nq ? displayOpts.filter((o) => norm(o.label).includes(nq)) : displayOpts;
   const resumen = selected.length === 0
     ? "— Todos —"
     : selected.length === 1
@@ -76,28 +87,46 @@ function MultiSelect({
         <span className="text-[8px] opacity-70">▼</span>
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 min-w-[200px] max-h-[280px] overflow-auto bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-xl">
-          <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--t-border)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
+        <div className="absolute z-50 mt-1 min-w-[220px] max-h-[320px] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-xl">
+          <div className="flex items-center justify-between px-2 py-1 border-b border-[var(--t-border)] text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] shrink-0">
             <span>{label}</span>
             {selected.length > 0 && (
               <button onClick={() => onChange([])} className="text-[var(--t-accent)] hover:underline">limpiar</button>
             )}
           </div>
-          {/* "Todos" = sin filtro en este nivel (toma todo). Estable al cruzar niveles. */}
-          <label className="flex items-center gap-2 px-2 py-1 text-[11px] border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer font-semibold">
-            <input type="checkbox" checked={selected.length === 0} onChange={() => onChange([])}
-              className="accent-[var(--t-accent)]" />
-            <span className="flex-1 text-[var(--t-text)]">Todos</span>
-          </label>
-          {displayOpts.length === 0 && <div className="px-2 py-2 text-[10px] text-[var(--t-text-muted)]">sin opciones</div>}
-          {displayOpts.map((o) => (
-            <label key={o.value} className="flex items-center gap-2 px-2 py-1 text-[11px] hover:bg-[var(--t-surface)] cursor-pointer">
-              <input type="checkbox" checked={sel.has(o.value)} onChange={() => toggle(o.value)}
+          <div className="px-2 py-1 border-b border-[var(--t-border)] shrink-0">
+            <input
+              ref={searchRef}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { setOpen(false); return; }
+                // Enter con un único resultado → lo tilda sin usar el mouse.
+                if (e.key === "Enter" && visibleOpts.length === 1) { toggle(visibleOpts[0].value); setQ(""); }
+              }}
+              placeholder="buscar…"
+              className="w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-1.5 py-0.5 font-mono text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none"
+            />
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {/* "Todos" = sin filtro en este nivel (toma todo). Estable al cruzar niveles. */}
+            <label className="flex items-center gap-2 px-2 py-1 text-[11px] border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer font-semibold">
+              <input type="checkbox" checked={selected.length === 0} onChange={() => onChange([])}
                 className="accent-[var(--t-accent)]" />
-              <span className="truncate flex-1" title={o.label}>{o.label}</span>
-              {o.n != null && <span className="text-[9px] text-[var(--t-text-muted)]">({o.n})</span>}
+              <span className="flex-1 text-[var(--t-text)]">Todos</span>
             </label>
-          ))}
+            {visibleOpts.length === 0 && (
+              <div className="px-2 py-2 text-[10px] text-[var(--t-text-muted)]">{q ? "sin coincidencias" : "sin opciones"}</div>
+            )}
+            {visibleOpts.map((o) => (
+              <label key={o.value} className="flex items-center gap-2 px-2 py-1 text-[11px] hover:bg-[var(--t-surface)] cursor-pointer">
+                <input type="checkbox" checked={sel.has(o.value)} onChange={() => toggle(o.value)}
+                  className="accent-[var(--t-accent)]" />
+                <span className="truncate flex-1" title={o.label}>{o.label}</span>
+                {o.n != null && <span className="text-[9px] text-[var(--t-text-muted)]">({o.n})</span>}
+              </label>
+            ))}
+          </div>
         </div>
       )}
     </div>
