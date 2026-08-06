@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TesoreriaAl2 } from "@/components/tesoreria-al2";
+import { TesoreriaBancoABanco } from "@/components/tesoreria-banco-a-banco";
 import { TesoreriaCheques } from "@/components/tesoreria-cheques";
 import { TesoreriaMercados } from "@/components/tesoreria-mercados";
 import { AbmModal } from "@/components/ui/abm-modal";
@@ -29,6 +30,8 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *                 emitidos son seguimiento sin filtro de fecha. Ver tesoreria-cheques.tsx.
  *   MERCADOS    — 4 tableros del día al 50%: MERCADO (ingresos | pagos) y FCI
  *                 (rescates | suscripciones). Ver tesoreria-mercados.tsx.
+ *   BANCO A BANCO — transferencias INTERNAS entre cuentas propias (débito → crédito).
+ *                 Suman cero entre bancos: mueven el reparto, no el total.
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
@@ -49,6 +52,8 @@ type CuentaWire = {
   egresos: number; egresos_echeq?: number;
   // Netos y con signo listo desde el backend (ingresos−pagos / rescates−suscripciones).
   mercados?: number; fci?: number;
+  // Transferencias internas: (+) la cuenta recibió, (−) entregó. Suman cero entre bancos.
+  bb_mas?: number; bb_menos?: number;
   neto: number; n: number;
   saldo_inicial: number | null; saldo_final: number | null; saldo_cargado?: boolean;
   saldo_por: string | null; saldo_at: string | null;
@@ -108,7 +113,7 @@ const fmt = (v: number) => v.toLocaleString("es-AR", { minimumFractionDigits: 2,
 const hhmmss = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("es-AR", { hour12: false }) : "—");
 
 export function TesoreriaView() {
-  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "cheques" | "mercados" | "saldo al2">(
+  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "cheques" | "mercados" | "banco a banco" | "saldo al2">(
     "tes.tab", "movimientos");
   const [fecha, setFecha] = useState(hoyISO());
   const [estado, setEstado] = usePersistedState("tes.estado", "Procesado");
@@ -167,7 +172,7 @@ export function TesoreriaView() {
     return { ...c, saldo_cargado: c.saldo_inicial !== null && c.saldo_inicial !== undefined,
       saldo_inicial: ini,
       saldo_final: ini + c.neto + (c.ingresos_echeq ?? 0) - (c.egresos_echeq ?? 0)
-        + (c.mercados ?? 0) + (c.fci ?? 0) };
+        + (c.mercados ?? 0) + (c.fci ?? 0) + (c.bb_mas ?? 0) - (c.bb_menos ?? 0) };
   }), [data]);
   const movs = useMemo(() => {
     let rows = data?.movimientos ?? [];
@@ -202,7 +207,7 @@ export function TesoreriaView() {
     <div className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* Barra: tabs + fecha + estado + estado de conexión + presencia */}
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap shrink-0 text-[11px]">
-        {(["movimientos", "bancos", "cheques", "mercados", "saldo al2"] as const).map((t) => (
+        {(["movimientos", "bancos", "cheques", "mercados", "banco a banco", "saldo al2"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={"px-2 py-0.5 text-[10px] uppercase tracking-widest font-semibold border " +
               (tab === t
@@ -336,6 +341,8 @@ export function TesoreriaView() {
             </table>
           </div>
         </div>
+      ) : tab === "banco a banco" ? (
+        <TesoreriaBancoABanco fecha={fecha} />
       ) : tab === "mercados" ? (
         <TesoreriaMercados fecha={fecha} />
       ) : tab === "cheques" ? (
@@ -529,9 +536,10 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
           echeq: a.echeq + (c.egresos_echeq ?? 0),
           ingEcheq: a.ingEcheq + (c.ingresos_echeq ?? 0),
           mercados: a.mercados + (c.mercados ?? 0), fci: a.fci + (c.fci ?? 0),
+          bbMas: a.bbMas + (c.bb_mas ?? 0), bbMenos: a.bbMenos + (c.bb_menos ?? 0),
           neto: a.neto + c.neto, ini: a.ini + c.saldo_inicial,
         }), { ingresos: 0, egresos: 0, echeq: 0, ingEcheq: 0, mercados: 0, fci: 0,
-              neto: 0, ini: 0 });
+              bbMas: 0, bbMenos: 0, neto: 0, ini: 0 });
         return (
           <div key={uni} className="min-w-0">
             <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
@@ -655,6 +663,34 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                       </td>
                     </tr>
                   ))}
+                  {/* BANCO A BANCO: una transferencia interna suma en la cuenta que
+                      recibe y resta en la que entrega → el total entre bancos da cero. */}
+                  <tr className="border-b border-[var(--t-border)]">
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                      title="Transferencias internas recibidas de otro banco propio">Banco a banco (+)</td>
+                    {cols.map((c) => (
+                      <td key={c.cuenta_operativa} className={"px-2 py-1 text-center " +
+                        ((c.bb_mas ?? 0) ? "text-[var(--t-pos)]" : "text-[var(--t-text-dim)]")}>
+                        {(c.bb_mas ?? 0) ? `+${fmt(c.bb_mas ?? 0)}` : fmt(0)}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-center font-semibold text-[var(--t-pos)]">
+                      {tot.bbMas ? `+${fmt(tot.bbMas)}` : fmt(0)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-[var(--t-border)]">
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                      title="Transferencias internas enviadas a otro banco propio">Banco a banco (−)</td>
+                    {cols.map((c) => (
+                      <td key={c.cuenta_operativa} className={"px-2 py-1 text-center " +
+                        ((c.bb_menos ?? 0) ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]")}>
+                        {(c.bb_menos ?? 0) ? `−${fmt(c.bb_menos ?? 0)}` : fmt(0)}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-center font-semibold text-[var(--t-neg)]">
+                      {tot.bbMenos ? `−${fmt(tot.bbMenos)}` : fmt(0)}
+                    </td>
+                  </tr>
                   <tr className="bg-[var(--t-surface)]">
                     <td className="px-2 py-1 font-semibold text-center sticky left-0 bg-[var(--t-surface)] z-10">Saldo final</td>
                     {cols.map((c) => (
@@ -662,7 +698,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                     ))}
                     <td className="px-2 py-1 text-center font-bold">
                       {fmt(tot.ini + tot.neto + tot.ingEcheq - tot.echeq
-                        + tot.mercados + tot.fci)}
+                        + tot.mercados + tot.fci + tot.bbMas - tot.bbMenos)}
                     </td>
                   </tr>
                 </tbody>
