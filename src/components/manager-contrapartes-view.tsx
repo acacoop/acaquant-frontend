@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { readSheetRows } from "@/lib/xlsx-read";
 
 import { GROUP_HEADER, GROUP_TITLE, Pill } from "./manager-shared";
 
@@ -46,6 +47,22 @@ async function detail(r: Response): Promise<string> {
   try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") return j.detail; } catch { /* plano */ }
   return txt.slice(0, 200) || r.statusText;
 }
+
+// Cabeceras del Excel → campo. Sin acentos, minúsculas, sin separadores:
+// "Nº MAE", "n_mae", "codigo mae" → codigo_mae.
+const COL_ALIAS: Record<string, keyof ImportRow> = {
+  cuenta: "cuenta", cta: "cuenta", idcuenta: "cuenta", comitente: "cuenta", nrocuenta: "cuenta",
+  denominacion: "denominacion", nombre: "denominacion", razonsocial: "denominacion",
+  contraparte: "contraparte",
+  segmento: "segmento",
+  nmae: "codigo_mae", nomae: "codigo_mae", numeromae: "codigo_mae", mae: "codigo_mae",
+  codigomae: "codigo_mae", codmae: "codigo_mae", destinomae: "codigo_mae",
+};
+const DATA_COLS = ["contraparte", "segmento", "codigo_mae"] as const;
+type ImportRow = { cuenta?: string; denominacion?: string; contraparte?: string; segmento?: string; codigo_mae?: string };
+
+const normHeader = (h: string) =>
+  h.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export function TabContrapartes() {
   const [sub, setSub] = usePersistedState<"listado" | "conciliador">("manager.cp.sub", "listado");
@@ -122,6 +139,66 @@ export function TabContrapartes() {
     }
   };
 
+  // ── LISTADO: import de Excel ───────────────────────────────────────────
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const onImportFile = async (file: File) => {
+    setImportMsg(null);
+    try {
+      const json = await readSheetRows(file);
+      if (!json.length) { setImportMsg({ ok: false, text: "El archivo está vacío." }); return; }
+
+      const map: Record<string, keyof ImportRow> = {};
+      const unknown: string[] = [];
+      for (const h of Object.keys(json[0])) {
+        const campo = COL_ALIAS[normHeader(h)];
+        if (campo) map[h] = campo; else unknown.push(h);
+      }
+      const campos = new Set(Object.values(map));
+      if (!campos.has("cuenta") && !campos.has("denominacion")) {
+        setImportMsg({ ok: false, text: "Falta la columna clave: el archivo tiene que traer Cuenta o Denominación." });
+        return;
+      }
+      const dataCols = DATA_COLS.filter((c) => campos.has(c));
+      if (!dataCols.length) {
+        setImportMsg({ ok: false, text: "Falta la columna de datos: sumá al menos Contraparte, Segmento o Nº MAE." });
+        return;
+      }
+
+      const rowsOut: ImportRow[] = [];
+      for (const r of json) {
+        const out: ImportRow = {};
+        for (const [h, campo] of Object.entries(map)) {
+          const v = String(r[h] ?? "").trim();
+          if (v !== "") out[campo] = v;
+        }
+        if ((out.cuenta || out.denominacion) && dataCols.some((c) => out[c])) rowsOut.push(out);
+      }
+      if (!rowsOut.length) { setImportMsg({ ok: false, text: "Ninguna fila tiene clave (cuenta/denominación) + un dato para completar." }); return; }
+
+      const aviso = unknown.length ? `\nColumnas ignoradas: ${unknown.join(", ")}.` : "";
+      if (!window.confirm(`Completar ${dataCols.join(", ")} en ${rowsOut.length} filas.${aviso}\nSolo escribe donde haya match — no borra ni da de alta cuentas.\n¿Aplicar?`)) return;
+
+      setImporting(true);
+      const r = await jpost("/api/manager/contrapartes/import", { rows: rowsOut });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setImportMsg({ ok: false, text: j.detail || `HTTP ${r.status}` }); return; }
+      setImportMsg({
+        ok: true,
+        text: `✓ ${j.actualizadas} filas completadas`
+          + (j.n_no_encontradas ? ` · ${j.n_no_encontradas} sin match (${(j.no_encontradas || []).slice(0, 5).join(", ")}…)` : "")
+          + (j.n_ambiguas ? ` · ${j.n_ambiguas} denominaciones ambiguas (2+ cuentas)` : ""),
+      });
+      fetchRows();
+    } catch (e) {
+      setImportMsg({ ok: false, text: e instanceof Error ? e.message : "error parseando el archivo" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // ── CONCILIADOR ────────────────────────────────────────────────────────
   const [cands, setCands] = useState<Candidate[]>([]);
   const [cDraft, setCDraft] = useState<Record<string, Draft>>({});
@@ -186,7 +263,24 @@ export function TabContrapartes() {
           </select>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar denominación / cuenta…" className={INPUT + " w-[200px]"} />
           <button onClick={fetchRows} className="text-[10px] uppercase tracking-wider border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">↻</button>
+          <label className="text-[10px] uppercase tracking-wider border border-[var(--t-accent)] px-2.5 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 cursor-pointer"
+            title="Excel/CSV con Cuenta (o Denominación) + al menos una de Contraparte / Segmento / Nº MAE. Solo completa donde hay match: no borra ni da de alta.">
+            {importing ? "Importando…" : "Subir Excel"}
+            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={importing}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onImportFile(f);
+                if (fileRef.current) fileRef.current.value = "";  // permite re-subir el mismo archivo
+              }} />
+          </label>
         </div>
+        {importMsg && (
+          <div className={"px-3 py-1.5 text-[10px] border-b border-[var(--t-border)] flex items-start gap-2 "
+            + (importMsg.ok ? "text-[var(--t-pos)]" : "text-[var(--t-neg)] bg-[#ff333315]")}>
+            <span className="flex-1 break-words">{importMsg.text}</span>
+            <button onClick={() => setImportMsg(null)} className="text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">✕</button>
+          </div>
+        )}
         {error && <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)]">{error}</div>}
         {saveErr && (
           <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)] bg-[#ff333315] border-b border-[var(--t-border)] flex items-start gap-2">
