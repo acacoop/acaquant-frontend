@@ -573,6 +573,9 @@ type Detalle = {
   fila: string; banco: string; unidad: string; fecha: string; fuente: string;
   total: number; excluidos?: number; items: DetalleItem[];
 };
+// Estados que NO son plata cerrada. Se resaltan en la auditoría: cuentan en el saldo
+// (así lo quiere el back office) pero tienen que verse como lo que son.
+const PENDIENTES = new Set(["pendiente", "pendiente de autorizar", "demorado"]);
 
 function ModalDetalle({ celda, fecha, editable, fijo, onCerrar, onCambio }: {
   celda: Celda; fecha: string; editable: boolean;
@@ -639,7 +642,10 @@ function ModalDetalle({ celda, fecha, editable, fijo, onCerrar, onCambio }: {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onCerrar}>
-      <div className="w-full max-w-[820px] max-h-[80vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
+      {/* Ancho: los nombres de comitente y las referencias de Aunesa son largos y con
+          820px se pisaban entre columnas. Se estira hasta 1240px pero sin pasarse del
+          viewport, así el modal sigue entrando en pantallas chicas. */}
+      <div className="w-full max-w-[1240px] max-h-[85vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
         <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
           <span className="flex-1 text-[11px] uppercase tracking-widest font-semibold">
@@ -658,13 +664,13 @@ function ModalDetalle({ celda, fecha, editable, fijo, onCerrar, onCambio }: {
           <table className="w-full table-fixed text-[11px]">
             <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
               <tr className="border-b border-[var(--t-border)]">
-                <th className="px-2 py-1.5 text-center font-normal w-[5%]"
+                <th className="px-2 py-1.5 text-center font-normal w-[4%]"
                   title="Destildar = no cuenta en el saldo final">✓</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[26%]">Detalle</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[19%]">Referencia</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Estado</th>
-                <th className="px-2 py-1.5 text-right font-normal w-[15%]">Importe</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[26%]">Observaciones</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[28%]">Detalle</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[22%]">Referencia</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[11%]">Estado</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[14%]">Importe</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[21%]">Observaciones</th>
               </tr>
             </thead>
             <tbody>
@@ -677,7 +683,17 @@ function ModalDetalle({ celda, fecha, editable, fijo, onCerrar, onCambio }: {
                   </td>
                   <td className="px-2 py-1 break-words">{i.detalle}</td>
                   <td className="px-2 py-1 break-words text-[var(--t-text-dim)]">{i.referencia || "—"}</td>
-                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{i.estado || "—"}</td>
+                  {/* El estado se muestra TAL CUAL viene: un pendiente que igual suma
+                      al saldo tiene que verse pendiente, no disfrazarse de cerrado. */}
+                  <td className={"px-2 py-1 break-words " +
+                    (PENDIENTES.has(String(i.estado ?? "").toLowerCase())
+                      ? "text-[#f59e0b] font-semibold"
+                      : "text-[var(--t-text-dim)]")}
+                    title={PENDIENTES.has(String(i.estado ?? "").toLowerCase())
+                      ? "Está pendiente y aun así cuenta en el saldo — destildalo si no corresponde"
+                      : undefined}>
+                    {i.estado || "—"}
+                  </td>
                   <td className={"px-2 py-1 text-right tabular-nums " +
                     (i.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]")}>
                     {fmt(i.importe)}

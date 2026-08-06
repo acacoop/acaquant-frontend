@@ -14,6 +14,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *               con FECHA DE PAGO futura va PINTADO DE NARANJA. Estados
  *               pendiente | emitido | COMPLETADO; completado lo saca de la vista
  *               (la fila no se borra: queda en la tabla para auditoría).
+ *               El TOTAL del tablero es lo que IMPACTA HOY: un `emitido` con fecha de
+ *               pago FUTURA todavía no movió plata y no suma (se muestra aparte, como
+ *               "futuros", y entra solo cuando llega el día). Los vencidos sí cuentan
+ *               — puede tocar pagarlos hoy —, y los `pendiente` también.
  *   RECIBIDOS — son TODOS DEL DÍA: se registran intradía y no se arrastran, así
  *               que sí siguen la fecha de la barra. Estados pendiente |
  *               FINALIZADO, y los finalizados se ven igual porque son los que
@@ -153,8 +157,17 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
   const [alta, setAlta] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const total = filas.reduce((a, f) => a + f.importe, 0);
   const esEmitido = lado === "emitido";
+  // EMITIDOS: el total es lo que IMPACTA HOY — los que ya están emitidos con fecha de
+  // pago futura todavía no movieron plata, así que no suman (siguen a la vista, en
+  // naranja, y entran solos cuando llega el día). Los `pendiente` sí cuentan siempre:
+  // están por salir. Los vencidos (fecha anterior) también, porque puede tocar pagarlos
+  // hoy. RECIBIDOS son todos del día: el total es simplemente la suma.
+  const futuro = (f: Cheque) =>
+    esEmitido && f.estado === "emitido" && !!f.fecha_pago && !!hoy && f.fecha_pago > hoy;
+  const total = filas.reduce((a, f) => a + (futuro(f) ? 0 : f.importe), 0);
+  const diferido = filas.reduce((a, f) => a + (futuro(f) ? f.importe : 0), 0);
+  const nDiferido = filas.filter(futuro).length;
   const nCols = 4 + (esEmitido ? 2 : 1) + (editable ? 1 : 0);
 
   // Cambio de estado desde la celda: un PUT y a recargar. Si el estado cierra,
@@ -181,7 +194,18 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
     <Panel titulo={`${titulo} · ${filas.length}`}
       extra={
         <span className="flex items-center gap-2 normal-case">
-          <span className="text-[10px] tabular-nums">{fmt(total)}</span>
+          <span className="text-[10px] tabular-nums"
+            title={esEmitido ? "Impacta hoy: emitidos con fecha de pago vencida o de hoy, más los pendientes" : undefined}>
+            {fmt(total)}
+          </span>
+          {/* Lo diferido no se esconde: se muestra aparte para que se vea que existe
+              y que NO está dentro del número de arriba. */}
+          {nDiferido > 0 && (
+            <span className="text-[9px] tabular-nums text-white/70"
+              title={`${nDiferido} emitidos con fecha de pago futura — todavía no impactan`}>
+              +{fmt(diferido)} futuros
+            </span>
+          )}
           {editable && (
             <button onClick={() => { setAlta((v) => !v); setEditId(null); }}
               className="text-[9px] uppercase tracking-widest border border-white/40 px-1.5 py-0.5 hover:bg-white/10">
