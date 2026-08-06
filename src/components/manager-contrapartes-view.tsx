@@ -1,13 +1,18 @@
 "use client";
 
-// MANAGER → CONTRAPARTES (módulo manager_contrapartes). Split 2 paneles:
-//  - IZQUIERDA (segmentar): lista CashFlow.Contrapartes; editás `contraparte` + `segmento`
+// MANAGER → CONTRAPARTES (módulo manager_contrapartes). 2 sub-tabs a ancho completo
+// (antes era un split 50/50 que dejaba las tablas apretadas para completar datos):
+//  - LISTADO (principal): lista CashFlow.Contrapartes; editás `contraparte` + `segmento`
 //    (cuenta + denominacion vienen de Aunesa, read-only). Guardado por fila (PATCH).
-//  - DERECHA (conciliador): "Solicitar cuentas" pega Aunesa live y lista cuentas que no
+//  - CONCILIADOR: "Solicitar cuentas" pega Aunesa live y lista cuentas que no
 //    están en Contrapartes y cuya denominacion matchea un nombre de contraparte → alta 1 click.
 // Consume /api/manager/contrapartes/*. Ver docs (plan wise-weaving-yao).
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { usePersistedState } from "@/lib/use-persisted-state";
+
+import { GROUP_HEADER, GROUP_TITLE, Pill } from "./manager-shared";
 
 type Contraparte = {
   cuenta: string;
@@ -43,7 +48,9 @@ async function detail(r: Response): Promise<string> {
 }
 
 export function TabContrapartes() {
-  // ── IZQUIERDA: segmentación ────────────────────────────────────────────
+  const [sub, setSub] = usePersistedState<"listado" | "conciliador">("manager.cp.sub", "listado");
+
+  // ── LISTADO: segmentación ──────────────────────────────────────────────
   const [rows, setRows] = useState<Contraparte[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [rowState, setRowState] = useState<Record<string, { kind: RowKind; msg?: string }>>({});
@@ -115,7 +122,7 @@ export function TabContrapartes() {
     }
   };
 
-  // ── DERECHA: conciliador ───────────────────────────────────────────────
+  // ── CONCILIADOR ────────────────────────────────────────────────────────
   const [cands, setCands] = useState<Candidate[]>([]);
   const [cDraft, setCDraft] = useState<Record<string, Draft>>({});
   const [cState, setCState] = useState<Record<string, { kind: "idle" | "adding" | "error"; msg?: string }>>({});
@@ -150,22 +157,27 @@ export function TabContrapartes() {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status} · ${await detail(r)}`);
       setCands((prev) => prev.filter((x) => x.cuenta !== c.cuenta));  // sacar de candidatos
-      fetchRows();  // refrescar la izquierda
+      fetchRows();  // refrescar el listado
     } catch (e) {
       setCState((s) => ({ ...s, [c.cuenta]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
     }
   };
 
   return (
-    <div className="h-full flex min-h-0">
+    <div className="h-full flex flex-col min-h-0">
       {/* Datalists compartidos */}
       <datalist id="cp-segmentos">{opts.segmentos.map((s) => <option key={s} value={s} />)}</datalist>
       <datalist id="cp-contrapartes">{opts.contrapartes.map((s) => <option key={s} value={s} />)}</datalist>
 
-      {/* ── IZQUIERDA: segmentar ─────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col min-h-0 border-r border-[var(--t-border)]">
+      <div className={GROUP_HEADER}>
+        <span className={GROUP_TITLE}>CONTRAPARTES</span>
+        <Pill label="LISTADO" active={sub === "listado"} onClick={() => setSub("listado")} />
+        <Pill label={`CONCILIADOR${recDone && cands.length ? ` !${cands.length}` : ""}`} active={sub === "conciliador"} onClick={() => setSub("conciliador")} />
+      </div>
+
+      {/* ── LISTADO: segmentar ───────────────────────────────────────── */}
+      <div className={`flex-1 min-w-0 flex-col min-h-0 ${sub === "listado" ? "flex" : "hidden"}`}>
         <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">CONTRAPARTES</span>
           <span className="text-[10px] text-[var(--t-text-muted)]">{rows.length} cuentas</span>
           <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">SEGMENTO</span>
           <select value={fSegmento} onChange={(e) => setFSegmento(e.target.value)} className={INPUT}>
@@ -203,12 +215,12 @@ export function TabContrapartes() {
                 return (
                   <tr key={c.cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                     <td className="px-3 py-1 text-[var(--t-text-muted)] whitespace-nowrap">{c.cuenta}</td>
-                    <td className="px-3 py-1 text-[var(--t-text)] truncate max-w-[280px]" title={c.denominacion ?? ""}>{c.denominacion ?? "—"}</td>
+                    <td className="px-3 py-1 text-[var(--t-text)] truncate max-w-[420px]" title={c.denominacion ?? ""}>{c.denominacion ?? "—"}</td>
                     <td className="px-3 py-1">
-                      <input list="cp-contrapartes" value={d.contraparte} onChange={(e) => setField(c.cuenta, "contraparte", e.target.value)} className={INPUT + " w-[150px]"} />
+                      <input list="cp-contrapartes" value={d.contraparte} onChange={(e) => setField(c.cuenta, "contraparte", e.target.value)} className={INPUT + " w-[260px]"} />
                     </td>
                     <td className="px-3 py-1">
-                      <input list="cp-segmentos" value={d.segmento} onChange={(e) => setField(c.cuenta, "segmento", e.target.value)} className={INPUT + " w-[120px]"} />
+                      <input list="cp-segmentos" value={d.segmento} onChange={(e) => setField(c.cuenta, "segmento", e.target.value)} className={INPUT + " w-[200px]"} />
                     </td>
                     <td className="px-3 py-1">
                       <input value={d.codigo_mae ?? ""} placeholder="062"
@@ -233,10 +245,9 @@ export function TabContrapartes() {
         </div>
       </div>
 
-      {/* ── DERECHA: conciliador ─────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex flex-col min-h-0">
+      {/* ── CONCILIADOR ──────────────────────────────────────────────── */}
+      <div className={`flex-1 min-w-0 flex-col min-h-0 ${sub === "conciliador" ? "flex" : "hidden"}`}>
         <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">CONCILIADOR</span>
           <button onClick={solicitar} disabled={recLoading} className="text-[10px] uppercase tracking-wider border border-[var(--t-accent)] px-2.5 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40">
             {recLoading ? "Consultando Aunesa…" : "Solicitar cuentas"}
           </button>
@@ -265,15 +276,15 @@ export function TabContrapartes() {
                 return (
                   <tr key={c.cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
                     <td className="px-3 py-1 text-[var(--t-text-muted)] whitespace-nowrap">{c.cuenta}</td>
-                    <td className="px-3 py-1 text-[var(--t-text)] truncate max-w-[240px]" title={`${c.denominacion} · ${c.tipo_cliente ?? "sin tipo"}`}>
+                    <td className="px-3 py-1 text-[var(--t-text)] truncate max-w-[420px]" title={`${c.denominacion} · ${c.tipo_cliente ?? "sin tipo"}`}>
                       {c.denominacion}
                       <span className="ml-1 text-[8px] text-[var(--t-text-muted)]">({c.keyword}{c.tipo_cliente ? ` · ${c.tipo_cliente}` : ""})</span>
                     </td>
                     <td className="px-3 py-1">
-                      <input list="cp-contrapartes" value={d.contraparte} onChange={(e) => setCField(c.cuenta, "contraparte", e.target.value)} className={INPUT + " w-[130px]"} />
+                      <input list="cp-contrapartes" value={d.contraparte} onChange={(e) => setCField(c.cuenta, "contraparte", e.target.value)} className={INPUT + " w-[260px]"} />
                     </td>
                     <td className="px-3 py-1">
-                      <input list="cp-segmentos" value={d.segmento} onChange={(e) => setCField(c.cuenta, "segmento", e.target.value)} className={INPUT + " w-[110px]"} />
+                      <input list="cp-segmentos" value={d.segmento} onChange={(e) => setCField(c.cuenta, "segmento", e.target.value)} className={INPUT + " w-[200px]"} />
                     </td>
                     <td className="px-2 py-1 text-right whitespace-nowrap">
                       {st === "error"
