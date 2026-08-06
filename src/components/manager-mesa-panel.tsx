@@ -3,9 +3,9 @@
 // MANAGER → MESA (módulo `manager`, admin-only). Gestión de MESA DE DINERO:
 //   IZQ: catálogo de TRADERS (los únicos nombres válidos del campo Trader
 //        en /mesa-dinero — se cargan a mano acá, no se tipean en la vista).
-//   CENTRO/DER: allowlists de ESCRITURA, una por vista (Mesa de Dinero y
-//        SENEBIS son equipos distintos). Ver la vista lo da el módulo; esto
-//        decide quién puede CREAR/EDITAR adentro.
+//   RESTO: allowlists de ESCRITURA, una por vista (Mesa de Dinero, SENEBIS y
+//        el saldo inicial de Tesorería son equipos distintos). Ver la vista lo
+//        da el módulo; esto decide quién puede CREAR/EDITAR adentro.
 // Consume /api/manager/mesa/*. Todo cambio queda auditado.
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -51,7 +51,7 @@ export function TabMesa() {
   };
 
   return (
-    <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-3 p-3 min-h-0">
+    <div className="h-full grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3 p-3 min-h-0">
       {/* IZQUIERDA: traders */}
       <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
         <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
@@ -104,6 +104,13 @@ export function TabMesa() {
         titulo="PERMISOS — Senebis"
         detalle="Usuarios que pueden CARGAR/EDITAR órdenes en Senebis (admin siempre puede). Ver la vista lo da el acceso a BACK OFFICE."
         base="/api/manager/mesa/senebis-escritores"
+      />
+
+      {/* quién carga el saldo inicial de Tesorería */}
+      <PanelEscritores
+        titulo="PERMISOS — Tesorería (saldo inicial)"
+        detalle="Usuarios que pueden CARGAR el saldo inicial de cada banco en Back Office → Tesorería (admin siempre puede). Ver la vista lo da el acceso a BACK OFFICE."
+        base="/api/manager/mesa/tesoreria-escritores"
       />
     </div>
   );

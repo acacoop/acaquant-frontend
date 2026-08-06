@@ -1,28 +1,35 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
  * Back Office → Tesorería. Ingresos/egresos BANCARIOS del día (fuente: Aunesa
  * consultaMovDocsSolicitados). Ingreso = Depósito, Egreso = Extracción; el monto viene
- * siempre positivo (la dirección la da el tipo). Resumen por moneda (ARS/USD) arriba +
- * detalle de movimientos abajo. Live vía /api/back-office/tesoreria/dia (sin persistir).
- * Primer slice de la vista; después se le suman más controles de saldos.
+ * siempre positivo (la dirección la da el tipo). Una card por CUENTA OPERATIVA (banco)
+ * con saldo inicial (carga manual, solo allowlist) → saldo final, más el total por
+ * moneda y el detalle de movimientos. Live vía /api/back-office/tesoreria/dia.
  */
 
 type Bucket = { ingresos: number; egresos: number; neto: number; n: number };
+type Cuenta = {
+  cuenta_operativa: string; unidad: string;
+  ingresos: number; egresos: number; neto: number; n: number;
+  saldo_inicial: number | null; saldo_final: number | null;
+  saldo_por: string | null; saldo_at: string | null;
+};
 // Movimiento = TODOS los campos crudos de Aunesa (dinámico) + derivados _hora/_tipo.
 type Mov = Record<string, unknown>;
 type Resp = {
-  fecha: string; estado: string; resumen: Record<string, Bucket>;
+  fecha: string; fecha_iso?: string; estado: string; resumen: Record<string, Bucket>;
+  cuentas?: Cuenta[]; puede_editar_saldo?: boolean;
   movimientos: Mov[]; n: number; raw?: number;
 };
 
 // Orden preferido de columnas (el resto se agrega alfabético al final). Todo lo que Aunesa
-// mande se muestra: si aparece un campo nuevo (ej. cuenta operativa), sale solo.
+// mande se muestra: si aparece un campo nuevo, sale solo.
 const COL_PREF = [
   "_hora", "id", "idExterno", "fecha", "solicitud", "_tipo", "tipoDocSoli", "cuenta",
-  "unidad", "monto", "estado", "banco", "cbuCVU",
+  "cuentaOperativa", "unidad", "monto", "estado", "banco", "cbuCVU",
   "persona_nombreCompleto", "persona_documento", "persona_cuit",
   "persona_tipoDocumento", "persona_tipoPersona",
 ];
@@ -48,6 +55,9 @@ export function TesoreriaView() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [nonce, setNonce] = useState(0);
+
+  const recargar = useCallback(() => setNonce((n) => n + 1), []);
 
   useEffect(() => {
     let alive = true;
@@ -74,9 +84,10 @@ export function TesoreriaView() {
       }
     })();
     return () => { alive = false; };
-  }, [fecha, estado]);
+  }, [fecha, estado, nonce]);
 
   const monedas = useMemo(() => Object.keys(data?.resumen ?? {}).sort(), [data]);
+  const cuentas = data?.cuentas ?? [];
   const movs = useMemo(() => {
     const rows = data?.movimientos ?? [];
     const t = q.trim().toLowerCase();
@@ -125,17 +136,21 @@ export function TesoreriaView() {
         </div>
       )}
 
-      {/* KPIs por moneda */}
-      <div className="px-3 py-2 flex gap-3 flex-wrap shrink-0">
-        {monedas.length === 0 && !loading && !err && (
+      {/* Cards: una por CUENTA OPERATIVA (banco) + total por moneda */}
+      <div className="px-3 py-2 flex gap-3 flex-wrap shrink-0 max-h-[45%] overflow-auto">
+        {cuentas.length === 0 && monedas.length === 0 && !loading && !err && (
           <div className="text-[11px] text-[var(--t-text-muted)]">Sin movimientos para ese día/estado.</div>
         )}
+        {cuentas.map((c) => (
+          <CardCuenta key={`${c.cuenta_operativa}|${c.unidad}`} c={c} fecha={fecha}
+            editable={!!data?.puede_editar_saldo} onSaved={recargar} />
+        ))}
         {monedas.map((m) => {
           const b = data!.resumen[m];
           return (
-            <div key={m} className="border border-[var(--t-border)] min-w-[240px]">
-              <div className="px-3 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold flex justify-between">
-                <span>{m}</span><span className="opacity-70">{b.n} mov.</span>
+            <div key={m} className="border border-[var(--t-border)] min-w-[240px] self-start">
+              <div className="px-3 py-1 bg-[var(--t-surface)] border-b border-[var(--t-border)] text-[10px] uppercase tracking-widest font-semibold flex justify-between text-[var(--t-text-muted)]">
+                <span>Total {m}</span><span className="opacity-70">{b.n} mov.</span>
               </div>
               <table className="w-full text-[11px] tabular-nums">
                 <tbody>
@@ -191,6 +206,105 @@ export function TesoreriaView() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+
+// Card de una cuenta operativa (banco): saldo inicial (manual) + movimientos del día
+// = saldo final. El saldo inicial es lo único que Aunesa no da; se carga por día.
+function CardCuenta({ c, fecha, editable, onSaved }: {
+  c: Cuenta; fecha: string; editable: boolean; onSaved: () => void;
+}) {
+  const [edit, setEdit] = useState(false);
+  const [val, setVal] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const abrir = () => {
+    setVal(c.saldo_inicial === null ? "" : String(c.saldo_inicial));
+    setErr(null); setEdit(true);
+  };
+
+  const guardar = async () => {
+    const t = val.trim().replace(/\./g, "").replace(",", ".");
+    if (t !== "" && !Number.isFinite(Number(t))) { setErr("número inválido"); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/back-office/tesoreria/saldo-inicial", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fecha, cuenta_operativa: c.cuenta_operativa, unidad: c.unidad,
+          saldo_inicial: t === "" ? null : Number(t),
+        }),
+      });
+      if (!r.ok) { setErr(`no se pudo guardar (HTTP ${r.status})`); return; }
+      setEdit(false); onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="border border-[var(--t-border)] min-w-[280px] self-start">
+      <div className="px-3 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold flex justify-between gap-3">
+        <span className="truncate" title={c.cuenta_operativa}>{c.cuenta_operativa}</span>
+        <span className="opacity-70 shrink-0">{c.unidad} · {c.n} mov.</span>
+      </div>
+      <table className="w-full text-[11px] tabular-nums">
+        <tbody>
+          <tr className="border-b border-[var(--t-border)]">
+            <td className="px-3 py-1 text-[var(--t-text-dim)]">
+              Saldo inicial
+              {editable && !edit && (
+                <button onClick={abrir} className="ml-2 text-[9px] text-[var(--t-accent)] hover:underline">editar</button>
+              )}
+            </td>
+            <td className="px-3 py-1 text-right">
+              {edit ? (
+                <span className="flex items-center gap-1 justify-end">
+                  <input autoFocus value={val} onChange={(e) => setVal(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") guardar(); if (e.key === "Escape") setEdit(false); }}
+                    placeholder="vacío = borrar"
+                    className="w-[120px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 py-0.5 text-right text-[11px] text-[var(--t-text)] outline-none" />
+                  <button onClick={guardar} disabled={busy}
+                    className="text-[9px] text-[var(--t-accent)] hover:underline disabled:opacity-40">ok</button>
+                  <button onClick={() => setEdit(false)}
+                    className="text-[9px] text-[var(--t-text-muted)] hover:underline">x</button>
+                </span>
+              ) : c.saldo_inicial === null ? (
+                <span className="text-[var(--t-text-muted)]">sin cargar</span>
+              ) : (
+                <span className="font-semibold text-[var(--t-text)]">{fmt(c.saldo_inicial)}</span>
+              )}
+            </td>
+          </tr>
+          <tr className="border-b border-[var(--t-border)]">
+            <td className="px-3 py-1 text-[var(--t-text-dim)]">Ingresos</td>
+            <td className="px-3 py-1 text-right font-semibold text-[var(--t-pos)]">+{fmt(c.ingresos)}</td>
+          </tr>
+          <tr className="border-b border-[var(--t-border)]">
+            <td className="px-3 py-1 text-[var(--t-text-dim)]">Egresos</td>
+            <td className="px-3 py-1 text-right font-semibold text-[var(--t-neg)]">−{fmt(c.egresos)}</td>
+          </tr>
+          <tr className="border-b border-[var(--t-border)]">
+            <td className="px-3 py-1 text-[var(--t-text-dim)]">Neto</td>
+            <td className={"px-3 py-1 text-right " + (c.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
+              {c.neto >= 0 ? "+" : "−"}{fmt(Math.abs(c.neto))}
+            </td>
+          </tr>
+          <tr>
+            <td className="px-3 py-1 text-[var(--t-text)] font-semibold">Saldo final</td>
+            <td className="px-3 py-1 text-right font-bold text-[var(--t-text)]">
+              {c.saldo_final === null ? <span className="text-[var(--t-text-muted)] font-normal">—</span> : fmt(c.saldo_final)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {err && <div className="px-3 py-1 text-[9px] text-[var(--t-neg)]">{err}</div>}
+      {!err && c.saldo_por && !edit && (
+        <div className="px-3 py-1 text-[9px] text-[var(--t-text-muted)] truncate">saldo cargado por {c.saldo_por}</div>
+      )}
     </div>
   );
 }
