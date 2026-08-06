@@ -10,10 +10,11 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  * siempre positivo (la dirección la da el tipo).
  *
  * Dos tabs:
- *   MOVIMIENTOS — detalle a la izquierda (solo las columnas relevantes; el resto se
- *                 prende desde COLUMNAS) + totales por moneda a la derecha.
- *   BANCOS      — grilla estilo planilla: una columna por cuenta operativa, filas
- *                 Saldo inicial (carga manual) / Ingresos / Egresos / Saldo final.
+ *   MOVIMIENTOS — detalle a pantalla completa (solo las columnas relevantes; el resto
+ *                 se prende desde COLUMNAS) con los totales por moneda en la barra.
+ *   BANCOS      — grilla estilo planilla: una columna por cuenta operativa (TODAS las
+ *                 del catálogo, operen o no ese día), filas Saldo inicial (carga
+ *                 manual) / Ingresos / Egresos / Neto / Saldo final.
  *
  * Vista crítica: poll cada 20s (silencioso), reloj de última actualización y presencia
  * de quién más la tiene abierta — mismo patrón que SENEBIS.
@@ -183,92 +184,70 @@ export function TesoreriaView() {
       )}
 
       {tab === "movimientos" ? (
-        <div className="flex-1 min-h-0 flex gap-3 p-3">
-          {/* IZQUIERDA: detalle */}
-          <div className="flex-1 min-w-0 flex flex-col min-h-0">
-            <div className="flex items-center gap-2 shrink-0 pb-1 relative">
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar en cualquier campo…"
-                className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none w-[240px]" />
-              <button onClick={() => setMenuCols((v) => !v)}
-                className="px-2 py-0.5 text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]">
-                columnas ({cols.length}/{todasCols.length})
-              </button>
-              <span className="text-[9px] text-[var(--t-text-muted)]">
-                {q ? `${movs.length} de ${data?.n ?? 0}` : `${data?.n ?? 0} movimientos`}
-              </span>
-              {menuCols && (
-                <div className="absolute z-20 top-full left-[250px] mt-1 max-h-[320px] overflow-auto border border-[var(--t-border-2)] bg-[var(--t-panel)] p-2 shadow-lg">
-                  <div className="flex gap-2 pb-1 mb-1 border-b border-[var(--t-border)]">
-                    <button onClick={() => setVisibles(todasCols)} className="text-[9px] text-[var(--t-accent)] hover:underline">todas</button>
-                    <button onClick={() => setVisibles(COL_DEFAULT)} className="text-[9px] text-[var(--t-text-muted)] hover:underline">por defecto</button>
-                  </div>
-                  {todasCols.map((c) => (
-                    <label key={c} className="flex items-center gap-2 px-1 py-0.5 text-[10px] cursor-pointer hover:bg-[var(--t-surface)]">
-                      <input type="checkbox" checked={visibles.includes(c)} onChange={() => toggleCol(c)} />
-                      <span className="text-[var(--t-text)]">{label(c)}</span>
-                    </label>
-                  ))}
+        <div className="flex-1 min-h-0 flex flex-col p-3">
+          <div className="flex items-center gap-2 shrink-0 pb-1 relative">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar en cualquier campo…"
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none w-[240px]" />
+            <button onClick={() => setMenuCols((v) => !v)}
+              className="px-2 py-0.5 text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]">
+              columnas ({cols.length}/{todasCols.length})
+            </button>
+            <span className="text-[9px] text-[var(--t-text-muted)]">
+              {q ? `${movs.length} de ${data?.n ?? 0}` : `${data?.n ?? 0} movimientos`}
+            </span>
+            {/* Totales del día, inline: mismo dato que antes vivía en una card suelta a la derecha. */}
+            <div className="ml-auto flex items-center gap-4">
+              {monedas.map((m) => {
+                const b = data!.resumen[m];
+                return (
+                  <span key={m} className="flex items-center gap-2 text-[10px] tabular-nums">
+                    <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">{m}</span>
+                    <span className="text-[var(--t-pos)]">+{fmt(b.ingresos)}</span>
+                    <span className="text-[var(--t-neg)]">−{fmt(b.egresos)}</span>
+                    <span className={"font-semibold " + (b.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
+                      neto {b.neto >= 0 ? "+" : "−"}{fmt(Math.abs(b.neto))}
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
+            {menuCols && (
+              <div className="absolute z-20 top-full left-[250px] mt-1 max-h-[320px] overflow-auto border border-[var(--t-border-2)] bg-[var(--t-panel)] p-2 shadow-lg">
+                <div className="flex gap-2 pb-1 mb-1 border-b border-[var(--t-border)]">
+                  <button onClick={() => setVisibles(todasCols)} className="text-[9px] text-[var(--t-accent)] hover:underline">todas</button>
+                  <button onClick={() => setVisibles(COL_DEFAULT)} className="text-[9px] text-[var(--t-text-muted)] hover:underline">por defecto</button>
                 </div>
-              )}
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)]">
-              <table className="text-[11px] tabular-nums whitespace-nowrap w-full">
-                <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
-                  <tr className="border-b border-[var(--t-border)]">
-                    {cols.map((c) => <th key={c} className="px-2 py-1.5 text-left">{label(c)}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {movs.map((m, i) => (
-                    <tr key={String(m.id ?? i)} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-                      {cols.map((c) => (
-                        <td key={c} className={"px-2 py-1 " + (c === "_tipo" ? (m._tipo === "ingreso" ? "text-[var(--t-pos)]" : m._tipo === "egreso" ? "text-[var(--t-neg)]" : "") : "text-[var(--t-text-dim)]")}>
-                          {c === "monto" && typeof m[c] === "number" ? fmt(m[c] as number) : cell(m[c])}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                  {movs.length === 0 && !loading && (
-                    <tr><td colSpan={Math.max(1, cols.length)} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin movimientos</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* DERECHA: totales por moneda */}
-          <div className="w-[260px] shrink-0 overflow-auto flex flex-col gap-3">
-            {monedas.length === 0 && !loading && !err && (
-              <div className="text-[11px] text-[var(--t-text-muted)]">Sin movimientos para ese día/estado.</div>
+                {todasCols.map((c) => (
+                  <label key={c} className="flex items-center gap-2 px-1 py-0.5 text-[10px] cursor-pointer hover:bg-[var(--t-surface)]">
+                    <input type="checkbox" checked={visibles.includes(c)} onChange={() => toggleCol(c)} />
+                    <span className="text-[var(--t-text)]">{label(c)}</span>
+                  </label>
+                ))}
+              </div>
             )}
-            {monedas.map((m) => {
-              const b = data!.resumen[m];
-              return (
-                <div key={m} className="border border-[var(--t-border)]">
-                  <div className="px-3 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold flex justify-between">
-                    <span>Total {m}</span><span className="opacity-70">{b.n} mov.</span>
-                  </div>
-                  <table className="w-full text-[11px] tabular-nums">
-                    <tbody>
-                      <tr className="border-b border-[var(--t-border)]">
-                        <td className="px-3 py-1 text-[var(--t-text-dim)]">Ingresos</td>
-                        <td className="px-3 py-1 text-right font-semibold text-[var(--t-pos)]">+{fmt(b.ingresos)}</td>
-                      </tr>
-                      <tr className="border-b border-[var(--t-border)]">
-                        <td className="px-3 py-1 text-[var(--t-text-dim)]">Egresos</td>
-                        <td className="px-3 py-1 text-right font-semibold text-[var(--t-neg)]">−{fmt(b.egresos)}</td>
-                      </tr>
-                      <tr>
-                        <td className="px-3 py-1 text-[var(--t-text)]">Neto</td>
-                        <td className={"px-3 py-1 text-right font-bold " + (b.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
-                          {b.neto >= 0 ? "+" : "−"}{fmt(Math.abs(b.neto))}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto border border-[var(--t-border)]">
+            <table className="text-[11px] tabular-nums whitespace-nowrap w-full">
+              <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
+                <tr className="border-b border-[var(--t-border)]">
+                  {cols.map((c) => <th key={c} className="px-2 py-1.5 text-left">{label(c)}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {movs.map((m, i) => (
+                  <tr key={String(m.id ?? i)} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                    {cols.map((c) => (
+                      <td key={c} className={"px-2 py-1 " + (c === "_tipo" ? (m._tipo === "ingreso" ? "text-[var(--t-pos)]" : m._tipo === "egreso" ? "text-[var(--t-neg)]" : "") : "text-[var(--t-text-dim)]")}>
+                        {c === "monto" && typeof m[c] === "number" ? fmt(m[c] as number) : cell(m[c])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {movs.length === 0 && !loading && (
+                  <tr><td colSpan={Math.max(1, cols.length)} className="px-2 py-3 text-center text-[var(--t-text-muted)]">sin movimientos</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : (
@@ -297,8 +276,9 @@ function Presencia({ conectados }: { conectados: Conectado[] }) {
 }
 
 
-// Tab BANCOS: la planilla. Un bloque por moneda, una columna por cuenta operativa,
-// filas Saldo inicial (manual) / Ingresos / Egresos / Saldo final + columna TOTAL.
+// Tab BANCOS: la planilla. Un bloque por moneda, una columna por cuenta operativa
+// (todas las del catálogo, con o sin movimientos ese día), filas Saldo inicial
+// (manual) / Ingresos / Egresos / Neto / Saldo final + columna TOTAL.
 function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
   cuentas: Cuenta[]; fecha: string; editable: boolean; vacio: boolean; onSaved: () => void;
 }) {
@@ -342,7 +322,9 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
   if (!cuentas.length) {
     return (
       <div className="flex-1 min-h-0 p-3 text-[11px] text-[var(--t-text-muted)]">
-        {vacio ? "Sin movimientos para ese día/estado — no hay bancos para mostrar." : "cargando…"}
+        {vacio
+          ? "Catálogo de cuentas operativas vacío — sembrarlo con `python -m scripts.diag_tesoreria_cuentas --dias 60 --registrar`."
+          : "cargando…"}
       </div>
     );
   }
