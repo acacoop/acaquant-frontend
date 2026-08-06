@@ -467,18 +467,24 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
 // así el detalle no puede contradecir al total.
 type Celda = { banco: string; unidad: string; fila: string; etiqueta: string };
 type DetalleItem = {
-  detalle: string; referencia: string; estado: string | null; importe: number;
+  fuente: string; ref: string; detalle: string; referencia: string;
+  estado: string | null; importe: number;
+  // Destildado = no cuenta en el saldo. `observacion` es la traza (quién y a qué hora).
+  excluido?: boolean; observacion?: string;
 };
 type Detalle = {
   fila: string; banco: string; unidad: string; fecha: string; fuente: string;
-  total: number; items: DetalleItem[];
+  total: number; excluidos?: number; items: DetalleItem[];
 };
 
-function ModalDetalle({ celda, fecha, onCerrar }: {
-  celda: Celda; fecha: string; onCerrar: () => void;
+function ModalDetalle({ celda, fecha, editable, onCerrar, onCambio }: {
+  celda: Celda; fecha: string; editable: boolean;
+  onCerrar: () => void; onCambio: () => void;
 }) {
   const [d, setD] = useState<Detalle | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [nonce, setNonce] = useState(0);   // fuerza recargar tras tildar
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
@@ -503,7 +509,30 @@ function ModalDetalle({ celda, fecha, onCerrar }: {
       }
     })();
     return () => { vivo = false; };
-  }, [celda, fecha]);
+  }, [celda, fecha, nonce]);
+
+  // Tildar/destildar: el backend guarda el override y la observación, y la grilla
+  // se recalcula (el movimiento entra o sale del saldo final).
+  const alternar = async (i: DetalleItem) => {
+    if (!editable || !i.ref) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/back-office/tesoreria/exclusion", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fecha, fuente: i.fuente, ref: i.ref,
+          excluido: !i.excluido }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        setErr(String(b?.error ?? b?.detail ?? `HTTP ${r.status}`));
+        return;
+      }
+      setNonce((n) => n + 1);
+      onCambio();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -518,6 +547,7 @@ function ModalDetalle({ celda, fecha, onCerrar }: {
         </div>
         <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)] border-b border-[var(--t-border)] shrink-0">
           {d ? `${d.fuente} · ${d.fecha}` : err ? "" : "cargando…"}
+          {d && editable && " · destildá un movimiento para sacarlo del saldo final"}
         </div>
         {err && <div className="px-3 py-2 text-[10px] text-[var(--t-neg)]">{err}</div>}
 
@@ -525,15 +555,23 @@ function ModalDetalle({ celda, fecha, onCerrar }: {
           <table className="w-full table-fixed text-[11px]">
             <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
               <tr className="border-b border-[var(--t-border)]">
-                <th className="px-2 py-1.5 text-left font-normal w-[42%]">Detalle</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[30%]">Referencia</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[12%]">Estado</th>
-                <th className="px-2 py-1.5 text-right font-normal w-[16%]">Importe</th>
+                <th className="px-2 py-1.5 text-center font-normal w-[5%]"
+                  title="Destildar = no cuenta en el saldo final">✓</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[26%]">Detalle</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[19%]">Referencia</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Estado</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[15%]">Importe</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[26%]">Observaciones</th>
               </tr>
             </thead>
             <tbody>
               {(d?.items ?? []).map((i, n) => (
-                <tr key={n} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                <tr key={n} className={"border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] " +
+                  (i.excluido ? "opacity-50 line-through decoration-1" : "")}>
+                  <td className="px-2 py-1 text-center">
+                    <input type="checkbox" checked={!i.excluido} disabled={!editable || busy || !i.ref}
+                      onChange={() => alternar(i)} className="accent-[var(--t-accent)] cursor-pointer" />
+                  </td>
                   <td className="px-2 py-1 break-words">{i.detalle}</td>
                   <td className="px-2 py-1 break-words text-[var(--t-text-dim)]">{i.referencia || "—"}</td>
                   <td className="px-2 py-1 text-[var(--t-text-dim)]">{i.estado || "—"}</td>
@@ -541,10 +579,13 @@ function ModalDetalle({ celda, fecha, onCerrar }: {
                     (i.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]")}>
                     {fmt(i.importe)}
                   </td>
+                  <td className="px-2 py-1 break-words text-[9px] text-[var(--t-text-muted)] no-underline">
+                    {i.observacion || ""}
+                  </td>
                 </tr>
               ))}
               {d && !d.items.length && (
-                <tr><td colSpan={4} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                <tr><td colSpan={6} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
                   sin operaciones — la celda está en cero
                 </td></tr>
               )}
@@ -552,8 +593,16 @@ function ModalDetalle({ celda, fecha, onCerrar }: {
             {d && (
               <tfoot>
                 <tr className="border-t-2 border-[var(--t-border-2)] bg-[var(--t-surface)] font-semibold sticky bottom-0">
-                  <td className="px-2 py-1.5" colSpan={3}>TOTAL · {d.items.length} operaciones</td>
+                  <td className="px-2 py-1.5" colSpan={4}>
+                    TOTAL · {d.items.length} operaciones
+                    {!!d.excluidos && (
+                      <span className="ml-1 font-normal text-[9px] text-[var(--t-text-muted)]">
+                        ({d.excluidos} sin contar)
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{fmt(d.total)}</td>
+                  <td />
                 </tr>
               </tfoot>
             )}
@@ -855,7 +904,10 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
           </div>
         );
       })}
-      {celda && <ModalDetalle celda={celda} fecha={fecha} onCerrar={() => setCelda(null)} />}
+      {celda && (
+        <ModalDetalle celda={celda} fecha={fecha} editable={editable}
+          onCerrar={() => setCelda(null)} onCambio={onSaved} />
+      )}
     </div>
   );
 }
