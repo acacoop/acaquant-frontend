@@ -8,16 +8,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * izquierda RECIBIDOS, derecha EMITIDOS. Los DOS lados se cargan A MANO —
  * acá no aparece nada automático, todo lo registra el equipo.
  *
- * NO es un listado del día: es un TABLERO DE SEGUIMIENTO y por eso NO depende
- * de la fecha de la barra. Un cheque de hace un año que nunca se cerró sigue
- * a la vista; uno con FECHA DE PAGO futura va PINTADO DE NARANJA (hay que
- * seguirlo). Lo único que saca una fila de la vista es cerrarla:
- *   emitidos  → pendiente | emitido | COMPLETADO (cierra)
- *   recibidos → pendiente | FINALIZADO (cierra)
- * El estado se cambia clickeando la celda, sin reabrir la operación. La fila
- * cerrada no se borra: queda en la tabla para auditoría.
+ * Cada lado tiene su propio horizonte:
+ *   EMITIDOS  — TABLERO DE SEGUIMIENTO: NO depende de la fecha de la barra. Un
+ *               cheque de hace un año que nunca se cerró sigue a la vista, y uno
+ *               con FECHA DE PAGO futura va PINTADO DE NARANJA. Estados
+ *               pendiente | emitido | COMPLETADO; completado lo saca de la vista
+ *               (la fila no se borra: queda en la tabla para auditoría).
+ *   RECIBIDOS — son TODOS DEL DÍA: se registran intradía y no se arrastran, así
+ *               que sí siguen la fecha de la barra. Estados pendiente |
+ *               FINALIZADO, y los finalizados se ven igual porque son los que
+ *               alimentan la fila "Ingresos e-cheqs" de BANCOS — que SÍ suma al
+ *               saldo final (esa plata no viene en los movimientos de Aunesa).
  *
- * Los recibidos FINALIZADOS alimentan la fila "Ingresos e-cheqs" de BANCOS.
+ * El estado se cambia clickeando la celda, sin reabrir la operación.
  */
 
 const POLL_MS = 20_000;
@@ -30,6 +33,7 @@ type Cheque = {
 };
 type Banco = { banco: string; unidad: string };
 type Resp = {
+  fecha?: string; fecha_iso?: string;
   emitidos: Cheque[]; recibidos: Cheque[]; bancos: Banco[];
   estados: Record<string, string[]>; estado_cierre: Record<string, string>;
   tipos: string[]; hoy: string; puede_editar?: boolean; actualizado_at?: string;
@@ -46,7 +50,7 @@ const TD = "px-2 py-1 text-center";
 // Fecha de pago futura → fila naranja: todavía no venció, hay que seguirla.
 const NARANJA = "bg-[#f59e0b]/25";
 
-export function TesoreriaCheques() {
+export function TesoreriaCheques({ fecha }: { fecha: string }) {
   const [data, setData] = useState<Resp | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,7 +60,8 @@ export function TesoreriaCheques() {
   const cargar = useCallback(async (silencioso: boolean) => {
     if (!silencioso) { setLoading(true); setErr(null); }
     try {
-      const r = await fetch("/api/back-office/tesoreria/cheques", { cache: "no-store" });
+      const r = await fetch(`/api/back-office/tesoreria/cheques?fecha=${fecha}`,
+        { cache: "no-store" });
       const txt = await r.text();
       let body: unknown = null;
       try { body = JSON.parse(txt); } catch { /* no-JSON */ }
@@ -69,7 +74,7 @@ export function TesoreriaCheques() {
     } catch (e) {
       if (alive.current && !silencioso) setErr(e instanceof Error ? e.message : String(e));
     } finally { if (alive.current) setLoading(false); }
-  }, []);
+  }, [fecha]);
 
   useEffect(() => { cargar(false); }, [cargar]);
   useEffect(() => {
@@ -93,13 +98,14 @@ export function TesoreriaCheques() {
         </div>
       )}
       <div className="text-[9px] text-[var(--t-text-muted)] shrink-0">
-        Seguimiento: no depende de la fecha de arriba. Se listan todos los cheques abiertos;
-        marcarlos <b>completado</b> / <b>finalizado</b> los saca de la vista. Fecha de pago
-        futura = fila naranja.
+        <b>Emitidos</b>: seguimiento, no dependen de la fecha de arriba — se listan todos
+        los abiertos y marcarlos <b>completado</b> los saca de la vista (fecha de pago futura
+        = fila naranja). <b>Recibidos</b>: son los del día {data?.fecha ?? ""}, se registran
+        intradía; los <b>finalizados</b> suman a "Ingresos e-cheqs" en BANCOS.
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Lado lado="recibido" titulo="CHEQUES RECIBIDOS"
+        <Lado lado="recibido" titulo={`CHEQUES RECIBIDOS · ${data?.fecha ?? ""}`}
           filas={data?.recibidos ?? []} bancos={bancos} hoy={hoy} loading={loading}
           estados={data?.estados?.recibido ?? ["pendiente", "finalizado"]}
           tipos={data?.tipos ?? ["echeq", "fisico"]}

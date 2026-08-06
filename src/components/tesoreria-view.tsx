@@ -20,10 +20,12 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *                 manual) / Ingresos / Ingresos e-cheqs / Egresos / Egresos e-cheq /
  *                 Saldo final. NO respeta el selector ESTADO de la barra: un saldo
  *                 solo puede incluir plata que se movió (Procesado), nunca un
- *                 rechazado/anulado/pendiente. Las dos filas e-cheq van aparte y NO
- *                 entran al saldo final. La fila Neto se sacó: era redundante.
- *   CHEQUES     — 50/50 recibidos | emitidos, los DOS de carga manual y SIN filtro de
- *                 fecha (es seguimiento). Ver tesoreria-cheques.tsx.
+ *                 rechazado/anulado/pendiente. Las filas e-cheq son asimétricas a
+ *                 propósito: los INGRESOS e-cheq SUMAN al saldo final (carga manual,
+ *                 no vienen de Aunesa) y los EGRESOS e-cheq NO restan (se pagan en su
+ *                 fecha de pago). La fila Neto se sacó: era redundante.
+ *   CHEQUES     — 50/50, los DOS de carga manual: recibidos son del día (intradía),
+ *                 emitidos son seguimiento sin filtro de fecha. Ver tesoreria-cheques.tsx.
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
@@ -39,7 +41,7 @@ type Bucket = { ingresos: number; egresos: number; neto: number; n: number };
 // normalizan a número en `cuentas` y la grilla nunca ve un null.
 type CuentaWire = {
   cuenta_operativa: string; unidad: string;
-  // `ingresos_echeq` / `egresos_echeq` van SEPARADOS: filas propias, fuera del saldo final.
+  // Filas propias en la grilla. INGRESOS e-cheq SUMAN al saldo final; EGRESOS e-cheq NO restan.
   ingresos: number; ingresos_echeq?: number;
   egresos: number; egresos_echeq?: number; neto: number; n: number;
   saldo_inicial: number | null; saldo_final: number | null; saldo_cargado?: boolean;
@@ -148,8 +150,10 @@ export function TesoreriaView() {
   // de confiar en el campo) para que la grilla cierre aunque el backend sea el viejo.
   const cuentas = useMemo<Cuenta[]>(() => (data?.cuentas ?? []).map((c) => {
     const ini = c.saldo_inicial ?? 0;
+    // Los ingresos e-cheq SUMAN (no vienen en los movimientos de Aunesa); los
+    // egresos e-cheq NO restan (se pagan a futuro). Ver api/services/tesoreria.py.
     return { ...c, saldo_cargado: c.saldo_inicial !== null && c.saldo_inicial !== undefined,
-      saldo_inicial: ini, saldo_final: ini + c.neto };
+      saldo_inicial: ini, saldo_final: ini + c.neto + (c.ingresos_echeq ?? 0) };
   }), [data]);
   const movs = useMemo(() => {
     let rows = data?.movimientos ?? [];
@@ -314,7 +318,7 @@ export function TesoreriaView() {
           </div>
         </div>
       ) : tab === "cheques" ? (
-        <TesoreriaCheques />
+        <TesoreriaCheques fecha={fecha} />
       ) : tab === "bancos" ? (
         <BancosGrid cuentas={cuentas} fecha={fecha} vacio={!loading && !err}
           editable={!!data?.puede_editar_saldo} onSaved={() => cargar(true)} />
@@ -492,7 +496,7 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
                       tab CHEQUES). Fila propia, igual que los egresos e-cheq. */}
                   <tr className="border-b border-[var(--t-border)]">
                     <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
-                      title="Cheques recibidos finalizados ese día. No entra al saldo final">Ingresos e-cheqs</td>
+                      title="Cheques recibidos finalizados ese día (carga manual). SUMA al saldo final">Ingresos e-cheqs</td>
                     {cols.map((c) => (
                       <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-text-dim)]">
                         {c.ingresos_echeq ? `+${fmt(c.ingresos_echeq)}` : fmt(0)}
@@ -528,7 +532,7 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
                     {cols.map((c) => (
                       <td key={c.cuenta_operativa} className="px-2 py-1 text-center font-bold">{fmt(c.saldo_final)}</td>
                     ))}
-                    <td className="px-2 py-1 text-center font-bold">{fmt(tot.ini + tot.neto)}</td>
+                    <td className="px-2 py-1 text-center font-bold">{fmt(tot.ini + tot.neto + tot.ingEcheq)}</td>
                   </tr>
                 </tbody>
               </table>
