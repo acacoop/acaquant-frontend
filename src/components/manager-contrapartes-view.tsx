@@ -73,6 +73,7 @@ export function TabContrapartes() {
   const [rowState, setRowState] = useState<Record<string, { kind: RowKind; msg?: string }>>({});
   const [opts, setOpts] = useState<Opts>({ segmentos: [], contrapartes: [] });
   const [fSegmento, setFSegmento] = useState("");
+  const [fVacio, setFVacio] = useState<"" | "contraparte" | "segmento" | "codigo_mae">("");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +93,7 @@ export function TabContrapartes() {
       .then((d: { contrapartes: Contraparte[] }) => {
         if (seq !== reqSeq.current) return;  // respuesta vieja → ignorar
         setRows(d.contrapartes || []);
+        setReciensGuardadas(new Set());
         const init: Record<string, Draft> = {};
         for (const c of d.contrapartes || []) init[c.cuenta] = { contraparte: c.contraparte || "", segmento: c.segmento || "", codigo_mae: c.codigo_mae || "" };
         setDrafts(init);
@@ -115,6 +117,13 @@ export function TabContrapartes() {
   const setField = (cuenta: string, k: keyof Draft, v: string) =>
     setDrafts((prev) => ({ ...prev, [cuenta]: { ...(prev[cuenta] || { contraparte: "", segmento: "" }), [k]: v } }));
 
+  // Filtro "vacíos": las que completás en esta pasada NO desaparecen al guardar
+  // (se limpia al refrescar), así podés revisar o corregir lo recién cargado.
+  const [reciensGuardadas, setReciensGuardadas] = useState<Set<string>>(new Set());
+  const visibleRows = fVacio
+    ? rows.filter((c) => !c[fVacio] || reciensGuardadas.has(c.cuenta))
+    : rows;
+
   const saveRow = async (c: Contraparte) => {
     const d = drafts[c.cuenta];
     if (!d) return;
@@ -130,6 +139,7 @@ export function TabContrapartes() {
       if (!r.ok) throw new Error(`HTTP ${r.status} · ${await detail(r)}`);
       const up: Contraparte = await r.json();
       setRows((prev) => prev.map((x) => (x.cuenta === c.cuenta ? { ...x, contraparte: up.contraparte, segmento: up.segmento, codigo_mae: up.codigo_mae } : x)));
+      setReciensGuardadas((s) => new Set(s).add(c.cuenta));
       setRowState((s) => ({ ...s, [c.cuenta]: { kind: "saved" } }));
       setTimeout(() => setRowState((s) => ({ ...s, [c.cuenta]: { kind: "idle" } })), 1500);
     } catch (e) {
@@ -255,11 +265,21 @@ export function TabContrapartes() {
       {/* ── LISTADO: segmentar ───────────────────────────────────────── */}
       <div className={`flex-1 min-w-0 flex-col min-h-0 ${sub === "listado" ? "flex" : "hidden"}`}>
         <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
-          <span className="text-[10px] text-[var(--t-text-muted)]">{rows.length} cuentas</span>
+          <span className="text-[10px] text-[var(--t-text-muted)]">
+            {visibleRows.length} cuentas{fVacio && visibleRows.length !== rows.length ? ` de ${rows.length}` : ""}
+          </span>
           <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]">SEGMENTO</span>
           <select value={fSegmento} onChange={(e) => setFSegmento(e.target.value)} className={INPUT}>
             <option value="">— todos —</option>
             {opts.segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <span className="text-[9px] tracking-widest text-[var(--t-text-muted)]" title="Muestra solo las cuentas con esa columna vacía">VACÍOS EN</span>
+          <select value={fVacio} onChange={(e) => setFVacio(e.target.value as typeof fVacio)}
+            className={INPUT + (fVacio ? " border-[var(--t-accent)] text-[var(--t-accent)]" : "")}>
+            <option value="">— sin filtro —</option>
+            <option value="contraparte">Contraparte</option>
+            <option value="segmento">Segmento</option>
+            <option value="codigo_mae">Nº MAE</option>
           </select>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="buscar denominación / cuenta…" className={INPUT + " w-[200px]"} />
           <button onClick={fetchRows} className="text-[10px] uppercase tracking-wider border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-text-dim)] hover:text-[var(--t-accent)]">↻</button>
@@ -301,7 +321,7 @@ export function TabContrapartes() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((c) => {
+              {visibleRows.map((c) => {
                 const d = drafts[c.cuenta] || { contraparte: "", segmento: "" };
                 const st = rowState[c.cuenta]?.kind ?? "idle";
                 const dirty = d.contraparte !== (c.contraparte || "") || d.segmento !== (c.segmento || "")
@@ -333,7 +353,11 @@ export function TabContrapartes() {
                   </tr>
                 );
               })}
-              {!rows.length && !loading && <tr><td colSpan={6} className="px-3 py-6 text-center text-[var(--t-text-muted)]">Sin contrapartes.</td></tr>}
+              {!visibleRows.length && !loading && (
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-[var(--t-text-muted)]">
+                  {fVacio ? "No quedan cuentas con esa columna vacía." : "Sin contrapartes."}
+                </td></tr>
+              )}
             </tbody>
           </table>
         </div>
