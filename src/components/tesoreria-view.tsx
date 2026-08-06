@@ -26,18 +26,26 @@ import { usePersistedState } from "@/lib/use-persisted-state";
 const POLL_MS = 20_000;
 
 type Bucket = { ingresos: number; egresos: number; neto: number; n: number };
-type Cuenta = {
+// Tal como viene del backend. `saldo_inicial`/`saldo_final` pueden llegar null desde
+// una API vieja (Vercel deploya al toque, el Droplet se reinicia a mano) → se
+// normalizan a número en `cuentas` y la grilla nunca ve un null.
+type CuentaWire = {
   cuenta_operativa: string; unidad: string;
   ingresos: number; egresos: number; neto: number; n: number;
-  saldo_inicial: number | null; saldo_final: number | null;
+  saldo_inicial: number | null; saldo_final: number | null; saldo_cargado?: boolean;
   saldo_por: string | null; saldo_at: string | null;
+};
+// Sin carga manual el inicial es 0 y el final cierra igual; `saldo_cargado`
+// distingue "cargado en 0" de "nunca lo tocaron".
+type Cuenta = Omit<CuentaWire, "saldo_inicial" | "saldo_final" | "saldo_cargado"> & {
+  saldo_inicial: number; saldo_final: number; saldo_cargado: boolean;
 };
 type Conectado = { email: string; visto_at: string };
 // Movimiento = TODOS los campos crudos de Aunesa (dinámico) + derivados _hora/_tipo.
 type Mov = Record<string, unknown>;
 type Resp = {
   fecha: string; fecha_iso?: string; estado: string; resumen: Record<string, Bucket>;
-  cuentas?: Cuenta[]; puede_editar_saldo?: boolean;
+  cuentas?: CuentaWire[]; puede_editar_saldo?: boolean;
   conectados?: Conectado[]; actualizado_at?: string;
   movimientos: Mov[]; n: number; raw?: number;
 };
@@ -121,7 +129,13 @@ export function TesoreriaView() {
   }, [cargar]);
 
   const monedas = useMemo(() => Object.keys(data?.resumen ?? {}).sort(), [data]);
-  const cuentas = useMemo(() => data?.cuentas ?? [], [data]);
+  // Saldo inicial sin cargar = 0, y el final = inicial + neto. Se recalcula acá (en vez
+  // de confiar en el campo) para que la grilla cierre aunque el backend sea el viejo.
+  const cuentas = useMemo<Cuenta[]>(() => (data?.cuentas ?? []).map((c) => {
+    const ini = c.saldo_inicial ?? 0;
+    return { ...c, saldo_cargado: c.saldo_inicial !== null && c.saldo_inicial !== undefined,
+      saldo_inicial: ini, saldo_final: ini + c.neto };
+  }), [data]);
   const movs = useMemo(() => {
     const rows = data?.movimientos ?? [];
     const t = q.trim().toLowerCase();
@@ -285,6 +299,11 @@ function Presencia({ conectados }: { conectados: Conectado[] }) {
 // Tab BANCOS: la planilla. Un bloque por moneda, una columna por cuenta operativa
 // (todas las del catálogo, con o sin movimientos ese día), filas Saldo inicial
 // (manual) / Ingresos / Egresos / Neto / Saldo final + columna TOTAL.
+//
+// SALDO FINAL = SALDO INICIAL + INGRESOS − EGRESOS, sin excepciones. Si el back
+// office no cargó el inicial de un banco, vale 0 (se muestra apagado para que se
+// vea que es el default, no un dato cargado) y el final es directamente el neto.
+// Todo va CENTRADO: título del bloque, encabezados y valores.
 function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
   cuentas: Cuenta[]; fecha: string; editable: boolean; vacio: boolean; onSaved: () => void;
 }) {
@@ -302,7 +321,8 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
 
   const abrir = (c: Cuenta) => {
     setEditKey(`${c.cuenta_operativa}|${c.unidad}`);
-    setVal(c.saldo_inicial === null ? "" : String(c.saldo_inicial));
+    // Sin carga previa el input arranca vacío (el 0 que se ve es el default, no un valor).
+    setVal(c.saldo_cargado ? String(c.saldo_inicial) : "");
     setErr(null);
   };
 
@@ -340,94 +360,90 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
       {err && <div className="text-[10px] text-[var(--t-neg)]">{err}</div>}
       {Object.keys(porMoneda).sort().map((uni) => {
         const cols = porMoneda[uni];
+        // Sin nulls: el inicial ya viene 0 cuando no se cargó, así que el total es una suma.
         const tot = cols.reduce((a, c) => ({
           ingresos: a.ingresos + c.ingresos, egresos: a.egresos + c.egresos,
-          neto: a.neto + c.neto,
-          ini: c.saldo_inicial === null ? a.ini : (a.ini ?? 0) + c.saldo_inicial,
-        }), { ingresos: 0, egresos: 0, neto: 0, ini: null as number | null });
+          neto: a.neto + c.neto, ini: a.ini + c.saldo_inicial,
+        }), { ingresos: 0, egresos: 0, neto: 0, ini: 0 });
         return (
           <div key={uni} className="min-w-0">
-            <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold inline-block">
+            <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
               {uni} · {cols.length} cuentas
             </div>
             <div className="overflow-auto border border-[var(--t-border)]">
-              <table className="text-[11px] tabular-nums whitespace-nowrap">
+              <table className="text-[11px] tabular-nums whitespace-nowrap w-full">
                 <thead>
                   <tr className="border-b border-[var(--t-border)] bg-[var(--t-surface)] text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
-                    <th className="px-2 py-1.5 text-left sticky left-0 bg-[var(--t-surface)] z-10">Concepto</th>
+                    <th className="px-2 py-1.5 text-center sticky left-0 bg-[var(--t-surface)] z-10">Concepto</th>
                     {cols.map((c) => (
-                      <th key={c.cuenta_operativa} className="px-2 py-1.5 text-right min-w-[130px]"
+                      <th key={c.cuenta_operativa} className="px-2 py-1.5 text-center min-w-[130px]"
                         title={`${c.n} movimientos`}>{c.cuenta_operativa}</th>
                     ))}
-                    <th className="px-2 py-1.5 text-right min-w-[130px] text-[var(--t-accent)]">Total {uni}</th>
+                    <th className="px-2 py-1.5 text-center min-w-[130px] text-[var(--t-accent)]">Total {uni}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] sticky left-0 bg-[var(--t-panel)] z-10">Saldo inicial</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Saldo inicial</td>
                     {cols.map((c) => {
                       const k = `${c.cuenta_operativa}|${c.unidad}`;
                       return (
-                        <td key={k} className="px-2 py-1 text-right">
+                        <td key={k} className="px-2 py-1 text-center">
                           {editKey === k ? (
-                            <span className="flex items-center gap-1 justify-end">
+                            <span className="flex items-center gap-1 justify-center">
                               <input autoFocus value={val} onChange={(e) => setVal(e.target.value)}
                                 onKeyDown={(e) => { if (e.key === "Enter") guardar(c); if (e.key === "Escape") setEditKey(null); }}
-                                placeholder="vacío = borrar"
-                                className="w-[100px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 text-right text-[11px] text-[var(--t-text)] outline-none" />
+                                placeholder="vacío = 0"
+                                className="w-[100px] bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1 text-center text-[11px] text-[var(--t-text)] outline-none" />
                               <button onClick={() => guardar(c)} disabled={busy}
                                 className="text-[9px] text-[var(--t-accent)] hover:underline disabled:opacity-40">ok</button>
                             </span>
                           ) : (
                             <button disabled={!editable} onClick={() => abrir(c)}
-                              title={c.saldo_por ? `cargado por ${c.saldo_por}` : editable ? "clic para cargar" : "sin permiso"}
+                              title={c.saldo_cargado
+                                ? `cargado por ${c.saldo_por ?? "—"}`
+                                : editable ? "sin cargar (se toma 0) — clic para cargar" : "sin cargar (se toma 0)"}
                               className={"font-semibold " + (editable ? "hover:underline cursor-pointer " : "cursor-default ") +
-                                (c.saldo_inicial === null ? "text-[var(--t-text-muted)] font-normal" : "text-[var(--t-text)]")}>
-                              {c.saldo_inicial === null ? "sin cargar" : fmt(c.saldo_inicial)}
+                                (c.saldo_cargado ? "text-[var(--t-text)]" : "text-[var(--t-text-muted)] font-normal")}>
+                              {fmt(c.saldo_inicial)}
                             </button>
                           )}
                         </td>
                       );
                     })}
-                    <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">
-                      {tot.ini === null ? "—" : fmt(tot.ini)}
-                    </td>
+                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{fmt(tot.ini)}</td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] sticky left-0 bg-[var(--t-panel)] z-10">Ingresos</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Ingresos</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-right text-[var(--t-pos)]">+{fmt(c.ingresos)}</td>
+                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-pos)]">+{fmt(c.ingresos)}</td>
                     ))}
-                    <td className="px-2 py-1 text-right text-[var(--t-pos)] font-semibold">+{fmt(tot.ingresos)}</td>
+                    <td className="px-2 py-1 text-center text-[var(--t-pos)] font-semibold">+{fmt(tot.ingresos)}</td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] sticky left-0 bg-[var(--t-panel)] z-10">Egresos</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Egresos</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-right text-[var(--t-neg)]">−{fmt(c.egresos)}</td>
+                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-neg)]">−{fmt(c.egresos)}</td>
                     ))}
-                    <td className="px-2 py-1 text-right text-[var(--t-neg)] font-semibold">−{fmt(tot.egresos)}</td>
+                    <td className="px-2 py-1 text-center text-[var(--t-neg)] font-semibold">−{fmt(tot.egresos)}</td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] sticky left-0 bg-[var(--t-panel)] z-10">Neto</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Neto</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className={"px-2 py-1 text-right " + (c.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
+                      <td key={c.cuenta_operativa} className={"px-2 py-1 text-center " + (c.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
                         {c.neto >= 0 ? "+" : "−"}{fmt(Math.abs(c.neto))}
                       </td>
                     ))}
-                    <td className={"px-2 py-1 text-right font-semibold " + (tot.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
+                    <td className={"px-2 py-1 text-center font-semibold " + (tot.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
                       {tot.neto >= 0 ? "+" : "−"}{fmt(Math.abs(tot.neto))}
                     </td>
                   </tr>
                   <tr className="bg-[var(--t-surface)]">
-                    <td className="px-2 py-1 font-semibold sticky left-0 bg-[var(--t-surface)] z-10">Saldo final</td>
+                    <td className="px-2 py-1 font-semibold text-center sticky left-0 bg-[var(--t-surface)] z-10">Saldo final</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-right font-bold">
-                        {c.saldo_final === null ? <span className="text-[var(--t-text-muted)] font-normal">—</span> : fmt(c.saldo_final)}
-                      </td>
+                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center font-bold">{fmt(c.saldo_final)}</td>
                     ))}
-                    <td className="px-2 py-1 text-right font-bold">
-                      {tot.ini === null ? <span className="text-[var(--t-text-muted)] font-normal">—</span> : fmt(tot.ini + tot.neto)}
-                    </td>
+                    <td className="px-2 py-1 text-center font-bold">{fmt(tot.ini + tot.neto)}</td>
                   </tr>
                 </tbody>
               </table>
