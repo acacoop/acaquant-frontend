@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { AbmModal } from "@/components/ui/abm-modal";
+
 /**
  * Back Office → Tesorería → tab MERCADOS. Cuatro tableros al 50%, del DÍA:
  *
@@ -28,12 +30,15 @@ type Fila = {
   creado_por: string | null;
 };
 type Banco = { banco: string; unidad: string };
+// Catálogo de mercados / FCI (ABM en modal). `etiqueta` = "[BYMA] BYMA".
+type Entidad = { id: number; bloque: string; codigo: string | null; nombre: string;
+                 etiqueta: string };
 type Resp = {
   fecha: string; fecha_iso: string;
   filas: Record<string, Fila[]>;
   tipos: Record<string, { bloque: string; lado: string }>;
   estados: string[];
-  entidades: Record<string, string[]>;
+  entidades: Record<string, Entidad[]>;
   bancos: Banco[];
   puede_editar?: boolean;
 };
@@ -99,7 +104,7 @@ export function TesoreriaMercados({ fecha }: { fecha: string }) {
       filas={data?.filas?.[tipo] ?? []}
       bancos={data?.bancos ?? []}
       estados={data?.estados ?? ["pendiente", "completado"]}
-      sugerencias={data?.entidades?.[data?.tipos?.[tipo]?.bloque ?? "mercado"] ?? []}
+      opciones={data?.entidades?.[data?.tipos?.[tipo]?.bloque ?? "mercado"] ?? []}
       fecha={fecha} editable={editable} loading={loading} onChanged={recargar} />
   );
 
@@ -111,6 +116,15 @@ export function TesoreriaMercados({ fecha }: { fecha: string }) {
           <div className="text-[10px] text-[var(--t-text-dim)] mt-0.5">
             Si dice 404, el backend todavía no está reiniciado en el Droplet (endpoint nuevo).
           </div>
+        </div>
+      )}
+
+      {editable && (
+        <div className="flex items-center gap-2 shrink-0">
+          <AbmEntidades bloque="mercado" titulo="Catálogo de mercados"
+            filas={data?.entidades?.mercado ?? []} onCambio={recargar} />
+          <AbmEntidades bloque="fci" titulo="Catálogo de FCI"
+            filas={data?.entidades?.fci ?? []} onCambio={recargar} />
         </div>
       )}
 
@@ -129,6 +143,61 @@ export function TesoreriaMercados({ fecha }: { fecha: string }) {
 }
 
 
+// ABM del catálogo de mercados / FCI, en el mismo modal que el de bancos. La baja
+// es LÓGICA: los movimientos ya cargados referencian la entidad por su etiqueta, así
+// que la fila nunca se borra, solo se saca del desplegable.
+function AbmEntidades({ bloque, titulo, filas, onCambio }: {
+  bloque: string; titulo: string; filas: Entidad[]; onCambio: () => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+
+  const llamar = async (metodo: string, url: string, body?: unknown): Promise<string | null> => {
+    try {
+      const r = await fetch(url, {
+        method: metodo,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        return String(b?.error ?? b?.detail ?? `HTTP ${r.status}`);
+      }
+      onCambio();
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+  const BASE = "/api/back-office/tesoreria/entidades";
+
+  return (
+    <>
+      <button onClick={() => setAbierto(true)}
+        className="text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10">
+        {bloque === "fci" ? "catálogo FCI" : "catálogo mercados"}
+      </button>
+      {abierto && (
+        <AbmModal
+          titulo={titulo}
+          ayuda="El CÓDIGO es el del sistema de origen (ROFX1172, BYMA, MAEClearB…). Dar de baja no borra: saca la entidad del desplegable pero los movimientos históricos la conservan."
+          campos={[
+            { key: "codigo", label: "Código", ancho: "w-[30%]", placeholder: "ROFX1172" },
+            { key: "nombre", label: "Nombre", ancho: "w-[55%]", placeholder: "ACSA" },
+          ]}
+          filas={filas.map((e) => ({
+            _id: String(e.id), codigo: e.codigo ?? "", nombre: e.nombre,
+          }))}
+          onAlta={(v) => llamar("POST", BASE, { bloque, codigo: v.codigo || null, nombre: v.nombre })}
+          onGuardar={(f, v) => llamar("PUT", `${BASE}/${f._id}`,
+            { bloque, codigo: v.codigo || null, nombre: v.nombre })}
+          onBaja={(f) => llamar("DELETE", `${BASE}/${f._id}`)}
+          onCerrar={() => setAbierto(false)} />
+      )}
+    </>
+  );
+}
+
+
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <div className="shrink-0 min-w-0">
@@ -142,11 +211,11 @@ function Bloque({ titulo, children }: { titulo: string; children: React.ReactNod
 
 
 function Tablero({
-  tipo, titulo, colEntidad, filas, bancos, estados, sugerencias, fecha,
+  tipo, titulo, colEntidad, filas, bancos, estados, opciones, fecha,
   editable, loading, onChanged,
 }: {
   tipo: string; titulo: string; colEntidad: string; filas: Fila[]; bancos: Banco[];
-  estados: string[]; sugerencias: string[]; fecha: string;
+  estados: string[]; opciones: Entidad[]; fecha: string;
   editable: boolean; loading: boolean; onChanged: () => void;
 }) {
   const [alta, setAlta] = useState(false);
@@ -192,7 +261,7 @@ function Tablero({
       {err && <div className="px-2 py-1 text-[10px] text-[var(--t-neg)]">{err}</div>}
       {alta && (
         <Form tipo={tipo} colEntidad={colEntidad} bancos={bancos} estados={estados}
-          sugerencias={sugerencias} fecha={fecha}
+          opciones={opciones} fecha={fecha}
           onCerrar={() => setAlta(false)} onOk={() => { setAlta(false); onChanged(); }} />
       )}
       <div className="max-h-[240px] overflow-auto">
@@ -211,7 +280,7 @@ function Tablero({
               editId === f.id ? (
                 <tr key={f.id}><td colSpan={nCols} className="p-0">
                   <Form tipo={tipo} colEntidad={colEntidad} bancos={bancos} estados={estados}
-                    sugerencias={sugerencias} fecha={fecha} inicial={f}
+                    opciones={opciones} fecha={fecha} inicial={f}
                     onCerrar={() => setEditId(null)}
                     onOk={() => { setEditId(null); onChanged(); }} />
                 </td></tr>
@@ -254,10 +323,10 @@ function Tablero({
 
 
 function Form({
-  tipo, colEntidad, bancos, estados, sugerencias, fecha, inicial, onCerrar, onOk,
+  tipo, colEntidad, bancos, estados, opciones, fecha, inicial, onCerrar, onOk,
 }: {
   tipo: string; colEntidad: string; bancos: Banco[]; estados: string[];
-  sugerencias: string[]; fecha: string; inicial?: Fila;
+  opciones: Entidad[]; fecha: string; inicial?: Fila;
   onCerrar: () => void; onOk: () => void;
 }) {
   const [f, setF] = useState(() => ({
@@ -270,7 +339,6 @@ function Form({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
-  const listaId = `ent-${tipo}`;
 
   const guardar = async () => {
     const imp = Number(f.importe.trim().replace(/\./g, "").replace(",", "."));
@@ -316,12 +384,13 @@ function Form({
     <div className="p-2 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex flex-wrap items-end gap-2 text-[10px] min-w-0">
       <label className="flex flex-col gap-0.5">
         <span className={lbl}>{colEntidad}</span>
-        {/* datalist: sugiere lo ya cargado sin obligar a un catálogo aparte. */}
-        <input list={listaId} value={f.entidad} onChange={(e) => set("entidad", e.target.value)}
-          className={input + " w-[150px] max-w-full"} />
-        <datalist id={listaId}>
-          {sugerencias.map((s) => <option key={s} value={s} />)}
-        </datalist>
+        {/* Sale del CATÁLOGO (ABM en el modal), no texto libre: así los movimientos
+            históricos referencian siempre la misma etiqueta. */}
+        <select value={f.entidad} onChange={(e) => set("entidad", e.target.value)}
+          className={input + " w-[170px] max-w-full"}>
+          <option value="">— elegir —</option>
+          {opciones.map((o) => <option key={o.id} value={o.etiqueta}>{o.etiqueta}</option>)}
+        </select>
       </label>
       <label className="flex flex-col gap-0.5">
         <span className={lbl}>Banco</span>

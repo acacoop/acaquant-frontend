@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TesoreriaAl2 } from "@/components/tesoreria-al2";
 import { TesoreriaCheques } from "@/components/tesoreria-cheques";
 import { TesoreriaMercados } from "@/components/tesoreria-mercados";
+import { AbmModal } from "@/components/ui/abm-modal";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
 /**
@@ -45,7 +46,10 @@ type CuentaWire = {
   cuenta_operativa: string; unidad: string;
   // Filas propias en la grilla, separadas de los totales — pero las dos entran al saldo final.
   ingresos: number; ingresos_echeq?: number;
-  egresos: number; egresos_echeq?: number; neto: number; n: number;
+  egresos: number; egresos_echeq?: number;
+  // Netos y con signo listo desde el backend (ingresos−pagos / rescates−suscripciones).
+  mercados?: number; fci?: number;
+  neto: number; n: number;
   saldo_inicial: number | null; saldo_final: number | null; saldo_cargado?: boolean;
   saldo_por: string | null; saldo_at: string | null;
 };
@@ -54,12 +58,18 @@ type CuentaWire = {
 type Cuenta = Omit<CuentaWire, "saldo_inicial" | "saldo_final" | "saldo_cargado"> & {
   saldo_inicial: number; saldo_final: number; saldo_cargado: boolean;
 };
+// Catálogo de bancos para el ABM (nombre + número de cuenta + moneda).
+type CuentaCat = {
+  cuenta_operativa: string; unidad: string; numero_cuenta: string | null;
+  activa: boolean; descubierta: boolean;
+};
 type Conectado = { email: string; visto_at: string };
 // Movimiento = TODOS los campos crudos de Aunesa (dinámico) + derivados _hora/_tipo.
 type Mov = Record<string, unknown>;
 type Resp = {
   fecha: string; fecha_iso?: string; estado: string; resumen: Record<string, Bucket>;
   cuentas?: CuentaWire[]; puede_editar_saldo?: boolean; estado_bancos?: string;
+  catalogo?: CuentaCat[];
   conectados?: Conectado[]; actualizado_at?: string;
   movimientos: Mov[]; n: number; raw?: number;
 };
@@ -156,7 +166,8 @@ export function TesoreriaView() {
     // al saldo. `neto` ya es ingresos − egresos. Ver api/services/tesoreria.py.
     return { ...c, saldo_cargado: c.saldo_inicial !== null && c.saldo_inicial !== undefined,
       saldo_inicial: ini,
-      saldo_final: ini + c.neto + (c.ingresos_echeq ?? 0) - (c.egresos_echeq ?? 0) };
+      saldo_final: ini + c.neto + (c.ingresos_echeq ?? 0) - (c.egresos_echeq ?? 0)
+        + (c.mercados ?? 0) + (c.fci ?? 0) };
   }), [data]);
   const movs = useMemo(() => {
     let rows = data?.movimientos ?? [];
@@ -213,7 +224,7 @@ export function TesoreriaView() {
 
         {/* En la barra (no dentro de la grilla) para no comerse una fila de alto. */}
         {tab === "bancos" && data?.puede_editar_saldo && (
-          <AltaBanco onCreada={() => cargar(true)} />
+          <AbmBancos filas={data?.catalogo ?? []} onCambio={() => cargar(true)} />
         )}
 
         <div className="ml-auto flex items-center gap-3">
@@ -330,7 +341,8 @@ export function TesoreriaView() {
       ) : tab === "cheques" ? (
         <TesoreriaCheques fecha={fecha} />
       ) : tab === "bancos" ? (
-        <BancosGrid cuentas={cuentas} fecha={fecha} vacio={!loading && !err}
+        <BancosGrid cuentas={cuentas} catalogo={data?.catalogo ?? []} fecha={fecha}
+          vacio={!loading && !err}
           editable={!!data?.puede_editar_saldo} onSaved={() => cargar(true)} />
       ) : (
         <TesoreriaAl2 />
@@ -359,72 +371,65 @@ function Filtro({ label, value, onChange, opciones }: {
 }
 
 
-// Alta manual de una cuenta operativa. El catálogo normalmente se descubre solo
-// (aparece cuando el banco opera por primera vez); esto es para los que todavía no
-// operaron y ya hay que verlos en la grilla. Se modela igual que las descubiertas.
-function AltaBanco({ onCreada }: { onCreada: () => void }) {
+// ABM del catálogo de BANCOS, en modal tipo planilla. El catálogo normalmente se
+// descubre solo (un banco aparece cuando opera por primera vez), pero hace falta
+// poder darlo de alta antes de que opere y, sobre todo, cargarle el NÚMERO DE
+// CUENTA — que Aunesa no manda. Solo para quien tiene permiso de escritura; toda
+// alta/edición queda en operaciones.tesoreria_audit.
+function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => void }) {
   const [abierto, setAbierto] = useState(false);
-  const [nombre, setNombre] = useState("");
-  const [unidad, setUnidad] = useState("ARS");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
 
-  const guardar = async () => {
-    if (!nombre.trim()) { setErr("falta el nombre del banco"); return; }
-    setBusy(true); setErr(null);
+  const post = async (metodo: "POST" | "PUT", body: unknown): Promise<string | null> => {
     try {
       const r = await fetch("/api/back-office/tesoreria/cuentas", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cuenta_operativa: nombre, unidad }),
+        method: metodo, headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
-        setErr(String(b?.error ?? b?.detail ?? `no se pudo crear (HTTP ${r.status})`));
-        return;
+        return String(b?.error ?? b?.detail ?? `HTTP ${r.status}`);
       }
-      setNombre(""); setAbierto(false); onCreada();
+      onCambio();
+      return null;
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally { setBusy(false); }
+      return e instanceof Error ? e.message : String(e);
+    }
   };
 
-  const input = "bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-0.5 " +
-    "text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
-
   return (
-    <div className="relative inline-block">
-      <button onClick={() => setAbierto((v) => !v)}
-        className={"text-[9px] uppercase tracking-widest border px-2 py-0.5 hover:bg-[var(--t-accent)]/10 " +
-          (abierto ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                   : "border-[var(--t-border-2)] text-[var(--t-accent)]")}>
-        + banco
+    <>
+      <button onClick={() => setAbierto(true)}
+        className="text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10">
+        bancos
       </button>
       {abierto && (
-    <div className="absolute z-40 top-full left-0 mt-1 flex flex-wrap items-end gap-2 text-[10px] p-2 border border-[var(--t-border-2)] bg-[var(--t-panel)] shadow-xl w-[420px]">
-      <label className="flex flex-col gap-0.5">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Cuenta operativa</span>
-        <input autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") guardar(); if (e.key === "Escape") setAbierto(false); }}
-          placeholder="como figura en el banco…" className={input + " w-[260px] uppercase"} />
-      </label>
-      <label className="flex flex-col gap-0.5">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Moneda</span>
-        <select value={unidad} onChange={(e) => setUnidad(e.target.value)} className={input}>
-          {["ARS", "USD"].map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
-      </label>
-      <button onClick={guardar} disabled={busy}
-        className="px-2 py-1 uppercase tracking-widest border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40">
-        crear
-      </button>
-      <button onClick={() => { setAbierto(false); setErr(null); }} disabled={busy}
-        className="px-2 py-1 uppercase tracking-widest text-[var(--t-text-muted)] hover:text-[var(--t-text)]">
-        cancelar
-      </button>
-      {err && <span className="text-[var(--t-neg)]">{err}</span>}
-    </div>
+        <AbmModal
+          titulo="Catálogo de bancos"
+          ayuda="La moneda es parte de la clave: no se edita (dá de alta otro banco). Renombrar arrastra los saldos, cheques y movimientos ya cargados."
+          campos={[
+            { key: "cuenta_operativa", label: "Cuenta operativa", ancho: "w-[45%]",
+              placeholder: "como figura en el banco…" },
+            { key: "numero_cuenta", label: "Número de cuenta", ancho: "w-[30%]" },
+            { key: "unidad", label: "Moneda", ancho: "w-[15%]", opciones: ["ARS", "USD"],
+              soloAlta: true },
+          ]}
+          filas={filas.map((c) => ({
+            _id: `${c.cuenta_operativa}|${c.unidad}`,
+            cuenta_operativa: c.cuenta_operativa,
+            numero_cuenta: c.numero_cuenta ?? "",
+            unidad: c.unidad,
+          }))}
+          onAlta={(v) => post("POST", {
+            cuenta_operativa: v.cuenta_operativa, unidad: v.unidad,
+            numero_cuenta: v.numero_cuenta || null,
+          })}
+          onGuardar={(f, v) => post("PUT", {
+            cuenta_operativa: f.cuenta_operativa, unidad: f.unidad,
+            nuevo_nombre: v.cuenta_operativa, numero_cuenta: v.numero_cuenta || null,
+          })}
+          onCerrar={() => setAbierto(false)} />
       )}
-    </div>
+    </>
   );
 }
 
@@ -454,9 +459,15 @@ function Presencia({ conectados }: { conectados: Conectado[] }) {
 // office no cargó el inicial de un banco, vale 0 (se muestra apagado para que se
 // vea que es el default, no un dato cargado) y el final es directamente el neto.
 // Todo va CENTRADO: título del bloque, encabezados y valores.
-function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
-  cuentas: Cuenta[]; fecha: string; editable: boolean; vacio: boolean; onSaved: () => void;
+function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
+  cuentas: Cuenta[]; catalogo: CuentaCat[]; fecha: string; editable: boolean;
+  vacio: boolean; onSaved: () => void;
 }) {
+  // banco|moneda → número de cuenta, para mostrarlo bajo el nombre en el encabezado.
+  const numeros = useMemo(() => Object.fromEntries(
+    catalogo.filter((c) => c.numero_cuenta)
+      .map((c) => [`${c.cuenta_operativa}|${c.unidad}`, c.numero_cuenta as string]),
+  ), [catalogo]);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [val, setVal] = useState("");
   const [busy, setBusy] = useState(false);
@@ -501,7 +512,7 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
     return (
       <div className="flex-1 min-h-0 p-3 text-[11px] text-[var(--t-text-muted)]">
         {vacio
-          ? "Catálogo de cuentas operativas vacío — se llena solo cuando un banco opera, o cargá uno con «+ BANCO» arriba."
+          ? "Catálogo de cuentas operativas vacío — se llena solo cuando un banco opera, o cargá uno con «BANCOS» arriba."
           : "cargando…"}
       </div>
     );
@@ -517,8 +528,10 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
           ingresos: a.ingresos + c.ingresos, egresos: a.egresos + c.egresos,
           echeq: a.echeq + (c.egresos_echeq ?? 0),
           ingEcheq: a.ingEcheq + (c.ingresos_echeq ?? 0),
+          mercados: a.mercados + (c.mercados ?? 0), fci: a.fci + (c.fci ?? 0),
           neto: a.neto + c.neto, ini: a.ini + c.saldo_inicial,
-        }), { ingresos: 0, egresos: 0, echeq: 0, ingEcheq: 0, neto: 0, ini: 0 });
+        }), { ingresos: 0, egresos: 0, echeq: 0, ingEcheq: 0, mercados: 0, fci: 0,
+              neto: 0, ini: 0 });
         return (
           <div key={uni} className="min-w-0">
             <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
@@ -531,7 +544,15 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
                     <th className="px-2 py-1.5 text-center sticky left-0 bg-[var(--t-surface)] z-10">Concepto</th>
                     {cols.map((c) => (
                       <th key={c.cuenta_operativa} className="px-2 py-1.5 text-center min-w-[130px]"
-                        title={`${c.n} movimientos`}>{c.cuenta_operativa}</th>
+                        title={`${c.n} movimientos`}>
+                        <div>{c.cuenta_operativa}</div>
+                        {/* El número de cuenta se carga desde el ABM (Aunesa no lo manda). */}
+                        {numeros[`${c.cuenta_operativa}|${c.unidad}`] && (
+                          <div className="text-[9px] font-normal normal-case text-[var(--t-text-muted)] tabular-nums">
+                            {numeros[`${c.cuenta_operativa}|${c.unidad}`]}
+                          </div>
+                        )}
+                      </th>
                     ))}
                     <th className="px-2 py-1.5 text-center min-w-[130px] text-[var(--t-accent)]">Total {uni}</th>
                   </tr>
@@ -609,13 +630,39 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
                       {tot.echeq ? `−${fmt(tot.echeq)}` : fmt(0)}
                     </td>
                   </tr>
+                  {/* MERCADOS y FCI vienen NETOS de la tab MERCADOS: mercados =
+                      ingresos−pagos, fci = rescates−suscripciones. Los dos suman. */}
+                  {([["Mercados", "mercados"], ["FCI", "fci"]] as const).map(([lbl, k]) => (
+                    <tr key={k} className="border-b border-[var(--t-border)]">
+                      <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                        title={k === "mercados"
+                          ? "Neto del bloque MERCADO: ingresos − pagos"
+                          : "Neto del bloque FCI: rescates − suscripciones"}>{lbl}</td>
+                      {cols.map((c) => {
+                        const v = c[k] ?? 0;
+                        return (
+                          <td key={c.cuenta_operativa}
+                            className={"px-2 py-1 text-center " + (v === 0 ? "text-[var(--t-text-dim)]"
+                              : v > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
+                            {v === 0 ? fmt(0) : `${v > 0 ? "+" : "−"}${fmt(Math.abs(v))}`}
+                          </td>
+                        );
+                      })}
+                      <td className={"px-2 py-1 text-center font-semibold " + (tot[k] === 0
+                        ? "text-[var(--t-text-dim)]"
+                        : tot[k] > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
+                        {tot[k] === 0 ? fmt(0) : `${tot[k] > 0 ? "+" : "−"}${fmt(Math.abs(tot[k]))}`}
+                      </td>
+                    </tr>
+                  ))}
                   <tr className="bg-[var(--t-surface)]">
                     <td className="px-2 py-1 font-semibold text-center sticky left-0 bg-[var(--t-surface)] z-10">Saldo final</td>
                     {cols.map((c) => (
                       <td key={c.cuenta_operativa} className="px-2 py-1 text-center font-bold">{fmt(c.saldo_final)}</td>
                     ))}
                     <td className="px-2 py-1 text-center font-bold">
-                      {fmt(tot.ini + tot.neto + tot.ingEcheq - tot.echeq)}
+                      {fmt(tot.ini + tot.neto + tot.ingEcheq - tot.echeq
+                        + tot.mercados + tot.fci)}
                     </td>
                   </tr>
                 </tbody>
