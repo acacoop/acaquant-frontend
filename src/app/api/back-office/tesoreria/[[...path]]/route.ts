@@ -16,15 +16,29 @@ export async function GET(req: Request, { params }: { params: Promise<{ path?: s
   }
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
-  const { path } = await params;
+// PUT / POST / DELETE comparten todo salvo el verbo: alta, edición y baja de los
+// cheques emitidos (tab CHEQUES) y la carga del saldo inicial.
+async function _write(req: Request, path: string[] | undefined,
+                      method: "PUT" | "POST" | "DELETE") {
   const sub = path?.length ? `/${path.join("/")}` : "";
   try {
-    const body = await req.text();
-    const data = await apiFetch<unknown>(`/api/back-office/tesoreria${sub}`, { method: "PUT", body });
+    const body = method === "DELETE" ? undefined : await req.text();
+    const data = await apiFetch<unknown>(`/api/back-office/tesoreria${sub}`, { method, body });
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";
     return NextResponse.json({ error: msg }, { status: 502 });
   }
+}
+
+export async function PUT(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
+  return _write(req, (await params).path, "PUT");
+}
+
+export async function POST(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
+  return _write(req, (await params).path, "POST");
+}
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ path?: string[] }> }) {
+  return _write(req, (await params).path, "DELETE");
 }

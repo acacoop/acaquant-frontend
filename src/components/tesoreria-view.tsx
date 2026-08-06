@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TesoreriaAl2 } from "@/components/tesoreria-al2";
+import { TesoreriaCheques } from "@/components/tesoreria-cheques";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
 /**
@@ -10,14 +11,18 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  * consultaMovDocsSolicitados). Ingreso = Depósito, Egreso = Extracción; el monto viene
  * siempre positivo (la dirección la da el tipo).
  *
- * Tres tabs:
+ * Cuatro tabs:
  *   MOVIMIENTOS — detalle a pantalla completa (solo las columnas relevantes; el resto
  *                 se prende desde COLUMNAS) con los totales por moneda en la barra.
  *   BANCOS      — grilla estilo planilla: una columna por cuenta operativa (TODAS las
  *                 del catálogo, operen o no ese día), filas Saldo inicial (carga
- *                 manual) / Ingresos / Egresos / Neto / Saldo final. NO respeta el
- *                 selector ESTADO de la barra: un saldo solo puede incluir plata que
- *                 se movió (Procesado), nunca un rechazado/anulado/pendiente.
+ *                 manual) / Ingresos / Egresos / Egresos e-cheq / Saldo final. NO
+ *                 respeta el selector ESTADO de la barra: un saldo solo puede incluir
+ *                 plata que se movió (Procesado), nunca un rechazado/anulado/pendiente.
+ *                 Los e-cheq van en fila propia y NO restan del saldo final (se pagan
+ *                 en su fecha de pago). La fila Neto se sacó: era redundante.
+ *   CHEQUES     — 50/50 recibidos (live) | emitidos (carga manual). Ver
+ *                 tesoreria-cheques.tsx.
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
@@ -33,7 +38,8 @@ type Bucket = { ingresos: number; egresos: number; neto: number; n: number };
 // normalizan a número en `cuentas` y la grilla nunca ve un null.
 type CuentaWire = {
   cuenta_operativa: string; unidad: string;
-  ingresos: number; egresos: number; neto: number; n: number;
+  // `egresos_echeq` va SEPARADO de `egresos`: fila propia, fuera del saldo final.
+  ingresos: number; egresos: number; egresos_echeq?: number; neto: number; n: number;
   saldo_inicial: number | null; saldo_final: number | null; saldo_cargado?: boolean;
   saldo_por: string | null; saldo_at: string | null;
 };
@@ -86,7 +92,7 @@ const fmt = (v: number) => v.toLocaleString("es-AR", { minimumFractionDigits: 2,
 const hhmmss = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("es-AR", { hour12: false }) : "—");
 
 export function TesoreriaView() {
-  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "saldo al2">(
+  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "cheques" | "saldo al2">(
     "tes.tab", "movimientos");
   const [fecha, setFecha] = useState(hoyISO());
   const [estado, setEstado] = usePersistedState("tes.estado", "Procesado");
@@ -161,7 +167,7 @@ export function TesoreriaView() {
     <div className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* Barra: tabs + fecha + estado + estado de conexión + presencia */}
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap shrink-0 text-[11px]">
-        {(["movimientos", "bancos", "saldo al2"] as const).map((t) => (
+        {(["movimientos", "bancos", "cheques", "saldo al2"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={"px-2 py-0.5 text-[10px] uppercase tracking-widest font-semibold border " +
               (tab === t
@@ -281,6 +287,8 @@ export function TesoreriaView() {
             </table>
           </div>
         </div>
+      ) : tab === "cheques" ? (
+        <TesoreriaCheques fecha={fecha} />
       ) : tab === "bancos" ? (
         <BancosGrid cuentas={cuentas} fecha={fecha} vacio={!loading && !err}
           editable={!!data?.puede_editar_saldo} onSaved={() => cargar(true)} />
@@ -376,8 +384,9 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
         // Sin nulls: el inicial ya viene 0 cuando no se cargó, así que el total es una suma.
         const tot = cols.reduce((a, c) => ({
           ingresos: a.ingresos + c.ingresos, egresos: a.egresos + c.egresos,
+          echeq: a.echeq + (c.egresos_echeq ?? 0),
           neto: a.neto + c.neto, ini: a.ini + c.saldo_inicial,
-        }), { ingresos: 0, egresos: 0, neto: 0, ini: 0 });
+        }), { ingresos: 0, egresos: 0, echeq: 0, neto: 0, ini: 0 });
         return (
           <div key={uni} className="min-w-0">
             <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
@@ -440,15 +449,18 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
                     ))}
                     <td className="px-2 py-1 text-center text-[var(--t-neg)] font-semibold">−{fmt(tot.egresos)}</td>
                   </tr>
+                  {/* Los e-cheq van en su PROPIA fila y NO entran al total de egresos:
+                      se pagan en su fecha de pago, no el día que se emiten. */}
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Neto</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                      title="No entra al total de egresos ni al saldo final">Egresos e-cheq</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className={"px-2 py-1 text-center " + (c.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
-                        {c.neto >= 0 ? "+" : "−"}{fmt(Math.abs(c.neto))}
+                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-text-dim)]">
+                        {c.egresos_echeq ? `−${fmt(c.egresos_echeq)}` : fmt(0)}
                       </td>
                     ))}
-                    <td className={"px-2 py-1 text-center font-semibold " + (tot.neto >= 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
-                      {tot.neto >= 0 ? "+" : "−"}{fmt(Math.abs(tot.neto))}
+                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)] font-semibold">
+                      {tot.echeq ? `−${fmt(tot.echeq)}` : fmt(0)}
                     </td>
                   </tr>
                   <tr className="bg-[var(--t-surface)]">
