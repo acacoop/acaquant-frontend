@@ -13,16 +13,17 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *
  * Cuatro tabs:
  *   MOVIMIENTOS — detalle a pantalla completa (solo las columnas relevantes; el resto
- *                 se prende desde COLUMNAS) con los totales por moneda en la barra.
+ *                 se prende desde COLUMNAS) con los totales por moneda en la barra y
+ *                 filtros por RIEL / TIPO / SOLICITUD (client-side, sobre lo traído).
  *   BANCOS      — grilla estilo planilla: una columna por cuenta operativa (TODAS las
  *                 del catálogo, operen o no ese día), filas Saldo inicial (carga
- *                 manual) / Ingresos / Egresos / Egresos e-cheq / Saldo final. NO
- *                 respeta el selector ESTADO de la barra: un saldo solo puede incluir
- *                 plata que se movió (Procesado), nunca un rechazado/anulado/pendiente.
- *                 Los e-cheq van en fila propia y NO restan del saldo final (se pagan
- *                 en su fecha de pago). La fila Neto se sacó: era redundante.
- *   CHEQUES     — 50/50 recibidos (live) | emitidos (carga manual). Ver
- *                 tesoreria-cheques.tsx.
+ *                 manual) / Ingresos / Ingresos e-cheqs / Egresos / Egresos e-cheq /
+ *                 Saldo final. NO respeta el selector ESTADO de la barra: un saldo
+ *                 solo puede incluir plata que se movió (Procesado), nunca un
+ *                 rechazado/anulado/pendiente. Las dos filas e-cheq van aparte y NO
+ *                 entran al saldo final. La fila Neto se sacó: era redundante.
+ *   CHEQUES     — 50/50 recibidos | emitidos, los DOS de carga manual y SIN filtro de
+ *                 fecha (es seguimiento). Ver tesoreria-cheques.tsx.
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
@@ -38,8 +39,9 @@ type Bucket = { ingresos: number; egresos: number; neto: number; n: number };
 // normalizan a número en `cuentas` y la grilla nunca ve un null.
 type CuentaWire = {
   cuenta_operativa: string; unidad: string;
-  // `egresos_echeq` va SEPARADO de `egresos`: fila propia, fuera del saldo final.
-  ingresos: number; egresos: number; egresos_echeq?: number; neto: number; n: number;
+  // `ingresos_echeq` / `egresos_echeq` van SEPARADOS: filas propias, fuera del saldo final.
+  ingresos: number; ingresos_echeq?: number;
+  egresos: number; egresos_echeq?: number; neto: number; n: number;
   saldo_inicial: number | null; saldo_final: number | null; saldo_cargado?: boolean;
   saldo_por: string | null; saldo_at: string | null;
 };
@@ -102,6 +104,11 @@ export function TesoreriaView() {
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [menuCols, setMenuCols] = useState(false);
+  // Filtros de la tabla MOVIMIENTOS (client-side, sobre lo ya traído): RIEL
+  // (tipoDocSoli), TIPO (ingreso/egreso) y SOLICITUD (Depósito/Extracción).
+  const [fRiel, setFRiel] = useState("");
+  const [fTipo, setFTipo] = useState("");
+  const [fSol, setFSol] = useState("");
 
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -145,12 +152,22 @@ export function TesoreriaView() {
       saldo_inicial: ini, saldo_final: ini + c.neto };
   }), [data]);
   const movs = useMemo(() => {
-    const rows = data?.movimientos ?? [];
+    let rows = data?.movimientos ?? [];
+    if (fRiel) rows = rows.filter((m) => String(m.tipoDocSoli ?? "") === fRiel);
+    if (fTipo) rows = rows.filter((m) => String(m._tipo ?? "") === fTipo);
+    if (fSol) rows = rows.filter((m) => String(m.solicitud ?? "") === fSol);
     const t = q.trim().toLowerCase();
     if (!t) return rows;
     // Búsqueda genérica: matchea si CUALQUIER campo contiene el texto.
     return rows.filter((m) => Object.values(m).some((v) => String(v ?? "").toLowerCase().includes(t)));
-  }, [data, q]);
+  }, [data, q, fRiel, fTipo, fSol]);
+  // Opciones de cada filtro: se arman con los valores realmente presentes en el día.
+  const opciones = useMemo(() => {
+    const rows = data?.movimientos ?? [];
+    const uniq = (k: string) =>
+      [...new Set(rows.map((m) => String(m[k] ?? "")).filter(Boolean))].sort();
+    return { riel: uniq("tipoDocSoli"), tipo: uniq("_tipo"), solicitud: uniq("solicitud") };
+  }, [data]);
   // Universo de columnas presentes, ordenado; lo que se muestra sale de `visibles`.
   const todasCols = useMemo(() => {
     const keys = new Set<string>();
@@ -229,8 +246,17 @@ export function TesoreriaView() {
               className="px-2 py-0.5 text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]">
               columnas ({cols.length}/{todasCols.length})
             </button>
+            <Filtro label="Riel" value={fRiel} onChange={setFRiel} opciones={opciones.riel} />
+            <Filtro label="Tipo" value={fTipo} onChange={setFTipo} opciones={opciones.tipo} />
+            <Filtro label="Solicitud" value={fSol} onChange={setFSol} opciones={opciones.solicitud} />
+            {(fRiel || fTipo || fSol) && (
+              <button onClick={() => { setFRiel(""); setFTipo(""); setFSol(""); }}
+                className="text-[9px] uppercase text-[var(--t-accent)] hover:underline">limpiar</button>
+            )}
             <span className="text-[9px] text-[var(--t-text-muted)]">
-              {q ? `${movs.length} de ${data?.n ?? 0}` : `${data?.n ?? 0} movimientos`}
+              {q || fRiel || fTipo || fSol
+                ? `${movs.length} de ${data?.n ?? 0}`
+                : `${data?.n ?? 0} movimientos`}
             </span>
             {/* Totales del día, inline: mismo dato que antes vivía en una card suelta a la derecha. */}
             <div className="ml-auto flex items-center gap-4">
@@ -288,7 +314,7 @@ export function TesoreriaView() {
           </div>
         </div>
       ) : tab === "cheques" ? (
-        <TesoreriaCheques fecha={fecha} />
+        <TesoreriaCheques />
       ) : tab === "bancos" ? (
         <BancosGrid cuentas={cuentas} fecha={fecha} vacio={!loading && !err}
           editable={!!data?.puede_editar_saldo} onSaved={() => cargar(true)} />
@@ -296,6 +322,25 @@ export function TesoreriaView() {
         <TesoreriaAl2 />
       )}
     </div>
+  );
+}
+
+
+// Un desplegable de filtro de la tabla MOVIMIENTOS. Las opciones salen de los
+// valores presentes en el día, así nunca ofrece algo que filtraría a cero.
+function Filtro({ label, value, onChange, opciones }: {
+  label: string; value: string; onChange: (v: string) => void; opciones: string[];
+}) {
+  return (
+    <label className="flex items-center gap-1">
+      <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}
+        className={"bg-[var(--t-surface)] border px-1 py-0.5 text-[10px] outline-none [color-scheme:dark] " +
+          (value ? "border-[var(--t-accent)] text-[var(--t-accent)]" : "border-[var(--t-border-2)] text-[var(--t-text)]")}>
+        <option value="">todos</option>
+        {opciones.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
   );
 }
 
@@ -385,8 +430,9 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
         const tot = cols.reduce((a, c) => ({
           ingresos: a.ingresos + c.ingresos, egresos: a.egresos + c.egresos,
           echeq: a.echeq + (c.egresos_echeq ?? 0),
+          ingEcheq: a.ingEcheq + (c.ingresos_echeq ?? 0),
           neto: a.neto + c.neto, ini: a.ini + c.saldo_inicial,
-        }), { ingresos: 0, egresos: 0, echeq: 0, neto: 0, ini: 0 });
+        }), { ingresos: 0, egresos: 0, echeq: 0, ingEcheq: 0, neto: 0, ini: 0 });
         return (
           <div key={uni} className="min-w-0">
             <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
@@ -441,6 +487,20 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
                       <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-pos)]">+{fmt(c.ingresos)}</td>
                     ))}
                     <td className="px-2 py-1 text-center text-[var(--t-pos)] font-semibold">+{fmt(tot.ingresos)}</td>
+                  </tr>
+                  {/* Cheques RECIBIDOS marcados finalizados ese día (carga manual,
+                      tab CHEQUES). Fila propia, igual que los egresos e-cheq. */}
+                  <tr className="border-b border-[var(--t-border)]">
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                      title="Cheques recibidos finalizados ese día. No entra al saldo final">Ingresos e-cheqs</td>
+                    {cols.map((c) => (
+                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-text-dim)]">
+                        {c.ingresos_echeq ? `+${fmt(c.ingresos_echeq)}` : fmt(0)}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)] font-semibold">
+                      {tot.ingEcheq ? `+${fmt(tot.ingEcheq)}` : fmt(0)}
+                    </td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
                     <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Egresos</td>

@@ -5,49 +5,48 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Back Office → Tesorería → tab CHEQUES. Pantalla partida 50/50:
+ * izquierda RECIBIDOS, derecha EMITIDOS. Los DOS lados se cargan A MANO —
+ * acá no aparece nada automático, todo lo registra el equipo.
  *
- *   IZQUIERDA — RECIBIDOS: los e-cheq que entraron ese día. Salen LIVE de Aunesa
- *               (mismos movimientos de la tab MOVIMIENTOS, filtrados por RIEL
- *               e-cheq + tipo ingreso). No se cargan a mano.
- *   DERECHA   — EMITIDOS: los carga el back office, igual que una orden de SENEBIS.
- *               COMITENTE sale del padrón de clientes (autocomplete por número o
- *               nombre, trae el CUIT solo) y BANCO del catálogo de cuentas
- *               operativas — los mismos bancos que las cards de la tab BANCOS.
+ * NO es un listado del día: es un TABLERO DE SEGUIMIENTO y por eso NO depende
+ * de la fecha de la barra. Un cheque de hace un año que nunca se cerró sigue
+ * a la vista; uno con FECHA DE PAGO futura va PINTADO DE NARANJA (hay que
+ * seguirlo). Lo único que saca una fila de la vista es cerrarla:
+ *   emitidos  → pendiente | emitido | COMPLETADO (cierra)
+ *   recibidos → pendiente | FINALIZADO (cierra)
+ * El estado se cambia clickeando la celda, sin reabrir la operación. La fila
+ * cerrada no se borra: queda en la tabla para auditoría.
  *
- * Escritura gobernada server-side por la allowlist de Tesorería (+ admin).
+ * Los recibidos FINALIZADOS alimentan la fila "Ingresos e-cheqs" de BANCOS.
  */
 
 const POLL_MS = 20_000;
 
-type Recibido = {
-  hora: string; cliente: string | null; cuit: string | null; banco: string;
-  importe: number; unidad: string; estado: string | null; cuenta: string | null;
-};
-type Emitido = {
-  id: number; comitente: string | null; comitente_denominacion: string | null;
-  cuit: string | null; banco: string; unidad: string; importe: number;
-  estado: string; fecha_pago: string | null; creado_por: string | null;
+type Cheque = {
+  id: number; lado: "emitido" | "recibido"; tipo: string | null;
+  comitente: string | null; comitente_denominacion: string | null; cuit: string | null;
+  banco: string; unidad: string; importe: number; estado: string;
+  fecha_pago: string | null; cerrado_at: string | null; creado_por: string | null;
 };
 type Banco = { banco: string; unidad: string };
 type Resp = {
-  fecha: string; fecha_iso: string;
-  recibidos: Recibido[]; recibidos_error?: string; emitidos: Emitido[];
-  bancos: Banco[]; estados: string[]; puede_editar?: boolean; actualizado_at?: string;
+  emitidos: Cheque[]; recibidos: Cheque[]; bancos: Banco[];
+  estados: Record<string, string[]>; estado_cierre: Record<string, string>;
+  tipos: string[]; hoy: string; puede_editar?: boolean; actualizado_at?: string;
 };
 type Comitente = { id_cuenta: string; denominacion: string | null; cuit: string | null };
 
 const fmt = (v: number) =>
   v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cell = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
-const fechaCorta = (iso: string | null) =>
-  iso ? iso.split("-").reverse().join("/") : "—";
+const fechaCorta = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
-const VACIO = {
-  comitente: "", comitente_denominacion: "", cuit: "", banco: "", unidad: "ARS",
-  importe: "", estado: "pendiente", fecha_pago: "",
-};
+const TH = "px-2 py-1.5 text-center";
+const TD = "px-2 py-1 text-center";
+// Fecha de pago futura → fila naranja: todavía no venció, hay que seguirla.
+const NARANJA = "bg-[#f59e0b]/25";
 
-export function TesoreriaCheques({ fecha }: { fecha: string }) {
+export function TesoreriaCheques() {
   const [data, setData] = useState<Resp | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -57,7 +56,7 @@ export function TesoreriaCheques({ fecha }: { fecha: string }) {
   const cargar = useCallback(async (silencioso: boolean) => {
     if (!silencioso) { setLoading(true); setErr(null); }
     try {
-      const r = await fetch(`/api/back-office/tesoreria/cheques?fecha=${fecha}`, { cache: "no-store" });
+      const r = await fetch("/api/back-office/tesoreria/cheques", { cache: "no-store" });
       const txt = await r.text();
       let body: unknown = null;
       try { body = JSON.parse(txt); } catch { /* no-JSON */ }
@@ -68,9 +67,9 @@ export function TesoreriaCheques({ fecha }: { fecha: string }) {
         if (!silencioso) setData(null);
       } else { setErr(null); setData(body as Resp); }
     } catch (e) {
-      if (alive.current && !silencioso) { setErr(e instanceof Error ? e.message : String(e)); }
+      if (alive.current && !silencioso) setErr(e instanceof Error ? e.message : String(e));
     } finally { if (alive.current) setLoading(false); }
-  }, [fecha]);
+  }, []);
 
   useEffect(() => { cargar(false); }, [cargar]);
   useEffect(() => {
@@ -79,6 +78,9 @@ export function TesoreriaCheques({ fecha }: { fecha: string }) {
   }, [cargar]);
 
   const editable = !!data?.puede_editar;
+  const hoy = data?.hoy ?? "";
+  const bancos = data?.bancos ?? [];
+  const recargar = () => cargar(true);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col p-3 gap-2">
@@ -90,13 +92,22 @@ export function TesoreriaCheques({ fecha }: { fecha: string }) {
           </div>
         </div>
       )}
+      <div className="text-[9px] text-[var(--t-text-muted)] shrink-0">
+        Seguimiento: no depende de la fecha de arriba. Se listan todos los cheques abiertos;
+        marcarlos <b>completado</b> / <b>finalizado</b> los saca de la vista. Fecha de pago
+        futura = fila naranja.
+      </div>
 
-      {/* 50/50 — recibidos a la izquierda, emitidos a la derecha */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Recibidos filas={data?.recibidos ?? []} error={data?.recibidos_error} loading={loading} />
-        <Emitidos filas={data?.emitidos ?? []} bancos={data?.bancos ?? []}
-          estados={data?.estados ?? ["pendiente", "pagado"]}
-          editable={editable} onChanged={() => cargar(true)} />
+        <Lado lado="recibido" titulo="CHEQUES RECIBIDOS"
+          filas={data?.recibidos ?? []} bancos={bancos} hoy={hoy} loading={loading}
+          estados={data?.estados?.recibido ?? ["pendiente", "finalizado"]}
+          tipos={data?.tipos ?? ["echeq", "fisico"]}
+          editable={editable} onChanged={recargar} />
+        <Lado lado="emitido" titulo="CHEQUES EMITIDOS"
+          filas={data?.emitidos ?? []} bancos={bancos} hoy={hoy} loading={loading}
+          estados={data?.estados?.emitido ?? ["pendiente", "emitido", "completado"]}
+          tipos={[]} editable={editable} onChanged={recargar} />
       </div>
     </div>
   );
@@ -117,59 +128,43 @@ function Panel({ titulo, extra, children }: {
   );
 }
 
-const TH = "px-2 py-1.5 text-center";
-const TD = "px-2 py-1 text-center";
 
-
-// ── IZQUIERDA: e-cheq recibidos (live desde Aunesa, no se cargan a mano) ──────
-function Recibidos({ filas, error, loading }: {
-  filas: Recibido[]; error?: string; loading: boolean;
-}) {
-  const total = filas.reduce((a, f) => a + f.importe, 0);
-  return (
-    <Panel titulo={`E-CHEQS RECIBIDOS · ${filas.length}`}
-      extra={<span className="text-[10px] tabular-nums normal-case">{fmt(total)}</span>}>
-      <table className="text-[11px] tabular-nums whitespace-nowrap w-full">
-        <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
-          <tr className="border-b border-[var(--t-border)]">
-            <th className={TH}>Hora</th><th className={TH}>Cliente</th><th className={TH}>CUIT</th>
-            <th className={TH}>Banco</th><th className={TH}>Importe</th><th className={TH}>Estado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filas.map((f, i) => (
-            <tr key={i} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
-              <td className={TD}>{cell(f.hora)}</td>
-              <td className={TD}>{cell(f.cliente)}</td>
-              <td className={TD}>{cell(f.cuit)}</td>
-              <td className={TD}>{cell(f.banco)}</td>
-              <td className={TD + " text-[var(--t-pos)]"}>+{fmt(f.importe)} {f.unidad}</td>
-              <td className={TD + " text-[var(--t-text-dim)]"}>{cell(f.estado)}</td>
-            </tr>
-          ))}
-          {!filas.length && (
-            <tr><td colSpan={6} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
-              {error ? `no pude leer Aunesa: ${error}` : loading ? "cargando…" : "sin e-cheqs recibidos ese día"}
-            </td></tr>
-          )}
-        </tbody>
-      </table>
-    </Panel>
-  );
-}
-
-
-// ── DERECHA: cheques emitidos (carga manual, patrón SENEBIS) ─────────────────
-function Emitidos({ filas, bancos, estados, editable, onChanged }: {
-  filas: Emitido[]; bancos: Banco[]; estados: string[];
-  editable: boolean; onChanged: () => void;
+// Una mitad de la pantalla. Los dos lados comparten tabla y form; cambian las
+// columnas (recibidos tienen TIPO y no fecha de pago) y los estados válidos.
+function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, loading, onChanged }: {
+  lado: "emitido" | "recibido"; titulo: string; filas: Cheque[]; bancos: Banco[];
+  estados: string[]; tipos: string[]; hoy: string; editable: boolean; loading: boolean;
+  onChanged: () => void;
 }) {
   const [alta, setAlta] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const total = filas.reduce((a, f) => a + f.importe, 0);
+  const esEmitido = lado === "emitido";
+  const nCols = 5 + (esEmitido ? 2 : 1) + (editable ? 1 : 0);
+
+  // Cambio de estado desde la celda: un PUT y a recargar. Si el estado cierra,
+  // la fila desaparece sola en el refresh.
+  const cambiarEstado = async (f: Cheque, estado: string) => {
+    setErr(null);
+    try {
+      const r = await fetch(`/api/back-office/tesoreria/cheques/${f.id}/estado`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        setErr(String(b?.error ?? b?.detail ?? `no se pudo cambiar el estado (HTTP ${r.status})`));
+        return;
+      }
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   return (
-    <Panel titulo={`CHEQUES EMITIDOS · ${filas.length}`}
+    <Panel titulo={`${titulo} · ${filas.length}`}
       extra={
         <span className="flex items-center gap-2 normal-case">
           <span className="text-[10px] tabular-nums">{fmt(total)}</span>
@@ -181,37 +176,55 @@ function Emitidos({ filas, bancos, estados, editable, onChanged }: {
           )}
         </span>
       }>
+      {err && <div className="px-2 py-1 text-[10px] text-[var(--t-neg)]">{err}</div>}
       {alta && (
-        <FormCheque bancos={bancos} estados={estados}
+        <FormCheque lado={lado} bancos={bancos} estados={estados} tipos={tipos}
           onCerrar={() => setAlta(false)} onOk={() => { setAlta(false); onChanged(); }} />
       )}
       <table className="text-[11px] tabular-nums whitespace-nowrap w-full">
         <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
           <tr className="border-b border-[var(--t-border)]">
-            <th className={TH}>Comitente</th><th className={TH}>CUIT</th><th className={TH}>Banco</th>
-            <th className={TH}>Importe</th><th className={TH}>Estado</th><th className={TH}>Fecha de pago</th>
+            <th className={TH}>Comitente</th>
+            {esEmitido ? <th className={TH}>CUIT</th> : <th className={TH}>Tipo</th>}
+            <th className={TH}>Banco</th>
+            <th className={TH}>Importe</th>
+            <th className={TH}>Moneda</th>
+            <th className={TH}>Estado</th>
+            {esEmitido && <th className={TH}>Fecha de pago</th>}
             {editable && <th className={TH} />}
           </tr>
         </thead>
         <tbody>
           {filas.map((f) => (
             editId === f.id ? (
-              <tr key={f.id}><td colSpan={editable ? 7 : 6} className="p-0">
-                <FormCheque bancos={bancos} estados={estados} inicial={f}
-                  onCerrar={() => setEditId(null)} onOk={() => { setEditId(null); onChanged(); }} />
+              <tr key={f.id}><td colSpan={nCols} className="p-0">
+                <FormCheque lado={lado} bancos={bancos} estados={estados} tipos={tipos}
+                  inicial={f} onCerrar={() => setEditId(null)}
+                  onOk={() => { setEditId(null); onChanged(); }} />
               </td></tr>
             ) : (
-              <tr key={f.id} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+              <tr key={f.id}
+                className={"border-b border-[var(--t-border)] hover:bg-[var(--t-surface)] " +
+                  (f.fecha_pago && hoy && f.fecha_pago > hoy ? NARANJA : "")}
+                title={f.fecha_pago && hoy && f.fecha_pago > hoy
+                  ? `pago futuro (${fechaCorta(f.fecha_pago)}) — en seguimiento` : undefined}>
                 <td className={TD}>{cell(f.comitente_denominacion ?? f.comitente)}</td>
-                <td className={TD}>{cell(f.cuit)}</td>
+                {esEmitido
+                  ? <td className={TD}>{cell(f.cuit)}</td>
+                  : <td className={TD + " uppercase"}>{cell(f.tipo)}</td>}
                 <td className={TD}>{cell(f.banco)}</td>
-                <td className={TD + " text-[var(--t-neg)]"}>−{fmt(f.importe)} {f.unidad}</td>
+                <td className={TD}>{fmt(f.importe)}</td>
+                <td className={TD + " text-[var(--t-text-dim)]"}>{f.unidad}</td>
                 <td className={TD}>
-                  <span className={f.estado === "pagado" ? "text-[var(--t-pos)]" : "text-[var(--t-text-dim)]"}>
-                    {f.estado}
-                  </span>
+                  {editable ? (
+                    <select value={f.estado} onChange={(e) => cambiarEstado(f, e.target.value)}
+                      title="cambiar el estado (el que cierra saca la fila de la vista)"
+                      className="bg-transparent border border-[var(--t-border-2)] px-1 text-[10px] text-[var(--t-text)] outline-none cursor-pointer [color-scheme:dark]">
+                      {estados.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : <span className="text-[var(--t-text-dim)]">{f.estado}</span>}
                 </td>
-                <td className={TD}>{fechaCorta(f.fecha_pago)}</td>
+                {esEmitido && <td className={TD}>{fechaCorta(f.fecha_pago)}</td>}
                 {editable && (
                   <td className={TD}>
                     <button onClick={() => { setEditId(f.id); setAlta(false); }}
@@ -222,8 +235,8 @@ function Emitidos({ filas, bancos, estados, editable, onChanged }: {
             )
           ))}
           {!filas.length && (
-            <tr><td colSpan={editable ? 7 : 6} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
-              sin cheques emitidos cargados
+            <tr><td colSpan={nCols} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+              {loading ? "cargando…" : "sin cheques abiertos"}
             </td></tr>
           )}
         </tbody>
@@ -239,23 +252,28 @@ function Emitidos({ filas, bancos, estados, editable, onChanged }: {
 
 
 // Alta/edición. `inicial` presente = edición (PUT); ausente = alta (POST).
-function FormCheque({ bancos, estados, inicial, onCerrar, onOk }: {
-  bancos: Banco[]; estados: string[]; inicial?: Emitido;
-  onCerrar: () => void; onOk: () => void;
+function FormCheque({ lado, bancos, estados, tipos, inicial, onCerrar, onOk }: {
+  lado: "emitido" | "recibido"; bancos: Banco[]; estados: string[]; tipos: string[];
+  inicial?: Cheque; onCerrar: () => void; onOk: () => void;
 }) {
-  const [f, setF] = useState(() => inicial ? {
-    comitente: inicial.comitente ?? "",
-    comitente_denominacion: inicial.comitente_denominacion ?? "",
-    cuit: inicial.cuit ?? "", banco: inicial.banco, unidad: inicial.unidad,
-    importe: String(inicial.importe), estado: inicial.estado,
-    fecha_pago: inicial.fecha_pago ?? "",
-  } : { ...VACIO });
+  const esEmitido = lado === "emitido";
+  const [f, setF] = useState(() => ({
+    comitente: inicial?.comitente ?? "",
+    comitente_denominacion: inicial?.comitente_denominacion ?? "",
+    cuit: inicial?.cuit ?? "",
+    tipo: inicial?.tipo ?? (esEmitido ? "" : (tipos[0] ?? "echeq")),
+    banco: inicial?.banco ?? "",
+    unidad: inicial?.unidad ?? "ARS",
+    importe: inicial ? String(inicial.importe) : "",
+    estado: inicial?.estado ?? (estados[0] ?? "pendiente"),
+    fecha_pago: inicial?.fecha_pago ?? "",
+  }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState(inicial?.comitente_denominacion ?? "");
   const [sug, setSug] = useState<Comitente[]>([]);
 
-  const set = (k: keyof typeof VACIO, v: string) => setF((p) => ({ ...p, [k]: v }));
+  const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   // Autocomplete de comitentes: mismo padrón de clientes que usa SENEBIS.
   useEffect(() => {
@@ -263,7 +281,8 @@ function FormCheque({ bancos, estados, inicial, onCerrar, onOk }: {
     if (t.length < 2 || t === f.comitente_denominacion) { setSug([]); return; }
     const timer = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/back-office/tesoreria/cheques/comitentes?q=${encodeURIComponent(t)}`,
+        const r = await fetch(
+          `/api/back-office/tesoreria/cheques/comitentes?q=${encodeURIComponent(t)}`,
           { cache: "no-store" });
         if (!r.ok) return;
         const b = await r.json();
@@ -292,7 +311,11 @@ function FormCheque({ bancos, estados, inicial, onCerrar, onOk }: {
       const r = await fetch(url, {
         method: inicial ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...f, importe: imp, fecha_pago: f.fecha_pago || null }),
+        body: JSON.stringify({
+          ...f, lado, importe: imp,
+          tipo: esEmitido ? null : f.tipo,
+          fecha_pago: esEmitido ? (f.fecha_pago || null) : null,
+        }),
       });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
@@ -315,14 +338,16 @@ function FormCheque({ bancos, estados, inicial, onCerrar, onOk }: {
     } finally { setBusy(false); }
   };
 
-  const input = "bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
+  const input = "bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-0.5 " +
+    "text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
+  const lbl = "uppercase tracking-widest text-[var(--t-text-muted)]";
 
   return (
     <div className="p-2 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex flex-wrap items-end gap-2 text-[10px]">
       <label className="flex flex-col gap-0.5 relative">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Comitente</span>
+        <span className={lbl}>Comitente</span>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="número o nombre…"
-          className={input + " w-[180px]"} />
+          className={input + " w-[170px]"} />
         {!!sug.length && (
           <div className="absolute z-30 top-full left-0 mt-0.5 w-[260px] max-h-[180px] overflow-auto border border-[var(--t-border-2)] bg-[var(--t-panel)] shadow-lg">
             {sug.map((c) => (
@@ -334,16 +359,31 @@ function FormCheque({ bancos, estados, inicial, onCerrar, onOk }: {
           </div>
         )}
       </label>
+
+      {esEmitido ? (
+        <label className="flex flex-col gap-0.5">
+          <span className={lbl}>CUIT</span>
+          <input value={f.cuit} onChange={(e) => set("cuit", e.target.value)}
+            className={input + " w-[110px]"} />
+        </label>
+      ) : (
+        <label className="flex flex-col gap-0.5">
+          <span className={lbl}>Tipo</span>
+          <select value={f.tipo} onChange={(e) => set("tipo", e.target.value)} className={input}>
+            {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+      )}
+
       <label className="flex flex-col gap-0.5">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">CUIT</span>
-        <input value={f.cuit} onChange={(e) => set("cuit", e.target.value)} className={input + " w-[110px]"} />
-      </label>
-      <label className="flex flex-col gap-0.5">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Banco</span>
+        <span className={lbl}>Banco</span>
         <select value={`${f.banco}|${f.unidad}`}
-          onChange={(e) => { const [b, u] = e.target.value.split("|"); setF((p) => ({ ...p, banco: b, unidad: u })); }}
-          className={input + " w-[200px]"}>
-          <option value="|ARS">— elegir —</option>
+          onChange={(e) => {
+            const [b, u] = e.target.value.split("|");
+            setF((p) => ({ ...p, banco: b, unidad: u || p.unidad }));
+          }}
+          className={input + " w-[190px]"}>
+          <option value={`|${f.unidad}`}>— elegir —</option>
           {bancos.map((b) => (
             <option key={`${b.banco}|${b.unidad}`} value={`${b.banco}|${b.unidad}`}>
               {b.banco} [{b.unidad}]
@@ -351,22 +391,35 @@ function FormCheque({ bancos, estados, inicial, onCerrar, onOk }: {
           ))}
         </select>
       </label>
+
       <label className="flex flex-col gap-0.5">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Importe</span>
+        <span className={lbl}>Importe</span>
         <input value={f.importe} onChange={(e) => set("importe", e.target.value)}
           className={input + " w-[110px] text-right"} />
       </label>
+
       <label className="flex flex-col gap-0.5">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Estado</span>
+        <span className={lbl}>Moneda</span>
+        <select value={f.unidad} onChange={(e) => set("unidad", e.target.value)} className={input}>
+          {["ARS", "USD"].map((u) => <option key={u} value={u}>{u}</option>)}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-0.5">
+        <span className={lbl}>Estado</span>
         <select value={f.estado} onChange={(e) => set("estado", e.target.value)} className={input}>
           {estados.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </label>
-      <label className="flex flex-col gap-0.5">
-        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Fecha de pago</span>
-        <input type="date" value={f.fecha_pago} onChange={(e) => set("fecha_pago", e.target.value)}
-          className={input} />
-      </label>
+
+      {esEmitido && (
+        <label className="flex flex-col gap-0.5">
+          <span className={lbl}>Fecha de pago</span>
+          <input type="date" value={f.fecha_pago}
+            onChange={(e) => set("fecha_pago", e.target.value)} className={input} />
+        </label>
+      )}
+
       <button onClick={guardar} disabled={busy}
         className="px-2 py-1 uppercase tracking-widest border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40">
         {inicial ? "guardar" : "cargar"}
