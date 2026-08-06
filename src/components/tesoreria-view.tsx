@@ -40,6 +40,13 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
+ * FECHA: el selector aparece SOLO en BANCOS, la única tab que navega el histórico.
+ * Todo lo demás (MOVIMIENTOS, CHEQUES, MERCADOS, BANCO A BANCO) es siempre el día en
+ * curso. Elegir una fecha pasada en BANCOS trae la FOTO guardada de ese día
+ * (`GET /tesoreria/foto`): la grilla congelada + el detalle ya calculado de cada
+ * celda, en solo lectura. Así el histórico de movimientos se navega por la celda que
+ * los usa, sin duplicar la lista en MOVIMIENTOS.
+ *
  * Vista crítica: poll cada 20s (silencioso), reloj de última actualización y presencia
  * de quién más la tiene abierta — mismo patrón que SENEBIS.
  */
@@ -83,6 +90,15 @@ type Resp = {
   conectados?: Conectado[]; actualizado_at?: string;
   movimientos: Mov[]; n: number; raw?: number;
 };
+// FOTO de un día pasado: la grilla BANCOS congelada + el detalle ya calculado de
+// cada celda (clave "banco|MONEDA|fila"), así el modal de auditoría de un día viejo
+// no vuelve a pegarle a Aunesa. `existe: false` = ese día no se fotografió.
+type Foto = {
+  existe: boolean; fecha: string; fecha_iso: string; ttl?: number;
+  id?: number; tomado_at?: string; tomado_por?: string | null; origen?: string;
+  hash_sha256?: string; hash_ok?: boolean; estado_bancos?: string;
+  cuentas: CuentaWire[]; catalogo: CuentaCat[]; detalle: Record<string, Detalle>;
+};
 
 // Lo único que se mira todos los días. El resto queda oculto detrás de COLUMNAS.
 const COL_DEFAULT = [
@@ -110,6 +126,18 @@ const ESTADOS = [
 ] as const;
 const TODOS = ESTADOS.join(";");
 
+// Saldo inicial sin cargar = 0, y el final = inicial + neto + el resto de las filas.
+// Se recalcula acá (en vez de confiar en el campo) para que la grilla cierre aunque
+// el backend sea el viejo. Las dos filas e-cheq van separadas SOLO para distinguirlas:
+// las dos entran al saldo. `neto` ya es ingresos − egresos.
+const normalizarCuentas = (rows: CuentaWire[]): Cuenta[] => rows.map((c) => {
+  const ini = c.saldo_inicial ?? 0;
+  return { ...c, saldo_cargado: c.saldo_inicial !== null && c.saldo_inicial !== undefined,
+    saldo_inicial: ini,
+    saldo_final: ini + c.neto + (c.ingresos_echeq ?? 0) - (c.egresos_echeq ?? 0)
+      + (c.mercados ?? 0) + (c.fci ?? 0) + (c.bb_mas ?? 0) - (c.bb_menos ?? 0) };
+});
+
 const hoyISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -120,7 +148,11 @@ const hhmmss = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("es-AR"
 export function TesoreriaView() {
   const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "cheques" | "mercados" | "banco a banco" | "saldo al2">(
     "tes.tab", "movimientos");
-  const [fecha, setFecha] = useState(hoyISO());
+  // El día es SIEMPRE hoy salvo en BANCOS, la única tab que navega el histórico
+  // (y lo hace contra la FOTO guardada, no contra Aunesa). Por eso el selector de
+  // fecha solo aparece ahí: en el resto no habría nada viejo que mostrar.
+  const hoy = useMemo(hoyISO, []);
+  const [fecha, setFecha] = useState(hoy);
   const [estado, setEstado] = usePersistedState("tes.estado", "Procesado");
   const [visibles, setVisibles] = usePersistedState<string[]>("tes.cols", COL_DEFAULT, "local");
   const [data, setData] = useState<Resp | null>(null);
@@ -136,12 +168,18 @@ export function TesoreriaView() {
   const [fTipo, setFTipo] = useState("");
   const [fSol, setFSol] = useState("");
 
+  // BANCOS con fecha pasada = FOTO guardada (el día viejo ya no se puede
+  // reconstruir live contra Aunesa). Ver api/services/tesoreria.py::foto_dia.
+  const historico = tab === "bancos" && fecha !== hoy;
+  const [foto, setFoto] = useState<Foto | null>(null);
+  const [fotoErr, setFotoErr] = useState<string | null>(null);
+
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const cargar = useCallback(async (silencioso: boolean) => {
     if (!silencioso) { setLoading(true); setErr(null); }
-    const url = `/api/back-office/tesoreria/dia?fecha=${fecha}&estado=${encodeURIComponent(estado)}`;
+    const url = `/api/back-office/tesoreria/dia?fecha=${hoy}&estado=${encodeURIComponent(estado)}`;
     try {
       const r = await fetch(url, { cache: "no-store" });
       const txt = await r.text();
@@ -160,7 +198,7 @@ export function TesoreriaView() {
     } finally {
       if (alive.current) setLoading(false);
     }
-  }, [fecha, estado]);
+  }, [hoy, estado]);
 
   useEffect(() => { cargar(false); }, [cargar]);
   // Poll: mantiene los movimientos al día y renueva la presencia del usuario.
@@ -169,18 +207,31 @@ export function TesoreriaView() {
     return () => clearInterval(t);
   }, [cargar]);
 
+  // La foto se pide una sola vez por fecha: es un día cerrado, no cambia (por eso
+  // tampoco entra en el poll).
+  useEffect(() => {
+    if (!historico) { setFoto(null); setFotoErr(null); return; }
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/back-office/tesoreria/foto?fecha=${fecha}`, { cache: "no-store" });
+        const b = await r.json().catch(() => ({}));
+        if (!vivo) return;
+        if (!r.ok) { setFotoErr(String(b?.error ?? b?.detail ?? `HTTP ${r.status}`)); setFoto(null); }
+        else { setFotoErr(null); setFoto(b as Foto); }
+      } catch (e) {
+        if (vivo) { setFotoErr(e instanceof Error ? e.message : String(e)); setFoto(null); }
+      }
+    })();
+    return () => { vivo = false; };
+  }, [historico, fecha]);
+
   const monedas = useMemo(() => Object.keys(data?.resumen ?? {}).sort(), [data]);
   // Saldo inicial sin cargar = 0, y el final = inicial + neto. Se recalcula acá (en vez
   // de confiar en el campo) para que la grilla cierre aunque el backend sea el viejo.
-  const cuentas = useMemo<Cuenta[]>(() => (data?.cuentas ?? []).map((c) => {
-    const ini = c.saldo_inicial ?? 0;
-    // Las dos filas e-cheq van separadas SOLO para distinguirlas: las dos entran
-    // al saldo. `neto` ya es ingresos − egresos. Ver api/services/tesoreria.py.
-    return { ...c, saldo_cargado: c.saldo_inicial !== null && c.saldo_inicial !== undefined,
-      saldo_inicial: ini,
-      saldo_final: ini + c.neto + (c.ingresos_echeq ?? 0) - (c.egresos_echeq ?? 0)
-        + (c.mercados ?? 0) + (c.fci ?? 0) + (c.bb_mas ?? 0) - (c.bb_menos ?? 0) };
-  }), [data]);
+  const cuentas = useMemo<Cuenta[]>(
+    () => normalizarCuentas(historico ? (foto?.cuentas ?? []) : (data?.cuentas ?? [])),
+    [data, foto, historico]);
   const movs = useMemo(() => {
     let rows = data?.movimientos ?? [];
     if (fRiel) rows = rows.filter((m) => String(m.tipoDocSoli ?? "") === fRiel);
@@ -224,36 +275,67 @@ export function TesoreriaView() {
           </button>
         ))}
         <span className="w-px h-4 bg-[var(--t-border)] mx-1" />
-        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Fecha</span>
-        <input type="date" value={fecha} max={hoyISO()} onChange={(e) => setFecha(e.target.value)}
-          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
-        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Estado</span>
-        <select value={estado} onChange={(e) => setEstado(e.target.value)}
-          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-text)] outline-none [color-scheme:dark]">
-          {ESTADOS.map((s) => <option key={s} value={s}>{s}</option>)}
-          <option value={TODOS}>Todos</option>
-        </select>
+        {/* FECHA: solo en BANCOS. Es la única tab con histórico (lee la FOTO del día);
+            el resto es siempre el día en curso, así que un selector ahí solo confundiría. */}
+        {tab === "bancos" && (
+          <>
+            <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Fecha</span>
+            <input type="date" value={fecha} max={hoy} onChange={(e) => setFecha(e.target.value)}
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 font-mono text-[var(--t-text)] outline-none [color-scheme:dark]" />
+            {historico && (
+              <button onClick={() => setFecha(hoy)}
+                className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] hover:underline">hoy</button>
+            )}
+          </>
+        )}
+        {/* ESTADO filtra la tabla de MOVIMIENTOS (nunca el saldo, que es siempre Procesado). */}
+        {tab === "movimientos" && (
+          <>
+            <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">Estado</span>
+            <select value={estado} onChange={(e) => setEstado(e.target.value)}
+              className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-text)] outline-none [color-scheme:dark]">
+              {ESTADOS.map((s) => <option key={s} value={s}>{s}</option>)}
+              <option value={TODOS}>Todos</option>
+            </select>
+          </>
+        )}
 
         {/* En la barra (no dentro de la grilla) para no comerse una fila de alto. */}
         {/* El "?" reemplaza al cartel: la aclaración sigue disponible pero no come
             una franja de alto en una vista donde el espacio vertical es lo escaso. */}
         {tab === "bancos" && (
           <span title={`Saldos calculados solo sobre movimientos ${data?.estado_bancos ?? "Procesado"}` +
-            ` del ${data?.fecha ?? fecha} — la plata que efectivamente entró o salió ese día.` +
-            " El filtro ESTADO de arriba aplica a MOVIMIENTOS, no al saldo." +
-            " Clickeá cualquier celda para ver de dónde sale el número."}
+            ` del ${historico ? fecha : (data?.fecha ?? fecha)} — la plata que efectivamente entró o salió ese día.` +
+            " El filtro ESTADO aplica a MOVIMIENTOS, no al saldo." +
+            " Clickeá cualquier celda para ver de dónde sale el número." +
+            " Una fecha pasada muestra la FOTO guardada de ese día (solo lectura)."}
             className="w-4 h-4 flex items-center justify-center rounded-full border border-[var(--t-border-2)] text-[9px] text-[var(--t-text-muted)] cursor-help">
             ?
           </span>
         )}
-        {tab === "bancos" && data?.puede_editar_saldo && (
+        {/* Con fecha pasada se está mirando una foto: nada de ABM ni de carga. */}
+        {tab === "bancos" && !historico && data?.puede_editar_saldo && (
           <AbmBancos filas={data?.catalogo ?? []} onCambio={() => cargar(true)} />
         )}
-        {tab === "bancos" && (
+        {tab === "bancos" && !historico && (
           <button onClick={() => setRegsAbierto(true)}
             className="text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10">
             registros manuales
           </button>
+        )}
+        {tab === "bancos" && !historico && data?.puede_editar_saldo && (
+          <BotonFoto fecha={fecha} />
+        )}
+        {tab === "bancos" && historico && (
+          <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)]"
+            title={foto?.existe
+              ? `Foto tomada el ${hhmmss(foto.tomado_at)} por ${foto.tomado_por ?? "—"} (${foto.origen})` +
+                (foto.hash_ok === false ? " — ATENCIÓN: el hash no cierra, la fila se modificó por fuera" : "")
+              : "Ese día no tiene foto guardada"}>
+            {foto?.existe
+              ? `foto ${foto.origen ?? ""} ${foto.hash_ok === false ? "· hash ✗" : "· ok"}`
+              : "sin foto"}
+          </span>
         )}
         {regsAbierto && (
           <TesoreriaRegistros fecha={fecha} onCerrar={() => setRegsAbierto(false)}
@@ -359,15 +441,30 @@ export function TesoreriaView() {
           </div>
         </div>
       ) : tab === "banco a banco" ? (
-        <TesoreriaBancoABanco fecha={fecha} />
+        <TesoreriaBancoABanco fecha={hoy} />
       ) : tab === "mercados" ? (
-        <TesoreriaMercados fecha={fecha} />
+        <TesoreriaMercados fecha={hoy} />
       ) : tab === "cheques" ? (
-        <TesoreriaCheques fecha={fecha} />
+        <TesoreriaCheques fecha={hoy} />
       ) : tab === "bancos" ? (
-        <BancosGrid cuentas={cuentas} catalogo={data?.catalogo ?? []} fecha={fecha}
-          vacio={!loading && !err}
-          editable={!!data?.puede_editar_saldo} onSaved={() => cargar(true)} />
+        historico && !foto?.existe ? (
+          <div className="flex-1 min-h-0 p-3 text-[11px] text-[var(--t-text-muted)]">
+            {fotoErr
+              ? `Error al leer la foto: ${fotoErr}`
+              : foto
+                ? `No hay foto guardada del ${fecha}. Se conservan las últimas ${foto.ttl ?? 30} — ` +
+                  "un día sin foto ya no se puede reconstruir."
+                : "cargando…"}
+          </div>
+        ) : (
+          <BancosGrid cuentas={cuentas}
+            catalogo={historico ? (foto?.catalogo ?? []) : (data?.catalogo ?? [])}
+            fecha={fecha} vacio={!loading && !err}
+            // Una foto es evidencia: se mira, no se toca.
+            editable={!historico && !!data?.puede_editar_saldo}
+            detalleFijo={historico ? (foto?.detalle ?? {}) : null}
+            onSaved={() => cargar(true)} />
+        )
       ) : (
         <TesoreriaAl2 />
       )}
@@ -477,11 +574,15 @@ type Detalle = {
   total: number; excluidos?: number; items: DetalleItem[];
 };
 
-function ModalDetalle({ celda, fecha, editable, onCerrar, onCambio }: {
+function ModalDetalle({ celda, fecha, editable, fijo, onCerrar, onCambio }: {
   celda: Celda; fecha: string; editable: boolean;
+  // `fijo` presente = el detalle sale de la FOTO del día (undefined = pedirlo live).
+  // `null` dentro de una foto significa "esa celda no tenía operaciones".
+  fijo?: Detalle | null;
   onCerrar: () => void; onCambio: () => void;
 }) {
-  const [d, setD] = useState<Detalle | null>(null);
+  const congelado = fijo !== undefined;
+  const [d, setD] = useState<Detalle | null>(congelado ? fijo : null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [nonce, setNonce] = useState(0);   // fuerza recargar tras tildar
@@ -493,6 +594,7 @@ function ModalDetalle({ celda, fecha, editable, onCerrar, onCambio }: {
   }, [onCerrar]);
 
   useEffect(() => {
+    if (congelado) { setD(fijo ?? null); return; }
     let vivo = true;
     const qs = new URLSearchParams({
       banco: celda.banco, unidad: celda.unidad, fila: celda.fila, fecha,
@@ -509,7 +611,7 @@ function ModalDetalle({ celda, fecha, editable, onCerrar, onCambio }: {
       }
     })();
     return () => { vivo = false; };
-  }, [celda, fecha, nonce]);
+  }, [celda, fecha, nonce, congelado, fijo]);
 
   // Tildar/destildar: el backend guarda el override y la observación, y la grilla
   // se recalcula (el movimiento entra o sale del saldo final).
@@ -546,8 +648,9 @@ function ModalDetalle({ celda, fecha, editable, onCerrar, onCambio }: {
           <button onClick={onCerrar} className="text-[12px] px-2 hover:opacity-70">✕</button>
         </div>
         <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)] border-b border-[var(--t-border)] shrink-0">
-          {d ? `${d.fuente} · ${d.fecha}` : err ? "" : "cargando…"}
+          {d ? `${d.fuente} · ${d.fecha}` : err ? "" : congelado ? "" : "cargando…"}
           {d && editable && " · destildá un movimiento para sacarlo del saldo final"}
+          {congelado && " · FOTO del día (solo lectura)"}
         </div>
         {err && <div className="px-3 py-2 text-[10px] text-[var(--t-neg)]">{err}</div>}
 
@@ -584,9 +687,9 @@ function ModalDetalle({ celda, fecha, editable, onCerrar, onCambio }: {
                   </td>
                 </tr>
               ))}
-              {d && !d.items.length && (
+              {(!d || !d.items.length) && !err && (
                 <tr><td colSpan={6} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
-                  sin operaciones — la celda está en cero
+                  {d || congelado ? "sin operaciones — la celda está en cero" : "cargando…"}
                 </td></tr>
               )}
             </tbody>
@@ -639,9 +742,11 @@ function Presencia({ conectados }: { conectados: Conectado[] }) {
 // office no cargó el inicial de un banco, vale 0 (se muestra apagado para que se
 // vea que es el default, no un dato cargado) y el final es directamente el neto.
 // Todo va CENTRADO: título del bloque, encabezados y valores.
-function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
+function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, detalleFijo, onSaved }: {
   cuentas: Cuenta[]; catalogo: CuentaCat[]; fecha: string; editable: boolean;
-  vacio: boolean; onSaved: () => void;
+  // Día pasado: el detalle de cada celda ya viene congelado en la foto (clave
+  // "banco|MONEDA|fila") y el modal lo lee de acá en vez de pedirlo al backend.
+  vacio: boolean; detalleFijo?: Record<string, Detalle> | null; onSaved: () => void;
 }) {
   // banco|moneda → número de cuenta, para mostrarlo bajo el nombre en el encabezado.
   const numeros = useMemo(() => Object.fromEntries(
@@ -906,8 +1011,47 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
       })}
       {celda && (
         <ModalDetalle celda={celda} fecha={fecha} editable={editable}
+          fijo={detalleFijo ? (detalleFijo[`${celda.banco}|${celda.unidad}|${celda.fila}`] ?? null) : undefined}
           onCerrar={() => setCelda(null)} onCambio={onSaved} />
       )}
     </div>
+  );
+}
+
+
+// Botón «foto»: congela la grilla BANCOS del día para poder auditarla después.
+// Solo lo ve quien tiene permiso de escritura en Tesorería; el cron saca la del
+// cierre igual, esto es para adelantarla o re-tomarla tras un ajuste.
+function BotonFoto({ fecha }: { fecha: string }) {
+  const [estado, setEstado] = useState<"" | "yendo" | "ok" | "error">("");
+  const [msg, setMsg] = useState("");
+
+  const sacar = async () => {
+    setEstado("yendo"); setMsg("");
+    try {
+      const r = await fetch("/api/back-office/tesoreria/snapshots", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fecha }),
+      });
+      const b = await r.json().catch(() => ({}));
+      if (!r.ok) { setEstado("error"); setMsg(String(b?.error ?? b?.detail ?? `HTTP ${r.status}`)); return; }
+      setEstado("ok");
+      setMsg(`${b?.n_bancos ?? 0} bancos · ${b?.n_celdas ?? 0} celdas`);
+    } catch (e) {
+      setEstado("error"); setMsg(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <button onClick={sacar} disabled={estado === "yendo"}
+      title={"Guarda la grilla de hoy (y el detalle de cada celda) para poder auditarla " +
+        "cuando pase el día. Una foto por día: re-sacarla actualiza la de hoy."}
+      className={"text-[9px] uppercase tracking-widest border px-2 py-0.5 disabled:opacity-40 " +
+        (estado === "error"
+          ? "border-[var(--t-neg)] text-[var(--t-neg)]"
+          : "border-[var(--t-border-2)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10")}>
+      {estado === "yendo" ? "sacando foto…" : estado === "ok" ? `foto ✓ ${msg}`
+        : estado === "error" ? `foto ✗ ${msg}` : "sacar foto"}
+    </button>
   );
 }
