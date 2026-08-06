@@ -12,14 +12,19 @@ import { fmtFechaCorta } from "@/lib/fmt";
 import { fetchShared } from "@/lib/fetch-shared";
 
 type Moneda = "ARS" | "USD";
-type Dim = "nivel3" | "operacion" | "operador";
+type Dim = "nivel3" | "operacion" | "mercado" | "operador";
 type DimRow = { clave: string; arancel: number; n: number };
 type CuentaRow = { denominacion: string; arancel: number; n: number };
 type InstrRow = { instrumento: string; arancel: number; n: number };
 type ArSerieRow = { periodo: string; arancel: number };
 type Resp = { serie: ArSerieRow[]; por_dim: DimRow[]; por_cuenta: CuentaRow[]; por_instrumento: InstrRow[]; total: number };
 
-const _DIMS: [Dim, string][] = [["nivel3", "NIVEL 3"], ["operacion", "OPERACIÓN"], ["operador", "OPERADOR"]];
+// `operador` va último: es el único que no es una columna de `operaciones` (se
+// resuelve por subquery a comitentes), el resto son agrupaciones directas.
+const _DIMS: [Dim, string][] = [
+  ["nivel3", "NIVEL 3"], ["operacion", "OPERACIÓN"], ["mercado", "MERCADO"],
+  ["operador", "OPERADOR"],
+];
 
 function fmtCompact(n: number): string {
   if (n == null || Number.isNaN(n)) return "—";

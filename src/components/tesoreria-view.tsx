@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TesoreriaAl2 } from "@/components/tesoreria-al2";
 import { TesoreriaCheques } from "@/components/tesoreria-cheques";
+import { TesoreriaMercados } from "@/components/tesoreria-mercados";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
 /**
@@ -25,6 +26,8 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *                 entran al saldo final. La fila Neto se sacó: era redundante.
  *   CHEQUES     — 50/50, los DOS de carga manual: recibidos son del día (intradía),
  *                 emitidos son seguimiento sin filtro de fecha. Ver tesoreria-cheques.tsx.
+ *   MERCADOS    — 4 tableros del día al 50%: MERCADO (ingresos | pagos) y FCI
+ *                 (rescates | suscripciones). Ver tesoreria-mercados.tsx.
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
@@ -95,7 +98,7 @@ const fmt = (v: number) => v.toLocaleString("es-AR", { minimumFractionDigits: 2,
 const hhmmss = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("es-AR", { hour12: false }) : "—");
 
 export function TesoreriaView() {
-  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "cheques" | "saldo al2">(
+  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "cheques" | "mercados" | "saldo al2">(
     "tes.tab", "movimientos");
   const [fecha, setFecha] = useState(hoyISO());
   const [estado, setEstado] = usePersistedState("tes.estado", "Procesado");
@@ -188,7 +191,7 @@ export function TesoreriaView() {
     <div className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* Barra: tabs + fecha + estado + estado de conexión + presencia */}
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap shrink-0 text-[11px]">
-        {(["movimientos", "bancos", "cheques", "saldo al2"] as const).map((t) => (
+        {(["movimientos", "bancos", "cheques", "mercados", "saldo al2"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={"px-2 py-0.5 text-[10px] uppercase tracking-widest font-semibold border " +
               (tab === t
@@ -317,6 +320,8 @@ export function TesoreriaView() {
             </table>
           </div>
         </div>
+      ) : tab === "mercados" ? (
+        <TesoreriaMercados fecha={fecha} />
       ) : tab === "cheques" ? (
         <TesoreriaCheques fecha={fecha} />
       ) : tab === "bancos" ? (
@@ -345,6 +350,74 @@ function Filtro({ label, value, onChange, opciones }: {
         {opciones.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     </label>
+  );
+}
+
+
+// Alta manual de una cuenta operativa. El catálogo normalmente se descubre solo
+// (aparece cuando el banco opera por primera vez); esto es para los que todavía no
+// operaron y ya hay que verlos en la grilla. Se modela igual que las descubiertas.
+function AltaBanco({ onCreada }: { onCreada: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const [unidad, setUnidad] = useState("ARS");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const guardar = async () => {
+    if (!nombre.trim()) { setErr("falta el nombre del banco"); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/back-office/tesoreria/cuentas", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cuenta_operativa: nombre, unidad }),
+      });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        setErr(String(b?.error ?? b?.detail ?? `no se pudo crear (HTTP ${r.status})`));
+        return;
+      }
+      setNombre(""); setAbierto(false); onCreada();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
+
+  const input = "bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-0.5 " +
+    "text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
+
+  if (!abierto) {
+    return (
+      <button onClick={() => setAbierto(true)}
+        className="self-start text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10">
+        + agregar banco
+      </button>
+    );
+  }
+  return (
+    <div className="self-start flex flex-wrap items-end gap-2 text-[10px] p-2 border border-[var(--t-border-2)] bg-[var(--t-surface)]">
+      <label className="flex flex-col gap-0.5">
+        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Cuenta operativa</span>
+        <input autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") guardar(); if (e.key === "Escape") setAbierto(false); }}
+          placeholder="como figura en el banco…" className={input + " w-[260px] uppercase"} />
+      </label>
+      <label className="flex flex-col gap-0.5">
+        <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Moneda</span>
+        <select value={unidad} onChange={(e) => setUnidad(e.target.value)} className={input}>
+          {["ARS", "USD"].map((u) => <option key={u} value={u}>{u}</option>)}
+        </select>
+      </label>
+      <button onClick={guardar} disabled={busy}
+        className="px-2 py-1 uppercase tracking-widest border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40">
+        crear
+      </button>
+      <button onClick={() => { setAbierto(false); setErr(null); }} disabled={busy}
+        className="px-2 py-1 uppercase tracking-widest text-[var(--t-text-muted)] hover:text-[var(--t-text)]">
+        cancelar
+      </button>
+      {err && <span className="text-[var(--t-neg)]">{err}</span>}
+    </div>
   );
 }
 
@@ -415,12 +488,17 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
     } finally { setBusy(false); }
   };
 
+  // Catálogo vacío: el alta tiene que estar IGUAL disponible (es justo cuando más
+  // se necesita), así que no se puede cortar antes de renderizarla.
   if (!cuentas.length) {
     return (
-      <div className="flex-1 min-h-0 p-3 text-[11px] text-[var(--t-text-muted)]">
-        {vacio
-          ? "Catálogo de cuentas operativas vacío — sembrarlo con `python -m scripts.diag_tesoreria_cuentas --dias 60 --registrar`."
-          : "cargando…"}
+      <div className="flex-1 min-h-0 p-3 flex flex-col gap-2 text-[11px] text-[var(--t-text-muted)]">
+        <span>
+          {vacio
+            ? "Catálogo de cuentas operativas vacío — se llena solo cuando un banco opera, o cargalo a mano acá."
+            : "cargando…"}
+        </span>
+        {editable && <AltaBanco onCreada={onSaved} />}
       </div>
     );
   }
@@ -428,6 +506,7 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
   return (
     <div className="flex-1 min-h-0 overflow-auto p-3 flex flex-col gap-4">
       {err && <div className="text-[10px] text-[var(--t-neg)]">{err}</div>}
+      {editable && <AltaBanco onCreada={onSaved} />}
       {Object.keys(porMoneda).sort().map((uni) => {
         const cols = porMoneda[uni];
         // Sin nulls: el inicial ya viene 0 cuando no se cargó, así que el total es una suma.
