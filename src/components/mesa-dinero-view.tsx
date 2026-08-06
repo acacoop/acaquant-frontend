@@ -44,7 +44,13 @@ type Dia = {
 };
 type Resumen = { dias: Dia[]; total_ars: number; total_usd: number };
 type PorCliente = { cliente: string; resultado_ars: number; resultado_usd: number; n: number };
-type PorComercial = { observacion: string; resultado_ars: number; resultado_usd: number; n: number };
+// `n` = operaciones ORIGINADAS por ese comercial. Con la regla 50/50 la Mesa puede
+// tener resultado sin ops propias (la mitad de los trades de los operadores) →
+// `desde_operadores_*` dice cuánto de su número vino de ahí.
+type PorComercial = {
+  observacion: string; resultado_ars: number; resultado_usd: number; n: number;
+  desde_operadores_ars?: number; desde_operadores_usd?: number;
+};
 type Resultados = {
   por_cliente: PorCliente[]; por_comercial: PorComercial[];
   total_ars: number; total_usd: number; n_total: number; dias_sin_tc: number;
@@ -661,7 +667,10 @@ export function MesaDineroView() {
           <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
             <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
               <span className="text-[11px] font-semibold text-[var(--t-text)]">RESULTADO POR COMERCIAL</span>
-              <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">según observación de cada operación</span>
+              <span className="ml-2 text-[9px] text-[var(--t-text-muted)]">
+                según la observación de cada operación · si la generó un operador, el
+                resultado se reparte 50/50 entre el operador y la Mesa
+              </span>
             </div>
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-[10px]">
@@ -673,17 +682,31 @@ export function MesaDineroView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(resultados?.por_comercial ?? []).map((c) => (
+                  {(resultados?.por_comercial ?? []).map((c) => {
+                    // Vacío = sin ops Y sin plata. Mirar solo `n` escondería el 50%
+                    // que la Mesa cobra de trades que no originó.
+                    const vacio = c.n === 0 && !c.resultado_ars && !c.resultado_usd;
+                    const dOp = c.desde_operadores_ars ?? 0;
+                    return (
                     <tr key={c.observacion} className="border-t border-[var(--t-border)]">
-                      <td className="px-2 py-0.5">{c.observacion}</td>
-                      <td className={`text-right font-mono ${c.n === 0 ? "text-[var(--t-text-muted)]" : signClass(c.resultado_ars)}`}>
-                        {c.n === 0 ? "—" : fmt2(c.resultado_ars)}
+                      <td className="px-2 py-0.5">
+                        {c.observacion}
+                        {dOp !== 0 && (
+                          <span className="ml-1 text-[9px] text-[var(--t-text-muted)]"
+                            title="Parte del 50% de los trades generados por operadores">
+                            (incl. {fmt2(dOp)} de operadores)
+                          </span>
+                        )}
                       </td>
-                      <td className={`text-right font-mono pr-2 ${c.n === 0 ? "text-[var(--t-text-muted)]" : signClass(c.resultado_usd)}`}>
-                        {c.n === 0 ? "—" : fmt2(c.resultado_usd)}
+                      <td className={`text-right font-mono ${vacio ? "text-[var(--t-text-muted)]" : signClass(c.resultado_ars)}`}>
+                        {vacio ? "—" : fmt2(c.resultado_ars)}
+                      </td>
+                      <td className={`text-right font-mono pr-2 ${vacio ? "text-[var(--t-text-muted)]" : signClass(c.resultado_usd)}`}>
+                        {vacio ? "—" : fmt2(c.resultado_usd)}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
                 {resultados && (
                   <tfoot>

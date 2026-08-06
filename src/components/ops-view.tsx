@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { MultiSelect } from "@/components/ui/multi-select";
 import { OpsBarChart, type SerieRow } from "./ops-bar-chart";
 import { getJSON } from "@/lib/fetch-json";
 import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
@@ -67,23 +68,30 @@ function formatTime(iso: string | null): string {
   try { return new Date(new Date(iso).getTime() - 3 * 3600_000).toISOString().slice(11, 19) + " ART"; }
   catch { return "—"; }
 }
+// Filtro multi → query string. Se manda separado por comas y el backend lo
+// traduce a `= ANY(...)` (ver api/services/operaciones_sql.py::_multi). Vacío = sin
+// filtro, así que no se agrega el parámetro.
+const qsMulti = (campo: string, vals: string[]) =>
+  vals.length ? `&${campo}=${encodeURIComponent(vals.join(","))}` : "";
+
+
 export function OpsView() {
   // Filtros (elección del usuario) → persisten entre rutas con sessionStorage.
   const [moneda, setMoneda] = usePersistedState<Moneda>("ops.moneda", "ARS");
-  const [segmento, setSegmento] = usePersistedState<string>("ops.segmento", "");
+  const [segmento, setSegmento] = usePersistedState<string[]>("ops.segmentoM", []);
   const [segmentos, setSegmentos] = useState<string[]>([]);
-  const [nivel3, setNivel3] = usePersistedState<string>("ops.nivel3", "");
+  const [nivel3, setNivel3] = usePersistedState<string[]>("ops.nivel3M", []);
   const [niveles3, setNiveles3] = useState<string[]>([]);
   // Tildado (default) = incluye ACA Valores (todo). Destildado = excluye ACA Valores.
   const [incluirAca, setIncluirAca] = usePersistedState<boolean>("ops.incluirAca", true);
-  const [mercado, setMercado] = usePersistedState<string>("ops.mercado", "");
+  const [mercado, setMercado] = usePersistedState<string[]>("ops.mercadoM", []);
   const [mercados, setMercados] = useState<string[]>([]);
   // CARTERA del título (assets): permite ver qué se opera de HD / DL / ARS /
   // FCI… El backend une por assets.unidad = instrumento (99% del volumen,
   // medido con diag_ops_cartera).
-  const [cartera, setCartera] = usePersistedState<string>("ops.cartera", "");
+  const [cartera, setCartera] = usePersistedState<string[]>("ops.carteraM", []);
   const [carteras, setCarteras] = useState<string[]>([]);
-  const [operador, setOperador] = usePersistedState<string>("ops.operador", "");
+  const [operador, setOperador] = usePersistedState<string[]>("ops.operadorM", []);
   const [operadores, setOperadores] = useState<{ operador_email: string; operador_nombre: string | null; n_cuentas?: number }[]>([]);
   const [search, setSearch] = usePersistedState<string>("ops.search", "");
   // Cuentas ocultas (por denominación). localStorage → preferencia que persiste
@@ -137,12 +145,12 @@ export function OpsView() {
   const selQS = (selOp ? `&operacion=${encodeURIComponent(selOp)}` : "")
     + (selDenom ? `&denominacion=${encodeURIComponent(selDenom)}` : "")
     + (selInstr ? `&instrumento=${encodeURIComponent(selInstr)}` : "")
-    + (segmento ? `&segmento=${encodeURIComponent(segmento)}` : "")
-    + (nivel3 ? `&nivel_3=${encodeURIComponent(nivel3)}` : "")
+    + qsMulti("segmento", segmento)
+    + qsMulti("nivel_3", nivel3)
     + (incluirAca ? "" : "&aca_valores=sin")
-    + (mercado ? `&mercado=${encodeURIComponent(mercado)}` : "")
-    + (cartera ? `&cartera=${encodeURIComponent(cartera)}` : "")
-    + (operador ? `&operador=${encodeURIComponent(operador)}` : "")
+    + qsMulti("mercado", mercado)
+    + qsMulti("cartera", cartera)
+    + qsMulti("operador", operador)
     + (excluidas.length ? `&excluir=${encodeURIComponent(excluidas.join("\n"))}` : "");
 
   // Ocultar / restaurar cuentas (por denominación).
@@ -256,7 +264,7 @@ export function OpsView() {
         {/* Filtros cruzados activos: se ACUMULAN (cuenta + op + título). Cada chip
             se saca solo, sin borrar los otros → podés ver "qué operó tal cuenta". */}
         {selDenom && <FiltroChip label={`cuenta: ${selDenom}`} onClear={() => { setSelDenom(null); setSearch(""); }} />}
-        {cartera && <FiltroChip label={`cartera: ${cartera}`} onClear={() => setCartera("")} />}
+        {cartera.length > 0 && <FiltroChip label={`cartera: ${cartera.join(", ")}`} onClear={() => setCartera([])} />}
         {selOp && <FiltroChip label={`op: ${selOp}`} onClear={() => setSelOp(null)} />}
         {selInstr && <FiltroChip label={`título: ${selInstr}`} onClear={() => setSelInstr(null)} />}
         {/* Cuentas ocultas (excluidas server-side). Cada chip las restaura. */}
@@ -284,25 +292,14 @@ export function OpsView() {
         <datalist id="ops-cuentas">
           {cuentasList.map((c) => <option key={c.cuenta} value={c.denominacion}>{c.cuenta}</option>)}
         </datalist>
-        {/* Filtro de segmento (nivel 1) */}
-        <select value={segmento} onChange={(e) => setSegmento(e.target.value)}
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
-          <option value="">Todos los segmentos</option>
-          {segmentos.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        {/* Filtro de CARTERA del título (catálogo Assets: HD / DL / ARS / FCI…) */}
-        <select value={cartera} onChange={(e) => setCartera(e.target.value)}
-          title="Cartera del título según el catálogo de Assets"
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
-          <option value="">Todas las carteras</option>
-          {carteras.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        {/* Filtro de nivel_3 (segmento del boleto) */}
-        <select value={nivel3} onChange={(e) => setNivel3(e.target.value)}
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
-          <option value="">Todos los nivel 3</option>
-          {niveles3.map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
+        {/* Filtros MULTI-SELECT (mismo componente que /operadores): cada uno acepta
+            varios valores y baja separado por comas → `= ANY(...)` en SQL. */}
+        <MultiSelect label="Segmento" selected={segmento} onChange={setSegmento}
+          options={segmentos.map((s) => ({ value: s, label: s }))} />
+        <MultiSelect label="Cartera" selected={cartera} onChange={setCartera}
+          options={carteras.map((c) => ({ value: c, label: c }))} width="max-w-[180px]" />
+        <MultiSelect label="Nivel 3" selected={nivel3} onChange={setNivel3}
+          options={niveles3.map((n) => ({ value: n, label: n }))} />
         {/* Checkbox ACA VALORES: tildado = incluye (todo); destildado = excluye el set. */}
         <label className="flex items-center gap-1.5 px-2 py-0.5 text-[11px] text-[var(--t-text)] border border-[var(--t-border-2)] cursor-pointer select-none"
           title="Tildado: incluye ACA Valores. Destildado: las excluye del total.">
@@ -310,18 +307,14 @@ export function OpsView() {
             className="accent-[var(--t-accent)]" />
           ACA Valores
         </label>
-        {/* Filtro de mercado (campo `mercado`, ej. A3) */}
-        <select value={mercado} onChange={(e) => setMercado(e.target.value)}
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]">
-          <option value="">Todos los mercados</option>
-          {mercados.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
-        {/* Filtro de operador (operador_email → cuentas de ese operador) */}
-        <select value={operador} onChange={(e) => setOperador(e.target.value)}
-          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-2 py-0.5 text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark] max-w-[200px]">
-          <option value="">Todos los operadores</option>
-          {operadores.map((o) => <option key={o.operador_email} value={o.operador_email}>{(o.operador_nombre || o.operador_email) + (o.n_cuentas ? ` (${o.n_cuentas})` : "")}</option>)}
-        </select>
+        <MultiSelect label="Mercado" selected={mercado} onChange={setMercado}
+          options={mercados.map((m) => ({ value: m, label: m }))} width="max-w-[160px]" />
+        <MultiSelect label="Operador" selected={operador} onChange={setOperador}
+          options={operadores.map((o) => ({
+            value: o.operador_email,
+            label: o.operador_nombre || o.operador_email,
+            n: o.n_cuentas,
+          }))} />
         <div className="ml-auto inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
           {(["ARS","USD","USD_DOL"] as Moneda[]).map((m) => (
             <button key={m} onClick={() => setMoneda(m)} className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " + (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>{MONEDA_LABEL[m]}</button>

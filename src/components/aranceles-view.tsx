@@ -43,8 +43,11 @@ const primerDiaMes = (iso: string) => iso.slice(0, 7) + "-01";
 type Modo = "ULTIMA" | "SEMANA" | "MES" | "RANGO";
 
 export function ArancelesView() {
-  // El arancel es un solo valor SIEMPRE en pesos (no existe arancel en USD) → sin toggle.
-  const moneda: Moneda = "ARS";
+  // El arancel se COBRA y se guarda siempre en pesos (no existe arancel en USD),
+  // pero cada boleto trae el `mep` del momento → se puede leer en USD dolarizando
+  // boleto por boleto. Lo hace el backend en la misma consulta (arancel/mep), no
+  // acá: dividir el total por un TC de hoy daría otro número.
+  const [moneda, setMoneda] = usePersistedState<Moneda>("ar.moneda", "ARS");
   // Filtros PERSISTIDOS (claves `ar.*`): sobreviven a navegar entre rutas y
   // habilitan la navegación asistida del guía (v1.82 — el panel escribe estas
   // mismas claves; ver api/services/copiloto/navegacion.py).
@@ -169,7 +172,18 @@ export function ArancelesView() {
           <option value="">Todos los operadores</option>
           {operadores.map((o) => <option key={o.operador_email} value={o.operador_email}>{o.operador_nombre || o.operador_email}</option>)}
         </select>
-        <span className="text-[10px] uppercase tracking-wider text-[var(--t-text-muted)]">Aranceles en pesos</span>
+        {/* ARS = como se cobró. USD = cada boleto convertido con SU mep. */}
+        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]"
+          title="El arancel se cobra en pesos; USD lo convierte con el MEP de cada boleto">
+          {(["ARS", "USD"] as Moneda[]).map((m) => (
+            <button key={m} onClick={() => setMoneda(m)}
+              className={"px-3 py-0.5 text-[10px] uppercase tracking-wider " +
+                (moneda === m ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                              : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")}>
+              {m}
+            </button>
+          ))}
+        </div>
         {(selDim || selCuenta || selInstr) && (
           <button onClick={() => { setSelDim(null); setSelCuenta(null); setSelInstr(null); }}
             className="text-[10px] text-[var(--t-accent)] border border-[var(--t-accent)] px-2 py-0.5">✕ limpiar filtros</button>
