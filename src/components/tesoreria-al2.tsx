@@ -21,8 +21,8 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *
  * Los movimientos bancarios cuyo BANCO es FERSI SA (`[00001713]`), de los últimos N
  * días (default 60). A diferencia de la tab MOVIMIENTOS —live contra Aunesa, un día
- * por vez— esto lee el HISTÓRICO persistido (`operaciones.tesoreria_movimientos`,
- * lo escribe `jobs.tesoreria_movimientos`): la serie de 60 días implicaría 60
+ * por vez— esto lee `operaciones.tesoreria_al2`, la única tabla de movimientos que se
+ * persiste (la escribe `jobs.tesoreria_al2`): la serie de 60 días implicaría 60
  * llamadas a Aunesa por pantallazo.
  *
  * Layout pedido: mitad izquierda de la pantalla, partida 50/50 — arriba la tabla
@@ -167,8 +167,8 @@ export function TesoreriaAl2() {
             <div className="mx-3 mt-2 px-2 py-1.5 border border-[var(--t-neg)] bg-[var(--t-neg)]/10 text-[10px] text-[var(--t-neg)] shrink-0">
               {err}
               <div className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
-                Si menciona `tesoreria_movimientos`, falta correr `scripts.apply_schema` +
-                el backfill `python -m jobs.tesoreria_movimientos --dias 60`.
+                Si menciona `tesoreria_al2`, falta correr `scripts.apply_schema` +
+                el backfill `python -m jobs.tesoreria_al2 --dias 60`.
               </div>
             </div>
           )}
