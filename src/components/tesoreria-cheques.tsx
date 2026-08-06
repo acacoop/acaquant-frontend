@@ -21,6 +21,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *               saldo final (esa plata no viene en los movimientos de Aunesa).
  *
  * El estado se cambia clickeando la celda, sin reabrir la operación.
+ *
+ * La MONEDA no se elige: la define el banco, porque las cuentas operativas ya son
+ * específicas por moneda (…ARS / …USD). Se muestra al lado del importe.
  */
 
 const POLL_MS = 20_000;
@@ -45,8 +48,13 @@ const fmt = (v: number) =>
 const cell = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
 const fechaCorta = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 
-const TH = "px-2 py-1.5 text-center";
+// La tabla es `table-fixed`: sin esto una denominación larga ("AVALIAN SALUD Y
+// BIENESTAR COOPERATIVA LIMITADA") estira la columna y mete scroll horizontal en
+// media pantalla. Con ancho fijo el texto se parte y sigue abajo.
+const TH = "px-2 py-1.5 text-center font-normal";
 const TD = "px-2 py-1 text-center";
+const WRAP = "whitespace-normal break-words leading-tight";  // nombres largos
+const NUM = "whitespace-nowrap tabular-nums";
 // Fecha de pago futura → fila naranja: todavía no venció, hay que seguirla.
 const NARANJA = "bg-[#f59e0b]/25";
 
@@ -147,7 +155,7 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
   const [err, setErr] = useState<string | null>(null);
   const total = filas.reduce((a, f) => a + f.importe, 0);
   const esEmitido = lado === "emitido";
-  const nCols = 5 + (esEmitido ? 2 : 1) + (editable ? 1 : 0);
+  const nCols = 4 + (esEmitido ? 2 : 1) + (editable ? 1 : 0);
 
   // Cambio de estado desde la celda: un PUT y a recargar. Si el estado cierra,
   // la fila desaparece sola en el refresh.
@@ -187,17 +195,18 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
         <FormCheque lado={lado} bancos={bancos} estados={estados} tipos={tipos}
           onCerrar={() => setAlta(false)} onOk={() => { setAlta(false); onChanged(); }} />
       )}
-      <table className="text-[11px] tabular-nums whitespace-nowrap w-full">
+      <table className="text-[11px] w-full table-fixed">
         <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
           <tr className="border-b border-[var(--t-border)]">
-            <th className={TH}>Comitente</th>
-            {esEmitido ? <th className={TH}>CUIT</th> : <th className={TH}>Tipo</th>}
-            <th className={TH}>Banco</th>
-            <th className={TH}>Importe</th>
-            <th className={TH}>Moneda</th>
-            <th className={TH}>Estado</th>
-            {esEmitido && <th className={TH}>Fecha de pago</th>}
-            {editable && <th className={TH} />}
+            <th className={TH + " w-[26%]"}>Comitente</th>
+            {esEmitido
+              ? <th className={TH + " w-[14%]"}>CUIT</th>
+              : <th className={TH + " w-[12%]"}>Tipo</th>}
+            <th className={TH + " w-[22%]"}>Banco</th>
+            <th className={TH + " w-[16%]"}>Importe</th>
+            <th className={TH + " w-[13%]"}>Estado</th>
+            {esEmitido && <th className={TH + " w-[13%]"}>Fecha pago</th>}
+            {editable && <th className={TH + " w-[9%]"} />}
           </tr>
         </thead>
         <tbody>
@@ -214,23 +223,25 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
                   (f.fecha_pago && hoy && f.fecha_pago > hoy ? NARANJA : "")}
                 title={f.fecha_pago && hoy && f.fecha_pago > hoy
                   ? `pago futuro (${fechaCorta(f.fecha_pago)}) — en seguimiento` : undefined}>
-                <td className={TD}>{cell(f.comitente_denominacion ?? f.comitente)}</td>
+                <td className={TD + " " + WRAP}>{cell(f.comitente_denominacion ?? f.comitente)}</td>
                 {esEmitido
-                  ? <td className={TD}>{cell(f.cuit)}</td>
+                  ? <td className={TD + " " + NUM}>{cell(f.cuit)}</td>
                   : <td className={TD + " uppercase"}>{cell(f.tipo)}</td>}
-                <td className={TD}>{cell(f.banco)}</td>
-                <td className={TD}>{fmt(f.importe)}</td>
-                <td className={TD + " text-[var(--t-text-dim)]"}>{f.unidad}</td>
+                <td className={TD + " " + WRAP}>{cell(f.banco)}</td>
+                <td className={TD + " " + NUM}>
+                  {fmt(f.importe)}
+                  <span className="text-[9px] text-[var(--t-text-muted)] ml-1">{f.unidad}</span>
+                </td>
                 <td className={TD}>
                   {editable ? (
                     <select value={f.estado} onChange={(e) => cambiarEstado(f, e.target.value)}
                       title="cambiar el estado (el que cierra saca la fila de la vista)"
-                      className="bg-transparent border border-[var(--t-border-2)] px-1 text-[10px] text-[var(--t-text)] outline-none cursor-pointer [color-scheme:dark]">
+                      className="w-full max-w-full bg-transparent border border-[var(--t-border-2)] px-1 text-[10px] text-[var(--t-text)] outline-none cursor-pointer [color-scheme:dark]">
                       {estados.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   ) : <span className="text-[var(--t-text-dim)]">{f.estado}</span>}
                 </td>
-                {esEmitido && <td className={TD}>{fechaCorta(f.fecha_pago)}</td>}
+                {esEmitido && <td className={TD + " " + NUM}>{fechaCorta(f.fecha_pago)}</td>}
                 {editable && (
                   <td className={TD}>
                     <button onClick={() => { setEditId(f.id); setAlta(false); }}
@@ -399,16 +410,9 @@ function FormCheque({ lado, bancos, estados, tipos, inicial, onCerrar, onOk }: {
       </label>
 
       <label className="flex flex-col gap-0.5">
-        <span className={lbl}>Importe</span>
+        <span className={lbl}>Importe {f.unidad ? `(${f.unidad})` : ""}</span>
         <input value={f.importe} onChange={(e) => set("importe", e.target.value)}
           className={input + " w-[110px] text-right"} />
-      </label>
-
-      <label className="flex flex-col gap-0.5">
-        <span className={lbl}>Moneda</span>
-        <select value={f.unidad} onChange={(e) => set("unidad", e.target.value)} className={input}>
-          {["ARS", "USD"].map((u) => <option key={u} value={u}>{u}</option>)}
-        </select>
       </label>
 
       <label className="flex flex-col gap-0.5">
