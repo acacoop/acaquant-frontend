@@ -104,7 +104,7 @@ export function TesoreriaMercados({ fecha }: { fecha: string }) {
   );
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col p-3 gap-2 overflow-auto">
+    <div className="flex-1 min-h-0 min-w-0 flex flex-col p-3 gap-2 overflow-y-auto overflow-x-hidden">
       {err && (
         <div className="px-3 py-2 border border-[var(--t-neg)] bg-[var(--t-neg)]/10 text-[11px] text-[var(--t-neg)] shrink-0">
           Error al consultar MERCADOS: {err}
@@ -131,11 +131,11 @@ export function TesoreriaMercados({ fecha }: { fecha: string }) {
 
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className="shrink-0">
+    <div className="shrink-0 min-w-0">
       <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
         {titulo}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-2">{children}</div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-2 min-w-0">{children}</div>
     </div>
   );
 }
@@ -174,7 +174,9 @@ function Tablero({
   };
 
   return (
-    <div className="min-h-0 flex flex-col border border-[var(--t-border)]">
+    // min-w-0 + overflow-hidden: sin esto el hijo del grid se estira al ancho de su
+    // contenido (form con inputs fijos, bancos largos) y revienta el 50/50.
+    <div className="min-h-0 min-w-0 overflow-hidden flex flex-col border border-[var(--t-border)]">
       <div className="px-2 py-1 bg-[var(--t-surface)] border-b border-[var(--t-border)] flex items-center gap-2 shrink-0">
         <span className="flex-1 text-center text-[10px] uppercase tracking-widest font-semibold text-[var(--t-text)]">
           {titulo} · {filas.length}
@@ -311,12 +313,12 @@ function Form({
   const lbl = "uppercase tracking-widest text-[var(--t-text-muted)]";
 
   return (
-    <div className="p-2 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex flex-wrap items-end gap-2 text-[10px]">
+    <div className="p-2 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex flex-wrap items-end gap-2 text-[10px] min-w-0">
       <label className="flex flex-col gap-0.5">
         <span className={lbl}>{colEntidad}</span>
         {/* datalist: sugiere lo ya cargado sin obligar a un catálogo aparte. */}
         <input list={listaId} value={f.entidad} onChange={(e) => set("entidad", e.target.value)}
-          className={input + " w-[150px]"} />
+          className={input + " w-[150px] max-w-full"} />
         <datalist id={listaId}>
           {sugerencias.map((s) => <option key={s} value={s} />)}
         </datalist>
@@ -328,7 +330,7 @@ function Form({
             const [b, u] = e.target.value.split("|");
             setF((p) => ({ ...p, banco: b, unidad: u || p.unidad }));
           }}
-          className={input + " w-[190px]"}>
+          className={input + " w-[190px] max-w-full"}>
           <option value={`|${f.unidad}`}>— elegir —</option>
           {bancos.map((b) => (
             <option key={`${b.banco}|${b.unidad}`} value={`${b.banco}|${b.unidad}`}>
@@ -340,7 +342,7 @@ function Form({
       <label className="flex flex-col gap-0.5">
         <span className={lbl}>Importe {f.unidad ? `(${f.unidad})` : ""}</span>
         <input value={f.importe} onChange={(e) => set("importe", e.target.value)}
-          className={input + " w-[110px] text-right"} />
+          className={input + " w-[110px] max-w-full text-right"} />
       </label>
       <label className="flex flex-col gap-0.5">
         <span className={lbl}>Estado</span>

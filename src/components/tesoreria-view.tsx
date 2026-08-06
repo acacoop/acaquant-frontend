@@ -211,6 +211,11 @@ export function TesoreriaView() {
           <option value={TODOS}>Todos</option>
         </select>
 
+        {/* En la barra (no dentro de la grilla) para no comerse una fila de alto. */}
+        {tab === "bancos" && data?.puede_editar_saldo && (
+          <AltaBanco onCreada={() => cargar(true)} />
+        )}
+
         <div className="ml-auto flex items-center gap-3">
           <Presencia conectados={data?.conectados ?? []} />
           <span className="flex items-center gap-1 text-[9px] text-[var(--t-text-muted)]">
@@ -386,16 +391,16 @@ function AltaBanco({ onCreada }: { onCreada: () => void }) {
   const input = "bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-0.5 " +
     "text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
 
-  if (!abierto) {
-    return (
-      <button onClick={() => setAbierto(true)}
-        className="self-start text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10">
-        + agregar banco
-      </button>
-    );
-  }
   return (
-    <div className="self-start flex flex-wrap items-end gap-2 text-[10px] p-2 border border-[var(--t-border-2)] bg-[var(--t-surface)]">
+    <div className="relative inline-block">
+      <button onClick={() => setAbierto((v) => !v)}
+        className={"text-[9px] uppercase tracking-widest border px-2 py-0.5 hover:bg-[var(--t-accent)]/10 " +
+          (abierto ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                   : "border-[var(--t-border-2)] text-[var(--t-accent)]")}>
+        + banco
+      </button>
+      {abierto && (
+    <div className="absolute z-40 top-full left-0 mt-1 flex flex-wrap items-end gap-2 text-[10px] p-2 border border-[var(--t-border-2)] bg-[var(--t-panel)] shadow-xl w-[420px]">
       <label className="flex flex-col gap-0.5">
         <span className="uppercase tracking-widest text-[var(--t-text-muted)]">Cuenta operativa</span>
         <input autoFocus value={nombre} onChange={(e) => setNombre(e.target.value)}
@@ -417,6 +422,8 @@ function AltaBanco({ onCreada }: { onCreada: () => void }) {
         cancelar
       </button>
       {err && <span className="text-[var(--t-neg)]">{err}</span>}
+    </div>
+      )}
     </div>
   );
 }
@@ -488,17 +495,14 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
     } finally { setBusy(false); }
   };
 
-  // Catálogo vacío: el alta tiene que estar IGUAL disponible (es justo cuando más
-  // se necesita), así que no se puede cortar antes de renderizarla.
+  // Catálogo vacío: el alta no se pierde porque vive en la barra de arriba (ver
+  // AltaBanco en la barra de TesoreriaView), no dentro de esta grilla.
   if (!cuentas.length) {
     return (
-      <div className="flex-1 min-h-0 p-3 flex flex-col gap-2 text-[11px] text-[var(--t-text-muted)]">
-        <span>
-          {vacio
-            ? "Catálogo de cuentas operativas vacío — se llena solo cuando un banco opera, o cargalo a mano acá."
-            : "cargando…"}
-        </span>
-        {editable && <AltaBanco onCreada={onSaved} />}
+      <div className="flex-1 min-h-0 p-3 text-[11px] text-[var(--t-text-muted)]">
+        {vacio
+          ? "Catálogo de cuentas operativas vacío — se llena solo cuando un banco opera, o cargá uno con «+ BANCO» arriba."
+          : "cargando…"}
       </div>
     );
   }
@@ -506,7 +510,6 @@ function BancosGrid({ cuentas, fecha, editable, vacio, onSaved }: {
   return (
     <div className="flex-1 min-h-0 overflow-auto p-3 flex flex-col gap-4">
       {err && <div className="text-[10px] text-[var(--t-neg)]">{err}</div>}
-      {editable && <AltaBanco onCreada={onSaved} />}
       {Object.keys(porMoneda).sort().map((uni) => {
         const cols = porMoneda[uni];
         // Sin nulls: el inicial ya viene 0 cuando no se cargó, así que el total es una suma.
