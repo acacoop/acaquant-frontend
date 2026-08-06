@@ -228,6 +228,17 @@ export function TesoreriaView() {
         </select>
 
         {/* En la barra (no dentro de la grilla) para no comerse una fila de alto. */}
+        {/* El "?" reemplaza al cartel: la aclaración sigue disponible pero no come
+            una franja de alto en una vista donde el espacio vertical es lo escaso. */}
+        {tab === "bancos" && (
+          <span title={`Saldos calculados solo sobre movimientos ${data?.estado_bancos ?? "Procesado"}` +
+            ` del ${data?.fecha ?? fecha} — la plata que efectivamente entró o salió ese día.` +
+            " El filtro ESTADO de arriba aplica a MOVIMIENTOS, no al saldo." +
+            " Clickeá cualquier celda para ver de dónde sale el número."}
+            className="w-4 h-4 flex items-center justify-center rounded-full border border-[var(--t-border-2)] text-[9px] text-[var(--t-text-muted)] cursor-help">
+            ?
+          </span>
+        )}
         {tab === "bancos" && data?.puede_editar_saldo && (
           <AbmBancos filas={data?.catalogo ?? []} onCambio={() => cargar(true)} />
         )}
@@ -251,17 +262,6 @@ export function TesoreriaView() {
           <div className="text-[10px] text-[var(--t-text-dim)] mt-0.5">
             Si dice 502 / HTTP 404, el backend todavía no está reiniciado en el Droplet (endpoint nuevo).
           </div>
-        </div>
-      )}
-
-      {/* El saldo NO se filtra por el selector ESTADO: un movimiento rechazado / anulado /
-          pendiente nunca movió plata en el banco. La barra de arriba es de MOVIMIENTOS. */}
-      {tab === "bancos" && (
-        <div className="mx-3 mt-2 px-3 py-1.5 border border-[var(--t-border-2)] text-[10px] text-[var(--t-text-muted)] shrink-0">
-          Saldos calculados solo sobre movimientos <b className="text-[var(--t-text)]">
-            {data?.estado_bancos ?? "Procesado"}</b> del {data?.fecha ?? fecha} — la plata que
-          efectivamente entró o salió ese día. El filtro ESTADO de arriba aplica a MOVIMIENTOS,
-          no al saldo.
         </div>
       )}
 
@@ -441,6 +441,109 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
 }
 
 
+// Modal de auditoría de una celda: "¿de dónde sale este número?". Lo resuelve el
+// BACKEND con las mismas fuentes y filtros que la grilla — acá no se recalcula nada,
+// así el detalle no puede contradecir al total.
+type Celda = { banco: string; unidad: string; fila: string; etiqueta: string };
+type DetalleItem = {
+  detalle: string; referencia: string; estado: string | null; importe: number;
+};
+type Detalle = {
+  fila: string; banco: string; unidad: string; fecha: string; fuente: string;
+  total: number; items: DetalleItem[];
+};
+
+function ModalDetalle({ celda, fecha, onCerrar }: {
+  celda: Celda; fecha: string; onCerrar: () => void;
+}) {
+  const [d, setD] = useState<Detalle | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  useEffect(() => {
+    let vivo = true;
+    const qs = new URLSearchParams({
+      banco: celda.banco, unidad: celda.unidad, fila: celda.fila, fecha,
+    });
+    (async () => {
+      try {
+        const r = await fetch(`/api/back-office/tesoreria/detalle?${qs}`, { cache: "no-store" });
+        const b = await r.json().catch(() => ({}));
+        if (!vivo) return;
+        if (!r.ok) setErr(String(b?.error ?? b?.detail ?? `HTTP ${r.status}`));
+        else setD(b as Detalle);
+      } catch (e) {
+        if (vivo) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => { vivo = false; };
+  }, [celda, fecha]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onCerrar}>
+      <div className="w-full max-w-[820px] max-h-[80vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
+          <span className="flex-1 text-[11px] uppercase tracking-widest font-semibold">
+            {celda.etiqueta} · {celda.banco} [{celda.unidad}]
+          </span>
+          <button onClick={onCerrar} className="text-[12px] px-2 hover:opacity-70">✕</button>
+        </div>
+        <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)] border-b border-[var(--t-border)] shrink-0">
+          {d ? `${d.fuente} · ${d.fecha}` : err ? "" : "cargando…"}
+        </div>
+        {err && <div className="px-3 py-2 text-[10px] text-[var(--t-neg)]">{err}</div>}
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full table-fixed text-[11px]">
+            <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
+              <tr className="border-b border-[var(--t-border)]">
+                <th className="px-2 py-1.5 text-left font-normal w-[42%]">Detalle</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[30%]">Referencia</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[12%]">Estado</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[16%]">Importe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(d?.items ?? []).map((i, n) => (
+                <tr key={n} className="border-b border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                  <td className="px-2 py-1 break-words">{i.detalle}</td>
+                  <td className="px-2 py-1 break-words text-[var(--t-text-dim)]">{i.referencia || "—"}</td>
+                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{i.estado || "—"}</td>
+                  <td className={"px-2 py-1 text-right tabular-nums " +
+                    (i.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]")}>
+                    {fmt(i.importe)}
+                  </td>
+                </tr>
+              ))}
+              {d && !d.items.length && (
+                <tr><td colSpan={4} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                  sin operaciones — la celda está en cero
+                </td></tr>
+              )}
+            </tbody>
+            {d && (
+              <tfoot>
+                <tr className="border-t-2 border-[var(--t-border-2)] bg-[var(--t-surface)] font-semibold sticky bottom-0">
+                  <td className="px-2 py-1.5" colSpan={3}>TOTAL · {d.items.length} operaciones</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{fmt(d.total)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // Avatares de quién más tiene la vista abierta (mismo patrón que SENEBIS).
 function Presencia({ conectados }: { conectados: Conectado[] }) {
   if (!conectados.length) return null;
@@ -476,6 +579,8 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
       .map((c) => [`${c.cuenta_operativa}|${c.unidad}`, c.numero_cuenta as string]),
   ), [catalogo]);
   const [editKey, setEditKey] = useState<string | null>(null);
+  // Celda abierta en el modal de auditoría (null = cerrado).
+  const [celda, setCelda] = useState<Celda | null>(null);
   const [val, setVal] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -486,6 +591,15 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
     for (const k of Object.keys(g)) g[k].sort((a, b) => a.cuenta_operativa.localeCompare(b.cuenta_operativa));
     return g;
   }, [cuentas]);
+
+  // Toda celda de valor abre el detalle. Se pasa por props (no por contexto) para
+  // que quede explícito qué fila se está auditando.
+  const auditar = (c: Cuenta, fila: string, etiqueta: string) => ({
+    onClick: () => setCelda({ banco: c.cuenta_operativa, unidad: c.unidad, fila, etiqueta }),
+    title: `${etiqueta} · ${c.cuenta_operativa} — clic para ver el detalle`,
+    role: "button" as const,
+  });
+  const CLICK = " cursor-pointer hover:bg-[var(--t-accent)]/10";
 
   const abrir = (c: Cuenta) => {
     setEditKey(`${c.cuenta_operativa}|${c.unidad}`);
@@ -526,7 +640,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto p-3 flex flex-col gap-4">
+    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 flex flex-col gap-4">
       {err && <div className="text-[10px] text-[var(--t-neg)]">{err}</div>}
       {Object.keys(porMoneda).sort().map((uni) => {
         const cols = porMoneda[uni];
@@ -541,15 +655,16 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
         }), { ingresos: 0, egresos: 0, echeq: 0, ingEcheq: 0, mercados: 0, fci: 0,
               bbMas: 0, bbMenos: 0, neto: 0, ini: 0 });
         return (
-          <div key={uni} className="min-w-0">
+          <div key={uni} className="min-w-0 max-w-full">
             <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
               {uni} · {cols.length} cuentas
             </div>
-            <div className="overflow-auto border border-[var(--t-border)]">
+            {/* Cada moneda con SU scroll: el bloque ancho no arrastra al resto. */}
+            <div className="overflow-x-auto max-w-full border border-[var(--t-border)]">
               <table className="text-[11px] tabular-nums whitespace-nowrap w-full">
                 <thead>
                   <tr className="border-b border-[var(--t-border)] bg-[var(--t-surface)] text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
-                    <th className="px-2 py-1.5 text-center sticky left-0 bg-[var(--t-surface)] z-10">Concepto</th>
+                    <th className="px-2 py-1.5 text-left sticky left-0 bg-[var(--t-surface)] z-10">Concepto</th>
                     {cols.map((c) => (
                       <th key={c.cuenta_operativa} className="px-2 py-1.5 text-center min-w-[130px]"
                         title={`${c.n} movimientos`}>
@@ -567,7 +682,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                 </thead>
                 <tbody>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Saldo inicial</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10">Saldo inicial</td>
                     {cols.map((c) => {
                       const k = `${c.cuenta_operativa}|${c.unidad}`;
                       return (
@@ -597,19 +712,21 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                     <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{fmt(tot.ini)}</td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Ingresos</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10">Ingresos</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-pos)]">+{fmt(c.ingresos)}</td>
+                      <td key={c.cuenta_operativa} {...auditar(c, "ingresos", "Ingresos")}
+                        className={"px-2 py-1 text-center text-[var(--t-pos)]" + CLICK}>+{fmt(c.ingresos)}</td>
                     ))}
                     <td className="px-2 py-1 text-center text-[var(--t-pos)] font-semibold">+{fmt(tot.ingresos)}</td>
                   </tr>
                   {/* Cheques RECIBIDOS marcados finalizados ese día (carga manual,
                       tab CHEQUES). Fila propia, igual que los egresos e-cheq. */}
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10"
                       title="Cheques recibidos finalizados ese día (carga manual). Suma al saldo final">Ingresos e-cheqs</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-text-dim)]">
+                      <td key={c.cuenta_operativa} {...auditar(c, "ingresos_echeq", "Ingresos e-cheqs")}
+                        className={"px-2 py-1 text-center text-[var(--t-text-dim)]" + CLICK}>
                         {c.ingresos_echeq ? `+${fmt(c.ingresos_echeq)}` : fmt(0)}
                       </td>
                     ))}
@@ -618,19 +735,21 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                     </td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10">Egresos</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10">Egresos</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-neg)]">−{fmt(c.egresos)}</td>
+                      <td key={c.cuenta_operativa} {...auditar(c, "egresos", "Egresos")}
+                        className={"px-2 py-1 text-center text-[var(--t-neg)]" + CLICK}>−{fmt(c.egresos)}</td>
                     ))}
                     <td className="px-2 py-1 text-center text-[var(--t-neg)] font-semibold">−{fmt(tot.egresos)}</td>
                   </tr>
                   {/* Los e-cheq van en su PROPIA fila y NO entran al total de egresos:
                       se pagan en su fecha de pago, no el día que se emiten. */}
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10"
                       title="Separado del total de egresos, pero sí resta del saldo final">Egresos e-cheq</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center text-[var(--t-text-dim)]">
+                      <td key={c.cuenta_operativa} {...auditar(c, "egresos_echeq", "Egresos e-cheq")}
+                        className={"px-2 py-1 text-center text-[var(--t-text-dim)]" + CLICK}>
                         {c.egresos_echeq ? `−${fmt(c.egresos_echeq)}` : fmt(0)}
                       </td>
                     ))}
@@ -642,15 +761,15 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                       ingresos−pagos, fci = rescates−suscripciones. Los dos suman. */}
                   {([["Mercados", "mercados"], ["FCI", "fci"]] as const).map(([lbl, k]) => (
                     <tr key={k} className="border-b border-[var(--t-border)]">
-                      <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                      <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10"
                         title={k === "mercados"
                           ? "Neto del bloque MERCADO: ingresos − pagos"
                           : "Neto del bloque FCI: rescates − suscripciones"}>{lbl}</td>
                       {cols.map((c) => {
                         const v = c[k] ?? 0;
                         return (
-                          <td key={c.cuenta_operativa}
-                            className={"px-2 py-1 text-center " + (v === 0 ? "text-[var(--t-text-dim)]"
+                          <td key={c.cuenta_operativa} {...auditar(c, k, lbl)}
+                            className={"px-2 py-1 text-center" + CLICK + " " + (v === 0 ? "text-[var(--t-text-dim)]"
                               : v > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
                             {v === 0 ? fmt(0) : `${v > 0 ? "+" : "−"}${fmt(Math.abs(v))}`}
                           </td>
@@ -666,10 +785,11 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                   {/* BANCO A BANCO: una transferencia interna suma en la cuenta que
                       recibe y resta en la que entrega → el total entre bancos da cero. */}
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10"
                       title="Transferencias internas recibidas de otro banco propio">Banco a banco (+)</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className={"px-2 py-1 text-center " +
+                      <td key={c.cuenta_operativa} {...auditar(c, "bb_mas", "Banco a banco (+)")}
+                        className={"px-2 py-1 text-center" + CLICK + " " +
                         ((c.bb_mas ?? 0) ? "text-[var(--t-pos)]" : "text-[var(--t-text-dim)]")}>
                         {(c.bb_mas ?? 0) ? `+${fmt(c.bb_mas ?? 0)}` : fmt(0)}
                       </td>
@@ -679,10 +799,11 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                     </td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-center sticky left-0 bg-[var(--t-panel)] z-10"
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10"
                       title="Transferencias internas enviadas a otro banco propio">Banco a banco (−)</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className={"px-2 py-1 text-center " +
+                      <td key={c.cuenta_operativa} {...auditar(c, "bb_menos", "Banco a banco (−)")}
+                        className={"px-2 py-1 text-center" + CLICK + " " +
                         ((c.bb_menos ?? 0) ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]")}>
                         {(c.bb_menos ?? 0) ? `−${fmt(c.bb_menos ?? 0)}` : fmt(0)}
                       </td>
@@ -692,9 +813,10 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                     </td>
                   </tr>
                   <tr className="bg-[var(--t-surface)]">
-                    <td className="px-2 py-1 font-semibold text-center sticky left-0 bg-[var(--t-surface)] z-10">Saldo final</td>
+                    <td className="px-2 py-1 font-semibold text-left sticky left-0 bg-[var(--t-surface)] z-10">Saldo final</td>
                     {cols.map((c) => (
-                      <td key={c.cuenta_operativa} className="px-2 py-1 text-center font-bold">{fmt(c.saldo_final)}</td>
+                      <td key={c.cuenta_operativa} {...auditar(c, "saldo_final", "Saldo final")}
+                        className={"px-2 py-1 text-center font-bold" + CLICK}>{fmt(c.saldo_final)}</td>
                     ))}
                     <td className="px-2 py-1 text-center font-bold">
                       {fmt(tot.ini + tot.neto + tot.ingEcheq - tot.echeq
@@ -712,6 +834,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
           </div>
         );
       })}
+      {celda && <ModalDetalle celda={celda} fecha={fecha} onCerrar={() => setCelda(null)} />}
     </div>
   );
 }
