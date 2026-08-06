@@ -15,7 +15,9 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *                 se prende desde COLUMNAS) con los totales por moneda en la barra.
  *   BANCOS      — grilla estilo planilla: una columna por cuenta operativa (TODAS las
  *                 del catálogo, operen o no ese día), filas Saldo inicial (carga
- *                 manual) / Ingresos / Egresos / Neto / Saldo final.
+ *                 manual) / Ingresos / Egresos / Neto / Saldo final. NO respeta el
+ *                 selector ESTADO de la barra: un saldo solo puede incluir plata que
+ *                 se movió (Procesado), nunca un rechazado/anulado/pendiente.
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
@@ -45,7 +47,7 @@ type Conectado = { email: string; visto_at: string };
 type Mov = Record<string, unknown>;
 type Resp = {
   fecha: string; fecha_iso?: string; estado: string; resumen: Record<string, Bucket>;
-  cuentas?: CuentaWire[]; puede_editar_saldo?: boolean;
+  cuentas?: CuentaWire[]; puede_editar_saldo?: boolean; estado_bancos?: string;
   conectados?: Conectado[]; actualizado_at?: string;
   movimientos: Mov[]; n: number; raw?: number;
 };
@@ -198,6 +200,17 @@ export function TesoreriaView() {
           <div className="text-[10px] text-[var(--t-text-dim)] mt-0.5">
             Si dice 502 / HTTP 404, el backend todavía no está reiniciado en el Droplet (endpoint nuevo).
           </div>
+        </div>
+      )}
+
+      {/* El saldo NO se filtra por el selector ESTADO: un movimiento rechazado / anulado /
+          pendiente nunca movió plata en el banco. La barra de arriba es de MOVIMIENTOS. */}
+      {tab === "bancos" && (
+        <div className="mx-3 mt-2 px-3 py-1.5 border border-[var(--t-border-2)] text-[10px] text-[var(--t-text-muted)] shrink-0">
+          Saldos calculados solo sobre movimientos <b className="text-[var(--t-text)]">
+            {data?.estado_bancos ?? "Procesado"}</b> del {data?.fecha ?? fecha} — la plata que
+          efectivamente entró o salió ese día. El filtro ESTADO de arriba aplica a MOVIMIENTOS,
+          no al saldo.
         </div>
       )}
 
