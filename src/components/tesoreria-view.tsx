@@ -6,6 +6,7 @@ import { TesoreriaAl2 } from "@/components/tesoreria-al2";
 import { TesoreriaBancoABanco } from "@/components/tesoreria-banco-a-banco";
 import { TesoreriaCheques } from "@/components/tesoreria-cheques";
 import { TesoreriaMercados } from "@/components/tesoreria-mercados";
+import { TesoreriaRegistros } from "@/components/tesoreria-registros";
 import { AbmModal } from "@/components/ui/abm-modal";
 import { usePersistedState } from "@/lib/use-persisted-state";
 
@@ -32,6 +33,10 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  *                 (rescates | suscripciones). Ver tesoreria-mercados.tsx.
  *   BANCO A BANCO — transferencias INTERNAS entre cuentas propias (débito → crédito).
  *                 Suman cero entre bancos: mueven el reparto, no el total.
+ *
+ * BANCOS tiene además el modal REGISTROS MANUALES: una fuente de movimientos que no
+ * viene de la API y entra a Ingresos/Egresos según su sentido (ver
+ * tesoreria-registros.tsx). Cada celda de la grilla abre su detalle auditable.
  *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
  *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
@@ -66,7 +71,7 @@ type Cuenta = Omit<CuentaWire, "saldo_inicial" | "saldo_final" | "saldo_cargado"
 // Catálogo de bancos para el ABM (nombre + número de cuenta + moneda).
 type CuentaCat = {
   cuenta_operativa: string; unidad: string; numero_cuenta: string | null;
-  activa: boolean; descubierta: boolean;
+  numero_hygirus: string | null; activa: boolean; descubierta: boolean;
 };
 type Conectado = { email: string; visto_at: string };
 // Movimiento = TODOS los campos crudos de Aunesa (dinámico) + derivados _hora/_tipo.
@@ -123,6 +128,8 @@ export function TesoreriaView() {
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [menuCols, setMenuCols] = useState(false);
+  // Modal REGISTROS MANUALES (fuente propia de movimientos, ver tesoreria-registros.tsx).
+  const [regsAbierto, setRegsAbierto] = useState(false);
   // Filtros de la tabla MOVIMIENTOS (client-side, sobre lo ya traído): RIEL
   // (tipoDocSoli), TIPO (ingreso/egreso) y SOLICITUD (Depósito/Extracción).
   const [fRiel, setFRiel] = useState("");
@@ -241,6 +248,16 @@ export function TesoreriaView() {
         )}
         {tab === "bancos" && data?.puede_editar_saldo && (
           <AbmBancos filas={data?.catalogo ?? []} onCambio={() => cargar(true)} />
+        )}
+        {tab === "bancos" && (
+          <button onClick={() => setRegsAbierto(true)}
+            className="text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10">
+            registros manuales
+          </button>
+        )}
+        {regsAbierto && (
+          <TesoreriaRegistros fecha={fecha} onCerrar={() => setRegsAbierto(false)}
+            onCambio={() => cargar(true)} />
         )}
 
         <div className="ml-auto flex items-center gap-3">
@@ -412,27 +429,31 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
       {abierto && (
         <AbmModal
           titulo="Catálogo de bancos"
-          ayuda="La moneda es parte de la clave: no se edita (dá de alta otro banco). Renombrar arrastra los saldos, cheques y movimientos ya cargados."
+          ayuda="La moneda es parte de la clave: no se edita (dá de alta otro banco). Renombrar arrastra los saldos, cheques y movimientos ya cargados. El Nº Hygirus se guarda pero NO se muestra en la grilla."
           campos={[
-            { key: "cuenta_operativa", label: "Cuenta operativa", ancho: "w-[45%]",
+            { key: "cuenta_operativa", label: "Cuenta operativa", ancho: "w-[34%]",
               placeholder: "como figura en el banco…" },
-            { key: "numero_cuenta", label: "Número de cuenta", ancho: "w-[30%]" },
-            { key: "unidad", label: "Moneda", ancho: "w-[15%]", opciones: ["ARS", "USD"],
+            { key: "numero_cuenta", label: "Número de cuenta", ancho: "w-[22%]" },
+            { key: "numero_hygirus", label: "Nº Hygirus", ancho: "w-[22%]" },
+            { key: "unidad", label: "Moneda", ancho: "w-[12%]", opciones: ["ARS", "USD"],
               soloAlta: true },
           ]}
           filas={filas.map((c) => ({
             _id: `${c.cuenta_operativa}|${c.unidad}`,
             cuenta_operativa: c.cuenta_operativa,
             numero_cuenta: c.numero_cuenta ?? "",
+            numero_hygirus: c.numero_hygirus ?? "",
             unidad: c.unidad,
           }))}
           onAlta={(v) => post("POST", {
             cuenta_operativa: v.cuenta_operativa, unidad: v.unidad,
             numero_cuenta: v.numero_cuenta || null,
+            numero_hygirus: v.numero_hygirus || null,
           })}
           onGuardar={(f, v) => post("PUT", {
             cuenta_operativa: f.cuenta_operativa, unidad: f.unidad,
             nuevo_nombre: v.cuenta_operativa, numero_cuenta: v.numero_cuenta || null,
+            numero_hygirus: v.numero_hygirus || null,
           })}
           onCerrar={() => setAbierto(false)} />
       )}
@@ -677,7 +698,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                         )}
                       </th>
                     ))}
-                    <th className="px-2 py-1.5 text-center min-w-[130px] text-[var(--t-accent)]">Total {uni}</th>
+                    <th className="px-2 py-1.5 text-right min-w-[130px] text-[var(--t-accent)]">Total {uni}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -709,7 +730,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                         </td>
                       );
                     })}
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{fmt(tot.ini)}</td>
+                    <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmt(tot.ini)}</td>
                   </tr>
                   <tr className="border-b border-[var(--t-border)]">
                     <td className="px-2 py-1 text-[var(--t-text-dim)] text-left sticky left-0 bg-[var(--t-panel)] z-10">Ingresos</td>
@@ -717,7 +738,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                       <td key={c.cuenta_operativa} {...auditar(c, "ingresos", "Ingresos")}
                         className={"px-2 py-1 text-center text-[var(--t-pos)]" + CLICK}>+{fmt(c.ingresos)}</td>
                     ))}
-                    <td className="px-2 py-1 text-center text-[var(--t-pos)] font-semibold">+{fmt(tot.ingresos)}</td>
+                    <td className="px-2 py-1 text-right text-[var(--t-pos)] font-semibold">+{fmt(tot.ingresos)}</td>
                   </tr>
                   {/* Cheques RECIBIDOS marcados finalizados ese día (carga manual,
                       tab CHEQUES). Fila propia, igual que los egresos e-cheq. */}
@@ -730,7 +751,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                         {c.ingresos_echeq ? `+${fmt(c.ingresos_echeq)}` : fmt(0)}
                       </td>
                     ))}
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)] font-semibold">
+                    <td className="px-2 py-1 text-right text-[var(--t-text-dim)] font-semibold">
                       {tot.ingEcheq ? `+${fmt(tot.ingEcheq)}` : fmt(0)}
                     </td>
                   </tr>
@@ -740,7 +761,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                       <td key={c.cuenta_operativa} {...auditar(c, "egresos", "Egresos")}
                         className={"px-2 py-1 text-center text-[var(--t-neg)]" + CLICK}>−{fmt(c.egresos)}</td>
                     ))}
-                    <td className="px-2 py-1 text-center text-[var(--t-neg)] font-semibold">−{fmt(tot.egresos)}</td>
+                    <td className="px-2 py-1 text-right text-[var(--t-neg)] font-semibold">−{fmt(tot.egresos)}</td>
                   </tr>
                   {/* Los e-cheq van en su PROPIA fila y NO entran al total de egresos:
                       se pagan en su fecha de pago, no el día que se emiten. */}
@@ -753,7 +774,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                         {c.egresos_echeq ? `−${fmt(c.egresos_echeq)}` : fmt(0)}
                       </td>
                     ))}
-                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)] font-semibold">
+                    <td className="px-2 py-1 text-right text-[var(--t-text-dim)] font-semibold">
                       {tot.echeq ? `−${fmt(tot.echeq)}` : fmt(0)}
                     </td>
                   </tr>
@@ -775,7 +796,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                           </td>
                         );
                       })}
-                      <td className={"px-2 py-1 text-center font-semibold " + (tot[k] === 0
+                      <td className={"px-2 py-1 text-right font-semibold " + (tot[k] === 0
                         ? "text-[var(--t-text-dim)]"
                         : tot[k] > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]")}>
                         {tot[k] === 0 ? fmt(0) : `${tot[k] > 0 ? "+" : "−"}${fmt(Math.abs(tot[k]))}`}
@@ -794,7 +815,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                         {(c.bb_mas ?? 0) ? `+${fmt(c.bb_mas ?? 0)}` : fmt(0)}
                       </td>
                     ))}
-                    <td className="px-2 py-1 text-center font-semibold text-[var(--t-pos)]">
+                    <td className="px-2 py-1 text-right font-semibold text-[var(--t-pos)]">
                       {tot.bbMas ? `+${fmt(tot.bbMas)}` : fmt(0)}
                     </td>
                   </tr>
@@ -808,7 +829,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                         {(c.bb_menos ?? 0) ? `−${fmt(c.bb_menos ?? 0)}` : fmt(0)}
                       </td>
                     ))}
-                    <td className="px-2 py-1 text-center font-semibold text-[var(--t-neg)]">
+                    <td className="px-2 py-1 text-right font-semibold text-[var(--t-neg)]">
                       {tot.bbMenos ? `−${fmt(tot.bbMenos)}` : fmt(0)}
                     </td>
                   </tr>
@@ -818,7 +839,7 @@ function BancosGrid({ cuentas, catalogo, fecha, editable, vacio, onSaved }: {
                       <td key={c.cuenta_operativa} {...auditar(c, "saldo_final", "Saldo final")}
                         className={"px-2 py-1 text-center font-bold" + CLICK}>{fmt(c.saldo_final)}</td>
                     ))}
-                    <td className="px-2 py-1 text-center font-bold">
+                    <td className="px-2 py-1 text-right font-bold">
                       {fmt(tot.ini + tot.neto + tot.ingEcheq - tot.echeq
                         + tot.mercados + tot.fci + tot.bbMas - tot.bbMenos)}
                     </td>
