@@ -87,6 +87,9 @@ type Resp = {
   fecha: string; fecha_iso?: string; estado: string; resumen: Record<string, Bucket>;
   cuentas?: CuentaWire[]; puede_editar_saldo?: boolean; estado_bancos?: string;
   catalogo?: CuentaCat[];
+  // TOTAL del panel RESCATE ACA VALORES por moneda (lo calcula el backend con la
+  // misma fuente que el modal, así la barra no puede contradecirlo).
+  rescate?: Record<string, number>;
   conectados?: Conectado[]; actualizado_at?: string;
   movimientos: Mov[]; n: number; raw?: number;
 };
@@ -325,6 +328,21 @@ export function TesoreriaView() {
         )}
         {tab === "bancos" && !historico && data?.puede_editar_saldo && (
           <BotonFoto fecha={fecha} />
+        )}
+        {/* El TOTAL del panel RESCATE ACA VALORES, a mano: es el número que el back
+            office mira todo el día y hasta ahora obligaba a abrir el modal. Sale del
+            backend (misma fuente que el modal) — acá no se recalcula nada. */}
+        {tab === "bancos" && !historico && (
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] flex items-center gap-1.5"
+            title="TOTAL del panel Rescate ACA Valores (registros manuales). Los de OTROS REGISTROS no entran acá.">
+            rescate aca valores:
+            {["ARS", "USD"].filter((u) => u === "ARS" || (data?.rescate?.[u] ?? 0) !== 0)
+              .map((u) => (
+                <span key={u} className="tabular-nums text-[var(--t-text)] normal-case">
+                  {u} {fmt(data?.rescate?.[u] ?? 0)}
+                </span>
+              ))}
+          </span>
         )}
         {tab === "bancos" && historico && (
           <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border-2)] text-[var(--t-text-muted)]"

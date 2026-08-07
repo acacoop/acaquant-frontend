@@ -3,12 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 
 /**
- * Modal REGISTROS MANUALES (tab BANCOS). Partido 50/50:
+ * Modal REGISTROS MANUALES (tab BANCOS). Tiene DOS tabs, y lo único que las separa
+ * es el `grupo` del registro:
  *
+ *   RESCATE ACA VALORES — `tipo` acotado al catálogo fijo (PROVEEDORES, VEP, …).
+ *                         Su TOTAL es el que se muestra en la barra de la vista.
+ *   OTROS REGISTROS     — `tipo` es texto LIBRE. Impacta el saldo del banco
+ *                         EXACTAMENTE igual, pero NO entra al total del rescate.
+ *
+ * Cada tab es 50/50:
  *   IZQUIERDA — la carga: TIPO · IMPORTE · BANCO · EGRESO/INGRESO, más el USUARIO
  *               y la HORA de quien la registró (los pone el backend, no se tipean).
- *   DERECHA   — el resumen por TIPO de lo cargado. La fila SALDOS es MANUAL: no
- *               sale de los registros, se escribe a mano y se persiste aparte.
+ *   DERECHA   — el resumen por TIPO de lo cargado. En el rescate, la fila SALDOS es
+ *               MANUAL: no sale de los registros, se escribe a mano y persiste aparte.
  *
  * Es una FUENTE NUEVA de movimientos: no viene de la API. Cada registro impacta el
  * saldo del banco elegido según su sentido (egreso por default) sumándose a las
@@ -18,15 +25,17 @@ import { useCallback, useEffect, useState } from "react";
  * Persiste por día, así que sobrevive a recargar y al cambio de turno.
  */
 
+type Grupo = "rescate" | "otros";
 type Fila = {
   id: number; tipo: string; banco: string; unidad: string;
-  importe: number; sentido: string; usuario: string | null; hora: string;
+  importe: number; sentido: string; grupo: Grupo; usuario: string | null; hora: string;
 };
 type Banco = { banco: string; unidad: string };
 type ResumenFila = { tipo: string; importe: number; manual: boolean };
 type Resp = {
   fecha: string; fecha_iso: string; unidad: string;
   filas: Fila[]; resumen: ResumenFila[]; total: number;
+  resumen_otros: { tipo: string; importe: number }[]; total_otros: number;
   saldo_manual: number; saldo_por: string | null;
   tipos: string[]; sentidos: string[]; bancos: Banco[]; puede_editar?: boolean;
 };
@@ -44,6 +53,8 @@ export function TesoreriaRegistros({ fecha, onCerrar, onCambio }: {
   fecha: string; onCerrar: () => void; onCambio: () => void;
 }) {
   const [unidad, setUnidad] = useState("ARS");
+  // Tab del modal. Define el `grupo` de lo que se carga y qué resumen se muestra.
+  const [grupo, setGrupo] = useState<Grupo>("rescate");
   const [d, setD] = useState<Resp | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -99,16 +110,18 @@ export function TesoreriaRegistros({ fecha, onCerrar, onCambio }: {
 
   const editable = !!d?.puede_editar;
   const bancos = (d?.bancos ?? []).filter((b) => b.unidad === unidad);
-  const filas = (d?.filas ?? []).filter((f) => f.unidad === unidad);
+  // Las filas viejas (previas a la columna) son del rescate: era el único panel.
+  const filas = (d?.filas ?? []).filter(
+    (f) => f.unidad === unidad && (f.grupo ?? "rescate") === grupo);
 
   const agregar = async () => {
     const imp = aNumero(nueva.importe);
-    if (!nueva.tipo) { setErr("elegí el tipo"); return; }
+    if (!nueva.tipo.trim()) { setErr(grupo === "otros" ? "escribí el tipo" : "elegí el tipo"); return; }
     if (!nueva.banco) { setErr("elegí el banco"); return; }
     if (!Number.isFinite(imp) || imp <= 0) { setErr("importe inválido"); return; }
     const ok = await escribir("POST", "/api/back-office/tesoreria/registros", {
-      fecha, tipo: nueva.tipo, banco: nueva.banco, unidad,
-      importe: imp, sentido: nueva.sentido,
+      fecha, tipo: nueva.tipo.trim(), banco: nueva.banco, unidad,
+      importe: imp, sentido: nueva.sentido, grupo,
     });
     if (ok) setNueva({ tipo: "", importe: "", banco: "", sentido: "egreso" });
   };
@@ -138,7 +151,22 @@ export function TesoreriaRegistros({ fecha, onCerrar, onCambio }: {
         <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)] border-b border-[var(--t-border)] shrink-0">
           Fuente propia de movimientos: no viene de la API. Cada registro impacta el saldo
           del banco elegido según su sentido, y en el detalle de esa celda aparece marcado
-          como <b>registro manual</b>.
+          como <b>registro manual</b>. <b>Otros registros</b> impacta el banco igual, pero
+          queda afuera del total de Rescate ACA Valores.
+        </div>
+        {/* Tabs: solo cambian el GRUPO de lo que se carga y el resumen de la derecha. */}
+        <div className="px-3 py-1.5 flex items-center gap-2 border-b border-[var(--t-border)] shrink-0">
+          {([["rescate", "rescate aca valores"], ["otros", "otros registros"]] as const).map(
+            ([g, label]) => (
+              <button key={g}
+                onClick={() => { setGrupo(g); setNueva({ tipo: "", importe: "", banco: "", sentido: "egreso" }); setErr(null); }}
+                className={"px-2 py-0.5 text-[10px] uppercase tracking-widest font-semibold border " +
+                  (grupo === g
+                    ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]")}>
+                {label}
+              </button>
+            ))}
         </div>
         {err && <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)] shrink-0">{err}</div>}
 
@@ -150,11 +178,19 @@ export function TesoreriaRegistros({ fecha, onCerrar, onCambio }: {
             </div>
             {editable && (
               <div className="p-2 border-b border-[var(--t-border)] bg-[var(--t-surface)] flex flex-wrap items-end gap-2 text-[10px] min-w-0">
-                <select value={nueva.tipo} onChange={(e) => setNueva((p) => ({ ...p, tipo: e.target.value }))}
-                  className={INPUT + " w-[130px] max-w-full"}>
-                  <option value="">— tipo —</option>
-                  {(d?.tipos ?? []).map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                {grupo === "rescate" ? (
+                  <select value={nueva.tipo} onChange={(e) => setNueva((p) => ({ ...p, tipo: e.target.value }))}
+                    className={INPUT + " w-[130px] max-w-full"}>
+                    <option value="">— tipo —</option>
+                    {(d?.tipos ?? []).map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                ) : (
+                  /* En OTROS el tipo es texto libre: no hay catálogo que elegir. */
+                  <input value={nueva.tipo} placeholder="tipo" maxLength={64}
+                    onChange={(e) => setNueva((p) => ({ ...p, tipo: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
+                    className={INPUT + " w-[130px] max-w-full"} />
+                )}
                 <input value={nueva.importe} placeholder="importe"
                   onChange={(e) => setNueva((p) => ({ ...p, importe: e.target.value }))}
                   onKeyDown={(e) => { if (e.key === "Enter") agregar(); }}
@@ -221,42 +257,70 @@ export function TesoreriaRegistros({ fecha, onCerrar, onCambio }: {
             </div>
           </div>
 
-          {/* ── DERECHA: el resumen por tipo ────────────────────────────── */}
+          {/* ── DERECHA: el resumen por tipo de la tab activa ───────────── */}
           <div className="min-w-0 flex flex-col border border-[var(--t-border)] self-start w-full">
             <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center shrink-0">
-              Rescate ACA Valores
+              {grupo === "rescate" ? "Rescate ACA Valores" : "Otros registros"}
             </div>
-            <table className="w-full table-fixed text-[11px]">
-              <tbody>
-                {(d?.resumen ?? []).map((r) => (
-                  <tr key={r.tipo} className="border-b border-[var(--t-border)]">
-                    <td className="px-2 py-1 font-semibold text-[var(--t-text)] w-[55%]">
-                      {r.tipo}
-                      {r.manual && (
-                        <span className="ml-1 text-[8px] font-normal text-[var(--t-text-muted)]"
-                          title="Carga manual: no sale de los registros">manual</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1 text-right tabular-nums">
-                      {r.manual && editable ? (
-                        <span className="flex items-center gap-1 justify-end">
-                          <input value={saldoTxt} onChange={(e) => setSaldoTxt(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") guardarSaldo(); }}
-                            className={INPUT + " w-[110px] text-right"} />
-                          <button onClick={guardarSaldo} disabled={busy}
-                            className="text-[9px] text-[var(--t-accent)] hover:underline disabled:opacity-40">ok</button>
-                        </span>
-                      ) : (r.importe ? fmt(r.importe) : "-")}
-                    </td>
+            {grupo === "rescate" ? (
+              <table className="w-full table-fixed text-[11px]">
+                <tbody>
+                  {(d?.resumen ?? []).map((r) => (
+                    <tr key={r.tipo} className="border-b border-[var(--t-border)]">
+                      <td className="px-2 py-1 font-semibold text-[var(--t-text)] w-[55%]">
+                        {r.tipo}
+                        {r.manual && (
+                          <span className="ml-1 text-[8px] font-normal text-[var(--t-text-muted)]"
+                            title="Carga manual: no sale de los registros">manual</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">
+                        {r.manual && editable ? (
+                          <span className="flex items-center gap-1 justify-end">
+                            <input value={saldoTxt} onChange={(e) => setSaldoTxt(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") guardarSaldo(); }}
+                              className={INPUT + " w-[110px] text-right"} />
+                            <button onClick={guardarSaldo} disabled={busy}
+                              className="text-[9px] text-[var(--t-accent)] hover:underline disabled:opacity-40">ok</button>
+                          </span>
+                        ) : (r.importe ? fmt(r.importe) : "-")}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-[var(--t-surface)] font-bold">
+                    <td className="px-2 py-1.5">TOTAL</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{fmt(d?.total ?? 0)}</td>
                   </tr>
-                ))}
-                <tr className="bg-[var(--t-surface)] font-bold">
-                  <td className="px-2 py-1.5">TOTAL</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{fmt(d?.total ?? 0)}</td>
-                </tr>
-              </tbody>
-            </table>
-            {d?.saldo_por && (
+                </tbody>
+              </table>
+            ) : (
+              /* OTROS: el tipo es libre, así que el resumen se arma con lo cargado.
+                 Este total NO se mezcla con el del rescate: son cosas distintas. */
+              <table className="w-full table-fixed text-[11px]">
+                <tbody>
+                  {(d?.resumen_otros ?? []).map((r) => (
+                    <tr key={r.tipo} className="border-b border-[var(--t-border)]">
+                      <td className="px-2 py-1 font-semibold text-[var(--t-text)] w-[55%] break-words">
+                        {r.tipo}
+                      </td>
+                      <td className="px-2 py-1 text-right tabular-nums">
+                        {r.importe ? fmt(r.importe) : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                  {!(d?.resumen_otros ?? []).length && (
+                    <tr><td colSpan={2} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                      sin registros ese día
+                    </td></tr>
+                  )}
+                  <tr className="bg-[var(--t-surface)] font-bold">
+                    <td className="px-2 py-1.5">TOTAL</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{fmt(d?.total_otros ?? 0)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+            {grupo === "rescate" && d?.saldo_por && (
               <div className="px-2 py-1 text-[9px] text-[var(--t-text-muted)]">
                 SALDOS cargado por {d.saldo_por.split("@")[0]}
               </div>
