@@ -12,6 +12,13 @@ const POLL_LOCAL_MS = 5_000;   // ARGY + futuros DLR refrescan cada 5s (live)
 // en TradingView (CAPITALCOM:DXY vía mapSymbol).
 const DEFAULT_TICKER_AL_SALIR_DE_DLR = "DXY";
 
+// Tab por defecto de la watchlist. Es una CONSTANTE, no algo que se derive de
+// qué endpoint contestó primero: antes el default se elegía en un efecto sobre
+// los grupos con datos, así que si /api/futuros-dlr llegaba antes que
+// /api/market/quotes + /api/argy la mesa abría en FUTUROS ROFEX y ya no se
+// corregía (el efecto solo actuaba con el filtro vacío). Siempre GENERAL.
+const TAB_DEFAULT = "General";
+
 // ── Helpers de formateo ──
 
 function fmtPrice(v: number | null | undefined): string {
@@ -133,7 +140,7 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<Date | null>(null);
-  const [filtro, setFiltro] = useState<string>("");
+  const [filtro, setFiltro] = useState<string>(TAB_DEFAULT);
 
   // Dedupe por payload crudo (patrón usePoll): identidad preservada si el
   // payload no cambió → los memos de filas/grupos no recomputan por tick.
@@ -191,24 +198,16 @@ export function WatchlistPanel({ onSelect, selected }: WatchlistPanelProps = {})
     return () => clearInterval(iv);
   }, [fetchLocal]);
 
-  // ── Filtros: General + FUTUROS ROFEX + NOTICIAS (tab fija) ──
+  // ── Filtros: General + FUTUROS ROFEX + NOTICIAS (tabs fijas) ──
+  // General y NOTICIAS se muestran SIEMPRE: General es la tab por defecto, así que
+  // su botón no puede desaparecer mientras los fetches están en vuelo (si no, la
+  // watchlist arranca sin ninguna tab marcada como activa).
   const gruposPresentes = useMemo(() => {
-    const out: string[] = [];
-    if (argy.length > 0 || quotes.length > 0) out.push("General");
+    const out: string[] = [TAB_DEFAULT];
     if (futurosDlr.length > 0) out.push("FUTUROS ROFEX");
     out.push("NOTICIAS");
     return out;
-  }, [quotes, futurosDlr, argy]);
-
-  useEffect(() => {
-    if (!filtro) {
-      // Default = General (pedido de la mesa 2026-07-14; antes era FUTUROS ROFEX).
-      const conDatos = gruposPresentes.filter((g) => g !== "NOTICIAS");
-      if (conDatos.length > 0) {
-        setFiltro(conDatos.includes("General") ? "General" : conDatos[0]);
-      }
-    }
-  }, [filtro, gruposPresentes]);
+  }, [futurosDlr]);
 
   // Sincronización chart ↔ filtro: entrando a FUTUROS ROFEX linkea la curva DLR;
   // saliendo a General, si veníamos de la curva, volvemos a DXY.
