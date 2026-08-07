@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TesoreriaBancoABanco } from "@/components/tesoreria-banco-a-banco";
 import { TesoreriaCheques } from "@/components/tesoreria-cheques";
+import { TesoreriaVeps } from "@/components/tesoreria-veps";
 import { TesoreriaMercados } from "@/components/tesoreria-mercados";
 import { TesoreriaRegistros } from "@/components/tesoreria-registros";
 import { AbmModal } from "@/components/ui/abm-modal";
@@ -150,7 +151,7 @@ const hhmmss = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("es-AR"
 
 // Fuente única de las tabs: el tipo, la barra y el saneo del valor persistido salen
 // todos de acá, así no puede quedar una lista desincronizada de otra.
-const TABS = ["movimientos", "bancos", "cheques", "mercados", "banco a banco"] as const;
+const TABS = ["movimientos", "bancos", "cheques", "veps", "mercados", "banco a banco"] as const;
 type Tab = (typeof TABS)[number];
 
 export function TesoreriaView() {
@@ -471,6 +472,10 @@ export function TesoreriaView() {
         <TesoreriaMercados fecha={hoy} />
       ) : tab === "cheques" ? (
         <TesoreriaCheques fecha={hoy} />
+      ) : tab === "veps" ? (
+        // Tablero de seguimiento: NO recibe `fecha` a propósito — un VEP viejo sin
+        // pagar tiene que seguir a la vista aunque se mire otro día.
+        <TesoreriaVeps />
       ) : (
         historico && !foto?.existe ? (
           <div className="flex-1 min-h-0 p-3 text-[11px] text-[var(--t-text-muted)]">
