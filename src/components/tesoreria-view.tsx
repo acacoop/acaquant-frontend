@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { TesoreriaAl2 } from "@/components/tesoreria-al2";
 import { TesoreriaBancoABanco } from "@/components/tesoreria-banco-a-banco";
 import { TesoreriaCheques } from "@/components/tesoreria-cheques";
 import { TesoreriaMercados } from "@/components/tesoreria-mercados";
@@ -37,8 +36,6 @@ import { usePersistedState } from "@/lib/use-persisted-state";
  * BANCOS tiene además el modal REGISTROS MANUALES: una fuente de movimientos que no
  * viene de la API y entra a Ingresos/Egresos según su sentido (ver
  * tesoreria-registros.tsx). Cada celda de la grilla abre su detalle auditable.
- *   SALDO AL2   — histórico del banco FERSI SA (ver tesoreria-al2.tsx). No usa `fecha`
- *                 ni `estado` de la barra: tiene su propia ventana de N días.
  *
  * FECHA: el selector aparece SOLO en BANCOS, la única tab que navega el histórico.
  * Todo lo demás (MOVIMIENTOS, CHEQUES, MERCADOS, BANCO A BANCO) es siempre el día en
@@ -148,9 +145,16 @@ const hoyISO = () => {
 const fmt = (v: number) => v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hhmmss = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("es-AR", { hour12: false }) : "—");
 
+// Fuente única de las tabs: el tipo, la barra y el saneo del valor persistido salen
+// todos de acá, así no puede quedar una lista desincronizada de otra.
+const TABS = ["movimientos", "bancos", "cheques", "mercados", "banco a banco"] as const;
+type Tab = (typeof TABS)[number];
+
 export function TesoreriaView() {
-  const [tab, setTab] = usePersistedState<"movimientos" | "bancos" | "cheques" | "mercados" | "banco a banco" | "saldo al2">(
-    "tes.tab", "movimientos");
+  const [tabGuardada, setTab] = usePersistedState<Tab>("tes.tab", "movimientos");
+  // SALDO AL2 se eliminó. Si quedó guardada en la sesión de alguien que la tenía
+  // abierta, cae al default en vez de dejar la barra sin ninguna tab resaltada.
+  const tab = (TABS as readonly string[]).includes(tabGuardada) ? tabGuardada : "movimientos";
   // El día es SIEMPRE hoy salvo en BANCOS, la única tab que navega el histórico
   // (y lo hace contra la FOTO guardada, no contra Aunesa). Por eso el selector de
   // fecha solo aparece ahí: en el resto no habría nada viejo que mostrar.
@@ -268,7 +272,7 @@ export function TesoreriaView() {
     <div className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] text-[var(--t-text)]">
       {/* Barra: tabs + fecha + estado + estado de conexión + presencia */}
       <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2 flex-wrap shrink-0 text-[11px]">
-        {(["movimientos", "bancos", "cheques", "mercados", "banco a banco", "saldo al2"] as const).map((t) => (
+        {TABS.map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={"px-2 py-0.5 text-[10px] uppercase tracking-widest font-semibold border " +
               (tab === t
@@ -464,7 +468,7 @@ export function TesoreriaView() {
         <TesoreriaMercados fecha={hoy} />
       ) : tab === "cheques" ? (
         <TesoreriaCheques fecha={hoy} />
-      ) : tab === "bancos" ? (
+      ) : (
         historico && !foto?.existe ? (
           <div className="flex-1 min-h-0 p-3 text-[11px] text-[var(--t-text-muted)]">
             {fotoErr
@@ -483,8 +487,6 @@ export function TesoreriaView() {
             detalleFijo={historico ? (foto?.detalle ?? {}) : null}
             onSaved={() => cargar(true)} />
         )
-      ) : (
-        <TesoreriaAl2 />
       )}
     </div>
   );
