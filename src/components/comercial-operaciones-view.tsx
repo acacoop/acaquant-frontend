@@ -1129,7 +1129,11 @@ function ModalUltimaOp(
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onCerrar}>
-      <div className="w-full max-w-[1240px] max-h-[85vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
+      {/* Ancho: los instrumentos de FCI/ONs son largos ("CAFCI568-1133 - Toronto
+          Trust Ahorro - Cl. A") y con 1240px no entraban. Va hasta 1600px sin
+          pasarse del viewport. Pero el ancho SOLO no alcanza: ver el
+          `whitespace-normal` de las celdas más abajo. */}
+      <div className="w-full max-w-[1600px] max-h-[85vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
         <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
           <span className="flex-1 text-[11px] uppercase tracking-widest font-semibold truncate">
@@ -1164,16 +1168,17 @@ function ModalUltimaOp(
           <table className="w-full table-fixed text-[11px]">
             <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
               <tr className="border-b border-[var(--t-border)]">
-                <th className="px-2 py-1.5 text-center font-normal w-[4%]"
+                <th className="px-2 py-1.5 text-center font-normal w-[3%]"
                   title="● = el boleto que fija los días sin operar">●</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Fecha</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[11%]">Boleto</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[17%]">Operación</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[13%]">Instrumento</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Fecha</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[10%]">Boleto</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[15%]">Operación</th>
+                {/* La más ancha: instrumento es el campo largo de la tabla. */}
+                <th className="px-2 py-1.5 text-left font-normal w-[22%]">Instrumento</th>
                 <th className="px-2 py-1.5 text-left font-normal w-[8%]">Mercado</th>
-                <th className="px-2 py-1.5 text-right font-normal w-[13%]">Bruto</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[6%]">Mon.</th>
-                <th className="px-2 py-1.5 text-left font-normal w-[19%]">Observaciones</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[12%]">Bruto</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[5%]">Mon.</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[17%]">Observaciones</th>
               </tr>
             </thead>
             <tbody>
@@ -1186,26 +1191,34 @@ function ModalUltimaOp(
                       ? "bg-[var(--t-accent)]/10 text-[var(--t-text)] font-semibold"
                       : "hover:bg-[var(--t-surface)]")
                   }>
-                  <td className="px-2 py-1 text-center no-underline">
+                  {/* `whitespace-normal` NO es decorativo: globals.css pone
+                      `td { white-space: nowrap }` y contra eso `break-words` no
+                      hace nada (sin saltos permitidos, el texto largo no corta y
+                      se monta sobre la columna siguiente). `align-top` alinea las
+                      filas que quedan de dos renglones. */}
+                  <td className="px-2 py-1 text-center no-underline align-top">
                     {i.es_ultima
                       ? <span title="Este boleto fija los días sin operar"
                           style={{ color: ESTADO_COLOR.ACTIVA }}>●</span>
                       : <span className="text-[var(--t-text-muted)]">{i.excluido ? "✕" : "·"}</span>}
                   </td>
-                  <td className="px-2 py-1 tabular-nums">{i.fecha ?? "—"}</td>
-                  <td className="px-2 py-1 font-mono break-words">{i.boleto ?? "—"}</td>
-                  <td className="px-2 py-1 break-words"
+                  <td className="px-2 py-1 tabular-nums align-top">{i.fecha ?? "—"}</td>
+                  <td className="px-2 py-1 font-mono whitespace-normal break-words align-top">{i.boleto ?? "—"}</td>
+                  <td className="px-2 py-1 whitespace-normal break-words align-top"
                     title={i.tipo_operacion ?? undefined}>
                     {i.tipo_operacion || i.operacion || "—"}
                   </td>
-                  <td className="px-2 py-1 break-words">{i.instrumento || "—"}</td>
-                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{i.mercado || "—"}</td>
-                  <td className="px-2 py-1 text-right tabular-nums"
+                  <td className="px-2 py-1 whitespace-normal break-words align-top"
+                    title={i.instrumento ?? undefined}>
+                    {i.instrumento || "—"}
+                  </td>
+                  <td className="px-2 py-1 whitespace-normal break-words text-[var(--t-text-dim)] align-top">{i.mercado || "—"}</td>
+                  <td className="px-2 py-1 text-right tabular-nums align-top"
                     title={i.bruto != null ? fmtMoneyFull(i.bruto) : undefined}>
                     {i.bruto != null ? fmtMoneyFull(i.bruto) : "—"}
                   </td>
-                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{i.moneda || "—"}</td>
-                  <td className="px-2 py-1 break-words text-[9px] text-[var(--t-text-muted)] no-underline">
+                  <td className="px-2 py-1 text-[var(--t-text-dim)] align-top">{i.moneda || "—"}</td>
+                  <td className="px-2 py-1 whitespace-normal break-words text-[9px] text-[var(--t-text-muted)] no-underline align-top">
                     {i.observacion || (i.es_ultima ? "fija los días sin operar" : "")}
                   </td>
                 </tr>

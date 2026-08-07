@@ -681,11 +681,15 @@ function ModalDetalle({ celda, fecha, editable, fijo, onCerrar, onCambio }: {
                     <input type="checkbox" checked={!i.excluido} disabled={!editable || busy || !i.ref}
                       onChange={() => alternar(i)} className="accent-[var(--t-accent)] cursor-pointer" />
                   </td>
-                  <td className="px-2 py-1 break-words">{i.detalle}</td>
-                  <td className="px-2 py-1 break-words text-[var(--t-text-dim)]">{i.referencia || "—"}</td>
+                  {/* `whitespace-normal` obligatorio: globals.css pone
+                      `td { white-space: nowrap }` y `break-words` solo no alcanza
+                      (sin saltos permitidos el texto no corta y se monta sobre la
+                      columna de al lado). Ensanchar el modal lo corre, no lo cura. */}
+                  <td className="px-2 py-1 whitespace-normal break-words align-top">{i.detalle}</td>
+                  <td className="px-2 py-1 whitespace-normal break-words text-[var(--t-text-dim)] align-top">{i.referencia || "—"}</td>
                   {/* El estado se muestra TAL CUAL viene: un pendiente que igual suma
                       al saldo tiene que verse pendiente, no disfrazarse de cerrado. */}
-                  <td className={"px-2 py-1 break-words " +
+                  <td className={"px-2 py-1 whitespace-normal break-words align-top " +
                     (PENDIENTES.has(String(i.estado ?? "").toLowerCase())
                       ? "text-[#f59e0b] font-semibold"
                       : "text-[var(--t-text-dim)]")}
@@ -694,11 +698,11 @@ function ModalDetalle({ celda, fecha, editable, fijo, onCerrar, onCambio }: {
                       : undefined}>
                     {i.estado || "—"}
                   </td>
-                  <td className={"px-2 py-1 text-right tabular-nums " +
+                  <td className={"px-2 py-1 text-right tabular-nums align-top " +
                     (i.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]")}>
                     {fmt(i.importe)}
                   </td>
-                  <td className="px-2 py-1 break-words text-[9px] text-[var(--t-text-muted)] no-underline">
+                  <td className="px-2 py-1 whitespace-normal break-words text-[9px] text-[var(--t-text-muted)] no-underline align-top">
                     {i.observacion || ""}
                   </td>
                 </tr>
