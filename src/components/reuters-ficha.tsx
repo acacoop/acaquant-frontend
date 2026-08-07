@@ -222,6 +222,180 @@ const GRUPOS_5A: Record<GrupoSerie, {
   },
 };
 
+// ── DE DÓNDE SALEN LAS VENTAS (ingresos por segmento, familia TR.BGS.*) ──────
+// El desglose que publica la empresa, período a período, apilado. Dos avisos
+// conceptuales que la UI tiene que respetar (validados 2026-08-07, ver
+// docs/INTEGRACION_REUTERS.md §8):
+//   · "Segmento de negocio" NO siempre es producto: Apple y Coca-Cola reportan
+//     por REGIÓN, NVDA y Rocket Lab por producto. Por eso el título dice
+//     "SEGMENTOS" y no "por producto".
+//   · Los nombres CAMBIAN entre períodos (Reuters re-expresa) → hay segmentos
+//     que aparecen y desaparecen: el apilado banca huecos y el color se fija
+//     por nombre, no por posición.
+interface Segmentos {
+  ticker: string;
+  tipo: string;
+  periodo: string;
+  segmentos: string[];
+  puntos: { fecha: string; total: number; valores: Record<string, number> }[];
+  ajustes: string[];
+}
+
+const PALETA_SEG = [
+  "#3b82f6", "#ff9900", "#10b981", "#a855f7", "#06b6d4", "#eab308",
+  "#ec4899", "#84cc16", "#f97316", "#8b5cf6", "#14b8a6", "#0ea5e9",
+];
+
+function ChartSegmentos({ ticker }: { ticker: string }) {
+  const [tipo, setTipo] = usePersistedState<"negocio" | "geografico">(
+    "reuters.seg.tipo", "negocio");
+  const [per, setPer] = usePersistedState<"anual" | "trimestral">(
+    "reuters.seg.per", "anual");
+  const [modo, setModo] = usePersistedState<"usd" | "share">("reuters.seg.modo", "usd");
+
+  const { data, lastAt } = usePoll<Segmentos | null>(
+    `/api/research1816/reuters/segmentos?ticker=${encodeURIComponent(ticker)}`
+    + `&tipo=${tipo}&periodo=${per}`, null, 60_000, { fetchOnMount: true });
+
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [dim, setDim] = useState({ w: 640, h: 240 });
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() =>
+      setDim({ w: Math.max(el.clientWidth, 240), h: Math.max(el.clientHeight, 140) }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const puntos = data?.puntos ?? [];
+  const nombres = data?.segmentos ?? [];
+  const ajustes = new Set(data?.ajustes ?? []);
+  const color = (s: string) => PALETA_SEG[Math.max(nombres.indexOf(s), 0) % PALETA_SEG.length];
+
+  // En modo SHARE cada barra vale 100% (share sobre el total del período; con
+  // eliminaciones negativas el total sigue siendo el consolidado real).
+  const valorDe = (p: typeof puntos[number], s: string): number => {
+    const v = p.valores[s];
+    if (typeof v !== "number" || !isFinite(v)) return 0;
+    if (modo === "usd") return v;
+    return p.total ? (v / p.total) * 100 : 0;
+  };
+
+  // Alto de cada barra: los positivos se apilan hacia arriba desde cero y los
+  // negativos (eliminaciones) hacia abajo — apilarlos juntos daría una barra
+  // más corta que la realidad de cada pata.
+  const totalPos = Math.max(0, ...puntos.map((p) =>
+    nombres.reduce((s, n) => s + Math.max(valorDe(p, n), 0), 0)));
+  const totalNeg = Math.max(0, ...puntos.map((p) =>
+    nombres.reduce((s, n) => s + Math.max(-valorDe(p, n), 0), 0)));
+
+  const W = dim.w;
+  const H = dim.h - 18;
+  const M = 52;
+  const margenTop = 12;
+  const margenBot = totalNeg > 0 ? 16 : 8;
+  const escala = Math.max(H - margenTop - margenBot, 20) / ((totalPos + totalNeg) || 1);
+  const cero = margenTop + totalPos * escala;
+  const slot = (W - M) / Math.max(puntos.length, 1);
+  const fmtV = (v: number) => (modo === "share" ? `${fmtN(v, 1)}%` : fmtMillones(v));
+  const etiqueta = (fecha: string) =>
+    per === "anual" ? fecha.slice(0, 4) : `${fecha.slice(5, 7)}/${fecha.slice(2, 4)}`;
+
+  return (
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex flex-wrap items-center gap-1.5 px-2 pt-1.5 shrink-0">
+        {([["negocio", "NEGOCIO"], ["geografico", "REGIÓN"]] as const).map(([k, lbl]) => (
+          <button key={k} onClick={() => setTipo(k)}
+            title={k === "negocio"
+              ? "Segmentos tal como los reporta la empresa (ojo: Apple y Coca-Cola los reportan por región)"
+              : "Ventas por país/región"}
+            className={`px-1.5 py-0.5 text-[8px] font-semibold border transition-colors ${
+              tipo === k
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+            }`}>{lbl}</button>
+        ))}
+        <span className="w-px h-3 bg-[var(--t-border-2)] mx-0.5" />
+        {([["usd", "USD"], ["share", "% DEL TOTAL"]] as const).map(([k, lbl]) => (
+          <button key={k} onClick={() => setModo(k)}
+            className={`px-1.5 py-0.5 text-[8px] font-semibold border transition-colors ${
+              modo === k
+                ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+            }`}>{lbl}</button>
+        ))}
+        <div className="ml-auto flex items-center gap-1">
+          {([["anual", "ANUAL"], ["trimestral", "TRIMESTRAL"]] as const).map(([k, lbl]) => (
+            <button key={k} onClick={() => setPer(k)}
+              className={`px-1.5 py-0.5 text-[8px] font-semibold border transition-colors ${
+                per === k
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                  : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+              }`}>{lbl}</button>
+          ))}
+        </div>
+      </div>
+      {puntos.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center px-4 text-center text-[10px] text-[var(--t-text-dim)]">
+          {lastAt === 0
+            ? "cargando…"
+            : `sin desglose ${tipo === "negocio" ? "por segmento" : "por región"} para ${ticker}`
+              + " — se carga con la próxima pasada diaria del feed (no todas las empresas lo publican)"}
+        </div>
+      ) : (
+        <>
+          <div ref={boxRef} className="flex-1 min-h-0 px-2 overflow-hidden">
+            <svg width={W} height={dim.h}>
+              <line x1={M} x2={W} y1={cero} y2={cero} stroke="var(--t-border-2)" strokeWidth={1} />
+              {puntos.map((p, i) => {
+                const x = M + i * slot + slot * 0.18;
+                const ancho = slot * 0.64;
+                let arriba = cero;
+                let abajo = cero;
+                return (
+                  <g key={p.fecha}>
+                    {nombres.map((s) => {
+                      const v = valorDe(p, s);
+                      if (!v) return null;
+                      const h = Math.abs(v) * escala;
+                      let y: number;
+                      if (v > 0) { arriba -= h; y = arriba; } else { y = abajo; abajo += h; }
+                      return (
+                        <rect key={s} x={x} width={Math.max(ancho, 2)} y={y} height={Math.max(h, 0.8)}
+                          fill={color(s)} opacity={ajustes.has(s) ? 0.45 : 0.9}>
+                          <title>{`${etiqueta(p.fecha)} · ${s}${ajustes.has(s) ? " (ajuste, no es negocio)" : ""}: ${fmtV(v)}`}</title>
+                        </rect>
+                      );
+                    })}
+                    <text x={M + i * slot + slot / 2} y={dim.h - 4} textAnchor="middle"
+                      className="fill-[var(--t-text-muted)] font-medium" fontSize={10}
+                      fontFamily="JetBrains Mono, monospace">
+                      {etiqueta(p.fecha)}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2 py-1 border-t border-[var(--t-border)] shrink-0">
+            {nombres.map((s) => (
+              <span key={s} className="flex items-center gap-1 text-[8px] text-[var(--t-text-dim)]"
+                title={ajustes.has(s)
+                  ? "Eliminaciones / corporate: no es un negocio, es el ajuste que hace cerrar la suma contra los ingresos totales"
+                  : s}>
+                <span className="w-2 h-2 inline-block"
+                  style={{ background: color(s), opacity: ajustes.has(s) ? 0.45 : 0.9 }} />
+                {s}{ajustes.has(s) ? " *" : ""}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ChartEvolucion({ anual, trimestral, grupo }: {
   anual: SerieAnual[]; trimestral: SerieAnual[]; grupo: GrupoSerie;
 }) {
@@ -430,6 +604,10 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
   // Grupo graficado abajo-derecha: sigue al tab de métricas (valuación no tiene
   // serie con historia real → mantiene el último grupo), pero se puede elegir.
   const [grupo, setGrupo] = useState<GrupoSerie>("resultados");
+  // El cuadrante de abajo-derecha muestra la evolución de resultados O el
+  // desglose por segmento (son la misma pregunta desde dos ángulos: cómo
+  // evolucionó vs. de dónde sale).
+  const [verSegmentos, setVerSegmentos] = usePersistedState("reuters.ficha.segmentos", false);
   useEffect(() => {
     if (tab === "negocio") setGrupo("resultados");
     else if (tab === "salud") setGrupo("salud");
@@ -596,23 +774,36 @@ export function ReutersFicha({ ticker, onVolver }: { ticker: string; onVolver: (
           </Cuadrante>
 
           {/* ── Abajo-derecha: evolución histórica graficada ── */}
-          <Cuadrante id="evolucion" titulo="EVOLUCIÓN" maxi={maxi} setMaxi={setMaxi} extra={
+          <Cuadrante id="evolucion" titulo={verSegmentos ? "SEGMENTOS" : "EVOLUCIÓN"}
+            maxi={maxi} setMaxi={setMaxi} extra={
             <div className="flex gap-1">
               {(Object.keys(GRUPOS_5A) as GrupoSerie[]).map((g) => (
-                <button key={g} onClick={() => setGrupo(g)}
+                <button key={g} onClick={() => { setGrupo(g); setVerSegmentos(false); }}
                   className={`px-2 py-0.5 text-[9px] font-semibold border transition-colors ${
-                    grupo === g
+                    grupo === g && !verSegmentos
                       ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                       : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
                   }`}>
                   {GRUPOS_5A[g].label}
                 </button>
               ))}
+              {/* De dónde salen las ventas (desglose por segmento / región) */}
+              <button onClick={() => setVerSegmentos(true)}
+                title="De dónde salen las ventas: desglose por segmento de negocio o por región, período a período"
+                className={`px-2 py-0.5 text-[9px] font-semibold border transition-colors ${
+                  verSegmentos
+                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                    : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+                }`}>
+                SEGMENTOS
+              </button>
             </div>
           }>
-            {serieAnual.length > 0 || serieTrim.length > 0
-              ? <ChartEvolucion anual={serieAnual} trimestral={serieTrim} grupo={grupo} />
-              : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie histórica todavía — se carga con la próxima pasada diaria del feed</div>}
+            {verSegmentos
+              ? <ChartSegmentos ticker={ticker} />
+              : serieAnual.length > 0 || serieTrim.length > 0
+                ? <ChartEvolucion anual={serieAnual} trimestral={serieTrim} grupo={grupo} />
+                : <div className="h-full flex items-center justify-center text-[10px] text-[var(--t-text-dim)]">sin serie histórica todavía — se carga con la próxima pasada diaria del feed</div>}
           </Cuadrante>
         </div>
       )}
