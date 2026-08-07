@@ -126,17 +126,20 @@ const ESTADOS = [
 ] as const;
 const TODOS = ESTADOS.join(";");
 
-// Saldo inicial sin cargar = 0, y el final = inicial + neto + el resto de las filas.
-// Se recalcula acá (en vez de confiar en el campo) para que la grilla cierre aunque
-// el backend sea el viejo. Las dos filas e-cheq van separadas SOLO para distinguirlas:
-// las dos entran al saldo. `neto` ya es ingresos − egresos.
-const normalizarCuentas = (rows: CuentaWire[]): Cuenta[] => rows.map((c) => {
-  const ini = c.saldo_inicial ?? 0;
-  return { ...c, saldo_cargado: c.saldo_inicial !== null && c.saldo_inicial !== undefined,
-    saldo_inicial: ini,
-    saldo_final: ini + c.neto + (c.ingresos_echeq ?? 0) - (c.egresos_echeq ?? 0)
-      + (c.mercados ?? 0) + (c.fci ?? 0) + (c.bb_mas ?? 0) - (c.bb_menos ?? 0) };
-});
+// El saldo final lo calcula el BACKEND (api/services/tesoreria.py) y el front lo
+// muestra tal cual. Acá vivía una COPIA de esa fórmula: dos definiciones de la misma
+// regla de negocio que podían separarse sin que nada fallara — si el back sumaba una
+// fila nueva al saldo, la grilla la ignoraba en silencio y mostraba otro total.
+// Verificado antes de borrarla con `python -m scripts.diag_tesoreria_front_vs_back`:
+// 48 filas (vista live + fotos del histórico), diferencia 0.000000.
+// Los `?? 0` NO son la regla de negocio: son el default de borde del tipo
+// (`number | null`), y `saldo_cargado` cae a derivarlo solo si el backend no lo manda.
+const normalizarCuentas = (rows: CuentaWire[]): Cuenta[] => rows.map((c) => ({
+  ...c,
+  saldo_inicial: c.saldo_inicial ?? 0,
+  saldo_final: c.saldo_final ?? 0,
+  saldo_cargado: c.saldo_cargado ?? (c.saldo_inicial !== null && c.saldo_inicial !== undefined),
+}));
 
 const hoyISO = () => {
   const d = new Date();
