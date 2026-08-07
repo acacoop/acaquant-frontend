@@ -250,12 +250,37 @@ const EJES: { key: Key; label: string; fmt: (v: number) => string }[] = [
 ];
 
 // Métricas sumables para la composición por rubro (foto del último año fiscal).
-const COMPOSICION: { key: Key; label: string; fmt: (v: number) => string }[] = [
+// Van TODAS como columnas — sin selector: un rubro puede pesar 20% del market
+// cap y 2% del capex, y esa comparación es justamente lo que interesa.
+// Subconjunto NUMÉRICO de las columnas: el acumulador se indexa por estas, y si
+// se usara `Key` (que incluye `rubro`, texto) los tipos se mezclarían.
+type MetricaComp = "market_cap" | "revenue" | "ebitda" | "net_income" | "capex";
+
+const COMPOSICION: { key: MetricaComp; label: string; fmt: (v: number) => string }[] = [
   { key: "market_cap", label: "MKT CAP", fmt: (v) => fmtGrande(v) },
   { key: "revenue", label: "INGRESOS", fmt: cortoUSD },
   { key: "ebitda", label: "EBITDA", fmt: cortoUSD },
   { key: "net_income", label: "RESULTADO", fmt: cortoUSD },
   { key: "capex", label: "CAPEX", fmt: cortoUSD },
+];
+
+// Tabs del cuadrante de abajo a la derecha.
+type TabComp = "composicion" | "segmentos" | "geografia";
+const TABS_COMP: { v: TabComp; label: string; titulo: string; ayuda: string }[] = [
+  {
+    v: "composicion", label: "COMPOSICIÓN", titulo: "COMPOSICIÓN POR RUBRO",
+    ayuda: "Cuánto pesa cada rubro en market cap, ingresos, EBITDA, resultado y capex — todo junto.",
+  },
+  {
+    v: "segmentos", label: "SEGMENTOS", titulo: "SEGMENTOS · DE DÓNDE SALE LA PLATA",
+    ayuda: "Ranking de segmentos de negocio del universo filtrado, con lo que factura cada uno. "
+      + "Ojo: cada empresa nombra sus segmentos a su manera (Apple y Coca-Cola los reportan por región).",
+  },
+  {
+    v: "geografia", label: "GEOGRAFÍA", titulo: "GEOGRAFÍA · DE DÓNDE SALE LA PLATA",
+    ayuda: "Ranking por país/región: acá los nombres sí se repiten entre empresas, "
+      + "así que la suma es directamente comparable.",
+  },
 ];
 
 // ── medición del panel (los SVG se dibujan al tamaño REAL del cuadrante) ────
@@ -280,6 +305,36 @@ function redondear(v: number): number {
   const m = v / p;
   const nm = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10;
   return nm * p;
+}
+
+// n+1 valores repartidos parejo entre lo y hi (marcas del eje).
+function ticksLineales(lo: number, hi: number, n = 4): number[] {
+  if (!isFinite(lo) || !isFinite(hi) || lo === hi) return [lo];
+  const paso = (hi - lo) / n;
+  return Array.from({ length: n + 1 }, (_, i) => lo + paso * i);
+}
+
+// Cuantil (interpolado). Lo usa la dispersión para RECORTAR EXTREMOS: con 184
+// empresas, un solo P/E de 1.043x aplasta a las otras 183 contra el margen y el
+// gráfico deja de decir nada.
+function cuantil(vs: number[], q: number): number {
+  if (!vs.length) return 0;
+  const s = [...vs].sort((a, b) => a - b);
+  const i = (s.length - 1) * q;
+  const lo = Math.floor(i);
+  const hi = Math.ceil(i);
+  return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (i - lo);
+}
+
+// Marco del área de dibujo: eje Y a la izquierda y eje X abajo. Sin esto los
+// gráficos "flotan" y no se sabe dónde empieza y termina el lienzo.
+function Marco({ x0, x1, y0, y1 }: { x0: number; x1: number; y0: number; y1: number }) {
+  return (
+    <>
+      <line x1={x0} x2={x0} y1={y0} y2={y1} stroke="var(--t-border-2)" strokeWidth={1} />
+      <line x1={x0} x2={x1} y1={y1} y2={y1} stroke="var(--t-border-2)" strokeWidth={1} />
+    </>
+  );
 }
 
 type CuadranteId = "screener" | "agregado" | "dispersion" | "composicion";
@@ -356,15 +411,22 @@ function ChartAgregado({ data, grupo, cargando }: {
     .filter((v): v is number => v !== null);
   const topPos = redondear(Math.max(0, ...vals.filter((v) => v > 0)));
   const topNeg = redondear(Math.max(0, ...vals.filter((v) => v < 0).map((v) => -v)));
+
+  // Área de dibujo con márgenes FIJOS: el eje Y vive en ML, las etiquetas de
+  // período abajo de MB. Antes las barras se comían el margen y quedaban
+  // pegadas al borde (o directamente afuera).
   const W = dim.w;
-  const H = dim.h - 18;
-  const M = 52;
-  const margenTop = 14;
-  const margenBot = topNeg > 0 ? 18 : 10;
-  const escala = Math.max(H - margenTop - margenBot, 20) / ((topPos + topNeg) || 1);
-  const cero = margenTop + topPos * escala;
-  const slot = (W - M) / Math.max(puntos.length, 1);
-  const ticks = [...new Set([topPos, topPos / 2, 0, -topNeg / 2, -topNeg])];
+  const H = dim.h;
+  const ML = 60, MR = 12, MT = 12, MB = 22;
+  const alto = Math.max(H - MT - MB, 20);
+  const escala = alto / ((topPos + topNeg) || 1);
+  const cero = MT + topPos * escala;
+  const slot = (W - ML - MR) / Math.max(puntos.length, 1);
+  // Marcas parejas de arriba a abajo (siempre incluye el 0 porque el dominio
+  // va de -topNeg a +topPos y el 0 cae adentro).
+  const ticks = topNeg > 0
+    ? [...ticksLineales(0, topPos, 2), ...ticksLineales(-topNeg, 0, 2).slice(0, -1)]
+    : ticksLineales(0, topPos, 4);
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -395,14 +457,16 @@ function ChartAgregado({ data, grupo, cargando }: {
         </div>
       ) : (
         <div ref={ref} className="flex-1 min-h-0 px-2 pb-1 overflow-hidden">
-          <svg width={W} height={dim.h}>
+          <svg width={W} height={H}>
+            {/* grilla + valores del eje Y */}
             {ticks.map((t) => {
               const y = cero - t * escala;
               return (
                 <g key={t}>
-                  <line x1={M} x2={W} y1={y} y2={y} stroke="var(--t-border-2)"
-                    strokeWidth={t === 0 ? 1 : 0.5} strokeDasharray={t === 0 ? undefined : "3,4"} />
-                  <text x={M - 6} y={y + 3} textAnchor="end"
+                  <line x1={ML} x2={W - MR} y1={y} y2={y} stroke="var(--t-border-2)"
+                    strokeWidth={t === 0 ? 1 : 0.5}
+                    strokeDasharray={t === 0 ? undefined : "3,4"} />
+                  <text x={ML - 6} y={y + 3} textAnchor="end"
                     className="fill-[var(--t-text-muted)] font-medium" fontSize={9}
                     fontFamily="JetBrains Mono, monospace">
                     {fmt(t)}
@@ -410,9 +474,13 @@ function ChartAgregado({ data, grupo, cargando }: {
                 </g>
               );
             })}
+            <Marco x0={ML} x1={W - MR} y0={MT} y1={H - MB} />
             {puntos.map((p, i) => {
-              const x0 = M + i * slot + slot * 0.1;
-              const ancho = (slot * 0.8) / Math.max(activas.length, 1);
+              // 12% de aire a cada lado del slot para que las barras de un
+              // período no se toquen con las del siguiente.
+              const x0 = ML + i * slot + slot * 0.12;
+              const util = slot * 0.76;
+              const ancho = util / Math.max(activas.length, 1);
               return (
                 <g key={p.periodo}>
                   {activas.map((s, j) => {
@@ -422,14 +490,15 @@ function ChartAgregado({ data, grupo, cargando }: {
                     const y = v >= 0 ? cero - h : cero;
                     const cobertura = num(p[`${s.key}_n`]);
                     return (
-                      <rect key={s.key} x={x0 + j * ancho} width={Math.max(ancho - 2, 2)}
-                        y={y} height={h} fill={s.color} opacity={0.9} rx={1}>
+                      <rect key={s.key} x={x0 + j * ancho}
+                        width={Math.max(ancho - (activas.length > 1 ? 1.5 : 0), 1.5)}
+                        y={y} height={h} fill={s.color} opacity={0.9}>
                         <title>{`${p.periodo} · ${s.label}: ${fmt(v)}${
                           cobertura !== null ? ` (${cobertura} empresa${cobertura === 1 ? "" : "s"})` : ""}`}</title>
                       </rect>
                     );
                   })}
-                  <text x={M + i * slot + slot / 2} y={dim.h - 4} textAnchor="middle"
+                  <text x={ML + i * slot + slot / 2} y={H - MB + 13} textAnchor="middle"
                     className="fill-[var(--t-text-muted)] font-medium" fontSize={9.5}
                     fontFamily="JetBrains Mono, monospace">
                     {p.periodo}
@@ -445,37 +514,49 @@ function ChartAgregado({ data, grupo, cargando }: {
 }
 
 // ── CUADRANTE 3: dispersión (por default P/E contra margen neto) ────────────
-function ChartDispersion({ filas, colorDe, ejeX, ejeY, onFicha }: {
+function ChartDispersion({ filas, colorDe, ejeX, ejeY, onFicha, extremos, setExtremos }: {
   filas: FundRow[];
   colorDe: (rubro: string | null) => string;
   ejeX: typeof EJES[number];
   ejeY: typeof EJES[number];
   onFicha: (t: string) => void;
+  extremos: boolean;
+  setExtremos: (v: boolean) => void;
 }) {
   const { ref, dim } = useTamano<HTMLDivElement>();
+  const [hover, setHover] = useState<string | null>(null);
   const puntos = filas
     .map((r) => ({ r, x: num(r[ejeX.key]), y: num(r[ejeY.key]) }))
     .filter((p): p is { r: FundRow; x: number; y: number } => p.x !== null && p.y !== null);
 
-  const xs = puntos.map((p) => p.x);
-  const ys = puntos.map((p) => p.y);
-  const rango = (vs: number[]): [number, number] => {
+  // RECORTE DE EXTREMOS: el dominio va del percentil 2 al 98 (con aire), no del
+  // mínimo al máximo. Con 184 empresas basta un P/E de 1.043x o uno de −71x
+  // para que las otras 183 queden apiladas en una esquina. Los que caen afuera
+  // NO se esconden: se dibujan pegados al borde y huecos, para que se vea que
+  // están y en qué dirección. El botón EXTREMOS muestra el rango completo.
+  const dominio = (vs: number[]): [number, number] => {
     if (!vs.length) return [0, 1];
-    let lo = Math.min(...vs);
-    let hi = Math.max(...vs);
+    let lo = extremos ? Math.min(...vs) : cuantil(vs, 0.02);
+    let hi = extremos ? Math.max(...vs) : cuantil(vs, 0.98);
     if (lo === hi) { lo -= 1; hi += 1; }
-    const pad = (hi - lo) * 0.08;
+    const pad = (hi - lo) * 0.06;
     return [lo - pad, hi + pad];
   };
-  const [x0, x1] = rango(xs);
-  const [y0, y1] = rango(ys);
+  const [x0, x1] = dominio(puntos.map((p) => p.x));
+  const [y0, y1] = dominio(puntos.map((p) => p.y));
+  const fuera = puntos.filter((p) => p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1).length;
 
   const W = dim.w;
   const H = dim.h;
-  const ML = 50, MB = 22, MT = 10, MR = 12;
-  const px = (v: number) => ML + ((v - x0) / (x1 - x0)) * Math.max(W - ML - MR, 10);
-  const py = (v: number) => H - MB - ((v - y0) / (y1 - y0)) * Math.max(H - MB - MT, 10);
-  const ticksDe = (lo: number, hi: number) => [lo, lo + (hi - lo) / 2, hi];
+  const ML = 56, MB = 26, MT = 10, MR = 14;
+  const ancho = Math.max(W - ML - MR, 10);
+  const alto = Math.max(H - MB - MT, 10);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+  const px = (v: number) => ML + clamp((v - x0) / (x1 - x0), 0, 1) * ancho;
+  const py = (v: number) => H - MB - clamp((v - y0) / (y1 - y0), 0, 1) * alto;
+  // Con muchos puntos los nombres se pisan y no se lee nada → etiqueta fija
+  // solo si son pocos; con muchos, aparece al pasar el mouse.
+  const etiquetar = puntos.length <= 35;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -487,8 +568,9 @@ function ChartDispersion({ filas, colorDe, ejeX, ejeY, onFicha }: {
       ) : (
         <div ref={ref} className="flex-1 min-h-0 overflow-hidden">
           <svg width={W} height={H}>
-            {ticksDe(y0, y1).map((t) => (
-              <g key={`y${t}`}>
+            {/* grilla horizontal + valores del eje Y */}
+            {ticksLineales(y0, y1, 4).map((t, i) => (
+              <g key={`y${i}`}>
                 <line x1={ML} x2={W - MR} y1={py(t)} y2={py(t)}
                   stroke="var(--t-border-2)" strokeWidth={0.5} strokeDasharray="3,4" />
                 <text x={ML - 5} y={py(t) + 3} textAnchor="end" fontSize={8.5}
@@ -497,96 +579,274 @@ function ChartDispersion({ filas, colorDe, ejeX, ejeY, onFicha }: {
                 </text>
               </g>
             ))}
-            {ticksDe(x0, x1).map((t) => (
-              <text key={`x${t}`} x={px(t)} y={H - 6} textAnchor="middle" fontSize={8.5}
-                className="fill-[var(--t-text-muted)]" fontFamily="JetBrains Mono, monospace">
-                {ejeX.fmt(t)}
-              </text>
-            ))}
-            {puntos.map(({ r, x, y }) => (
-              <g key={r.ticker} className="cursor-pointer" onClick={() => onFicha(r.ticker)}>
-                <circle cx={px(x)} cy={py(y)} r={4} fill={colorDe(r.rubro)} opacity={0.85}>
-                  <title>{`${r.ticker} — ${r.nombre ?? ""}\n${r.rubro ?? SIN_RUBRO}\n${ejeX.label}: ${ejeX.fmt(x)}\n${ejeY.label}: ${ejeY.fmt(y)}`}</title>
-                </circle>
-                <text x={px(x) + 6} y={py(y) + 3} fontSize={8}
-                  className="fill-[var(--t-text-dim)] pointer-events-none"
-                  fontFamily="JetBrains Mono, monospace">
-                  {r.ticker}
+            {/* grilla vertical + valores del eje X */}
+            {ticksLineales(x0, x1, 4).map((t, i) => (
+              <g key={`x${i}`}>
+                <line x1={px(t)} x2={px(t)} y1={MT} y2={H - MB}
+                  stroke="var(--t-border-2)" strokeWidth={0.5} strokeDasharray="3,4" />
+                <text x={px(t)} y={H - MB + 12} textAnchor="middle" fontSize={8.5}
+                  className="fill-[var(--t-text-muted)]" fontFamily="JetBrains Mono, monospace">
+                  {ejeX.fmt(t)}
                 </text>
               </g>
             ))}
+            <Marco x0={ML} x1={W - MR} y0={MT} y1={H - MB} />
+            {puntos.map(({ r, x, y }) => {
+              const recortado = x < x0 || x > x1 || y < y0 || y > y1;
+              const activo = hover === r.ticker;
+              return (
+                <g key={r.ticker} className="cursor-pointer"
+                  onClick={() => onFicha(r.ticker)}
+                  onMouseEnter={() => setHover(r.ticker)}
+                  onMouseLeave={() => setHover((h) => (h === r.ticker ? null : h))}>
+                  <circle cx={px(x)} cy={py(y)} r={activo ? 5.5 : 4}
+                    fill={recortado ? "none" : colorDe(r.rubro)}
+                    stroke={colorDe(r.rubro)} strokeWidth={recortado ? 1.5 : 0}
+                    opacity={activo ? 1 : 0.85}>
+                    <title>{`${r.ticker} — ${r.nombre ?? ""}\n${r.rubro ?? SIN_RUBRO}\n`
+                      + `${ejeX.label}: ${ejeX.fmt(x)}\n${ejeY.label}: ${ejeY.fmt(y)}`
+                      + (recortado ? "\n(fuera de escala — mostrado en el borde)" : "")}</title>
+                  </circle>
+                  {(etiquetar || activo) && (
+                    <text x={px(x) + 6} y={py(y) + 3} fontSize={activo ? 9 : 8}
+                      className={activo ? "fill-[var(--t-text)] font-semibold" : "fill-[var(--t-text-dim)]"}
+                      style={{ pointerEvents: "none" }}
+                      fontFamily="JetBrains Mono, monospace">
+                      {r.ticker}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
           </svg>
         </div>
       )}
-      <div className="px-2 py-1 text-[8px] text-[var(--t-text-dim)] border-t border-[var(--t-border)] shrink-0">
-        {puntos.length} de {filas.length} empresas graficadas · eje X {ejeX.label} · eje Y {ejeY.label}
-        {puntos.length < filas.length && " · las que faltan no tienen alguno de los dos datos"}
+      <div className="flex items-center gap-2 px-2 py-1 text-[8px] text-[var(--t-text-dim)] border-t border-[var(--t-border)] shrink-0">
+        <span>
+          {puntos.length} de {filas.length} graficadas
+          {puntos.length < filas.length && " · al resto le falta alguno de los dos datos"}
+        </span>
+        {ejeX.key === ejeY.key && (
+          <span className="text-[var(--t-neg)]">
+            · los dos ejes son {ejeX.label}: cambiá uno para que el gráfico diga algo
+          </span>
+        )}
+        <button onClick={() => setExtremos(!extremos)}
+          title={extremos
+            ? "Volver a recortar el 2% de cada punta para que se vea el grueso"
+            : "Mostrar el rango COMPLETO (un solo outlier puede aplastar el resto)"}
+          className={`ml-auto px-1.5 py-0.5 border transition-colors shrink-0 ${
+            extremos
+              ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+              : "border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
+          }`}>
+          {extremos ? "RANGO COMPLETO" : `RECORTADO${fuera ? ` · ${fuera} en el borde` : ""}`}
+        </button>
       </div>
     </div>
   );
 }
 
-// ── CUADRANTE 4: cuánto pesa cada rubro ─────────────────────────────────────
-function Composicion({ filas, metrica, colorDe, rubroActivo, onRubro }: {
+// ── CUADRANTE 4 · tab COMPOSICIÓN — todas las métricas JUNTAS ───────────────
+// Antes había un dropdown para elegir UNA métrica: obligaba a mirar de a una y
+// no dejaba comparar (un rubro puede pesar 20% del market cap y 2% del capex —
+// eso es justo lo interesante). Ahora es una tabla: una fila por rubro, una
+// COLUMNA POR MÉTRICA, con la barra de participación dentro de cada celda.
+function TablaComposicion({ filas, colorDe, rubroActivo, onRubro }: {
   filas: FundRow[];
-  metrica: typeof COMPOSICION[number];
   colorDe: (rubro: string | null) => string;
   rubroActivo: string;
   onRubro: (r: string) => void;
 }) {
-  const barras = useMemo(() => {
-    const acum = new Map<string, { suma: number; n: number }>();
+  const [orden, setOrden] = useState<MetricaComp>("market_cap");
+
+  const { datos, maximos, totales } = useMemo(() => {
+    const acum = new Map<string, { n: number } & Partial<Record<MetricaComp, number>>>();
     for (const r of filas) {
-      const v = num(r[metrica.key]);
-      if (v === null) continue;
       const k = r.rubro ?? SIN_RUBRO;
-      const prev = acum.get(k) ?? { suma: 0, n: 0 };
-      acum.set(k, { suma: prev.suma + v, n: prev.n + 1 });
+      const fila = acum.get(k) ?? { n: 0 };
+      fila.n += 1;
+      for (const c of COMPOSICION) {
+        const v = num(r[c.key]);
+        if (v !== null) fila[c.key] = (fila[c.key] ?? 0) + v;
+      }
+      acum.set(k, fila);
     }
-    const lista = Array.from(acum, ([rubro, v]) => ({ rubro, ...v }))
-      .sort((a, b) => b.suma - a.suma);
-    const total = lista.reduce((s, b) => s + Math.abs(b.suma), 0);
-    return lista.map((b) => ({ ...b, share: total ? Math.abs(b.suma) / total * 100 : 0 }));
-  }, [filas, metrica]);
+    const lista = Array.from(acum, ([rubro, v]) => ({ rubro, ...v }));
+    lista.sort((a, b) => Math.abs(b[orden] ?? 0) - Math.abs(a[orden] ?? 0));
+    const maximos = Object.fromEntries(COMPOSICION.map((c) =>
+      [c.key, Math.max(1, ...lista.map((f) => Math.abs(f[c.key] ?? 0)))])) as Record<MetricaComp, number>;
+    const totales = Object.fromEntries(COMPOSICION.map((c) =>
+      [c.key, lista.reduce((s, f) => s + (f[c.key] ?? 0), 0)])) as Record<MetricaComp, number>;
+    return { datos: lista, maximos, totales };
+  }, [filas, orden]);
 
-  const max = Math.max(1, ...barras.map((b) => Math.abs(b.suma)));
-
-  if (barras.length === 0) {
+  if (datos.length === 0) {
     return (
       <div className="h-full flex items-center justify-center px-4 text-center text-[10px] text-[var(--t-text-dim)]">
-        ninguna empresa tiene {metrica.label} cargado todavía.
+        sin empresas para componer.
       </div>
     );
   }
   return (
-    <div className="p-2 space-y-1">
-      {barras.map((b) => {
-        const activo = rubroActivo === b.rubro;
-        return (
-          <button key={b.rubro} onClick={() => onRubro(activo ? "" : b.rubro)}
-            title={`${b.rubro} · ${b.n} empresa${b.n === 1 ? "" : "s"} · ${metrica.fmt(b.suma)} (${fmtN(b.share, 1)}%)\nClick para filtrar todo el panel por este rubro`}
-            className={`w-full text-left group ${activo ? "" : "opacity-90 hover:opacity-100"}`}>
+    <table className="w-full text-[10px] font-mono">
+      <thead className="sticky top-0 bg-[var(--t-surface)] border-b border-[var(--t-border)] z-10">
+        <tr className="text-[var(--t-text-dim)] tracking-widest text-[8px]">
+          <th className="px-2 py-1.5 text-left">RUBRO</th>
+          {COMPOSICION.map((c) => (
+            <th key={c.key} onClick={() => setOrden(c.key)}
+              title={`Ordenar por ${c.label} (suma de todas las empresas del rubro)`}
+              className={`px-2 py-1.5 text-right cursor-pointer select-none hover:text-[var(--t-accent)] whitespace-nowrap ${
+                orden === c.key ? "text-[var(--t-accent)]" : ""}`}>
+              {c.label}{orden === c.key && " ▼"}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {datos.map((f) => {
+          const activo = rubroActivo === f.rubro;
+          return (
+            <tr key={f.rubro}
+              onClick={() => onRubro(activo ? "" : f.rubro)}
+              title={`${f.rubro} · ${f.n} empresa${f.n === 1 ? "" : "s"}\nClick para filtrar todo el panel por este rubro`}
+              className={`border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface-2)] ${
+                activo ? "bg-[var(--t-surface-2)]" : ""}`}>
+              <td className="px-2 py-1 max-w-[150px]">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 shrink-0"
+                    style={{ background: colorDe(f.rubro === SIN_RUBRO ? null : f.rubro) }} />
+                  <span className={`truncate ${activo ? "text-[var(--t-accent)] font-semibold" : "text-[var(--t-text)]"}`}>
+                    {f.rubro}
+                  </span>
+                  <span className="text-[8px] text-[var(--t-text-muted)] shrink-0">{f.n}</span>
+                </span>
+              </td>
+              {COMPOSICION.map((c) => {
+                const v = f[c.key];
+                const share = v !== undefined && totales[c.key]
+                  ? (v / totales[c.key]) * 100 : null;
+                return (
+                  <td key={c.key} className="px-2 py-1 text-right relative whitespace-nowrap"
+                    title={share !== null ? `${fmtN(share, 1)}% del total del universo` : undefined}>
+                    {/* barra de participación DENTRO de la celda: se compara de
+                        un vistazo hacia abajo, sin leer los números */}
+                    <span className="absolute inset-y-[3px] right-1 opacity-20 pointer-events-none"
+                      style={{
+                        width: `${Math.min(Math.abs(v ?? 0) / maximos[c.key] * 90, 90)}%`,
+                        background: colorDe(f.rubro === SIN_RUBRO ? null : f.rubro),
+                      }} />
+                    <span className={`relative ${v !== undefined && v < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
+                      {v === undefined ? "—" : c.fmt(v)}
+                    </span>
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+        <tr className="border-t-2 border-[var(--t-border-2)] text-[var(--t-text)]">
+          <td className="px-2 py-1 font-semibold text-[9px] tracking-widest">TOTAL</td>
+          {COMPOSICION.map((c) => (
+            <td key={c.key} className="px-2 py-1 text-right font-semibold whitespace-nowrap">
+              {c.fmt(totales[c.key])}
+            </td>
+          ))}
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+// ── CUADRANTE 4 · tabs SEGMENTOS y GEOGRAFÍA ────────────────────────────────
+// De dónde sale la plata del universo que estás mirando: el backend suma el
+// último período de CADA empresa por segmento (o por país) y respeta el filtro
+// de rubro y el buscador, así el ranking se adapta solo.
+interface FilaSegmento {
+  segmento: string;
+  ingresos: number;
+  share: number | null;
+  empresas: number;
+  tickers: string[];
+}
+
+interface AgregadoSegmentos {
+  tipo: string;
+  total: number;
+  filas: FilaSegmento[];
+  otros: { ingresos: number; segmentos: number } | null;
+  ajustes: number;
+  empresas: number;
+  fechas: { desde: string; hasta: string } | null;
+}
+
+function RankingSegmentos({ tipo, rubro, tickers }: {
+  tipo: "negocio" | "geografico";
+  rubro: string;
+  tickers: string | null;
+}) {
+  const url = `/api/research1816/reuters/segmentos/agregado?tipo=${tipo}`
+    + `${rubro ? `&rubro=${encodeURIComponent(rubro)}` : ""}`
+    + `${tickers ? `&tickers=${encodeURIComponent(tickers)}` : ""}`;
+  const { data, lastAt } = usePoll<AgregadoSegmentos | null>(url, null, POLL_MS,
+    { fetchOnMount: true });
+
+  const filas = data?.filas ?? [];
+  const max = Math.max(1, ...filas.map((f) => Math.abs(f.ingresos)));
+
+  if (filas.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center px-4 text-center text-[10px] text-[var(--t-text-dim)]">
+        {lastAt === 0
+          ? "cargando…"
+          : `sin desglose ${tipo === "negocio" ? "por segmento" : "por región"} todavía`
+            + " — se carga con la próxima pasada diaria del feed de la oficina"}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col min-h-0">
+      <div className="px-2 py-1 text-[8px] text-[var(--t-text-dim)] border-b border-[var(--t-border)] shrink-0">
+        {data?.empresas} empresa{data?.empresas === 1 ? "" : "s"} con desglose · total{" "}
+        <span className="text-[var(--t-text)]">{cortoUSD(data?.total ?? 0)}</span>
+        {data?.fechas && ` · último balance de cada una (${data.fechas.desde.slice(0, 7)} a ${data.fechas.hasta.slice(0, 7)})`}
+      </div>
+      <div className="p-2 space-y-1">
+        {filas.map((f) => (
+          <div key={f.segmento} className="group"
+            title={`${f.segmento}\n${cortoUSD(f.ingresos)} · ${fmtN(f.share, 1)}% del total`
+              + `\n${f.empresas} empresa${f.empresas === 1 ? "" : "s"}: ${f.tickers.join(", ")}`
+              + (f.empresas > f.tickers.length ? "…" : "")}>
             <div className="flex items-baseline gap-2 text-[9px]">
-              <span className={`truncate ${activo ? "text-[var(--t-accent)] font-semibold" : "text-[var(--t-text)]"}`}>
-                {b.rubro}
+              <span className="truncate text-[var(--t-text)]">{f.segmento}</span>
+              <span className="text-[8px] text-[var(--t-text-muted)] shrink-0 truncate max-w-[110px]">
+                {f.tickers.join(" ")}
               </span>
               <span className="ml-auto text-[var(--t-text-dim)] font-mono shrink-0">
-                {metrica.fmt(b.suma)}
+                {cortoUSD(f.ingresos)}
               </span>
               <span className="text-[var(--t-text-muted)] font-mono w-[38px] text-right shrink-0">
-                {fmtN(b.share, 1)}%
+                {fmtN(f.share, 1)}%
               </span>
             </div>
-            <div className="h-2 bg-[var(--t-surface-2)] mt-0.5">
-              <div style={{
-                width: `${Math.max(Math.abs(b.suma) / max * 100, 1)}%`,
-                background: colorDe(b.rubro === SIN_RUBRO ? null : b.rubro),
-              }}
-                className={`h-full ${activo ? "" : "opacity-70 group-hover:opacity-100"}`} />
+            <div className="h-1.5 bg-[var(--t-surface-2)] mt-0.5">
+              <div className="h-full bg-[var(--t-accent)] opacity-70 group-hover:opacity-100"
+                style={{ width: `${Math.max(Math.abs(f.ingresos) / max * 100, 1)}%` }} />
             </div>
-          </button>
-        );
-      })}
+          </div>
+        ))}
+        {data?.otros && (
+          <div className="text-[8px] text-[var(--t-text-dim)] pt-1">
+            + otros {data.otros.segmentos} segmentos: {cortoUSD(data.otros.ingresos)}
+          </div>
+        )}
+        {!!data?.ajustes && (
+          <div className="text-[8px] text-[var(--t-text-dim)]"
+            title="Eliminaciones entre segmentos y corporate: no son un negocio ni un país, pero son lo que hace cerrar la suma contra los ingresos totales de cada empresa.">
+            ajustes (eliminaciones / corporate): {cortoUSD(data.ajustes)}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -613,7 +873,8 @@ export function ReutersFundamentals({ onFicha }: { onFicha: (ticker: string) => 
   const [grupo, setGrupo] = usePersistedState<GrupoAgregado>("reuters.fund.grupo", "resultados");
   const [ejeXKey, setEjeXKey] = usePersistedState<Key>("reuters.fund.ejex", "margen_neto");
   const [ejeYKey, setEjeYKey] = usePersistedState<Key>("reuters.fund.ejey", "pe");
-  const [compKey, setCompKey] = usePersistedState<Key>("reuters.fund.comp", "market_cap");
+  const [extremos, setExtremos] = usePersistedState("reuters.fund.extremos", false);
+  const [tabComp, setTabComp] = usePersistedState<TabComp>("reuters.fund.tabcomp", "composicion");
 
   // El AGREGADO lo calcula el backend (suma las series de todas las empresas y
   // arma la canasta) — el front no re-suma nada, así el panel no puede
@@ -679,7 +940,13 @@ export function ReutersFundamentals({ onFicha }: { onFicha: (ticker: string) => 
 
   const ejeX = EJES.find((e) => e.key === ejeXKey) ?? EJES[4];
   const ejeY = EJES.find((e) => e.key === ejeYKey) ?? EJES[0];
-  const metricaComp = COMPOSICION.find((c) => c.key === compKey) ?? COMPOSICION[0];
+  // El ranking de segmentos lo calcula el backend, así que necesita saber QUÉ
+  // empresas mirar. El rubro viaja como parámetro propio; el buscador, como
+  // lista de tickers — solo cuando hay búsqueda activa (sin filtro son 184
+  // tickers en la URL al pedo).
+  const tickersFiltrados = busqueda.trim()
+    ? buscadas.map((r) => r.ticker).join(",")
+    : null;
   const nExcluidas = agregado?.excluidas?.length ?? 0;
 
   return (
@@ -848,16 +1115,29 @@ export function ReutersFundamentals({ onFicha }: { onFicha: (ticker: string) => 
                 opciones={EJES.map((e) => ({ v: e.key, label: e.label }))} />
             </>
           }>
-          <ChartDispersion filas={filas} colorDe={colorDe} ejeX={ejeX} ejeY={ejeY} onFicha={onFicha} />
+          <ChartDispersion filas={filas} colorDe={colorDe} ejeX={ejeX} ejeY={ejeY}
+            onFicha={onFicha} extremos={extremos} setExtremos={setExtremos} />
         </Cuadrante>
 
-        <Cuadrante id="composicion" titulo="COMPOSICIÓN POR RUBRO" maxi={maxi} setMaxi={setMaxi}
+        <Cuadrante id="composicion" maxi={maxi} setMaxi={setMaxi}
+          titulo={TABS_COMP.find((t) => t.v === tabComp)?.titulo ?? "COMPOSICIÓN"}
           extra={
-            <Selector value={compKey} onChange={setCompKey} title="Qué se suma por rubro"
-              opciones={COMPOSICION.map((c) => ({ v: c.key, label: c.label }))} />
+            <div className="flex gap-1">
+              {TABS_COMP.map((t) => (
+                <Chip key={t.v} activo={tabComp === t.v} onClick={() => setTabComp(t.v)}
+                  title={t.ayuda}>
+                  {t.label}
+                </Chip>
+              ))}
+            </div>
           }>
-          <Composicion filas={buscadas} metrica={metricaComp} colorDe={colorDe}
-            rubroActivo={rubroFiltro} onRubro={setRubroFiltro} />
+          {tabComp === "composicion" ? (
+            <TablaComposicion filas={buscadas} colorDe={colorDe}
+              rubroActivo={rubroFiltro} onRubro={setRubroFiltro} />
+          ) : (
+            <RankingSegmentos tipo={tabComp === "segmentos" ? "negocio" : "geografico"}
+              rubro={rubroFiltro} tickers={tickersFiltrados} />
+          )}
         </Cuadrante>
       </div>
     </div>
