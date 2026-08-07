@@ -104,23 +104,25 @@ export function TesoreriaBancoABanco({ fecha }: { fecha: string }) {
 
   const nCols = 5 + (editable ? 1 : 0);
 
-  // Asiento de ajuste para HYGIRUS: el archivo lo arma el backend (formato exacto,
-  // N° HYGIRUS de cada banco) — acá solo se dispara la descarga.
+  // Asiento de ajuste para HYGIRUS: el backend arma el contenido (formato exacto,
+  // N° HYGIRUS de cada banco) y lo manda dentro de un JSON — el proxy de Next
+  // parsea todo como JSON, así que un text/plain llegaría acá como 502.
   const descargarTxt = async () => {
     setErr(null);
     try {
       const r = await fetch(
         `/api/back-office/tesoreria/banco-a-banco/export-txt?fecha=${fecha}`,
         { cache: "no-store" });
-      if (!r.ok) {
-        const b = await r.json().catch(() => ({}));
-        setErr(String(b?.error ?? b?.detail ?? `no se pudo generar el TXT (HTTP ${r.status})`));
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || typeof j?.contenido !== "string") {
+        setErr(String(j?.error ?? j?.detail ?? `no se pudo generar el TXT (HTTP ${r.status})`));
         return;
       }
-      const url = URL.createObjectURL(await r.blob());
+      const blob = new Blob([j.contenido], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "Bco a Bco.txt";
+      a.download = String(j.nombre || "Bco a Bco.txt");
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
