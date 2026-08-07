@@ -104,6 +104,30 @@ export function TesoreriaBancoABanco({ fecha }: { fecha: string }) {
 
   const nCols = 5 + (editable ? 1 : 0);
 
+  // Asiento de ajuste para HYGIRUS: el archivo lo arma el backend (formato exacto,
+  // N° HYGIRUS de cada banco) — acá solo se dispara la descarga.
+  const descargarTxt = async () => {
+    setErr(null);
+    try {
+      const r = await fetch(
+        `/api/back-office/tesoreria/banco-a-banco/export-txt?fecha=${fecha}`,
+        { cache: "no-store" });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        setErr(String(b?.error ?? b?.detail ?? `no se pudo generar el TXT (HTTP ${r.status})`));
+        return;
+      }
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Bco a Bco.txt";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <div className="flex-1 min-h-0 min-w-0 flex flex-col p-3 gap-2">
       {err && (
@@ -129,6 +153,12 @@ export function TesoreriaBancoABanco({ fecha }: { fecha: string }) {
           <span className="text-[10px] tabular-nums normal-case">
             {Object.keys(totales).sort().map((u) => `${fmt(totales[u])} ${u}`).join(" · ") || "—"}
           </span>
+          {filas.length > 0 && (
+            <button onClick={descargarTxt} title="Asiento de ajuste con las transferencias NO completadas"
+              className="text-[9px] uppercase tracking-widest border border-white/40 px-1.5 py-0.5 hover:bg-white/10">
+              txt hygirus
+            </button>
+          )}
           {editable && (
             <button onClick={() => { setAlta((v) => !v); setEditId(null); }}
               className="text-[9px] uppercase tracking-widest border border-white/40 px-1.5 py-0.5 hover:bg-white/10">
