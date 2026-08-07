@@ -15,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { fmtMoney } from "@/lib/fmt-money";
+import { fmtMoney, fmtMoneyFull } from "@/lib/fmt-money";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 
 import { ComercialInforme } from "./comercial-informe-view";
@@ -1044,6 +1044,198 @@ function Field({ label, value }: { label: string; value: string | null }) {
   );
 }
 
+// ── Auditoría de DÍAS SIN OPERAR (click en una fila de ESTADO COMERCIAL) ────
+//
+// Mismo patrón que el modal por celda de Tesorería → BANCOS: el número de la
+// tabla se abre y muestra de QUÉ boleto sale. Antes "1 día sin operar" era un
+// número sin respaldo: para saber qué operación lo generaba había que salir de
+// la vista y buscarla a mano en MOVIMIENTOS.
+//
+// El front NO recalcula nada: el backend devuelve la última op con el MISMO
+// predicado que usa la tabla, y marca los boletos que NO cuentan con su motivo
+// (anulados, posteriores al corte) — igual que los movimientos destildados de
+// Tesorería. Si el modal pudiera recalcular, podría contradecir a la tabla.
+type BoletoAudit = {
+  boleto: string | null;
+  fecha: string | null;
+  fecha_iso: string | null;
+  operacion: string | null;
+  tipo_operacion: string | null;
+  instrumento: string | null;
+  mercado: string | null;
+  moneda: string | null;
+  bruto: number | null;
+  arancel: number | null;
+  cantidad: number | null;
+  etapa: string | null;
+  es_cierre: boolean;
+  condiciones: string | null;
+  es_ultima: boolean;
+  excluido: boolean;
+  observacion: string;
+};
+type DetalleUltimaOp = {
+  id_cuenta: string;
+  denominacion: string;
+  operador_nombre: string | null;
+  corte: string | null;
+  fecha: string | null;
+  es_foto: boolean;
+  fuente: string;
+  ultima_op: string | null;
+  ultima_op_dmy: string | null;
+  dias_sin_operar: number | null;
+  estado: string;
+  ecuacion: string;
+  umbrales: { activa: number; dormida: number };
+  n_boletos_ultima_fecha: number;
+  n_excluidos: number;
+  n_posteriores_corte: number;
+  limite: number;
+  items: BoletoAudit[];
+};
+
+function ModalUltimaOp(
+  { cliente, fecha, onCerrar }:
+  { cliente: AnalisisCliente; fecha: string; onCerrar: () => void },
+) {
+  const [d, setD] = useState<DetalleUltimaOp | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  // El estado no se resetea acá a mano: el modal se monta con `key` por cuenta,
+  // así cambiar de fila lo remonta limpio (y no hay setState en el efecto).
+  useEffect(() => {
+    let vivo = true;
+    const qs = new URLSearchParams({ id_cuenta: cliente.id_cuenta });
+    if (fecha) qs.set("fecha", fecha);
+    void (async () => {
+      try {
+        const r = await getJson<DetalleUltimaOp>(
+          `/api/operaciones/comercial/analisis/detalle?${qs}`);
+        if (vivo) setD(r);
+      } catch (e) {
+        if (vivo) setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => { vivo = false; };
+  }, [cliente.id_cuenta, fecha]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onCerrar}>
+      <div className="w-full max-w-[1240px] max-h-[85vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
+          <span className="flex-1 text-[11px] uppercase tracking-widest font-semibold truncate">
+            Días sin operar · [{cliente.id_cuenta}] {cliente.denominacion}
+          </span>
+          <button onClick={onCerrar} className="text-[12px] px-2 hover:opacity-70">✕</button>
+        </div>
+        <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)] border-b border-[var(--t-border)] shrink-0">
+          {d ? `${d.fuente} · al ${d.fecha}` : err ? "" : "cargando…"}
+          {d?.es_foto && " · FOTO del día (corte elegido en la barra)"}
+        </div>
+        {err && <div className="px-3 py-2 text-[10px] text-[var(--t-neg)]">{err}</div>}
+
+        {/* La cuenta del número, explícita: el modal existe para responder
+            "¿contra qué operación se cuentan estos días?". */}
+        {d && (
+          <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-5 flex-wrap shrink-0">
+            <Field label="Última op que cuenta" value={d.ultima_op_dmy ?? "—"} />
+            <Field label="Días sin operar" value={d.dias_sin_operar?.toString() ?? "—"} />
+            <div className="flex flex-col">
+              <span className="text-[9px] text-[var(--t-text-muted)] tracking-wide">Estado</span>
+              <EstadoBadge estado={d.estado} />
+            </div>
+            <Field label="Boletos ese día" value={String(d.n_boletos_ultima_fecha)} />
+            <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
+              {d.ecuacion}
+            </span>
+          </div>
+        )}
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full table-fixed text-[11px]">
+            <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
+              <tr className="border-b border-[var(--t-border)]">
+                <th className="px-2 py-1.5 text-center font-normal w-[4%]"
+                  title="● = el boleto que fija los días sin operar">●</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[9%]">Fecha</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[11%]">Boleto</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[17%]">Operación</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[13%]">Instrumento</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[8%]">Mercado</th>
+                <th className="px-2 py-1.5 text-right font-normal w-[13%]">Bruto</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[6%]">Mon.</th>
+                <th className="px-2 py-1.5 text-left font-normal w-[19%]">Observaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(d?.items ?? []).map((i, n) => (
+                <tr key={i.boleto ?? n}
+                  className={
+                    "border-b border-[var(--t-border)] " +
+                    (i.excluido ? "opacity-50 line-through decoration-1 " : "") +
+                    (i.es_ultima
+                      ? "bg-[var(--t-accent)]/10 text-[var(--t-text)] font-semibold"
+                      : "hover:bg-[var(--t-surface)]")
+                  }>
+                  <td className="px-2 py-1 text-center no-underline">
+                    {i.es_ultima
+                      ? <span title="Este boleto fija los días sin operar"
+                          style={{ color: ESTADO_COLOR.ACTIVA }}>●</span>
+                      : <span className="text-[var(--t-text-muted)]">{i.excluido ? "✕" : "·"}</span>}
+                  </td>
+                  <td className="px-2 py-1 tabular-nums">{i.fecha ?? "—"}</td>
+                  <td className="px-2 py-1 font-mono break-words">{i.boleto ?? "—"}</td>
+                  <td className="px-2 py-1 break-words"
+                    title={i.tipo_operacion ?? undefined}>
+                    {i.tipo_operacion || i.operacion || "—"}
+                  </td>
+                  <td className="px-2 py-1 break-words">{i.instrumento || "—"}</td>
+                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{i.mercado || "—"}</td>
+                  <td className="px-2 py-1 text-right tabular-nums"
+                    title={i.bruto != null ? fmtMoneyFull(i.bruto) : undefined}>
+                    {i.bruto != null ? fmtMoneyFull(i.bruto) : "—"}
+                  </td>
+                  <td className="px-2 py-1 text-[var(--t-text-dim)]">{i.moneda || "—"}</td>
+                  <td className="px-2 py-1 break-words text-[9px] text-[var(--t-text-muted)] no-underline">
+                    {i.observacion || (i.es_ultima ? "fija los días sin operar" : "")}
+                  </td>
+                </tr>
+              ))}
+              {(!d?.items?.length) && !err && (
+                <tr><td colSpan={9} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                  {d ? "la cuenta no registra boletos — nunca operó" : "cargando…"}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {d && (
+          <div className="px-3 py-1.5 border-t border-[var(--t-border-2)] bg-[var(--t-surface)] text-[9px] text-[var(--t-text-muted)] flex items-center gap-3 shrink-0">
+            <span>{d.items.length} boletos (últimos {d.limite})</span>
+            {!!d.n_excluidos && <span>· {d.n_excluidos} NO cuentan</span>}
+            {!!d.n_posteriores_corte && (
+              <span>· {d.n_posteriores_corte} posteriores al corte</span>
+            )}
+            <span className="ml-auto">
+              Activa ≤ {d.umbrales.activa} días · Dormida &gt; {d.umbrales.dormida}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Vista ANÁLISIS: estado comercial + riesgo de churn + distribución por nivel.
 // Todo de un solo dataset (/comercial/analisis), scopeado al operador elegido.
 function AnalisisComercial(
@@ -1061,6 +1253,8 @@ function AnalisisComercial(
   const [nivelSel, setNivelSel] = useState<string | null>(null);
   const [nivel3Sel, setNivel3Sel] = useState<string | null>(null);
   const [estadoSel, setEstadoSel] = useState<string | null>(null);
+  // Fila abierta en el modal de auditoría de DÍAS SIN OPERAR.
+  const [auditando, setAuditando] = useState<AnalisisCliente | null>(null);
 
   // Orden lógico de Estado (Activa primero, Sin Operaciones al fondo).
   const ESTADO_ORDER: Record<string, number> = {
@@ -1354,7 +1548,10 @@ function AnalisisComercial(
             <p><span style={{ color: ESTADO_COLOR.NUEVA }}>● Sin Operaciones</span><span className="text-[var(--t-text-dim)]">: nunca operó.</span></p>
             <p className="mt-1.5 text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin AuM</span>: cuenta con AuM = $0 en la última foto de cartera.</p>
             <p className="text-[var(--t-text-dim)]"><span className="text-[var(--t-text)]">Sin operar (año)</span>: sin operaciones en el año calendario en curso.</p>
-            <p className="mt-1.5 text-[var(--t-text-muted)]">&quot;Operar&quot; = compra / venta / suscripción-rescate FCI / cauciones. Los días se cuentan contra la última operación real (cualquier antigüedad).</p>
+            {/* El texto viejo enumeraba compra/venta/FCI/cauciones, pero el backend
+                NO filtra por tipo: cuenta cualquier boleto no anulado. Se corrige acá
+                para que la ayuda diga lo mismo que muestra el modal de auditoría. */}
+            <p className="mt-1.5 text-[var(--t-text-muted)]">&quot;Operar&quot; = cualquier boleto no anulado (sin filtro de tipo ni de mercado). Los días se cuentan contra la última operación real, cualquiera sea su antigüedad — <span className="text-[var(--t-text)]">click en una fila</span> para ver de qué boleto sale.</p>
           </div>
           </div>
         </div>
@@ -1372,7 +1569,7 @@ function AnalisisComercial(
               </span>
             )}
             <span className="text-[10px] text-[var(--t-text-dim)] font-mono">{ordenados.length}</span>
-            <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">click en cualquier header para ordenar</span>
+            <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">click en una fila para auditar los días · en el header para ordenar</span>
             <DownloadBtn onClick={dlEstado} />
           </div>
           <div className="flex-1 min-h-0 overflow-auto">
@@ -1389,12 +1586,15 @@ function AnalisisComercial(
               </thead>
               <tbody>
                 {ordenados.map((c) => (
-                  <tr key={c.id_cuenta} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                  <tr key={c.id_cuenta}
+                    onClick={() => setAuditando(c)}
+                    title="Click: ver el boleto que fija los días sin operar"
+                    className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)] cursor-pointer">
                     <td className="px-3 py-1.5 text-[var(--t-text)] truncate max-w-[220px]" title={c.denominacion}>
                       <span className="text-[var(--t-text-muted)]">[{c.id_cuenta}]</span> {c.denominacion}
                     </td>
                     <td className="px-2 py-1.5"><EstadoBadge estado={c.estado} /></td>
-                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)]">{c.dias_sin_operar ?? "—"}</td>
+                    <td className="px-2 py-1.5 text-right text-[var(--t-text-dim)] underline decoration-dotted decoration-[var(--t-text-muted)] underline-offset-2">{c.dias_sin_operar ?? "—"}</td>
                     <td className="px-3 py-1.5 text-right font-semibold text-[var(--t-accent)]">{fmtAum(c.aum)}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{c.cupo_transaccional_usd != null ? fmtUsd(c.cupo_transaccional_usd) : "—"}</td>
                     <td className="px-2 py-1.5 text-right text-[var(--t-text)]">{c.cupo_usado_usd != null ? fmtUsd(c.cupo_usado_usd) : "—"}</td>
@@ -1513,6 +1713,13 @@ function AnalisisComercial(
           </div>
         </div>
       </div>
+
+      {/* Auditoría de la fila clickeada — mismo corte que la tabla, así el
+          modal audita exactamente lo que se está mirando. */}
+      {auditando && (
+        <ModalUltimaOp key={`${auditando.id_cuenta}|${fecha}`} cliente={auditando} fecha={fecha}
+          onCerrar={() => setAuditando(null)} />
+      )}
     </div>
   );
 }
