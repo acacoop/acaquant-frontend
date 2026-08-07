@@ -104,16 +104,17 @@ export function TesoreriaBancoABanco({ fecha }: { fecha: string }) {
 
   const nCols = 5 + (editable ? 1 : 0);
 
-  // Asiento de ajuste para HYGIRUS: el backend arma el contenido (formato exacto,
-  // N° HYGIRUS de cada banco) y lo manda dentro de un JSON — el proxy de Next
-  // parsea todo como JSON, así que un text/plain llegaría acá como 502.
+  // Asiento de ajuste para HYGIRUS. El archivo se genera SIEMPRE (sin pendientes
+  // sale solo la cabecera). El backend responde 200 con el contenido dentro de un
+  // JSON: el proxy de Next parsea todo como JSON y convierte cualquier error en
+  // un 502 sin mensaje.
   const descargarTxt = async () => {
     setErr(null);
     try {
       const r = await fetch(
         `/api/back-office/tesoreria/banco-a-banco/export-txt?fecha=${fecha}`,
         { cache: "no-store" });
-      const j = await r.json().catch(() => ({}));
+      const j = await r.json().catch(() => null);
       if (!r.ok || typeof j?.contenido !== "string") {
         setErr(String(j?.error ?? j?.detail ?? `no se pudo generar el TXT (HTTP ${r.status})`));
         return;
@@ -125,6 +126,12 @@ export function TesoreriaBancoABanco({ fecha }: { fecha: string }) {
       a.download = String(j.nombre || "Bco a Bco.txt");
       a.click();
       URL.revokeObjectURL(url);
+      // El archivo baja igual; el aviso es para que nadie lo cargue en HYGIRUS
+      // con la cuenta en blanco sin darse cuenta.
+      if (j.faltantes?.length) {
+        setErr(`OJO: el archivo salió con la cuenta VACÍA en ${j.faltantes.join(", ")}`
+          + " — falta cargarle el N° HYGIRUS al banco en la tab BANCOS.");
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -155,12 +162,10 @@ export function TesoreriaBancoABanco({ fecha }: { fecha: string }) {
           <span className="text-[10px] tabular-nums normal-case">
             {Object.keys(totales).sort().map((u) => `${fmt(totales[u])} ${u}`).join(" · ") || "—"}
           </span>
-          {filas.length > 0 && (
-            <button onClick={descargarTxt} title="Asiento de ajuste con las transferencias NO completadas"
-              className="text-[9px] uppercase tracking-widest border border-white/40 px-1.5 py-0.5 hover:bg-white/10">
-              txt hygirus
-            </button>
-          )}
+          <button onClick={descargarTxt} title="Asiento de ajuste con las transferencias NO completadas"
+            className="text-[9px] uppercase tracking-widest border border-white/40 px-1.5 py-0.5 hover:bg-white/10">
+            txt hygirus
+          </button>
           {editable && (
             <button onClick={() => { setAlta((v) => !v); setEditId(null); }}
               className="text-[9px] uppercase tracking-widest border border-white/40 px-1.5 py-0.5 hover:bg-white/10">
