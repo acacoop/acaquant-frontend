@@ -320,7 +320,10 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
   const canIa = modules == null || modules.includes("ia");
   // "uso" quedó en el union solo para migrar el estado persistido viejo (la
   // telemetría de USO fue decomisada del backend) — cae a "controles".
-  const sub = (subRaw === "ia" && !canIa) || subRaw === "uso" ? "controles" : subRaw;
+  // Migración del estado guardado: quien tenía CONTROLES o JOBS elegidos cae a
+  // SALUD, que es donde vive ese contenido ahora.
+  const sub = (subRaw === "ia" && !canIa) || subRaw === "uso"
+    || subRaw === "controles" || subRaw === "jobs" ? "salud" : subRaw;
   const [anomalias, setAnomalias] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
@@ -339,22 +342,18 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
       <div className={GROUP_HEADER}>
         <span className={GROUP_TITLE}>OBSERVABILIDAD</span>
         <Pill label="SALUD" active={sub === "salud"} onClick={() => setSub("salud")} />
-        <Pill
-          label={`CONTROLES${anomalias ? ` !${anomalias}` : ""}`}
-          active={sub === "controles"}
-          onClick={() => setSub("controles")}
-        />
+        {/* CONTROLES y JOBS ya no tienen pill propia: su contenido vive DENTRO del
+            chequeo en SALUD (las anomalías de un control, las corridas con su log y
+            errores de un job). Tener las dos cosas en dos lugares era justamente el
+            problema — se miraba el tablero y no el detalle, o al revés. */}
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
-        <Pill label="JOBS" active={sub === "jobs"} onClick={() => setSub("jobs")} />
         <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
         <Pill label="LATENCIA" active={sub === "latencia"} onClick={() => setSub("latencia")} />
         {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "salud"       && <SaludPanel />}
-        {sub === "controles"   && <ControlesPanel goTo={(t) => goTo(t as Tab)} />}
         {sub === "diagnostico" && <DiagnosticoGroup />}
-        {sub === "jobs"        && <JobsGroup />}
         {sub === "base"        && <DbBasePanel />}
         {sub === "latencia"    && <LatenciaPanel />}
         {sub === "ia"          && <IaPanel />}

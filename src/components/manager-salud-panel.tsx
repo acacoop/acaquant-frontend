@@ -39,6 +39,17 @@ type Evento = {
   id: number; de: string | null; a: string; motivo: string | null;
   evidencia: string | null; at: string | null;
 };
+type Corrida = {
+  tipo: string; status: string; inicio: string | null; elapsed_s?: number | null;
+  stats?: Record<string, unknown>; errores?: string[]; log?: string[];
+};
+type Detalle = {
+  tipo: string; explicacion?: string; error?: string;
+  corridas?: Corrida[];
+  tabla?: string; columna?: string; fechas?: { fecha: string; filas: number }[];
+  anomalias?: { item: string; detalle: string; desde: string }[];
+  resueltas_7d?: number;
+};
 type Resp = {
   veredicto: "ok" | "warn" | "error";
   conteo: Record<string, number>;
@@ -60,6 +71,12 @@ export function SaludPanel() {
   const [verOk, setVerOk] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
   const [historial, setHistorial] = useState<Record<string, Evento[]>>({});
+  // Detalle COMPLETO del chequeo: corridas con su log y errores (job), fechas
+  // cargadas con su conteo (dato), o la lista de anomalías (control). Reemplaza a
+  // las tabs JOBS y CONTROLES — la regla es que nada quede vacío ni haya que ir a
+  // buscar el log a otra pantalla.
+  const [detalle, setDetalle] = useState<Record<string, Detalle>>({});
+  const [diag, setDiag] = useState<Record<string, string>>({});
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -90,15 +107,30 @@ export function SaludPanel() {
   const abrir = async (c: Chequeo) => {
     const next = abierto === c.id ? null : c.id;
     setAbierto(next);
-    if (!next || historial[c.id]) return;
+    if (!next || detalle[c.id]) return;
     try {
       const r = await fetch(
-        `/api/manager/salud/historial?chequeo_id=${encodeURIComponent(c.id)}&limite=20`,
+        `/api/manager/salud/detalle?chequeo_id=${encodeURIComponent(c.id)}`,
         { cache: "no-store" });
-      if (!r.ok) return;
-      const j = await r.json();
-      setHistorial((h) => ({ ...h, [c.id]: j?.eventos ?? [] }));
-    } catch { /* el historial es extra: si falla, la fila sigue sirviendo */ }
+      if (r.ok) {
+        const j = await r.json();
+        setDetalle((d) => ({ ...d, [c.id]: j as Detalle }));
+        setHistorial((h) => ({ ...h, [c.id]: j?.historial ?? [] }));
+      }
+    } catch { /* el detalle es extra: si falla, la fila sigue mostrando el motivo */ }
+    // El diagnóstico con IA solo existe para incidentes ya confirmados; si no lo
+    // está, el backend devuelve texto null y no se muestra nada.
+    if (c.estado !== "ok") {
+      try {
+        const r = await fetch(
+          `/api/manager/salud/diagnostico?chequeo_id=${encodeURIComponent(c.id)}`,
+          { cache: "no-store" });
+        if (r.ok) {
+          const j = await r.json();
+          if (j?.texto) setDiag((v) => ({ ...v, [c.id]: j.texto }));
+        }
+      } catch { /* no-op */ }
+    }
   };
 
   const toggleAlerta = async (c: Chequeo) => {
@@ -182,6 +214,19 @@ export function SaludPanel() {
                   {(c.modulos ?? []).join(", ")}
                 </div>
 
+                {diag[c.id] && (
+                  <div className="mt-2 px-2 py-1.5 border-l-2 border-[var(--t-accent)] bg-[var(--t-accent)]/10">
+                    <div className="text-[8px] uppercase tracking-wide text-[var(--t-accent)] mb-0.5">
+                      diagnóstico
+                    </div>
+                    <div className="text-[10px] whitespace-pre-line leading-snug text-[var(--t-text)]">
+                      {diag[c.id]}
+                    </div>
+                  </div>
+                )}
+
+                <DetalleChequeo d={detalle[c.id]} />
+
                 <div className="mt-2 text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
                   historial
                 </div>
@@ -224,6 +269,103 @@ export function SaludPanel() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+
+/** El detalle crudo del chequeo: corridas con su log, fechas cargadas o anomalías.
+ *
+ * Regla explícita del rediseño: NADA vacío ni incomprensible. Acá van los códigos de
+ * error, las cifras y el log tal cual, más la explicación de cómo leerlos — para no
+ * tener que salir a otra pantalla a entender qué pasó. */
+function DetalleChequeo({ d }: { d?: Detalle }) {
+  if (!d) return <div className="mt-2 text-[9px] text-[var(--t-text-muted)]">cargando detalle…</div>;
+  if (d.error) {
+    return (
+      <div className="mt-2 text-[9px] font-mono text-[var(--t-neg)]">
+        no pude leer el detalle: {d.error}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2">
+      {d.explicacion && (
+        <div className="text-[9px] text-[var(--t-text-muted)] mb-1 leading-snug">
+          {d.explicacion}
+        </div>
+      )}
+
+      {/* JOB: cada corrida con sus stats, errores y log */}
+      {(d.corridas ?? []).map((r, i) => (
+        <div key={i} className="mb-1.5 border-l-2 pl-2"
+             style={{ borderColor: r.status === "ok" ? "var(--t-pos)"
+               : r.status === "partial" ? "#eab308" : "var(--t-neg)" }}>
+          <div className="text-[9px] font-mono">
+            <span className="text-[var(--t-text-muted)]">{r.inicio?.replace("T", " ").slice(0, 16)}</span>
+            {" · "}
+            <span style={{ color: r.status === "ok" ? "var(--t-pos)"
+              : r.status === "partial" ? "#eab308" : "var(--t-neg)" }}>{r.status}</span>
+            {r.elapsed_s != null && <span className="text-[var(--t-text-muted)]"> · {r.elapsed_s}s</span>}
+          </div>
+          {r.stats && Object.keys(r.stats).length > 0 && (
+            <div className="text-[9px] font-mono text-[var(--t-text-dim)]">
+              {Object.entries(r.stats).map(([k, v]) => `${k}=${v}`).join(" · ")}
+            </div>
+          )}
+          {(r.errores ?? []).map((e, j) => (
+            <div key={j} className="text-[9px] font-mono text-[var(--t-neg)] break-words">✗ {e}</div>
+          ))}
+          {(r.log ?? []).length > 0 && (
+            <details className="mt-0.5">
+              <summary className="text-[9px] text-[var(--t-text-muted)] cursor-pointer">
+                log ({(r.log ?? []).length} líneas)
+              </summary>
+              <pre className="text-[8px] font-mono text-[var(--t-text-muted)] whitespace-pre-wrap break-words mt-0.5">
+                {(r.log ?? []).join("\n")}
+              </pre>
+            </details>
+          )}
+        </div>
+      ))}
+
+      {/* DATO: qué fechas hay cargadas y con cuántas filas */}
+      {(d.fechas ?? []).length > 0 && (
+        <table className="text-[9px] font-mono">
+          <tbody>
+            {(d.fechas ?? []).map((f) => (
+              <tr key={f.fecha}>
+                <td className="pr-3 text-[var(--t-text)]">{f.fecha}</td>
+                <td className="text-[var(--t-text-dim)]">{f.filas.toLocaleString("es-AR")} filas</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* CONTROL: cada caso concreto a corregir */}
+      {(d.anomalias ?? []).length > 0 && (
+        <div>
+          <table className="text-[9px] font-mono w-full">
+            <tbody>
+              {(d.anomalias ?? []).slice(0, 50).map((a, i) => (
+                <tr key={i} className="border-b border-[var(--t-border-2)]/40">
+                  <td className="pr-3 py-0.5 text-[var(--t-text)] whitespace-nowrap">{a.item}</td>
+                  <td className="py-0.5 text-[var(--t-text-dim)]">{a.detalle}</td>
+                  <td className="py-0.5 pl-2 text-[var(--t-text-muted)] whitespace-nowrap">
+                    desde {String(a.desde ?? "").slice(0, 10)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(d.anomalias ?? []).length > 50 && (
+            <div className="text-[9px] text-[var(--t-text-muted)] mt-0.5">
+              … y {(d.anomalias ?? []).length - 50} más
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
