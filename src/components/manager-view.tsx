@@ -309,7 +309,11 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
   const [subRaw, setSub] = usePersistedState<"salud" | "controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
     // SALUD es el default: es la pantalla que responde "¿está todo bien?". Las demás
     // pasan a ser el DETALLE al que se llega cuando algo está roto.
-    "manager.obs.sub", "salud");
+    // Clave NUEVA (.v2) a propósito: el default solo aplica a quien nunca eligió una
+    // tab, y todos los que ya usaban Manager tenían "controles"/"jobs" guardado en el
+    // navegador — con la clave vieja no habrían visto SALUD nunca. Al estrenar clave,
+    // todos entran una vez por SALUD y de ahí en más se respeta lo que elijan.
+    "manager.obs.sub.v2", "salud");
   // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
   // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
   // al rol, no dejar la tab clavada en contenido inaccesible.
