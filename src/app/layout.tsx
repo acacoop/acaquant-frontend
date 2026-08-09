@@ -69,10 +69,6 @@ export default async function RootLayout({
             entre a mirar. Solo se abre ante una transición NUEVA sin ver. */}
         <SaludAlertasModal />
 
-        {/* Botón flotante: el modal automático solo salta ante un incidente
-            confirmado; esto permite mirar cuando uno quiere, sin entrar a Manager. */}
-        <SaludBoton />
-
         {/* Anuncio de lanzamiento de la nueva vista RESEARCH (solo 20-21 jul 2026). */}
         <AnuncioResearchModal />
 
@@ -93,6 +89,9 @@ export default async function RootLayout({
             {/* Briefing de apertura (QuantAI P1): botón inline + modal.
                 Se auto-oculta sin módulo `ia` (decide el backend). */}
             <BriefingModal />
+            {/* SALUD inline (solo admin): el modal automático salta ante un
+                incidente confirmado; esto es para mirar cuando uno quiere. */}
+            <SaludBoton />
             <span>MERVAL / ROFEX</span>
           </div>
         </footer>

@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Botón flotante de SALUD — abajo a la derecha, SOLO admin.
+ * Indicador de SALUD en la barra de estado inferior — SOLO admin.
+ *
+ * Va INLINE al lado de BRIEFING, no flotando: un botón suelto encima del contenido
+ * se ve fuera de lugar y tapa cosas (reporte 2026-08-09). La barra de estado ya
+ * existe, vive en todas las páginas y es exactamente donde se espera un indicador
+ * de estado del sistema.
  *
  * El modal automático solo aparece ante un incidente CONFIRMADO (roto y sin
  * arreglarse por más de 30'). Este botón es la otra mitad: poder mirar cuando uno
@@ -51,26 +56,21 @@ export function SaludBoton({ onAbrir }: { onAbrir?: () => void }) {
       <button
         onClick={() => { setAbierto((v) => !v); onAbrir?.(); }}
         title="Salud del sistema"
-        // bottom-16: el briefing ya vive en la esquina inferior derecha. Apilados, no
-        // superpuestos — se veían uno encima del otro (reporte 2026-08-09).
-        className={"fixed bottom-16 right-4 z-40 flex items-center gap-1.5 px-2.5 py-1.5 border "
-          + "text-[10px] font-mono uppercase tracking-wide shadow-lg "
-          + (rotos
-            ? "border-[var(--t-neg)] bg-[var(--t-neg)]/15 text-[var(--t-neg)]"
-            : avisos
-              ? "border-[#eab308] bg-[#eab308]/10 text-[#eab308]"
-              : "border-[var(--t-border-2)] bg-[var(--t-panel)] text-[var(--t-text-muted)]")}
+        className={"inline-flex items-center gap-1 px-1.5 leading-none text-[10px] "
+          + "font-semibold transition-colors hover:text-[var(--t-accent)] "
+          + (rotos ? "text-[var(--t-neg)]"
+            : avisos ? "text-[#eab308]" : "text-[var(--t-text-muted)]")}
       >
-        <span className="w-2 h-2 rounded-full" style={{
+        <span className="w-1.5 h-1.5 rounded-full" style={{
           background: rotos ? "var(--t-neg)" : avisos ? "#eab308" : "var(--t-pos)",
         }} />
-        {rotos ? `${rotos} roto${rotos === 1 ? "" : "s"}`
-          : avisos ? `${avisos} aviso${avisos === 1 ? "" : "s"}`
-            : "todo bien"}
+        <span className="tracking-widest">
+          {rotos ? `SALUD ${rotos}` : avisos ? `SALUD ${avisos}` : "SALUD"}
+        </span>
       </button>
 
       {abierto && (
-        <div className="fixed bottom-28 right-4 z-40 w-[min(28rem,calc(100vw-2rem))] max-h-[60vh] overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)] shadow-xl">
+        <div className="fixed bottom-6 right-3 z-40 w-[min(28rem,calc(100vw-1.5rem))] max-h-[60vh] overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)] shadow-xl">
           <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--t-text)]">
               Salud del sistema
