@@ -39,6 +39,9 @@ const hhmm = (iso: string | null) =>
 export function SaludAlertasModal() {
   const [items, setItems] = useState<Pendiente[]>([]);
   const [abierto, setAbierto] = useState(false);
+  // Diagnóstico con IA por chequeo. Se pide SOLO cuando el modal se abre: es una
+  // llamada al LLM y no puede dispararse en cada poll de fondo.
+  const [diag, setDiag] = useState<Record<string, string>>({});
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
@@ -48,7 +51,21 @@ export function SaludAlertasModal() {
       if (!r.ok || !alive.current) return;          // 403 = no es admin → mudo
       const j = await r.json();
       const p: Pendiente[] = j?.pendientes ?? [];
-      if (p.length) { setItems(p); setAbierto(true); }
+      if (p.length) {
+        setItems(p); setAbierto(true);
+        // El diagnóstico traduce la evidencia técnica a negocio: qué pasa, qué vista
+        // queda afectada y qué mirar. Viene cacheado por incidente en el backend, así
+        // que reabrir el modal no vuelve a gastar tokens.
+        for (const it of p) {
+          fetch(`/api/manager/salud/diagnostico?chequeo_id=${encodeURIComponent(it.chequeo_id)}`
+                + `&evento_id=${it.id}`, { cache: "no-store" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((d) => {
+              if (d?.texto && alive.current) setDiag((v) => ({ ...v, [it.chequeo_id]: d.texto }));
+            })
+            .catch(() => {});
+        }
+      }
     } catch { /* la alerta nunca puede romper la app */ }
   }, []);
 
@@ -117,6 +134,16 @@ export function SaludAlertasModal() {
               {i.evidencia && i.evidencia !== i.motivo && (
                 <div className="mt-0.5 text-[9px] font-mono text-[var(--t-text-muted)] break-words">
                   {i.evidencia}
+                </div>
+              )}
+              {diag[i.chequeo_id] && (
+                <div className="mt-1.5 px-2 py-1.5 border-l-2 border-[var(--t-accent)] bg-[var(--t-accent)]/5">
+                  <div className="text-[8px] uppercase tracking-wide text-[var(--t-accent)] mb-0.5">
+                    diagnóstico
+                  </div>
+                  <div className="text-[10px] text-[var(--t-text)] whitespace-pre-line leading-snug">
+                    {diag[i.chequeo_id]}
+                  </div>
                 </div>
               )}
               <button onClick={() => silenciar(i.chequeo_id)}

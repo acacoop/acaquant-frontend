@@ -5,6 +5,7 @@ import { AnuncioChicagoModal } from "@/components/anuncio-chicago-modal";
 import { AnuncioDiferenciasDiariasModal } from "@/components/anuncio-diferencias-diarias-modal";
 import { AnuncioDolarFuturoModal } from "@/components/anuncio-dolar-futuro-modal";
 import { SaludAlertasModal } from "@/components/salud-alertas-modal";
+import { SaludBoton } from "@/components/salud-boton";
 import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { Header } from "@/components/header";
@@ -67,6 +68,10 @@ export default async function RootLayout({
         {/* SALUD: avisa al admin cuando algo se rompe, en vez de esperar a que
             entre a mirar. Solo se abre ante una transición NUEVA sin ver. */}
         <SaludAlertasModal />
+
+        {/* Botón flotante: el modal automático solo salta ante un incidente
+            confirmado; esto permite mirar cuando uno quiere, sin entrar a Manager. */}
+        <SaludBoton />
 
         {/* Anuncio de lanzamiento de la nueva vista RESEARCH (solo 20-21 jul 2026). */}
         <AnuncioResearchModal />
