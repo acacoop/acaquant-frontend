@@ -366,6 +366,15 @@ function BreakevensGrafico({
   const yScale = allVals.length
     ? niceScale(Math.min(...allVals), Math.max(...allVals), 6)
     : { min: 0, max: 5, ticks: [0, 1, 2, 3, 4, 5] };
+  // Los decimales del eje SALEN DEL PASO, no son fijos. Con REM activado el rango
+  // es de ~0,2 puntos (1,78% a 1,98%) y `toFixed(1)` colapsaba los ticks: el eje
+  // mostraba "1.9% · 1.9% · 1.8% · 1.8%" repetidos y el gráfico se volvía ilegible
+  // (reporte 2026-08-09). Si dos ticks consecutivos difieren en menos de 0,1, hacen
+  // falta 2 decimales para distinguirlos.
+  const yPaso = yScale.ticks.length > 1
+    ? Math.abs(yScale.ticks[1] - yScale.ticks[0])
+    : 1;
+  const yDecimales = yPaso >= 1 ? 0 : yPaso >= 0.1 ? 1 : 2;
   const umbralVisible = 3 >= yScale.min && 3 <= yScale.max;
 
   return (
@@ -411,7 +420,7 @@ function BreakevensGrafico({
             tick={{ fill: "var(--t-text-dim)", fontSize: 10 }}
             axisLine={{ stroke: "var(--t-border-2)" }}
             tickLine={false}
-            tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+            tickFormatter={(v: number) => `${v.toFixed(yDecimales)}%`}
           />
           {umbralVisible && (
             <ReferenceLine y={3} stroke="var(--t-neg)" strokeDasharray="6 3" strokeOpacity={0.5} />
