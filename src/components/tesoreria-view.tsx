@@ -374,10 +374,26 @@ export function TesoreriaView() {
 
         <div className="ml-auto flex items-center gap-3">
           <Presencia conectados={data?.conectados ?? []} />
-          <span className="flex items-center gap-1 text-[9px] text-[var(--t-text-muted)]">
+          {/* El puntito ES el estado de la vista. Aunesa caído va acá, en ROJO, y no
+              como una banda que tapa media pantalla: el back office sigue trabajando
+              con lo cargado a mano, así que el aviso tiene que estar presente pero no
+              estorbar. El detalle (qué falta y el error crudo) va en el tooltip. */}
+          <span
+            className={"flex items-center gap-1 text-[9px] " +
+              (data?.aunesa_ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-muted)]")}
+            title={data?.aunesa_ok === false
+              ? "Aunesa no responde: faltan los movimientos del día, así que los "
+                + "ingresos, los egresos y el saldo final están incompletos. Todo lo "
+                + "cargado a mano (saldos, cheques, mercados, banco a banco, registros "
+                + `y VEPs) sí está.\n\n${data?.aunesa_error ?? ""}`
+              : undefined}
+          >
             <span className={"w-1.5 h-1.5 rounded-full " +
-              (err ? "bg-[var(--t-neg)]" : loading ? "bg-[var(--t-accent)] animate-pulse" : "bg-[var(--t-pos)]")} />
-            {err ? "sin conexión" : `actualizado ${hhmmss(data?.actualizado_at)}`}
+              (err || data?.aunesa_ok === false ? "bg-[var(--t-neg)]"
+                : loading ? "bg-[var(--t-accent)] animate-pulse" : "bg-[var(--t-pos)]")} />
+            {err ? "sin conexión"
+              : data?.aunesa_ok === false ? "AUNESA CAÍDO"
+                : `actualizado ${hhmmss(data?.actualizado_at)}`}
           </span>
           <button onClick={() => cargar(false)}
             className="text-[9px] uppercase text-[var(--t-accent)] hover:underline">refrescar</button>
@@ -385,21 +401,6 @@ export function TesoreriaView() {
       </div>
 
       {/* Banner de error (distingue "backend caído / no deployado" de "vacío real") */}
-      {/* Aunesa caído: la vista SIGUE sirviendo lo cargado a mano (saldos, cheques,
-          mercados, banco a banco, registros, VEPs). Lo que falta son los
-          movimientos del día, así que los saldos están incompletos y hay que
-          decirlo — no dejar que se lea como "hoy no hubo movimientos". */}
-      {data && data.aunesa_ok === false && (
-        <div className="px-3 py-2 border border-[#eab308] bg-[#eab308]/10 text-[11px] text-[#eab308] shrink-0">
-          <b>Aunesa no responde.</b> Se muestra todo lo cargado a mano (saldos, cheques,
-          mercados, banco a banco, registros y VEPs), pero <b>faltan los movimientos del
-          día</b>: los ingresos, los egresos y el saldo final están incompletos.
-          <div className="text-[9px] text-[var(--t-text-dim)] mt-0.5 font-mono">
-            {data.aunesa_error}
-          </div>
-        </div>
-      )}
-
       {err && (
         <div className="mx-3 mt-2 px-3 py-2 border border-[var(--t-neg)] bg-[var(--t-neg)]/10 text-[11px] text-[var(--t-neg)] shrink-0">
           Error al consultar Tesorería: {err}
