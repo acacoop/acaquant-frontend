@@ -51,7 +51,9 @@ export function SaludBoton({ onAbrir }: { onAbrir?: () => void }) {
       <button
         onClick={() => { setAbierto((v) => !v); onAbrir?.(); }}
         title="Salud del sistema"
-        className={"fixed bottom-4 right-4 z-50 flex items-center gap-2 px-3 py-2 border "
+        // bottom-16: el briefing ya vive en la esquina inferior derecha. Apilados, no
+        // superpuestos — se veían uno encima del otro (reporte 2026-08-09).
+        className={"fixed bottom-16 right-4 z-40 flex items-center gap-1.5 px-2.5 py-1.5 border "
           + "text-[10px] font-mono uppercase tracking-wide shadow-lg "
           + (rotos
             ? "border-[var(--t-neg)] bg-[var(--t-neg)]/15 text-[var(--t-neg)]"
@@ -68,7 +70,7 @@ export function SaludBoton({ onAbrir }: { onAbrir?: () => void }) {
       </button>
 
       {abierto && (
-        <div className="fixed bottom-16 right-4 z-50 w-[min(28rem,calc(100vw-2rem))] max-h-[60vh] overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)] shadow-xl">
+        <div className="fixed bottom-28 right-4 z-40 w-[min(28rem,calc(100vw-2rem))] max-h-[60vh] overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)] shadow-xl">
           <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--t-text)]">
               Salud del sistema
