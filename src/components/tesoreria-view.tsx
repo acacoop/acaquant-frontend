@@ -89,6 +89,10 @@ type Resp = {
   // misma fuente que el modal, así la barra no puede contradecirlo).
   rescate?: Record<string, number>;
   conectados?: Conectado[]; actualizado_at?: string;
+  // Aunesa es una dependencia EXTERNA y se cae. Cuando pasa, el backend igual
+  // responde con todo lo que vive en Postgres y lo declara acá, en vez de tirar
+  // un 502 en el que no se distingue "proveedor caído" de "la API rota".
+  aunesa_ok?: boolean; aunesa_error?: string | null;
   movimientos: Mov[]; n: number; raw?: number;
 };
 // FOTO de un día pasado: la grilla BANCOS congelada + el detalle ya calculado de
@@ -381,6 +385,21 @@ export function TesoreriaView() {
       </div>
 
       {/* Banner de error (distingue "backend caído / no deployado" de "vacío real") */}
+      {/* Aunesa caído: la vista SIGUE sirviendo lo cargado a mano (saldos, cheques,
+          mercados, banco a banco, registros, VEPs). Lo que falta son los
+          movimientos del día, así que los saldos están incompletos y hay que
+          decirlo — no dejar que se lea como "hoy no hubo movimientos". */}
+      {data && data.aunesa_ok === false && (
+        <div className="px-3 py-2 border border-[#eab308] bg-[#eab308]/10 text-[11px] text-[#eab308] shrink-0">
+          <b>Aunesa no responde.</b> Se muestra todo lo cargado a mano (saldos, cheques,
+          mercados, banco a banco, registros y VEPs), pero <b>faltan los movimientos del
+          día</b>: los ingresos, los egresos y el saldo final están incompletos.
+          <div className="text-[9px] text-[var(--t-text-dim)] mt-0.5 font-mono">
+            {data.aunesa_error}
+          </div>
+        </div>
+      )}
+
       {err && (
         <div className="mx-3 mt-2 px-3 py-2 border border-[var(--t-neg)] bg-[var(--t-neg)]/10 text-[11px] text-[var(--t-neg)] shrink-0">
           Error al consultar Tesorería: {err}
