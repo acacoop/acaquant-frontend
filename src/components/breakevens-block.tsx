@@ -80,6 +80,14 @@ function fmtPeriodoMensual(yyyy_mm: string): string {
 function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: number; ticks: number[] } {
   if (!isFinite(min) || !isFinite(max)) return { min: 0, max: 1, ticks: [0, 1] };
   if (min === max) return { min: min - 1, max: max + 1, ticks: [min - 1, min, min + 1] };
+  // RESPIRO antes de redondear: sin esto, cuando el mínimo del dato cae justo en un
+  // múltiplo del paso, el eje arranca exactamente ahí y la curva queda APOYADA sobre
+  // el eje X — ilegible, y peor todavía en un screenshot para un cliente (reporte
+  // 2026-08-09, gráfico REM). Un 8% del rango a cada lado deja las curvas flotando
+  // dentro del área del gráfico sin distorsionar la escala.
+  const respiro = (max - min) * 0.08;
+  min -= respiro;
+  max += respiro;
   const range = max - min;
   const roughStep = range / Math.max(1, maxTicks - 1);
   const pow10 = Math.pow(10, Math.floor(Math.log10(roughStep)));
