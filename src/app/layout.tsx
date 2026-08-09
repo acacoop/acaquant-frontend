@@ -4,6 +4,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { AnuncioChicagoModal } from "@/components/anuncio-chicago-modal";
 import { AnuncioDiferenciasDiariasModal } from "@/components/anuncio-diferencias-diarias-modal";
 import { AnuncioDolarFuturoModal } from "@/components/anuncio-dolar-futuro-modal";
+import { SaludAlertasModal } from "@/components/salud-alertas-modal";
 import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { Header } from "@/components/header";
@@ -60,7 +61,12 @@ export default async function RootLayout({
       </head>
       <body className="h-full flex flex-col">
         <Header modules={modules} />
+
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+
+        {/* SALUD: avisa al admin cuando algo se rompe, en vez de esperar a que
+            entre a mirar. Solo se abre ante una transición NUEVA sin ver. */}
+        <SaludAlertasModal />
 
         {/* Anuncio de lanzamiento de la nueva vista RESEARCH (solo 20-21 jul 2026). */}
         <AnuncioResearchModal />

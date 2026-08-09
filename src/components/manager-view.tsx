@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { SaludPanel } from "@/components/manager-salud-panel";
 import { ControlesPanel } from "./manager-controles-panel";
 import { IaPanel } from "./manager-ia-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
@@ -305,8 +306,10 @@ function LatenciaPanel() {
 // (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
 // el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
 function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
-  const [subRaw, setSub] = usePersistedState<"controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
-    "manager.obs.sub", "controles");
+  const [subRaw, setSub] = usePersistedState<"salud" | "controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
+    // SALUD es el default: es la pantalla que responde "¿está todo bien?". Las demás
+    // pasan a ser el DETALLE al que se llega cuando algo está roto.
+    "manager.obs.sub", "salud");
   // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
   // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
   // al rol, no dejar la tab clavada en contenido inaccesible.
@@ -331,6 +334,7 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
         <span className={GROUP_TITLE}>OBSERVABILIDAD</span>
+        <Pill label="SALUD" active={sub === "salud"} onClick={() => setSub("salud")} />
         <Pill
           label={`CONTROLES${anomalias ? ` !${anomalias}` : ""}`}
           active={sub === "controles"}
@@ -343,6 +347,7 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
+        {sub === "salud"       && <SaludPanel />}
         {sub === "controles"   && <ControlesPanel goTo={(t) => goTo(t as Tab)} />}
         {sub === "diagnostico" && <DiagnosticoGroup />}
         {sub === "jobs"        && <JobsGroup />}
