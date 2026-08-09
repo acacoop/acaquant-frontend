@@ -1468,10 +1468,19 @@ function TabRentaVariable() {
 // (edición maestro). Gate fino: INSTRUMENTOS → manager_instrumentos;
 // ASSETS/ONs/BONOS/RENTA VARIABLE → manager_titulos.
 // Así asistente_comercial (manager_instrumentos) ve solo Instrumentos.
-// BREAKEVENS: curaduría de pares Lecap↔CER. El motor los empareja solo (vto más
-// cercano) y a veces se equivoca (par con BE absurdo). Acá se EXCLUYE el par malo
-// → desaparece de la vista de Renta Fija al instante (el reader lo filtra; el motor
-// no se toca). Reincluir lo vuelve a mostrar.
+// BREAKEVENS: curaduría de pares Lecap↔CER, partida al 50%.
+//
+// IZQUIERDA — los pares. El motor los empareja solo (CER de vto más cercano) y a
+// veces se equivoca (par con BE absurdo) o directamente no arma uno que interesa.
+// Dos acciones, las dos con efecto instantáneo en Renta Fija sin tocar el motor:
+//   · EXCLUIR un par malo → el reader lo filtra al leer.
+//   · "+" AGREGAR un par manual (elegís Lecap y CER a mano) → el BE se calcula en
+//     la lectura con la misma función del motor. Fila marcada ✎.
+//
+// DERECHA — el diagnóstico de cobertura: por qué CADA bono tasa_fija del master
+// entra o no entra a la matriz. Es el mismo dato que imprime
+// `scripts/diag_breakevens_cobertura.py` (los dos leen el mismo endpoint), para
+// no tener que entrar al Droplet a contestar "¿por qué no aparece este bono?".
 interface BePar {
   lecap: string;
   cer: string;
@@ -1479,11 +1488,233 @@ interface BePar {
   dias?: number;
   breakeven_mensual?: number;
   excluido: boolean;
+  manual?: boolean;
+}
+
+interface BeCandidato {
+  ticker_corto: string;
+  fecha_vencimiento: string | null;
+  dias: number | null;
+  apto: boolean;
+}
+
+interface BeDiagFila {
+  lecap: string | null;
+  vto: string | null;
+  cer: string | null;
+  diff: number | null;
+  dias: number | null;
+  estado: string;
+  motivo: string;
+}
+
+interface BeDiag {
+  hoy: string;
+  ultimo_ipc: string | null;
+  max_diff_dias: number;
+  min_dias_plazo: number;
+  master: Record<string, { n: number; vto_max: string | null; emision_max: string | null }>;
+  filas: BeDiagFila[];
+  n_par: number;
+  n_lecaps: number;
+  cer_sin_par: string[];
+  publicado: {
+    fecha: string | null;
+    updated_at: string | null;
+    n_pares: number;
+    n_con_be: number;
+    sin_be: { lecap: string; cer: string; falta: string[] }[];
+  };
 }
 
 function fmtBe(n: number | undefined): string {
   if (n === null || n === undefined || !isFinite(n)) return "--";
   return `${(n * 100).toFixed(2)}%`;
+}
+
+// El '+': dos listas (tasa_fija | CER) para elegir una de cada lado. No hay
+// tolerancia de días acá a propósito — el motor ya filtra por ±20d y justamente
+// esto existe para armar los pares que ese filtro deja afuera.
+function BeAgregarManual({ onHecho }: { onHecho: () => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const [cands, setCands] = useState<{ tasa_fija: BeCandidato[]; cer: BeCandidato[] } | null>(null);
+  const [lecap, setLecap] = useState("");
+  const [cer, setCer] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!abierto || cands) return;
+    let alive = true;
+    fetch("/api/manager/breakevens/candidatos")
+      .then((r) => r.json())
+      .then((d) => { if (alive) setCands({ tasa_fija: d.tasa_fija || [], cer: d.cer || [] }); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [abierto, cands]);
+
+  const guardar = async () => {
+    if (!lecap || !cer) return;
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch("/api/manager/breakevens/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lecap, cer, agregar: true }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d?.detail || `HTTP ${r.status}`);
+      }
+      setLecap(""); setCer(""); setAbierto(false);
+      onHecho();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "no se pudo guardar");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const opt = (c: BeCandidato) => (
+    <option key={c.ticker_corto} value={c.ticker_corto}>
+      {c.ticker_corto} · {c.fecha_vencimiento || "sin vto"}
+      {c.dias !== null ? ` (${c.dias}d)` : ""}{c.apto ? "" : " ⚠ sin dato"}
+    </option>
+  );
+
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)}
+        className={_onInput + " w-auto"} title="Agregar un par Lecap↔CER a mano">
+        + par manual
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <select value={lecap} onChange={(e) => setLecap(e.target.value)}
+        className={_onInput + " w-auto"} aria-label="Lecap/Boncap">
+        <option value="">— tasa fija —</option>
+        {(cands?.tasa_fija || []).map(opt)}
+      </select>
+      <span className="text-[11px] text-[var(--t-text-dim)]">↔</span>
+      <select value={cer} onChange={(e) => setCer(e.target.value)}
+        className={_onInput + " w-auto"} aria-label="CER">
+        <option value="">— CER —</option>
+        {(cands?.cer || []).map(opt)}
+      </select>
+      <button type="button" disabled={!lecap || !cer || busy} onClick={guardar}
+        className={_onInput + " w-auto font-semibold"}>
+        {busy ? "…" : "agregar"}
+      </button>
+      <button type="button" onClick={() => { setAbierto(false); setErr(""); }}
+        className={_onInput + " w-auto"}>cancelar</button>
+      {err && <span className="text-[10px] text-red-500">{err}</span>}
+    </div>
+  );
+}
+
+// Panel derecho: la cobertura. Un bono que no aparece en Renta Fija cae siempre
+// en uno de estos motivos — mostrarlos evita el "¿está roto el motor o nadie dio
+// de alta el bono?".
+function BeDiagnostico() {
+  const [d, setD] = useState<BeDiag | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [soloFuera, setSoloFuera] = useState(true);
+
+  const correr = useCallback(() => {
+    setLoading(true);
+    fetch("/api/manager/breakevens/diagnostico")
+      .then((r) => r.json())
+      .then((x: BeDiag) => setD(x))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/manager/breakevens/diagnostico")
+      .then((r) => r.json())
+      .then((x: BeDiag) => { if (alive) setD(x); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const filas = useMemo(
+    () => (d?.filas || []).filter((f) => (soloFuera ? f.estado !== "PAR" : true)),
+    [d, soloFuera],
+  );
+
+  return (
+    <div className="min-h-0 overflow-auto">
+      <div className="flex items-center flex-wrap gap-2 mb-2">
+        <span className={GROUP_TITLE}>COBERTURA</span>
+        <button type="button" onClick={correr} className={_onInput + " w-auto"}>↻</button>
+        <label className="flex items-center gap-1 text-[11px] text-[var(--t-text-dim)]">
+          <input type="checkbox" checked={soloFuera} onChange={(e) => setSoloFuera(e.target.checked)} />
+          solo los que NO entran
+        </label>
+        {loading && <span className="text-[10px] text-[var(--t-text-muted)]">corriendo…</span>}
+      </div>
+
+      {d && (
+        <>
+          <p className="text-[11px] text-[var(--t-text-dim)] mb-2">
+            {d.n_par} pares de {d.n_lecaps} bonos tasa fija · tolerancia ±{d.max_diff_dias}d ·
+            plazo mínimo {d.min_dias_plazo}d · último IPC {d.ultimo_ipc || "--"}
+          </p>
+
+          <div className="text-[11px] mb-2">
+            <span className="text-[var(--t-text-dim)]">Master: </span>
+            {Object.entries(d.master).map(([curva, m]) => (
+              <span key={curva} className="mr-2">
+                {curva} <b className="tabular-nums">{m.n}</b>
+                <span className="text-[var(--t-text-muted)]"> (vto máx {m.vto_max || "--"})</span>
+              </span>
+            ))}
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>Lecap</th><th>Vto</th><th>CER</th><th>Estado</th><th>Motivo</th></tr>
+            </thead>
+            <tbody>
+              {filas.map((f) => (
+                <tr key={`${f.lecap}|${f.vto}`}>
+                  <td className="font-semibold">{f.lecap || "?"}</td>
+                  <td className="tabular-nums">{f.vto || "--"}</td>
+                  <td>{f.cer || "--"}</td>
+                  <td className={f.estado === "PAR" ? "" : "text-amber-500"}>{f.estado}</td>
+                  <td className="text-[10px] text-[var(--t-text-dim)]">{f.motivo}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filas.length === 0 && (
+            <p className="text-[11px] text-[var(--t-text-muted)] mt-2">
+              Todos los bonos tasa fija del master entran a la matriz.
+            </p>
+          )}
+
+          {d.cer_sin_par.length > 0 && (
+            <p className="text-[11px] text-[var(--t-text-dim)] mt-2">
+              <b>CER sin par:</b> {d.cer_sin_par.join(", ")} — candidatos para el “+ par manual”.
+            </p>
+          )}
+
+          <p className="text-[11px] text-[var(--t-text-dim)] mt-3">
+            <b>Publicado:</b> {d.publicado.fecha || "sin datos"} · {d.publicado.n_pares} pares
+            ({d.publicado.n_con_be} con BE) · actualizado {d.publicado.updated_at || "--"}
+          </p>
+          {d.publicado.sin_be.map((s) => (
+            <p key={`${s.lecap}|${s.cer}`} className="text-[10px] text-amber-500">
+              {s.lecap} ↔ {s.cer} — falta {s.falta.join(", ") || "revisar rango del BE"}
+            </p>
+          ))}
+        </>
+      )}
+    </div>
+  );
 }
 
 function TabBreakevens() {
@@ -1539,53 +1770,86 @@ function TabBreakevens() {
     }
   };
 
+  // Borrar un par MANUAL es distinto de excluir uno del motor: el manual no
+  // existe sin la fila, así que se elimina en vez de ocultarse.
+  const borrarManual = async (p: BePar) => {
+    const key = `${p.lecap}|${p.cer}`;
+    setBusy((b) => ({ ...b, [key]: true }));
+    try {
+      const r = await fetch("/api/manager/breakevens/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lecap: p.lecap, cer: p.cer, agregar: false }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setPares((prev) => prev.filter((x) => !(x.lecap === p.lecap && x.cer === p.cer)));
+    } catch {
+      /* si falló, el ↻ lo vuelve a traer */
+    } finally {
+      setBusy((b) => ({ ...b, [key]: false }));
+    }
+  };
+
   return (
-    <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[11px] text-[var(--t-text-dim)]">
-          {pares.length} pares que arma el motor · {nExcl} excluidos · excluir un par lo oculta de Renta Fija al instante
-        </span>
-        <button type="button" onClick={fetchPares} className={_onInput + " w-auto"}>↻</button>
-      </div>
-      <table>
-        <thead>
-          <tr><th>Lecap/Boncap</th><th>CER</th><th>IPC mes</th><th>Días</th><th>BE mensual</th><th></th></tr>
-        </thead>
-        <tbody>
-          {pares.map((p) => {
-            const key = `${p.lecap}|${p.cer}`;
-            const beRoto = p.breakeven_mensual !== undefined && (p.breakeven_mensual < 0 || p.breakeven_mensual > 0.15);
-            return (
-              <tr key={key} className={p.excluido ? "opacity-40" : ""}>
-                <td className="font-semibold">{p.lecap}</td>
-                <td>{p.cer}</td>
-                <td className="tabular-nums">{p.mes_inflacion || "--"}</td>
-                <td className="tabular-nums text-right">{p.dias ?? "--"}</td>
-                <td className={"tabular-nums text-right " + (beRoto ? "text-red-500 font-semibold" : "")}>
-                  {fmtBe(p.breakeven_mensual)}
-                </td>
-                <td className="text-right">
-                  <button
-                    type="button"
-                    disabled={busy[key]}
-                    onClick={() => toggle(p)}
-                    className={_onInput + " w-auto text-[10px]"}
-                    title={p.excluido ? "Volver a mostrar este par" : "Ocultar este par de Renta Fija"}
-                  >
-                    {busy[key] ? "…" : p.excluido ? "incluir" : "excluir"}
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
-      {!loading && pares.length === 0 && (
-        <p className="text-[11px] text-[var(--t-text-muted)] mt-2">
-          Sin pares — ¿el motor de breakevens está corriendo?
+    <div className="h-full min-h-0 p-3 grid grid-cols-1 xl:grid-cols-2 gap-4 items-start overflow-auto">
+      {/* ── IZQUIERDA: los pares (motor + manuales) ── */}
+      <div className="min-h-0 overflow-auto">
+        <div className="flex items-center flex-wrap gap-2 mb-2">
+          <span className={GROUP_TITLE}>PARES</span>
+          <button type="button" onClick={fetchPares} className={_onInput + " w-auto"}>↻</button>
+          <BeAgregarManual onHecho={fetchPares} />
+        </div>
+        <p className="text-[11px] text-[var(--t-text-dim)] mb-2">
+          {pares.length} pares · {nExcl} excluidos · excluir un par lo oculta de Renta Fija
+          al instante; los ✎ los agregaste a mano y el motor no los conoce
         </p>
-      )}
+        <table>
+          <thead>
+            <tr><th>Lecap/Boncap</th><th>CER</th><th>IPC mes</th><th>Días</th><th>BE mensual</th><th></th></tr>
+          </thead>
+          <tbody>
+            {pares.map((p) => {
+              const key = `${p.lecap}|${p.cer}`;
+              const beRoto = p.breakeven_mensual !== undefined && (p.breakeven_mensual < 0 || p.breakeven_mensual > 0.15);
+              return (
+                <tr key={key} className={p.excluido ? "opacity-40" : ""}>
+                  <td className="font-semibold">
+                    {p.manual && <span title="par manual" className="mr-1">✎</span>}{p.lecap}
+                  </td>
+                  <td>{p.cer}</td>
+                  <td className="tabular-nums">{p.mes_inflacion || "--"}</td>
+                  <td className="tabular-nums text-right">{p.dias ?? "--"}</td>
+                  <td className={"tabular-nums text-right " + (beRoto ? "text-red-500 font-semibold" : "")}>
+                    {fmtBe(p.breakeven_mensual)}
+                  </td>
+                  <td className="text-right">
+                    <button
+                      type="button"
+                      disabled={busy[key]}
+                      onClick={() => (p.manual ? borrarManual(p) : toggle(p))}
+                      className={_onInput + " w-auto text-[10px]"}
+                      title={p.manual
+                        ? "Borrar este par manual"
+                        : p.excluido ? "Volver a mostrar este par" : "Ocultar este par de Renta Fija"}
+                    >
+                      {busy[key] ? "…" : p.manual ? "borrar" : p.excluido ? "incluir" : "excluir"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {loading && <p className="text-[11px] text-[var(--t-text-muted)] mt-2">cargando…</p>}
+        {!loading && pares.length === 0 && (
+          <p className="text-[11px] text-[var(--t-text-muted)] mt-2">
+            Sin pares — ¿el motor de breakevens está corriendo?
+          </p>
+        )}
+      </div>
+
+      {/* ── DERECHA: por qué un bono entra o no entra ── */}
+      <BeDiagnostico />
     </div>
   );
 }
