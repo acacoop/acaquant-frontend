@@ -28,7 +28,7 @@ const INPUT = "w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] px
   "text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
 
 export function AbmModal({
-  titulo, ayuda, campos, filas, onAlta, onGuardar, onBaja, onCerrar,
+  titulo, ayuda, campos, filas, onAlta, onGuardar, onBaja, textoBaja = "baja", onCerrar,
 }: {
   titulo: string;
   ayuda?: string;
@@ -37,6 +37,7 @@ export function AbmModal({
   onAlta: (v: Record<string, string>) => Promise<string | null>;      // null = OK
   onGuardar: (f: AbmFila, v: Record<string, string>) => Promise<string | null>;
   onBaja?: (f: AbmFila) => Promise<string | null>;
+  textoBaja?: string;
   onCerrar: () => void;
 }) {
   const [editId, setEditId] = useState<string | null>(null);
@@ -154,7 +155,7 @@ export function AbmModal({
                           className="text-[9px] text-[var(--t-accent)] hover:underline">editar</button>
                         {onBaja && (
                           <button disabled={busy} onClick={() => correr(() => onBaja(f))}
-                            className="ml-2 text-[9px] text-[var(--t-neg)] hover:underline disabled:opacity-40">baja</button>
+                            className="ml-2 text-[9px] text-[var(--t-neg)] hover:underline disabled:opacity-40">{textoBaja}</button>
                         )}
                       </>
                     )}

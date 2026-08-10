@@ -21,9 +21,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ path?: s
 async function _write(req: Request, path: string[] | undefined,
                       method: "PUT" | "POST" | "DELETE") {
   const sub = path?.length ? `/${path.join("/")}` : "";
+  // El DELETE no lleva body: su clave viaja en la query (ej. borrar un banco por
+  // nombre + moneda), así que hay que reenviarla.
+  const search = new URL(req.url).search;
   try {
     const body = method === "DELETE" ? undefined : await req.text();
-    const data = await apiFetch<unknown>(`/api/back-office/tesoreria${sub}`, { method, body });
+    const data = await apiFetch<unknown>(`/api/back-office/tesoreria${sub}${search}`, { method, body });
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown error";

@@ -544,9 +544,12 @@ function Filtro({ label, value, onChange, opciones }: {
 // descubre solo (un banco aparece cuando opera por primera vez), pero hace falta
 // poder darlo de alta antes de que opere y, sobre todo, cargarle el NÚMERO DE
 // CUENTA — que Aunesa no manda. Solo para quien tiene permiso de escritura; toda
-// alta/edición queda en operaciones.tesoreria_audit.
+// alta/edición/borrado queda en operaciones.tesoreria_audit.
 function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => void }) {
   const [abierto, setAbierto] = useState(false);
+  // Los dados de baja no se listan: el ABM tiene que mostrar el catálogo VIGENTE.
+  // Para revivir uno alcanza con darlo de alta otra vez con el mismo nombre.
+  const vigentes = useMemo(() => filas.filter((c) => c.activa), [filas]);
 
   const post = async (metodo: "POST" | "PUT", body: unknown): Promise<string | null> => {
     try {
@@ -554,6 +557,26 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
         method: metodo, headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}));
+        return String(b?.error ?? b?.detail ?? `HTTP ${r.status}`);
+      }
+      onCambio();
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  };
+
+  const borrar = async (cuenta: string, unidad: string): Promise<string | null> => {
+    if (!window.confirm(`¿Borrar «${cuenta}» [${unidad}] del catálogo de bancos?\n\n`
+      + "Si ya tiene saldos, cheques o movimientos cargados no se borra la fila: "
+      + "se da de baja y deja de aparecer en la grilla (los históricos se conservan).")) {
+      return null;
+    }
+    const qs = new URLSearchParams({ cuenta_operativa: cuenta, unidad });
+    try {
+      const r = await fetch(`/api/back-office/tesoreria/cuentas?${qs}`, { method: "DELETE" });
       if (!r.ok) {
         const b = await r.json().catch(() => ({}));
         return String(b?.error ?? b?.detail ?? `HTTP ${r.status}`);
@@ -574,7 +597,7 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
       {abierto && (
         <AbmModal
           titulo="Catálogo de bancos"
-          ayuda="La moneda es parte de la clave: no se edita (dá de alta otro banco). Renombrar arrastra los saldos, cheques y movimientos ya cargados. El Nº Hygirus se guarda pero NO se muestra en la grilla."
+          ayuda="La moneda es parte de la clave: no se edita (dá de alta otro banco). Renombrar arrastra los saldos, cheques y movimientos ya cargados. El Nº Hygirus se guarda pero NO se muestra en la grilla. BORRAR saca el banco de la grilla: la fila se elimina si nunca se usó, y si tiene históricos queda dada de baja (no se pierde nada)."
           campos={[
             { key: "cuenta_operativa", label: "Cuenta operativa", ancho: "w-[34%]",
               placeholder: "como figura en el banco…" },
@@ -583,7 +606,7 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
             { key: "unidad", label: "Moneda", ancho: "w-[12%]", opciones: ["ARS", "USD"],
               soloAlta: true },
           ]}
-          filas={filas.map((c) => ({
+          filas={vigentes.map((c) => ({
             _id: `${c.cuenta_operativa}|${c.unidad}`,
             cuenta_operativa: c.cuenta_operativa,
             numero_cuenta: c.numero_cuenta ?? "",
@@ -600,6 +623,8 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
             nuevo_nombre: v.cuenta_operativa, numero_cuenta: v.numero_cuenta || null,
             numero_hygirus: v.numero_hygirus || null,
           })}
+          onBaja={(f) => borrar(f.cuenta_operativa, f.unidad)}
+          textoBaja="borrar"
           onCerrar={() => setAbierto(false)} />
       )}
     </>
