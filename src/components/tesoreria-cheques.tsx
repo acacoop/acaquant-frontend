@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Back Office → Tesorería → tab CHEQUES. Pantalla partida 50/50:
@@ -14,10 +14,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *               con FECHA DE PAGO futura va PINTADO DE NARANJA. Estados
  *               pendiente | emitido | COMPLETADO; completado lo saca de la vista
  *               (la fila no se borra: queda en la tabla para auditoría).
- *               El TOTAL del tablero es lo que IMPACTA HOY: un `emitido` con fecha de
- *               pago FUTURA todavía no movió plata y no suma (se muestra aparte, como
- *               "futuros", y entra solo cuando llega el día). Los vencidos sí cuentan
- *               — puede tocar pagarlos hoy —, y los `pendiente` también.
+ *               El título NO lleva total: un número solo no puede resumir un tablero
+ *               que mezcla estados, fechas y monedas. Se abre VER CONSOLIDADO, que
+ *               suma por banco y moneda separando vencidos / de hoy / futuros /
+ *               pendientes / sin fecha, y marca cuánto de eso IMPACTA EN BANCOS.
  *   RECIBIDOS — son TODOS DEL DÍA: se registran intradía y no se arrastran, así
  *               que sí siguen la fecha de la barra. Estados pendiente |
  *               FINALIZADO, y los finalizados se ven igual porque son los que
@@ -157,17 +157,12 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
   const [alta, setAlta] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [consolidado, setConsolidado] = useState(false);
   const esEmitido = lado === "emitido";
-  // EMITIDOS: el total es lo que IMPACTA HOY — los que ya están emitidos con fecha de
-  // pago futura todavía no movieron plata, así que no suman (siguen a la vista, en
-  // naranja, y entran solos cuando llega el día). Los `pendiente` sí cuentan siempre:
-  // están por salir. Los vencidos (fecha anterior) también, porque puede tocar pagarlos
-  // hoy. RECIBIDOS son todos del día: el total es simplemente la suma.
-  const futuro = (f: Cheque) =>
-    esEmitido && f.estado === "emitido" && !!f.fecha_pago && !!hoy && f.fecha_pago > hoy;
-  const total = filas.reduce((a, f) => a + (futuro(f) ? 0 : f.importe), 0);
-  const diferido = filas.reduce((a, f) => a + (futuro(f) ? f.importe : 0), 0);
-  const nDiferido = filas.filter(futuro).length;
+  // RECIBIDOS son todos del día: el total es simplemente la suma, y va en el título.
+  // EMITIDOS NO llevan total en el título: un solo número no puede resumir un tablero
+  // que mezcla estados, fechas y monedas — se abre el CONSOLIDADO, que los separa.
+  const total = filas.reduce((a, f) => a + f.importe, 0);
   const nCols = 4 + (esEmitido ? 2 : 1) + (editable ? 1 : 0);
 
   // Cambio de estado desde la celda: un PUT y a recargar. Si el estado cierra,
@@ -194,17 +189,14 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
     <Panel titulo={`${titulo} · ${filas.length}`}
       extra={
         <span className="flex items-center gap-2 normal-case">
-          <span className="text-[10px] tabular-nums"
-            title={esEmitido ? "Impacta hoy: emitidos con fecha de pago vencida o de hoy, más los pendientes" : undefined}>
-            {fmt(total)}
-          </span>
-          {/* Lo diferido no se esconde: se muestra aparte para que se vea que existe
-              y que NO está dentro del número de arriba. */}
-          {nDiferido > 0 && (
-            <span className="text-[9px] tabular-nums text-white/70"
-              title={`${nDiferido} emitidos con fecha de pago futura — todavía no impactan`}>
-              +{fmt(diferido)} futuros
-            </span>
+          {esEmitido ? (
+            <button onClick={() => setConsolidado(true)}
+              title="Sumatoria por banco y moneda, separada por vencidos / de hoy / futuros / pendientes"
+              className="text-[9px] uppercase tracking-widest border border-white/40 px-1.5 py-0.5 hover:bg-white/10">
+              ver consolidado
+            </button>
+          ) : (
+            <span className="text-[10px] tabular-nums">{fmt(total)}</span>
           )}
           {editable && (
             <button onClick={() => { setAlta((v) => !v); setEditId(null); }}
@@ -214,6 +206,9 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
           )}
         </span>
       }>
+      {consolidado && (
+        <ModalConsolidado filas={filas} hoy={hoy} onCerrar={() => setConsolidado(false)} />
+      )}
       {err && <div className="px-2 py-1 text-[10px] text-[var(--t-neg)]">{err}</div>}
       {alta && (
         <FormCheque lado={lado} bancos={bancos} estados={estados} tipos={tipos}
@@ -288,6 +283,173 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
         </div>
       )}
     </Panel>
+  );
+}
+
+
+// CONSOLIDADO de EMITIDOS: la sumatoria por banco, separada en los grupos que el back
+// office necesita distinguir para auditar. Reemplaza al total suelto que había en el
+// título, que mezclaba estados, fechas y —peor— MONEDAS en un mismo número.
+//
+// El corte que importa es `IMPACTA EN BANCOS` = vencidos + de hoy: es EXACTAMENTE lo
+// que el backend manda a la fila `egresos_echeq` de la grilla BANCOS (`estado='emitido'`
+// y `fecha_pago <= día`). Los pendientes y los sin fecha se muestran aparte justamente
+// porque NO restan del saldo, y verlos al lado es lo que evita la discusión de por qué
+// un cheque "está" pero el banco no lo siente.
+const GRUPOS = [
+  { k: "vencido", t: "Vencidos", d: "emitidos con fecha de pago anterior a hoy" },
+  { k: "hoy", t: "De hoy", d: "emitidos que se pagan hoy" },
+  { k: "futuro", t: "Futuros", d: "emitidos con fecha de pago posterior a hoy — todavía no impactan" },
+  { k: "pendiente", t: "Pendientes", d: "todavía no emitidos: NO restan del saldo del banco" },
+  { k: "sin_fecha", t: "Sin fecha", d: "emitidos sin fecha de pago cargada: NO restan del saldo" },
+] as const;
+type Grupo = (typeof GRUPOS)[number]["k"];
+
+const vacio = (): Record<Grupo, { imp: number; n: number }> => ({
+  vencido: { imp: 0, n: 0 }, hoy: { imp: 0, n: 0 }, futuro: { imp: 0, n: 0 },
+  pendiente: { imp: 0, n: 0 }, sin_fecha: { imp: 0, n: 0 },
+});
+
+const grupoDe = (f: Cheque, hoy: string): Grupo => {
+  if (f.estado !== "emitido") return "pendiente";
+  if (!f.fecha_pago) return "sin_fecha";
+  if (!hoy) return "futuro";
+  if (f.fecha_pago < hoy) return "vencido";
+  if (f.fecha_pago > hoy) return "futuro";
+  return "hoy";
+};
+
+function ModalConsolidado({ filas, hoy, onCerrar }: {
+  filas: Cheque[]; hoy: string; onCerrar: () => void;
+}) {
+  // Una fila por banco Y moneda: sumar ARS con USD no es un total, es un número sin
+  // significado. Los subtotales también son por moneda, por eso se agrupa así.
+  const porBanco = useMemo(() => {
+    const m = new Map<string, { banco: string; unidad: string; g: ReturnType<typeof vacio> }>();
+    for (const f of filas) {
+      const unidad = (f.unidad || "ARS").toUpperCase();
+      const clave = `${unidad}|${f.banco}`;
+      let fila = m.get(clave);
+      if (!fila) { fila = { banco: f.banco, unidad, g: vacio() }; m.set(clave, fila); }
+      const g = fila.g[grupoDe(f, hoy)];
+      g.imp += f.importe;
+      g.n += 1;
+    }
+    return [...m.values()].sort((a, b) =>
+      a.unidad.localeCompare(b.unidad) || a.banco.localeCompare(b.banco));
+  }, [filas, hoy]);
+
+  // Una entrada por moneda con sus bancos ya agrupados y su subtotal: así la tabla no
+  // recalcula el subtotal una vez por celda mientras renderiza.
+  const monedas = useMemo(() => {
+    const orden = [...new Set(porBanco.map((f) => f.unidad))];
+    return orden.map((unidad) => {
+      const bancos = porBanco.filter((f) => f.unidad === unidad);
+      const acc = vacio();
+      for (const f of bancos) {
+        for (const { k } of GRUPOS) { acc[k].imp += f.g[k].imp; acc[k].n += f.g[k].n; }
+      }
+      return { unidad, bancos, subtotal: acc };
+    });
+  }, [porBanco]);
+
+  const impacta = (g: ReturnType<typeof vacio>) => g.vencido.imp + g.hoy.imp;
+  const totalFila = (g: ReturnType<typeof vacio>) =>
+    GRUPOS.reduce((a, { k }) => a + g[k].imp, 0);
+
+  const celda = (k: string, v: { imp: number; n: number }) => (
+    <td key={k} className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
+      {v.n ? (
+        <>
+          {fmt(v.imp)}
+          <span className="text-[9px] text-[var(--t-text-muted)] ml-1">({v.n})</span>
+        </>
+      ) : <span className="text-[var(--t-text-muted)]">—</span>}
+    </td>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onCerrar}>
+      <div className="w-full max-w-[1100px] max-h-[85vh] flex flex-col bg-[var(--t-panel)] border border-[var(--t-border-2)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="px-3 py-2 bg-[#094293] text-white flex items-center gap-2 shrink-0">
+          <span className="flex-1 text-[11px] uppercase tracking-widest font-semibold">
+            Cheques emitidos · consolidado por banco
+          </span>
+          <button onClick={onCerrar} className="text-[12px] px-2 hover:opacity-70">✕</button>
+        </div>
+        <div className="px-3 py-1.5 text-[9px] text-[var(--t-text-muted)] border-b border-[var(--t-border)] shrink-0">
+          {filas.length} cheques abiertos · entre paréntesis, la cantidad de cada grupo ·
+          hoy {fechaCorta(hoy)}
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full text-[11px]">
+            <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
+              <tr className="border-b border-[var(--t-border)]">
+                <th className="px-2 py-1.5 text-left font-normal">Banco</th>
+                {GRUPOS.map((g) => (
+                  <th key={g.k} className="px-2 py-1.5 text-right font-normal" title={g.d}>{g.t}</th>
+                ))}
+                <th className="px-2 py-1.5 text-right font-normal border-l border-[var(--t-border-2)]"
+                  title="Vencidos + de hoy: lo que resta del saldo en la grilla BANCOS (fila Egresos e-cheq)">
+                  Impacta en bancos
+                </th>
+                <th className="px-2 py-1.5 text-right font-normal">Total</th>
+              </tr>
+            </thead>
+            {monedas.map(({ unidad, bancos, subtotal }) => (
+              <tbody key={unidad}>
+                <tr className="bg-[var(--t-surface)]">
+                  <td colSpan={GRUPOS.length + 3}
+                    className="px-2 py-1 text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                    {unidad}
+                  </td>
+                </tr>
+                {bancos.map((f) => (
+                  <tr key={f.unidad + f.banco} className="border-b border-[var(--t-border)]">
+                    <td className="px-2 py-1">{f.banco}</td>
+                    {GRUPOS.map((g) => celda(g.k, f.g[g.k]))}
+                    <td className="px-2 py-1 text-right tabular-nums whitespace-nowrap border-l border-[var(--t-border-2)] font-semibold">
+                      {fmt(impacta(f.g))}
+                    </td>
+                    <td className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
+                      {fmt(totalFila(f.g))}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-b-2 border-[var(--t-border-2)] font-semibold">
+                  <td className="px-2 py-1 text-[10px] uppercase tracking-widest">Total {unidad}</td>
+                  {GRUPOS.map((g) => celda(g.k, subtotal[g.k]))}
+                  <td className="px-2 py-1 text-right tabular-nums whitespace-nowrap border-l border-[var(--t-border-2)]">
+                    {fmt(impacta(subtotal))}
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
+                    {fmt(totalFila(subtotal))}
+                  </td>
+                </tr>
+              </tbody>
+            ))}
+            {!porBanco.length && (
+              <tbody>
+                <tr><td colSpan={GRUPOS.length + 3}
+                  className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                  sin cheques emitidos abiertos
+                </td></tr>
+              </tbody>
+            )}
+          </table>
+        </div>
+
+        <div className="px-3 py-2 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)] shrink-0 leading-relaxed">
+          <b>Impacta en bancos</b> = vencidos + de hoy. Es lo que el backend resta en la fila
+          <b> Egresos e-cheq</b> de la grilla BANCOS, banco por banco. Los <b>futuros</b> entran
+          solos cuando llega su fecha. Los <b>pendientes</b> y los <b>sin fecha</b> NO restan del
+          saldo: figuran acá para que se vea que existen.
+        </div>
+      </div>
+    </div>
   );
 }
 
