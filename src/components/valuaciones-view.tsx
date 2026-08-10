@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { DownloadButton } from "@/components/download-button";
+import { PosicionDetalle, type PnLRow } from "@/components/pnl-titulos-view";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
 import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
@@ -75,6 +76,11 @@ interface Posicion {
   precio: number;
   valuacion: number;
   share: number | null;
+  // Cost-basis del motor de PnL (null si la tenencia es histórica o el
+  // título no tiene boletos). Los calcula el backend, ver `_enriquecer_con_pnl`.
+  costo: number | null;
+  pnl: number | null;
+  gan_pct: number | null;
 }
 
 // Mismo mapeo que aum-view.tsx — paleta consistente entre vistas.
@@ -131,6 +137,10 @@ interface PosicionesResp {
   posiciones: Posicion[];
   total: number;
   n: number;
+  pnl_disponible: boolean;
+  costo_total: number;
+  pnl_total: number;
+  pnl_detalle: Record<string, PnLRow>;   // por `unidad` — alimenta AUDITORÍA
 }
 
 interface Movimiento {
@@ -187,6 +197,44 @@ interface VariacionResp {
 }
 
 interface Props { idCuenta: string; nombreCuenta?: string }
+
+// ── Columnas del PORTFOLIO ────────────────────────────────────────────────
+// El panel ocupa el 60% del ancho, así que casi todas las columnas se pueden
+// ocultar para ganar espacio. TICKER no está en la lista: es la clave de la
+// fila y siempre se muestra. COSTO / PNL / GAN% vienen del motor de PnL
+// Títulos (join por `unidad`) y son SIEMPRE a hoy y en ARS.
+type PortColKey =
+  | "emisor" | "clase" | "cartera" | "calif" | "vto"
+  | "cantidad" | "precio" | "valuacion" | "share"
+  | "costo" | "pnl" | "gan";
+
+const PORT_COLS: {
+  key: PortColKey; label: string; w: string; right?: boolean; title?: string;
+}[] = [
+  { key: "emisor",    label: "Emisor",  w: "13%" },
+  { key: "clase",     label: "Clase",   w: "10%" },
+  { key: "cartera",   label: "Cart.",   w: "6%"  },
+  { key: "calif",     label: "Calif.",  w: "7%"  },
+  { key: "vto",       label: "Vto.",    w: "8%"  },
+  { key: "cantidad",  label: "Cant.",   w: "10%", right: true },
+  { key: "precio",    label: "Precio",  w: "8%",  right: true },
+  { key: "valuacion", label: "Valuac.", w: "10%", right: true },
+  { key: "share",     label: "%",       w: "6%",  right: true },
+  { key: "costo",     label: "Costo",   w: "9%",  right: true,
+    title: "Costo remanente del stock vivo (motor de PnL Títulos, ARS)" },
+  { key: "pnl",       label: "PnL",     w: "9%",  right: true,
+    title: "PnL no realizado + cobros pasivos (ARS, a hoy)" },
+  { key: "gan",       label: "Gan %",   w: "8%",  right: true,
+    title: "PnL / costo remanente" },
+];
+
+const PORT_COLS_DEFAULT: Record<PortColKey, boolean> = {
+  emisor: false, clase: false, cartera: true, calif: false, vto: false,
+  cantidad: true, precio: true, valuacion: true, share: true,
+  costo: true, pnl: true, gan: true,
+};
+
+const PORT_COLS_LS_KEY = "acaquant.carteras.portfolio.cols";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -371,6 +419,37 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   const [moneda, setMoneda] = useState<"ARS" | "USD">("ARS");
   const esUSD = moneda === "USD";
 
+  // PnL por título (motor de PnL Títulos) — lo mergea el backend a las posiciones
+  // (`con_pnl=1`). Solo viene si la tenencia es la de hoy: no hay PnL histórico.
+  // Título seleccionado en el PORTFOLIO → panel de AUDITORÍA (arriba a la der.).
+  const [selectedUnidad, setSelectedUnidad] = useState<string | null>(null);
+  // Columnas visibles del PORTFOLIO (persistidas por navegador).
+  const [colsVis, setColsVis] = useState<Record<PortColKey, boolean>>(PORT_COLS_DEFAULT);
+  const [colMenu, setColMenu] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PORT_COLS_LS_KEY);
+      if (raw) setColsVis({ ...PORT_COLS_DEFAULT, ...JSON.parse(raw) });
+    } catch { /* sin persistencia — se usan los defaults */ }
+  }, []);
+
+  const toggleCol = (k: PortColKey) =>
+    setColsVis((prev) => {
+      const next = { ...prev, [k]: !prev[k] };
+      try {
+        window.localStorage.setItem(PORT_COLS_LS_KEY, JSON.stringify(next));
+      } catch { /* sin persistencia */ }
+      return next;
+    });
+
+  useEffect(() => {
+    if (!colMenu) return;
+    const close = () => setColMenu(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [colMenu]);
+
   // Initial load: serie + mensual son one-shot, posiciones se refetcha al
   // cambiar selectedFecha (handler separado).
   useEffect(() => {
@@ -402,16 +481,18 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
     return () => { cancelled = true; };
   }, [idCuenta]);
 
-  // Posiciones — refetcha cuando cambia idCuenta o selectedFecha.
+  // Posiciones (+ cost-basis y PnL, que resuelve el backend) — refetcha cuando
+  // cambia idCuenta o selectedFecha.
   useEffect(() => {
     let cancelled = false;
+    setSelectedUnidad(null);
     (async () => {
       setPosLoading(true);
       try {
         const base = `/api/valuaciones/${encodeURIComponent(idCuenta)}`;
         const url = selectedFecha
-          ? `${base}/posiciones-actuales?fecha=${selectedFecha}`
-          : `${base}/posiciones-actuales`;
+          ? `${base}/posiciones-actuales?con_pnl=1&fecha=${selectedFecha}`
+          : `${base}/posiciones-actuales?con_pnl=1`;
         const r = await fetch(url, { cache: "no-store" });
         if (!r.ok) throw new Error(`pos HTTP ${r.status}`);
         const j: PosicionesResp = await r.json();
@@ -430,8 +511,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
     if (!selectedFecha) {
       setMovResp(null);
       return;
-    }
-    let cancelled = false;
+    }    let cancelled = false;
     (async () => {
       setMovLoading(true);
       try {
@@ -522,6 +602,11 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
     [chartDataVisible],
   );
 
+  // El backend dice si el PnL aplica (solo contra la tenencia de hoy).
+  const pnlHabilitado = posResp?.pnl_disponible ?? false;
+  const pnlSel =
+    selectedUnidad ? posResp?.pnl_detalle?.[selectedUnidad] : undefined;
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
@@ -577,14 +662,405 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   const colorDelta = (n: number | null | undefined) =>
     n == null ? "#888" : n >= 0 ? "var(--t-pos)" : "var(--t-neg)";
 
-  return (
-    <div className="h-full flex flex-col gap-3 p-3 overflow-hidden">
+  const colsActivas = PORT_COLS.filter((c) => colsVis[c.key]);
 
-      {/* FILA SUPERIOR: gráfico (50%) + tabla mensual (50%), juntos */}
-      <div className="flex-1 min-h-0 flex gap-3 overflow-hidden">
+  // Cada columna arma su propio <td> (color y alineación propios).
+  const celdaPos = (p: Posicion, c: (typeof PORT_COLS)[number]) => {
+    const base =
+      "px-1 py-0.5 align-top " +
+      (c.right ? "text-right " : "whitespace-normal break-words ");
+    switch (c.key) {
+      case "emisor":
+        return <td key={c.key} className={base + "text-[var(--t-text)]"}>{p.emisor || "—"}</td>;
+      case "clase":
+        return <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>{p.clase_activo || "—"}</td>;
+      case "cartera":
+        return (
+          <td key={c.key} className={base}>
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
+                style={{ background: carteraColor(p.cartera) }}
+              />
+              <span style={{ color: carteraColor(p.cartera) }}>{carteraShort(p.cartera)}</span>
+            </span>
+          </td>
+        );
+      case "calif":
+        return <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>{p.calificacion || "—"}</td>;
+      case "vto":
+        return (
+          <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>
+            {p.vencimiento ? fmtFechaCorta(p.vencimiento) : "—"}
+          </td>
+        );
+      case "cantidad":
+        return <td key={c.key} className={base + "text-[var(--t-text)]"}>{fmtQty(p.cantidad)}</td>;
+      case "precio":
+        return <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>{fmtPrice(p.precio)}</td>;
+      case "valuacion":
+        return (
+          <td
+            key={c.key}
+            className={base + "font-semibold"}
+            style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "var(--t-neg)" }}
+          >
+            {fmtCompact(p.valuacion)}
+          </td>
+        );
+      case "share":
+        return (
+          <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>
+            {p.share != null ? p.share.toFixed(1) + "%" : "—"}
+          </td>
+        );
+      case "costo":
+        return (
+          <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>
+            {p.costo != null && p.costo > 0 ? fmtCompact(p.costo) : "—"}
+          </td>
+        );
+      case "pnl":
+        return (
+          <td
+            key={c.key}
+            className={base + "font-semibold"}
+            style={{ color: p.pnl == null ? "#666" : colorDelta(p.pnl) }}
+          >
+            {p.pnl != null ? fmtSigned(p.pnl) : "—"}
+          </td>
+        );
+      case "gan":
+        return (
+          <td key={c.key} className={base} style={{ color: p.gan_pct == null ? "#666" : colorDelta(p.gan_pct) }}>
+            {p.gan_pct != null ? `${p.gan_pct >= 0 ? "+" : ""}${p.gan_pct.toFixed(1)}%` : "—"}
+          </td>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col gap-2 p-2 overflow-hidden">
+
+      {/* FILA SUPERIOR: PORTFOLIO (60%) + AUDITORÍA del título (40%) */}
+      <div className="flex-[1.2] min-h-0 flex gap-2 overflow-hidden">
+
+        {/* PORTFOLIO — tenencia + PnL por título, con tabs Posiciones / Variación */}
+        <div className="w-[60%] min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+          <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-1.5 flex-wrap">
+            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
+              Portfolio
+            </span>
+            <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
+              {!selectedFecha ? "actual" : "histórica"}
+            </span>
+            {/* Buscador por fecha: ver la tenencia a cualquier día con datos. Si
+                ese día no tiene snapshot, el backend resuelve al cierre más
+                cercano anterior (asof) y `ultimoSnap` muestra la fecha real. */}
+            <input
+              type="date"
+              value={selectedFecha ?? ""}
+              onChange={(e) => setSelectedFecha(e.target.value || null)}
+              title="Ver tenencia a una fecha (si no hay dato exacto, usa el cierre más cercano anterior)"
+              className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[9px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
+            />
+            {ultimoSnap && (
+              <span className="text-[9px] text-[var(--t-text-muted)] font-mono"
+                title={selectedFecha && ultimoSnap !== selectedFecha ? "No había dato exacto: cierre más cercano anterior" : undefined}>
+                {selectedFecha && ultimoSnap !== selectedFecha ? "→ " : ""}{fmtFechaCorta(ultimoSnap)}
+              </span>
+            )}
+            {/* Tabs Posiciones / Variación */}
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {(["posiciones", "variacion"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setPortfolioTab(t)}
+                  className={
+                    "px-1.5 py-0.5 text-[9px] uppercase tracking-wider " +
+                    (portfolioTab === t
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                  }
+                  title={t === "variacion" ? "Variación vs mes anterior (requiere mes seleccionado)" : "Posiciones del portfolio"}
+                >
+                  {t === "posiciones" ? "Posic." : "Variac."}
+                </button>
+              ))}
+            </div>
+
+            {/* Selector de columnas — el panel es angosto, casi todo se puede apagar */}
+            {portfolioTab === "posiciones" && (
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setColMenu((v) => !v); }}
+                  title="Mostrar / ocultar columnas"
+                  className={
+                    "px-1.5 py-0.5 text-[9px] uppercase tracking-wider border " +
+                    (colMenu
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+                      : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]")
+                  }
+                >
+                  Col. {colsActivas.length}
+                </button>
+                {colMenu && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute z-40 top-full left-0 mt-1 min-w-[130px] bg-[var(--t-surface)] border border-[var(--t-border-2)] shadow-xl p-1"
+                  >
+                    {PORT_COLS.map((c) => (
+                      <label
+                        key={c.key}
+                        title={c.title}
+                        className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-[var(--t-text-dim)] hover:bg-[var(--t-surface-2)] cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={colsVis[c.key]}
+                          onChange={() => toggleCol(c.key)}
+                          className="accent-[var(--t-accent)] w-2.5 h-2.5"
+                        />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedFecha && (
+              <button
+                onClick={() => setSelectedFecha(null)}
+                className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10"
+                title="Volver a la posición más reciente"
+              >
+                Hoy ×
+              </button>
+            )}
+
+            {(posLoading || (portfolioTab === "variacion" && varLoading)) && (
+              <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>
+            )}
+
+            {/* Download button — exporta posición + flujos (si hay fecha) en hojas */}
+            <DownloadButton
+              className="ml-auto"
+              title={
+                selectedFecha
+                  ? "Descargar Excel (posiciones + flujos del mes en hojas separadas)"
+                  : "Descargar Excel (posición actual con costo y PnL)"
+              }
+              onClick={async () => {
+                const cta = idCuenta;
+                const fechaSnap = ultimoSnap ?? selectedFecha ?? "actual";
+                const sheets: Parameters<typeof exportToXlsx>[0]["sheets"] = [];
+
+                // ── Hoja 1: Posiciones ─────────────────────────────────────
+                if (posiciones.length > 0) {
+                  sheets.push({
+                    name: selectedFecha ? `Posición ${fechaSnap}` : "Posición actual",
+                    title: nombreCuenta
+                      ? `Cuenta: [${cta}] ${nombreCuenta} · ${fechaSnap}`
+                      : `Cuenta: [${cta}] · ${fechaSnap}`,
+                    rows: posiciones.map((p) => ({
+                      ticker:        p.ticker,
+                      emisor:        p.emisor ?? "",
+                      clase_activo:  p.clase_activo ?? "",
+                      cartera:       p.cartera ?? "",
+                      calificacion:  p.calificacion ?? "",
+                      vencimiento:   p.vencimiento ?? "",
+                      cantidad:      p.cantidad,
+                      precio:        p.precio,
+                      valuacion:     p.valuacion,
+                      share:         p.share != null ? p.share : null,  // % directo (no /100)
+                      costo:         p.costo,
+                      pnl:           p.pnl,
+                      gan:           p.gan_pct,
+                    })),
+                    columns: [
+                      { header: "TICKER",       key: "ticker",       format: "text",     width: 14 },
+                      { header: "EMISOR",       key: "emisor",       format: "text",     width: 22 },
+                      { header: "CLASE",        key: "clase_activo", format: "text",     width: 14 },
+                      { header: "CARTERA",      key: "cartera",      format: "text",     width: 14 },
+                      { header: "CALIF.",       key: "calificacion", format: "text",     width: 10 },
+                      { header: "VTO.",         key: "vencimiento",  format: "text",     width: 12 },
+                      { header: "CANTIDAD",     key: "cantidad",     format: "number",   width: 16 },
+                      { header: "PRECIO",       key: "precio",       format: "number",   width: 14 },
+                      { header: "VALUACIÓN",    key: "valuacion",    format: "currency", width: 18 },
+                      { header: "%",            key: "share",        format: "percent",  width: 10 },
+                      { header: "COSTO",        key: "costo",        format: "currency", width: 18 },
+                      { header: "PNL",          key: "pnl",          format: "currency", width: 18 },
+                      { header: "GAN %",        key: "gan",          format: "percent",  width: 10 },
+                    ],
+                  });
+                }
+
+                // ── Hoja 2: Flujos del mes (solo si hay fecha seleccionada) ──
+                if (selectedFecha && movResp && movResp.movimientos.length > 0) {
+                  sheets.push({
+                    name: `Flujos ${movResp.mes}`,
+                    title: `Movimientos de ${fmtMesAnio(movResp.mes)} · [${cta}]`,
+                    rows: movResp.movimientos.map((m) => ({
+                      fecha:        m.fecha,
+                      categoria:    m.categoria,
+                      importe:      m.importe,
+                      moneda:       m.moneda ?? "",
+                      mep_rate:     m.mep_rate,
+                      importe_ars:  m.importe_ars,
+                      op:           m.op ?? "",
+                      ticker:       m.ticker ?? "",
+                      comprobante:  m.comprobante ?? "",
+                      informacion:  m.informacion ?? "",
+                    })),
+                    columns: [
+                      { header: "FECHA",      key: "fecha",       format: "text",     width: 12 },
+                      { header: "TIPO",       key: "categoria",   format: "text",     width: 14 },
+                      { header: "IMPORTE",    key: "importe",     format: "currency", width: 16 },
+                      { header: "MONEDA",     key: "moneda",      format: "text",     width: 8  },
+                      { header: "MEP",        key: "mep_rate",    format: "number",   width: 10 },
+                      { header: "IMPORTE ARS",key: "importe_ars", format: "currency", width: 18 },
+                      { header: "OP",         key: "op",          format: "text",     width: 10 },
+                      { header: "TICKER",     key: "ticker",      format: "text",     width: 14 },
+                      { header: "COMPROBANTE",key: "comprobante", format: "text",     width: 16 },
+                      { header: "DETALLE",    key: "informacion", format: "text",     width: 40 },
+                    ],
+                  });
+                }
+
+                if (sheets.length === 0) return;
+                const sufijoFecha = selectedFecha ?? "actual";
+                await exportToXlsx({
+                  sheets,
+                  filename: `valuaciones-portfolio-${cta}-${sufijoFecha}-${timestampSuffix()}.xlsx`,
+                });
+              }}
+            />
+
+            {/* Header right: posiciones + total + Σ PnL, o Δ total en la tab variación */}
+            <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
+              {portfolioTab === "posiciones"
+                ? <>
+                    {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
+                    {pnlHabilitado && posResp && (
+                      <> · <span className="font-semibold" style={{ color: colorDelta(posResp.pnl_total) }}>{fmtSigned(posResp.pnl_total)}</span></>
+                    )}
+                  </>
+                : varResp?.totales && (
+                    <>Δ total <span className="font-semibold" style={{ color: colorDeltaMod(varResp.totales.delta_total) }}>{fmtSigned(varResp.totales.delta_total)}</span></>
+                  )}
+            </span>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-auto">
+            {portfolioTab === "variacion" ? (
+              !selectedFecha ? (
+                <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] p-4 text-center">
+                  Seleccioná un mes en la tabla mensual para ver la variación vs el mes anterior.
+                </div>
+              ) : (
+                <VariacionTabla varResp={varResp} />
+              )
+            ) : posiciones.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
+                Sin posiciones activas.
+              </div>
+            ) : (
+              <table className="w-full table-fixed text-[10px] font-mono tabular-nums">
+                <colgroup>
+                  <col className="w-[14%]" />
+                  {colsActivas.map((c) => (
+                    <col key={c.key} style={{ width: c.w }} />
+                  ))}
+                </colgroup>
+                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[8px] uppercase tracking-wider text-[var(--t-text-muted)]">
+                  <tr>
+                    <th className="px-1 py-1 text-left align-top border-b border-[var(--t-border)]">Ticker</th>
+                    {colsActivas.map((c) => (
+                      <th
+                        key={c.key}
+                        title={c.title}
+                        className={
+                          "px-1 py-1 align-top border-b border-[var(--t-border)] " +
+                          (c.right ? "text-right" : "text-left")
+                        }
+                      >
+                        {c.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {posiciones.map((p) => {
+                    const uid = p.unidad ?? p.ticker;
+                    const sel = selectedUnidad === uid;
+                    return (
+                      <tr
+                        key={uid}
+                        onClick={() => setSelectedUnidad(sel ? null : uid)}
+                        onContextMenu={(e) => {
+                          if (!_posOperable(p).operable) return; // cash: menú nativo
+                          e.preventDefault();
+                          setCtxMenu({ x: e.clientX, y: e.clientY, pos: p });
+                        }}
+                        title="Click para auditar el título (PnL, flujo y boletos) →"
+                        className={
+                          "border-t border-[var(--t-border)] cursor-pointer " +
+                          (sel ? "bg-[var(--t-accent)]/15" : "hover:bg-[var(--t-surface-2)]")
+                        }
+                      >
+                        <td className="px-1 py-0.5 align-top whitespace-normal break-words text-[var(--t-accent)] font-semibold">
+                          {sel && "▶ "}{p.ticker}
+                        </td>
+                        {colsActivas.map((c) => celdaPos(p, c))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* AUDITORÍA — PnL, flujo y boletos del título elegido en el PORTFOLIO */}
+        <div className="w-[40%] min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+          <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
+            <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
+              Auditoría
+            </span>
+            <span className="text-[9px] text-[var(--t-text-muted)] font-mono truncate">
+              {pnlSel ? (pnlSel.display_name || pnlSel.ticker) : "sin título seleccionado"}
+            </span>
+            {pnlHabilitado && (
+              <span className="ml-auto text-[9px] text-[var(--t-text-dim)] font-mono shrink-0">
+                costo {fmtCompact(posResp?.costo_total ?? 0)}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">
+            {pnlSel ? (
+              <PosicionDetalle row={pnlSel} />
+            ) : (
+              <div className="h-full flex items-center justify-center p-4 text-center text-[11px] text-[var(--t-text-muted)]">
+                {!pnlHabilitado
+                  ? "El PnL por título es siempre a hoy: volvé a la posición actual para auditarlo."
+                  : selectedUnidad
+                    ? "Sin boletos para esta posición — efectivo o tenencia sin movimientos cargados."
+                    : "Elegí un título en el PORTFOLIO para ver su PnL, flujo y boletos."}
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+      {/* FILA INFERIOR: gráfico (60%) + tabla mensual (40%) */}
+      <div className="flex-1 min-h-0 flex gap-2 overflow-hidden">
 
         {/* Chart panel — izquierda (más ancho que la tabla mensual) */}
-        <div className="w-[58%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+        <div className="w-[60%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
             {/* Tabs VALOR / RENDIMIENTO — un solo eje Y por vez */}
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
@@ -746,7 +1222,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         </div>
 
         {/* Tabla mensual compacta — derecha (con flujos inline al seleccionar un mes) */}
-        <div className="w-[42%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+        <div className="w-[40%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Mensual
@@ -959,256 +1435,6 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
           </div>
         </div>
 
-      </div>
-
-      {/* FILA INFERIOR: PORTFOLIO a todo el ancho, con tabs Posiciones / Variación */}
-      <div className="flex-1 min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
-        <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2 flex-wrap">
-          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
-            Portfolio
-          </span>
-          <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
-            {!selectedFecha ? "actual" : "histórica"}
-          </span>
-          {/* Buscador por fecha: ver la tenencia a cualquier día con datos. Si
-              ese día no tiene snapshot, el backend resuelve al cierre más
-              cercano anterior (asof) y `ultimoSnap` muestra la fecha real. */}
-          <input
-            type="date"
-            value={selectedFecha ?? ""}
-            onChange={(e) => setSelectedFecha(e.target.value || null)}
-            title="Ver tenencia a una fecha (si no hay dato exacto, usa el cierre más cercano anterior)"
-            className="bg-[var(--t-panel)] border border-[var(--t-border-2)] px-1 py-0.5 text-[9px] text-[var(--t-text)] font-mono focus:border-[var(--t-accent)] focus:outline-none"
-          />
-          {ultimoSnap && (
-            <span className="text-[9px] text-[var(--t-text-muted)] font-mono"
-              title={selectedFecha && ultimoSnap !== selectedFecha ? "No había dato exacto: cierre más cercano anterior" : undefined}>
-              {selectedFecha && ultimoSnap !== selectedFecha ? "→ " : ""}{fmtFechaCorta(ultimoSnap)}
-            </span>
-          )}
-          {/* Tabs Posiciones / Variación */}
-          <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] ml-1">
-            {(["posiciones", "variacion"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setPortfolioTab(t)}
-                className={
-                  "px-2 py-0.5 text-[9px] uppercase tracking-wider " +
-                  (portfolioTab === t
-                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
-                    : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
-                }
-                title={t === "variacion" ? "Variación vs mes anterior (requiere mes seleccionado)" : "Posiciones del portfolio"}
-              >
-                {t === "posiciones" ? "Posiciones" : "Variación"}
-              </button>
-            ))}
-          </div>
-          {portfolioTab === "variacion" && varLoading && (
-            <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>
-          )}
-
-          {selectedFecha && (
-            <button
-              onClick={() => setSelectedFecha(null)}
-              className="text-[9px] uppercase tracking-wider px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10"
-              title="Volver a la posición más reciente"
-            >
-              Hoy ×
-            </button>
-          )}
-
-          {posLoading && (
-            <span className="text-[9px] text-[var(--t-text-dim)]">cargando…</span>
-          )}
-
-          {/* Download button — exporta posición + flujos (si hay fecha) en hojas */}
-          <DownloadButton
-            className="ml-auto"
-            title={
-              selectedFecha
-                ? "Descargar Excel (posiciones + flujos del mes en hojas separadas)"
-                : "Descargar Excel (posición actual)"
-            }
-            onClick={async () => {
-              const cta = idCuenta;
-              const fechaSnap = ultimoSnap ?? selectedFecha ?? "actual";
-              const sheets: Parameters<typeof exportToXlsx>[0]["sheets"] = [];
-
-              // ── Hoja 1: Posiciones ─────────────────────────────────────
-              if (posiciones.length > 0) {
-                sheets.push({
-                  name: selectedFecha ? `Posición ${fechaSnap}` : "Posición actual",
-                  title: nombreCuenta
-                    ? `Cuenta: [${cta}] ${nombreCuenta} · ${fechaSnap}`
-                    : `Cuenta: [${cta}] · ${fechaSnap}`,
-                  rows: posiciones.map((p) => ({
-                    ticker:        p.ticker,
-                    emisor:        p.emisor ?? "",
-                    clase_activo:  p.clase_activo ?? "",
-                    cartera:       p.cartera ?? "",
-                    calificacion:  p.calificacion ?? "",
-                    vencimiento:   p.vencimiento ?? "",
-                    cantidad:      p.cantidad,
-                    precio:        p.precio,
-                    valuacion:     p.valuacion,
-                    share:         p.share != null ? p.share : null,  // % directo (no /100)
-                  })),
-                  columns: [
-                    { header: "TICKER",       key: "ticker",       format: "text",     width: 14 },
-                    { header: "EMISOR",       key: "emisor",       format: "text",     width: 22 },
-                    { header: "CLASE",        key: "clase_activo", format: "text",     width: 14 },
-                    { header: "CARTERA",      key: "cartera",      format: "text",     width: 14 },
-                    { header: "CALIF.",       key: "calificacion", format: "text",     width: 10 },
-                    { header: "VTO.",         key: "vencimiento",  format: "text",     width: 12 },
-                    { header: "CANTIDAD",     key: "cantidad",     format: "number",   width: 16 },
-                    { header: "PRECIO",       key: "precio",       format: "number",   width: 14 },
-                    { header: "VALUACIÓN",    key: "valuacion",    format: "currency", width: 18 },
-                    { header: "%",            key: "share",        format: "percent",  width: 10 },
-                  ],
-                });
-              }
-
-              // ── Hoja 2: Flujos del mes (solo si hay fecha seleccionada) ──
-              if (selectedFecha && movResp && movResp.movimientos.length > 0) {
-                sheets.push({
-                  name: `Flujos ${movResp.mes}`,
-                  title: `Movimientos de ${fmtMesAnio(movResp.mes)} · [${cta}]`,
-                  rows: movResp.movimientos.map((m) => ({
-                    fecha:        m.fecha,
-                    categoria:    m.categoria,
-                    importe:      m.importe,
-                    moneda:       m.moneda ?? "",
-                    mep_rate:     m.mep_rate,
-                    importe_ars:  m.importe_ars,
-                    op:           m.op ?? "",
-                    ticker:       m.ticker ?? "",
-                    comprobante:  m.comprobante ?? "",
-                    informacion:  m.informacion ?? "",
-                  })),
-                  columns: [
-                    { header: "FECHA",      key: "fecha",       format: "text",     width: 12 },
-                    { header: "TIPO",       key: "categoria",   format: "text",     width: 14 },
-                    { header: "IMPORTE",    key: "importe",     format: "currency", width: 16 },
-                    { header: "MONEDA",     key: "moneda",      format: "text",     width: 8  },
-                    { header: "MEP",        key: "mep_rate",    format: "number",   width: 10 },
-                    { header: "IMPORTE ARS",key: "importe_ars", format: "currency", width: 18 },
-                    { header: "OP",         key: "op",          format: "text",     width: 10 },
-                    { header: "TICKER",     key: "ticker",      format: "text",     width: 14 },
-                    { header: "COMPROBANTE",key: "comprobante", format: "text",     width: 16 },
-                    { header: "DETALLE",    key: "informacion", format: "text",     width: 40 },
-                  ],
-                });
-              }
-
-              if (sheets.length === 0) return;
-              const sufijoFecha = selectedFecha ?? "actual";
-              await exportToXlsx({
-                sheets,
-                filename: `valuaciones-portfolio-${cta}-${sufijoFecha}-${timestampSuffix()}.xlsx`,
-              });
-            }}
-          />
-
-          {/* Header right: posiciones + total, o Δ total en la tab variación */}
-          <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
-            {portfolioTab === "posiciones"
-              ? <>{posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span></>
-              : varResp?.totales && (
-                  <>Δ total <span className="font-semibold" style={{ color: colorDeltaMod(varResp.totales.delta_total) }}>{fmtSigned(varResp.totales.delta_total)}</span></>
-                )}
-          </span>
-        </div>
-
-        <div className="flex-1 min-h-0 overflow-auto">
-          {portfolioTab === "variacion" ? (
-            !selectedFecha ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)] p-4 text-center">
-                Seleccioná un mes en la tabla mensual para ver la variación vs el mes anterior.
-              </div>
-            ) : (
-              <VariacionTabla varResp={varResp} />
-            )
-          ) : posiciones.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-[11px] text-[var(--t-text-muted)]">
-                Sin posiciones activas.
-              </div>
-            ) : (
-              <table className="w-full table-fixed text-[11px] font-mono tabular-nums">
-                <colgroup>
-                  <col className="w-[13%]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[9%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[5%]" />
-                </colgroup>
-                <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10 text-[9px] uppercase tracking-widest text-[var(--t-text-muted)]">
-                  <tr>
-                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Ticker</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Emisor</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Clase</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Cart.</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Calif.</th>
-                    <th className="px-2 py-1 text-left align-top border-b border-[var(--t-border)]">Vto.</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Cant.</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Precio</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">Valuación</th>
-                    <th className="px-2 py-1 text-right align-top border-b border-[var(--t-border)]">%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {posiciones.map((p) => (
-                    <tr
-                      key={p.unidad ?? p.ticker}
-                      onContextMenu={(e) => {
-                        if (!_posOperable(p).operable) return; // cash: menú nativo
-                        e.preventDefault();
-                        setCtxMenu({ x: e.clientX, y: e.clientY, pos: p });
-                      }}
-                      className={`border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)] ${
-                        _posOperable(p).operable ? "cursor-context-menu" : ""
-                      }`}
-                    >
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-accent)] font-semibold">{p.ticker}</td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text)]">{p.emisor || "—"}</td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">{p.clase_activo || "—"}</td>
-                      <td className="px-2 py-1 align-top">
-                        <span className="inline-flex items-center gap-1">
-                          <span
-                            className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
-                            style={{ background: carteraColor(p.cartera) }}
-                          />
-                          <span style={{ color: carteraColor(p.cartera) }}>
-                            {carteraShort(p.cartera)}
-                          </span>
-                        </span>
-                      </td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">{p.calificacion || "—"}</td>
-                      <td className="px-2 py-1 align-top whitespace-normal break-words text-[var(--t-text-dim)]">
-                        {p.vencimiento ? fmtFechaCorta(p.vencimiento) : "—"}
-                      </td>
-                      <td className="px-2 py-1 align-top text-right text-[var(--t-text)]">{fmtQty(p.cantidad)}</td>
-                      <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">{fmtPrice(p.precio)}</td>
-                      <td
-                        className="px-2 py-1 align-top text-right font-semibold"
-                        style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "var(--t-neg)" }}
-                      >
-                        {fmtCompact(p.valuacion)}
-                      </td>
-                      <td className="px-2 py-1 align-top text-right text-[var(--t-text-dim)]">
-                        {p.share != null ? p.share.toFixed(1) + "%" : "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-        </div>
       </div>
 
       {/* Menú contextual (click derecho en una posición) → operar en Trading. */}

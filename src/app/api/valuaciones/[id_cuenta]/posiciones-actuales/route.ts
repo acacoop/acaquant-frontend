@@ -12,8 +12,10 @@ export async function GET(
     const { id_cuenta } = await params;
     const url = new URL(req.url);
     const fecha = url.searchParams.get("fecha");
+    const conPnl = url.searchParams.get("con_pnl");
     const q = new URLSearchParams();
     if (fecha) q.set("fecha", fecha);
+    if (conPnl) q.set("con_pnl", conPnl);
     const suffix = q.toString() ? `?${q}` : "";
     const data = await apiFetch(
       `/api/valuaciones/${encodeURIComponent(id_cuenta)}/posiciones-actuales${suffix}`,
