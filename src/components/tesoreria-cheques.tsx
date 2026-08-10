@@ -7,7 +7,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  * Back Office → Tesorería → tab CHEQUES. Pantalla partida 50/50:
  * izquierda RECIBIDOS, derecha EMITIDOS.
  *
- * Los RECIBIDOS son 100% carga manual. Los EMITIDOS conviven en dos orígenes:
+ * LOS DOS LADOS conviven en dos orígenes (`manual` + `aunesa`), pero el chip AUTO
+ * significa cosas distintas en cada uno — y el tooltip lo dice según el lado:
+ *   • EMITIDOS  `aunesa` → espejo del e-cheq de EGRESO del feed bancario. Nace
+ *     completo (con banco) y NO resta del saldo: esa plata ya la puso el
+ *     movimiento.
+ *   • RECIBIDOS `aunesa` → espejo del DEPÓSITO de cheque del feed del COMITENTE
+ *     (`jobs/tesoreria_echeq_recibidos`, cron 9-14 ART). Nace **sin banco** —
+ *     Aunesa no manda la cuenta operativa— y en `pendiente`: hay que completarle
+ *     el banco con «editar» y recién ahí se puede finalizar. Sí suma al saldo,
+ *     cuando se finaliza.
+ *   El botón «+ NUEVO» sigue funcionando igual en los dos lados: el espejo NO
+ *   reemplaza la carga manual, la complementa.
+ *
+ * Los EMITIDOS conviven en dos orígenes:
  *   • `manual`  — los carga el equipo, y son los que restan del saldo de BANCOS.
  *   • `aunesa`  — chip AUTO: los espeja solo el backend desde los e-cheq de EGRESO
  *                 de MOVIMIENTOS (RIEL '[E CHEQ] E CHEQ'), que YA son cheques
@@ -180,7 +193,9 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
   // EMITIDOS NO llevan total en el título: un solo número no puede resumir un tablero
   // que mezcla estados, fechas y monedas — se abre el CONSOLIDADO, que los separa.
   const total = filas.reduce((a, f) => a + f.importe, 0);
-  const nCols = 4 + (esEmitido ? 2 : 1) + (editable ? 1 : 0);
+  // 5 fijas (comitente · cuit|tipo · banco · importe · estado) + fecha de pago, que
+  // ahora existe también en RECIBIDOS (día hábil siguiente al movimiento).
+  const nCols = 6 + (editable ? 1 : 0);
 
   // Cambio de estado desde la celda: un PUT y a recargar. Si el estado cierra,
   // la fila desaparece sola en el refresh.
@@ -241,7 +256,7 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
             <th className={TH + " w-[22%]"}>Banco</th>
             <th className={TH + " w-[16%]"}>Importe</th>
             <th className={TH + " w-[13%]"}>Estado</th>
-            {esEmitido && <th className={TH + " w-[13%]"}>Fecha pago</th>}
+            <th className={TH + " w-[13%]"}>Fecha pago</th>
             {editable && <th className={TH + " w-[9%]"} />}
           </tr>
         </thead>
@@ -263,9 +278,15 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
                   {cell(f.comitente_denominacion ?? f.comitente)}
                   {f.automatico && (
                     <span className={AUTO}
-                      title={`Se creó solo desde el e-cheq de Aunesa (mov. ${f.mov_id ?? "—"}). ` +
-                        "No hace falta cargarlo a mano y NO resta del saldo: esa plata ya entra " +
-                        "por MOVIMIENTOS, en la fila Egresos e-cheq de BANCOS."}>
+                      title={esEmitido
+                        ? `Se creó solo desde el e-cheq de Aunesa (mov. ${f.mov_id ?? "—"}). ` +
+                          "No hace falta cargarlo a mano y NO resta del saldo: esa plata ya " +
+                          "entra por MOVIMIENTOS, en la fila Egresos e-cheq de BANCOS."
+                        : `Se creó solo desde el depósito que informó Aunesa (${f.mov_id ?? "—"}). ` +
+                          "Nadie lo tipeó. Aunesa NO manda la cuenta operativa: completá el " +
+                          "BANCO con «editar» y después finalizalo — ahí suma a la fila " +
+                          "Ingresos e-cheqs de BANCOS. La fecha de pago es el día hábil " +
+                          "siguiente al del movimiento."}>
                       auto
                     </span>
                   )}
@@ -273,7 +294,17 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
                 {esEmitido
                   ? <td className={TD + " " + NUM}>{cell(f.cuit)}</td>
                   : <td className={TD + " uppercase"}>{cell(f.tipo)}</td>}
-                <td className={TD + " " + WRAP}>{cell(f.banco)}</td>
+                {/* Un espejo nace SIN banco (Aunesa no manda la cuenta operativa) y
+                    sin banco no se puede finalizar — el backend lo rechaza. Se marca
+                    para que se vea qué falta completar, no para decorar. */}
+                <td className={TD + " " + WRAP}>
+                  {f.banco ? cell(f.banco) : (
+                    <span className="text-[#f59e0b]"
+                      title="Falta la cuenta operativa. Completala con «editar»: sin banco el cheque no se puede finalizar ni imputar al saldo.">
+                      falta banco
+                    </span>
+                  )}
+                </td>
                 <td className={TD + " " + NUM}>
                   {fmt(f.importe)}
                   <span className="text-[9px] text-[var(--t-text-muted)] ml-1">{f.unidad}</span>
@@ -287,7 +318,7 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
                     </select>
                   ) : <span className="text-[var(--t-text-dim)]">{f.estado}</span>}
                 </td>
-                {esEmitido && <td className={TD + " " + NUM}>{fechaCorta(f.fecha_pago)}</td>}
+                <td className={TD + " " + NUM}>{fechaCorta(f.fecha_pago)}</td>
                 {editable && (
                   <td className={TD}>
                     <button onClick={() => { setEditId(f.id); setAlta(false); }}
@@ -549,7 +580,11 @@ function FormCheque({ lado, bancos, estados, tipos, inicial, onCerrar, onOk }: {
         body: JSON.stringify({
           ...f, lado, importe: imp,
           tipo: esEmitido ? null : f.tipo,
-          fecha_pago: esEmitido ? (f.fecha_pago || null) : null,
+          // Antes se mandaba `null` fijo del lado RECIBIDO y eso BORRABA la fecha:
+          // ahora los recibidos que espeja el backend nacen con `fecha_pago` = día
+          // hábil siguiente al movimiento, y editarlos (para completarles el banco)
+          // se la habría comido en el primer guardado.
+          fecha_pago: f.fecha_pago || null,
         }),
       });
       if (!r.ok) {
@@ -640,13 +675,14 @@ function FormCheque({ lado, bancos, estados, tipos, inicial, onCerrar, onOk }: {
         </select>
       </label>
 
-      {esEmitido && (
-        <label className="flex flex-col gap-0.5">
-          <span className={lbl}>Fecha de pago</span>
-          <input type="date" value={f.fecha_pago}
-            onChange={(e) => set("fecha_pago", e.target.value)} className={input} />
-        </label>
-      )}
+      {/* Los DOS lados tienen fecha de pago. En RECIBIDOS es el día en que la plata
+          entra al banco: el día hábil siguiente al del movimiento (el e-cheq se carga
+          con fecha de hoy y se acredita mañana). El espejo la calcula solo. */}
+      <label className="flex flex-col gap-0.5">
+        <span className={lbl}>Fecha de pago</span>
+        <input type="date" value={f.fecha_pago}
+          onChange={(e) => set("fecha_pago", e.target.value)} className={input} />
+      </label>
 
       <button onClick={guardar} disabled={busy}
         className="px-2 py-1 uppercase tracking-widest border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10 disabled:opacity-40">
