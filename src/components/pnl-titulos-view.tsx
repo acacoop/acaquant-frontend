@@ -18,7 +18,13 @@ export interface BoletoDetalle {
   importe_ars: number;   // pesificado
   moneda: string;
   mep: number | null;
+  factor?: number;       // solo ajuste_split: factor aplicado (10 = 10:1)
 }
+
+// Pseudo-boletos de AJUSTE (operaciones.pnl_ajustes): eventos corporativos sin
+// boleto (splits, canjes) que el motor mergea al stream. Su `cantidad` viene
+// CON SIGNO = delta aplicado al stock (un split 10:1 sobre 100 trae +900).
+const esAjuste = (cat: string) => cat === "ajuste_split" || cat === "ajuste_cantidad";
 
 export interface PnLRow {
   ticker: string;            // match key — único interno (ej CAFCI..., AL30)
@@ -145,6 +151,10 @@ function _filtrarPeriodoActual(boletos: BoletoDetalle[]): BoletoDetalle[] {
       qty += cant;
     } else if (b.categoria === "venta" || b.categoria === "rescate_fci") {
       qty -= cant;
+    } else if (esAjuste(b.categoria)) {
+      // Delta con signo (split: qty_post − qty_pre). Sin esto el running qty
+      // quedaría pre-split y una venta post-split dispararía un reset falso.
+      qty += b.cantidad || 0;
     }
     if (antes > 0 && qty <= 0) {
       inicio = i + 1;
@@ -156,6 +166,7 @@ function _filtrarPeriodoActual(boletos: BoletoDetalle[]): BoletoDetalle[] {
 function _statsDelPeriodo(boletos: BoletoDetalle[]) {
   let compras = 0;
   let ventas = 0;
+  let ajustes = 0; // Σ deltas de ajustes corporativos (splits/canjes) del período
   const breakdownPasivo: Record<string, number> = {};
   for (const b of boletos) {
     const cant = Math.abs(b.cantidad || 0);
@@ -163,12 +174,14 @@ function _statsDelPeriodo(boletos: BoletoDetalle[]) {
       compras += cant;
     } else if (b.categoria === "venta" || b.categoria === "rescate_fci") {
       ventas += cant;
+    } else if (esAjuste(b.categoria)) {
+      ajustes += b.cantidad || 0;
     } else if (b.categoria === "acreencia") {
       const op = b.op || "Otros";
       breakdownPasivo[op] = (breakdownPasivo[op] || 0) + (b.importe_ars || 0);
     }
   }
-  return { compras, ventas, neto: compras - ventas, breakdownPasivo };
+  return { compras, ventas, ajustes, neto: compras - ventas + ajustes, breakdownPasivo };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -610,6 +623,11 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
         <span className="text-[var(--t-text-muted)] tracking-widest">FLUJO (STOCK ACTUAL):</span>{" "}
         {stats.compras > 0 && <span>compras: {stats.compras.toLocaleString("es-AR")} · </span>}
         {stats.ventas > 0 && <span>ventas: {stats.ventas.toLocaleString("es-AR")} · </span>}
+        {stats.ajustes !== 0 && (
+          <span className="text-[var(--t-accent)]">
+            ajustes: {stats.ajustes > 0 ? "+" : ""}{stats.ajustes.toLocaleString("es-AR")} ·{" "}
+          </span>
+        )}
         <span>neto: {stats.neto.toLocaleString("es-AR")}</span>
         {row.qty_calc !== row.qty_aum && (
           <span className="text-[var(--t-accent)]"> · AuM: {row.qty_aum.toLocaleString("es-AR")} (Δ {(row.qty_aum - row.qty_calc).toLocaleString("es-AR")})</span>
@@ -669,10 +687,20 @@ export function PosicionDetalle({ row, esUSD = false }: { row: PnLRow; esUSD?: b
                     b.importe > 0 ? "text-[var(--t-pos)]"
                     : b.importe < 0 ? "text-[var(--t-neg)]"
                     : "text-[var(--t-text-dim)]";
+                  // Pseudo-boletos de ajuste (splits/canjes manuales) en ámbar:
+                  // no son boletos de Aunesa, son correcciones cargadas a mano.
+                  const ajuste = esAjuste(b.categoria);
                   return (
-                    <tr key={i} className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                    <tr
+                      key={i}
+                      className={`border-t border-[var(--t-border)] hover:bg-[var(--t-surface)] ${
+                        ajuste ? "bg-[var(--t-accent)]/10" : ""
+                      }`}
+                    >
                       <td className="px-2 py-0.5 text-[var(--t-text)]">{b.fecha}</td>
-                      <td className="px-2 py-0.5 text-[var(--t-text-dim)]">{b.op || b.categoria}</td>
+                      <td className={`px-2 py-0.5 ${ajuste ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"}`}>
+                        {b.op || b.categoria}
+                      </td>
                       <td className="px-2 py-0.5 text-right text-[var(--t-text)]">
                         {b.cantidad ? b.cantidad.toLocaleString("es-AR") : "—"}
                       </td>
