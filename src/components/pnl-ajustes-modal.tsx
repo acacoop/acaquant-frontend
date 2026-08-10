@@ -17,11 +17,16 @@ import { NumeroInput } from "@/components/numero-input";
 // La sección DESFASES DETECTADOS lee /pnl-ajustes/candidatos (cache de
 // TOTALES): si todas las cuentas de un ticker comparten el ratio
 // qty_aum/qty_calc, eso ES un evento corporativo y el ratio sugiere el factor.
-// Escritura SOLO admin — el front esconde el form sin `puede_escribir`, pero
-// el enforcement real es server-side (403 + audit en pnl_ajustes_audit).
+// Permisos (ownership por cuenta): el ADMIN puede todo, incluidos los ajustes
+// GLOBALES; el OPERADOR COMERCIAL de cada cuenta (clientes.comitentes)
+// puede cargar/editar/borrar ajustes SOLO de sus cuentas — el form le exige
+// elegir una de `cuentas_permitidas` y cada fila trae `editable`. El front
+// esconde lo que no corresponde, pero el enforcement real es server-side
+// (403 + audit en pnl_ajustes_audit).
 
 interface Ajuste {
   id: number;
+  editable: boolean;   // si ESTE usuario puede tocar ESTE ajuste (server-side manda)
   tipo: "split" | "cantidad";
   ticker: string;
   id_cuenta: string | null;
@@ -90,6 +95,9 @@ export function PnlAjustesModal({
 }) {
   const [ajustes, setAjustes] = useState<Ajuste[]>([]);
   const [puedeEscribir, setPuedeEscribir] = useState(false);
+  const [esAdmin, setEsAdmin] = useState(false);
+  // null = admin (cualquier cuenta o global); lista = cuentas del operador.
+  const [cuentasPermitidas, setCuentasPermitidas] = useState<string[] | null>(null);
   const [candidatos, setCandidatos] = useState<CandidatoTicker[]>([]);
   const [nCandidatos, setNCandidatos] = useState(0);
   const [form, setForm] = useState<FormState>(FORM_VACIO);
@@ -105,6 +113,8 @@ export function PnlAjustesModal({
       const d = await r.json();
       setAjustes(d.ajustes || []);
       setPuedeEscribir(!!d.puede_escribir);
+      setEsAdmin(!!d.es_admin);
+      setCuentasPermitidas(d.cuentas_permitidas ?? null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -248,9 +258,11 @@ export function PnlAjustesModal({
           Para eventos que NO generan boleto y rompen el cost-basis: <b>SPLIT</b> multiplica la
           cantidad sin tocar el costo (10 = split 10:1 · 0,1 = reverse 1:10); <b>CANTIDAD</b> suma/resta
           nominales (positivo con costo opcional; negativo libera costo proporcional, sin realizado).
-          CUENTA vacía = aplica a <b>todas</b> las cuentas con boletos del ticker. El ajuste rige desde
-          su FECHA (antes de los boletos de ese día). PNL TÍTULOS impacta al instante; TOTALES en la
-          próxima corrida del cache (~30&apos; en rueda).
+          {esAdmin
+            ? " CUENTA vacía = aplica a TODAS las cuentas con boletos del ticker."
+            : " Podés ajustar SOLO tus cuentas asignadas (los ajustes globales son del admin)."}{" "}
+          El ajuste rige desde su FECHA (antes de los boletos de ese día). PNL TÍTULOS impacta al
+          instante; TOTALES en la próxima corrida del cache (~30&apos; en rueda).
         </div>
 
         {err && (
@@ -298,13 +310,28 @@ export function PnlAjustesModal({
                   />
                 </label>
                 <label className="col-span-1 text-[9px] text-[var(--t-text-muted)]">
-                  CUENTA (opc.)
-                  <input
-                    value={form.id_cuenta}
-                    onChange={(e) => setForm({ ...form, id_cuenta: e.target.value })}
-                    placeholder="todas"
-                    className={INPUT_CLS}
-                  />
+                  {esAdmin ? "CUENTA (opc.)" : "CUENTA (req.)"}
+                  {esAdmin ? (
+                    <input
+                      value={form.id_cuenta}
+                      onChange={(e) => setForm({ ...form, id_cuenta: e.target.value })}
+                      placeholder="todas"
+                      className={INPUT_CLS}
+                    />
+                  ) : (
+                    // Operador: solo SUS cuentas (ownership server-side) y sin
+                    // opción "todas" — los globales son del admin.
+                    <select
+                      value={form.id_cuenta}
+                      onChange={(e) => setForm({ ...form, id_cuenta: e.target.value })}
+                      className={INPUT_CLS}
+                    >
+                      <option value="">elegir…</option>
+                      {(cuentasPermitidas || []).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
                 </label>
                 {esSplit ? (
                   <label className="col-span-1 text-[9px] text-[var(--t-text-muted)]">
@@ -365,6 +392,7 @@ export function PnlAjustesModal({
                     onClick={guardar}
                     disabled={
                       busy || !form.ticker.trim() || !form.fecha ||
+                      (!esAdmin && !form.id_cuenta) ||
                       (esSplit ? num(form.factor) === null : num(form.cantidad) === null)
                     }
                     className="flex-1 px-2 py-1 text-[10px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40"
@@ -478,8 +506,8 @@ export function PnlAjustesModal({
                 >
                   <td className="px-2 py-0.5">
                     <button
-                      onClick={() => puedeEscribir && toggleActivo(a)}
-                      disabled={!puedeEscribir || busy}
+                      onClick={() => a.editable && toggleActivo(a)}
+                      disabled={!a.editable || busy}
                       title={a.activo ? "Activo — click para apagar sin borrar" : "Apagado — no impacta el PnL"}
                       className={a.activo ? "text-[var(--t-pos)]" : "text-[var(--t-text-muted)]"}
                     >
@@ -517,7 +545,7 @@ export function PnlAjustesModal({
                     {(a.creado_por || "").split("@")[0]}
                   </td>
                   <td className="px-2 py-0.5 text-right whitespace-nowrap">
-                    {puedeEscribir && (
+                    {a.editable && (
                       <>
                         <button
                           onClick={() => editar(a)}
