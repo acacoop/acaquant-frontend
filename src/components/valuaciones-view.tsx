@@ -81,6 +81,12 @@ interface Posicion {
   costo: number | null;
   pnl: number | null;
   gan_pct: number | null;
+  // Espejo USD. `valuacion_usd` = ARS ÷ MEP del día del snapshot; costo/pnl vienen
+  // del motor con MEP histórico por boleto. null = sin MEP para esa fecha.
+  valuacion_usd: number | null;
+  costo_usd: number | null;
+  pnl_usd: number | null;
+  gan_pct_usd: number | null;
 }
 
 // Mismo mapeo que aum-view.tsx — paleta consistente entre vistas.
@@ -97,9 +103,21 @@ function carteraColor(c: string): string {
   return CARTERA_COLORS[carteraShort(c)] ?? "#666";
 }
 
+// Etiquetas que no entran en la columna CART. del PORTFOLIO y la parten en dos
+// líneas ("RENTA VARIABLE" es la mitad de las filas de una cuenta típica).
+const CARTERA_ABREV: Record<string, string> = {
+  "RENTA VARIABLE": "RV",
+  "RENTA FIJA": "RF",
+  "FINANCIAMIENTO": "FIN",
+  "DERIVADOS": "DERIV",
+  "MONEDAS": "MON",
+  "SIN CLASIFICAR": "S/C",
+};
+
 function carteraShort(c: string): string {
   if (!c) return "—";
-  return c.replace("CARTERA ", "");
+  const s = c.replace("CARTERA ", "").trim();
+  return CARTERA_ABREV[s.toUpperCase()] ?? s;
 }
 
 // ── Operar desde una posición (deep-link a Trading) ─────────────────────────
@@ -134,12 +152,16 @@ function _operarHref(p: Posicion, idCuenta: string): string {
 interface PosicionesResp {
   id_cuenta: string;
   fecha: string | null;
+  mep: number | null;        // MEP del día del snapshot (null = sin feed esa fecha)
   posiciones: Posicion[];
   total: number;
+  total_usd: number | null;
   n: number;
   pnl_disponible: boolean;
   costo_total: number;
   pnl_total: number;
+  costo_total_usd: number;
+  pnl_total_usd: number;
   pnl_detalle: Record<string, PnLRow>;   // por `unidad` — alimenta AUDITORÍA
 }
 
@@ -199,10 +221,11 @@ interface VariacionResp {
 interface Props { idCuenta: string; nombreCuenta?: string }
 
 // ── Columnas del PORTFOLIO ────────────────────────────────────────────────
-// El panel ocupa el 60% del ancho, así que casi todas las columnas se pueden
+// El panel ocupa la mitad del ancho, así que casi todas las columnas se pueden
 // ocultar para ganar espacio. TICKER no está en la lista: es la clave de la
 // fila y siempre se muestra. COSTO / PNL / GAN% vienen del motor de PnL
-// Títulos (join por `unidad`) y son SIEMPRE a hoy y en ARS.
+// Títulos (join por `unidad`) y son SIEMPRE a hoy. Los anchos están calibrados
+// para que las columnas por defecto sumen ~100% y no sobre aire a la derecha.
 type PortColKey =
   | "emisor" | "clase" | "cartera" | "calif" | "vto"
   | "cantidad" | "precio" | "valuacion" | "share"
@@ -211,20 +234,20 @@ type PortColKey =
 const PORT_COLS: {
   key: PortColKey; label: string; w: string; right?: boolean; title?: string;
 }[] = [
-  { key: "emisor",    label: "Emisor",  w: "13%" },
-  { key: "clase",     label: "Clase",   w: "10%" },
-  { key: "cartera",   label: "Cart.",   w: "6%"  },
-  { key: "calif",     label: "Calif.",  w: "7%"  },
-  { key: "vto",       label: "Vto.",    w: "8%"  },
-  { key: "cantidad",  label: "Cant.",   w: "10%", right: true },
-  { key: "precio",    label: "Precio",  w: "8%",  right: true },
-  { key: "valuacion", label: "Valuac.", w: "10%", right: true },
-  { key: "share",     label: "%",       w: "6%",  right: true },
-  { key: "costo",     label: "Costo",   w: "9%",  right: true,
-    title: "Costo remanente del stock vivo (motor de PnL Títulos, ARS)" },
-  { key: "pnl",       label: "PnL",     w: "9%",  right: true,
-    title: "PnL no realizado + cobros pasivos (ARS, a hoy)" },
-  { key: "gan",       label: "Gan %",   w: "8%",  right: true,
+  { key: "emisor",    label: "Emisor",  w: "14%" },
+  { key: "clase",     label: "Clase",   w: "11%" },
+  { key: "cartera",   label: "Cart.",   w: "7%"  },
+  { key: "calif",     label: "Calif.",  w: "8%"  },
+  { key: "vto",       label: "Vto.",    w: "9%"  },
+  { key: "cantidad",  label: "Cant.",   w: "12%", right: true },
+  { key: "precio",    label: "Precio",  w: "10%", right: true },
+  { key: "valuacion", label: "Valuac.", w: "13%", right: true },
+  { key: "share",     label: "%",       w: "7%",  right: true },
+  { key: "costo",     label: "Costo",   w: "12%", right: true,
+    title: "Costo remanente del stock vivo (motor de PnL Títulos)" },
+  { key: "pnl",       label: "PnL",     w: "12%", right: true,
+    title: "PnL no realizado + cobros pasivos (a hoy)" },
+  { key: "gan",       label: "Gan %",   w: "9%",  right: true,
     title: "PnL / costo remanente" },
 ];
 
@@ -607,6 +630,18 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   const pnlSel =
     selectedUnidad ? posResp?.pnl_detalle?.[selectedUnidad] : undefined;
 
+  // La AUDITORÍA arranca con el título más grande en vez de un cartel vacío (las
+  // posiciones ya vienen ordenadas por valuación desc). Si el título elegido no
+  // existe en la fecha nueva, cae al primero de esa fecha.
+  useEffect(() => {
+    const pos = posResp?.posiciones ?? [];
+    if (pos.length === 0) return;
+    setSelectedUnidad((prev) =>
+      prev && pos.some((p) => (p.unidad ?? p.ticker) === prev)
+        ? prev
+        : (pos[0].unidad ?? pos[0].ticker));
+  }, [posResp]);
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
@@ -644,7 +679,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
     return out;
   })();
   const posiciones = posResp?.posiciones ?? [];
-  const totalPos = posResp?.total ?? 0;
+  const totalPos = (esUSD ? posResp?.total_usd : posResp?.total) ?? 0;
+  const pnlTotalPos = (esUSD ? posResp?.pnl_total_usd : posResp?.pnl_total) ?? 0;
+  const costoTotalPos = (esUSD ? posResp?.costo_total_usd : posResp?.costo_total) ?? 0;
   const ultimoSnap = posResp?.fecha;
 
   if (chartData.length === 0 && meses.length === 0 && posiciones.length === 0) {
@@ -664,6 +701,17 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
   const colsActivas = PORT_COLS.filter((c) => colsVis[c.key]);
 
+  // Importes del PORTFOLIO en la moneda elegida. El "$" de fmtCompact se reescribe
+  // a "US$" — mismo criterio que PNL TOTALES.
+  const fmtMon = (n: number | null | undefined) =>
+    esUSD ? fmtCompact(n).replace("$", "US$") : fmtCompact(n);
+  const fmtMonSigned = (n: number | null | undefined) =>
+    esUSD ? fmtSigned(n).replace("$", "US$") : fmtSigned(n);
+  const posVal   = (p: Posicion) => (esUSD ? p.valuacion_usd : p.valuacion);
+  const posCosto = (p: Posicion) => (esUSD ? p.costo_usd : p.costo);
+  const posPnl   = (p: Posicion) => (esUSD ? p.pnl_usd : p.pnl);
+  const posGan   = (p: Posicion) => (esUSD ? p.gan_pct_usd : p.gan_pct);
+
   // Cada columna arma su propio <td> (color y alineación propios).
   const celdaPos = (p: Posicion, c: (typeof PORT_COLS)[number]) => {
     const base =
@@ -676,7 +724,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         return <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>{p.clase_activo || "—"}</td>;
       case "cartera":
         return (
-          <td key={c.key} className={base}>
+          <td key={c.key} className={base + "whitespace-nowrap"}>
             <span className="inline-flex items-center gap-1">
               <span
                 className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
@@ -698,44 +746,53 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         return <td key={c.key} className={base + "text-[var(--t-text)]"}>{fmtQty(p.cantidad)}</td>;
       case "precio":
         return <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>{fmtPrice(p.precio)}</td>;
-      case "valuacion":
+      case "valuacion": {
+        // Sin color propio: es la columna ancla de la tabla y en modo claro un gris
+        // fijo era ilegible. Va en el color de texto del tema, en negrita.
+        const v = posVal(p);
         return (
           <td
             key={c.key}
-            className={base + "font-semibold"}
-            style={{ color: p.valuacion >= 0 ? "#d0d0d0" : "var(--t-neg)" }}
+            className={base + "font-bold " + ((v ?? 0) < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-text)]")}
           >
-            {fmtCompact(p.valuacion)}
+            {fmtMon(v)}
           </td>
         );
+      }
       case "share":
         return (
           <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>
             {p.share != null ? p.share.toFixed(1) + "%" : "—"}
           </td>
         );
-      case "costo":
+      case "costo": {
+        const costo = posCosto(p);
         return (
           <td key={c.key} className={base + "text-[var(--t-text-dim)]"}>
-            {p.costo != null && p.costo > 0 ? fmtCompact(p.costo) : "—"}
+            {costo != null && costo > 0 ? fmtMon(costo) : "—"}
           </td>
         );
-      case "pnl":
+      }
+      case "pnl": {
+        const pnl = posPnl(p);
         return (
           <td
             key={c.key}
             className={base + "font-semibold"}
-            style={{ color: p.pnl == null ? "#666" : colorDelta(p.pnl) }}
+            style={{ color: pnl == null ? "#666" : colorDelta(pnl) }}
           >
-            {p.pnl != null ? fmtSigned(p.pnl) : "—"}
+            {pnl != null ? fmtMonSigned(pnl) : "—"}
           </td>
         );
-      case "gan":
+      }
+      case "gan": {
+        const gan = posGan(p);
         return (
-          <td key={c.key} className={base} style={{ color: p.gan_pct == null ? "#666" : colorDelta(p.gan_pct) }}>
-            {p.gan_pct != null ? `${p.gan_pct >= 0 ? "+" : ""}${p.gan_pct.toFixed(1)}%` : "—"}
+          <td key={c.key} className={base} style={{ color: gan == null ? "#666" : colorDelta(gan) }}>
+            {gan != null ? `${gan >= 0 ? "+" : ""}${gan.toFixed(1)}%` : "—"}
           </td>
         );
+      }
       default:
         return null;
     }
@@ -744,15 +801,38 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   return (
     <div className="h-full flex flex-col gap-2 p-2 overflow-hidden">
 
-      {/* FILA SUPERIOR: PORTFOLIO (60%) + AUDITORÍA del título (40%) */}
+      {/* FILA SUPERIOR: PORTFOLIO + AUDITORÍA del título (mitad y mitad) */}
       <div className="flex-[1.2] min-h-0 flex gap-2 overflow-hidden">
 
         {/* PORTFOLIO — tenencia + PnL por título, con tabs Posiciones / Variación */}
-        <div className="w-[60%] min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="w-1/2 min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-1.5 flex-wrap">
             <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Portfolio
             </span>
+            {/* Mismo estado de moneda que el chart y la tabla mensual: un solo switch
+                para toda la vista, duplicado acá porque es donde se lo busca. */}
+            <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {(["ARS", "USD"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMoneda(m)}
+                  className={
+                    "px-1.5 py-0 text-[9px] uppercase tracking-wider " +
+                    (moneda === m
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                  }
+                  title={
+                    m === "USD"
+                      ? (posResp?.mep
+                          ? `Valuación ÷ MEP ${posResp.mep} (del día del snapshot); costo y PnL al MEP histórico de cada boleto`
+                          : "Sin MEP para esta fecha — la valuación en USD queda vacía")
+                      : "Pesos argentinos (original)"
+                  }
+                >{m}</button>
+              ))}
+            </div>
             <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
               {!selectedFecha ? "actual" : "histórica"}
             </span>
@@ -874,11 +954,11 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       vencimiento:   p.vencimiento ?? "",
                       cantidad:      p.cantidad,
                       precio:        p.precio,
-                      valuacion:     p.valuacion,
+                      valuacion:     posVal(p),
                       share:         p.share != null ? p.share : null,  // % directo (no /100)
-                      costo:         p.costo,
-                      pnl:           p.pnl,
-                      gan:           p.gan_pct,
+                      costo:         posCosto(p),
+                      pnl:           posPnl(p),
+                      gan:           posGan(p),
                     })),
                     columns: [
                       { header: "TICKER",       key: "ticker",       format: "text",     width: 14 },
@@ -889,10 +969,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       { header: "VTO.",         key: "vencimiento",  format: "text",     width: 12 },
                       { header: "CANTIDAD",     key: "cantidad",     format: "number",   width: 16 },
                       { header: "PRECIO",       key: "precio",       format: "number",   width: 14 },
-                      { header: "VALUACIÓN",    key: "valuacion",    format: "currency", width: 18 },
+                      { header: `VALUACIÓN ${moneda}`, key: "valuacion", format: "currency", width: 18 },
                       { header: "%",            key: "share",        format: "percent",  width: 10 },
-                      { header: "COSTO",        key: "costo",        format: "currency", width: 18 },
-                      { header: "PNL",          key: "pnl",          format: "currency", width: 18 },
+                      { header: `COSTO ${moneda}`,     key: "costo",  format: "currency", width: 18 },
+                      { header: `PNL ${moneda}`,       key: "pnl",    format: "currency", width: 18 },
                       { header: "GAN %",        key: "gan",          format: "percent",  width: 10 },
                     ],
                   });
@@ -943,9 +1023,9 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             <span className="text-[10px] text-[var(--t-text-dim)] font-mono">
               {portfolioTab === "posiciones"
                 ? <>
-                    {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtCompact(totalPos)}</span>
+                    {posiciones.length} · <span className="text-[#4a9eff] font-semibold">{fmtMon(totalPos)}</span>
                     {pnlHabilitado && posResp && (
-                      <> · <span className="font-semibold" style={{ color: colorDelta(posResp.pnl_total) }}>{fmtSigned(posResp.pnl_total)}</span></>
+                      <> · <span className="font-semibold" style={{ color: colorDelta(pnlTotalPos) }}>{fmtMonSigned(pnlTotalPos)}</span></>
                     )}
                   </>
                 : varResp?.totales && (
@@ -1025,7 +1105,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         </div>
 
         {/* AUDITORÍA — PnL, flujo y boletos del título elegido en el PORTFOLIO */}
-        <div className="w-[40%] min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+        <div className="w-1/2 min-w-0 min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
           <div className="flex items-center px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Auditoría
@@ -1035,7 +1115,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
             </span>
             {pnlHabilitado && (
               <span className="ml-auto text-[9px] text-[var(--t-text-dim)] font-mono shrink-0">
-                costo {fmtCompact(posResp?.costo_total ?? 0)}
+                costo {fmtMon(costoTotalPos)}
               </span>
             )}
           </div>
@@ -1056,11 +1136,11 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
 
       </div>
 
-      {/* FILA INFERIOR: gráfico (60%) + tabla mensual (40%) */}
+      {/* FILA INFERIOR: gráfico + tabla mensual (mitad y mitad) */}
       <div className="flex-1 min-h-0 flex gap-2 overflow-hidden">
 
-        {/* Chart panel — izquierda (más ancho que la tabla mensual) */}
-        <div className="w-[60%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+        {/* Chart panel — izquierda */}
+        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
             {/* Tabs VALOR / RENDIMIENTO — un solo eje Y por vez */}
             <div className="inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
@@ -1222,7 +1302,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         </div>
 
         {/* Tabla mensual compacta — derecha (con flujos inline al seleccionar un mes) */}
-        <div className="w-[40%] border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
+        <div className="w-1/2 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden min-w-0 min-h-0">
           <div className="flex items-center px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 shrink-0 gap-2">
             <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-wide uppercase">
               Mensual
