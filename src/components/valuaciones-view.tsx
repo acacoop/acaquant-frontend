@@ -255,16 +255,19 @@ const PORT_COLS: {
 
 // Semáforo del cost-basis de una fila. ✗ no significa que el número esté mal, sino
 // que el motor no pudo reconstruir la posición entera y hay que mirarlo con pinzas.
+// `moneda_mixta` NO baja el semáforo: el motor convierte cada boleto con el MEP de
+// SU fecha, así que mezclar ARS y USD es el caso normal y ya está resuelto (lo que
+// sí es un problema — no tener MEP para convertir — vive en `fechas_sin_mep`).
 function calidadPnl(r: PnLRow | undefined): { ok: boolean; motivo: string } | null {
   if (!r) return null;
   const problemas: string[] = [];
   if (r.completeness === "sin_boletos") problemas.push("sin boletos: no hay costo");
   else if (r.completeness === "parcial") problemas.push("historia de boletos parcial");
-  if (r.moneda_mixta) problemas.push("boletos en más de una moneda");
   if (r.fechas_sin_mep?.length) problemas.push(`${r.fechas_sin_mep.length} fecha(s) sin MEP`);
+  const nota = r.moneda_mixta ? " · boletos en ARS y USD, cada uno al MEP de su fecha" : "";
   return problemas.length
-    ? { ok: false, motivo: `✗ ${problemas.join(" · ")}` }
-    : { ok: true, motivo: "✓ cost-basis completo" };
+    ? { ok: false, motivo: `✗ ${problemas.join(" · ")}${nota}` }
+    : { ok: true, motivo: `✓ cost-basis completo${nota}` };
 }
 
 const PORT_COLS_DEFAULT: Record<PortColKey, boolean> = {
