@@ -28,7 +28,8 @@ const INPUT = "w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] px
   "text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
 
 export function AbmModal({
-  titulo, ayuda, campos, filas, onAlta, onGuardar, onBaja, textoBaja = "baja", onCerrar,
+  titulo, ayuda, campos, filas, onAlta, onGuardar, onBaja, textoBaja = "baja",
+  bloqueado, onCerrar,
 }: {
   titulo: string;
   ayuda?: string;
@@ -38,6 +39,9 @@ export function AbmModal({
   onGuardar: (f: AbmFila, v: Record<string, string>) => Promise<string | null>;
   onBaja?: (f: AbmFila) => Promise<string | null>;
   textoBaja?: string;
+  // Bloqueo por FILA (`soloAlta` es por columna): ej. el nombre de un banco que
+  // manda la fuente y no se puede tocar.
+  bloqueado?: (f: AbmFila, c: AbmCampo) => boolean;
   onCerrar: () => void;
 }) {
   const [editId, setEditId] = useState<string | null>(null);
@@ -136,7 +140,8 @@ export function AbmModal({
                     <td key={c.key} className="px-2 py-1 break-words">
                       {editId === f._id
                         ? celdaEditable(c, borrador[c.key] ?? "",
-                            (v) => setBorrador((p) => ({ ...p, [c.key]: v })), !!c.soloAlta)
+                            (v) => setBorrador((p) => ({ ...p, [c.key]: v })),
+                            !!c.soloAlta || !!bloqueado?.(f, c))
                         : <span className="text-[var(--t-text)]">{f[c.key] || "—"}</span>}
                     </td>
                   ))}

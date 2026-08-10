@@ -597,7 +597,7 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
       {abierto && (
         <AbmModal
           titulo="Catálogo de bancos"
-          ayuda="La moneda es parte de la clave: no se edita (dá de alta otro banco). Renombrar arrastra los saldos, cheques y movimientos ya cargados. El Nº Hygirus se guarda pero NO se muestra en la grilla. BORRAR saca el banco de la grilla: la fila se elimina si nunca se usó, y si tiene históricos queda dada de baja (no se pierde nada)."
+          ayuda="El NOMBRE de los bancos que trae la fuente (los que aparecen en CUENTA OPERATIVA de MOVIMIENTOS) NO se puede editar: lo manda ella y renombrarlo duplica el banco. En esos solo se cargan el número de cuenta y el Nº Hygirus. La moneda es parte de la clave: no se edita (dá de alta otro banco). BORRAR saca el banco de la grilla: la fila se elimina si nunca se usó, y si tiene históricos queda dada de baja (no se pierde nada)."
           campos={[
             { key: "cuenta_operativa", label: "Cuenta operativa", ancho: "w-[34%]",
               placeholder: "como figura en el banco…" },
@@ -612,7 +612,9 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
             numero_cuenta: c.numero_cuenta ?? "",
             numero_hygirus: c.numero_hygirus ?? "",
             unidad: c.unidad,
+            _descubierta: c.descubierta ? "1" : "",
           }))}
+          bloqueado={(f, c) => c.key === "cuenta_operativa" && f._descubierta === "1"}
           onAlta={(v) => post("POST", {
             cuenta_operativa: v.cuenta_operativa, unidad: v.unidad,
             numero_cuenta: v.numero_cuenta || null,
