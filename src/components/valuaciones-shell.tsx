@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ValuacionesView } from "@/components/valuaciones-view";
 import { PnLTitulosView } from "@/components/pnl-titulos-view";
 import { PnLTotalesView } from "@/components/pnl-totales-view";
+import { PnlAjustesModal } from "@/components/pnl-ajustes-modal";
 import { CuentaCombobox, type CuentaDoc } from "@/components/aum-view";
 
 // Sub-vistas dentro de VALUACIONES (igual orden que tenía la sub-tab
@@ -37,6 +38,11 @@ export function ValuacionesShell() {
       ? (v as ValSubtab)
       : "portafolio";
   });
+  // Modal de AJUSTES DE PnL (eventos corporativos sin boleto: splits, canjes).
+  // `ajustesVersion` se bumpea tras cada escritura y remonta PNL TÍTULOS
+  // (key) para que refetchee el PnL recalculado con el ajuste nuevo.
+  const [ajustesAbierto, setAjustesAbierto] = useState(false);
+  const [ajustesVersion, setAjustesVersion] = useState(0);
 
   // Sync subtab + cuenta a la URL (replaceState para no llenar el history).
   useEffect(() => {
@@ -102,6 +108,13 @@ export function ValuacionesShell() {
           </button>
         </div>
         <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={() => setAjustesAbierto(true)}
+            title="Ajustes de PnL por eventos corporativos (splits, canjes) — escritura solo admin"
+            className="px-3 py-0.5 mr-2 text-[10px] font-semibold tracking-wide border bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+          >
+            AJUSTES
+          </button>
           {_VAL_SUBTABS.map((s) => (
             <button
               key={s}
@@ -135,7 +148,7 @@ export function ValuacionesShell() {
               }
             />
           ) : (
-            <PnLTitulosView idCuenta={valCuenta} />
+            <PnLTitulosView key={ajustesVersion} idCuenta={valCuenta} />
           )
         ) : (
           <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
@@ -143,6 +156,13 @@ export function ValuacionesShell() {
           </div>
         )}
       </div>
+
+      {ajustesAbierto && (
+        <PnlAjustesModal
+          onCerrar={() => setAjustesAbierto(false)}
+          onCambio={() => setAjustesVersion((v) => v + 1)}
+        />
+      )}
     </div>
   );
 }
