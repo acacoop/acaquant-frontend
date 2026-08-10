@@ -222,8 +222,8 @@ function TabClientesSegmentacion() {
   };
 
   // Cambio inline del operador (desplegable). Setea mail + nombre juntos (el
-  // nombre se busca en la lista de operadores) → quedan coherentes. Para un
-  // operador nuevo que no esté en la lista, se usa la carga por Excel.
+  // nombre se busca en la lista de operadores) → quedan coherentes. La lista es
+  // el catálogo clientes.operadores completo, tenga cartera el operador o no.
   const saveOperador = async (c: Cliente, email: string) => {
     if (email === (c.operador_email ?? "")) return;
     const nombre = operadores.find((o) => o.email === email)?.nombre ?? "";
