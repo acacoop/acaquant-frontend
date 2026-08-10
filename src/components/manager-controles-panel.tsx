@@ -72,6 +72,13 @@ const META: {
     accion: { label: "IR A TÍTULOS", tab: "titulos" },
   },
   {
+    id: "ops_sin_tc",
+    label: "SIN TC",
+    titulo: "Boletos ARS sin tipo de cambio",
+    impacto:
+      "El boleto no guardó el MEP de su concertación, así que la vista OPERACIONES en modo DOLARIZAR no lo puede convertir con su propio snapshot (cae al TC del día). Es una fuente de ingesta que dejó de estampar `mep` — se agrupa por mercado y mes para ver de dónde viene.",
+  },
+  {
     id: "comitentes_sin_nivel1",
     label: "NIVEL 1",
     titulo: "Comitentes activos sin nivel 1",
