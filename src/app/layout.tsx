@@ -48,6 +48,14 @@ export default async function RootLayout({
   //     en el nav cuando el getMe fallaba. Fail-closed por seguridad.
   const isProd = !!process.env.API_URL;
   const modules = me?.modules ?? (isProd ? [] : null);
+  // SALUD (botón + modal de alertas) es ADMIN-ONLY y ahora se decide ACÁ, en el
+  // server, con la identidad ya resuelta. Antes se montaban para todo el mundo y
+  // la única defensa era el 403 del backend: si la matriz de roles le da `manager`
+  // a alguien de más, el estado interno del sistema le aparece en la barra a un
+  // comercial. Defensa en profundidad: sin `manager` el componente no existe en el
+  // HTML, no pollea y no puede mostrar nada. Fail-closed: si `/api/me` falla,
+  // `modules` es [] en prod → no se monta.
+  const esAdmin = (modules ?? []).includes("manager");
   return (
     <html lang="es" className={`h-full light ${jbMono.variable}`}>
       <head>
@@ -66,8 +74,9 @@ export default async function RootLayout({
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
 
         {/* SALUD: avisa al admin cuando algo se rompe, en vez de esperar a que
-            entre a mirar. Solo se abre ante una transición NUEVA sin ver. */}
-        <SaludAlertasModal />
+            entre a mirar. Solo se abre ante una transición NUEVA sin ver.
+            ADMIN-ONLY server-side (ver `esAdmin` arriba). */}
+        {esAdmin && <SaludAlertasModal />}
 
         {/* Anuncio de lanzamiento de la nueva vista RESEARCH (solo 20-21 jul 2026). */}
         <AnuncioResearchModal />
@@ -89,9 +98,10 @@ export default async function RootLayout({
             {/* Briefing de apertura (QuantAI P1): botón inline + modal.
                 Se auto-oculta sin módulo `ia` (decide el backend). */}
             <BriefingModal />
-            {/* SALUD inline (solo admin): el modal automático salta ante un
-                incidente confirmado; esto es para mirar cuando uno quiere. */}
-            <SaludBoton />
+            {/* SALUD inline (solo admin, decidido server-side): el modal
+                automático salta ante un incidente confirmado; esto es para
+                mirar cuando uno quiere. */}
+            {esAdmin && <SaludBoton />}
             <span>MERVAL / ROFEX</span>
           </div>
         </footer>
