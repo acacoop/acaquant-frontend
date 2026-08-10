@@ -5,8 +5,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Back Office → Tesorería → tab CHEQUES. Pantalla partida 50/50:
- * izquierda RECIBIDOS, derecha EMITIDOS. Los DOS lados se cargan A MANO —
- * acá no aparece nada automático, todo lo registra el equipo.
+ * izquierda RECIBIDOS, derecha EMITIDOS.
+ *
+ * Los RECIBIDOS son 100% carga manual. Los EMITIDOS conviven en dos orígenes:
+ *   • `manual`  — los carga el equipo, y son los que restan del saldo de BANCOS.
+ *   • `aunesa`  — chip AUTO: los espeja solo el backend desde los e-cheq de EGRESO
+ *                 de MOVIMIENTOS (RIEL '[E CHEQ] E CHEQ'), que YA son cheques
+ *                 emitidos. Nacen 'emitido' con fecha de pago del día del
+ *                 movimiento. NO restan del saldo: esa plata ya entró a la fila
+ *                 "Egresos e-cheq" por el movimiento, y contarla otra vez era el
+ *                 doble conteo que había cuando se cargaban a mano. Tampoco se
+ *                 borran (el próximo poll las recrea): se cierran con 'completado'.
  *
  * Cada lado tiene su propio horizonte:
  *   EMITIDOS  — TABLERO DE SEGUIMIENTO: NO depende de la fecha de la barra. Un
@@ -17,7 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  *               El título NO lleva total: un número solo no puede resumir un tablero
  *               que mezcla estados, fechas y monedas. Se abre VER CONSOLIDADO, que
  *               suma por banco y moneda separando vencidos / de hoy / futuros /
- *               pendientes / sin fecha, y marca cuánto de eso IMPACTA EN BANCOS.
+ *               AUTO / pendientes / sin fecha, y marca cuánto de eso IMPACTA EN BANCOS.
  *   RECIBIDOS — son TODOS DEL DÍA: se registran intradía y no se arrastran, así
  *               que sí siguen la fecha de la barra. Estados pendiente |
  *               FINALIZADO, y los finalizados se ven igual porque son los que
@@ -37,6 +46,9 @@ type Cheque = {
   comitente: string | null; comitente_denominacion: string | null; cuit: string | null;
   banco: string; unidad: string; importe: number; estado: string;
   fecha_pago: string | null; cerrado_at: string | null; creado_por: string | null;
+  // `automatico` = la fila la espejó el backend desde un e-cheq de EGRESO de Aunesa.
+  // Esas NO restan del saldo de BANCOS: esa plata ya entra por el movimiento.
+  origen?: string; mov_id?: string | null; automatico?: boolean;
 };
 type Banco = { banco: string; unidad: string };
 type Resp = {
@@ -61,6 +73,9 @@ const WRAP = "whitespace-normal break-words leading-tight";  // nombres largos
 const NUM = "whitespace-nowrap tabular-nums";
 // Fecha de pago futura → fila naranja: todavía no venció, hay que seguirla.
 const NARANJA = "bg-[#f59e0b]/25";
+// Chip de la fila espejada desde Aunesa: nadie la cargó, llegó con el movimiento.
+const AUTO = "text-[8px] uppercase tracking-widest border border-[var(--t-accent)] " +
+  "text-[var(--t-accent)] px-1 py-px align-middle ml-1 whitespace-nowrap";
 
 export function TesoreriaCheques({ fecha }: { fecha: string }) {
   const [data, setData] = useState<Resp | null>(null);
@@ -112,8 +127,10 @@ export function TesoreriaCheques({ fecha }: { fecha: string }) {
       <div className="text-[9px] text-[var(--t-text-muted)] shrink-0">
         <b>Emitidos</b>: seguimiento, no dependen de la fecha de arriba — se listan todos
         los abiertos y marcarlos <b>completado</b> los saca de la vista (fecha de pago futura
-        = fila naranja). <b>Recibidos</b>: son los del día {data?.fecha ?? ""}, se registran
-        intradía; los <b>finalizados</b> suman a "Ingresos e-cheqs" en BANCOS.
+        = fila naranja). Los <b>auto</b> los espeja solo el sistema desde los e-cheq de
+        MOVIMIENTOS: no hay que cargarlos a mano y no restan dos veces del saldo.
+        <b> Recibidos</b>: son los del día {data?.fecha ?? ""}, se registran intradía; los
+        <b> finalizados</b> suman a "Ingresos e-cheqs" en BANCOS.
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -242,7 +259,17 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
                   (f.fecha_pago && hoy && f.fecha_pago > hoy ? NARANJA : "")}
                 title={f.fecha_pago && hoy && f.fecha_pago > hoy
                   ? `pago futuro (${fechaCorta(f.fecha_pago)}) — en seguimiento` : undefined}>
-                <td className={TD + " " + WRAP}>{cell(f.comitente_denominacion ?? f.comitente)}</td>
+                <td className={TD + " " + WRAP}>
+                  {cell(f.comitente_denominacion ?? f.comitente)}
+                  {f.automatico && (
+                    <span className={AUTO}
+                      title={`Se creó solo desde el e-cheq de Aunesa (mov. ${f.mov_id ?? "—"}). ` +
+                        "No hace falta cargarlo a mano y NO resta del saldo: esa plata ya entra " +
+                        "por MOVIMIENTOS, en la fila Egresos e-cheq de BANCOS."}>
+                      auto
+                    </span>
+                  )}
+                </td>
                 {esEmitido
                   ? <td className={TD + " " + NUM}>{cell(f.cuit)}</td>
                   : <td className={TD + " uppercase"}>{cell(f.tipo)}</td>}
@@ -300,6 +327,7 @@ const GRUPOS = [
   { k: "vencido", t: "Vencidos", d: "emitidos con fecha de pago anterior a hoy" },
   { k: "hoy", t: "De hoy", d: "emitidos que se pagan hoy" },
   { k: "futuro", t: "Futuros", d: "emitidos con fecha de pago posterior a hoy — todavía no impactan" },
+  { k: "auto", t: "Auto (Aunesa)", d: "espejados del e-cheq de MOVIMIENTOS: ya restaron por ese movimiento, NO vuelven a restar" },
   { k: "pendiente", t: "Pendientes", d: "todavía no emitidos: NO restan del saldo del banco" },
   { k: "sin_fecha", t: "Sin fecha", d: "emitidos sin fecha de pago cargada: NO restan del saldo" },
 ] as const;
@@ -307,10 +335,13 @@ type Grupo = (typeof GRUPOS)[number]["k"];
 
 const vacio = (): Record<Grupo, { imp: number; n: number }> => ({
   vencido: { imp: 0, n: 0 }, hoy: { imp: 0, n: 0 }, futuro: { imp: 0, n: 0 },
-  pendiente: { imp: 0, n: 0 }, sin_fecha: { imp: 0, n: 0 },
+  auto: { imp: 0, n: 0 }, pendiente: { imp: 0, n: 0 }, sin_fecha: { imp: 0, n: 0 },
 });
 
 const grupoDe = (f: Cheque, hoy: string): Grupo => {
+  // Primero que nada: los espejo de Aunesa nunca restan (ya lo hizo su movimiento),
+  // así que no pueden contaminar "vencidos"/"de hoy", que SÍ son lo que impacta.
+  if (f.automatico) return "auto";
   if (f.estado !== "emitido") return "pendiente";
   if (!f.fecha_pago) return "sin_fecha";
   if (!hoy) return "futuro";
@@ -445,8 +476,9 @@ function ModalConsolidado({ filas, hoy, onCerrar }: {
         <div className="px-3 py-2 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)] shrink-0 leading-relaxed">
           <b>Impacta en bancos</b> = vencidos + de hoy. Es lo que el backend resta en la fila
           <b> Egresos e-cheq</b> de la grilla BANCOS, banco por banco. Los <b>futuros</b> entran
-          solos cuando llega su fecha. Los <b>pendientes</b> y los <b>sin fecha</b> NO restan del
-          saldo: figuran acá para que se vea que existen.
+          solos cuando llega su fecha. Los <b>auto</b> ya restaron por su movimiento de
+          MOVIMIENTOS, así que no se cuentan de nuevo. Los <b>pendientes</b> y los
+          <b> sin fecha</b> NO restan del saldo: figuran acá para que se vea que existen.
         </div>
       </div>
     </div>
@@ -624,11 +656,16 @@ function FormCheque({ lado, bancos, estados, tipos, inicial, onCerrar, onOk }: {
         className="px-2 py-1 uppercase tracking-widest text-[var(--t-text-muted)] hover:text-[var(--t-text)]">
         cancelar
       </button>
-      {inicial && (
+      {inicial && !inicial.automatico && (
         <button onClick={borrar} disabled={busy}
           className="px-2 py-1 uppercase tracking-widest text-[var(--t-neg)] hover:underline disabled:opacity-40">
           borrar
         </button>
+      )}
+      {inicial?.automatico && (
+        <span className="text-[9px] text-[var(--t-text-muted)] normal-case">
+          fila automática: no se borra (se recrea sola) — cerrala con <b>completado</b>
+        </span>
       )}
       {err && <span className="text-[var(--t-neg)]">{err}</span>}
     </div>
