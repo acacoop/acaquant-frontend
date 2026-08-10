@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 /**
  * Modal de ABM tipo planilla — una tabla donde se dan de alta, editan y bajan las
@@ -28,11 +28,15 @@ const INPUT = "w-full bg-[var(--t-surface)] border border-[var(--t-border-2)] px
   "text-[11px] text-[var(--t-text)] outline-none [color-scheme:dark]";
 
 export function AbmModal({
-  titulo, ayuda, campos, filas, onAlta, onGuardar, onBaja, textoBaja = "baja",
+  titulo, ayuda, aviso, campos, filas, onAlta, onGuardar, onBaja, textoBaja = "baja",
   bloqueado, onCerrar,
 }: {
   titulo: string;
   ayuda?: string;
+  // Bloque libre debajo de la ayuda, para lo que el catálogo necesite ADVERTIR (ej.
+  // bancos que están en la grilla y no acá). Es un slot: el modal sigue sin saber
+  // nada del dominio.
+  aviso?: ReactNode;
   campos: AbmCampo[];
   filas: AbmFila[];
   onAlta: (v: Record<string, string>) => Promise<string | null>;      // null = OK
@@ -99,6 +103,7 @@ export function AbmModal({
             {ayuda}
           </div>
         )}
+        {aviso && <div className="shrink-0">{aviso}</div>}
         {err && <div className="px-3 py-1.5 text-[10px] text-[var(--t-neg)] shrink-0">{err}</div>}
 
         <div className="flex-1 min-h-0 overflow-auto">

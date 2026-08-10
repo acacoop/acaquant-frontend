@@ -78,6 +78,12 @@ type CuentaCat = {
   cuenta_operativa: string; unidad: string; numero_cuenta: string | null;
   numero_hygirus: string | null; activa: boolean; descubierta: boolean;
 };
+// Bancos que ESTÁN en la grilla y NO en el ABM — lo calcula el backend. `sin_catalogo`
+// = no hay fila en el catálogo; `dado_de_baja` = la hay pero apagada y el banco sigue
+// operando. Los dos se arreglan igual: alta con ese nombre exacto.
+type FueraCatalogo = {
+  cuenta_operativa: string; unidad: string; motivo: "sin_catalogo" | "dado_de_baja";
+};
 type Conectado = { email: string; visto_at: string };
 // Movimiento = TODOS los campos crudos de Aunesa (dinámico) + derivados _hora/_tipo.
 type Mov = Record<string, unknown>;
@@ -85,6 +91,7 @@ type Resp = {
   fecha: string; fecha_iso?: string; estado: string; resumen: Record<string, Bucket>;
   cuentas?: CuentaWire[]; puede_editar_saldo?: boolean; estado_bancos?: string;
   catalogo?: CuentaCat[];
+  fuera_catalogo?: FueraCatalogo[];
   // TOTAL del panel RESCATE ACA VALORES por moneda (lo calcula el backend con la
   // misma fuente que el modal, así la barra no puede contradecirlo).
   rescate?: Record<string, number>;
@@ -330,7 +337,8 @@ export function TesoreriaView() {
         )}
         {/* Con fecha pasada se está mirando una foto: nada de ABM ni de carga. */}
         {tab === "bancos" && !historico && data?.puede_editar_saldo && (
-          <AbmBancos filas={data?.catalogo ?? []} onCambio={() => cargar(true)} />
+          <AbmBancos filas={data?.catalogo ?? []} fuera={data?.fuera_catalogo ?? []}
+            onCambio={() => cargar(true)} />
         )}
         {tab === "bancos" && !historico && (
           <button onClick={() => setRegsAbierto(true)}
@@ -545,7 +553,9 @@ function Filtro({ label, value, onChange, opciones }: {
 // poder darlo de alta antes de que opere y, sobre todo, cargarle el NÚMERO DE
 // CUENTA — que Aunesa no manda. Solo para quien tiene permiso de escritura; toda
 // alta/edición/borrado queda en operaciones.tesoreria_audit.
-function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => void }) {
+function AbmBancos({ filas, fuera, onCambio }: {
+  filas: CuentaCat[]; fuera: FueraCatalogo[]; onCambio: () => void;
+}) {
   const [abierto, setAbierto] = useState(false);
   // Los dados de baja no se listan: el ABM tiene que mostrar el catálogo VIGENTE.
   // Para revivir uno alcanza con darlo de alta otra vez con el mismo nombre.
@@ -597,6 +607,37 @@ function AbmBancos({ filas, onCambio }: { filas: CuentaCat[]; onCambio: () => vo
       {abierto && (
         <AbmModal
           titulo="Catálogo de bancos"
+          aviso={fuera.length > 0 && (
+            <div className="px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-tint-amber)]">
+              <div className="text-[9px] uppercase tracking-widest text-[var(--t-accent)] mb-1">
+                {fuera.length} banco{fuera.length > 1 ? "s" : ""} en la grilla sin
+                estar en el catálogo
+              </div>
+              <div className="text-[9px] text-[var(--t-text-muted)] mb-1.5">
+                Tienen movimientos o carga manual del día pero no figuran acá, así que
+                no se les puede cargar número de cuenta ni Nº Hygirus. Dales de alta con
+                el botón — usa el nombre EXACTO, no hay que tipearlo.
+              </div>
+              {fuera.map((f) => (
+                <div key={`${f.cuenta_operativa}|${f.unidad}`}
+                  className="flex items-center gap-2 py-0.5">
+                  <span className="text-[11px] text-[var(--t-text)] flex-1 truncate">
+                    {f.cuenta_operativa} <span className="text-[var(--t-text-muted)]">[{f.unidad}]</span>
+                  </span>
+                  <span className="text-[9px] text-[var(--t-text-muted)]">
+                    {f.motivo === "dado_de_baja" ? "dado de baja" : "sin catálogo"}
+                  </span>
+                  <button
+                    onClick={() => post("POST", {
+                      cuenta_operativa: f.cuenta_operativa, unidad: f.unidad,
+                    })}
+                    className="text-[9px] uppercase tracking-widest border border-[var(--t-border-2)] px-2 py-0.5 text-[var(--t-accent)] hover:bg-[var(--t-accent)]/10">
+                    dar de alta
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           ayuda="El NOMBRE de los bancos que trae la fuente (los que aparecen en CUENTA OPERATIVA de MOVIMIENTOS) NO se puede editar: lo manda ella y renombrarlo duplica el banco. En esos solo se cargan el número de cuenta y el Nº Hygirus. La moneda es parte de la clave: no se edita (dá de alta otro banco). BORRAR saca el banco de la grilla: la fila se elimina si nunca se usó, y si tiene históricos queda dada de baja (no se pierde nada)."
           campos={[
             { key: "cuenta_operativa", label: "Cuenta operativa", ancho: "w-[34%]",
