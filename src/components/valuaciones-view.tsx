@@ -229,7 +229,7 @@ interface Props { idCuenta: string; nombreCuenta?: string }
 type PortColKey =
   | "emisor" | "clase" | "cartera" | "calif" | "vto"
   | "cantidad" | "precio" | "valuacion" | "share"
-  | "costo" | "pnl" | "gan";
+  | "costo" | "pnl" | "gan" | "ok";
 
 const PORT_COLS: {
   key: PortColKey; label: string; w: string; right?: boolean; title?: string;
@@ -249,12 +249,28 @@ const PORT_COLS: {
     title: "PnL no realizado + cobros pasivos (a hoy)" },
   { key: "gan",       label: "Gan %",   w: "9%",  right: true,
     title: "PnL / costo remanente" },
+  { key: "ok",        label: "OK",      w: "5%",  right: true,
+    title: "¿El costo/PnL de la fila es confiable? ✓ sí · ✗ revisar (el detalle, en el tooltip de cada fila)" },
 ];
+
+// Semáforo del cost-basis de una fila. ✗ no significa que el número esté mal, sino
+// que el motor no pudo reconstruir la posición entera y hay que mirarlo con pinzas.
+function calidadPnl(r: PnLRow | undefined): { ok: boolean; motivo: string } | null {
+  if (!r) return null;
+  const problemas: string[] = [];
+  if (r.completeness === "sin_boletos") problemas.push("sin boletos: no hay costo");
+  else if (r.completeness === "parcial") problemas.push("historia de boletos parcial");
+  if (r.moneda_mixta) problemas.push("boletos en más de una moneda");
+  if (r.fechas_sin_mep?.length) problemas.push(`${r.fechas_sin_mep.length} fecha(s) sin MEP`);
+  return problemas.length
+    ? { ok: false, motivo: `✗ ${problemas.join(" · ")}` }
+    : { ok: true, motivo: "✓ cost-basis completo" };
+}
 
 const PORT_COLS_DEFAULT: Record<PortColKey, boolean> = {
   emisor: false, clase: false, cartera: true, calif: false, vto: false,
   cantidad: true, precio: true, valuacion: true, share: true,
-  costo: true, pnl: true, gan: true,
+  costo: true, pnl: true, gan: true, ok: true,
 };
 
 const PORT_COLS_LS_KEY = "acaquant.carteras.portfolio.cols";
@@ -630,18 +646,6 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   const pnlSel =
     selectedUnidad ? posResp?.pnl_detalle?.[selectedUnidad] : undefined;
 
-  // La AUDITORÍA arranca con el título más grande en vez de un cartel vacío (las
-  // posiciones ya vienen ordenadas por valuación desc). Si el título elegido no
-  // existe en la fecha nueva, cae al primero de esa fecha.
-  useEffect(() => {
-    const pos = posResp?.posiciones ?? [];
-    if (pos.length === 0) return;
-    setSelectedUnidad((prev) =>
-      prev && pos.some((p) => (p.unidad ?? p.ticker) === prev)
-        ? prev
-        : (pos[0].unidad ?? pos[0].ticker));
-  }, [posResp]);
-
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
@@ -790,6 +794,19 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         return (
           <td key={c.key} className={base} style={{ color: gan == null ? "#666" : colorDelta(gan) }}>
             {gan != null ? `${gan >= 0 ? "+" : ""}${gan.toFixed(1)}%` : "—"}
+          </td>
+        );
+      }
+      case "ok": {
+        const q = calidadPnl(posResp?.pnl_detalle?.[p.unidad ?? ""]);
+        return (
+          <td
+            key={c.key}
+            className={base + "font-bold"}
+            style={{ color: q == null ? "#666" : q.ok ? "var(--t-pos)" : "var(--t-neg)" }}
+            title={q?.motivo ?? "sin PnL para esta fila (efectivo o tenencia histórica)"}
+          >
+            {q == null ? "—" : q.ok ? "✓" : "✗"}
           </td>
         );
       }
@@ -959,6 +976,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       costo:         posCosto(p),
                       pnl:           posPnl(p),
                       gan:           posGan(p),
+                      ok:            calidadPnl(posResp?.pnl_detalle?.[p.unidad ?? ""])?.motivo ?? "",
                     })),
                     columns: [
                       { header: "TICKER",       key: "ticker",       format: "text",     width: 14 },
@@ -974,6 +992,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                       { header: `COSTO ${moneda}`,     key: "costo",  format: "currency", width: 18 },
                       { header: `PNL ${moneda}`,       key: "pnl",    format: "currency", width: 18 },
                       { header: "GAN %",        key: "gan",          format: "percent",  width: 10 },
+                      { header: "OK",           key: "ok",           format: "text",     width: 34 },
                     ],
                   });
                 }
