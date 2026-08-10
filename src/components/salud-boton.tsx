@@ -1,6 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  COLOR,
+  ChequeoExpandido,
+  ChequeoFila,
+  hhmm,
+  setAlertaChequeo,
+  useChequeoDetalle,
+  type Chequeo,
+  type SaludResp,
+} from "@/components/salud-chequeo";
 
 /**
  * Indicador de SALUD en la barra de estado inferior — SOLO admin.
@@ -14,6 +24,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * arreglarse por más de 30'). Este botón es la otra mitad: poder mirar cuando uno
  * quiere, sin esperar a que algo se rompa ni entrar a Manager.
  *
+ * El mini-panel que abre es la MISMA vista de SALUD, no un resumen (reporte
+ * 2026-08-10): cada chequeo se despliega acá con su evidencia, su diagnóstico, el
+ * detalle crudo (corridas con log, fechas cargadas, anomalías), el historial y el
+ * toggle para silenciarlo o volver a activarlo. Antes solo mostraba título y motivo
+ * y para cualquier otra cosa había que irse a Manager — eso convertía cada aviso en
+ * una navegación, justo lo que hacía que no se mirara. "Ver todo →" queda, pero es
+ * una opción, no el único camino.
+ *
  * Lleva el número de chequeos rotos encima, así el estado del sistema está visible
  * en TODA la app sin ocupar lugar. Si no hay nada roto queda apagado y discreto.
  *
@@ -22,22 +40,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const POLL_MS = 5 * 60_000;
 
-type Chequeo = { id: string; titulo: string; estado: "ok" | "warn" | "error"; motivo: string };
-
 export function SaludBoton({ onAbrir }: { onAbrir?: () => void }) {
-  const [conteo, setConteo] = useState<{ error: number; warn: number } | null>(null);
+  const [data, setData] = useState<SaludResp | null>(null);
   const [abierto, setAbierto] = useState(false);
-  const [chequeos, setChequeos] = useState<Chequeo[]>([]);
+  // Lo verde se esconde por default, igual que en Manager: se ve lo que hay que
+  // atender. El toggle está acá para poder confirmar que algo puntual está bien.
+  const [verOk, setVerOk] = useState(false);
+  const { abierto: expandido, detalle, historial, diag, abrir } = useChequeoDetalle();
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const cargar = useCallback(async () => {
     try {
-      const r = await fetch("/api/manager/salud?solo_problemas=true", { cache: "no-store" });
+      // Se pide el panel COMPLETO (no `solo_problemas`): el backend evalúa todo
+      // igual, filtrarlo server-side solo impedía el toggle "ver lo que está bien".
+      const r = await fetch("/api/manager/salud", { cache: "no-store" });
       if (!r.ok || !alive.current) return;          // 403 = no es admin → botón oculto
-      const j = await r.json();
-      setConteo({ error: j?.conteo?.error ?? 0, warn: j?.conteo?.warn ?? 0 });
-      setChequeos(j?.chequeos ?? []);
+      setData(await r.json() as SaludResp);
     } catch { /* nunca puede romper la app */ }
   }, []);
 
@@ -47,9 +66,15 @@ export function SaludBoton({ onAbrir }: { onAbrir?: () => void }) {
     return () => clearInterval(t);
   }, [cargar]);
 
-  if (!conteo) return null;                          // sin permiso o sin datos: no existe
-  const rotos = conteo.error;
-  const avisos = conteo.warn;
+  const toggleAlerta = async (c: Chequeo) => {
+    if (await setAlertaChequeo(c.id, !(c.alertar ?? true))) cargar();
+  };
+
+  if (!data) return null;                            // sin permiso o sin datos: no existe
+  const conteo = data.conteo ?? {};
+  const rotos = conteo.error ?? 0;
+  const avisos = conteo.warn ?? 0;
+  const chequeos = (data.chequeos ?? []).filter((c) => verOk || c.estado !== "ok");
 
   return (
     <>
@@ -70,34 +95,41 @@ export function SaludBoton({ onAbrir }: { onAbrir?: () => void }) {
       </button>
 
       {abierto && (
-        <div className="fixed bottom-6 right-3 z-40 w-[min(28rem,calc(100vw-1.5rem))] max-h-[60vh] overflow-y-auto border border-[var(--t-border)] bg-[var(--t-panel)] shadow-xl">
-          <div className="px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-2">
+        <div className="fixed bottom-6 right-3 z-40 w-[min(44rem,calc(100vw-1.5rem))] max-h-[72vh] flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] shadow-xl">
+          <div className="px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap items-center gap-2 shrink-0">
+            <span className="w-2 h-2 rounded-full" style={{ background: COLOR[data.veredicto ?? "ok"] }} />
             <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--t-text)]">
               Salud del sistema
             </span>
-            <a href="/manager" className="ml-auto text-[9px] text-[var(--t-accent)] hover:underline">
+            <span className="text-[9px] text-[var(--t-text-dim)]">
+              {rotos} rotas · {avisos} con avisos · {conteo.ok ?? 0} bien
+            </span>
+            <label className="ml-auto flex items-center gap-1 text-[9px] text-[var(--t-text-dim)] cursor-pointer">
+              <input type="checkbox" checked={verOk} onChange={(e) => setVerOk(e.target.checked)} />
+              ver también lo que está bien
+            </label>
+            <span className="text-[9px] text-[var(--t-text-muted)]">{hhmm(data.evaluado_at)}</span>
+            <a href="/manager" className="text-[9px] text-[var(--t-accent)] hover:underline">
               ver todo →
             </a>
           </div>
-          {chequeos.length === 0 ? (
-            <div className="px-3 py-6 text-center text-[11px] text-[var(--t-text-muted)]">
-              No hay nada roto.
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--t-border-2)]">
-              {chequeos.map((c) => (
-                <div key={c.id} className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{
-                      background: c.estado === "error" ? "var(--t-neg)" : "#eab308",
-                    }} />
-                    <span className="text-[11px] text-[var(--t-text)]">{c.titulo}</span>
-                  </div>
-                  <div className="pl-3.5 text-[10px] text-[var(--t-text-dim)]">{c.motivo}</div>
-                </div>
-              ))}
-            </div>
-          )}
+
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[var(--t-border-2)]">
+            {chequeos.map((c) => (
+              <div key={c.id}>
+                <ChequeoFila c={c} onClick={() => abrir(c)} />
+                {expandido === c.id && (
+                  <ChequeoExpandido c={c} detalle={detalle[c.id]} historial={historial[c.id]}
+                                    diag={diag[c.id]} onToggleAlerta={toggleAlerta} />
+                )}
+              </div>
+            ))}
+            {chequeos.length === 0 && (
+              <div className="px-3 py-6 text-center text-[11px] text-[var(--t-text-muted)]">
+                No hay nada roto.
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>

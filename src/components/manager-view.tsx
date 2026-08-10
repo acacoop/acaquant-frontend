@@ -22,7 +22,6 @@ import { TabDocumentos } from "./manager-documentos-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
 import { ManagerDebugTeaPanel } from "./manager-debug-tea";
-import { RecursosPanel } from "./recursos-panel";
 import { RolesPanel } from "./roles-panel";
 import { UsuariosPanel } from "./usuarios-panel";
 import { GROUP_HEADER, GROUP_TITLE, Pill } from "./manager-shared";
@@ -303,7 +302,7 @@ function LatenciaPanel() {
 }
 
 // OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
-// (frescura de motores/jobs + recursos + logs) + JOBS (catálogo completo desde
+// (frescura de motores/jobs + logs) + JOBS (catálogo completo desde
 // el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
 function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
   const [subRaw, setSub] = usePersistedState<"salud" | "controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
@@ -481,20 +480,23 @@ function DbBasePanel() {
   );
 }
 
-// DIAGNÓSTICO: Motores (rediseñado 50/50) + Recursos + Logs.
+// DIAGNÓSTICO: Motores (rediseñado 50/50) + Logs.
+// RECURSOS (CPU/RAM/swap/disk del Droplet) se ELIMINÓ: era un tablero de métricas
+// crudas que no respondía si el sistema estaba sano — esa pregunta la contesta
+// OBSERVABILIDAD → SALUD. Se fue también el sampler de fondo del backend.
 function DiagnosticoGroup() {
-  const [sub, setSub] = usePersistedState<"motores" | "recursos" | "logs">("manager.diag.sub", "motores");
+  const [subRaw, setSub] = usePersistedState<"motores" | "logs">("manager.diag.sub", "motores");
+  // Guard sobre el estado persistido: quien tenía RECURSOS elegido cae a ÁRBOL.
+  const sub = subRaw === "motores" || subRaw === "logs" ? subRaw : "motores";
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
         <span className={GROUP_TITLE}>DIAGNÓSTICO</span>
         <Pill label="ÁRBOL" active={sub === "motores"} onClick={() => setSub("motores")} />
-        <Pill label="RECURSOS" active={sub === "recursos"} onClick={() => setSub("recursos")} />
         <Pill label="LOGS" active={sub === "logs"} onClick={() => setSub("logs")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "motores"  && <TabDiagnostico />}
-        {sub === "recursos" && <RecursosPanel />}
         {sub === "logs"     && <LogsPanel />}
       </div>
     </div>
