@@ -111,16 +111,65 @@ export function midiendo(): boolean {
   return habilitado();
 }
 
-// Vistas donde HAY algo que medir. Si el usuario prende la medición parado en
-// otra vista no se registra nada — y "no aparece nada" es indistinguible de
-// "está roto". Por eso el volcado vacío explica en vez de callarse.
-const VISTAS_INSTRUMENTADAS = [
-  "/renta-variable (Scanner) → pulso por rubro + el poll del universo",
-  "/trading tab MOVERS → el filtro ±4% + el poll del universo",
-  "/derivados → motor de estrategias y matriz Black-Scholes",
-  "/research → Retorno Total (tocá los filtros, recalcula en cada cambio)",
-  "cualquier vista con polling → red / payload / JSON.parse por endpoint",
-];
+/**
+ * Normaliza la URL para que el reporte sea legible.
+ *
+ * Sin esto, un endpoint parametrizado se abre en una fila por combinación:
+ * medir /trading dio TRECE filas de `/api/trading/pivots?tickers=RKLB%2C…`,
+ * cada una con n=1 o n=2, y ninguna decía lo que importaba — que ese endpoint
+ * se llamó 30 veces. Se conservan los NOMBRES de los parámetros (cambian el
+ * costo) y se descartan los VALORES (solo explotan la cardinalidad).
+ */
+function normalizarUrl(url: string): string {
+  try {
+    const u = new URL(url, window.location.origin);
+    const params = [...u.searchParams.keys()];
+    return u.pathname + (params.length ? `?${params.join("&")}=…` : "");
+  } catch {
+    return url.split("?")[0];
+  }
+}
+
+/**
+ * Envuelve `window.fetch` para medir TODA request que salga del browser, sin
+ * tener que instrumentar vista por vista.
+ *
+ * Por qué global y no caso por caso: la app pide datos por al menos cuatro
+ * caminos distintos (usePoll, fetchJson/getJSON, fetchShared y `fetch` pelado
+ * en ~100 componentes). Instrumentarlos de a uno es interminable y siempre
+ * queda alguno afuera; el único punto por el que pasan todos es `fetch`.
+ *
+ * Solo se instala con la medición PRENDIDA, así en producción nadie tiene el
+ * fetch parcheado. El wrapper no toca argumentos ni respuesta: delega en el
+ * original y devuelve su promesa tal cual, con los errores intactos.
+ *
+ * El tamaño sale del header `content-length` cuando viene. NO se clona la
+ * respuesta a propósito: clonar para pesar el body consume memoria y puede
+ * interferir con quien la lee después. Si el server no manda el header, se
+ * mide el tiempo igual y el tamaño no aparece — nunca al revés.
+ */
+function instalarFetchGlobal(): void {
+  const w = window as unknown as Record<string, unknown>;
+  if (w.__acaperfFetch) return;
+  const original = window.fetch.bind(window);
+  w.__acaperfFetch = original;
+  window.fetch = async (...args: Parameters<typeof fetch>) => {
+    const t0 = performance.now();
+    try {
+      const r = await original(...args);
+      const url = typeof args[0] === "string" ? args[0] : (args[0] as Request).url;
+      const etiqueta = normalizarUrl(url);
+      acumular(`red ${etiqueta}`, performance.now() - t0, "ms");
+      const len = r.headers.get("content-length");
+      if (len) acumular(`payload ${etiqueta}`, Number(len) / 1024, "KB");
+      return r;
+    } catch (e) {
+      // Un fetch fallido también cuesta tiempo (y suele ser el más lento).
+      acumular("red — requests FALLIDAS", performance.now() - t0, "ms");
+      throw e;
+    }
+  };
+}
 
 function volcar(): void {
   if (stats.size === 0) {
@@ -133,12 +182,11 @@ function volcar(): void {
       return;
     }
     console.log(
-      "[perf] medición prendida, pero todavía SIN MUESTRAS en esta vista.\n" +
-        "Puede ser por dos motivos:\n" +
-        "  1) prendiste el flag y no recargaste la página (F5) — es lo más común;\n" +
-        "  2) esta vista no tiene nada instrumentado.\n" +
-        "Vistas con algo que medir:\n  · " +
-        VISTAS_INSTRUMENTADAS.join("\n  · "),
+      "[perf] medición prendida, pero todavía SIN MUESTRAS.\n" +
+        "  1) ¿Recargaste con F5 después de prender el flag? Es lo más común.\n" +
+        "  2) Si la vista trae TODO desde el server (SSR) no pide nada desde el\n" +
+        "     browser y no hay qué medir acá — ese caso se mide en el backend\n" +
+        "     con scripts/diag_front_back_baseline.py.",
     );
     return;
   }
@@ -162,6 +210,38 @@ function volcar(): void {
 }
 
 /**
+ * Copia las mediciones como TEXTO al portapapeles. Existe porque la salida de
+ * `console.table` no se puede seleccionar ni pegar: para compartir los números
+ * había que sacarle una foto a la pantalla.
+ */
+async function copiar(): Promise<void> {
+  if (stats.size === 0) {
+    console.log("[perf] no hay muestras para copiar");
+    return;
+  }
+  const lineas = [
+    `# perf ${window.location.pathname} — ${stats.size} mediciones`,
+    ["medicion", "n", "unidad", "promedio", "maximo", "total"].join("\t"),
+  ];
+  for (const [etiqueta, s] of [...stats.entries()].sort(
+    (a, b) => b[1].total - a[1].total,
+  )) {
+    lineas.push([
+      etiqueta, s.n, s.unidad,
+      (s.total / s.n).toFixed(2), s.max.toFixed(2), s.total.toFixed(1),
+    ].join("\t"));
+  }
+  const texto = lineas.join("\n");
+  try {
+    await navigator.clipboard.writeText(texto);
+    console.log(`[perf] copiado al portapapeles (${stats.size} filas). Pegalo donde quieras.`);
+  } catch {
+    // El navegador puede bloquear el portapapeles sin gesto del usuario.
+    console.log("[perf] no pude usar el portapapeles — copiá esto a mano:\n" + texto);
+  }
+}
+
+/**
  * Instala `__acaperf()` en la consola. Se llama al cargar el módulo en el
  * browser, PRENDIDO O APAGADO — a propósito: si solo existiera con el flag
  * activo, escribir `__acaperf()` con la medición apagada tiraría un
@@ -177,16 +257,23 @@ function instalar(): void {
   w.__acaperf = (accion?: string) => {
     if (accion === "reset") {
       stats.clear();
-      console.log("[perf] muestras borradas");
+      console.log("[perf] muestras borradas — medí esta vista desde cero");
+      return;
+    }
+    if (accion === "copiar") {
+      void copiar();
       return;
     }
     volcar();
   };
   if (!habilitado()) return; // instalado pero mudo: sin timer ni banner
+  instalarFetchGlobal();
   setInterval(volcar, 30_000);
   console.log(
-    "[perf] medición ACTIVA. __acaperf() para ver la tabla, " +
-      "__acaperf('reset') para reiniciar. Resumen automático cada 30s.",
+    "[perf] medición ACTIVA en " + window.location.pathname + "\n" +
+      "  __acaperf()          → tabla\n" +
+      "  __acaperf('copiar')  → la copia como texto al portapapeles\n" +
+      "  __acaperf('reset')   → borra y arranca de cero (usalo al entrar a cada vista)",
   );
 }
 
