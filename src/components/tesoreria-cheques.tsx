@@ -360,11 +360,18 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
 // y `fecha_pago <= día`). Los pendientes y los sin fecha se muestran aparte justamente
 // porque NO restan del saldo, y verlos al lado es lo que evita la discusión de por qué
 // un cheque "está" pero el banco no lo siente.
+//
+// AUTO (AUNESA) es SOLO PARA LOS DEL DÍA (corregido 2026-08-11). Un cheque emitido
+// persiste y sigue restando hasta que se marca `completado` — eso ya valía para los
+// manuales y es la razón de ser de la columna VENCIDOS. Los espejo son la MISMA cosa:
+// el día de su movimiento no cuentan (los resta ese movimiento) pero del día siguiente
+// en adelante son vencidos como cualquier otro. Tenerlos SIEMPRE en `auto` los hacía
+// impactar un solo día y después evaporarse del saldo.
 const GRUPOS = [
-  { k: "vencido", t: "Vencidos", d: "emitidos con fecha de pago anterior a hoy" },
+  { k: "vencido", t: "Vencidos", d: "emitidos con fecha de pago anterior a hoy — siguen restando hasta que se completan" },
   { k: "hoy", t: "De hoy", d: "emitidos que se pagan hoy" },
   { k: "futuro", t: "Futuros", d: "emitidos con fecha de pago posterior a hoy — todavía no impactan" },
-  { k: "auto", t: "Auto (Aunesa)", d: "espejados del e-cheq de MOVIMIENTOS: ya restaron por ese movimiento, NO vuelven a restar" },
+  { k: "auto", t: "Auto (Aunesa)", d: "espejados de un e-cheq de MOVIMIENTOS de HOY: hoy los resta ese movimiento, mañana pasan a vencidos" },
   { k: "pendiente", t: "Pendientes", d: "todavía no emitidos: NO restan del saldo del banco" },
   { k: "sin_fecha", t: "Sin fecha", d: "emitidos sin fecha de pago cargada: NO restan del saldo" },
 ] as const;
@@ -376,14 +383,15 @@ const vacio = (): Record<Grupo, { imp: number; n: number }> => ({
 });
 
 const grupoDe = (f: Cheque, hoy: string): Grupo => {
-  // Primero que nada: los espejo de Aunesa nunca restan (ya lo hizo su movimiento),
-  // así que no pueden contaminar "vencidos"/"de hoy", que SÍ son lo que impacta.
-  if (f.automatico) return "auto";
   if (f.estado !== "emitido") return "pendiente";
   if (!f.fecha_pago) return "sin_fecha";
   if (!hoy) return "futuro";
-  if (f.fecha_pago < hoy) return "vencido";
   if (f.fecha_pago > hoy) return "futuro";
+  // El espejo del DÍA no suma: su plata la está poniendo el movimiento e-cheq de hoy,
+  // que se lista aparte en la misma celda de BANCOS. Es el único caso que sale de la
+  // clasificación por fecha — a partir de mañana cae en "vencido" como cualquier otro.
+  if (f.automatico && f.fecha_pago === hoy) return "auto";
+  if (f.fecha_pago < hoy) return "vencido";
   return "hoy";
 };
 
@@ -512,10 +520,13 @@ function ModalConsolidado({ filas, hoy, onCerrar }: {
 
         <div className="px-3 py-2 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)] shrink-0 leading-relaxed">
           <b>Impacta en bancos</b> = vencidos + de hoy. Es lo que el backend resta en la fila
-          <b> Egresos e-cheq</b> de la grilla BANCOS, banco por banco. Los <b>futuros</b> entran
-          solos cuando llega su fecha. Los <b>auto</b> ya restaron por su movimiento de
-          MOVIMIENTOS, así que no se cuentan de nuevo. Los <b>pendientes</b> y los
-          <b> sin fecha</b> NO restan del saldo: figuran acá para que se vea que existen.
+          <b> Egresos e-cheq</b> de la grilla BANCOS, banco por banco. Un cheque emitido sigue
+          restando TODOS los días hasta que se marca <b>completado</b> — por eso los
+          <b> vencidos</b> cuentan. Los <b>futuros</b> entran solos cuando llega su fecha. Los
+          <b> auto</b> son los espejados de un e-cheq de MOVIMIENTOS <b>de hoy</b>: hoy los resta
+          ese movimiento, y desde mañana pasan a vencidos y los sostiene el cheque. Los
+          <b> pendientes</b> y los <b>sin fecha</b> NO restan del saldo: figuran acá para que se
+          vea que existen.
         </div>
       </div>
     </div>
