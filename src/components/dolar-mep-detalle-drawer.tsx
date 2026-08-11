@@ -153,9 +153,12 @@ export function DolarMepDetalleDrawer({ operativaId, onClose }: Props) {
 
               {/* Lo justo y necesario */}
               <div className="border border-[var(--t-border)]">
-                <Linea label="Compra AL30" value={`$${fmtArs(m.precio_compra_al30)}`} color="var(--t-pos)" />
-                <Linea label="Venta AL30D" value={`US$${fmtArs(m.precio_venta_al30d)}`} color="#4488ff" />
-                <Linea label="USD obtenidos" value={m.usd_efectivo !== undefined ? `US$${fmtArs(m.usd_efectivo)}` : "—"} color="#d0d0d0" />
+                {/* Rotulados por INSTRUMENTO, no por side: en la operativa de
+                    venta el AL30 se vende y el AL30D se compra, así que decir
+                    "Compra AL30" mentía en la mitad de las filas. */}
+                <Linea label="Precio AL30" value={`$${fmtArs(m.precio_compra_al30)}`} color="var(--t-pos)" />
+                <Linea label="Precio AL30D" value={`US$${fmtArs(m.precio_venta_al30d)}`} color="#4488ff" />
+                <Linea label="USD operados" value={m.usd_efectivo !== undefined ? `US$${fmtArs(m.usd_efectivo)}` : "—"} color="#d0d0d0" />
                 <Linea
                   label="TC efectivo"
                   value={m.mep_efectivo !== undefined ? `$${fmtArs(m.mep_efectivo)}` : "—"}
