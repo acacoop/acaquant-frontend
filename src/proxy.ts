@@ -35,10 +35,13 @@ const PATH_MODULES: [string, string[]][] = [
   ["/operadores", ["operaciones"]],
   ["/referidos", ["operaciones"]],
   ["/contrapartes", ["operaciones"]],
-  // /mesa-dinero (Mesa de Dinero, NEGOCIO) — lectura módulo `operaciones`;
-  // la escritura tiene allowlist per-usuario server-side (backend).
-  ["/mesa-dinero", ["operaciones"]],
-  ["/api/mesa-dinero", ["operaciones"]],
+  // /mesa-dinero (Mesa de Dinero, NEGOCIO) — el ACCESO es una allowlist
+  // per-usuario (Manager → MESA → ACCESO), NO el módulo `operaciones`. El
+  // backend lo publica como la capacidad `mesa-dinero` dentro de me.modules,
+  // así este matcher sigue siendo uno solo. La escritura suma su propia
+  // allowlist server-side. Enforcement real: require_lectura_mesa en el backend.
+  ["/mesa-dinero", ["mesa-dinero"]],
+  ["/api/mesa-dinero", ["mesa-dinero"]],
   ["/api/operaciones", ["operaciones"]],
   ["/api/cuentas", ["operaciones"]],
   ["/aum", ["portfolios"]],

@@ -71,7 +71,11 @@ const NAV: Entry[] = [
       { href: "/aum",          label: "AUM",           module: "portfolios" },
       { href: "/valuaciones",  label: "Carteras",      module: "portfolios" },
       { href: "/contrapartes", label: "Contrapartes",  module: "operaciones" },
-      { href: "/mesa-dinero",  label: "Mesa de Dinero", module: "operaciones" },
+      // `mesa-dinero` NO es un módulo del RBAC: es una CAPACIDAD per-usuario que
+      // /api/me publica dentro de `modules` cuando el email está en la allowlist
+      // (Manager → MESA → ACCESO). Se filtra igual que un módulo a propósito, para
+      // no duplicar el mecanismo de nav.
+      { href: "/mesa-dinero",  label: "Mesa de Dinero", module: "mesa-dinero" },
       { href: "/operaciones",  label: "Operaciones",   module: "operaciones" },
       { href: "/operadores",   label: "Operadores",    module: "operaciones" },
       { href: "/referidos",    label: "Referidos",     module: "operaciones" },

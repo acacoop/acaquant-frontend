@@ -1,11 +1,14 @@
 "use client";
 
-// MANAGER → MESA (módulo `manager`, admin-only). Gestión de MESA DE DINERO:
-//   IZQ: catálogo de TRADERS (los únicos nombres válidos del campo Trader
-//        en /mesa-dinero — se cargan a mano acá, no se tipean en la vista).
-//   RESTO: allowlists de ESCRITURA, una por vista (Mesa de Dinero, SENEBIS y
-//        el saldo inicial de Tesorería son equipos distintos). Ver la vista lo
-//        da el módulo; esto decide quién puede CREAR/EDITAR adentro.
+// MANAGER → MESA (módulo `manager`, admin-only). Gestión de MESA DE DINERO.
+// Layout 50/50 (arriba/abajo), cada mitad con hasta 4 cards:
+//   FILA DE ARRIBA — lo de siempre:
+//     · catálogo de TRADERS (los únicos nombres válidos del campo Trader en
+//       /mesa-dinero — se cargan a mano acá, no se tipean en la vista).
+//     · allowlists de ESCRITURA, una por vista (Mesa de Dinero, SENEBIS y el
+//       saldo inicial de Tesorería son equipos distintos): quién CREA/EDITA.
+//   FILA DE ABAJO — permisos de ACCESO (quién VE la vista), que hasta el
+//     2026-08-11 los daba el módulo `operaciones` y ahora son per-usuario.
 // Consume /api/manager/mesa/*. Todo cambio queda auditado.
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -50,8 +53,12 @@ export function TabMesa() {
     } finally { setBusy(null); }
   };
 
+  // grid-rows-2 + min-h-0 en las dos filas: sin el min-h-0 la fila de arriba se
+  // estira con su contenido y empuja a la de abajo fuera del viewport ("grid blowout").
   return (
-    <div className="h-full grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3 p-3 min-h-0">
+    <div className="h-full grid grid-rows-2 gap-3 p-3 min-h-0">
+    {/* ── ARRIBA: catálogo + quién ESCRIBE en cada vista ── */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3 min-h-0">
       {/* IZQUIERDA: traders */}
       <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
         <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
@@ -95,7 +102,7 @@ export function TabMesa() {
       {/* CENTRO: quién escribe en Mesa de Dinero */}
       <PanelEscritores
         titulo="PERMISOS — Mesa de Dinero"
-        detalle="Usuarios que pueden REGISTRAR/EDITAR en Mesa de Dinero (admin siempre puede). Ver la vista lo da el acceso a NEGOCIO."
+        detalle="Usuarios que pueden REGISTRAR/EDITAR en Mesa de Dinero (admin siempre puede). Quien escribe TAMBIÉN ve la vista, aunque no esté en ACCESO."
         base="/api/manager/mesa/escritores"
       />
 
@@ -113,19 +120,37 @@ export function TabMesa() {
         base="/api/manager/mesa/tesoreria-escritores"
       />
     </div>
+
+    {/* ── ABAJO: quién ACCEDE a la vista (permiso de LECTURA, per-usuario) ── */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3 min-h-0">
+      <PanelEscritores
+        titulo="ACCESO — Mesa de Dinero"
+        detalle="Usuarios que PUEDEN VER la vista Mesa de Dinero (admin siempre puede). Antes la veía todo NEGOCIO; ahora solo esta lista. Los de PERMISOS ya la ven: escribir implica ver."
+        base="/api/manager/mesa/lectores"
+        vacio="Solo admin ve la vista. Buscá arriba para dar acceso."
+      />
+    </div>
+    </div>
   );
 }
 
 
-// Allowlist de escritura de una vista. Misma UI para Mesa de Dinero y Senebis;
-// lo único que cambia es contra qué endpoint habla.
-function PanelEscritores({ titulo, detalle, base }: {
+// Allowlist per-usuario de una vista. Misma UI para todas (escritura de Mesa de
+// Dinero / Senebis / Tesorería y ACCESO a Mesa de Dinero); lo único que cambia
+// es contra qué endpoint habla y los textos.
+function PanelEscritores({ titulo, detalle, base, vacio }: {
   titulo: string; detalle: string; base: string;
+  /** Mensaje cuando la lista está vacía (default: el de escritura). */
+  vacio?: string;
 }) {
   const [escritores, setEscritores] = useState<Escritor[]>([]);
   const [q, setQ] = useState("");
   const [cands, setCands] = useState<Candidato[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  // Aviso del backend cuando sacar a alguien NO le quita el acceso (sigue siendo
+  // escritor y escribir implica ver). Sin esto el panel mentiría: la fila
+  // desaparece y el usuario sigue entrando.
+  const [aviso, setAviso] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(() => {
@@ -158,8 +183,13 @@ function PanelEscritores({ titulo, detalle, base }: {
 
   const quitar = async (email: string) => {
     setBusy(email);
+    setAviso(null);
     try {
-      await fetch(`${base}?email=${encodeURIComponent(email)}`, { method: "DELETE" });
+      const r = await fetch(`${base}?email=${encodeURIComponent(email)}`, { method: "DELETE" });
+      const d = await r.json().catch(() => null);
+      if (d?.sigue_viendo) {
+        setAviso(`${email} sigue viendo la vista: está en PERMISOS (escribir implica ver). Para sacarle el acceso, quitalo también de ahí.`);
+      }
       load();
     } finally { setBusy(null); }
   };
@@ -171,6 +201,11 @@ function PanelEscritores({ titulo, detalle, base }: {
         <span className="ml-2 text-[10px] text-[var(--t-text-muted)]">{escritores.length}</span>
         <div className="text-[9px] text-[var(--t-text-muted)] mt-0.5">{detalle}</div>
       </div>
+      {aviso && (
+        <div className="shrink-0 mx-3 mt-2 px-2 py-1 text-[10px] border border-[var(--t-warn,var(--t-border-2))] text-[var(--t-text)]">
+          ⚠ {aviso}
+        </div>
+      )}
       <div className="p-3 shrink-0">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar usuario por email…"
           className={`${INPUT} w-full`} />
@@ -195,7 +230,7 @@ function PanelEscritores({ titulo, detalle, base }: {
       )}
       <div className="flex-1 min-h-0 overflow-auto px-3 pb-3">
         {escritores.length === 0 ? (
-          <div className="text-[10px] text-[var(--t-text-muted)]">Nadie tiene escritura todavía (solo admin). Buscá arriba para agregar.</div>
+          <div className="text-[10px] text-[var(--t-text-muted)]">{vacio ?? "Nadie tiene escritura todavía (solo admin). Buscá arriba para agregar."}</div>
         ) : (
           <table className="w-full text-[11px]">
             <thead><tr className="text-[var(--t-text-muted)] text-left">
