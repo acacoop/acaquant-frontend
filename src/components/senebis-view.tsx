@@ -37,6 +37,8 @@ type Orden = {
   tipo_contraparte: "interno" | "externo";
   agente: string | null; agente_numero: string | null;
   es_mae: boolean;
+  // Columna SEGMENTO del Excel MAE. Solo tiene valor en las órdenes MAE.
+  segmento: string | null;
   // Marcas de edición persistentes (reemplazan al amarillo que se pintaba a
   // mano en la planilla vieja): qué campos se tocaron post-alta (→ *) y si el
   // cambio se hizo sobre una orden YA completada (→ fila amarilla).
@@ -52,8 +54,12 @@ type OpsResp = { total: number; pendientes: number; ordenes: Orden[]; conectados
 // numero = BYMA/Quantex (va a CONTRAPARTE del Excel Quantex);
 // codigo_mae = AAAOO (va a DESTINO del futuro Excel MAE).
 type Agente = { nombre: string; numero: string; codigo_mae?: string | null };
+// Catálogo de la columna SEGMENTO del Excel MAE (ABM propio, como AGENTES).
+// `es_default` lo marca el backend: el front NO hardcodea cuál es.
+type Segmento = { nombre: string; es_default?: boolean };
 type Opciones = {
   agentes: Agente[]; tipos_contraparte: string[]; plazos: string[];
+  segmentos: Segmento[]; segmento_default: string;
   conectados: Conectado[];
   // Cargar/editar/borrar: MISMA allowlist que Mesa de Dinero (+ admin).
   // El front esconde la edición; el enforcement real es server-side.
@@ -115,6 +121,7 @@ const LABEL_CAMPO: Record<string, string> = {
   nro_contraparte: "nro contraparte", mercado: "mercado",
   cargan_ellos: "cargan ellos", tipo: "tipo",
   tipo_contraparte: "tipo de contraparte", agente: "agente", es_mae: "MAE",
+  segmento: "segmento MAE",
 };
 
 // Marca de edición de un campo: * ámbar al lado del valor que se tocó después
@@ -160,14 +167,17 @@ type FormState = {
   tipo_contraparte: "interno" | "externo";
   agente: string; cc: string;
   cp: string; mercado: string; cargan_ellos: boolean; tipo: string;
-  es_mae: boolean;
+  es_mae: boolean; segmento: string;
 };
 const FORM_VACIO: FormState = {
   operacion: "COMPRA", concertacion: hoyIso(), plazo: "CI",
   especie: "", vn: "", px: "",
   tipo_contraparte: "interno", agente: "", cc: "",
   cp: "255", mercado: "", cargan_ellos: false, tipo: "",
-  es_mae: false,
+  // segmento vacío = "el default del backend": se resuelve al abrir el form,
+  // cuando ya tenemos `opciones`. Mandarlo vacío también es válido — el
+  // backend le pone el default igual.
+  es_mae: false, segmento: "",
 };
 
 function ordenAForm(o: Orden): FormState {
@@ -178,7 +188,7 @@ function ordenAForm(o: Orden): FormState {
     agente: o.agente ?? "", cc: o.cc ?? "",
     cp: o.cp ?? "255", mercado: o.mercado ?? "",
     cargan_ellos: !!o.cargan_ellos, tipo: o.tipo ?? "",
-    es_mae: o.es_mae,
+    es_mae: o.es_mae, segmento: o.segmento ?? "",
   };
 }
 
@@ -253,6 +263,8 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
         agente: f.tipo_contraparte === "externo" ? f.agente || null : null,
         cc: f.tipo_contraparte === "interno" ? f.cc || null : null,
         es_mae: f.es_mae,
+        // Solo viaja en las MAE (en una Quantex el backend lo guarda NULL igual).
+        segmento: f.es_mae ? f.segmento || null : null,
       };
       const r = await fetch(
         editando ? `/api/back-office/senebis/ops/${editando.id}` : "/api/back-office/senebis/ops",
@@ -348,6 +360,29 @@ function OrdenForm({ opciones, editando, onGuardado, onCerrar, onBorrar }: {
             </span>
           )}
         </div>
+
+        {/* SEGMENTO: es una columna del Excel MAE, así que aparece SOLO si la
+            orden es MAE. Los valores salen del catálogo (botón SEGMENTOS MAE de
+            la vista) y el preseleccionado lo decide el backend. */}
+        {f.es_mae && (
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-[var(--t-text-muted)] uppercase">Segmento</span>
+            <select
+              value={f.segmento || opciones?.segmento_default || ""}
+              onChange={(e) => setF((p) => ({ ...p, segmento: e.target.value }))}
+              className={`${INPUT} w-[220px]`}
+              title="va tal cual a la columna SEGMENTO del Excel MAE">
+              {(opciones?.segmentos ?? []).map((sg) => (
+                <option key={sg.nombre} value={sg.nombre}>{sg.nombre}</option>
+              ))}
+            </select>
+            {!(opciones?.segmentos ?? []).length && (
+              <span className="text-[9px] text-[var(--t-neg)]">
+                catálogo vacío — cargarlo desde el botón SEGMENTOS MAE de la vista
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Contraparte: interno (cliente ALyC) vs externo (agente) */}
         <div className="border border-[var(--t-border-2)] p-2 flex flex-col gap-2">
@@ -636,6 +671,95 @@ function AgentesModal({ agentes, onCambio, onCerrar }: {
   );
 }
 
+// ── Catálogo de SEGMENTOS MAE (columna SEGMENTO del Excel MAE) ─────────────
+// Mismo patrón que AGENTES, con una diferencia deliberada: acá el nombre NO se
+// pasa a mayúsculas. El texto viaja tal cual al Excel y el MAE espera
+// "Bilateral MAEClear", no "BILATERAL MAECLEAR".
+function SegmentosModal({ segmentos, onCambio, onCerrar }: {
+  segmentos: Segmento[];
+  onCambio: () => void;
+  onCerrar: () => void;
+}) {
+  const [nombre, setNombre] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const agregar = async () => {
+    setErr(null);
+    const r = await fetch("/api/back-office/senebis/segmentos", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nombre: nombre.trim() }),
+    });
+    if (!r.ok) {
+      const b = await r.json().catch(() => ({}));
+      setErr(String(b?.error ?? b?.detail ?? `HTTP ${r.status}`));
+      return;
+    }
+    setNombre("");
+    onCambio();
+  };
+  const borrar = async (n: string) => {
+    if (!window.confirm(`¿Quitar el segmento "${n}" del catálogo? Queda auditado.`)) return;
+    const r = await fetch(`/api/back-office/senebis/segmentos/${encodeURIComponent(n)}`,
+      { method: "DELETE" });
+    if (!r.ok) {
+      const b = await r.json().catch(() => ({}));
+      setErr(String(b?.error ?? b?.detail ?? `HTTP ${r.status}`));
+      return;
+    }
+    onCambio();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCerrar}>
+      <div
+        className="w-[460px] max-w-[95vw] border border-[var(--t-border)] bg-[var(--t-surface)] p-3 flex flex-col gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">SEGMENTOS MAE</span>
+          <button onClick={onCerrar} className="text-[var(--t-text-dim)] hover:text-[var(--t-text)] text-[12px]">✕</button>
+        </div>
+        <span className="text-[9px] text-[var(--t-text-muted)]">
+          Valores de la columna SEGMENTO del Excel MAE. Se escriben TAL CUAL los
+          espera el MAE (respetando mayúsculas). El marcado como <b>default</b> es
+          con el que nace toda orden MAE y no se puede borrar.
+        </span>
+        <div className="flex gap-2">
+          <input className={`${INPUT} flex-1`} placeholder="Bilateral Entre Partes"
+            value={nombre} onChange={(e) => setNombre(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && nombre.trim()) agregar(); }} />
+          <button
+            onClick={agregar}
+            disabled={!nombre.trim()}
+            className="text-[10px] uppercase px-2 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-black disabled:opacity-40"
+          >
+            +
+          </button>
+        </div>
+        {err && <span className="text-[9px] text-[var(--t-neg)]">{err}</span>}
+        <div className="max-h-40 overflow-y-auto flex flex-col">
+          {segmentos.map((sg) => (
+            <div key={sg.nombre} className="flex items-center justify-between px-1 py-1 border-b border-[var(--t-border-2)] text-[11px]">
+              <span className="text-[var(--t-text)]">
+                {sg.nombre}
+                {sg.es_default && (
+                  <span className="text-[8px] uppercase tracking-widest text-[var(--t-accent)] ml-2">default</span>
+                )}
+              </span>
+              {!sg.es_default && (
+                <button onClick={() => borrar(sg.nombre)}
+                  className="text-[var(--t-text-dim)] hover:text-[var(--t-neg)] text-[10px]">✕</button>
+              )}
+            </div>
+          ))}
+          {!segmentos.length && (
+            <span className="text-[10px] text-[var(--t-text-dim)] py-2">Sin segmentos cargados todavía.</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Vista principal ────────────────────────────────────────────────────────
 export function SenebisView() {
   const [tab, setTab] = usePersistedState<"ordenes" | "quantex" | "mae">("senebis.tab", "ordenes");
@@ -653,6 +777,7 @@ export function SenebisView() {
   const [showForm, setShowForm] = useState(false);
   const [editando, setEditando] = useState<Orden | null>(null);
   const [showAgentes, setShowAgentes] = useState(false);
+  const [showSegmentos, setShowSegmentos] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const qs = useMemo(() => {
@@ -846,6 +971,13 @@ export function SenebisView() {
           )}
           <Presencia conectados={conectados} />
           <button
+            onClick={() => setShowSegmentos(true)}
+            title="segmentos MAE: los valores de la columna SEGMENTO del Excel MAE"
+            className="text-[10px] uppercase px-2 py-1 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"
+          >
+            Segmentos MAE
+          </button>
+          <button
             onClick={() => setShowAgentes(true)}
             title="agentes externos: nº Quantex + cód. MAE (el destino MAE de cuentas internas se edita en Manager → CONTRAPARTES)"
             className="text-[10px] uppercase px-2 py-1 border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"
@@ -899,6 +1031,13 @@ export function SenebisView() {
           agentes={opciones?.agentes ?? []}
           onCambio={cargarOpciones}
           onCerrar={() => setShowAgentes(false)}
+        />
+      )}
+      {showSegmentos && (
+        <SegmentosModal
+          segmentos={opciones?.segmentos ?? []}
+          onCambio={cargarOpciones}
+          onCerrar={() => setShowSegmentos(false)}
         />
       )}
     </div>
