@@ -7,16 +7,20 @@ import { ArancelesView } from "./aranceles-view";
 import { CashFlowView } from "./cashflow-view";
 import { DiferenciasDiariasView } from "./diferencias-diarias-view";
 import { DolarFuturoView } from "./dolar-futuro-view";
+import { FinanciamientoView } from "./financiamiento-view";
 import { OpsView } from "./ops-view";
 
-// /operaciones: OPERACIONES · ARANCELES · AGRO · DÓLAR FUTURO · DIFERENCIAS DIARIAS · depósitos & extracciones.
+// /operaciones: OPERACIONES · ARANCELES · AGRO · DÓLAR FUTURO · DIFERENCIAS DIARIAS ·
+// depósitos & extracciones · FINANCIAMIENTO.
 // MOVIMIENTOS (ex NEGOCIO) se movió a Manager. INTRADAY se movió a Trading.
 //
 // Keep-alive: cada tab se monta la PRIMERA vez que se abre y luego se oculta con
 // CSS (no se desmonta). Así no re-fetchea fechas/segmentos/data al volver — cambiar
 // de tab es instantáneo después del primer load. El gráfico (recharts) re-mide solo
 // al volver a mostrarse (ResizeObserver del ResponsiveContainer).
-type Tab = "operaciones" | "aranceles" | "agro" | "dolarfuturo" | "diferencias" | "depositos";
+type Tab =
+  | "operaciones" | "aranceles" | "agro" | "dolarfuturo" | "diferencias" | "depositos"
+  | "financiamiento";
 
 export function OperacionesView() {
   // tab persiste entre rutas (volvés a /operaciones → misma sub-pestaña).
@@ -42,6 +46,7 @@ export function OperacionesView() {
         <TabBtn active={tab === "dolarfuturo"} onClick={() => open("dolarfuturo")}>DÓLAR FUTURO</TabBtn>
         <TabBtn active={tab === "diferencias"} onClick={() => open("diferencias")}>DIFERENCIAS DIARIAS</TabBtn>
         <TabBtn active={tab === "depositos"} onClick={() => open("depositos")}>DEPÓSITOS & EXTRACCIONES</TabBtn>
+        <TabBtn active={tab === "financiamiento"} onClick={() => open("financiamiento")}>FINANCIAMIENTO</TabBtn>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden relative">
@@ -51,6 +56,7 @@ export function OperacionesView() {
         {visited.has("dolarfuturo") && <Pane active={tab === "dolarfuturo"}><DolarFuturoView /></Pane>}
         {visited.has("diferencias") && <Pane active={tab === "diferencias"}><DiferenciasDiariasView /></Pane>}
         {visited.has("depositos") && <Pane active={tab === "depositos"}><CashFlowView /></Pane>}
+        {visited.has("financiamiento") && <Pane active={tab === "financiamiento"}><FinanciamientoView /></Pane>}
       </div>
     </div>
   );
