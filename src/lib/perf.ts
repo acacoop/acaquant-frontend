@@ -120,6 +120,24 @@ export function midiendo(): boolean {
  * se llamó 30 veces. Se conservan los NOMBRES de los parámetros (cambian el
  * costo) y se descartan los VALORES (solo explotan la cardinalidad).
  */
+/**
+ * Saca la URL del primer argumento de `fetch`, que puede ser tres cosas
+ * distintas: un string, un objeto `URL` o un `Request`.
+ *
+ * Leer `.url` a ciegas funciona SOLO con `Request`: en un objeto `URL` esa
+ * propiedad no existe (se llama `.href`) y devuelve `undefined`, que después
+ * se resolvía como la ruta literal "/undefined". Al medir /operadores
+ * aparecieron 12 requests a "/undefined" — no era la app llamando mal, era
+ * esta función leyendo mal. Un instrumento que inventa un endpoint inexistente
+ * es peor que no medir.
+ */
+function urlDe(entrada: unknown): string {
+  if (typeof entrada === "string") return entrada;
+  if (entrada instanceof URL) return entrada.href;
+  if (typeof Request !== "undefined" && entrada instanceof Request) return entrada.url;
+  return String(entrada);
+}
+
 function normalizarUrl(url: string): string {
   try {
     const u = new URL(url, window.location.origin);
@@ -157,11 +175,14 @@ function instalarFetchGlobal(): void {
     const t0 = performance.now();
     try {
       const r = await original(...args);
-      const url = typeof args[0] === "string" ? args[0] : (args[0] as Request).url;
-      const etiqueta = normalizarUrl(url);
+      const etiqueta = normalizarUrl(urlDe(args[0]));
       acumular(`red ${etiqueta}`, performance.now() - t0, "ms");
       const len = r.headers.get("content-length");
       if (len) acumular(`payload ${etiqueta}`, Number(len) / 1024, "KB");
+      // Una request que responde 4xx/5xx igual costó el viaje completo. Sin
+      // esto se mezclaba con las buenas y un endpoint roto (que se reintenta)
+      // parecía tráfico normal.
+      if (!r.ok) acumular(`⚠ HTTP ${r.status} ${etiqueta}`, 1, "n");
       return r;
     } catch (e) {
       // Un fetch fallido también cuesta tiempo (y suele ser el más lento).
