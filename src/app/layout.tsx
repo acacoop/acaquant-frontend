@@ -9,6 +9,7 @@ import { SaludBoton } from "@/components/salud-boton";
 import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { Header } from "@/components/header";
+import { PerfBoot } from "@/components/perf-boot";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getMe } from "@/lib/me";
 import "./globals.css";
@@ -69,6 +70,10 @@ export default async function RootLayout({
         />
       </head>
       <body className="h-full flex flex-col">
+        {/* Medidor de performance del browser (lib/perf.ts). Apagado por
+            default: sin el flag `acaquant:perf` solo define __acaperf() en la
+            consola para poder consultar el estado. No renderiza nada. */}
+        <PerfBoot />
         <Header modules={modules} />
 
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>

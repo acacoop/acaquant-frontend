@@ -111,8 +111,37 @@ export function midiendo(): boolean {
   return habilitado();
 }
 
+// Vistas donde HAY algo que medir. Si el usuario prende la medición parado en
+// otra vista no se registra nada — y "no aparece nada" es indistinguible de
+// "está roto". Por eso el volcado vacío explica en vez de callarse.
+const VISTAS_INSTRUMENTADAS = [
+  "/renta-variable (Scanner) → pulso por rubro + el poll del universo",
+  "/trading tab MOVERS → el filtro ±4% + el poll del universo",
+  "/derivados → motor de estrategias y matriz Black-Scholes",
+  "/research → Retorno Total (tocá los filtros, recalcula en cada cambio)",
+  "cualquier vista con polling → red / payload / JSON.parse por endpoint",
+];
+
 function volcar(): void {
-  if (stats.size === 0) return;
+  if (stats.size === 0) {
+    if (!habilitado()) {
+      console.log(
+        "[perf] medición APAGADA. Para prenderla:\n" +
+          "  localStorage.setItem('acaquant:perf','1')\n" +
+          "y RECARGAR la página (F5). El flag se lee una sola vez, al cargar.",
+      );
+      return;
+    }
+    console.log(
+      "[perf] medición prendida, pero todavía SIN MUESTRAS en esta vista.\n" +
+        "Puede ser por dos motivos:\n" +
+        "  1) prendiste el flag y no recargaste la página (F5) — es lo más común;\n" +
+        "  2) esta vista no tiene nada instrumentado.\n" +
+        "Vistas con algo que medir:\n  · " +
+        VISTAS_INSTRUMENTADAS.join("\n  · "),
+    );
+    return;
+  }
   const filas: Record<string, unknown>[] = [];
   for (const [etiqueta, s] of [...stats.entries()].sort(
     (a, b) => b[1].total - a[1].total,
@@ -132,6 +161,16 @@ function volcar(): void {
   console.table(filas);
 }
 
+/**
+ * Instala `__acaperf()` en la consola. Se llama al cargar el módulo en el
+ * browser, PRENDIDO O APAGADO — a propósito: si solo existiera con el flag
+ * activo, escribir `__acaperf()` con la medición apagada tiraría un
+ * "ReferenceError" seco y no habría forma de saber si el flag quedó bien
+ * puesto. Instalado siempre, la función SIEMPRE contesta algo útil.
+ *
+ * Apagado no cuesta nada: define una función y sale. No hay timer, no hay
+ * lecturas de localStorage por poll, no se mide nada.
+ */
 function instalar(): void {
   const w = window as unknown as Record<string, unknown>;
   if (w.__acaperf) return;
@@ -143,9 +182,20 @@ function instalar(): void {
     }
     volcar();
   };
+  if (!habilitado()) return; // instalado pero mudo: sin timer ni banner
   setInterval(volcar, 30_000);
   console.log(
     "[perf] medición ACTIVA. __acaperf() para ver la tabla, " +
       "__acaperf('reset') para reiniciar. Resumen automático cada 30s.",
   );
+}
+
+// Auto-instalación al cargar en el browser. La importa `arrancarPerf()` desde
+// el layout, así `__acaperf()` existe en TODAS las vistas y siempre responde.
+if (typeof window !== "undefined") instalar();
+
+/** No hace nada por sí sola: existe para que el layout pueda importar este
+ *  módulo y disparar la auto-instalación de arriba en cualquier vista. */
+export function arrancarPerf(): void {
+  if (typeof window !== "undefined") instalar();
 }
