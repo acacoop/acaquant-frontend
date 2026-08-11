@@ -81,7 +81,9 @@ const fechaCorta = (iso: string | null) => (iso ? iso.split("-").reverse().join(
 // BIENESTAR COOPERATIVA LIMITADA") estira la columna y mete scroll horizontal en
 // media pantalla. Con ancho fijo el texto se parte y sigue abajo.
 const TH = "px-2 py-1.5 text-center font-normal";
-const TD = "px-2 py-1 text-center";
+// `overflow-hidden`: con `table-fixed`, una celda nowrap que no entra se dibuja
+// sobre la de al lado. Preferimos recortar antes que superponer.
+const TD = "px-2 py-1 text-center overflow-hidden";
 const WRAP = "whitespace-normal break-words leading-tight";  // nombres largos
 const NUM = "whitespace-nowrap tabular-nums";
 // Fecha de pago futura → fila naranja: todavía no venció, hay que seguirla.
@@ -249,15 +251,19 @@ function Lado({ lado, titulo, filas, bancos, estados, tipos, hoy, editable, load
       <table className="text-[11px] w-full table-fixed">
         <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
           <tr className="border-b border-[var(--t-border)]">
-            <th className={TH + " w-[26%]"}>Comitente</th>
+            {/* Los anchos TIENEN que sumar 100: la tabla es `table-fixed` y con la
+                suma pasada (era 113% en emitidos y 111% en recibidos) las celdas se
+                estrechan y el contenido con `whitespace-nowrap` —el importe con su
+                moneda— se desborda ENCIMA de la columna ESTADO. */}
+            <th className={TH + " w-[21%]"}>Comitente</th>
             {esEmitido
-              ? <th className={TH + " w-[14%]"}>CUIT</th>
+              ? <th className={TH + " w-[12%]"}>CUIT</th>
               : <th className={TH + " w-[12%]"}>Tipo</th>}
-            <th className={TH + " w-[22%]"}>Banco</th>
-            <th className={TH + " w-[16%]"}>Importe</th>
-            <th className={TH + " w-[13%]"}>Estado</th>
-            <th className={TH + " w-[13%]"}>Fecha pago</th>
-            {editable && <th className={TH + " w-[9%]"} />}
+            <th className={TH + " w-[17%]"}>Banco</th>
+            <th className={TH + " w-[20%]"}>Importe</th>
+            <th className={TH + " w-[15%]"}>Estado</th>
+            <th className={TH + " w-[10%]"}>Fecha pago</th>
+            {editable && <th className={TH + " w-[5%]"} />}
           </tr>
         </thead>
         <tbody>

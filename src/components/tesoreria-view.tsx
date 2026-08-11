@@ -167,6 +167,8 @@ type Tab = (typeof TABS)[number];
 
 export function TesoreriaView() {
   const [tabGuardada, setTab] = usePersistedState<Tab>("tes.tab", "movimientos");
+  // Nodo de la barra donde las tabs portalizan sus botones (ver el SLOT abajo).
+  const [slotBarra, setSlotBarra] = useState<HTMLElement | null>(null);
   // SALDO AL2 se eliminó. Si quedó guardada en la sesión de alguien que la tenía
   // abierta, cae al default en vez de dejar la barra sin ninguna tab resaltada.
   const tab = (TABS as readonly string[]).includes(tabGuardada) ? tabGuardada : "movimientos";
@@ -297,6 +299,11 @@ export function TesoreriaView() {
           </button>
         ))}
         <span className="w-px h-4 bg-[var(--t-border)] mx-1" />
+        {/* SLOT de la barra: cada tab monta acá (por portal) sus botones propios, para
+            que no se coman una fila del cuerpo. Hoy lo usa MERCADOS con los dos ABM de
+            catálogo. Va como STATE, no ref: el hijo tiene que re-renderizar cuando el
+            nodo existe. */}
+        <span ref={setSlotBarra} className="flex items-center gap-2" />
         {/* FECHA: solo en BANCOS. Es la única tab con histórico (lee la FOTO del día);
             el resto es siempre el día en curso, así que un selector ahí solo confundiría. */}
         {tab === "bancos" && (
@@ -497,7 +504,7 @@ export function TesoreriaView() {
       ) : tab === "banco a banco" ? (
         <TesoreriaBancoABanco fecha={hoy} />
       ) : tab === "mercados" ? (
-        <TesoreriaMercados fecha={hoy} />
+        <TesoreriaMercados fecha={hoy} slotBarra={slotBarra} />
       ) : tab === "cheques" ? (
         <TesoreriaCheques fecha={hoy} />
       ) : tab === "veps" ? (

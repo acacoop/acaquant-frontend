@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { AbmModal } from "@/components/ui/abm-modal";
 
@@ -62,7 +63,9 @@ const TD = "px-2 py-1 text-center";
 const WRAP = "whitespace-normal break-words leading-tight";
 const NUM = "whitespace-nowrap tabular-nums";
 
-export function TesoreriaMercados({ fecha }: { fecha: string }) {
+export function TesoreriaMercados(
+  { fecha, slotBarra }: { fecha: string; slotBarra?: HTMLElement | null },
+) {
   const [data, setData] = useState<Resp | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -109,7 +112,7 @@ export function TesoreriaMercados({ fecha }: { fecha: string }) {
   );
 
   return (
-    <div className="flex-1 min-h-0 min-w-0 flex flex-col p-3 gap-2 overflow-y-auto overflow-x-hidden">
+    <div className="flex-1 min-h-0 min-w-0 flex flex-col p-3 gap-2 overflow-hidden">
       {err && (
         <div className="px-3 py-2 border border-[var(--t-neg)] bg-[var(--t-neg)]/10 text-[11px] text-[var(--t-neg)] shrink-0">
           Error al consultar MERCADOS: {err}
@@ -119,14 +122,18 @@ export function TesoreriaMercados({ fecha }: { fecha: string }) {
         </div>
       )}
 
-      {editable && (
-        <div className="flex items-center gap-2 shrink-0">
+      {/* Los dos ABM de catálogo NO viven acá: se portalizan a la barra de tabs
+          (`slotBarra`), al lado de MOVIMIENTOS/BANCOS/…, que es donde están los
+          botones propios de cada tab. Antes ocupaban una fila entera del cuerpo,
+          que es alto que le corresponde a los tableros. Siguen definidos en este
+          archivo porque su data (`entidades`) sale de ESTE fetch. */}
+      {editable && slotBarra && createPortal(
+        <>
           <AbmEntidades bloque="mercado" titulo="Catálogo de mercados"
             filas={data?.entidades?.mercado ?? []} onCambio={recargar} />
           <AbmEntidades bloque="fci" titulo="Catálogo de FCI"
             filas={data?.entidades?.fci ?? []} onCambio={recargar} />
-        </div>
-      )}
+        </>, slotBarra)}
 
       {/* Bloque MERCADO: ingresos | pagos */}
       <Bloque titulo="MERCADO">
@@ -200,11 +207,15 @@ function AbmEntidades({ bloque, titulo, filas, onCambio }: {
 
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className="shrink-0 min-w-0">
+    // flex-1 + min-h-0: los dos bloques se REPARTEN el alto disponible. Antes eran
+    // `shrink-0` y cada tabla topaba en 240px → sobraba un hueco muerto abajo.
+    <div className="flex-1 min-h-0 min-w-0 flex flex-col">
       <div className="px-2 py-1 bg-[#094293] text-white text-[10px] uppercase tracking-widest font-semibold text-center">
         {titulo}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-2 min-w-0">{children}</div>
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3 mt-2 min-w-0">
+        {children}
+      </div>
     </div>
   );
 }
@@ -264,7 +275,9 @@ function Tablero({
           opciones={opciones} fecha={fecha}
           onCerrar={() => setAlta(false)} onOk={() => { setAlta(false); onChanged(); }} />
       )}
-      <div className="max-h-[240px] overflow-auto">
+      {/* Ocupa TODO lo que le deja el bloque y scrollea adentro (antes: tope fijo
+          de 240px, que dejaba aire abajo aunque hubiera pantalla de sobra). */}
+      <div className="flex-1 min-h-[110px] overflow-auto">
         <table className="text-[11px] w-full table-fixed">
           <thead className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)] sticky top-0 bg-[var(--t-panel)]">
             <tr className="border-b border-[var(--t-border)]">
