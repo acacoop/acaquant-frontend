@@ -44,11 +44,11 @@ type Fila = {
   unidad: string;
   ticker: string;
   emisor: string;
+  clase: string;            // 'HD' | 'DL' | '' (todavía sin clasificar)
   vencimiento: string;
   dias: number;
   cantidad: number;
   moneda: string;
-  aum: boolean;
   tasa: number | null;
   tasa_min: number | null;
   tasa_max: number | null;
@@ -67,7 +67,11 @@ type Resp = {
 type Agg = "DIA" | "SEM" | "MES";
 const AGGS: [Agg, string][] = [["DIA", "Día"], ["SEM", "Sem"], ["MES", "Mes"]];
 
-const TODAS = "__todas__";
+// Orden fijo de las clases. HD (hard dollar) y DL (dólar linked) son ESCALAS
+// distintas — un HD de 5.000 y un DL de 27.000.000 no se pueden sumar ni
+// graficar juntos, así que la vista muestra UNA por vez. El orden es fijo (no
+// "la más grande") para que la pantalla no cambie de default sola.
+const CLASES: [string, string][] = [["HD", "HD"], ["DL", "DL"], ["", "SIN CLASIFICAR"]];
 
 /** Nominal compacto. NO lleva "$": es cantidad, no plata (ver el header del archivo). */
 function fmtCant(n: number | null | undefined): string {
@@ -121,9 +125,9 @@ export function FinanciamientoView() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // Filtros de barra.
-  const [moneda, setMoneda] = useState<string>(TODAS);
-  const [soloAum, setSoloAum] = useState(false);
+  // Filtros de barra. `clase` arranca en null = "la que el orden fijo elija" —
+  // no se puede fijar un default antes de saber qué clases trajo el payload.
+  const [clase, setClase] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [agg, setAgg] = useState<Agg>("MES");
 
@@ -158,10 +162,19 @@ export function FinanciamientoView() {
     setSelBucket(null);
   };
 
-  const monedas = useMemo(() => {
-    const s = new Set((data?.filas ?? []).map((f) => f.moneda).filter(Boolean));
-    return [...s].sort();
+  // Clases presentes en el payload, en el orden fijo de CLASES + su conteo.
+  const clases = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const f of data?.filas ?? []) n.set(f.clase, (n.get(f.clase) ?? 0) + 1);
+    return CLASES.filter(([k]) => n.has(k)).map(([k, label]) => ({
+      k, label, n: n.get(k) ?? 0,
+    }));
   }, [data]);
+
+  // La clase EFECTIVA se deriva (no se guarda con un effect): la elegida si
+  // sigue existiendo, si no la primera del orden fijo. Así nunca queda una
+  // pantalla vacía porque el default apuntaba a una clase sin datos.
+  const claseAct = clases.some((c) => c.k === clase) ? clase! : (clases[0]?.k ?? "");
 
   // BASE: lo que pasa los filtros de la barra. Las tres vistas parten de acá y
   // cada una se saca a sí misma del cruce (así elegir en una no la vacía).
@@ -169,15 +182,14 @@ export function FinanciamientoView() {
     const term = q.trim().toLowerCase();
     return (data?.filas ?? []).filter(
       (f) =>
-        (moneda === TODAS || f.moneda === moneda) &&
-        (!soloAum || f.aum) &&
+        f.clase === claseAct &&
         (!term ||
           f.cuenta.toLowerCase().includes(term) ||
           f.id_cuenta.toLowerCase().includes(term) ||
           f.ticker.toLowerCase().includes(term) ||
           f.emisor.toLowerCase().includes(term)),
     );
-  }, [data, moneda, soloAum, q]);
+  }, [data, claseAct, q]);
 
   // 1) CUENTAS — sumatoria de cantidad por comitente (cruzada por instrumento + fecha).
   const cuentas = useMemo(() => {
@@ -260,7 +272,6 @@ export function FinanciamientoView() {
   );
   const totalCant = visibles.reduce((s, f) => s + f.cantidad, 0);
   const totalTasa = tasaPond(visibles);
-  const monedasVisibles = new Set(visibles.map((f) => f.moneda)).size;
   const haySeleccion = Boolean(selCuenta || selUnidad || selBucket);
 
   const limpiar = () => {
@@ -309,39 +320,32 @@ export function FinanciamientoView() {
           )}
         </label>
 
-        {/* Moneda: sumar nominales de monedas distintas no significa nada, por eso
-            el selector — y el aviso cuando quedan mezcladas a la vista. */}
-        {monedas.length > 1 && (
-          <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-            {[TODAS, ...monedas].map((m) => (
-              <button
-                key={m}
-                onClick={() => setMoneda(m)}
-                className={
-                  "px-1.5 py-0.5 text-[9px] font-semibold " +
-                  (moneda === m
-                    ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
-                    : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
-                }
-              >
-                {m === TODAS ? "TODAS" : m}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={() => setSoloAum((v) => !v)}
-          title="Dejar solo las tenencias que cuentan como AuM (saca cuentas propias / excluidas)"
-          className={
-            "px-1.5 py-0.5 text-[9px] font-semibold border " +
-            (soloAum
-              ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-              : "text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]")
-          }
-        >
-          SOLO AUM
-        </button>
+        {/* CLASE — una por vez, nunca sumadas: son escalas distintas. */}
+        <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+          {clases.map((c) => (
+            <button
+              key={c.k || "sin"}
+              onClick={() => {
+                setClase(c.k);
+                limpiar();
+              }}
+              title={
+                c.k === "HD" ? "Hard dollar — nominal en dólares"
+                  : c.k === "DL" ? "Dólar linked — nominal en la escala grande"
+                    : "Sin CLASE_ACTIVO cargada. Los completa jobs/assets_autofill "
+                      + "(regla financiamiento_clase) y se corrigen en Manager → ASSETS."
+              }
+              className={
+                "px-2 py-0.5 text-[9px] font-semibold " +
+                (claseAct === c.k
+                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                  : "text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+              }
+            >
+              {c.label} <span className="opacity-60">{c.n}</span>
+            </button>
+          ))}
+        </div>
 
         {haySeleccion && (
           <button
@@ -353,12 +357,12 @@ export function FinanciamientoView() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {moneda === TODAS && monedasVisibles > 1 && (
+          {claseAct === "" && (
             <span
               className="text-[9px] text-[#e0a33a]"
-              title="Hay más de una moneda a la vista: la suma de nominales mezcla monedas distintas. Elegí una para que el total signifique algo."
+              title="Estos assets no tienen CLASE_ACTIVO. Hasta que se clasifiquen no se sabe si su nominal es HD o DL, así que su total mezcla escalas. Los completa jobs/assets_autofill (regla financiamiento_clase); se corrigen a mano en Manager → ASSETS."
             >
-              ⚠ {monedasVisibles} monedas
+              ⚠ sin clasificar
             </span>
           )}
           {data.truncado && (
@@ -384,7 +388,7 @@ export function FinanciamientoView() {
           derecha={fmtCant(cuentas.reduce((s, c) => s + c.cantidad, 0))}
         >
           <table className="w-full text-[10px]">
-            <thead className="sticky top-0 bg-[var(--t-panel)]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] [&_th]:border-b [&_th]:border-[var(--t-border)] [&_th]:py-1">
               <tr className="text-[var(--t-text-muted)]">
                 <th className="text-left !px-2">Comitente</th>
                 <th className="text-right !px-2">Instr.</th>
@@ -392,7 +396,7 @@ export function FinanciamientoView() {
                 <th className="text-right !px-2">Tasa</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[var(--t-border)]">
               {cuentas.map((c) => {
                 const on = c.id_cuenta === selCuenta;
                 return (
@@ -425,7 +429,7 @@ export function FinanciamientoView() {
           derecha={fmtCant(instrumentos.reduce((s, i) => s + i.cantidad, 0))}
         >
           <table className="w-full text-[10px]">
-            <thead className="sticky top-0 bg-[var(--t-panel)]">
+            <thead className="sticky top-0 bg-[var(--t-panel)] [&_th]:border-b [&_th]:border-[var(--t-border)] [&_th]:py-1">
               <tr className="text-[var(--t-text-muted)]">
                 <th className="text-left !px-2">Ticker</th>
                 <th className="text-left !px-2">Emisor</th>
@@ -435,7 +439,7 @@ export function FinanciamientoView() {
                 <th className="text-right !px-2">Tasa</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[var(--t-border)]">
               {instrumentos.map((i) => {
                 const on = i.unidad === selUnidad;
                 return (
@@ -579,8 +583,13 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-0 border border-[var(--t-border)] flex flex-col overflow-hidden">
-      <div className="px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex items-center gap-2">
+    // `bg-[var(--t-panel)]` NO es cosmético: en modo claro el fondo de página es
+    // gris y los paneles son BLANCOS — ese contraste es lo único que delimita
+    // dónde empieza y termina cada tabla. Sin el fondo, los cuatro paneles se
+    // funden en una sola mancha (en oscuro no se notaba: bg #000 y panel #080808
+    // son casi el mismo color).
+    <div className="min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+      <div className="px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0 flex items-center gap-2">
         <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)] shrink-0">
           {titulo}
         </span>
