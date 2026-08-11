@@ -10,6 +10,7 @@ import { CostoHistoricoChart } from "./costo-historico-chart";
 import { OpcionHistoricoChart } from "./opcion-historico-chart";
 import { GriegasHistoricoChart } from "./griegas-historico-chart";
 import { PostTradeLab } from "./post-trade-lab";
+import { medir } from "@/lib/perf";
 import { usePoll } from "@/lib/use-poll";
 import {
   buildPorStrike,
@@ -116,7 +117,13 @@ export function DerivadosView({
     return {
       liquidStrikes,
       atmStrike,
-      rows: calcularEstrategias(porStrike, liquidStrikes, idx, categoria),
+      // Instrumentado (apagado por default, ver lib/perf.ts): acá corre el
+      // motor de estrategias completo — templates, pricing bid/offer por pata
+      // y Black-Scholes en TypeScript. Es el candidato #1 a portar al backend,
+      // así que primero se mide cuánto cuesta de verdad en el browser.
+      rows: medir("estrategias opciones (motor completo)", () =>
+        calcularEstrategias(porStrike, liquidStrikes, idx, categoria),
+      ),
     };
   }, [docs, strike, spot, categoria]);
 

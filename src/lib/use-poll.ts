@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { contar, midiendo, registrarBytes, registrarMs } from "./perf";
+
 /**
  * Hook de polling que mantiene el initialData como fallback y además
  * expone `lastAt`: epoch ms del último fetch exitoso (browser time).
@@ -43,16 +45,36 @@ export function usePoll<T>(
 
     async function tick() {
       try {
+        // Instrumentación (apagada por default, ver lib/perf.ts): mide las tres
+        // partes que cuestan en un poll — red+descarga, tamaño del payload y
+        // JSON.parse — separadas, porque atacan a cosas distintas. Bajar bytes
+        // sirve si lo caro es la red; mover el cálculo al backend sirve si lo
+        // caro es el parse/CPU. Sin separarlas no se sabe cuál es.
+        const t0 = midiendo() ? performance.now() : 0;
         const r = await fetch(endpoint, { cache: "no-store" });
         if (!r.ok) {
           if (alive) setError(`HTTP ${r.status}`);
           return;
         }
         const raw = await r.text();
+        if (midiendo()) {
+          registrarMs(`poll red ${endpoint}`, performance.now() - t0);
+          registrarBytes(
+            `poll payload ${endpoint}`,
+            new TextEncoder().encode(raw).length,
+          );
+        }
         if (!alive) return;
         if (raw !== lastRawRef.current) {
           lastRawRef.current = raw;
-          setData(JSON.parse(raw) as T);
+          const t1 = midiendo() ? performance.now() : 0;
+          const parsed = JSON.parse(raw) as T;
+          if (midiendo()) registrarMs(`poll parse ${endpoint}`, performance.now() - t1);
+          setData(parsed);
+        } else {
+          // Payload idéntico al anterior: no hay parse ni re-render. Contarlos
+          // dice qué proporción de los polls es puro tráfico sin novedad.
+          contar(`poll sin cambios ${endpoint}`);
         }
         setLastAt(Date.now());
         setError(null);

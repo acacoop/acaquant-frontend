@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { bsPrice, type ResolvedLeg } from "@/lib/estrategias";
+import { medir } from "@/lib/perf";
 
 // Laboratorio post-trade: dada una posición (un contrato o una estrategia
 // entera) con su costo de entrada, proyecta el P&L a futuro repreciando con
@@ -88,14 +89,17 @@ export function PostTradeLab({
     [legs, singleLeg, lado, tasa, n],
   );
 
-  const matriz = useMemo(() => {
+  // Instrumentado (apagado por default, ver lib/perf.ts): cada celda de la
+  // matriz es un Black-Scholes por pata, así que acá se ve el costo real del
+  // BS reimplementado en TypeScript — el mismo que duplica quant/black_scholes.py.
+  const matriz = useMemo(() => medir("post-trade matriz (Black-Scholes)", () => {
     if (!Tmax) return [];
     return PCTS.map((pct) => {
       const S = spot * (1 + pct);
       const cells = cols.map((d) => posValue(S, Math.max(Tmax - d / 365, 0)) - entryCost);
       return { pct, S, cells };
     });
-  }, [Tmax, cols, spot, posValue, entryCost]);
+  }), [Tmax, cols, spot, posValue, entryCost]);
 
   const maxAbs = useMemo(() => {
     let m = 1;

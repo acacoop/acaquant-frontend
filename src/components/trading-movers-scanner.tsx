@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { medir } from "@/lib/perf";
 import { usePoll } from "@/lib/use-poll";
 import type { CedearScannerRow, CclLive } from "@/lib/types-scanner";
 import { CedearsScannerTable } from "./cedears-scanner-table";
@@ -54,7 +55,10 @@ export function TradingMoversScanner({
     { fetchOnMount: true },
   );
 
-  const movers = useMemo(() => (rows ?? []).filter(esMover), [rows]);
+  const movers = useMemo(
+    () => medir("movers filtro ±4%", () => (rows ?? []).filter(esMover)),
+    [rows],
+  );
 
   // Content-only: el borde y las tabs los pone TradingRadarPanel.
   if (movers.length === 0) {

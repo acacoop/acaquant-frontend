@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { CedearScannerRow } from "@/lib/types-scanner";
 import { fmtMoney } from "@/lib/fmt-money";
+import { medir } from "@/lib/perf";
 import { PivotPointsPanel } from "./pivot-points-panel";
 import { RetornosChart } from "./retornos-chart";
 
@@ -160,7 +161,7 @@ function PulsoRubrosPanel({
   const [sortKey, setSortKey] = useState<SortKey>("vol");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  const { rubros, total } = useMemo(() => {
+  const { rubros, total } = useMemo(() => medir("pulso agregado por rubro", () => {
     const byRubro: Record<string, CedearScannerRow[]> = {};
     for (const r of rows) {
       (byRubro[rubroDe(r)] ??= []).push(r);
@@ -190,7 +191,7 @@ function PulsoRubrosPanel({
       down: rows.filter((r) => r.adr_vs_1d_pct != null && r.adr_vs_1d_pct < 0).length,
     };
     return { rubros, total };
-  }, [rows]);
+  }), [rows]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;

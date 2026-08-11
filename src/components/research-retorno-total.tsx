@@ -14,6 +14,8 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
+import { medir } from "@/lib/perf";
+
 type Curva = "tasa_fija" | "cer" | "soberanos";
 type Mode = "retorno" | "carry";
 type Win = "Max" | "6M" | "3M" | "2M" | "1M" | "MTD" | "WTD";
@@ -151,8 +153,12 @@ export function ResearchRetornoTotal() {
   const colorOf = useMemo(() => Object.fromEntries(allBonds.map((tk, i) => [tk, COLORES[i % COLORES.length]])), [allBonds]);
 
   const shown = (tk: string) => sel.has(tk);
+  // Instrumentado (apagado por default, ver lib/perf.ts): `computar` es la
+  // fórmula de RETORNO TOTAL con cupones y carry vía MEP, que hoy vive solo
+  // acá. Se mide antes de decidir si se porta a renta_fija.py — ojo que se
+  // re-ejecuta con CADA cambio de filtro, no una sola vez.
   const { tickers, rows, resumen } = useMemo(
-    () => computar(m, desde, maxDate, mode, shown),
+    () => medir("retorno total (computar)", () => computar(m, desde, maxDate, mode, shown)),
     [m, desde, maxDate, mode, sel],  // eslint-disable-line react-hooks/exhaustive-deps
   );
   const rangoLargo = !!desde && !!maxDate && (new Date(maxDate).getTime() - new Date(desde).getTime()) / 86400000 > 200;
