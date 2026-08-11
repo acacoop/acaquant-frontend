@@ -92,6 +92,26 @@ function hasModule(modules: string[] | null, module: string): boolean {
   return modules.includes(module);
 }
 
+// Portal invitado: la nav es una fila plana, TODA en mayúscula y ordenada A→Z,
+// con HOME siempre primero (es la vista por default). Se aplica sobre las
+// entries YA filtradas por RBAC, así cualquier vista que se sume al portal
+// entra ordenada sola — no hay lista paralela que mantener.
+// Ordena en español (`es`) para que los acentos no manden SINTÉTICOS al final.
+function navInvitado(entries: Entry[]): Entry[] {
+  return entries
+    .map((e) =>
+      e.kind === "link"
+        ? { ...e, label: e.label.toUpperCase() }
+        : { ...e, label: e.label.toUpperCase(), items: e.items.map((it) => ({ ...it, label: it.label.toUpperCase() })) },
+    )
+    .sort((a, b) => {
+      const aHome = a.kind === "link" && a.href === "/";
+      const bHome = b.kind === "link" && b.href === "/";
+      if (aHome !== bHome) return aHome ? -1 : 1;
+      return a.label.localeCompare(b.label, "es");
+    });
+}
+
 export function Header({ modules = null }: { modules?: string[] | null }) {
   const pathname = usePathname();
   // Portal invitado (www): el menú de mercado va como entradas sueltas (sin el
@@ -104,20 +124,21 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
   // Filtrado RBAC: links por su módulo; grupos quedan con sus items visibles
   // y se ocultan si no queda ninguno. Para el invitado, MERCADOS se aplana a
   // links top-level.
-  const entries: Entry[] = [];
+  const crudas: Entry[] = [];
   for (const e of NAV) {
     if (e.kind === "link") {
-      if (hasModule(modules, e.module)) entries.push(e);
+      if (hasModule(modules, e.module)) crudas.push(e);
       continue;
     }
     const items = e.items.filter((it) => hasModule(modules, it.module));
     if (!items.length) continue;
     if (isGuest && e.label === "MERCADOS") {
-      for (const it of items) entries.push({ kind: "link", ...it });
+      for (const it of items) crudas.push({ kind: "link", ...it });
     } else {
-      entries.push({ ...e, items });
+      crudas.push({ ...e, items });
     }
   }
+  const entries = isGuest ? navInvitado(crudas) : crudas;
 
   const linkClass = (active: boolean) =>
     "px-3 py-1 text-[11px] font-semibold tracking-wide transition-colors " +
