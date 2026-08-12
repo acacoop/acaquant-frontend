@@ -123,12 +123,21 @@ function carteraShort(c: string): string {
 // ── Operar desde una posición (deep-link a Trading) ─────────────────────────
 // Click derecho en la fila → "OPERAR" → /operar con cuenta + asset cargados.
 // No se opera cash (MONEDA). FCI va a la tab FCI con el buscador prefilleado.
+// Cash = ARS / USD / USDC. La regla vive acá una sola vez: la usan el menú OPERAR
+// (no se opera efectivo) y el semáforo OK del PORTFOLIO (el efectivo no tiene
+// cost-basis que reconstruir, así que no puede "estar mal").
+function _esCash(p: Posicion): boolean {
+  const clase = (p.clase_activo || "").toUpperCase();
+  const cart = (p.cartera || "").toUpperCase();
+  return clase === "MONEDA" || clase === "MONEDAS"
+    || cart === "MONEDA" || cart === "MONEDAS";
+}
+
 function _posOperable(p: Posicion): { operable: boolean; isFci: boolean } {
   const clase = (p.clase_activo || "").toUpperCase();
   const cart = (p.cartera || "").toUpperCase();
   const isFci = clase === "FCI" || cart.includes("FCI");
-  const isCash = clase === "MONEDA" || clase === "MONEDAS";
-  return { operable: !isCash, isFci };
+  return { operable: !_esCash(p), isFci };
 }
 
 // "[1114] CAFCI684-1114 - FCI Balanz Capital Ahorro - Clase A" → "Balanz Capital Ahorro - Clase A"
@@ -805,13 +814,19 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         );
       }
       case "ok": {
-        const q = calidadPnl(posResp?.pnl_detalle?.[p.unidad ?? ""]);
+        // El efectivo no lleva semáforo: no hay cost-basis que reconstruir, así que
+        // el motor lo marcaba "sin boletos" → ✗. Esa cruz era ruido — el saldo de
+        // caja es lo que es y no hay nada que revisar.
+        const q = _esCash(p) ? null : calidadPnl(posResp?.pnl_detalle?.[p.unidad ?? ""]);
         return (
           <td
             key={c.key}
             className={base + "font-bold"}
             style={{ color: q == null ? "#666" : q.ok ? "var(--t-pos)" : "var(--t-neg)" }}
-            title={q?.motivo ?? "sin PnL para esta fila (efectivo o tenencia histórica)"}
+            title={q?.motivo
+              ?? (_esCash(p)
+                ? "efectivo: no tiene cost-basis, no hay nada que revisar"
+                : "sin PnL para esta fila (tenencia histórica)")}
           >
             {q == null ? "—" : q.ok ? "✓" : "✗"}
           </td>
