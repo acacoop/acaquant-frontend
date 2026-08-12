@@ -64,3 +64,20 @@ export async function POST(
 ) {
   return proxy(req, (await params).path ?? []);
 }
+
+// PUT/DELETE: los usa la tab DATOS de la calculadora de FINANCIAMIENTO
+// (catálogo de SGRs + aranceles). `proxy` ya es agnóstico del método y
+// forwardea el body — esto es solo exponerlos.
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ path?: string[] }> },
+) {
+  return proxy(req, (await params).path ?? []);
+}
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ path?: string[] }> },
+) {
+  return proxy(req, (await params).path ?? []);
+}

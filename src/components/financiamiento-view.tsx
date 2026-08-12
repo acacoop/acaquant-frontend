@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { fetchJson } from "@/lib/fetch-json";
 import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
+import { FinanciamientoDescuento } from "./financiamiento-descuento";
 
 /**
  * FINANCIAMIENTO (tab de /operaciones, dentro de NEGOCIO).
@@ -27,9 +28,11 @@ import { fmtFechaCorta, MESES_CORTOS as MESES } from "@/lib/fmt";
  *
  * Layout 2×2, 50% cada panel:
  *   ┌ CUENTAS (cantidad por comitente) ┬ INSTRUMENTOS (cantidad + tasa) ┐
- *   ├ VENCIMIENTOS (cantidad por fecha)┴ (reservado)                    ┤
+ *   ├ VENCIMIENTOS (cantidad por fecha)┴ CALCULADORA de descuento       ┤
  *
- * TODO cruza: elegir una cuenta deja ver sus instrumentos y redibuja el gráfico;
+ * Los TRES PRIMEROS cruzan entre sí (el cuarto es un simulador aparte: cotiza una
+ * operación hipotética, no lee el libro, así que los filtros no lo tocan).
+ * Elegir una cuenta deja ver sus instrumentos y redibuja el gráfico;
  * elegir un instrumento deja ver quién lo tiene; clickear una barra acota a esa
  * fecha. Cada panel agrega sobre las filas filtradas por los OTROS dos, que es lo
  * que hace que el cruce se sienta como un tablero y no como tres tablas sueltas.
@@ -556,11 +559,12 @@ export function FinanciamientoView() {
           )}
         </Panel>
 
-        {/* 4) reservado — el user lo define más adelante */}
-        <Panel titulo="—" extra="reservado">
-          <p className="p-3 text-[11px] text-[var(--t-text-dim)]">
-            Panel libre. A definir qué va acá.
-          </p>
+        {/* 4) CALCULADORA DE DESCUENTO — la planilla Excel de la mesa.
+            Es el único panel que NO cruza con los otros tres: cotiza una
+            operación hipotética, no lee el libro. Por eso los filtros de arriba
+            no lo tocan. */}
+        <Panel titulo="Calculadora" extra="descuento de cheques / pagarés">
+          <FinanciamientoDescuento />
         </Panel>
       </div>
     </div>
