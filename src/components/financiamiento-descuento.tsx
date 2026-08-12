@@ -667,8 +667,16 @@ function TabDatos({ datos, onCambio }: { datos: Datos; onCambio: () => Promise<v
   );
 }
 
-/** Celda editable de porcentaje. Guarda al salir del foco o con Enter — no por
- *  tecla, para no mandar un PUT por dígito. */
+/**
+ * Celda editable de porcentaje. Guarda al salir del foco o con Enter — no por
+ * tecla, para no mandar un PUT por dígito.
+ *
+ * LLEVA EL "%" AL LADO, y no es cosmético. El valor se guarda COMO PORCENTAJE
+ * (1 = 1 %, 0,06 = 0,06 %), pero mostrando el número pelado la celda no dice si
+ * ese "1" es uno por ciento o el 100 % escrito como fracción — y confundirse en
+ * ese factor son dos órdenes de magnitud en el arancel que se le cobra al
+ * cliente. El signo saca la duda sin tener que leer ninguna ayuda.
+ */
 function CeldaPct({
   valor,
   onGuardar,
@@ -696,18 +704,25 @@ function CeldaPct({
   };
 
   return (
-    <input
-      value={txt}
-      onChange={(e) => setTxt(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        if (e.key === "Escape") setTxt(valor == null ? "" : String(valor));
-      }}
-      inputMode="decimal"
-      placeholder="—"
-      className="w-16 bg-transparent text-right text-[10px] font-mono text-[var(--t-text)] outline-none border-b border-transparent focus:border-[var(--t-accent)]"
-    />
+    <span className="inline-flex items-baseline justify-end gap-[1px]">
+      <input
+        value={txt}
+        onChange={(e) => setTxt(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") setTxt(valor == null ? "" : String(valor));
+        }}
+        inputMode="decimal"
+        placeholder="—"
+        className="w-14 bg-transparent text-right text-[10px] font-mono text-[var(--t-text)] outline-none border-b border-transparent focus:border-[var(--t-accent)]"
+      />
+      {/* Ancho fijo aunque esté vacío: sin esto, cargar el primer valor corre la
+          columna entera un par de píxeles. */}
+      <span className="w-[9px] text-[10px] font-mono text-[var(--t-text-muted)]">
+        {txt.trim() === "" ? "" : "%"}
+      </span>
+    </span>
   );
 }
 
