@@ -199,10 +199,25 @@ export function FinanciamientoDescuento() {
           <p className="p-3 text-[11px] text-[#ff7777]">{errDatos}</p>
         ) : !datos ? (
           <p className="p-3 text-[11px] text-[var(--t-text-dim)]">cargando…</p>
-        ) : tab === "calc" ? (
-          <Calculadora datos={datos} />
         ) : (
-          <TabDatos datos={datos} onCambio={cargarDatos} />
+          <>
+            {/* El backend degrada a vacío si las tablas todavía no existen (para
+                no tumbar la vista FINANCIAMIENTO entera). Sin este aviso el
+                síntoma era engañoso: aranceles en $ 0,00 —una cotización MÁS
+                BARATA que la real— y un HTTP 500 pelado al querer cargar algo. */}
+            {!datos.disponible && (
+              <p className="m-1.5 px-2 py-1 text-[10px] border border-[#e0a800] bg-[#ffe9b0]/25 text-[var(--t-text)]">
+                ⚠ Las tablas de la calculadora todavía no existen en la base. Se puede simular,
+                pero <b>los aranceles cuentan como 0</b> y la cotización sale más barata que la
+                real. Falta correr <code>apply_schema</code> + restart de la API en el Droplet.
+              </p>
+            )}
+            {tab === "calc" ? (
+              <Calculadora datos={datos} />
+            ) : (
+              <TabDatos datos={datos} onCambio={cargarDatos} />
+            )}
+          </>
         )}
       </div>
     </div>
@@ -388,16 +403,25 @@ function Calculadora({ datos }: { datos: Datos }) {
               {fmtPct(costoElegido)}
             </span>
           </Campo>
-          {/* Los parámetros vigentes van DENTRO de la tira (no en un renglón
-              propio abajo): son para control, no para cargar, y como renglón
-              costaban 16px de alto que el panel necesita para entrar entero. */}
-          <span className="text-[9px] text-[var(--t-text-muted)] leading-[18px]">
-            arancel ACA {fmtPct(datos.aranceles.arancel_aca)} · derecho{" "}
-            {fmtPct(datos.aranceles.derecho_mercado, 2)} · IVA {fmtPct(datos.iva_pct, 0)} · base{" "}
-            {datos.base_anual}d
-            {/* Informativa: NO entra a ninguna fórmula (decisión del user). */}
-            {notaElegida && <> · ⓘ {notaElegida} (no entra al cálculo)</>}
-          </span>
+          {/* Los parámetros vigentes son CAMPOS de la misma tira, no un renglón
+              aparte: así se leen igual (etiqueta arriba, valor abajo) y no
+              cuestan un solo pixel de alto extra. Van apagados porque no se
+              editan acá — se cargan en la tab DATOS. */}
+          <Campo label="Arancel ACA">
+            <span className={VALOR_PARAM}>{fmtPct(datos.aranceles.arancel_aca)}</span>
+          </Campo>
+          <Campo label="Derecho">
+            <span className={VALOR_PARAM}>{fmtPct(datos.aranceles.derecho_mercado, 2)}</span>
+          </Campo>
+          <Campo label="IVA">
+            <span className={VALOR_PARAM}>{fmtPct(datos.iva_pct, 0)}</span>
+          </Campo>
+          {/* Informativa: NO entra a ninguna fórmula (decisión del user). */}
+          {notaElegida && (
+            <span className="text-[9px] text-[var(--t-text-muted)] leading-[18px]">
+              ⓘ {notaElegida} (no entra al cálculo)
+            </span>
+          )}
         </div>
       </Caja>
 
@@ -723,6 +747,10 @@ function CeldaTexto({
 const INPUT =
   "bg-transparent text-[10px] font-mono text-[var(--t-text)] outline-none " +
   "border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)]";
+
+/** Valor de solo-lectura en la tira COMPLETAR (arancel, derecho, IVA). Apagado
+ *  a propósito: no se editan acá, se cargan en la tab DATOS. */
+const VALOR_PARAM = "text-[10px] font-mono text-[var(--t-text-dim)] leading-[18px]";
 
 function Caja({
   titulo,
