@@ -562,10 +562,12 @@ export function FinanciamientoView() {
         {/* 4) CALCULADORA DE DESCUENTO — la planilla Excel de la mesa.
             Es el único panel que NO cruza con los otros tres: cotiza una
             operación hipotética, no lee el libro. Por eso los filtros de arriba
-            no lo tocan. */}
-        <Panel titulo="Calculadora" extra="descuento de cheques / pagarés">
-          <FinanciamientoDescuento />
-        </Panel>
+            no lo tocan.
+
+            NO va envuelto en <Panel> a propósito: arma su propia caja (mismas
+            clases) para que el título y sus dos tabs compartan UNA barra. Con el
+            Panel afuera quedaban dos barras apiladas y el panel se scrolleaba. */}
+        <FinanciamientoDescuento />
       </div>
     </div>
   );

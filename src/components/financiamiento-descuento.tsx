@@ -164,16 +164,31 @@ export function FinanciamientoDescuento() {
   }, [cargarDatos]);
 
   return (
-    <div className="h-full min-h-0 flex flex-col">
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--t-border)] shrink-0">
-        <TabBtn active={tab === "calc"} onClick={() => setTab("calc")}>
-          Calculadora
-        </TabBtn>
-        <TabBtn active={tab === "datos"} onClick={() => setTab("datos")}>
-          Datos
-        </TabBtn>
+    // Este componente arma su PROPIA caja (mismas clases que el `Panel` de
+    // financiamiento-view) en vez de ir adentro de una: así el título del panel
+    // y las tabs comparten UNA sola barra. Con dos barras apiladas se perdían
+    // ~28px de alto y el bloque del CFT quedaba abajo del corte, obligando a
+    // scrollear un panel que tiene que entrar entero de un vistazo.
+    <div className="h-full min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
+        {/* El panel se llama DESCUENTO y no CALCULADORA: una de las tabs YA se
+            llama así, y repetir la palabra al lado no agrega nada. */}
+        <span className="text-[10px] uppercase tracking-widest text-[var(--t-accent)] shrink-0">
+          Descuento
+        </span>
+        <span className="text-[9px] text-[var(--t-text-muted)] truncate hidden sm:inline">
+          cheques / pagarés
+        </span>
+        <div className="flex items-center gap-1 ml-1">
+          <TabBtn active={tab === "calc"} onClick={() => setTab("calc")}>
+            Calculadora
+          </TabBtn>
+          <TabBtn active={tab === "datos"} onClick={() => setTab("datos")}>
+            Datos
+          </TabBtn>
+        </div>
         {tab === "calc" && (
-          <span className="ml-auto text-[9px] text-[var(--t-text-muted)]">
+          <span className="ml-auto shrink-0 text-[9px] text-[var(--t-text-muted)]">
             no persiste — simulador
           </span>
         )}
@@ -373,14 +388,17 @@ function Calculadora({ datos }: { datos: Datos }) {
               {fmtPct(costoElegido)}
             </span>
           </Campo>
+          {/* Los parámetros vigentes van DENTRO de la tira (no en un renglón
+              propio abajo): son para control, no para cargar, y como renglón
+              costaban 16px de alto que el panel necesita para entrar entero. */}
+          <span className="text-[9px] text-[var(--t-text-muted)] leading-[18px]">
+            arancel ACA {fmtPct(datos.aranceles.arancel_aca)} · derecho{" "}
+            {fmtPct(datos.aranceles.derecho_mercado, 2)} · IVA {fmtPct(datos.iva_pct, 0)} · base{" "}
+            {datos.base_anual}d
+            {/* Informativa: NO entra a ninguna fórmula (decisión del user). */}
+            {notaElegida && <> · ⓘ {notaElegida} (no entra al cálculo)</>}
+          </span>
         </div>
-        <p className="px-2 pb-1 text-[9px] text-[var(--t-text-muted)]">
-          arancel ACA {fmtPct(datos.aranceles.arancel_aca)} · derecho de mercado{" "}
-          {fmtPct(datos.aranceles.derecho_mercado, 2)} · IVA {fmtPct(datos.iva_pct, 0)} · base{" "}
-          {datos.base_anual}d
-          {/* Informativa: NO entra a ninguna fórmula (decisión del user). */}
-          {notaElegida && <> · ⓘ {notaElegida} (no entra al cálculo)</>}
-        </p>
       </Caja>
 
       {err && <p className="text-[10px] text-[#ff7777]">{err}</p>}
