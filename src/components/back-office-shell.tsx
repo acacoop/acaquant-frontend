@@ -7,10 +7,13 @@ import { TenenciaValorizadaView } from "./tenencia-valorizada-view";
 import { TitulosEnAlquilerView } from "./titulos-en-alquiler-view";
 import { TesoreriaView } from "./tesoreria-view";
 import { SenebisView } from "./senebis-view";
+import { TitulosNegativosView } from "./titulos-negativos-view";
 
 // Tabs del Back Office. Senebis + Tenencia Valorizada + Títulos en Alquiler +
-// Tesorería + Títulos / Mercado + Acreencias Clientes; nuevas se suman acá.
-type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "tesoreria" | "senebis";
+// Tesorería + Títulos / Mercado + Acreencias Clientes + Control Títulos
+// Negativos; nuevas se suman acá.
+type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "tesoreria"
+  | "senebis" | "negativos";
 
 export function BackOfficeShell() {
   // Default = Tenencia Valorizada (primera en la barra). Persistido: la
@@ -57,6 +60,12 @@ export function BackOfficeShell() {
         >
           Acreencias Clientes
         </TabBtn>
+        <TabBtn
+          active={tab === "negativos"}
+          onClick={() => setTab("negativos")}
+        >
+          Control Títulos Negativos
+        </TabBtn>
       </div>
 
       <div className="flex-1 min-h-0">
@@ -66,6 +75,7 @@ export function BackOfficeShell() {
         {tab === "acreencias" && <AcreenciasView />}
         {tab === "tenencia" && <TenenciaValorizadaView />}
         {tab === "alquiler" && <TitulosEnAlquilerView />}
+        {tab === "negativos" && <TitulosNegativosView />}
       </div>
     </div>
   );
