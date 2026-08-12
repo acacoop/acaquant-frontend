@@ -121,6 +121,29 @@ function fmtFecha(s: string): string {
   return `${d}/${m}/${y}`;
 }
 
+/**
+ * Puntos de miles MIENTRAS se escribe: "100000" → "100.000".
+ *
+ * Escribir 50 millones sin separadores es la forma más fácil de cotizar un
+ * cero de más y no verlo. Se formatea en cada tecla en vez de al salir del
+ * campo, que es cuando ya te equivocaste.
+ *
+ * Formato argentino: "." para miles y "," para decimales. Descarta todo lo que
+ * no sea dígito o coma, y deja UNA sola coma (pegar "1.234,56" o "1,2,3" no
+ * rompe nada). El parseo inverso lo hace `aNumero`.
+ */
+function conMiles(s: string): string {
+  const limpio = s.replace(/[^\d,]/g, "");
+  const [entero, ...resto] = limpio.split(",");
+  const conPuntos = entero.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return resto.length ? `${conPuntos},${resto.join("")}` : conPuntos;
+}
+
+/** "45.058.947,42" → 45058947.42. Inverso de `conMiles`. */
+function aNumero(s: string): number {
+  return Number(s.replace(/\./g, "").replace(",", "."));
+}
+
 export function FinanciamientoDescuento() {
   const [tab, setTab] = useState<Tab>("calc");
   const [datos, setDatos] = useState<Datos | null>(null);
@@ -176,7 +199,7 @@ export function FinanciamientoDescuento() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Calculadora({ datos }: { datos: Datos }) {
-  const [monto, setMonto] = useState("50000000");
+  const [monto, setMonto] = useState("50.000.000");
   const [tasa, setTasa] = useState("25");
   const [dias, setDias] = useState("127");
   const [instrumento, setInstrumento] = useState<Instrumento>("cheque");
@@ -204,12 +227,35 @@ function Calculadora({ datos }: { datos: Datos }) {
     [datos.avales, aval],
   );
 
+  // Monto con puntos de miles en vivo. Reformatear en cada tecla manda el cursor
+  // al final del campo, así que se cuenta cuántos DÍGITOS había antes del cursor
+  // y se lo devuelve después del mismo dígito — insertar un punto no le mueve el
+  // lugar a nadie. Sin esto, editar el medio de "50.000.000" es imposible.
+  const montoRef = useRef<HTMLInputElement>(null);
+  const onMontoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const caret = e.target.selectionStart ?? e.target.value.length;
+    const digitosAntes = e.target.value.slice(0, caret).replace(/\D/g, "").length;
+    const fmt = conMiles(e.target.value);
+    setMonto(fmt);
+    requestAnimationFrame(() => {
+      const el = montoRef.current;
+      if (!el) return;
+      let i = 0;
+      let vistos = 0;
+      while (i < fmt.length && vistos < digitosAntes) {
+        if (/\d/.test(fmt[i])) vistos++;
+        i++;
+      }
+      el.setSelectionRange(i, i);
+    });
+  };
+
   // Debounce: una llamada por pausa de tipeo, no una por tecla. El ref guarda el
   // token del último request para descartar respuestas fuera de orden (una
   // llamada lenta que vuelve después de una rápida pintaría datos viejos).
   const seq = useRef(0);
   useEffect(() => {
-    const m = Number(monto.replace(/\./g, "").replace(",", "."));
+    const m = aNumero(monto);
     const t = Number(tasa.replace(",", "."));
     const d = Number(dias);
     if (!(m > 0) || !(d > 0) || Number.isNaN(t)) {
@@ -253,95 +299,94 @@ function Calculadora({ datos }: { datos: Datos }) {
   }, [monto, tasa, dias, aval, instrumento]);
 
   return (
-    <div className="p-2 grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
+    // COMPLETAR es una TIRA horizontal arriba (ocupa lo mínimo: los 6 campos en
+    // una línea) y abajo los dos NETO uno al lado del otro, que es como se
+    // comparan. En pantalla angosta el grid cae a una columna solo.
+    <div className="p-1.5 flex flex-col gap-1.5">
       {/* ── COMPLETAR ─────────────────────────────────────────────────────── */}
       <Caja titulo="Completar" destacada>
-        <Campo label="Monto a descontar">
-          <input
-            value={monto}
-            onChange={(e) => setMonto(e.target.value)}
-            inputMode="decimal"
-            className={INPUT}
-          />
-        </Campo>
-        <Campo label="Tasa">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-end gap-x-3 gap-y-1 px-2 py-1.5">
+          <Campo label="Monto a descontar">
+            <input
+              ref={montoRef}
+              value={monto}
+              onChange={onMontoChange}
+              inputMode="decimal"
+              className={INPUT + " w-[130px] text-right"}
+            />
+          </Campo>
+          <Campo label="Tasa %">
             <input
               value={tasa}
               onChange={(e) => setTasa(e.target.value)}
               inputMode="decimal"
-              className={INPUT}
+              className={INPUT + " w-[58px] text-right"}
             />
-            <span className="text-[10px] text-[var(--t-text-muted)]">%</span>
-          </div>
-        </Campo>
-        <Campo label="Días">
-          <input
-            value={dias}
-            onChange={(e) => setDias(e.target.value)}
-            inputMode="numeric"
-            className={INPUT}
-          />
-        </Campo>
-        <Campo label="Instrumento">
-          <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
-            {(["cheque", "pagare"] as Instrumento[]).map((i) => (
-              <button
-                key={i}
-                onClick={() => setInstrumento(i)}
-                className={
-                  "px-2 py-0.5 text-[10px] uppercase " +
-                  (instrumento === i
-                    ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]"
-                    : "text-[var(--t-text-dim)] hover:text-[var(--t-text)]")
-                }
-              >
-                {i === "pagare" ? "Pagaré" : "Cheque"}
-              </button>
-            ))}
-          </div>
-        </Campo>
-        <Campo label="Aval (SGR)">
-          <select
-            value={aval}
-            onChange={(e) => setAval(e.target.value)}
-            className={INPUT + " cursor-pointer"}
-          >
-            <option value="">— sin aval —</option>
-            {datos.avales.map((a) => (
-              <option key={a.nombre} value={a.nombre} disabled={costoDe(a, instrumento) == null}>
-                {a.nombre}
-                {costoDe(a, instrumento) == null
-                  ? " (sin costo cargado)"
-                  : ` — ${fmtPct(costoDe(a, instrumento))}`}
-              </option>
-            ))}
-          </select>
-        </Campo>
-        {/* El costo se muestra aparte de la lista: es el número que entra al
-            cálculo y tiene que estar a la vista sin desplegar el combo. */}
-        <Campo label="Costo Aval SGR">
-          <span className="text-[11px] font-mono text-[var(--t-accent)]">
-            {fmtPct(costoElegido)}
-          </span>
-        </Campo>
-        {notaElegida && (
-          // Informativa: NO entra a ninguna fórmula (decisión del user).
-          <p className="px-2 py-1 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)]">
-            ⓘ {notaElegida} — no entra al cálculo
-          </p>
-        )}
-        <p className="px-2 py-1 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)]">
+          </Campo>
+          <Campo label="Días">
+            <input
+              value={dias}
+              onChange={(e) => setDias(e.target.value)}
+              inputMode="numeric"
+              className={INPUT + " w-[52px] text-right"}
+            />
+          </Campo>
+          <Campo label="Instrumento">
+            <div className="inline-flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
+              {(["cheque", "pagare"] as Instrumento[]).map((i) => (
+                <button
+                  key={i}
+                  onClick={() => setInstrumento(i)}
+                  className={
+                    "px-1.5 py-[3px] text-[10px] uppercase " +
+                    (instrumento === i
+                      ? "bg-[var(--t-accent)]/15 text-[var(--t-accent)]"
+                      : "text-[var(--t-text-dim)] hover:text-[var(--t-text)]")
+                  }
+                >
+                  {i === "pagare" ? "Pagaré" : "Cheque"}
+                </button>
+              ))}
+            </div>
+          </Campo>
+          <Campo label="Aval (SGR)">
+            <select
+              value={aval}
+              onChange={(e) => setAval(e.target.value)}
+              className={INPUT + " w-[150px] cursor-pointer"}
+            >
+              <option value="">— sin aval —</option>
+              {datos.avales.map((a) => (
+                <option key={a.nombre} value={a.nombre} disabled={costoDe(a, instrumento) == null}>
+                  {a.nombre}
+                  {costoDe(a, instrumento) == null
+                    ? " (sin costo cargado)"
+                    : ` — ${fmtPct(costoDe(a, instrumento))}`}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          {/* El costo se muestra aparte de la lista: es el número que entra al
+              cálculo y tiene que estar a la vista sin desplegar el combo. */}
+          <Campo label="Costo aval">
+            <span className="text-[11px] font-mono text-[var(--t-accent)] leading-[18px]">
+              {fmtPct(costoElegido)}
+            </span>
+          </Campo>
+        </div>
+        <p className="px-2 pb-1 text-[9px] text-[var(--t-text-muted)]">
           arancel ACA {fmtPct(datos.aranceles.arancel_aca)} · derecho de mercado{" "}
           {fmtPct(datos.aranceles.derecho_mercado, 2)} · IVA {fmtPct(datos.iva_pct, 0)} · base{" "}
           {datos.base_anual}d
+          {/* Informativa: NO entra a ninguna fórmula (decisión del user). */}
+          {notaElegida && <> · ⓘ {notaElegida} (no entra al cálculo)</>}
         </p>
       </Caja>
 
-      {/* ── RESULTADOS ────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-2">
-        {err && <p className="text-[10px] text-[#ff7777]">{err}</p>}
+      {err && <p className="text-[10px] text-[#ff7777]">{err}</p>}
 
+      {/* ── LOS DOS NETO, UNO AL LADO DEL OTRO ────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 items-start">
         <Caja titulo="Neto sin aval" cargando={calculando}>
           <Fila label="Monto descontado" valor={fmtPlata(res?.sin_aval.monto_descontado)} fuerte />
           <Fila label="Tasa directa" valor={fmtPct(res?.sin_aval.tasa_directa_pct)} />
@@ -350,8 +395,8 @@ function Calculadora({ datos }: { datos: Datos }) {
           <Fila label="IVA d. mercado" valor={fmtPlata(res?.sin_aval.iva_derecho)} />
           <Fila label="IVA aranceles" valor={fmtPlata(res?.sin_aval.iva_aranceles)} />
           <Fila label="A recibir cliente" valor={fmtPlata(res?.sin_aval.a_recibir_cliente)} fuerte />
-          <p className="px-2 py-1 text-[9px] text-[var(--t-text-muted)]">
-            No se considera lo que cobra la SGR por el aval.
+          <p className="px-2 py-0.5 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)]">
+            Sin lo que cobra la SGR por el aval.
           </p>
         </Caja>
 
@@ -370,32 +415,43 @@ function Calculadora({ datos }: { datos: Datos }) {
                 valor={fmtPlata(res?.con_aval?.monto_descontado)}
                 fuerte
               />
-              <p className="px-2 py-1 text-[9px] text-[var(--t-text-muted)]">
-                Se considera lo que cobra la SGR por el aval.
+              <p className="px-2 py-0.5 text-[9px] text-[var(--t-text-muted)] border-t border-[var(--t-border)]">
+                Con lo que cobra la SGR por el aval.
               </p>
             </>
           )}
         </Caja>
+      </div>
 
-        <Caja titulo="Costo financiero total" cargando={calculando}>
-          <Fila label="CFT (efectiva anual)" valor={fmtPct(res?.cft_pct)} fuerte />
+      {/* CFT + los dos flujos en UNA línea: son tres números, no merecen una
+          tabla. El CFT va primero y grande — es el costo real de la operación. */}
+      <Caja titulo="Costo financiero total" cargando={calculando}>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-2 py-1">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
+              CFT efectiva anual
+            </span>
+            <span className="text-[13px] font-mono text-[var(--t-accent)]">
+              {fmtPct(res?.cft_pct)}
+            </span>
+          </div>
           {res && res.flujos.length > 0 && (
-            <div className="border-t border-[var(--t-border)]">
-              <div className="px-2 py-0.5 text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
-                Flujos de efectivo
-              </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
+                Flujos
+              </span>
               {res.flujos.map((f) => (
-                <Fila
-                  key={f.fecha}
-                  label={fmtFecha(f.fecha)}
-                  valor={fmtPlata(f.importe)}
-                  negativo={f.importe < 0}
-                />
+                <span key={f.fecha} className="text-[10px] font-mono">
+                  <span className="text-[var(--t-text-dim)]">{fmtFecha(f.fecha)}</span>{" "}
+                  <span className={f.importe < 0 ? "text-[#ff7777]" : "text-[var(--t-text)]"}>
+                    {fmtPlata(f.importe)}
+                  </span>
+                </span>
               ))}
             </div>
           )}
-        </Caja>
-      </div>
+        </div>
+      </Caja>
     </div>
   );
 }
@@ -643,9 +699,12 @@ function CeldaTexto({
 // Piezas visuales — replican la planilla: cajas con encabezado y filas label/valor
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Sin `w-full`: cada uso fija su ancho (los campos de la tira COMPLETAR van
+// dimensionados al dato que llevan, no estirados). Mezclar `w-full` acá con un
+// `w-[130px]` en el call site deja el ancho a merced del orden del CSS.
 const INPUT =
   "bg-transparent text-[10px] font-mono text-[var(--t-text)] outline-none " +
-  "border border-[var(--t-border-2)] px-1 py-0.5 w-full focus:border-[var(--t-accent)]";
+  "border border-[var(--t-border-2)] px-1 py-0.5 focus:border-[var(--t-accent)]";
 
 function Caja({
   titulo,
@@ -679,11 +738,16 @@ function Caja({
   );
 }
 
+/** Campo de la tira COMPLETAR: etiqueta chiquita ARRIBA del control.
+ *  Apilado ocupa la mitad de ancho que "etiqueta a la izquierda", que es lo que
+ *  permite meter los seis campos en una sola línea. */
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 px-2 py-0.5 border-t border-[var(--t-border)]">
-      <span className="text-[10px] text-[var(--t-text-dim)] w-[110px] shrink-0">{label}</span>
-      <div className="flex-1 min-w-0">{children}</div>
+    <div className="flex flex-col gap-[2px]">
+      <span className="text-[9px] uppercase tracking-wider text-[var(--t-text-muted)]">
+        {label}
+      </span>
+      {children}
     </div>
   );
 }
