@@ -6,18 +6,21 @@ import { usePoll } from "@/lib/use-poll";
 /**
  * Back Office → CONTROL TÍTULOS NEGATIVOS.
  *
- * Muestra, en vivo, los títulos con nominales NEGATIVOS en la posición liquidada
- * a HOY (T0 = lo que está en custodia y se puede entregar). Un negativo ahí
- * significa que se comprometió un título que no se tiene: venta en descubierto,
- * una compra que no entró, o un error de carga. Sea cual sea, se ve el mismo día.
+ * Dos tableros al 50%, uno por horizonte, porque contestan preguntas distintas:
  *
- * El efectivo (ARS/USD/USDC) NO se muestra por default: un saldo de caja negativo
- * es un descubierto bancario, otro problema y de otro dueño — mezclarlo tapa
- * justo lo que esta vista existe para mostrar. Hay un toggle para sumarlo.
+ *   T0 (izq) — posición liquidada A HOY. Es lo que está en custodia AHORA. Un
+ *              negativo acá es un descubierto REAL: hoy no se puede entregar.
+ *   T1 (der) — liquidada a MAÑANA, con lo concertado hoy adentro. Un negativo
+ *              acá y no en T0 es un descubierto que se VIENE, con tiempo de
+ *              resolverlo. Al revés (en T0 y no en T1) significa que ya se
+ *              compró la contrapartida y liquida mañana.
+ *
+ * MONEDAS y DERIVADOS quedan afuera: en los dos el negativo es normal
+ * (descubierto bancario / posición vendida) y llenarían la pantalla de ruido.
  *
  * La data sale de `portafolio.tenencia_live`, que refresca el daemon durante la
- * rueda. Por eso la pantalla muestra SIEMPRE la antigüedad del dato: una lista
- * vacía con el daemon parado no es "no hay negativos", es "no sabemos".
+ * rueda. Por eso la barra muestra SIEMPRE la antigüedad: una lista vacía con el
+ * daemon parado no es "no hay negativos", es "no sabemos".
  */
 
 type Fila = {
@@ -27,30 +30,24 @@ type Fila = {
   ticker: string;
   cartera: string;
   cantidad: number;
-  precio: number | null;
-  valuacion: number;
-  moneda: string;
-  aum: string;
-  origen: string;
-  desde_consultado: string | null;
   actualizado_at: string | null;
 };
+
+type Lado = { n: number; filas: Fila[] };
 
 type Resp = {
   fecha: string | null;
-  horizonte: string;
   actualizado_at: string | null;
   cuentas_en_posicion: number;
-  filas_en_posicion: number;
-  incluir_monedas: boolean;
-  solo_aum: boolean;
-  n: number;
-  negativos: Fila[];
+  incluir_todo: boolean;
+  t0: Lado;
+  t1: Lado;
 };
 
+const LADO_VACIO: Lado = { n: 0, filas: [] };
 const VACIO: Resp = {
-  fecha: null, horizonte: "t0", actualizado_at: null, cuentas_en_posicion: 0,
-  filas_en_posicion: 0, incluir_monedas: false, solo_aum: false, n: 0, negativos: [],
+  fecha: null, actualizado_at: null, cuentas_en_posicion: 0,
+  incluir_todo: false, t0: LADO_VACIO, t1: LADO_VACIO,
 };
 
 // El daemon refresca una cuenta como mucho cada 60s. 20s de poll es el mismo
@@ -61,8 +58,8 @@ const POLL_MS = 20_000;
 // detector pasa cada 3 minutos, así que 10 minutos sin tocar nada ya es raro.
 const STALE_MIN = 10;
 
-const fmtNum = (v: number | null | undefined, dec = 2) =>
-  v == null ? "—" : v.toLocaleString("es-AR", { maximumFractionDigits: dec });
+const fmtNom = (v: number) =>
+  v.toLocaleString("es-AR", { maximumFractionDigits: 4 });
 
 function minutosDesde(iso: string | null): number | null {
   if (!iso) return null;
@@ -80,36 +77,25 @@ function fmtAntiguedad(min: number | null): string {
 }
 
 export function TitulosNegativosView() {
-  const [incluirMonedas, setIncluirMonedas] = useState(false);
-  const [soloAum, setSoloAum] = useState(false);
+  const [incluirTodo, setIncluirTodo] = useState(false);
   const [q, setQ] = useState("");
 
-  const qs = new URLSearchParams({
-    incluir_monedas: String(incluirMonedas),
-    solo_aum: String(soloAum),
-  }).toString();
-
   const { data, lastAt, error } = usePoll<Resp>(
-    `/api/back-office/titulos-negativos?${qs}`,
+    `/api/back-office/titulos-negativos?incluir_todo=${incluirTodo}`,
     VACIO,
     POLL_MS,
     { fetchOnMount: true },
   );
 
-  const filas = useMemo(() => {
+  const filtrar = (filas: Fila[]) => {
     const t = q.trim().toLowerCase();
-    if (!t) return data.negativos;
-    return data.negativos.filter((f) =>
-      `${f.ticker} ${f.unidad} ${f.cuenta} ${f.id_cuenta}`.toLowerCase().includes(t),
+    if (!t) return filas;
+    return filas.filter((f) =>
+      `${f.ticker} ${f.cuenta} ${f.id_cuenta}`.toLowerCase().includes(t),
     );
-  }, [data.negativos, q]);
-
-  // Cuántas CUENTAS distintas tienen al menos un negativo — es el número que le
-  // importa al back office (a cuántos clientes hay que llamar), no el de filas.
-  const cuentasAfectadas = useMemo(
-    () => new Set(filas.map((f) => f.id_cuenta)).size,
-    [filas],
-  );
+  };
+  const t0 = useMemo(() => filtrar(data.t0.filas), [data.t0.filas, q]);
+  const t1 = useMemo(() => filtrar(data.t1.filas), [data.t1.filas, q]);
 
   const minAntig = minutosDesde(data.actualizado_at);
   const stale = minAntig != null && minAntig > STALE_MIN;
@@ -120,10 +106,6 @@ export function TitulosNegativosView() {
     <div className="h-full min-h-0 flex flex-col">
       {/* ── barra ── */}
       <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center gap-3 flex-wrap">
-        <span className="text-[11px] uppercase tracking-wide text-[var(--t-text-dim)]">
-          Posición T0 · liquidada a hoy
-        </span>
-
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -134,22 +116,11 @@ export function TitulosNegativosView() {
         <label className="text-[11px] flex items-center gap-1.5 cursor-pointer select-none">
           <input
             type="checkbox"
-            checked={incluirMonedas}
-            onChange={(e) => setIncluirMonedas(e.target.checked)}
+            checked={incluirTodo}
+            onChange={(e) => setIncluirTodo(e.target.checked)}
           />
-          <span title="El efectivo negativo es un descubierto bancario, no un título en descubierto">
-            incluir monedas
-          </span>
-        </label>
-
-        <label className="text-[11px] flex items-center gap-1.5 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={soloAum}
-            onChange={(e) => setSoloAum(e.target.checked)}
-          />
-          <span title="Por default se muestran TODAS las cuentas: un negativo en una cuenta fuera del AuM sigue siendo un descubierto">
-            solo AuM
+          <span title="Por default quedan afuera: en los dos el negativo es normal — el efectivo negativo es un descubierto bancario y el derivado negativo es una posición vendida">
+            incluir monedas y derivados
           </span>
         </label>
 
@@ -170,94 +141,127 @@ export function TitulosNegativosView() {
             {stale ? "⚠ dato viejo · " : ""}
             actualizado {fmtAntiguedad(minAntig)}
           </span>
+          {data.fecha && (
+            <span className="text-[var(--t-text-dim)]">
+              posición del {data.fecha}
+            </span>
+          )}
           <span className="text-[var(--t-text-dim)]">
-            {data.cuentas_en_posicion} cuentas en posición
+            {data.cuentas_en_posicion} cuentas
           </span>
         </div>
       </div>
 
-      {/* ── resumen ── */}
-      <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-6">
-        <Kpi
-          label="Títulos negativos"
-          valor={String(filas.length)}
-          alerta={filas.length > 0}
+      {/* ── 50 / 50: T0 izquierda · T1 derecha ── */}
+      <div className="flex-1 min-h-0 flex">
+        <Tablero
+          titulo="T0"
+          bajada="liquidada a HOY — lo que está en custodia ahora"
+          filas={t0}
+          sinCargar={sinCargar}
+          stale={stale}
+          buscando={q.trim().length > 0}
         />
-        <Kpi
-          label="Cuentas afectadas"
-          valor={String(cuentasAfectadas)}
-          alerta={cuentasAfectadas > 0}
+        <div className="w-px bg-[var(--t-border)] shrink-0" />
+        <Tablero
+          titulo="T1"
+          bajada="liquidada a MAÑANA — con lo concertado hoy"
+          filas={t1}
+          sinCargar={sinCargar}
+          stale={stale}
+          buscando={q.trim().length > 0}
         />
-        {data.fecha && (
-          <div className="text-[11px] text-[var(--t-text-dim)]">
-            posición del <span className="text-[var(--t-text)]">{data.fecha}</span>
-          </div>
-        )}
+      </div>
+    </div>
+  );
+}
+
+function Tablero({
+  titulo,
+  bajada,
+  filas,
+  sinCargar,
+  stale,
+  buscando,
+}: {
+  titulo: string;
+  bajada: string;
+  filas: Fila[];
+  sinCargar: boolean;
+  stale: boolean;
+  buscando: boolean;
+}) {
+  const cuentas = new Set(filas.map((f) => f.id_cuenta)).size;
+
+  return (
+    <div className="flex-1 min-w-0 flex flex-col min-h-0">
+      <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-baseline gap-3">
+        <span className="text-[13px] font-bold tracking-wide text-[var(--t-accent)]">
+          {titulo}
+        </span>
+        <span className="text-[10px] text-[var(--t-text-dim)]">{bajada}</span>
+        <span
+          className={`ml-auto text-[16px] font-bold ${
+            filas.length ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+          }`}
+        >
+          {filas.length}
+        </span>
+        <span className="text-[10px] text-[var(--t-text-dim)]">
+          {filas.length === 1 ? "título" : "títulos"}
+          {cuentas > 0 && ` · ${cuentas} ${cuentas === 1 ? "cuenta" : "cuentas"}`}
+        </span>
       </div>
 
-      {/* ── tabla ── */}
       <div className="flex-1 min-h-0 overflow-auto">
         {sinCargar ? (
           <Aviso texto="Cargando…" />
         ) : filas.length === 0 ? (
           <Aviso
+            alerta={stale}
             texto={
               stale
                 ? "Sin negativos — pero el dato está viejo: el daemon de posición no está actualizando, así que esto NO confirma que no haya."
-                : q.trim()
+                : buscando
                   ? "Ningún negativo coincide con la búsqueda."
-                  : "✓ Sin títulos negativos en T0."
+                  : "✓ Sin títulos negativos."
             }
-            alerta={stale}
           />
         ) : (
           <table className="w-full text-[11px] border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
               <tr className="text-[var(--t-text-dim)] uppercase tracking-wide">
-                <Th>Cuenta</Th>
-                <Th>Ticker</Th>
-                <Th>Unidad</Th>
-                <Th>Cartera</Th>
-                <Th right>Nominales</Th>
-                <Th right>Precio</Th>
-                <Th right>Valuación</Th>
-                <Th>Mon.</Th>
-                <Th>AuM</Th>
-                <Th>Actualizado</Th>
+                <th className="px-3 py-1.5 font-normal text-left border-b border-[var(--t-border)]">
+                  Cuenta
+                </th>
+                <th className="px-3 py-1.5 font-normal text-left border-b border-[var(--t-border)]">
+                  Ticker
+                </th>
+                <th className="px-3 py-1.5 font-normal text-right border-b border-[var(--t-border)]">
+                  Nominales
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filas.map((f) => {
-                const m = minutosDesde(f.actualizado_at);
-                return (
-                  <tr
-                    key={`${f.id_cuenta}|${f.unidad}`}
-                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
+              {filas.map((f) => (
+                <tr
+                  key={`${f.id_cuenta}|${f.unidad}`}
+                  className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/5"
+                >
+                  <td className="px-3 py-1 whitespace-nowrap" title={f.cuenta}>
+                    {f.cuenta}
+                  </td>
+                  <td
+                    className="px-3 py-1 whitespace-nowrap font-bold text-[var(--t-accent)]"
+                    title={`${f.unidad}${f.cartera ? ` · ${f.cartera}` : ""}`}
                   >
-                    <Td title={f.cuenta}>{f.cuenta}</Td>
-                    <Td className="font-bold text-[var(--t-accent)]">{f.ticker}</Td>
-                    <Td className="text-[var(--t-text-dim)]" title={f.unidad}>
-                      {f.unidad}
-                    </Td>
-                    <Td>{f.cartera || "—"}</Td>
-                    <Td right className="font-bold text-[var(--t-neg)]">
-                      {fmtNum(f.cantidad, 4)}
-                    </Td>
-                    <Td right>{fmtNum(f.precio)}</Td>
-                    <Td right className={f.valuacion < 0 ? "text-[var(--t-neg)]" : ""}>
-                      {fmtNum(f.valuacion)}
-                    </Td>
-                    <Td>{f.moneda || "—"}</Td>
-                    <Td className="text-[var(--t-text-dim)]">{f.aum || "—"}</Td>
-                    <Td
-                      className="text-[var(--t-text-dim)]"
-                      title={f.actualizado_at ?? ""}
-                    >
-                      {fmtAntiguedad(m)}
-                    </Td>
-                  </tr>
-                );
-              })}
+                    {f.ticker}
+                  </td>
+                  <td className="px-3 py-1 whitespace-nowrap text-right font-bold text-[var(--t-neg)]">
+                    {fmtNom(f.cantidad)}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
@@ -266,64 +270,14 @@ export function TitulosNegativosView() {
   );
 }
 
-function Kpi({ label, valor, alerta }: { label: string; valor: string; alerta?: boolean }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-        {label}
-      </div>
-      <div
-        className={`text-[18px] font-bold ${
-          alerta ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
-        }`}
-      >
-        {valor}
-      </div>
-    </div>
-  );
-}
-
 function Aviso({ texto, alerta }: { texto: string; alerta?: boolean }) {
   return (
     <div
-      className={`p-6 text-[12px] ${
+      className={`p-5 text-[12px] ${
         alerta ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"
       }`}
     >
       {texto}
     </div>
-  );
-}
-
-function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return (
-    <th
-      className={`px-3 py-1.5 font-normal border-b border-[var(--t-border)] ${
-        right ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  right,
-  className = "",
-  title,
-}: {
-  children: React.ReactNode;
-  right?: boolean;
-  className?: string;
-  title?: string;
-}) {
-  return (
-    <td
-      title={title}
-      className={`px-3 py-1 whitespace-nowrap ${right ? "text-right" : ""} ${className}`}
-    >
-      {children}
-    </td>
   );
 }
