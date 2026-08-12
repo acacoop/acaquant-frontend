@@ -206,7 +206,7 @@ export function FinanciamientoDescuento() {
                 síntoma era engañoso: aranceles en $ 0,00 —una cotización MÁS
                 BARATA que la real— y un HTTP 500 pelado al querer cargar algo. */}
             {!datos.disponible && (
-              <p className="m-1.5 px-2 py-1 text-[10px] border border-[#e0a800] bg-[#ffe9b0]/25 text-[var(--t-text)]">
+              <p className="m-1.5 px-2 py-1 text-[10px] border border-[var(--t-accent)]/50 bg-[var(--t-tint-amber)] text-[var(--t-text)]">
                 ⚠ Las tablas de la calculadora todavía no existen en la base. Se puede simular,
                 pero <b>los aranceles cuentan como 0</b> y la cotización sale más barata que la
                 real. Falta correr <code>apply_schema</code> + restart de la API en el Droplet.
@@ -827,16 +827,32 @@ function Fila({
   negativo?: boolean;
 }) {
   return (
+    // `fuerte` marca los TRES números que la mesa realmente le dice al cliente
+    // (monto descontado, a recibir, y el neto con aval): fondo tenue + negrita
+    // para pescarlos sin leer la tabla entera. El resto son los componentes que
+    // explican cómo se llegó ahí.
+    //
+    // Los DOS fondos salen de `--t-tint-amber`, el token del tema, y NO de un
+    // color fijo. Un pastel hardcodeado (#ffe9b0 al 25%) se ve bien en claro
+    // pero sobre el negro da una banda GRIS sucia — el token ya trae el par
+    // (#fbf3df en claro, #1a1308 en oscuro) y es lo que usan pizarra agro y
+    // operar. `resaltada` va al 100% (es el resaltado que la planilla original
+    // tenía pintado a mano en la comisión SGR) y `fuerte` al 60%, para que las
+    // tres filas destacadas no le compitan a esa.
     <div
       className={
         "flex items-center gap-2 px-2 py-0.5 border-t border-[var(--t-border)] " +
-        (resaltada ? "bg-[#ffe9b0]/25" : "")
+        (resaltada
+          ? "bg-[var(--t-tint-amber)]"
+          : fuerte
+            ? "bg-[var(--t-tint-amber)]/60"
+            : "")
       }
     >
       <span
         className={
           "text-[10px] flex-1 min-w-0 truncate " +
-          (fuerte ? "text-[var(--t-text)]" : "text-[var(--t-text-dim)]")
+          (fuerte ? "font-semibold text-[var(--t-text)]" : "text-[var(--t-text-dim)]")
         }
       >
         {label}
@@ -847,7 +863,7 @@ function Fila({
           (negativo
             ? "text-[#ff7777]"
             : fuerte
-              ? "text-[var(--t-accent)]"
+              ? "font-semibold text-[var(--t-accent)]"
               : "text-[var(--t-text)]")
         }
       >
