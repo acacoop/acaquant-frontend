@@ -13,9 +13,13 @@ export async function GET(
     const url = new URL(req.url);
     const fecha = url.searchParams.get("fecha");
     const conPnl = url.searchParams.get("con_pnl");
+    // t0 | t1 — solo aplica en modo ACTUAL (sin fecha). Con fecha el backend lo
+    // ignora: un dia pasado ya liquido todo y no tiene dos horizontes.
+    const horizonte = url.searchParams.get("horizonte");
     const q = new URLSearchParams();
     if (fecha) q.set("fecha", fecha);
     if (conPnl) q.set("con_pnl", conPnl);
+    if (horizonte) q.set("horizonte", horizonte);
     const suffix = q.toString() ? `?${q}` : "";
     const data = await apiFetch(
       `/api/valuaciones/${encodeURIComponent(id_cuenta)}/posiciones-actuales${suffix}`,

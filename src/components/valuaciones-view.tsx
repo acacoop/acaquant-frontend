@@ -436,6 +436,10 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
   const [error, setError] = useState<string | null>(null);
   // Fecha seleccionada para el panel Posición Actual. null = última disponible.
   const [selectedFecha, setSelectedFecha] = useState<string | null>(null);
+  // Horizonte de la posicion del DIA (solo aplica sin fecha):
+  //   t1 (default) = con lo concertado HOY adentro — cuanto vale el cliente.
+  //   t0           = liquidada a hoy — lo que esta en custodia y se puede entregar.
+  const [horizonte, setHorizonte] = useState<"t0" | "t1">("t1");
   const [posLoading, setPosLoading] = useState(false);
   // Movimientos del mes — solo se fetcha cuando hay fecha seleccionada.
   const [movResp, setMovResp] = useState<MovimientosResp | null>(null);
@@ -534,7 +538,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
         const base = `/api/valuaciones/${encodeURIComponent(idCuenta)}`;
         const url = selectedFecha
           ? `${base}/posiciones-actuales?con_pnl=1&fecha=${selectedFecha}`
-          : `${base}/posiciones-actuales?con_pnl=1`;
+          : `${base}/posiciones-actuales?con_pnl=1&horizonte=${horizonte}`;
         const r = await fetch(url, { cache: "no-store" });
         if (!r.ok) throw new Error(`pos HTTP ${r.status}`);
         const j: PosicionesResp = await r.json();
@@ -546,7 +550,7 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [idCuenta, selectedFecha]);
+  }, [idCuenta, selectedFecha, horizonte]);
 
   // Movimientos — solo cuando hay fecha seleccionada (panel oculto sino).
   useEffect(() => {
@@ -853,7 +857,41 @@ export function ValuacionesView({ idCuenta, nombreCuenta }: Props) {
                 >{m}</button>
               ))}
             </div>
-            <span className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase">
+            {/* T0 / T1 — solo tiene sentido en modo ACTUAL. Con una fecha elegida
+                la consulta es historica: ese dia ya liquido todo y no hay dos
+                horizontes, asi que el toggle se apaga en vez de mentir. */}
+            <div
+              className={"inline-flex items-stretch border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)] " +
+                (selectedFecha ? "opacity-40 pointer-events-none" : "")}
+              title={selectedFecha
+                ? "Solo aplica a la posicion de HOY — estas viendo una fecha historica"
+                : undefined}
+            >
+              {([
+                ["t0", "T0", "Liquidada a HOY: lo que esta en custodia y se puede entregar, garantizar o caucionar"],
+                ["t1", "T1", "Con lo concertado HOY adentro (liquida manana): cuanto vale el cliente"],
+              ] as const).map(([h, label, tip]) => (
+                <button
+                  key={h}
+                  onClick={() => setHorizonte(h)}
+                  title={tip}
+                  className={
+                    "px-1.5 py-0.5 text-[9px] uppercase tracking-wider " +
+                    (horizonte === h
+                      ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]"
+                      : "bg-[var(--t-panel)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]")
+                  }
+                >{label}</button>
+              ))}
+            </div>
+            <span
+              className="text-[9px] text-[var(--t-text-muted)] font-mono uppercase"
+              title={selectedFecha
+                ? "Foto conciliada de esa fecha"
+                : (horizonte === "t1"
+                    ? "Posicion del dia con lo concertado hoy adentro"
+                    : "Posicion liquidada a hoy")}
+            >
               {!selectedFecha ? "actual" : "histórica"}
             </span>
             {/* Buscador por fecha: ver la tenencia a cualquier día con datos. Si
