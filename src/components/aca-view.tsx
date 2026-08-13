@@ -672,16 +672,16 @@ function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
             <thead>
               <tr className="text-[9px] uppercase text-[var(--t-text-muted)] bg-[var(--t-surface)]">
                 <th className="text-left px-2 py-1 font-medium">Ticker</th>
-                <th className="text-left px-2 py-1 font-medium">Emisor</th>
-                <th className="text-left px-2 py-1 font-medium">Calif.</th>
-                <th className="text-left px-2 py-1 font-medium">Clase Act.</th>
-                <th className="text-left px-2 py-1 font-medium">Venc.</th>
-                <th className="text-right px-2 py-1 font-medium">VN</th>
-                <th className="text-right px-2 py-1 font-medium">Px</th>
-                <th className="text-right px-2 py-1 font-medium">Monto</th>
-                <th className="text-left px-2 py-1 font-medium">Tasa</th>
-                <th className="text-right px-2 py-1 font-medium">% Share</th>
-                <th className="text-left px-2 py-1 font-medium">Obs.</th>
+                <th className="text-center px-2 py-1 font-medium">Emisor</th>
+                <th className="text-center px-2 py-1 font-medium">Calif.</th>
+                <th className="text-center px-2 py-1 font-medium">Clase Act.</th>
+                <th className="text-center px-2 py-1 font-medium">Venc.</th>
+                <th className="text-center px-2 py-1 font-medium">VN</th>
+                <th className="text-center px-2 py-1 font-medium">Px</th>
+                <th className="text-center px-2 py-1 font-medium">Monto</th>
+                <th className="text-center px-2 py-1 font-medium">Tasa</th>
+                <th className="text-center px-2 py-1 font-medium">% Share</th>
+                <th className="text-center px-2 py-1 font-medium">Obs.</th>
                 {puedeEscribir && <th className="px-2 py-1" />}
               </tr>
             </thead>
@@ -772,19 +772,19 @@ function FilaActivo({ fila, periodo, puedeEscribir, onCambio, sugerido }: {
         {fila.ticker || fila.instrumento || fila.unidad}
         {fila.sin_ficha && <span className="ml-1 text-[var(--t-accent)]" title="Sin ficha en Manager → Títulos">⚠</span>}
       </td>
-      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.emisor}>{fila.emisor || "—"}</td>
-      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.calificacion}>{fila.calificacion || "—"}</td>
-      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.clase_activo}>{fila.clase_activo || "—"}</td>
-      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.vencimiento}>{fila.vencimiento || "—"}</td>
-      <td className={cel + " text-right"}>
+      <td className={celTxt + " text-center text-[var(--t-text-dim)]"} title={fila.emisor}>{fila.emisor || "—"}</td>
+      <td className={celTxt + " text-center text-[var(--t-text-dim)]"} title={fila.calificacion}>{fila.calificacion || "—"}</td>
+      <td className={celTxt + " text-center text-[var(--t-text-dim)]"} title={fila.clase_activo}>{fila.clase_activo || "—"}</td>
+      <td className={celTxt + " text-center text-[var(--t-text-dim)]"} title={fila.vencimiento}>{fila.vencimiento || "—"}</td>
+      <td className={cel + " text-center"}>
         {puedeEscribir
-          ? <NumeroInput value={vn} onChange={marcar(setVn)} className={INPUT + " w-full text-right"} />
+          ? <NumeroInput value={vn} onChange={marcar(setVn)} className={INPUT + " w-full text-center"} />
           : fmt0(fila.vn)}
       </td>
-      <td className={cel + " text-right"}>
+      <td className={cel + " text-center"}>
         {puedeEscribir ? (
           <>
-            <NumeroInput value={px} onChange={marcar(setPx)} className={INPUT + " w-full text-right"} />
+            <NumeroInput value={px} onChange={marcar(setPx)} className={INPUT + " w-full text-center"} />
             {sugerido && (
               <div className="text-[8px] text-[var(--t-text-muted)] truncate" title="Último precio conocido en tenencia — orientativo">
                 ref {fmt2(sugerido.precio)} · {sugerido.fecha ?? "—"}
@@ -793,21 +793,21 @@ function FilaActivo({ fila, periodo, puedeEscribir, onCambio, sugerido }: {
           </>
         ) : fmt2(fila.px)}
       </td>
-      <td className={cel + " text-right text-[var(--t-text)]"}
+      <td className={cel + " text-center text-[var(--t-text)]"}
           title={fila.monto_manual != null ? "Monto forzado a mano (no derivado de VN × Px)" : "VN × Px"}>
         {fmt0(fila.monto)}{fila.monto_manual != null && " *"}
       </td>
-      <td className={celTxt} title={fila.tasa}>
+      <td className={celTxt + " text-center"} title={fila.tasa}>
         {puedeEscribir
           ? <input value={tasa} onChange={(e) => { setTasa(e.target.value); setSucio(true); }}
-                   className={INPUT + " w-full"} />
+                   className={INPUT + " w-full text-center"} />
           : (fila.tasa || "—")}
       </td>
-      <td className={cel + " text-right text-[var(--t-text-dim)]"}>{fmtPct(fila.share, 0)}</td>
-      <td className={celTxt} title={fila.obs}>
+      <td className={cel + " text-center text-[var(--t-text-dim)]"}>{fmtPct(fila.share, 0)}</td>
+      <td className={celTxt + " text-center"} title={fila.obs}>
         {puedeEscribir
           ? <input value={obs} onChange={(e) => { setObs(e.target.value); setSucio(true); }}
-                   className={INPUT + " w-full"} />
+                   className={INPUT + " w-full text-center"} />
           : (fila.obs || "—")}
       </td>
       {puedeEscribir && (
