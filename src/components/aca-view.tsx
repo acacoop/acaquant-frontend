@@ -95,7 +95,8 @@ type CeldaHist = {
 };
 type FilaImport = {
   fila: number; titulo: string; unidad: string; ticker: string; cartera: string;
-  emisor: string; match: string; vn: number | null; px: number | null;
+  emisor: string; match: string; ambiguo: boolean;
+  vn: number | null; px: number | null;
   tasa: string | null; obs: string | null; pisa: boolean; duplicado_de_fila?: number;
 };
 type Ignorada = { fila: number; titulo: string; motivo: string };
@@ -103,6 +104,7 @@ type Informe = {
   periodo: string; dry_run: boolean;
   reconocidas: FilaImport[]; ignoradas: Ignorada[];
   total_archivo: number; n_reconocidas: number; n_ignoradas: number; n_pisa: number;
+  n_ambiguas: number;
 };
 type Historico = {
   periodos: string[];
@@ -556,6 +558,25 @@ function GraficoAcumulado({ series }: { series: Vista["graficos"][number]["serie
 }
 
 // ── ACTIVOS (detalle por cartera — acá se carga lo manual) ─────────────────
+
+// Anchos FIJOS compartidos por las 4 tablas de cartera.
+//
+// Sin esto cada tabla es `auto` y se dimensiona con SU propio contenido: la de
+// Cartera Pesos (2 filas, emisores cortos) queda con columnas angostas y la de
+// Cartera DL (emisores largos como 'AEROPUERTOS 2000') con columnas anchas, así
+// que las mismas columnas arrancan en lugares distintos y el informe se lee como
+// cuatro tablas sueltas en vez de una. Con `table-fixed` + este colgroup, VN, Px
+// y Monto caen SIEMPRE en la misma posición y las cifras quedan alineadas de
+// arriba a abajo, que es lo que hace comparable un informe.
+//
+// Porcentajes (no px) para que siga siendo responsive. La última columna solo
+// existe para quien escribe, así que hay dos repartos que suman 100 cada uno.
+function ColsActivos({ puedeEscribir }: { puedeEscribir: boolean }) {
+  const w = puedeEscribir
+    ? ["15%", "12%", "6%", "7%", "7%", "10%", "9%", "10%", "5%", "5%", "6%", "8%"]
+    : ["16%", "13%", "7%", "8%", "8%", "11%", "8%", "11%", "6%", "5%", "7%"];
+  return <colgroup>{w.map((x, i) => <col key={i} style={{ width: x }} />)}</colgroup>;
+}
 function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
   data: Vista; periodo: string; puedeEscribir: boolean; onCambio: () => void;
 }) {
@@ -646,7 +667,8 @@ function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
         <Panel key={b.cartera}
                titulo={`Detalle de Activos - ${b.label}`}
                extra={<span className="text-[11px] text-white tabular-nums">{fmt0(b.total)}</span>}>
-          <table className="w-full text-[11px]">
+          <table className="w-full text-[11px] table-fixed">
+            <ColsActivos puedeEscribir={puedeEscribir} />
             <thead>
               <tr className="text-[9px] uppercase text-[var(--t-text-muted)] bg-[var(--t-surface)]">
                 <th className="text-left px-2 py-1 font-medium">Ticker</th>
@@ -737,30 +759,34 @@ function FilaActivo({ fila, periodo, puedeEscribir, onCambio, sugerido }: {
   };
 
   const cel = "px-2 py-1";
+  // Con `table-fixed` el contenido ya NO ensancha la columna: un emisor largo
+  // desbordaría sobre la de al lado. `truncate` lo corta con puntos suspensivos
+  // y el `title` deja el texto completo a un hover de distancia.
+  const celTxt = cel + " truncate";
   const marcar = <T,>(set: (v: T) => void) => (v: T) => { set(v); setSucio(true); };
 
   return (
     <tr className={`border-t border-[var(--t-border)] hover:bg-[var(--t-surface-2)] ${
       fila.monto == null ? "bg-[var(--t-tint-amber)]" : ""}`}>
-      <td className={cel + " text-[var(--t-text)]"} title={fila.unidad}>
+      <td className={celTxt + " text-[var(--t-text)]"} title={fila.unidad}>
         {fila.ticker || fila.instrumento || fila.unidad}
         {fila.sin_ficha && <span className="ml-1 text-[var(--t-accent)]" title="Sin ficha en Manager → Títulos">⚠</span>}
       </td>
-      <td className={cel + " text-[var(--t-text-dim)]"}>{fila.emisor || "—"}</td>
-      <td className={cel + " text-[var(--t-text-dim)]"}>{fila.calificacion || "—"}</td>
-      <td className={cel + " text-[var(--t-text-dim)]"}>{fila.clase_activo || "—"}</td>
-      <td className={cel + " text-[var(--t-text-dim)]"}>{fila.vencimiento || "—"}</td>
+      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.emisor}>{fila.emisor || "—"}</td>
+      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.calificacion}>{fila.calificacion || "—"}</td>
+      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.clase_activo}>{fila.clase_activo || "—"}</td>
+      <td className={celTxt + " text-[var(--t-text-dim)]"} title={fila.vencimiento}>{fila.vencimiento || "—"}</td>
       <td className={cel + " text-right"}>
         {puedeEscribir
-          ? <NumeroInput value={vn} onChange={marcar(setVn)} className={INPUT + " w-32 text-right"} />
+          ? <NumeroInput value={vn} onChange={marcar(setVn)} className={INPUT + " w-full text-right"} />
           : fmt0(fila.vn)}
       </td>
       <td className={cel + " text-right"}>
         {puedeEscribir ? (
           <>
-            <NumeroInput value={px} onChange={marcar(setPx)} className={INPUT + " w-24 text-right"} />
+            <NumeroInput value={px} onChange={marcar(setPx)} className={INPUT + " w-full text-right"} />
             {sugerido && (
-              <div className="text-[8px] text-[var(--t-text-muted)]" title="Último precio conocido en tenencia — orientativo">
+              <div className="text-[8px] text-[var(--t-text-muted)] truncate" title="Último precio conocido en tenencia — orientativo">
                 ref {fmt2(sugerido.precio)} · {sugerido.fecha ?? "—"}
               </div>
             )}
@@ -771,31 +797,34 @@ function FilaActivo({ fila, periodo, puedeEscribir, onCambio, sugerido }: {
           title={fila.monto_manual != null ? "Monto forzado a mano (no derivado de VN × Px)" : "VN × Px"}>
         {fmt0(fila.monto)}{fila.monto_manual != null && " *"}
       </td>
-      <td className={cel}>
+      <td className={celTxt} title={fila.tasa}>
         {puedeEscribir
           ? <input value={tasa} onChange={(e) => { setTasa(e.target.value); setSucio(true); }}
-                   className={INPUT + " w-24"} />
+                   className={INPUT + " w-full"} />
           : (fila.tasa || "—")}
       </td>
       <td className={cel + " text-right text-[var(--t-text-dim)]"}>{fmtPct(fila.share, 0)}</td>
-      <td className={cel}>
+      <td className={celTxt} title={fila.obs}>
         {puedeEscribir
           ? <input value={obs} onChange={(e) => { setObs(e.target.value); setSucio(true); }}
-                   className={INPUT + " w-28"} />
+                   className={INPUT + " w-full"} />
           : (fila.obs || "—")}
       </td>
       {puedeEscribir && (
-        <td className={cel + " whitespace-nowrap"}>
-          <button onClick={guardar} disabled={busy || !sucio}
-                  className={`px-2 py-0.5 text-[10px] border ${
-                    sucio ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                          : "border-[var(--t-border)] text-[var(--t-text-muted)]"}`}>
-            {busy ? "…" : "GUARDAR"}
-          </button>
-          <button onClick={borrar} disabled={busy}
-                  className="ml-1 px-2 py-0.5 text-[10px] border border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-neg)]">
-            ✕
-          </button>
+        <td className={cel}>
+          <div className="flex items-center gap-1">
+            <button onClick={guardar} disabled={busy || !sucio}
+                    title={sucio ? "Guardar los cambios de esta fila" : "Sin cambios"}
+                    className={`flex-1 px-1 py-0.5 text-[10px] border ${
+                      sucio ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                            : "border-[var(--t-border)] text-[var(--t-text-muted)]"}`}>
+              {busy ? "…" : "✓"}
+            </button>
+            <button onClick={borrar} disabled={busy} title="Sacar del informe"
+                    className="px-1 py-0.5 text-[10px] border border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-neg)]">
+              ✕
+            </button>
+          </div>
         </td>
       )}
     </tr>
@@ -1211,6 +1240,12 @@ function ImportarExcel({ periodo, activos, onCerrar, onHecho }: {
                   ⚠ {informe.n_pisa} ya estaban cargados y se van a PISAR
                 </span>
               )}
+              {informe.n_ambiguas > 0 && (
+                <span className="text-[var(--t-accent)]"
+                      title="El ticker apunta a más de un título del maestro. Se importa el que dice la columna 'Se importa como' — revisalo y corregilo si no es ese.">
+                  ⚠ {informe.n_ambiguas} con ticker repetido en el maestro
+                </span>
+              )}
               <button onClick={confirmar} disabled={busy || !informe.n_reconocidas}
                       className="ml-auto px-3 py-1 text-[11px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40">
                 CONFIRMAR E IMPORTAR {informe.n_reconocidas}
@@ -1233,11 +1268,15 @@ function ImportarExcel({ periodo, activos, onCerrar, onHecho }: {
                   <tbody className="tabular-nums">
                     {informe.reconocidas.map((f) => (
                       <tr key={f.unidad}
-                          className={`border-t border-[var(--t-border)] ${f.pisa ? "bg-[var(--t-tint-amber)]" : ""}`}>
+                          className={`border-t border-[var(--t-border)] ${
+                            f.ambiguo || f.pisa ? "bg-[var(--t-tint-amber)]" : ""}`}>
                         <td className="px-2 py-1 text-[var(--t-text-muted)]">{f.fila}</td>
                         <td className="px-2 py-1 text-[var(--t-text-dim)]">{f.titulo}</td>
                         <td className="px-2 py-1 text-[var(--t-text)]" title={`${f.unidad} (${f.match})`}>
                           {f.ticker || f.unidad}
+                          {f.ambiguo && (
+                            <span className="ml-1 text-[var(--t-accent)]" title={f.match}>⚠</span>
+                          )}
                           {f.duplicado_de_fila && (
                             <span className="ml-1 text-[var(--t-accent)]"
                                   title={`Repetido en el archivo (también en la fila ${f.duplicado_de_fila}); vale este`}>⚠</span>
