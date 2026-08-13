@@ -39,6 +39,7 @@ import {
 
 import { fetchJson } from "@/lib/fetch-json";
 import { readSheetRows } from "@/lib/xlsx-read";
+import { exportToXlsx } from "@/lib/xlsx-export";
 import { NumeroInput } from "./numero-input";
 
 // ── Contrato /api/aca/vista ────────────────────────────────────────────────
@@ -627,7 +628,9 @@ function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
       )}
 
       {importando && (
-        <ImportarExcel periodo={periodo} onCerrar={() => setImportando(false)}
+        <ImportarExcel periodo={periodo}
+                       activos={det.bloques.flatMap((b) => b.filas)}
+                       onCerrar={() => setImportando(false)}
                        onHecho={() => { setImportando(false); onCambio(); }} />
       )}
 
@@ -1115,8 +1118,8 @@ function mapearColumnas(fila: Record<string, unknown>): Record<string, unknown> 
   return out;
 }
 
-function ImportarExcel({ periodo, onCerrar, onHecho }: {
-  periodo: string; onCerrar: () => void; onHecho: () => void;
+function ImportarExcel({ periodo, activos, onCerrar, onHecho }: {
+  periodo: string; activos: Activo[]; onCerrar: () => void; onHecho: () => void;
 }) {
   const [informe, setInforme] = useState<Informe | null>(null);
   const [crudas, setCrudas] = useState<Record<string, unknown>[]>([]);
@@ -1175,9 +1178,20 @@ function ImportarExcel({ periodo, onCerrar, onHecho }: {
           con el motivo. Nada se guarda hasta que toques CONFIRMAR.
         </div>
 
-        <input type="file" accept=".xlsx,.xlsm,.xls,.csv" disabled={busy}
-               onChange={(e) => { const f = e.target.files?.[0]; if (f) void analizar(f); }}
-               className="text-[11px] text-[var(--t-text)]" />
+        <div className="flex flex-wrap items-center gap-3">
+          <button onClick={() => void descargarModelo(periodo, activos)}
+                  className="px-3 py-1 text-[11px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
+            ⬇ DESCARGAR MODELO
+          </button>
+          <input type="file" accept=".xlsx,.xlsm,.xls,.csv" disabled={busy}
+                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void analizar(f); }}
+                 className="text-[11px] text-[var(--t-text)]" />
+        </div>
+        <div className="text-[9px] text-[var(--t-text-muted)]">
+          El modelo baja con los encabezados exactos{activos.length
+            ? ` y los ${activos.length} títulos que ya tiene este período (con su VN y Px)` : ""}
+          , más una hoja INSTRUCCIONES. Completá y volvé a subirlo.
+        </div>
 
         {busy && <div className="text-[11px] text-[var(--t-text-muted)]">Procesando…</div>}
         {error && <div className="text-[11px] text-[var(--t-neg)] max-w-4xl">{error}</div>}
@@ -1270,4 +1284,79 @@ function ImportarExcel({ periodo, onCerrar, onHecho }: {
       </div>
     </Panel>
   );
+}
+
+/** Modelo .xlsx para llenar y volver a subir.
+ *
+ * Hoja 1 = los datos, con los encabezados EXACTOS que espera el importador y
+ * en la FILA 1 (por eso no se usa el `title` de exportToXlsx: mete una línea
+ * arriba y correría los headers a la fila 3, que el lector no mira).
+ *
+ * Si el período ya tiene títulos cargados, el modelo baja CON ellos y su VN/Px:
+ * así sirve para las dos cosas — arrancar de cero, o bajar lo cargado, corregirlo
+ * en Excel y volver a subirlo (el import pisa por título).
+ *
+ * Hoja 2 = INSTRUCCIONES. Es inerte a propósito: el importador lee solo la
+ * PRIMERA hoja, así que el instructivo no puede colarse como datos.
+ */
+async function descargarModelo(periodo: string, activos: Activo[]) {
+  const filas = activos.map((a) => ({
+    ticker: a.ticker || a.unidad,
+    vn: a.vn, px: a.px, tasa: a.tasa || "", obs: a.obs || "",
+  }));
+
+  const instrucciones = [
+    ["CÓMO COMPLETAR ESTE ARCHIVO"],
+    [""],
+    ["1. Llená la hoja ACTIVOS: una fila por título. No cambies los encabezados."],
+    ["2. Los encabezados van en la FILA 1. No agregues títulos ni logos arriba."],
+    ["3. Subilo desde la vista ACA → tab ACTIVOS → IMPORTAR EXCEL."],
+    [""],
+    ["QUÉ SIGNIFICA CADA COLUMNA"],
+    ["Ticker", "Obligatorio. El ticker del título tal como figura en Manager → Títulos."],
+    ["", "También sirve pegado al nombre: 'RMJ28 - BONO MUN. ROSARIO 26/06/28 $'."],
+    ["VN", "Valor nominal al cierre del mes."],
+    ["Px", "PRECIO DE CORTE DEL MES. Es el dato que no sale de ningún lado: se carga a mano."],
+    ["Tasa", "Texto libre (opcional). Lo que va en la columna Tasa del informe."],
+    ["Obs", "Texto libre (opcional). Ej: 'Amortizo'."],
+    [""],
+    ["LO QUE NO HACE FALTA PONER"],
+    ["", "Emisor, calificación, clase de activo, vencimiento y cartera salen del"],
+    ["", "maestro de Manager → Títulos. Si los ponés acá, se ignoran."],
+    ["", "El MONTO se calcula solo (VN × Px). No hace falta cargarlo."],
+    [""],
+    ["QUÉ PASA SI UN TÍTULO NO SE RECONOCE"],
+    ["", "No se importa, y la pantalla te lo lista con el motivo y el número de fila."],
+    ["", "El resto SÍ se importa. Nada se guarda hasta que tocás CONFIRMAR."],
+    [""],
+    ["FORMATOS"],
+    ["", "Los números pueden ir como número o como texto (458.915.200 / 80,04)."],
+    ["", "Las filas sin Ticker se saltean (vacías, subtotales, etc.)."],
+    ["", "Solo se lee la PRIMERA hoja. Máximo 2000 filas."],
+  ].map(([a, b]) => ({ a: a ?? "", b: b ?? "" }));
+
+  await exportToXlsx({
+    filename: `ACA-activos-${periodo}.xlsx`,
+    sheets: [
+      {
+        name: "ACTIVOS",
+        rows: filas,
+        columns: [
+          { header: "Ticker", key: "ticker", format: "text",    width: 42 },
+          { header: "VN",     key: "vn",     format: "integer", width: 18 },
+          { header: "Px",     key: "px",     format: "number",  width: 12 },
+          { header: "Tasa",   key: "tasa",   format: "text",    width: 14 },
+          { header: "Obs",    key: "obs",    format: "text",    width: 18 },
+        ],
+      },
+      {
+        name: "INSTRUCCIONES",
+        rows: instrucciones,
+        columns: [
+          { header: "ACA — Importar activos", key: "a", format: "text", width: 30 },
+          { header: "", key: "b", format: "text", width: 95 },
+        ],
+      },
+    ],
+  });
 }
