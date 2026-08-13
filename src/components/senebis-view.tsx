@@ -10,6 +10,11 @@
 //   EXCEL MAE    → espejo del archivo del MAE (solo pendientes es_mae) con
 //                  DESTINO resuelto en vivo por el backend (/excel-mae):
 //                  interno → contrapartes.codigo_mae · externo → cód. agente.
+//                  Tiene su PROPIA tilde de completada (`mae_completada`): la
+//                  marca el trader al cargar la orden en el MAE y esa fila
+//                  deja de salir en el .xlsx, pero queda visible grisada para
+//                  poder destildarla. Es independiente del `estado` de la tab
+//                  ÓRDENES, que es el laburo del back office en Quantex.
 // Presencia: el poll de la lista marca "estoy en la vista" y trae quiénes
 // más están (para no pisarse al completar). Derivados (monto, liquidación,
 // plazo, número de agente, denominación) los resuelve el backend.
@@ -76,7 +81,15 @@ type ExcelResp = {
 type Comitente = { id_cuenta: string; denominacion: string | null };
 // Excel MAE: mismas filas que el archivo del MAE; sin_destino = la
 // contraparte/agente todavía no tiene código MAE cargado (celda vacía).
-type ExcelMaeFila = ExcelFila & { sin_destino: boolean };
+// mae_completada = la tilde PROPIA de esta tab (la pone el TRADER cuando ya
+// cargó la orden en el MAE): sale del .xlsx pero queda acá grisada. NO es el
+// `estado` de la lista de órdenes, que es el tablero del back office.
+type ExcelMaeFila = ExcelFila & {
+  sin_destino: boolean;
+  mae_completada: boolean;
+  mae_completada_por: string | null;
+  mae_completada_at: string | null;
+};
 type ExcelMaeResp = { headers: string[]; filas: ExcelMaeFila[]; conectados: Conectado[] };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -857,6 +870,28 @@ export function SenebisView() {
     } finally { setBusyId(null); }
   };
 
+  // Tilde de la tab EXCEL MAE: "ya la cargué en el MAE" → la orden sale del
+  // .xlsx (que se genera varias veces por día) y queda grisada acá. NO toca el
+  // `estado` de la lista: ese es el tablero del back office.
+  const toggleMaeCompletada = async (f: ExcelMaeFila) => {
+    setBusyId(f.id);
+    try {
+      const r = await fetch(`/api/back-office/senebis/ops/${f.id}/mae-completada`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completada: !f.mae_completada }),
+      });
+      if (r.ok) { await cargar(); setErr(null); }
+      else {
+        let msg = `HTTP ${r.status}`;
+        try {
+          const j = (await r.json()) as { detail?: string };
+          if (typeof j?.detail === "string") msg = j.detail;
+        } catch { /* body no era JSON */ }
+        setErr(msg);
+      }
+    } finally { setBusyId(null); }
+  };
+
   // "Visto": baja el * y el amarillo de una orden ya revisada en Quantex.
   const marcarVisto = async (o: Orden) => {
     setBusyId(o.id);
@@ -1013,7 +1048,10 @@ export function SenebisView() {
             onEditar={abrirEdicion} onReasignar={reasignarId}
           />
         ) : (
-          <TablaMae excel={excelMae} ordenes={ordenes} onEditar={abrirEdicion} />
+          <TablaMae
+            excel={excelMae} ordenes={ordenes} busyId={busyId}
+            onEditar={abrirEdicion} onToggleCompletada={toggleMaeCompletada}
+          />
         )}
       </div>
 
@@ -1280,45 +1318,70 @@ function TablaQuantex({ excel, ordenes, busyId, onEditar, onReasignar }: {
 }
 
 // ── Tab EXCEL MAE (espejo del archivo del MAE) ─────────────────────────────
-function TablaMae({ excel, ordenes, onEditar }: {
+function TablaMae({ excel, ordenes, busyId, onEditar, onToggleCompletada }: {
   excel: ExcelMaeResp | null;
   ordenes: Orden[];
+  busyId: number | null;
   onEditar: (o: Orden) => void;
+  onToggleCompletada: (f: ExcelMaeFila) => void;
 }) {
   const porId = useMemo(() => new Map(ordenes.map((o) => [o.id, o])), [ordenes]);
   const TH = "text-center text-[9px] uppercase px-3 py-1 whitespace-nowrap bg-[#1F4E79] text-white";
   const TD = "px-3 py-1 text-[11px] whitespace-nowrap text-center border-b border-[var(--t-border-2)]";
   if (!excel) return <div className="p-3 text-[11px] text-[var(--t-text-dim)]">Cargando…</div>;
+  const enElExcel = excel.filas.filter((f) => !f.mae_completada).length;
   return (
     <div className="p-2">
       <div className="text-[9px] text-[var(--t-text-muted)] uppercase mb-1">
         Solo lo PENDIENTE marcado MAE. DESTINO sale solo: interno → cód. MAE de la
         contraparte (Manager → CONTRAPARTES) · externo → cód. MAE del agente. Fila roja =
         falta cargar ese código. Precio unitario (px ÷ 100) · Moneda ARS fija por ahora ·
-        Segmento se completa a mano en el archivo. “Generar Excel” descarga exactamente esto.
+        Segmento se completa a mano en el archivo.
+      </div>
+      <div className="text-[9px] text-[var(--t-text-muted)] uppercase mb-2">
+        Tildá ✓ la orden que ya cargaste en el MAE: queda GRISADA y no vuelve a salir en el
+        Excel (se puede destildar). La tilde es SOLO de esta tab — no toca el estado que
+        maneja el back office. “Generar Excel” descarga las <span className="text-[var(--t-accent)]">{enElExcel}</span> sin tildar.
       </div>
       <table className="border-collapse">
         <thead className="sticky top-0 z-10">
           <tr>
+            <th className={TH} title="ya cargada en el MAE → fuera del Excel">✓</th>
             {excel.headers.map((h) => <th key={h} className={TH}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {excel.filas.map((f) => {
             const o = porId.get(f.id);
+            const lista = f.mae_completada;
             return (
               <tr
                 key={f.id}
                 onClick={() => o && onEditar(o)}
-                title={f.sin_destino
-                  ? "SIN DESTINO: la contraparte/agente no tiene código MAE cargado — completarlo en Manager → CONTRAPARTES (interno) o en el catálogo de agentes (externo)"
-                  : "pendiente MAE — click para editar"}
+                title={lista
+                  ? `ya cargada en el MAE${f.mae_completada_por ? ` por ${f.mae_completada_por}` : ""} — no sale en el Excel (destildar para volver a incluirla)`
+                  : f.sin_destino
+                    ? "SIN DESTINO: la contraparte/agente no tiene código MAE cargado — completarlo en Manager → CONTRAPARTES (interno) o en el catálogo de agentes (externo)"
+                    : "pendiente MAE — click para editar"}
                 className={`cursor-pointer hover:bg-[var(--t-surface)] ${
-                  f.sin_destino ? "bg-[rgba(255,80,80,0.14)]" : ""
+                  lista ? "opacity-40" : f.sin_destino ? "bg-[rgba(255,80,80,0.14)]" : ""
                 }`}
               >
+                <td className="px-3 py-1 text-center border-b border-[var(--t-border-2)]">
+                  <input
+                    type="checkbox"
+                    checked={lista}
+                    disabled={busyId === f.id}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={() => onToggleCompletada(f)}
+                    title={lista ? "destildar: vuelve al Excel" : "ya la cargué en el MAE"}
+                    className="cursor-pointer accent-[var(--t-accent)] disabled:opacity-40"
+                  />
+                </td>
                 {f.valores.map((v, i) => (
-                  <td key={i} className={`${TD} ${i === 6 && f.sin_destino ? "text-[var(--t-neg)] text-[9px] uppercase" : ""}`}>
+                  <td key={i} className={`${TD} ${lista ? "line-through" : ""} ${
+                    i === 6 && f.sin_destino && !lista ? "text-[var(--t-neg)] text-[9px] uppercase" : ""
+                  }`}>
                     {v == null
                       ? (i === 6 && f.sin_destino ? "falta cód." : "")
                       : typeof v === "number"
@@ -1330,7 +1393,7 @@ function TablaMae({ excel, ordenes, onEditar }: {
             );
           })}
           {!excel.filas.length && (
-            <tr><td colSpan={excel.headers.length} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
+            <tr><td colSpan={excel.headers.length + 1} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
               Sin órdenes MAE pendientes en el filtro actual — el Excel saldría vacío.
             </td></tr>
           )}

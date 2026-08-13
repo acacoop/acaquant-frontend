@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 
 // Proxy catch-all de SENEBIS (Back Office → SENEBIS) hacia
-// /api/back-office/senebis/* del backend: /ops (+/{id}, /{id}/estado),
+// /api/back-office/senebis/* del backend: /ops (+/{id}, /{id}/estado,
+// /{id}/mae-completada — la tilde propia de la tab EXCEL MAE),
 // /opciones, /comitentes, /agentes, /excel (espejo JSON) y /export (.xlsx
 // BINARIO — por eso este proxy pasa bytes crudos, no texto: un res.text()
 // corrompería el archivo). Mismo patrón de auth que /api/mesa-dinero:
