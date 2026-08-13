@@ -18,6 +18,7 @@ import { GruposPanel } from "./grupos-panel";
 import { TabContrapartes } from "./manager-contrapartes-view";
 import { TabAcaValores } from "./manager-aca-valores-view";
 import { TabMesa } from "./manager-mesa-panel";
+import { TabAca } from "./manager-aca-panel";
 import { TabDocumentos } from "./manager-documentos-view";
 import { LogsPanel } from "./logs-panel";
 import { ManagerDebugXirrPanel } from "./manager-debug-xirr";
@@ -174,6 +175,7 @@ type Tab =
   | "clientes"
   | "contrapartes"
   | "aca-valores"
+  | "aca"
   | "aunesa"
   | "operaciones"
   | "mesa"
@@ -584,6 +586,7 @@ const TAB_MODULES: Record<Tab, string[]> = {
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
   "aca-valores": ["manager", "manager_clientes"],
+  aca:          ["manager"],
   aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
   mesa:         ["manager"],
@@ -599,6 +602,10 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
     { id: "clientes",     label: "CLIENTES"     },
     { id: "contrapartes", label: "CONTRAPARTES" },
     { id: "aca-valores",  label: "ACA VALORES"  },
+    // ACA: histórico de rendimientos + configuración de la vista /aca
+    // (regla de moneda, emisores/clases de las métricas, series). Distinta de
+    // ACA VALORES, que es el informe de retorno del FCI.
+    { id: "aca",          label: "ACA"          },
     { id: "aunesa",       label: "AUNESA"       },
     { id: "operaciones",  label: "OPERACIONES"  },
     { id: "mesa",         label: "MESA"         },
@@ -642,6 +649,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}
         {tab === "contrapartes" && <TabContrapartes />}
         {tab === "aca-valores"  && <TabAcaValores />}
+        {tab === "aca"          && <TabAca />}
         {tab === "aunesa"       && <AunesaGroup modules={modules} />}
         {tab === "operaciones"  && <OperacionesBackfillPanel />}
         {tab === "mesa"         && <TabMesa />}

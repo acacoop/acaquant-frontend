@@ -68,6 +68,10 @@ const NAV: Entry[] = [
     label: "NEGOCIO",
     // Items ordenados alfabéticamente (A→Z) por label.
     items: [
+      // ACA (resumen ejecutivo de la cartera propia). Módulo `aca` del RBAC: lo
+      // tiene el rol EMPLEADO ACA, y el backend se lo agrega a me.modules a
+      // quien pueda escribir (allowlist de Mesa de Dinero) aunque no tenga el rol.
+      { href: "/aca",          label: "ACA",           module: "aca" },
       { href: "/aum",          label: "AUM",           module: "portfolios" },
       { href: "/valuaciones",  label: "Carteras",      module: "portfolios" },
       { href: "/contrapartes", label: "Contrapartes",  module: "operaciones" },

@@ -42,6 +42,12 @@ const PATH_MODULES: [string, string[]][] = [
   // allowlist server-side. Enforcement real: require_lectura_mesa en el backend.
   ["/mesa-dinero", ["mesa-dinero"]],
   ["/api/mesa-dinero", ["mesa-dinero"]],
+  // /aca (RESUMEN EJECUTIVO de la cartera propia de ACA) — módulo `aca`, que
+  // tiene el rol `empleado_aca` (NO `sales`, que es el rol default). El backend
+  // además publica `aca` en me.modules para los escritores de la mesa que no
+  // tienen el rol: escribir implica ver. Enforcement real: require_lectura_aca.
+  ["/aca", ["aca"]],
+  ["/api/aca", ["aca"]],
   ["/api/operaciones", ["operaciones"]],
   ["/api/cuentas", ["operaciones"]],
   ["/aum", ["portfolios"]],
@@ -209,6 +215,8 @@ export const config = {
     "/api/titulos/:path*",
     "/mesa-dinero/:path*",
     "/api/mesa-dinero/:path*",
+    "/aca/:path*",
+    "/api/aca/:path*",
     "/renta-variable/:path*",
     "/api/scanner/:path*",
   ],
