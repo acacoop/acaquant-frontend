@@ -49,6 +49,12 @@ const NAV: Entry[] = [
   { kind: "link", href: "/operar",      label: "OPERAR",      module: "operar" },
   { kind: "link", href: "/trading",     label: "TRADING",     module: "trading" },
   { kind: "link", href: "/research",     label: "RESEARCH",    module: "research" },
+  // ACA: vista PROPIA de primer nivel, no un item de NEGOCIO — es la cartera de
+  // la casa y la mira gerencia, no es una vista más de la operación diaria.
+  // Módulo `aca` del RBAC (rol EMPLEADO ACA); el backend además se lo agrega a
+  // me.modules a quien pueda escribir (allowlist de Mesa de Dinero) aunque no
+  // tenga el rol — escribir implica ver.
+  { kind: "link", href: "/aca",         label: "ACA",         module: "aca" },
   {
     kind: "group",
     label: "MERCADOS",
@@ -68,10 +74,6 @@ const NAV: Entry[] = [
     label: "NEGOCIO",
     // Items ordenados alfabéticamente (A→Z) por label.
     items: [
-      // ACA (resumen ejecutivo de la cartera propia). Módulo `aca` del RBAC: lo
-      // tiene el rol EMPLEADO ACA, y el backend se lo agrega a me.modules a
-      // quien pueda escribir (allowlist de Mesa de Dinero) aunque no tenga el rol.
-      { href: "/aca",          label: "ACA",           module: "aca" },
       { href: "/aum",          label: "AUM",           module: "portfolios" },
       { href: "/valuaciones",  label: "Carteras",      module: "portfolios" },
       { href: "/contrapartes", label: "Contrapartes",  module: "operaciones" },
