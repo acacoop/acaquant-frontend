@@ -99,6 +99,16 @@ type ExcelMaeFila = ExcelFila & {
   campos_editados: string[];
 };
 type ExcelMaeResp = { headers: string[]; filas: ExcelMaeFila[]; conectados: Conectado[] };
+// La vista entera en UN request (`GET /vista`, 2026-08-13). Antes se polleaba
+// /ops + /excel + /excel-mae cada 10s y los tres corrían la MISMA query en el
+// backend (~13 viajes a la base por ciclo y por usuario; ahora ~7). Los
+// filtros de la tabla NO afectan a los espejos: el archivo es el archivo.
+type VistaResp = {
+  total: number; pendientes: number; ordenes: Orden[]; conectados: Conectado[];
+  excel: { headers: string[]; filas: ExcelFila[] };
+  excel_mae: { headers: string[]; filas: ExcelMaeFila[] };
+  proximo_id: number;
+};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const INPUT =
@@ -809,13 +819,30 @@ export function SenebisView() {
     const s = p.toString();
     return s ? `?${s}` : "";
   }, [rango, fEstado, fMae]);
-  // El Excel Quantex NO recibe filtro de estado: el backend ya manda solo
-  // pendientes no-MAE (lo completado ya se cargó en Quantex).
+  // Los .xlsx NO reciben el filtro de estado: el backend ya manda solo lo
+  // pendiente (lo completado ya se cargó del otro lado).
   const qsExcel = useMemo(
     () => (rango === "hoy" ? `?desde=${hoyIso()}` : ""), [rango]);
 
   const cargar = useCallback(async () => {
-    // /ops marca presencia y trae conectados; /excel es el espejo del archivo.
+    // UN request para toda la vista: marca presencia, trae conectados, la lista
+    // y los dos espejos. Antes eran 3 (/ops + /excel + /excel-mae) y los tres
+    // corrían la misma query en el backend, cada 10s y por usuario.
+    const v = await getJson<VistaResp>(`/api/back-office/senebis/vista${qs}`);
+    if (v) {
+      setErr(null);
+      setData({ total: v.total, pendientes: v.pendientes, ordenes: v.ordenes,
+                conectados: v.conectados });
+      // Los espejos conservan su forma: los componentes de tabla no cambian.
+      setExcel({ ...v.excel, conectados: v.conectados, proximo_id: v.proximo_id });
+      setExcelMae({ ...v.excel_mae, conectados: v.conectados });
+      return;
+    }
+    // FALLBACK TEMPORAL (2026-08-13) — camino viejo de 3 requests.
+    // Vercel deploya solo al pushear, pero el Droplet se actualiza A MANO: en
+    // esa ventana este front pega a un backend que todavía no tiene /vista y la
+    // vista quedaría muerta. Con esto el orden de deploy deja de importar.
+    // SE BORRA junto con los endpoints deprecados, una vez estable en prod.
     const [o, x, m] = await Promise.all([
       getJson<OpsResp>(`/api/back-office/senebis/ops${qs}`),
       getJson<ExcelResp>(`/api/back-office/senebis/excel${qsExcel}`),
