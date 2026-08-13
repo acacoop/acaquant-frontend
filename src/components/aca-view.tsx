@@ -38,6 +38,7 @@ import {
 } from "recharts";
 
 import { fetchJson } from "@/lib/fetch-json";
+import { readSheetRows } from "@/lib/xlsx-read";
 import { NumeroInput } from "./numero-input";
 
 // ── Contrato /api/aca/vista ────────────────────────────────────────────────
@@ -90,6 +91,17 @@ type Titulo = {
 type CeldaHist = {
   periodo: string; mensual: number | null; acumulado: number | null;
   origen: string | null; monto: number | null; ingreso_retiro: number | null;
+};
+type FilaImport = {
+  fila: number; titulo: string; unidad: string; ticker: string; cartera: string;
+  emisor: string; match: string; vn: number | null; px: number | null;
+  tasa: string | null; obs: string | null; pisa: boolean; duplicado_de_fila?: number;
+};
+type Ignorada = { fila: number; titulo: string; motivo: string };
+type Informe = {
+  periodo: string; dry_run: boolean;
+  reconocidas: FilaImport[]; ignoradas: Ignorada[];
+  total_archivo: number; n_reconocidas: number; n_ignoradas: number; n_pisa: number;
 };
 type Historico = {
   periodos: string[];
@@ -548,6 +560,7 @@ function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
 }) {
   const det = data.detalle;
   const [agregando, setAgregando] = useState(false);
+  const [importando, setImportando] = useState(false);
   const [busy, setBusy] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [sugeridos, setSugeridos] = useState<Record<string, { precio: number; fecha: string | null }>>({});
@@ -596,6 +609,10 @@ function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
                   className="px-3 py-1 text-[11px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
             COPIAR DEL MES ANTERIOR
           </button>
+          <button onClick={() => setImportando(true)} disabled={busy}
+                  className="px-3 py-1 text-[11px] border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-tint-amber)]">
+            ⬆ IMPORTAR EXCEL
+          </button>
           <button onClick={verSugeridos} disabled={busy}
                   className="px-3 py-1 text-[11px] border border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]">
             VER PRECIOS DE REFERENCIA
@@ -607,6 +624,11 @@ function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
       {agregando && (
         <AgregarTitulo periodo={periodo} onCerrar={() => setAgregando(false)}
                        onHecho={() => { setAgregando(false); onCambio(); }} />
+      )}
+
+      {importando && (
+        <ImportarExcel periodo={periodo} onCerrar={() => setImportando(false)}
+                       onHecho={() => { setImportando(false); onCambio(); }} />
       )}
 
       {det.huerfanos.length > 0 && (
@@ -1055,5 +1077,197 @@ function PeriodoForm({ periodos, periodo, onHecho }: {
         ✕
       </button>
     </div>
+  );
+}
+
+// ── Importar Excel al detalle de activos ───────────────────────────────────
+// Flujo en dos pasos, a propósito: se PARSEA y se muestra qué reconoció el
+// backend ANTES de escribir nada. Recién con CONFIRMAR se persiste. Un import a
+// ciegas sobre un informe de gerencia es la clase de cosa que se descubre tarde.
+//
+// El archivo puede tener las MISMAS columnas que la tabla ACTIVOS; solo se leen
+// las que son INPUT (ticker, VN, Px, tasa, obs). Emisor, calificación, clase y
+// vencimiento se ignoran aunque vengan: esos salen del maestro de Manager →
+// Títulos, que es la única ficha (si el Excel dice otra cosa, gana el maestro).
+// El MONTO tampoco se importa: se deriva de VN × Px, que es el punto de la vista.
+
+/** Encabezado del Excel → campo interno. Normaliza (minúsculas, sin acentos,
+ *  sin puntuación) y acepta los sinónimos que aparecen en la planilla real. */
+const _COLUMNAS: Record<string, string[]> = {
+  titulo: ["ticker", "especie", "activo", "titulo", "instrumento", "unidad", "papel"],
+  vn:     ["vn", "valornominal", "nominal", "nominales", "cantidad", "vnominal"],
+  px:     ["px", "precio", "preciocorte", "pxcorte", "cotizacion", "valor"],
+  tasa:   ["tasa"],
+  obs:    ["obs", "observacion", "observaciones", "nota", "notas", "comentario"],
+};
+const _norm = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]/g, "");
+
+function mapearColumnas(fila: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fila)) {
+    const n = _norm(k);
+    for (const [campo, alias] of Object.entries(_COLUMNAS)) {
+      if (out[campo] === undefined && alias.includes(n)) out[campo] = v;
+    }
+  }
+  return out;
+}
+
+function ImportarExcel({ periodo, onCerrar, onHecho }: {
+  periodo: string; onCerrar: () => void; onHecho: () => void;
+}) {
+  const [informe, setInforme] = useState<Informe | null>(null);
+  const [crudas, setCrudas] = useState<Record<string, unknown>[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const analizar = async (file: File) => {
+    setBusy(true); setError(null); setInforme(null);
+    try {
+      const rows = await readSheetRows(file);
+      const filas = rows
+        .map(mapearColumnas)
+        .filter((f) => String(f.titulo ?? "").trim() !== "");
+      if (!filas.length) {
+        setError("No encontré ninguna fila con columna de ticker. El archivo tiene que " +
+                 "tener un encabezado con TICKER (o especie/activo/instrumento) y, " +
+                 "opcionalmente, VN, PX, TASA y OBS.");
+        return;
+      }
+      setCrudas(filas);
+      // dry_run: el backend resuelve contra el maestro y devuelve el informe SIN escribir.
+      setInforme(await fetchJson<Informe>("/api/aca/activos/importar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periodo, filas, dry_run: true }),
+      }));
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally { setBusy(false); }
+  };
+
+  const confirmar = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await fetchJson<Informe>("/api/aca/activos/importar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periodo, filas: crudas, dry_run: false }),
+      });
+      alert(`Listo: ${r.n_reconocidas} títulos importados` +
+            (r.n_ignoradas ? `, ${r.n_ignoradas} ignorados.` : "."));
+      onHecho();
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Panel titulo={`IMPORTAR EXCEL — ${fmtPeriodoLargo(periodo)}`}
+           extra={<button onClick={onCerrar} className="text-[11px] text-white">✕</button>}>
+      <div className="p-3 flex flex-col gap-3">
+        <div className="text-[10px] text-[var(--t-text-muted)] leading-relaxed max-w-4xl">
+          Subí el .xlsx (o .csv) con las mismas columnas que la tabla. Se leen{" "}
+          <b>TICKER</b>, <b>VN</b>, <b>PX</b>, <b>TASA</b> y <b>OBS</b>; el resto se
+          ignora aunque venga: emisor, calificación, clase de activo y vencimiento salen
+          del maestro de Manager → Títulos, y el <b>monto se calcula</b> (VN × Px).
+          Los títulos que no estén en ese maestro <b>no se importan</b> y se listan abajo
+          con el motivo. Nada se guarda hasta que toques CONFIRMAR.
+        </div>
+
+        <input type="file" accept=".xlsx,.xlsm,.xls,.csv" disabled={busy}
+               onChange={(e) => { const f = e.target.files?.[0]; if (f) void analizar(f); }}
+               className="text-[11px] text-[var(--t-text)]" />
+
+        {busy && <div className="text-[11px] text-[var(--t-text-muted)]">Procesando…</div>}
+        {error && <div className="text-[11px] text-[var(--t-neg)] max-w-4xl">{error}</div>}
+
+        {informe && (
+          <>
+            <div className="flex flex-wrap items-center gap-3 text-[11px]">
+              <span className="text-[var(--t-text-dim)]">
+                {informe.total_archivo} filas en el archivo
+              </span>
+              <span className="text-[var(--t-pos)]">✓ {informe.n_reconocidas} se importan</span>
+              {informe.n_ignoradas > 0 && (
+                <span className="text-[var(--t-neg)]">✕ {informe.n_ignoradas} se ignoran</span>
+              )}
+              {informe.n_pisa > 0 && (
+                <span className="text-[var(--t-accent)]">
+                  ⚠ {informe.n_pisa} ya estaban cargados y se van a PISAR
+                </span>
+              )}
+              <button onClick={confirmar} disabled={busy || !informe.n_reconocidas}
+                      className="ml-auto px-3 py-1 text-[11px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40">
+                CONFIRMAR E IMPORTAR {informe.n_reconocidas}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div className="border border-[var(--t-border)] max-h-[340px] overflow-auto">
+                <table className="w-full text-[11px]">
+                  <thead className="sticky top-0 bg-[var(--t-surface)]">
+                    <tr className="text-[9px] uppercase text-[var(--t-text-muted)]">
+                      <th className="text-left px-2 py-1 font-medium">#</th>
+                      <th className="text-left px-2 py-1 font-medium">Del archivo</th>
+                      <th className="text-left px-2 py-1 font-medium">Se importa como</th>
+                      <th className="text-left px-2 py-1 font-medium">Cart.</th>
+                      <th className="text-right px-2 py-1 font-medium">VN</th>
+                      <th className="text-right px-2 py-1 font-medium">Px</th>
+                    </tr>
+                  </thead>
+                  <tbody className="tabular-nums">
+                    {informe.reconocidas.map((f) => (
+                      <tr key={f.unidad}
+                          className={`border-t border-[var(--t-border)] ${f.pisa ? "bg-[var(--t-tint-amber)]" : ""}`}>
+                        <td className="px-2 py-1 text-[var(--t-text-muted)]">{f.fila}</td>
+                        <td className="px-2 py-1 text-[var(--t-text-dim)]">{f.titulo}</td>
+                        <td className="px-2 py-1 text-[var(--t-text)]" title={`${f.unidad} (${f.match})`}>
+                          {f.ticker || f.unidad}
+                          {f.duplicado_de_fila && (
+                            <span className="ml-1 text-[var(--t-accent)]"
+                                  title={`Repetido en el archivo (también en la fila ${f.duplicado_de_fila}); vale este`}>⚠</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1 text-[var(--t-text-dim)]">{f.cartera || "—"}</td>
+                        <td className="px-2 py-1 text-right">{fmt0(f.vn)}</td>
+                        <td className="px-2 py-1 text-right">{fmt2(f.px)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border border-[var(--t-border)] max-h-[340px] overflow-auto">
+                {informe.ignoradas.length === 0 ? (
+                  <div className="p-3 text-[11px] text-[var(--t-pos)]">
+                    Se reconocieron todos los títulos del archivo.
+                  </div>
+                ) : (
+                  <table className="w-full text-[11px]">
+                    <thead className="sticky top-0 bg-[var(--t-surface)]">
+                      <tr className="text-[9px] uppercase text-[var(--t-text-muted)]">
+                        <th className="text-left px-2 py-1 font-medium">#</th>
+                        <th className="text-left px-2 py-1 font-medium">No se importa</th>
+                        <th className="text-left px-2 py-1 font-medium">Por qué</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {informe.ignoradas.map((f, i) => (
+                        <tr key={i} className="border-t border-[var(--t-border)]">
+                          <td className="px-2 py-1 text-[var(--t-text-muted)]">{f.fila}</td>
+                          <td className="px-2 py-1 text-[var(--t-text)]">{f.titulo || "(vacío)"}</td>
+                          <td className="px-2 py-1 text-[var(--t-text-dim)]">{f.motivo}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Panel>
   );
 }
