@@ -112,22 +112,34 @@ const signo = (n: number | null | undefined) =>
   n == null ? "" : n < 0 ? "text-[var(--t-neg)]" : n > 0 ? "text-[var(--t-pos)]" : "";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-/** '2026-07' → 'jul-26' (el eje de los gráficos de la planilla). */
-const fmtPeriodoCorto = (p: string) => {
-  const [y, m] = p.split("-");
-  return `${MESES[Number(m) - 1] ?? m}-${y.slice(2)}`;
-};
-/** '2026-07' → 'JULIO 2026' (título de la torta). */
 const MESES_LARGOS = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO",
   "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"];
-const fmtPeriodoLargo = (p: string) => {
+
+// Los tres formateadores toleran null/undefined/basura y devuelven "—".
+// No es paranoia decorativa: el 2026-08-13 el backend mandó strings donde el
+// front esperaba objetos, `p.periodo` quedó undefined y el `.split()` tumbó la
+// VISTA ENTERA con "Cannot read properties of undefined". Un dato raro tiene que
+// ensuciar UNA celda, nunca voltear la pantalla — el bug real se arregla en el
+// backend, pero el blindaje evita que la próxima sorpresa sea una pantalla negra.
+const _partes = (p: string | null | undefined): [string, string] | null => {
+  if (typeof p !== "string") return null;
   const [y, m] = p.split("-");
-  return `${MESES_LARGOS[Number(m) - 1] ?? m} ${y}`;
+  return y && m ? [y, m] : null;
 };
-const fmtFecha = (iso: string | null) => {
-  if (!iso) return "—";
+/** '2026-07' → 'jul-26' (el eje de los gráficos de la planilla). */
+const fmtPeriodoCorto = (p: string | null | undefined) => {
+  const t = _partes(p);
+  return t ? `${MESES[Number(t[1]) - 1] ?? t[1]}-${t[0].slice(2)}` : "—";
+};
+/** '2026-07' → 'JULIO 2026' (título de la torta). */
+const fmtPeriodoLargo = (p: string | null | undefined) => {
+  const t = _partes(p);
+  return t ? `${MESES_LARGOS[Number(t[1]) - 1] ?? t[1]} ${t[0]}` : "—";
+};
+const fmtFecha = (iso: string | null | undefined) => {
+  if (typeof iso !== "string") return "—";
   const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
+  return y && m && d ? `${d}/${m}/${y}` : "—";
 };
 /** "1.234,56" (crudo del NumeroInput) → number | null. */
 const num = (s: string): number | null => {
