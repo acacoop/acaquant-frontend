@@ -20,6 +20,39 @@ import { contar, midiendo, registrarMs } from "./perf";
  * (404 del proxy, 403 de RBAC, 502 del backend) se viera idéntico a uno
  * legítimamente vacío — así se perdió una semana la tab ESTRATEGIA.
  */
+// Peticiones EN VUELO, compartidas por URL entre TODOS los componentes.
+//
+// Por qué: varias vistas montan dos componentes que pollean el MISMO endpoint
+// (agro es el caso testigo: `derivados-agro-futuros` y `derivados-agro-pizarra`
+// piden `/api/derivados-agro` cada 5s). Como montan juntos, sus timers quedan
+// alineados y disparan casi en el mismo instante → dos requests idénticos al
+// endpoint más caro de la plataforma, y el backend calcula todo dos veces.
+//
+// Esto NO es un cache: no guarda respuestas ni sirve nada viejo. Si cuando
+// llega un pedido ya hay otro EN CURSO para la misma URL, se cuelga de ese y
+// los dos reciben exactamente la misma respuesta fresca. Si no hay ninguno en
+// curso, sale un request normal. Cada componente conserva su propio intervalo,
+// su propio estado y su propio manejo de error.
+const _enVuelo = new Map<string, Promise<string>>();
+
+async function _traerCrudo(endpoint: string): Promise<string> {
+  const yaEnCurso = _enVuelo.get(endpoint);
+  if (yaEnCurso) return yaEnCurso;
+  const pedido = (async () => {
+    const r = await fetch(endpoint, { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.text();
+  })();
+  _enVuelo.set(endpoint, pedido);
+  try {
+    return await pedido;
+  } finally {
+    // Se limpia SIEMPRE (también si falló): el próximo tick tiene que poder
+    // reintentar de verdad, no quedar pegado a una promesa rechazada.
+    _enVuelo.delete(endpoint);
+  }
+}
+
 export function usePoll<T>(
   endpoint: string,
   initial: T,
@@ -45,12 +78,10 @@ export function usePoll<T>(
 
     async function tick() {
       try {
-        const r = await fetch(endpoint, { cache: "no-store" });
-        if (!r.ok) {
-          if (alive) setError(`HTTP ${r.status}`);
-          return;
-        }
-        const raw = await r.text();
+        // Comparte el request si otro componente ya está pidiendo esta misma
+        // URL en este instante. Un !r.ok viaja como excepción `HTTP <status>`
+        // y lo atrapa el catch de abajo — mismo mensaje de error que antes.
+        const raw = await _traerCrudo(endpoint);
         if (!alive) return;
         if (raw !== lastRawRef.current) {
           lastRawRef.current = raw;
