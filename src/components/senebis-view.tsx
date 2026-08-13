@@ -15,6 +15,10 @@
 //                  deja de salir en el .xlsx, pero queda visible grisada para
 //                  poder destildarla. Es independiente del `estado` de la tab
 //                  ÓRDENES, que es el laburo del back office en Quantex.
+//                  Si una tildada se edita después, la fila se pone AMARILLA
+//                  (`mae_editada_completada`) + botón ⚠ EDITADA: el MAE quedó
+//                  con los datos viejos. Espejo del amarillo de Quantex, con
+//                  marca y visto propios (los bajan equipos distintos).
 // Presencia: el poll de la lista marca "estoy en la vista" y trae quiénes
 // más están (para no pisarse al completar). Derivados (monto, liquidación,
 // plazo, número de agente, denominación) los resuelve el backend.
@@ -84,11 +88,15 @@ type Comitente = { id_cuenta: string; denominacion: string | null };
 // mae_completada = la tilde PROPIA de esta tab (la pone el TRADER cuando ya
 // cargó la orden en el MAE): sale del .xlsx pero queda acá grisada. NO es el
 // `estado` de la lista de órdenes, que es el tablero del back office.
+// mae_editada_completada = se tildó y DESPUÉS se editó → el MAE quedó cargado
+// con los datos viejos (fila amarilla + ⚠ EDITADA, igual que en Quantex).
 type ExcelMaeFila = ExcelFila & {
   sin_destino: boolean;
   mae_completada: boolean;
   mae_completada_por: string | null;
   mae_completada_at: string | null;
+  mae_editada_completada: boolean;
+  campos_editados: string[];
 };
 type ExcelMaeResp = { headers: string[]; filas: ExcelMaeFila[]; conectados: Conectado[] };
 
@@ -901,6 +909,17 @@ export function SenebisView() {
     } finally { setBusyId(null); }
   };
 
+  // "Visto" del MAE: baja el amarillo de una tildada que se editó después (el
+  // trader ya la corrigió en el MAE). Marca aparte de la de Quantex: la bajan
+  // equipos distintos y el visto de uno no puede tapar el del otro.
+  const marcarVistoMae = async (f: ExcelMaeFila) => {
+    setBusyId(f.id);
+    try {
+      const r = await fetch(`/api/back-office/senebis/ops/${f.id}/mae-visto`, { method: "POST" });
+      if (r.ok) await cargar();
+    } finally { setBusyId(null); }
+  };
+
   // Borrar: SOLO desde el modal de edición (no hay ✕ en la tabla).
   const borrar = async (o: Orden) => {
     if (!window.confirm(`¿Eliminar la orden #${o.id} (${o.especie})? Queda auditado.`)) return;
@@ -1051,6 +1070,7 @@ export function SenebisView() {
           <TablaMae
             excel={excelMae} ordenes={ordenes} busyId={busyId}
             onEditar={abrirEdicion} onToggleCompletada={toggleMaeCompletada}
+            onVisto={marcarVistoMae}
           />
         )}
       </div>
@@ -1318,12 +1338,13 @@ function TablaQuantex({ excel, ordenes, busyId, onEditar, onReasignar }: {
 }
 
 // ── Tab EXCEL MAE (espejo del archivo del MAE) ─────────────────────────────
-function TablaMae({ excel, ordenes, busyId, onEditar, onToggleCompletada }: {
+function TablaMae({ excel, ordenes, busyId, onEditar, onToggleCompletada, onVisto }: {
   excel: ExcelMaeResp | null;
   ordenes: Orden[];
   busyId: number | null;
   onEditar: (o: Orden) => void;
   onToggleCompletada: (f: ExcelMaeFila) => void;
+  onVisto: (f: ExcelMaeFila) => void;
 }) {
   const porId = useMemo(() => new Map(ordenes.map((o) => [o.id, o])), [ordenes]);
   const TH = "text-center text-[9px] uppercase px-3 py-1 whitespace-nowrap bg-[#1F4E79] text-white";
@@ -1341,30 +1362,41 @@ function TablaMae({ excel, ordenes, busyId, onEditar, onToggleCompletada }: {
       <div className="text-[9px] text-[var(--t-text-muted)] uppercase mb-2">
         Tildá ✓ la orden que ya cargaste en el MAE: queda GRISADA y no vuelve a salir en el
         Excel (se puede destildar). La tilde es SOLO de esta tab — no toca el estado que
-        maneja el back office. “Generar Excel” descarga las <span className="text-[var(--t-accent)]">{enElExcel}</span> sin tildar.
+        maneja el back office. Si editás una tildada, la fila se pone AMARILLA: el MAE quedó
+        con los datos viejos y hay que corregirlo allá; el botón ⚠ EDITADA baja el aviso.
+        “Generar Excel” descarga las <span className="text-[var(--t-accent)]">{enElExcel}</span> sin tildar.
       </div>
       <table className="border-collapse">
         <thead className="sticky top-0 z-10">
           <tr>
             <th className={TH} title="ya cargada en el MAE → fuera del Excel">✓</th>
             {excel.headers.map((h) => <th key={h} className={TH}>{h}</th>)}
+            <th className="bg-[var(--t-panel)]" />
           </tr>
         </thead>
         <tbody>
           {excel.filas.map((f) => {
             const o = porId.get(f.id);
             const lista = f.mae_completada;
+            // El amarillo GANA sobre el grisado: es un aviso que hay que leer.
+            const editada = f.mae_editada_completada;
             return (
               <tr
                 key={f.id}
                 onClick={() => o && onEditar(o)}
-                title={lista
-                  ? `ya cargada en el MAE${f.mae_completada_por ? ` por ${f.mae_completada_por}` : ""} — no sale en el Excel (destildar para volver a incluirla)`
-                  : f.sin_destino
-                    ? "SIN DESTINO: la contraparte/agente no tiene código MAE cargado — completarlo en Manager → CONTRAPARTES (interno) o en el catálogo de agentes (externo)"
-                    : "pendiente MAE — click para editar"}
+                title={editada
+                  ? `editada DESPUÉS de cargarse en el MAE${f.campos_editados.length ? ` (${f.campos_editados.join(", ")})` : ""} — corregirla en el MAE y bajar el aviso con ⚠ EDITADA`
+                  : lista
+                    ? `ya cargada en el MAE${f.mae_completada_por ? ` por ${f.mae_completada_por}` : ""} — no sale en el Excel (destildar para volver a incluirla)`
+                    : f.sin_destino
+                      ? "SIN DESTINO: la contraparte/agente no tiene código MAE cargado — completarlo en Manager → CONTRAPARTES (interno) o en el catálogo de agentes (externo)"
+                      : "pendiente MAE — click para editar"}
                 className={`cursor-pointer hover:bg-[var(--t-surface)] ${
-                  lista ? "opacity-40" : f.sin_destino ? "bg-[rgba(255,80,80,0.14)]" : ""
+                  editada
+                    ? "bg-[rgba(224,168,0,0.22)]"
+                    : lista
+                      ? "opacity-40"
+                      : f.sin_destino ? "bg-[rgba(255,80,80,0.14)]" : ""
                 }`}
               >
                 <td className="px-3 py-1 text-center border-b border-[var(--t-border-2)]">
@@ -1379,7 +1411,7 @@ function TablaMae({ excel, ordenes, busyId, onEditar, onToggleCompletada }: {
                   />
                 </td>
                 {f.valores.map((v, i) => (
-                  <td key={i} className={`${TD} ${lista ? "line-through" : ""} ${
+                  <td key={i} className={`${TD} ${lista && !editada ? "line-through" : ""} ${
                     i === 6 && f.sin_destino && !lista ? "text-[var(--t-neg)] text-[9px] uppercase" : ""
                   }`}>
                     {v == null
@@ -1389,11 +1421,23 @@ function TablaMae({ excel, ordenes, busyId, onEditar, onToggleCompletada }: {
                         : String(v)}
                   </td>
                 ))}
+                <td className="px-2 py-1 border-b border-[var(--t-border-2)]">
+                  {editada && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onVisto(f); }}
+                      disabled={busyId === f.id}
+                      title="ya la corregí en el MAE — bajar el aviso"
+                      className="text-[9px] uppercase px-1.5 py-0.5 border border-[#e0a800] text-[#e0a800] hover:bg-[#e0a800] hover:text-black disabled:opacity-40"
+                    >
+                      {busyId === f.id ? "…" : "⚠ Editada"}
+                    </button>
+                  )}
+                </td>
               </tr>
             );
           })}
           {!excel.filas.length && (
-            <tr><td colSpan={excel.headers.length + 1} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
+            <tr><td colSpan={excel.headers.length + 2} className="px-3 py-4 text-[11px] text-[var(--t-text-dim)]">
               Sin órdenes MAE pendientes en el filtro actual — el Excel saldría vacío.
             </td></tr>
           )}
