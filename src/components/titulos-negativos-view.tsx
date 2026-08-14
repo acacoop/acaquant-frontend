@@ -80,7 +80,10 @@ type Saldos = {
 
 type Lado = { n: number; filas: Fila[] };
 
+type Presente = { email: string; visto_at: string | null };
+
 type Resp = {
+  presencia: Presente[];
   fecha: string | null;
   actualizado_at: string | null;
   cuentas_en_posicion: number;
@@ -108,6 +111,7 @@ const MONEDAS_ORDEN = ["ARS", "USD", "USDL"];
 // y no el string vacío porque el vacío ya significa "todos".
 const SIN_OPERADOR = "__sin_operador__";
 const VACIO: Resp = {
+  presencia: [],
   fecha: null, actualizado_at: null, cuentas_en_posicion: 0,
   incluir_todo: false, t0: LADO_VACIO, t1: LADO_VACIO, saldos: SALDOS_VACIO,
 };
@@ -413,6 +417,9 @@ export function TitulosNegativosView() {
   // ¿El saldo que se está mostrando es el de hoy? Decide si al lado del estado
   // alcanza con la hora o hace falta también el día.
   const esDeHoy = saldos.fecha === hoyART();
+  // Quién MÁS tiene la pantalla abierta. El backend ya excluye al que consulta:
+  // "3 mirando" contándote a vos mismo es un número que no sirve para nada.
+  const presentes = data.presencia ?? [];
   // Todavía no llegó ningún poll: no se puede afirmar nada, ni siquiera "vacío".
   const sinCargar =
     lastAt === 0 && data.fecha == null && saldos.fecha == null;
@@ -529,6 +536,19 @@ export function TitulosNegativosView() {
         )}
 
         <div className="ml-auto flex items-center gap-2 text-[11px] shrink-0">
+          {presentes.length > 0 && (
+            <span
+              className="text-[var(--t-text-dim)] border border-[var(--t-border)] px-1.5 py-0.5"
+              // Solo el número: la barra tiene que entrar en UNA línea y tres
+              // mails la parten. Los nombres van al tooltip, que es donde se
+              // miran (una vez, cuando querés saber quién).
+              title={`Mirando esta pantalla ahora: ${presentes
+                .map((p) => p.email)
+                .join(", ")}`}
+            >
+              👤 {presentes.length}
+            </span>
+          )}
           {error && (
             <span className="text-[var(--t-neg)]" title={error}>
               error de carga
