@@ -103,9 +103,10 @@ const SALDOS_VACIO: Saldos = {
   n: 0, n_negativos: 0, filas: [],
 };
 
-// Orden de las pills. Lo que no esté acá (si mañana entra USDC) se agrega solo,
-// alfabético, después de estas — la pantalla no se rompe por una moneda nueva.
-const MONEDAS_ORDEN = ["ARS", "USD", "USDL"];
+// Orden de las pills. Lo que no esté acá se agrega solo, alfabético, después de
+// estas — la pantalla no se rompe por una moneda nueva. USDC (dólar cable) entró
+// el 2026-08-14 por pedido del back office: el daemon ya lo veía y lo descartaba.
+const MONEDAS_ORDEN = ["ARS", "USD", "USDL", "USDC"];
 
 // Valor del desplegable para "las cuentas sin operador asignado". Es un centinela
 // y no el string vacío porque el vacío ya significa "todos".

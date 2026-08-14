@@ -376,13 +376,11 @@ function TabResumen({ data }: { data: Vista }) {
               sub={a.mep ? "valuación ÷ MEP" : "falta cargar el MEP"} />
       </div>
 
-      {a.sin_clasificar.monto > 0 && (
-        <div className="px-3 py-2 border border-[var(--t-accent)] bg-[var(--t-tint-amber)] text-[10px] text-[var(--t-text)]">
-          <b>{fmt0(a.sin_clasificar.monto)}</b> ({fmtPct(a.sin_clasificar.ponderacion)}) no entra ni a
-          Total Dolarizado ni a Total Pesos: no hay regla de moneda para{" "}
-          <b>{a.sin_clasificar.clases.join(", ")}</b>. Se resuelve en Manager → ACA → REGLA DE MONEDA.
-        </div>
-      )}
+      {/* El aviso de `sin_clasificar` NO va acá (2026-08-14): un cartel a todo lo
+          ancho arriba del informe es lo primero que lee un gerente y no es lo que
+          la vista viene a contar. La información NO se pierde — sigue en la fila
+          «Sin clasificar» del cuadro de totales, que es donde se audita y donde
+          se ve al lado de los totales con los que no cierra. */}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         {/* Torta */}
