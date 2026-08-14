@@ -10,8 +10,12 @@ import { SenebisView } from "./senebis-view";
 import { TitulosNegativosView } from "./titulos-negativos-view";
 
 // Tabs del Back Office. Senebis + Tenencia Valorizada + Títulos en Alquiler +
-// Tesorería + Títulos / Mercado + Acreencias Clientes + Control Títulos
-// Negativos; nuevas se suman acá.
+// Tesorería + Títulos / Mercado + Acreencias Clientes + Saldos de Cuentas
+// Comitentes; nuevas se suman acá.
+// El id de la tab sigue siendo "negativos" a propósito: está PERSISTIDO en el
+// almacenamiento del navegador, así que renombrarlo mandaría a todos los que
+// tenían esta pestaña abierta de vuelta al default. El nombre visible es lo
+// único que cambia.
 type Tab = "titulos_mercado" | "acreencias" | "tenencia" | "alquiler" | "tesoreria"
   | "senebis" | "negativos";
 
@@ -64,7 +68,7 @@ export function BackOfficeShell() {
           active={tab === "negativos"}
           onClick={() => setTab("negativos")}
         >
-          Control Títulos Negativos
+          Saldos de Cuentas Comitentes
         </TabBtn>
       </div>
 
