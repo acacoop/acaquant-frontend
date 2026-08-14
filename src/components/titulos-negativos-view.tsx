@@ -6,7 +6,7 @@ import { usePoll } from "@/lib/use-poll";
 /**
  * Back Office → CONTROL DE NEGATIVOS. Dos pantallas en una, con un selector:
  *
- * ── SALDOS (default) — el descubierto de EFECTIVO, y es el control que importa.
+ * ── SALDOS (default) — el efectivo de la casa, y es el control que importa.
  *    Sale de `portafolio.control_saldos`: el saldo **liquidado** que devuelve el
  *    endpoint `cuentas/{id}/posiciones` de Aunesa. La diferencia con todo lo que
  *    había antes es que ese número NO cuenta el futuro: una caución que vence
@@ -15,6 +15,14 @@ import { usePoll } from "@/lib/use-poll";
  *    El signo ya viene corregido por el daemon — negativo es plata que falta.
  *    Trae el OPERADOR de la cuenta: un descubierto sin dueño no se resuelve.
  *    Las cuentas con nivel_5 CDC / OTC quedan afuera (el backend dice cuántas).
+ *
+ *    **Una moneda por vez** (pills, ARS por default): sumar pesos con dólares no
+ *    significa nada, y un total mezclado es un número que no se puede usar. Por
+ *    eso tampoco hay columna MONEDA — la dice el filtro.
+ *
+ *    **50/50**: izquierda A FAVOR (de mayor a menor) y derecha EN DESCUBIERTO
+ *    (del más negativo para abajo). Las dos mitades salen de las MISMAS filas
+ *    partidas por signo, así que sus totales no pueden contradecirse.
  *
  * ── TÍTULOS — el control viejo, sobre `portafolio.tenencia_live`, en sus dos
  *    horizontes (T0 = liquidada a hoy, T1 = con lo concertado hoy adentro).
@@ -41,8 +49,6 @@ type FilaSaldo = {
   cuenta: string;
   ticker: string;
   cantidad: number;
-  cantidad_pendiente: number | null;
-  filas_origen: number | null;
   operador: string;
   nivel_5: string;
   actualizado_at: string | null;
@@ -56,6 +62,7 @@ type Saldos = {
   ocultas: number;
   excluidos: string[];
   n: number;
+  n_negativos: number;
   filas: FilaSaldo[];
 };
 
@@ -74,8 +81,12 @@ type Resp = {
 const LADO_VACIO: Lado = { n: 0, filas: [] };
 const SALDOS_VACIO: Saldos = {
   disponible: false, fecha: null, actualizado_at: null, cuentas_en_control: 0,
-  ocultas: 0, excluidos: [], n: 0, filas: [],
+  ocultas: 0, excluidos: [], n: 0, n_negativos: 0, filas: [],
 };
+
+// Orden de las pills. Lo que no esté acá (si mañana entra USDC) se agrega solo,
+// alfabético, después de estas — la pantalla no se rompe por una moneda nueva.
+const MONEDAS_ORDEN = ["ARS", "USD", "USDL"];
 const VACIO: Resp = {
   fecha: null, actualizado_at: null, cuentas_en_posicion: 0,
   incluir_todo: false, t0: LADO_VACIO, t1: LADO_VACIO, saldos: SALDOS_VACIO,
@@ -91,6 +102,14 @@ const STALE_MIN = 10;
 
 const fmtNom = (v: number) =>
   v.toLocaleString("es-AR", { maximumFractionDigits: 4 });
+
+// Los saldos son PLATA, no nominales: dos decimales. Con los 4 de `fmtNom` un
+// saldo quedaba "-787.549.721,1115", que se lee peor y no aporta nada.
+const fmtPlata = (v: number) =>
+  v.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
 function minutosDesde(iso: string | null): number | null {
   if (!iso) return null;
@@ -111,6 +130,7 @@ export function TitulosNegativosView() {
   const [incluirTodo, setIncluirTodo] = useState(false);
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"saldos" | "titulos">("saldos");
+  const [moneda, setMoneda] = useState("ARS");
 
   const { data, lastAt, error } = usePoll<Resp>(
     `/api/back-office/titulos-negativos?incluir_todo=${incluirTodo}`,
@@ -130,17 +150,43 @@ export function TitulosNegativosView() {
   };
   const t0 = useMemo(() => filtrar(data.t0.filas), [data.t0.filas, q]);
   const t1 = useMemo(() => filtrar(data.t1.filas), [data.t1.filas, q]);
+  // Las monedas que REALMENTE hay hoy, en el orden de las pills. Derivarlas de
+  // los datos y no de una lista fija evita que la pantalla mienta: si una moneda
+  // no operó, no aparece; si mañana entra una nueva, aparece sola.
+  const monedas = useMemo(() => {
+    const vistas = [...new Set(saldos.filas.map((f) => f.ticker))];
+    return vistas.sort((a, b) => {
+      const ia = MONEDAS_ORDEN.indexOf(a);
+      const ib = MONEDAS_ORDEN.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+  }, [saldos.filas]);
+
   // La búsqueda de SALDOS incluye al operador: "todos los descubiertos de
   // Fulano" es la pregunta natural de esta pantalla.
-  const filasSaldos = useMemo(() => {
+  const { aFavor, enRojo } = useMemo(() => {
     const t = q.trim().toLowerCase();
-    if (!t) return saldos.filas;
-    return saldos.filas.filter((f) =>
-      `${f.ticker} ${f.cuenta} ${f.id_cuenta} ${f.operador}`
-        .toLowerCase()
-        .includes(t),
+    const filtradas = saldos.filas.filter(
+      (f) =>
+        f.ticker === moneda &&
+        (!t ||
+          `${f.cuenta} ${f.id_cuenta} ${f.operador}`.toLowerCase().includes(t)),
     );
-  }, [saldos.filas, q]);
+    return {
+      // Mayor a menor de un lado; el MÁS negativo primero del otro. Las dos
+      // listas se ordenan acá y no en SQL porque el corte por moneda es del
+      // front: ordenar en la base obligaría a una consulta por moneda.
+      aFavor: filtradas
+        .filter((f) => f.cantidad > 0)
+        .sort((a, b) => b.cantidad - a.cantidad),
+      enRojo: filtradas
+        .filter((f) => f.cantidad < 0)
+        .sort((a, b) => a.cantidad - b.cantidad),
+    };
+  }, [saldos.filas, q, moneda]);
 
   // Cada tablero envejece por su cuenta: son DOS daemons y uno puede estar
   // muerto con el otro sano. Mostrar una sola antigüedad mentiría sobre el otro.
@@ -171,10 +217,30 @@ export function TitulosNegativosView() {
               }`}
             >
               {t === "saldos" ? "SALDOS" : "TÍTULOS"}
-              {t === "saldos" && saldos.n > 0 && ` (${saldos.n})`}
+              {t === "saldos" &&
+                saldos.n_negativos > 0 &&
+                ` (${saldos.n_negativos})`}
             </button>
           ))}
         </div>
+
+        {tab === "saldos" && monedas.length > 0 && (
+          <div className="flex">
+            {monedas.map((m) => (
+              <button
+                key={m}
+                onClick={() => setMoneda(m)}
+                className={`text-[11px] px-2.5 py-1 border ${
+                  moneda === m
+                    ? "bg-[var(--t-panel)] border-[var(--t-accent)] text-[var(--t-accent)] font-bold"
+                    : "bg-transparent border-[var(--t-border)] text-[var(--t-text-dim)]"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
 
         <input
           value={q}
@@ -237,13 +303,30 @@ export function TitulosNegativosView() {
       </div>
 
       {tab === "saldos" ? (
-        <TableroSaldos
-          filas={filasSaldos}
-          disponible={saldos.disponible}
-          sinCargar={sinCargar}
-          stale={stale}
-          buscando={q.trim().length > 0}
-        />
+        <div className="flex-1 min-h-0 flex">
+          <TableroSaldos
+            titulo="A FAVOR"
+            bajada="saldo liquidado positivo — de mayor a menor"
+            filas={aFavor}
+            moneda={moneda}
+            positivo
+            disponible={saldos.disponible}
+            sinCargar={sinCargar}
+            stale={stale}
+            buscando={q.trim().length > 0}
+          />
+          <div className="w-px bg-[var(--t-border)] shrink-0" />
+          <TableroSaldos
+            titulo="EN DESCUBIERTO"
+            bajada="saldo liquidado negativo — el más negativo primero"
+            filas={enRojo}
+            moneda={moneda}
+            disponible={saldos.disponible}
+            sinCargar={sinCargar}
+            stale={stale}
+            buscando={q.trim().length > 0}
+          />
+        </div>
       ) : (
         /* ── 50 / 50: T0 izquierda · T1 derecha ── */
         <div className="flex-1 min-h-0 flex">
@@ -271,58 +354,48 @@ export function TitulosNegativosView() {
 }
 
 /**
- * SALDOS EN DESCUBIERTO — una tabla sola, a lo ancho.
+ * Un lado del 50/50 de SALDOS: A FAVOR o EN DESCUBIERTO, de UNA moneda.
  *
- * No se parte en dos como TÍTULOS porque acá no hay dos horizontes: el saldo
- * liquidado es UN número, el de hoy. Lo que sí se muestra al lado es el
- * PENDIENTE, en gris, como contexto de si el descubierto se está por resolver
- * solo — pero el que manda, y el que ordena la tabla, es el liquidado.
+ * Sin columna MONEDA — la fija el filtro de arriba, y repetirla en cada fila
+ * sería gastar ancho en un dato que ya está dicho. El total de la cabecera es
+ * de ESE lado y ESA moneda: sumar pesos con dólares no significa nada.
  */
 function TableroSaldos({
+  titulo,
+  bajada,
   filas,
+  moneda,
+  positivo,
   disponible,
   sinCargar,
   stale,
   buscando,
 }: {
+  titulo: string;
+  bajada: string;
   filas: FilaSaldo[];
+  moneda: string;
+  positivo?: boolean;
   disponible: boolean;
   sinCargar: boolean;
   stale: boolean;
   buscando: boolean;
 }) {
-  const cuentas = new Set(filas.map((f) => f.id_cuenta)).size;
-  const porMoneda = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const f of filas) m.set(f.ticker, (m.get(f.ticker) ?? 0) + f.cantidad);
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [filas]);
+  const total = filas.reduce((a, f) => a + f.cantidad, 0);
+  const color = positivo ? "var(--t-pos)" : "var(--t-neg)";
 
   return (
     <div className="flex-1 min-w-0 flex flex-col min-h-0">
       <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-baseline gap-3 flex-wrap">
         <span className="text-[13px] font-bold tracking-wide text-[var(--t-accent)]">
-          SALDOS EN DESCUBIERTO
+          {titulo}
+        </span>
+        <span className="text-[10px] text-[var(--t-text-dim)]">{bajada}</span>
+        <span className="ml-auto text-[12px] font-bold" style={{ color }}>
+          {moneda} {fmtPlata(total)}
         </span>
         <span className="text-[10px] text-[var(--t-text-dim)]">
-          saldo LIQUIDADO de hoy — no cuenta lo que todavía no liquidó
-        </span>
-        {porMoneda.map(([tk, tot]) => (
-          <span key={tk} className="text-[10px] text-[var(--t-text-dim)]">
-            {tk}{" "}
-            <span className="font-bold text-[var(--t-neg)]">{fmtNom(tot)}</span>
-          </span>
-        ))}
-        <span
-          className={`ml-auto text-[16px] font-bold ${
-            filas.length ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
-          }`}
-        >
-          {filas.length}
-        </span>
-        <span className="text-[10px] text-[var(--t-text-dim)]">
-          {filas.length === 1 ? "saldo" : "saldos"}
-          {cuentas > 0 && ` · ${cuentas} ${cuentas === 1 ? "cuenta" : "cuentas"}`}
+          {filas.length} {filas.length === 1 ? "cuenta" : "cuentas"}
         </span>
       </div>
 
@@ -336,13 +409,15 @@ function TableroSaldos({
           />
         ) : filas.length === 0 ? (
           <Aviso
-            alerta={stale}
+            alerta={stale && !positivo}
             texto={
-              stale
-                ? "Sin descubiertos — pero el dato está viejo: el daemon de saldos no está actualizando, así que esto NO confirma que no haya."
-                : buscando
-                  ? "Ningún descubierto coincide con la búsqueda."
-                  : "✓ Sin saldos en descubierto."
+              buscando
+                ? "Ninguna cuenta coincide con la búsqueda."
+                : positivo
+                  ? `Ninguna cuenta con saldo a favor en ${moneda}.`
+                  : stale
+                    ? "Sin descubiertos — pero el dato está viejo: el daemon de saldos no está actualizando, así que esto NO confirma que no haya."
+                    : `✓ Sin descubiertos en ${moneda}.`
             }
           />
         ) : (
@@ -355,14 +430,8 @@ function TableroSaldos({
                 <th className="px-3 py-1.5 font-normal text-left border-b border-[var(--t-border)]">
                   Operador
                 </th>
-                <th className="px-3 py-1.5 font-normal text-left border-b border-[var(--t-border)]">
-                  Moneda
-                </th>
                 <th className="px-3 py-1.5 font-normal text-right border-b border-[var(--t-border)]">
-                  Saldo liquidado
-                </th>
-                <th className="px-3 py-1.5 font-normal text-right border-b border-[var(--t-border)]">
-                  Pendiente
+                  Saldo
                 </th>
               </tr>
             </thead>
@@ -383,19 +452,11 @@ function TableroSaldos({
                   >
                     {f.operador || "sin operador"}
                   </td>
-                  <td className="px-3 py-1 whitespace-nowrap font-bold text-[var(--t-accent)]">
-                    {f.ticker}
-                  </td>
-                  <td className="px-3 py-1 whitespace-nowrap text-right font-bold text-[var(--t-neg)]">
-                    {fmtNom(f.cantidad)}
-                  </td>
                   <td
-                    className="px-3 py-1 whitespace-nowrap text-right text-[var(--t-text-dim)]"
-                    title="Lo que todavía no liquidó. Es contexto: el descubierto lo define el saldo liquidado."
+                    className="px-3 py-1 whitespace-nowrap text-right font-bold"
+                    style={{ color }}
                   >
-                    {f.cantidad_pendiente == null
-                      ? "—"
-                      : fmtNom(f.cantidad_pendiente)}
+                    {fmtPlata(f.cantidad)}
                   </td>
                 </tr>
               ))}
