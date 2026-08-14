@@ -161,6 +161,25 @@ function fmtSello(iso: string | null): string {
   });
 }
 
+/** Solo HH:MM — para cuando el día ya se sabe por contexto. */
+function fmtHora(iso: string | null): string {
+  if (!iso) return "sin dato";
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return "sin dato";
+  return t.toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+/** Hoy en ART como YYYY-MM-DD, para comparar contra la fecha que manda el backend. */
+function hoyART(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date());
+}
+
 type Ventana = {
   hora_desde: number;
   hora_hasta: number;
@@ -391,9 +410,9 @@ export function TitulosNegativosView() {
     tab === "saldos"
       ? salud.nivel === "alarma"
       : minAntig != null && minAntig > STALE_MIN;
-  const fechaMostrada = tab === "saldos" ? saldos.fecha : data.fecha;
-  const cuentas =
-    tab === "saldos" ? saldos.cuentas_en_control : data.cuentas_en_posicion;
+  // ¿El saldo que se está mostrando es el de hoy? Decide si al lado del estado
+  // alcanza con la hora o hace falta también el día.
+  const esDeHoy = saldos.fecha === hoyART();
   // Todavía no llegó ningún poll: no se puede afirmar nada, ni siquiera "vacío".
   const sinCargar =
     lastAt === 0 && data.fecha == null && saldos.fecha == null;
@@ -401,7 +420,7 @@ export function TitulosNegativosView() {
   return (
     <div className="h-full min-h-0 flex flex-col">
       {/* ── barra ── */}
-      <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center gap-3 flex-wrap">
+      <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-accent)]/10 flex items-center gap-2 flex-nowrap overflow-hidden whitespace-nowrap">
         <div className="flex">
           {(["saldos", "titulos"] as const).map((t) => (
             <button
@@ -468,7 +487,7 @@ export function TitulosNegativosView() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={tab === "saldos" ? "cuenta u operador…" : "ticker o cuenta…"}
-          className="text-[11px] bg-[var(--t-panel)] border border-[var(--t-border)] px-2 py-1 w-44 outline-none focus:border-[var(--t-accent)]"
+          className="text-[11px] bg-[var(--t-panel)] border border-[var(--t-border)] px-2 py-1 w-44 min-w-0 shrink outline-none focus:border-[var(--t-accent)]"
         />
 
         {tab === "titulos" && (
@@ -487,10 +506,9 @@ export function TitulosNegativosView() {
         {tab === "saldos" && saldos.ocultas > 0 && (
           <span
             className="text-[11px] text-[var(--t-text-dim)]"
-            title={`Cuentas con nivel_5 ${saldos.excluidos.join(" / ")} — no entran a este control`}
+            title={`${saldos.ocultas} cuentas ${saldos.excluidos.join(" / ")} — no entran a este control`}
           >
-            {saldos.ocultas} oculta{saldos.ocultas === 1 ? "" : "s"} por{" "}
-            {saldos.excluidos.join("/")}
+            {saldos.ocultas} {saldos.excluidos.join("/")}
           </span>
         )}
 
@@ -509,10 +527,10 @@ export function TitulosNegativosView() {
           </button>
         )}
 
-        <div className="ml-auto flex items-center gap-3 text-[11px]">
+        <div className="ml-auto flex items-center gap-2 text-[11px] shrink-0">
           {error && (
             <span className="text-[var(--t-neg)]" title={error}>
-              error de carga: {error}
+              error de carga
             </span>
           )}
           {tab === "saldos" ? (
@@ -522,16 +540,16 @@ export function TitulosNegativosView() {
                   ? "text-[var(--t-neg)] font-bold"
                   : "text-[var(--t-text-dim)]"
               }
-              title={salud.detalle}
+              title={`${salud.detalle} · Último refresco: ${fmtSello(saldos.actualizado_at)}`}
             >
               {salud.nivel === "alarma" && "⚠ "}
               {salud.texto}
-              {/* "último REFRESCO" y no "último cambio": lo que marca la hora es
-                  se volvió a leer alguna cuenta porque operó, no que el número
-                  le haya dado distinto: una cuenta puede operar y terminar con
-                  el mismo saldo. */}
-              {" · último refresco "}
-              {fmtSello(saldos.actualizado_at)}
+              {/* Solo la HORA cuando el saldo es de hoy: la fecha completa al
+                  lado de "saldos del <fecha>" era decir dos veces lo mismo. El
+                  día vuelve a aparecer solo si el dato NO es de hoy, que es
+                  justo cuando hace falta saberlo. */}
+              {" · "}
+              {esDeHoy ? fmtHora(saldos.actualizado_at) : fmtSello(saldos.actualizado_at)}
             </span>
           ) : (
             <span
@@ -543,15 +561,9 @@ export function TitulosNegativosView() {
               }
             >
               {stale ? "⚠ dato viejo · " : ""}
-              actualizado {fmtSello(data.actualizado_at)}
+              {fmtSello(data.actualizado_at)}
             </span>
           )}
-          {fechaMostrada && (
-            <span className="text-[var(--t-text-dim)]">
-              {tab === "saldos" ? "saldos del" : "posición del"} {fechaMostrada}
-            </span>
-          )}
-          <span className="text-[var(--t-text-dim)]">{cuentas} cuentas</span>
         </div>
       </div>
 
