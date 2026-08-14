@@ -503,26 +503,26 @@ export function TitulosNegativosView() {
           </label>
         )}
 
-        {tab === "saldos" && saldos.ocultas > 0 && (
-          <span
-            className="text-[11px] text-[var(--t-text-dim)]"
-            title={`${saldos.ocultas} cuentas ${saldos.excluidos.join(" / ")} — no entran a este control`}
-          >
-            {saldos.ocultas} {saldos.excluidos.join("/")}
-          </span>
-        )}
-
         {tab === "saldos" && (
           <button
             onClick={() => setPanelOcultas(true)}
-            className={`text-[11px] px-2 py-1 border ${
+            // Con borde, fondo propio y hover: en una barra donde casi todo es
+            // texto, un botón sin relieve no se lee como algo que se puede
+            // apretar. Se resalta en acento solo cuando HAY cuentas ocultas —
+            // ahí deja de ser una opción más y pasa a ser información.
+            className={`text-[11px] px-2.5 py-1 border bg-[var(--t-panel)] transition-colors hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] ${
               saldos.ocultas_manual > 0
-                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                : "border-[var(--t-border)] text-[var(--t-text-dim)]"
+                ? "border-[var(--t-accent)] text-[var(--t-accent)] font-bold"
+                : "border-[var(--t-border)] text-[var(--t-text)]"
             }`}
-            title="Cuentas que el equipo decidió no ver en esta pantalla"
+            title={
+              "Cuentas que el equipo decidió no ver en esta pantalla" +
+              (saldos.ocultas > 0
+                ? `. Además quedan afuera ${saldos.ocultas} cuentas ${saldos.excluidos.join(" / ")}.`
+                : "")
+            }
           >
-            OCULTAS
+            OCULTAR CUENTAS
             {saldos.ocultas_manual > 0 && ` (${saldos.ocultas_manual})`}
           </button>
         )}
