@@ -537,7 +537,11 @@ export function TitulosNegativosView() {
             >
               {salud.nivel === "alarma" && "⚠ "}
               {salud.texto}
-              {" · último cambio "}
+              {/* "último REFRESCO" y no "último cambio": lo que marca la hora es
+                  que el daemon reescribió alguna cuenta porque se movió, no que
+                  el número le haya dado distinto. Una cuenta puede operar y
+                  terminar con el mismo saldo. */}
+              {" · último refresco "}
               {fmtSello(saldos.actualizado_at)}
             </span>
           ) : (
