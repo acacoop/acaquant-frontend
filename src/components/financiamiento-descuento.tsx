@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchJson } from "@/lib/fetch-json";
 
 /**
@@ -146,6 +147,7 @@ function aNumero(s: string): number {
 
 export function FinanciamientoDescuento() {
   const [tab, setTab] = useState<Tab>("calc");
+  const [max, setMax] = useState(false);
   const [datos, setDatos] = useState<Datos | null>(null);
   const [errDatos, setErrDatos] = useState<string | null>(null);
 
@@ -163,13 +165,23 @@ export function FinanciamientoDescuento() {
     void cargarDatos();
   }, [cargarDatos]);
 
-  return (
-    // Este componente arma su PROPIA caja (mismas clases que el `Panel` de
-    // financiamiento-view) en vez de ir adentro de una: así el título del panel
-    // y las tabs comparten UNA sola barra. Con dos barras apiladas se perdían
-    // ~28px de alto y el bloque del CFT quedaba abajo del corte, obligando a
-    // scrollear un panel que tiene que entrar entero de un vistazo.
-    <div className="h-full min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+  // Este componente arma su PROPIA caja (mismas clases que el `Panel` de
+  // financiamiento-view) en vez de ir adentro de una: así el título del panel
+  // y las tabs comparten UNA sola barra. Con dos barras apiladas se perdían
+  // ~28px de alto y el bloque del CFT quedaba abajo del corte, obligando a
+  // scrollear un panel que tiene que entrar entero de un vistazo.
+  // Cerrar con Escape: es un modal, y el reflejo de cualquiera es apretar Esc.
+  useEffect(() => {
+    if (!max) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMax(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [max]);
+
+  // Cabecera y contenido van SEPARADOS, igual que el `Panel` genérico. Si armara
+  // la caja entera y la pintara en los dos lados, la Calculadora se montaria DOS
+  // veces: dos estados independientes y dos POST con debounce por cada tecla.
+  const header = (
       <div className="flex items-center gap-2 px-2 py-1 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         {/* El panel se llama DESCUENTO y no CALCULADORA: una de las tabs YA se
             llama así, y repetir la palabra al lado no agrega nada. */}
@@ -187,13 +199,24 @@ export function FinanciamientoDescuento() {
             Datos
           </TabBtn>
         </div>
-        {tab === "calc" && (
-          <span className="ml-auto shrink-0 text-[9px] text-[var(--t-text-muted)]">
-            no persiste — simulador
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {tab === "calc" && (
+            <span className="text-[9px] text-[var(--t-text-muted)]">
+              no persiste — simulador
+            </span>
+          )}
+          <button
+            onClick={() => setMax((v) => !v)}
+            className="text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors p-0.5"
+            title={max ? "Minimizar (Esc)" : "Maximizar — para leerla o recortarla"}
+          >
+            {max ? <IconoMinimizar /> : <IconoMaximizar />}
+          </button>
+        </div>
       </div>
+  );
 
+  const contenido = (
       <div className="flex-1 min-h-0 overflow-auto">
         {errDatos ? (
           <p className="p-3 text-[11px] text-[#ff7777]">{errDatos}</p>
@@ -220,7 +243,68 @@ export function FinanciamientoDescuento() {
           </>
         )}
       </div>
+  );
+
+  const caja = (contenidoAdentro: boolean) => (
+    <div className="h-full min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] flex flex-col overflow-hidden">
+      {header}
+      {contenidoAdentro && contenido}
     </div>
+  );
+
+  if (!max) return caja(true);
+
+  // MAXIMIZADO = modal CENTRADO y ACOTADO, no pantalla completa.
+  //
+  // El `Panel` genérico de la app expande con `fixed inset-0` (todo el viewport
+  // menos 12px). Acá eso es exactamente lo que NO sirve: esta cotización se
+  // recorta de la pantalla y se le manda al cliente, y estirada a 2000px de
+  // ancho quedan tres números perdidos en un mar de vacío. Con ancho tope y
+  // centrado, el recorte sale prolijo y legible.
+  //
+  // 92vw/88vh como techo para que en una pantalla chica siga entrando entero, y
+  // el backdrop oscurece el resto — que además ayuda a encuadrar el recorte.
+  return (
+    <>
+      {/* La caja de la grilla queda con la cabecera sola mientras el modal está
+          abierto: el hueco marca de dónde salió, sin duplicar el contenido. */}
+      {caja(false)}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setMax(false)}
+          >
+            <div
+              className="w-[min(880px,92vw)] max-h-[88vh] flex flex-col shadow-2xl"
+              // El clic adentro NO cierra: si no, tipear en un campo del
+              // simulador cerraría el modal en el primer clic.
+              onClick={(e) => e.stopPropagation()}
+            >
+              {caja(true)}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+function IconoMaximizar() {
+  return (
+    <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor"
+         strokeWidth="1.5" strokeLinecap="round">
+      <path d="M1 4.5V1h3.5M7.5 1H11v3.5M11 7.5V11H7.5M4.5 11H1V7.5" />
+    </svg>
+  );
+}
+
+function IconoMinimizar() {
+  return (
+    <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor"
+         strokeWidth="1.5" strokeLinecap="round">
+      <path d="M4.5 1v3.5H1M11 4.5H7.5V1M7.5 11V7.5H11M1 7.5h3.5V11" />
+    </svg>
   );
 }
 
