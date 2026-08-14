@@ -511,7 +511,7 @@ export function TitulosNegativosView() {
             // apretar. Se resalta en acento solo cuando HAY cuentas ocultas —
             // ahí deja de ser una opción más y pasa a ser información.
             className={`text-[11px] px-2.5 py-1 border bg-[var(--t-panel)] transition-colors hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] ${
-              saldos.ocultas_manual > 0
+              saldos.lista_ocultas.length > 0
                 ? "border-[var(--t-accent)] text-[var(--t-accent)] font-bold"
                 : "border-[var(--t-border)] text-[var(--t-text)]"
             }`}
@@ -523,7 +523,8 @@ export function TitulosNegativosView() {
             }
           >
             OCULTAR CUENTAS
-            {saldos.ocultas_manual > 0 && ` (${saldos.ocultas_manual})`}
+            {saldos.lista_ocultas.length > 0 &&
+              ` (${saldos.lista_ocultas.length})`}
           </button>
         )}
 
