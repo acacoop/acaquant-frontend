@@ -54,6 +54,14 @@ type FilaSaldo = {
   actualizado_at: string | null;
 };
 
+type Oculta = {
+  id_cuenta: string;
+  cuenta: string;
+  motivo: string;
+  creado_por: string;
+  creado_at: string | null;
+};
+
 type Saldos = {
   disponible: boolean;
   fecha: string | null;
@@ -61,6 +69,8 @@ type Saldos = {
   cuentas_en_control: number;
   ocultas: number;
   excluidos: string[];
+  ocultas_manual: number;
+  lista_ocultas: Oculta[];
   n: number;
   n_negativos: number;
   filas: FilaSaldo[];
@@ -81,7 +91,8 @@ type Resp = {
 const LADO_VACIO: Lado = { n: 0, filas: [] };
 const SALDOS_VACIO: Saldos = {
   disponible: false, fecha: null, actualizado_at: null, cuentas_en_control: 0,
-  ocultas: 0, excluidos: [], n: 0, n_negativos: 0, filas: [],
+  ocultas: 0, excluidos: [], ocultas_manual: 0, lista_ocultas: [],
+  n: 0, n_negativos: 0, filas: [],
 };
 
 // Orden de las pills. Lo que no esté acá (si mañana entra USDC) se agrega solo,
@@ -150,6 +161,7 @@ export function TitulosNegativosView() {
   const [tab, setTab] = useState<"saldos" | "titulos">("saldos");
   const [moneda, setMoneda] = useState("ARS");
   const [operador, setOperador] = useState("");
+  const [panelOcultas, setPanelOcultas] = useState(false);
 
   const { data, lastAt, error } = usePoll<Resp>(
     `/api/back-office/titulos-negativos?incluir_todo=${incluirTodo}`,
@@ -196,6 +208,21 @@ export function TitulosNegativosView() {
     [saldos.filas],
   );
 
+  // Ocultar/mostrar se ve YA, sin esperar al poll. El servidor es la verdad, pero
+  // entre el click y que la vista se entere hay hasta 30s (20s de poll + 10s de
+  // cache del endpoint), y un botón que tarda medio minuto en hacer algo se
+  // aprieta tres veces. Estos dos conjuntos son un override local sobre la lista
+  // del servidor; cuando el poll trae la lista ya actualizada quedan redundantes
+  // y no molestan (el resultado es el mismo).
+  const [ocultarLocal, setOcultarLocal] = useState<Set<string>>(new Set());
+  const [mostrarLocal, setMostrarLocal] = useState<Set<string>>(new Set());
+  const ocultasEfectivas = useMemo(() => {
+    const s = new Set(saldos.lista_ocultas.map((o) => o.id_cuenta));
+    for (const id of ocultarLocal) s.add(id);
+    for (const id of mostrarLocal) s.delete(id);
+    return s;
+  }, [saldos.lista_ocultas, ocultarLocal, mostrarLocal]);
+
   // La búsqueda de SALDOS incluye al operador: "todos los descubiertos de
   // Fulano" es la pregunta natural de esta pantalla.
   const { aFavor, enRojo } = useMemo(() => {
@@ -203,6 +230,7 @@ export function TitulosNegativosView() {
     const filtradas = saldos.filas.filter(
       (f) =>
         f.ticker === moneda &&
+        !ocultasEfectivas.has(f.id_cuenta) &&
         (operador === ""
           ? true
           : operador === SIN_OPERADOR
@@ -222,7 +250,34 @@ export function TitulosNegativosView() {
         .filter((f) => f.cantidad < 0)
         .sort((a, b) => a.cantidad - b.cantidad),
     };
-  }, [saldos.filas, q, moneda, operador]);
+  }, [saldos.filas, q, moneda, operador, ocultasEfectivas]);
+
+  const ocultar = async (id_cuenta: string, motivo: string) => {
+    setOcultarLocal((s) => new Set(s).add(id_cuenta));
+    setMostrarLocal((s) => {
+      const n = new Set(s);
+      n.delete(id_cuenta);
+      return n;
+    });
+    await fetch("/api/back-office/saldos/ocultas", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id_cuenta, motivo }),
+    });
+  };
+
+  const mostrar = async (id_cuenta: string) => {
+    setMostrarLocal((s) => new Set(s).add(id_cuenta));
+    setOcultarLocal((s) => {
+      const n = new Set(s);
+      n.delete(id_cuenta);
+      return n;
+    });
+    await fetch(
+      `/api/back-office/saldos/ocultas/${encodeURIComponent(id_cuenta)}`,
+      { method: "DELETE" },
+    );
+  };
 
   // Cada tablero envejece por su cuenta: son DOS daemons y uno puede estar
   // muerto con el otro sano. Mostrar una sola antigüedad mentiría sobre el otro.
@@ -333,6 +388,21 @@ export function TitulosNegativosView() {
           </span>
         )}
 
+        {tab === "saldos" && (
+          <button
+            onClick={() => setPanelOcultas(true)}
+            className={`text-[11px] px-2 py-1 border ${
+              saldos.ocultas_manual > 0
+                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                : "border-[var(--t-border)] text-[var(--t-text-dim)]"
+            }`}
+            title="Cuentas que el equipo decidió no ver en esta pantalla"
+          >
+            OCULTAS
+            {saldos.ocultas_manual > 0 && ` (${saldos.ocultas_manual})`}
+          </button>
+        )}
+
         <div className="ml-auto flex items-center gap-3 text-[11px]">
           {error && (
             <span className="text-[var(--t-neg)]" title={error}>
@@ -361,6 +431,17 @@ export function TitulosNegativosView() {
           <span className="text-[var(--t-text-dim)]">{cuentas} cuentas</span>
         </div>
       </div>
+
+      {panelOcultas && (
+        <PanelOcultas
+          lista={saldos.lista_ocultas}
+          ocultarLocal={ocultarLocal}
+          mostrarLocal={mostrarLocal}
+          onOcultar={ocultar}
+          onMostrar={mostrar}
+          onCerrar={() => setPanelOcultas(false)}
+        />
+      )}
 
       {tab === "saldos" ? (
         <div className="flex-1 min-h-0 flex">
@@ -407,6 +488,186 @@ export function TitulosNegativosView() {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * ABM de las cuentas OCULTAS, desde la propia vista (como el catálogo de agentes
+ * de SENEBIS: el back office no tiene que ir a Manager para esto).
+ *
+ * Ocultar es esconderle información al resto del equipo, así que cada fila
+ * muestra QUIÉN la ocultó y CUÁNDO, y ese dato está a la vista de todos — no
+ * enterrado en una tabla de auditoría que nadie abre.
+ */
+function PanelOcultas({
+  lista,
+  ocultarLocal,
+  mostrarLocal,
+  onOcultar,
+  onMostrar,
+  onCerrar,
+}: {
+  lista: Oculta[];
+  ocultarLocal: Set<string>;
+  mostrarLocal: Set<string>;
+  onOcultar: (id: string, motivo: string) => Promise<void>;
+  onMostrar: (id: string) => Promise<void>;
+  onCerrar: () => void;
+}) {
+  const [id, setId] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  // Lo que el servidor ya sabe, más lo recién agregado y menos lo recién sacado:
+  // la lista de la pantalla no puede contradecir a la tabla de atrás.
+  const filas = useMemo(() => {
+    const out = lista.filter((o) => !mostrarLocal.has(o.id_cuenta));
+    const ids = new Set(out.map((o) => o.id_cuenta));
+    for (const nuevo of ocultarLocal) {
+      if (!ids.has(nuevo)) {
+        out.unshift({
+          id_cuenta: nuevo, cuenta: "", motivo: "",
+          creado_por: "guardando…", creado_at: null,
+        });
+      }
+    }
+    return out;
+  }, [lista, ocultarLocal, mostrarLocal]);
+
+  const agregar = async () => {
+    const limpio = id.trim().replace(/^\[|\]$/g, "");
+    if (!limpio || guardando) return;
+    setGuardando(true);
+    try {
+      await onOcultar(limpio, motivo.trim());
+      setId("");
+      setMotivo("");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onCerrar}
+    >
+      <div
+        className="w-[min(720px,94vw)] max-h-[85vh] flex flex-col border border-[var(--t-border)] bg-[var(--t-panel)] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-baseline gap-3">
+          <span className="text-[12px] font-bold tracking-wide text-[var(--t-accent)]">
+            CUENTAS OCULTAS
+          </span>
+          <span className="text-[10px] text-[var(--t-text-dim)]">
+            no se muestran en el control — el saldo se sigue guardando igual
+          </span>
+          <button
+            onClick={onCerrar}
+            className="ml-auto text-[11px] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            cerrar ✕
+          </button>
+        </div>
+
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-end gap-2 flex-wrap">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              N° de cuenta
+            </span>
+            <input
+              value={id}
+              onChange={(e) => setId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void agregar()}
+              placeholder="805"
+              className="text-[11px] bg-[var(--t-panel)] border border-[var(--t-border)] px-2 py-1 w-24 outline-none focus:border-[var(--t-accent)]"
+            />
+          </label>
+          <label className="flex flex-col gap-0.5 flex-1 min-w-[180px]">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              Motivo (opcional)
+            </span>
+            <input
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void agregar()}
+              placeholder="por qué no hay que mirarla"
+              className="text-[11px] bg-[var(--t-panel)] border border-[var(--t-border)] px-2 py-1 w-full outline-none focus:border-[var(--t-accent)]"
+            />
+          </label>
+          <button
+            onClick={() => void agregar()}
+            disabled={!id.trim() || guardando}
+            className="text-[11px] px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] font-bold disabled:opacity-40"
+          >
+            {guardando ? "…" : "OCULTAR"}
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          {filas.length === 0 ? (
+            <Aviso texto="No hay ninguna cuenta oculta: el control muestra todo." />
+          ) : (
+            <table className="w-full table-fixed text-[11px] border-collapse">
+              <colgroup>
+                <col className="w-[70px]" />
+                <col />
+                <col className="w-[26%]" />
+                <col className="w-[52px]" />
+              </colgroup>
+              <thead className="sticky top-0 z-10 bg-[var(--t-panel)]">
+                <tr className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
+                  <th className="px-2 py-1 font-normal text-left border-b border-[var(--t-border)]">
+                    Cuenta
+                  </th>
+                  <th className="px-2 py-1 font-normal text-left border-b border-l border-[var(--t-border)]">
+                    Denominación · motivo
+                  </th>
+                  <th className="px-2 py-1 font-normal text-left border-b border-l border-[var(--t-border)]">
+                    Quién y cuándo
+                  </th>
+                  <th className="px-2 py-1 font-normal border-b border-l border-[var(--t-border)]" />
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((o) => (
+                  <tr
+                    key={o.id_cuenta}
+                    className="border-b border-[var(--t-border)] hover:bg-[var(--t-accent)]/10"
+                  >
+                    <td className="px-2 py-1 font-bold text-[var(--t-accent)]">
+                      {o.id_cuenta}
+                    </td>
+                    <td className="px-2 py-1 truncate border-l border-[var(--t-border)]"
+                        title={`${o.cuenta}${o.motivo ? ` · ${o.motivo}` : ""}`}>
+                      {o.cuenta || <i className="text-[var(--t-text-dim)]">sin denominación</i>}
+                      {o.motivo && (
+                        <span className="text-[var(--t-text-dim)]"> · {o.motivo}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1 truncate border-l border-[var(--t-border)] text-[var(--t-text-dim)]"
+                        title={`${o.creado_por} · ${fmtSello(o.creado_at)}`}>
+                      {o.creado_por || "—"}
+                      {o.creado_at && ` · ${fmtSello(o.creado_at)}`}
+                    </td>
+                    <td className="px-2 py-1 text-center border-l border-[var(--t-border)]">
+                      <button
+                        onClick={() => void onMostrar(o.id_cuenta)}
+                        className="text-[10px] text-[var(--t-text-dim)] hover:text-[var(--t-neg)]"
+                        title="Volver a mostrarla en el control"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
