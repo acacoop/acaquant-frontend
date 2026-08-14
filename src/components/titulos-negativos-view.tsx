@@ -71,6 +71,8 @@ type Saldos = {
   excluidos: string[];
   ocultas_manual: number;
   lista_ocultas: Oculta[];
+  latido_at: string | null;
+  ventana: Ventana;
   n: number;
   n_negativos: number;
   filas: FilaSaldo[];
@@ -92,6 +94,9 @@ const LADO_VACIO: Lado = { n: 0, filas: [] };
 const SALDOS_VACIO: Saldos = {
   disponible: false, fecha: null, actualizado_at: null, cuentas_en_control: 0,
   ocultas: 0, excluidos: [], ocultas_manual: 0, lista_ocultas: [],
+  latido_at: null,
+  ventana: { hora_desde: 8, hora_hasta: 18, dias: [1, 2, 3, 4, 5],
+             latido_cada_min: 3, tolerancia_min: 10 },
   n: 0, n_negativos: 0, filas: [],
 };
 
@@ -111,9 +116,113 @@ const VACIO: Resp = {
 // ritmo que Tesorería y alcanza de sobra.
 const POLL_MS = 20_000;
 
-// A partir de acá el dato deja de ser "vivo". El daemon corre 8-18 ART y su
-// detector pasa cada 3 minutos, así que 10 minutos sin tocar nada ya es raro.
+// A partir de acá el dato deja de ser "vivo". Aplica SOLO a la pantalla TÍTULOS,
+// que no tiene latido. SALDOS usa `estadoDaemon`, que es una lógica distinta y
+// mucho menos mentirosa — ver ahí el porqué.
 const STALE_MIN = 10;
+
+type Ventana = {
+  hora_desde: number;
+  hora_hasta: number;
+  dias: number[];
+  latido_cada_min: number;
+  tolerancia_min: number;
+};
+
+/**
+ * Hora y día de la semana en ART, sin depender de dónde esté el navegador.
+ *
+ * `new Date().getHours()` devuelve la hora LOCAL de la máquina: alguien mirando
+ * desde otro huso vería la alarma prendida o apagada cuando no corresponde. El
+ * daemon corre en horario argentino, así que la ventana se evalúa en ese huso.
+ */
+function ahoraART(): { hora: number; dia: number } {
+  const partes = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    hour: "2-digit",
+    weekday: "short",
+    hour12: false,
+  }).formatToParts(new Date());
+  const hora = Number(partes.find((p) => p.type === "hour")?.value ?? "0");
+  const dias = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dia = dias.indexOf(partes.find((p) => p.type === "weekday")?.value ?? "");
+  return { hora, dia: dia === 0 ? 7 : dia }; // ISO: lunes = 1 … domingo = 7
+}
+
+type EstadoDaemon = {
+  nivel: "ok" | "alarma" | "dormido" | "sin_dato";
+  texto: string;
+  detalle: string;
+};
+
+/**
+ * ¿El control de saldos está actualizándose como debería?
+ *
+ * ACÁ ESTÁ LA CORRECCIÓN DE UN ERROR CONCEPTUAL. La primera versión miraba
+ * `actualizado_at` (la última vez que una cuenta CAMBIÓ) y gritaba a los 10
+ * minutos. Eso está mal por dos motivos distintos:
+ *
+ *   1. El daemon solo reescribe las cuentas que SE MOVIERON. Media hora sin
+ *      operaciones deja el dato "viejo" con todo funcionando perfecto — la
+ *      alarma sonaba porque el mercado estaba tranquilo.
+ *   2. Fuera de horario el dato SIEMPRE está viejo: el daemon termina a las 18 y
+ *      no vuelve hasta las 8. Marcarlo en rojo toda la noche entrena a la gente
+ *      a ignorar el cartel, que es la peor forma de romper una alarma.
+ *
+ * Ahora se miran DOS cosas distintas:
+ *   · `latido_at`  → la última vez que el daemon MIRÓ (escribe cada 3 min aunque
+ *                    no haya nada que hacer). Esto sí dice si está vivo.
+ *   · la VENTANA   → si estamos dentro del horario en que tiene que estar vivo.
+ *
+ * Y solo se grita cuando corresponde: dentro de la ventana y sin latido por más
+ * de la tolerancia. La ventana la manda el backend, que es donde viven los
+ * horarios del job.
+ */
+function estadoDaemon(latidoISO: string | null, v: Ventana): EstadoDaemon {
+  const { hora, dia } = ahoraART();
+  const enVentana =
+    v.dias.includes(dia) && hora >= v.hora_desde && hora < v.hora_hasta;
+  const min = minutosDesde(latidoISO);
+
+  if (!enVentana) {
+    return {
+      nivel: "dormido",
+      texto: `fuera de horario (${v.hora_desde}–${v.hora_hasta}h)`,
+      detalle:
+        `El daemon corre de ${v.hora_desde} a ${v.hora_hasta} ART, L-V. Fuera de ` +
+        "esa franja no actualiza y eso es lo esperado: el saldo que ves es el " +
+        "del último barrido.",
+    };
+  }
+  if (min == null) {
+    return {
+      nivel: "sin_dato",
+      texto: "sin señal del daemon",
+      detalle:
+        "Debería estar corriendo pero no hay ningún latido registrado. Puede " +
+        "ser que el backend todavía no tenga la versión que lo escribe, o que " +
+        "el daemon nunca arrancó hoy.",
+    };
+  }
+  if (min > v.tolerancia_min) {
+    return {
+      nivel: "alarma",
+      texto: "SALDOS SIN ACTUALIZARSE",
+      detalle:
+        `El daemon tiene que dar señal cada ${v.latido_cada_min} min y hace ` +
+        `${Math.round(min)} que no da ninguna. Está caído o colgado: los saldos ` +
+        "que ves NO son los de ahora.",
+    };
+  }
+  return {
+    nivel: "ok",
+    texto: "actualizándose",
+    detalle:
+      `Última señal del daemon hace ${Math.round(min)} min (revisa cada ` +
+      `${v.latido_cada_min}). Que un saldo no cambie hace rato no es un ` +
+      "problema: solo se reescriben las cuentas que se mueven.",
+  };
+}
 
 const fmtNom = (v: number) =>
   v.toLocaleString("es-AR", { maximumFractionDigits: 4 });
@@ -284,7 +393,13 @@ export function TitulosNegativosView() {
   const antigTitulos = minutosDesde(data.actualizado_at);
   const antigSaldos = minutosDesde(saldos.actualizado_at);
   const minAntig = tab === "saldos" ? antigSaldos : antigTitulos;
-  const stale = minAntig != null && minAntig > STALE_MIN;
+  // SALDOS tiene latido y ventana horaria → puede decir la verdad. TÍTULOS
+  // todavía no (su daemon no late), así que se queda con el "hace X minutos".
+  const salud = estadoDaemon(saldos.latido_at, saldos.ventana ?? SALDOS_VACIO.ventana);
+  const stale =
+    tab === "saldos"
+      ? salud.nivel === "alarma"
+      : minAntig != null && minAntig > STALE_MIN;
   const fechaMostrada = tab === "saldos" ? saldos.fecha : data.fecha;
   const cuentas =
     tab === "saldos" ? saldos.cuentas_en_control : data.cuentas_en_posicion;
@@ -409,20 +524,35 @@ export function TitulosNegativosView() {
               error de carga: {error}
             </span>
           )}
-          <span
-            className={stale ? "text-[var(--t-neg)] font-bold" : "text-[var(--t-text-dim)]"}
-            title={
-              minAntig == null
-                ? "El daemon todavía no escribió nada"
-                : `Última escritura del daemon ${
-                    tab === "saldos" ? "de saldos" : "de posición"
-                  }, hace ${Math.round(minAntig)} min`
-            }
-          >
-            {stale ? "⚠ dato viejo · " : ""}
-            actualizado{" "}
-            {fmtSello(tab === "saldos" ? saldos.actualizado_at : data.actualizado_at)}
-          </span>
+          {tab === "saldos" ? (
+            <span
+              className={
+                salud.nivel === "alarma"
+                  ? "text-[var(--t-neg)] font-bold"
+                  : salud.nivel === "sin_dato"
+                    ? "text-[var(--t-accent)]"
+                    : "text-[var(--t-text-dim)]"
+              }
+              title={salud.detalle}
+            >
+              {salud.nivel === "alarma" && "⚠ "}
+              {salud.texto}
+              {" · último cambio "}
+              {fmtSello(saldos.actualizado_at)}
+            </span>
+          ) : (
+            <span
+              className={stale ? "text-[var(--t-neg)] font-bold" : "text-[var(--t-text-dim)]"}
+              title={
+                minAntig == null
+                  ? "El daemon todavía no escribió nada"
+                  : `Última escritura del daemon de posición, hace ${Math.round(minAntig)} min`
+              }
+            >
+              {stale ? "⚠ dato viejo · " : ""}
+              actualizado {fmtSello(data.actualizado_at)}
+            </span>
+          )}
           {fechaMostrada && (
             <span className="text-[var(--t-text-dim)]">
               {tab === "saldos" ? "saldos del" : "posición del"} {fechaMostrada}
