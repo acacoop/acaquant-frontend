@@ -11,8 +11,13 @@ import { fmtPrice, fmtVol } from "./ui";
 //
 // Las COLUMNAS se curan por moneda, que es lo que hace legible la partición en
 // dos: `TC BE` y `Pago Final` solo tienen sentido en pesos, y del lado USD lo que
-// importa es paridad y la LEY (Bonar vs Global), que hasta ahora no se veía en
-// ningún lado aunque su spread sea de lo más mirado de la mesa.
+// importa es paridad y el EMISOR.
+//
+// La LEY (Bonar vs Global) se sacó de la vista el 2026-08-15: con el filtro de
+// EMISOR arriba, el lado USD es mayormente corporativo y ahí la ley no dice
+// nada — lo que hace falta para leer la tabla es de QUIÉN es el papel. El campo
+// sigue viajando en `BonoCurva.ley` y se sigue clasificando server-side: se
+// quitó de la pantalla, no del modelo.
 
 function fmtMatur(iso: string | null | undefined): string {
   if (!iso) return "--";
@@ -65,7 +70,7 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
           <th className="!px-1 text-center">DUR</th>
           <th className="!px-1 text-center">MOD DUR</th>
           {!esArs && <th className="!px-1 text-center">PARIDAD</th>}
-          {!esArs && <th className="!px-1 text-center" title="Ley: local (Bonar) / NY (Global)">LEY</th>}
+          {!esArs && <th className="!px-1 text-left">EMISOR</th>}
           <th className="!px-1 text-center">VOL NOM</th>
         </tr>
       </thead>
@@ -115,8 +120,9 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
               <td className="!px-1 text-center">{num(m.mod_duration)}</td>
               {!esArs && <td className="!px-1 text-center">{num(m.paridad)}</td>}
               {!esArs && (
-                <td className="!px-1 text-center opacity-70">
-                  {b.ley === "ny" ? "NY" : b.ley === "local" ? "LOCAL" : "--"}
+                <td className="!px-1 text-left opacity-70 max-w-[140px] truncate"
+                    title={b.emisor || undefined}>
+                  {b.emisor || "--"}
                 </td>
               )}
               <td className="!px-1 text-center">
