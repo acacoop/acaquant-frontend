@@ -59,11 +59,30 @@ type Modo = "live" | "hist" | "fair";
 
 // Para soberanos, dividimos los puntos en familias (globales / bonares).
 // Para las otras curvas, todo cae en "default" y se renderiza igual que antes.
+// Un color POR GRUPO. Antes solo estaban globales y bonares, y todo lo demás
+// caía en `default` — que encima usaba el MISMO verde que globales, así que
+// BOPREALes, soberanos y globales se dibujaban idénticos y la leyenda mostraba
+// cuatro puntitos del mismo color. Si el color no distingue, no sirve de nada
+// pintarlos.
+//
+// Los grupos salen del campo `tipo` del master, y la búsqueda normaliza a
+// minúsculas (`colorDe`) para que un 'Bonares' con mayúscula no se caiga al
+// default en silencio, que es exactamente cómo pasó desapercibido hasta ahora.
 const COLORES: Record<string, { scatter: string; fit: string; label: string }> = {
   globales: { scatter: "var(--t-pos)", fit: "#4488ff", label: "GLOBALES" },
-  bonares:  { scatter: "#ff9900", fit: "#ffaa66", label: "BONARES" },
-  default:  { scatter: "var(--t-pos)", fit: "#4488ff", label: "" },
+  bonares:  { scatter: "#ff9900",      fit: "#ffaa66", label: "BONARES" },
+  bopreal:  { scatter: "#bb66ff",      fit: "#cc99ff", label: "BOPREAL" },
+  soberano: { scatter: "#4a9eff",      fit: "#88bbff", label: "SOBERANO" },
+  on:       { scatter: "#00cccc",      fit: "#66dddd", label: "ON" },
+  lecap:    { scatter: "#ffee44",      fit: "#fff299", label: "LECAP" },
+  boncap:   { scatter: "#ff66aa",      fit: "#ff99c4", label: "BONCAP" },
+  bono:     { scatter: "#8899aa",      fit: "#aabbcc", label: "BONO" },
+  default:  { scatter: "#8899aa",      fit: "#aabbcc", label: "" },
 };
+
+function colorDe(tipo: string) {
+  return COLORES[(tipo || "").toLowerCase()] || COLORES.default;
+}
 
 
 function niceScale(min: number, max: number, maxTicks = 6): { min: number; max: number; ticks: number[] } {
@@ -450,7 +469,7 @@ export function CurvasChart({
         {mostrarLegend && (
           <div className="ml-auto flex items-center gap-3 text-[10px]">
             {tipos.map((t) => {
-              const c = COLORES[t] || COLORES.default;
+              const c = colorDe(t);
               return (
                 <div key={t} className="flex items-center gap-1">
                   <span
@@ -534,7 +553,7 @@ export function CurvasChart({
                   const key = String(name);
                   if (key.startsWith("scatterY_")) {
                     const tipo = key.slice("scatterY_".length);
-                    const label = COLORES[tipo]?.label || metricaUsada;
+                    const label = colorDe(tipo).label || metricaUsada;
                     return [`${v.toFixed(2)}%`, label || metricaUsada];
                   }
                   if (key.startsWith("fitY_")) return [`${v.toFixed(2)}%`, "Fit log"];
@@ -543,7 +562,7 @@ export function CurvasChart({
                 labelFormatter={(v) => `Duration ${Number(v).toFixed(2)} años`}
               />
               {tipos.map((t) => {
-                const c = COLORES[t] || COLORES.default;
+                const c = colorDe(t);
                 if (!fitPorTipo[t]) return null;
                 return (
                   <Line
@@ -559,7 +578,7 @@ export function CurvasChart({
                 );
               })}
               {tipos.map((t) => {
-                const c = COLORES[t] || COLORES.default;
+                const c = colorDe(t);
                 return (
                   <Scatter
                     key={`pts-${t}`}
