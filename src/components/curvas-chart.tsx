@@ -13,20 +13,8 @@ import {
 } from "recharts";
 import { useViewportKey } from "@/lib/use-viewport-key";
 import { FairValueView } from "./fair-value-view";
-import type { FairValueDoc } from "@/lib/types";
+import type { BonoCurva, FairValueDoc } from "@/lib/types";
 import { fmtFechaCorta } from "@/lib/fmt";
-
-interface ForwardDoc {
-  curva: string;
-  tasas?: Record<string, number>;
-  updated_at?: string;
-}
-
-interface FlujoTicker {
-  ticker: string;
-  curva: string;
-  fecha_vencimiento?: string;
-}
 
 interface HistRow {
   fecha: string;
@@ -37,14 +25,6 @@ interface HistRow {
   TEM: number | null;
   duration: number | null;
   paridad: number | null;
-}
-
-interface CurvaSnapshotRow {
-  ticker_corto: string | null;
-  tipo?: string | null;
-  tea: number | null;
-  tem: number | null;
-  duration: number | null;
 }
 
 interface Punto {
@@ -117,29 +97,28 @@ function logFit(xs: number[], ys: number[]): { a: number; b: number } | null {
 }
 
 export function CurvasChart({
-  forwards,
-  flujos,
+  bonos,
   fairValueInicial,
   curvaFija,
   sinPills = false,
-  soloTickers,
 }: {
-  forwards: ForwardDoc[];
-  flujos: FlujoTicker[];
+  // LOS MISMOS bonos que muestra la tabla de arriba (`curvas-vista`). En LIVE el
+  // gráfico dibuja exactamente estos: por construcción no puede contradecirla.
+  //
+  // Antes se armaba de `forwards` + `/analitica/listar-curva?curva=…`, que leen
+  // la columna VIEJA `curva`, mientras la tabla ya venía por EJES. Con
+  // EMISOR=corporativo la tabla listaba 107 bonos y el gráfico buscaba en
+  // `curva='soberanos'` (~21 filas): la intersección quedaba casi vacía. Y al
+  // revés, con una pill sin bonos (DUALES=0) el filtro se desactivaba y el
+  // gráfico dibujaba TODO junto a una tabla vacía. Dos fuentes para el mismo
+  // panel siempre terminan discrepando — ahora hay una.
+  bonos: BonoCurva[];
   fairValueInicial?: Record<string, FairValueDoc>;
   // Rediseño 2026-08-15 (docs/RENTA_FIJA.md §0): en la tab CURVAS la curva la
-  // manda la PILL de su columna, no el chart. Sin estas props el componente se
-  // comporta igual que siempre — la vista vieja no se entera.
+  // manda la PILL de su columna, no el chart. Sigue haciendo falta para el modo
+  // HISTÓRICO y para Fair Value, que sí consultan por curva.
   curvaFija?: Curva | null;
   sinPills?: boolean;
-  // Tickers que la TABLA de al lado está mostrando. El gráfico sigue pidiendo su
-  // curva como siempre — cómo consulta no importa — pero dibuja SOLO estos, así
-  // no puede mostrar bonos que la tabla no lista. Sin la prop, dibuja todo.
-  //
-  // Hace falta porque la tabla filtra por DOS cosas (pill + emisor) y la curva
-  // del backend solo conoce la primera: con EMISOR=SOBERANO la tabla mostraba 14
-  // y el gráfico 21.
-  soloTickers?: string[] | null;
 }) {
   const [curvaInterna, setCurva] = useState<Curva>("tasa_fija");
   const curva: Curva = curvaFija ?? curvaInterna;
@@ -153,7 +132,6 @@ export function CurvasChart({
 
   // Snapshot LIVE de duration real (Macaulay) — necesario para soberanos
   // amortizables, donde TTM ≠ duration.
-  const [snapshotByCurva, setSnapshotByCurva] = useState<Record<string, CurvaSnapshotRow[]>>({});
 
   useEffect(() => {
     if (modo !== "hist") return;
@@ -182,28 +160,6 @@ export function CurvasChart({
       cancelled = true;
     };
   }, [modo, curva, histByCurva]);
-
-  useEffect(() => {
-    if (modo !== "live" || curva !== "soberanos") return;
-    if (snapshotByCurva[curva]) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/analitica/listar-curva?curva=${encodeURIComponent(curva)}`
-        );
-        if (!res.ok) return;
-        const j: CurvaSnapshotRow[] = await res.json();
-        if (cancelled) return;
-        setSnapshotByCurva((prev) => ({ ...prev, [curva]: j }));
-      } catch {
-        // si falla, el chart muestra "SIN DATOS" — no rompe la UI
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [modo, curva, snapshotByCurva]);
 
   // Sort defensivo ASC (más viejo → más reciente). El default de .sort() para
   // strings ISO ya da ASC, pero hacemos el compare explícito para evitar
@@ -244,68 +200,38 @@ export function CurvasChart({
 
   const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
     const puntosPorTipo: Record<string, Punto[]> = {};
-    const permitidos = soloTickers && soloTickers.length
-      ? new Set(soloTickers.map((t) => t.toUpperCase()))
-      : null;
     const pushPunto = (tipo: string | null | undefined, p: Punto) => {
-      if (permitidos && !permitidos.has(String(p.Ticker || "").toUpperCase())) return;
       const t = (tipo || "default").toLowerCase();
       (puntosPorTipo[t] ??= []).push(p);
     };
 
     if (modo === "live") {
-      // Soberanos: usamos snapshot con duration Macaulay real + tipo.
-      const usaSnapshot = curva === "soberanos";
-      const snap = usaSnapshot ? snapshotByCurva[curva] : undefined;
-
-      if (usaSnapshot && snap) {
-        for (const r of snap) {
-          const tk = r.ticker_corto;
-          const dur = r.duration;
-          const tea = r.tea;
-          if (!tk || dur == null || dur <= 0 || tea == null) continue;
-          const teaPct = tea * 100;
-          const temPct = r.tem != null ? r.tem * 100 : (Math.pow(1 + tea, 1 / 12) - 1) * 100;
-          // TNA (capitalización mensual nominal) = TEM × 12.
-          const tnaPct = temPct * 12;
-          const y =
-            metricaUsada === "TEM" ? temPct
-            : metricaUsada === "TNA" ? tnaPct
-            : teaPct;
-          pushPunto(r.tipo, {
-            Ticker: tk,
-            Duration: +dur.toFixed(4),
-            y: +y.toFixed(4),
-          });
-        }
-      } else {
-        const fw = forwards.find((f) => f.curva === curva);
-        const tasas = fw?.tasas || {};
-        const vencMap: Record<string, string | undefined> = {};
-        for (const f of flujos) {
-          if (f.curva === curva) vencMap[f.ticker] = f.fecha_vencimiento;
-        }
-        const hoy = new Date();
-        for (const [tk, tea] of Object.entries(tasas)) {
-          const venc = vencMap[tk];
-          if (!venc) continue;
-          const dVenc = new Date(venc);
-          if (isNaN(dVenc.getTime())) continue;
-          const dur = (dVenc.getTime() - hoy.getTime()) / (365.25 * 86400_000);
-          if (dur <= 0) continue;
-          const teaPct = tea * 100;
-          const temPct = (Math.pow(1 + tea, 1 / 12) - 1) * 100;
-          const tnaPct = temPct * 12;
-          const y =
-            metricaUsada === "TEM" ? temPct
-            : metricaUsada === "TNA" ? tnaPct
-            : teaPct;
-          pushPunto(null, {
-            Ticker: tk,
-            Duration: +dur.toFixed(4),
-            y: +y.toFixed(4),
-          });
-        }
+      // Los puntos salen de `bonos` — la MISMA lista que la tabla. `duration` y
+      // `TEA` vienen de `mercado.market_snapshot`, igual que antes: el número no
+      // cambia, cambia de dónde se lo pide.
+      //
+      // Solo HARD DOLAR se parte en familias (globales/bonares), cada una con su
+      // fit. En el resto todo va a "default" → UNA curva.
+      const porFamilia = curva === "soberanos";
+      for (const b of bonos) {
+        const dur = b.metrics?.duration;
+        const tea = b.metrics?.TEA;
+        if (!b.ticker_corto || dur == null || dur <= 0 || tea == null) continue;
+        const teaPct = tea * 100;
+        const temPct = b.metrics?.TEM != null
+          ? b.metrics.TEM * 100
+          : (Math.pow(1 + tea, 1 / 12) - 1) * 100;
+        // TNA (capitalización mensual nominal) = TEM × 12.
+        const tnaPct = temPct * 12;
+        const y =
+          metricaUsada === "TEM" ? temPct
+          : metricaUsada === "TNA" ? tnaPct
+          : teaPct;
+        pushPunto(porFamilia ? b.tipo : null, {
+          Ticker: b.ticker_corto,
+          Duration: +dur.toFixed(4),
+          y: +y.toFixed(4),
+        });
       }
     } else if (fechaSel) {
       const rows = (histByCurva[curva] || []).filter((r) => r.fecha === fechaSel);
@@ -390,7 +316,7 @@ export function CurvasChart({
       xMax: xScale.max,
       xTicks: xScale.ticks,
     };
-  }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel, snapshotByCurva, fairValueInicial, soloTickers]);
+  }, [bonos, curva, metricaUsada, modo, histByCurva, fechaSel, fairValueInicial]);
 
   // Construir el dataset combinado: cada punto tiene un campo dinámico
   // por tipo (scatterY_<tipo> y fitY_<tipo>) para que recharts pueda

@@ -5,7 +5,6 @@ import type {
   BreakevenDoc,
   BreakevenHistDoc,
   FairValueDoc,
-  FlujoTicker,
   ForwardDoc,
   ForwardZscoreDoc,
   RentaFijaDoc,
@@ -33,7 +32,6 @@ interface SnapshotLive {
 interface Props {
   initialRentaFija:      RentaFijaDoc[];
   initialForwards:       ForwardDoc[];
-  flujos:                FlujoTicker[];
   forwardsZscore:        ForwardZscoreDoc[];
   fairValueInicial?:     Record<string, FairValueDoc>;
   curvasVista?:          CurvasVista;
@@ -42,7 +40,6 @@ interface Props {
 export function RentaFijaLiveView({
   initialRentaFija,
   initialForwards,
-  flujos,
   forwardsZscore,
   fairValueInicial,
   curvasVista,
@@ -98,8 +95,6 @@ export function RentaFijaLiveView({
         <CurvasTab
           barra={tabs}
           inicial={curvasVista}
-          forwards={forwards}
-          flujos={flujos}
           fairValueInicial={fairValueInicial}
         />
       ) : (

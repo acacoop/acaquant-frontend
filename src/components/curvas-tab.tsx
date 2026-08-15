@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { FairValueDoc, FlujoTicker, ForwardDoc } from "@/lib/types";
 import type { BonoCurva, CurvasVista, PillDef } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
 import { FilterBtn, Panel } from "@/components/ui";
@@ -36,21 +35,17 @@ const PILL_A_CURVA: Record<string, Curva> = {
 interface Props {
   barra?: React.ReactNode;   // las tabs, para que compartan fila con el filtro
   inicial: CurvasVista;
-  forwards: ForwardDoc[];
-  flujos: FlujoTicker[];
   fairValueInicial?: Record<string, FairValueDoc>;
 }
 
 function Columna({
-  lado, pills, bonos, pill, setPill, forwards, flujos, fairValueInicial,
+  lado, pills, bonos, pill, setPill, fairValueInicial,
 }: {
   lado: "ARS" | "USD";
   pills: PillDef[];
   bonos: BonoCurva[];
   pill: string;
   setPill: (p: string) => void;
-  forwards: ForwardDoc[];
-  flujos: FlujoTicker[];
   fairValueInicial?: Record<string, FairValueDoc>;
 }) {
   const delLado = pills.filter((p) => p.lado === lado);
@@ -81,19 +76,17 @@ function Columna({
 
       <Panel title={`CURVA ${lado}`} fill expandable>
         <CurvasChart
-          forwards={forwards}
-          flujos={flujos}
+          bonos={filas}
           fairValueInicial={fairValueInicial}
           curvaFija={curva}
           sinPills
-          soloTickers={filas.map((b) => b.ticker_corto)}
         />
       </Panel>
     </div>
   );
 }
 
-export function CurvasTab({ barra, inicial, forwards, flujos, fairValueInicial }: Props) {
+export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   const { data } = usePoll<CurvasVista>(
     "/api/cotizaciones/curvas-vista", inicial, POLL_MS,
   );
@@ -154,11 +147,11 @@ export function CurvasTab({ barra, inicial, forwards, flujos, fairValueInicial }
       <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
         <Columna
           lado="ARS" pills={pills} bonos={bonos} pill={pillArs} setPill={setPillArs}
-          forwards={forwards} flujos={flujos} fairValueInicial={fairValueInicial}
+          fairValueInicial={fairValueInicial}
         />
         <Columna
           lado="USD" pills={pills} bonos={bonos} pill={pillUsd} setPill={setPillUsd}
-          forwards={forwards} flujos={flujos} fairValueInicial={fairValueInicial}
+          fairValueInicial={fairValueInicial}
         />
       </div>
     </div>
