@@ -174,9 +174,15 @@ export function ForwardsPanel({
     });
   }, [paresDisp, parSearch]);
 
+  // Con el modo fijado desde afuera (tab FORWARDS) los controles viven en la
+  // barra de título del Panel, así que esta fila quedaría con un solo elemento
+  // o vacía: se saca entera y ese alto vuelve a los datos. El modo `grafico` SÍ
+  // la conserva porque ahí vive el buscador de pares.
+  const sinBarra = !!modoFijo && modoFijo !== "grafico";
+
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
+    <div className={sinBarra ? "h-full flex flex-col min-h-0" : ""}>
+      <div className={`items-center gap-2 mb-2 flex-wrap ${sinBarra ? "hidden" : "flex"}`}>
         {!curvaFija && (
           <>
             <FilterBtn

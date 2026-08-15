@@ -72,7 +72,7 @@ export function ForwardMatrix({ tickers, matrix }: ForwardMatrixProps) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="text-[11px]">
+      <table className="text-[11px] h-full">
         <thead>
           <tr>
             <th className="text-left !text-[10px] !px-2 !py-1"></th>

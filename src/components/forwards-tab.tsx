@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { ForwardDoc, ForwardHistDoc, ForwardZscoreDoc } from "@/lib/types";
-import { Panel } from "@/components/ui";
-import { ForwardsPanel, type Curva } from "@/components/forwards-panel";
+import { FilterBtn, Panel } from "@/components/ui";
+import { ForwardsPanel, type Curva, type Modo } from "@/components/forwards-panel";
 
 // Tab FORWARDS del rediseño (docs/RENTA_FIJA.md §0, paso 4).
 //
@@ -21,6 +22,12 @@ import { ForwardsPanel, type Curva } from "@/components/forwards-panel";
 // No hay componente nuevo: son cuatro instancias del MISMO `ForwardsPanel` con
 // la curva y el modo fijados. Cualquier arreglo en la matriz o en el gráfico
 // sigue estando en un solo lugar.
+//
+// El título aclara "por duration" porque el eje de la matriz NO es el
+// vencimiento: el forward usa la duration como plazo efectivo. En bullets las
+// dos casi coinciden y la matriz luce cronológica, pero en CER (cupones +
+// amortización) no, y sin el rótulo la matriz parece desordenada cuando está
+// bien. Ver el comentario en `engines/forwards.py::calcular`.
 
 interface Props {
   forwards: ForwardDoc[];
@@ -34,6 +41,13 @@ const COLUMNAS: { curva: Curva; titulo: string }[] = [
 ];
 
 export function ForwardsTab({ forwards, historico, zscoreInicial }: Props) {
+  // El modo de cada matriz (LIVE / Z-SCORE) vive acá para poder renderizarlo en
+  // la BARRA DE TÍTULO del panel: los controles dejan de comerle una fila al
+  // contenido. GRÁFICO ya no es un modo de la matriz — tiene su panel propio.
+  const [modo, setModo] = useState<Record<string, Modo>>({
+    tasa_fija: "live", cer: "live",
+  });
+
   return (
     <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
       {COLUMNAS.map(({ curva, titulo }) => (
@@ -42,12 +56,25 @@ export function ForwardsTab({ forwards, historico, zscoreInicial }: Props) {
           className="min-w-0 min-h-0 grid grid-rows-[minmax(0,3fr)_minmax(0,2fr)] gap-3"
         >
           {/* 3fr / 2fr = 60% / 40% del alto de la columna */}
-          <Panel title={`MATRIZ ${titulo}`} expandable>
+          <Panel
+            title={`MATRIZ ${titulo} · por duration`}
+            expandable
+            actions={(["live", "zscore"] as Modo[]).map((m) => (
+              <FilterBtn
+                key={m}
+                active={modo[curva] === m}
+                onClick={() => setModo((p) => ({ ...p, [curva]: m }))}
+              >
+                {m === "live" ? "LIVE" : "Z-SCORE"}
+              </FilterBtn>
+            ))}
+          >
             <ForwardsPanel
               forwards={forwards}
               historico={historico}
               zscoreInicial={zscoreInicial}
               curvaFija={curva}
+              modoFijo={modo[curva]}
               sinGrafico
             />
           </Panel>
