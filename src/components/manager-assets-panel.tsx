@@ -12,7 +12,12 @@ type AssetGap = {
   unidad: string;
   CARTERA?: string | null;
   EMISOR?: string | null;
+  // Los DOS símbolos de Primary del papel: la pata en pesos y la pata en
+  // dólares (MEP). Los deriva el job `assets_autofill` desde `mercado.especies`
+  // relacionando por TICKER — se editan a mano sólo si el catálogo de Primary
+  // quedó viejo, porque el job nunca pisa lo cargado.
   INSTRUMENTO?: string | null;
+  INSTRUMENTO_USD?: string | null;
   CLASE_ACTIVO?: string | null;
   CALIFICACION?: string | null;
   TICKER?: string | null;
@@ -34,7 +39,7 @@ export type RowState =
 // Campos UPPERCASE editables — define el orden de columnas de la tabla.
 const ASSET_CAMPOS = [
   "CARTERA", "EMISOR", "CLASE_ACTIVO", "CALIFICACION",
-  "TICKER", "VENCIMIENTO", "INSTRUMENTO", "CODIGO_CNV",
+  "TICKER", "VENCIMIENTO", "INSTRUMENTO", "INSTRUMENTO_USD", "CODIGO_CNV",
 ] as const;
 type AssetCampo = (typeof ASSET_CAMPOS)[number];
 type AssetDraft = Record<AssetCampo, string>;
@@ -46,13 +51,15 @@ const ASSET_CAMPOS_CERRADOS: readonly AssetCampo[] = ["CARTERA", "CLASE_ACTIVO"]
 function emptyDraft(): AssetDraft {
   return {
     CARTERA: "", EMISOR: "", CLASE_ACTIVO: "", CALIFICACION: "",
-    TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "", CODIGO_CNV: "",
+    TICKER: "", VENCIMIENTO: "", INSTRUMENTO: "", INSTRUMENTO_USD: "",
+    CODIGO_CNV: "",
   };
 }
 function emptyOpts(): Record<AssetCampo, string[]> {
   return {
     CARTERA: [], EMISOR: [], CLASE_ACTIVO: [], CALIFICACION: [],
-    TICKER: [], VENCIMIENTO: [], INSTRUMENTO: [], CODIGO_CNV: [],
+    TICKER: [], VENCIMIENTO: [], INSTRUMENTO: [], INSTRUMENTO_USD: [],
+    CODIGO_CNV: [],
   };
 }
 function draftFromAsset(a: AssetGap): AssetDraft {
