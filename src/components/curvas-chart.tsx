@@ -122,6 +122,7 @@ export function CurvasChart({
   fairValueInicial,
   curvaFija,
   sinPills = false,
+  soloTickers,
 }: {
   forwards: ForwardDoc[];
   flujos: FlujoTicker[];
@@ -131,6 +132,14 @@ export function CurvasChart({
   // comporta igual que siempre — la vista vieja no se entera.
   curvaFija?: Curva | null;
   sinPills?: boolean;
+  // Tickers que la TABLA de al lado está mostrando. El gráfico sigue pidiendo su
+  // curva como siempre — cómo consulta no importa — pero dibuja SOLO estos, así
+  // no puede mostrar bonos que la tabla no lista. Sin la prop, dibuja todo.
+  //
+  // Hace falta porque la tabla filtra por DOS cosas (pill + emisor) y la curva
+  // del backend solo conoce la primera: con EMISOR=SOBERANO la tabla mostraba 14
+  // y el gráfico 21.
+  soloTickers?: string[] | null;
 }) {
   const [curvaInterna, setCurva] = useState<Curva>("tasa_fija");
   const curva: Curva = curvaFija ?? curvaInterna;
@@ -235,7 +244,11 @@ export function CurvasChart({
 
   const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
     const puntosPorTipo: Record<string, Punto[]> = {};
+    const permitidos = soloTickers && soloTickers.length
+      ? new Set(soloTickers.map((t) => t.toUpperCase()))
+      : null;
     const pushPunto = (tipo: string | null | undefined, p: Punto) => {
+      if (permitidos && !permitidos.has(String(p.Ticker || "").toUpperCase())) return;
       const t = (tipo || "default").toLowerCase();
       (puntosPorTipo[t] ??= []).push(p);
     };
@@ -377,7 +390,7 @@ export function CurvasChart({
       xMax: xScale.max,
       xTicks: xScale.ticks,
     };
-  }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel, snapshotByCurva, fairValueInicial]);
+  }, [forwards, flujos, curva, metricaUsada, modo, histByCurva, fechaSel, snapshotByCurva, fairValueInicial, soloTickers]);
 
   // Construir el dataset combinado: cada punto tiene un campo dinámico
   // por tipo (scatterY_<tipo> y fitY_<tipo>) para que recharts pueda

@@ -86,6 +86,7 @@ function Columna({
           fairValueInicial={fairValueInicial}
           curvaFija={curva}
           sinPills
+          soloTickers={filas.map((b) => b.ticker_corto)}
         />
       </Panel>
     </div>
