@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { BonoCurva, CurvasVista, PillDef } from "@/lib/types";
+import type { BonoCurva, CurvasVista, FairValueDoc, PillDef } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
 import { FilterBtn, Panel } from "@/components/ui";
 import { CurvasChart, type Curva } from "@/components/curvas-chart";
