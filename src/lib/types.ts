@@ -162,7 +162,6 @@ export interface BonoCurva {
   moneda:            string;
   ajuste:            string;
   ley:               string | null;   // local (Bonar) | ny (Global)
-  instrumento_tipo:  string | null;   // bono | letra
   tipo:              string | null;
   vencimiento:       string | null;
   cer_fijado:        boolean;
