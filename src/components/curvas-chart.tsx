@@ -37,8 +37,17 @@ export type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked" | "tamar"
 type Metrica = "TEA" | "TEM" | "TNA";
 type Modo = "live" | "hist" | "fair";
 
-// Para soberanos, dividimos los puntos en familias (globales / bonares).
-// Para las otras curvas, todo cae en "default" y se renderiza igual que antes.
+// Los SOBERANOS se parten en familias — BONARES (ley local) vs GLOBALES (ley
+// NY) — porque su spread es de lo más mirado de la mesa. El resto va a un solo
+// grupo "default", que se renderiza sin leyenda.
+//
+// La familia sale de `ley`, que es un EJE del rediseño. Antes salía de `tipo`
+// (la columna legacy del master) y eso producía una leyenda absurda: con el
+// filtro en CORPORATIVO la curva USD mostraba "DEFAULT · SOBERANO", porque los
+// corporativos tienen `tipo` vacío y algún soberano suelto lo tenía cargado.
+// El error de fondo era usar la PILL para decidir: `hard_dolar` mapea a la
+// curva `soberanos`, pero desde que el EMISOR es su propio filtro esa pill es
+// un eje de MONEDA, no de emisor.
 // Un color POR GRUPO. Antes solo estaban globales y bonares, y todo lo demás
 // caía en `default` — que encima usaba el MISMO verde que globales, así que
 // BOPREALes, soberanos y globales se dibujaban idénticos y la leyenda mostraba
@@ -59,6 +68,13 @@ const COLORES: Record<string, { scatter: string; fit: string; label: string }> =
   bono:     { scatter: "#8899aa",      fit: "#aabbcc", label: "BONO" },
   default:  { scatter: "#8899aa",      fit: "#aabbcc", label: "" },
 };
+
+// `ley` → la clave de color. Es la traducción de un EJE del master al nombre
+// que la mesa usa: ley local = Bonares, ley NY = Globales.
+function _familia(ley: string | null | undefined): string | null {
+  const l = (ley || "").toLowerCase();
+  return l === "local" ? "bonares" : l === "ny" ? "globales" : null;
+}
 
 function colorDe(tipo: string) {
   return COLORES[(tipo || "").toLowerCase()] || COLORES.default;
@@ -210,9 +226,6 @@ export function CurvasChart({
       // `TEA` vienen de `mercado.market_snapshot`, igual que antes: el número no
       // cambia, cambia de dónde se lo pide.
       //
-      // Solo HARD DOLAR se parte en familias (globales/bonares), cada una con su
-      // fit. En el resto todo va a "default" → UNA curva.
-      const porFamilia = curva === "soberanos";
       for (const b of bonos) {
         const dur = b.metrics?.duration;
         const tea = b.metrics?.TEA;
@@ -227,7 +240,9 @@ export function CurvasChart({
           metricaUsada === "TEM" ? temPct
           : metricaUsada === "TNA" ? tnaPct
           : teaPct;
-        pushPunto(porFamilia ? b.tipo : null, {
+        // Por BONO, no por pill: sólo un soberano tiene familia. Un corporativo
+        // en la misma tabla cae al grupo único y no inventa una categoría.
+        pushPunto(b.emisor_tipo === "soberano" ? _familia(b.ley) : null, {
           Ticker: b.ticker_corto,
           Duration: +dur.toFixed(4),
           y: +y.toFixed(4),
@@ -355,7 +370,12 @@ export function CurvasChart({
     0,
   );
   const hayHist = fechasHist.length > 0;
-  const mostrarLegend = curva === "soberanos" && tipos.length > 1;
+  // La leyenda nombra FAMILIAS (Bonares, Globales…). `default` no es una
+  // familia: es "todo lo demás", y no tiene nombre — mostrarlo produjo la
+  // leyenda "DEFAULT · SOBERANO" que no significaba nada. Se muestra sólo si
+  // hay DOS familias de verdad que distinguir.
+  const familias = tipos.filter((t) => t !== "default" && colorDe(t).label);
+  const mostrarLegend = familias.length > 1;
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -407,7 +427,7 @@ export function CurvasChart({
 
         {mostrarLegend && (
           <div className="ml-auto flex items-center gap-3 text-[10px]">
-            {tipos.map((t) => {
+            {familias.map((t) => {
               const c = colorDe(t);
               return (
                 <div key={t} className="flex items-center gap-1">
@@ -416,7 +436,7 @@ export function CurvasChart({
                     style={{ background: c.scatter }}
                   />
                   <span className="text-[var(--t-text-dim)] tracking-wide">
-                    {c.label || t.toUpperCase()}
+                    {c.label}
                   </span>
                 </div>
               );
