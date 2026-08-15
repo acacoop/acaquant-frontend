@@ -53,7 +53,7 @@ interface Punto {
   y: number;
 }
 
-type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked";
+export type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked";
 type Metrica = "TEA" | "TEM" | "TNA";
 type Modo = "live" | "hist" | "fair";
 
@@ -101,12 +101,20 @@ export function CurvasChart({
   forwards,
   flujos,
   fairValueInicial,
+  curvaFija,
+  sinPills = false,
 }: {
   forwards: ForwardDoc[];
   flujos: FlujoTicker[];
   fairValueInicial?: Record<string, FairValueDoc>;
+  // Rediseño 2026-08-15 (docs/RENTA_FIJA.md §0): en la tab CURVAS la curva la
+  // manda la PILL de su columna, no el chart. Sin estas props el componente se
+  // comporta igual que siempre — la vista vieja no se entera.
+  curvaFija?: Curva | null;
+  sinPills?: boolean;
 }) {
-  const [curva, setCurva] = useState<Curva>("tasa_fija");
+  const [curvaInterna, setCurva] = useState<Curva>("tasa_fija");
+  const curva: Curva = curvaFija ?? curvaInterna;
   const [metrica, setMetrica] = useState<Metrica>("TEA");
   const [modo, setModo] = useState<Modo>("live");
   const vpKey = useViewportKey();
@@ -394,21 +402,25 @@ export function CurvasChart({
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 mb-2 flex-wrap shrink-0">
-        <FilterBtn
-          active={curva === "tasa_fija"}
-          onClick={() => setCurva("tasa_fija")}
-        >
-          TASA FIJA
-        </FilterBtn>
-        <FilterBtn active={curva === "cer"} onClick={() => setCurva("cer")}>
-          CER
-        </FilterBtn>
-        <FilterBtn active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>
-          HARD DOLAR
-        </FilterBtn>
-        <FilterBtn active={curva === "dolar_linked"} onClick={() => setCurva("dolar_linked")}>
-          DOLAR LINKED
-        </FilterBtn>
+        {!sinPills && (
+          <>
+            <FilterBtn
+              active={curva === "tasa_fija"}
+              onClick={() => setCurva("tasa_fija")}
+            >
+              TASA FIJA
+            </FilterBtn>
+            <FilterBtn active={curva === "cer"} onClick={() => setCurva("cer")}>
+              CER
+            </FilterBtn>
+            <FilterBtn active={curva === "soberanos"} onClick={() => setCurva("soberanos")}>
+              HARD DOLAR
+            </FilterBtn>
+            <FilterBtn active={curva === "dolar_linked"} onClick={() => setCurva("dolar_linked")}>
+              DOLAR LINKED
+            </FilterBtn>
+          </>
+        )}
         {curva === "tasa_fija" && (
           <div className="ml-1 flex items-center gap-1">
             <FilterBtn active={metrica === "TEA"} onClick={() => setMetrica("TEA")}>

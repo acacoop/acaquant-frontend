@@ -71,3 +71,33 @@ export function fmtHoraAR(epochMs: number): string {
     hour12: false,
   });
 }
+
+// Botón de filtro/pill. Copia CANÓNICA: el mismo componente estaba definido
+// local e idéntico en renta-fija-table, curvas-chart, breakevens-block y
+// descomposicion-tab. Los nuevos (tab CURVAS del rediseño) usan este; los
+// viejos se migran cuando se los toque, sin cambio visual — es el mismo markup.
+export function FilterBtn({
+  active,
+  onClick,
+  children,
+  title,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  title?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`px-2 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
+        active
+          ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
+          : "bg-transparent text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}

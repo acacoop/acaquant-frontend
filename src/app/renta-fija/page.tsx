@@ -8,6 +8,7 @@ import type {
   ForwardHistDoc,
   ForwardZscoreDoc,
   RentaFijaDoc,
+  CurvasVista,
 } from "@/lib/types";
 import { RentaFijaLiveView } from "@/components/renta-fija-live";
 
@@ -27,6 +28,7 @@ export default async function Home() {
     forwardsZscore,
     fairValueTF,
     fairValueCER,
+    curvasVista,
   ] = await Promise.all([
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
@@ -37,6 +39,10 @@ export default async function Home() {
     safeFetch<ForwardZscoreDoc[]>("/api/cotizaciones/forwards-zscore", [], 300),
     safeFetch<FairValueDoc | { error: string }>("/api/cotizaciones/fair-value?curva=tasa_fija", { error: "init" }, 60),
     safeFetch<FairValueDoc | { error: string }>("/api/cotizaciones/fair-value?curva=cer", { error: "init" }, 60),
+    // Tab CURVAS del rediseño: UN request con los bonos ya clasificados
+    // (docs/RENTA_FIJA.md §0). Si falla, cae a null y la vista arranca en la
+    // tab FORWARDS con los paneles de siempre — no rompe nada.
+    safeFetch<CurvasVista | null>("/api/cotizaciones/curvas-vista", null, 10),
   ]);
 
   const allFlujos: FlujoTicker[] = flujos.map((f) => ({
@@ -61,6 +67,7 @@ export default async function Home() {
       forwardsHist={forwardsHist}
       forwardsZscore={forwardsZscore}
       fairValueInicial={fairValueInicial}
+      curvasVista={curvasVista?.bonos ? curvasVista : undefined}
     />
   );
 }

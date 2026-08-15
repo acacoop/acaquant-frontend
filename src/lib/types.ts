@@ -146,3 +146,41 @@ export interface Quote {
   ret_1y:  number | null;
   updated_at?: string;
 }
+
+// ── Tab CURVAS del rediseño de renta fija (docs/RENTA_FIJA.md §0) ────────────
+// Shape de `GET /api/cotizaciones/curvas-vista`: los bonos llegan YA
+// clasificados por el backend (pill + lado + ejes), así que el front no
+// reconstruye la clasificación — antes la armaba con los cronogramas completos.
+
+export interface BonoCurva {
+  ticker_corto:      string;
+  instrumento:       string | null;   // 'MERV - XMEV - AL30 - 24hs'
+  pill:              string;          // tasa_fija | cer | hard_dolar | dolar_linked | tamar | duales
+  lado:              "ARS" | "USD";
+  emisor_tipo:       string;          // soberano | provincial | corporativo | bcra
+  emisor:            string | null;
+  moneda:            string;
+  ajuste:            string;
+  ley:               string | null;   // local (Bonar) | ny (Global)
+  instrumento_tipo:  string | null;   // bono | letra
+  tipo:              string | null;
+  vencimiento:       string | null;
+  cer_fijado:        boolean;
+  flujo_vencimiento: number | null;
+  metrics:           Record<string, number>;
+}
+
+export interface PillDef {
+  codigo:  string;
+  display: string;
+  lado:    "ARS" | "USD";
+  orden:   number;
+  n:       number;
+}
+
+export interface CurvasVista {
+  pills:           PillDef[];
+  emisores:        { codigo: string; label: string; n: number }[];
+  bonos:           BonoCurva[];
+  sin_clasificar:  string[];
+}
