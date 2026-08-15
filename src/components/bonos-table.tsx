@@ -36,6 +36,9 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
   }
 
   const esArs = bonos[0]?.moneda === "ARS";
+  // La columna solo aparece si ALGUIEN de esta pill la tiene: los bullet
+  // (lecaps/boncaps) tienen pago final, los que amortizan en cuotas no.
+  const hayPagoFinal = bonos.some((b) => b.flujo_vencimiento);
   // Mismo orden que la vista de siempre: por duration, y los que todavía no
   // tienen (ticker nuevo sin enriquecer) al final en vez de arriba.
   const filas = [...bonos].sort(
@@ -51,13 +54,17 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
           <th className="!px-1 text-center">LAST</th>
           <th className="!px-1 text-center">Intra</th>
           <th className="!px-1 text-center">1D</th>
+          {hayPagoFinal && (
+            <th className="!px-1 text-center" title="Pago al vencimiento por 100 VN (bullet)">
+              Pago Final
+            </th>
+          )}
           <th className="!px-1 text-center">TEA</th>
           {esArs && <th className="!px-1 text-center">TEM</th>}
           <th className="!px-1 text-center">DUR</th>
           <th className="!px-1 text-center">MOD DUR</th>
           {!esArs && <th className="!px-1 text-center">PARIDAD</th>}
           {!esArs && <th className="!px-1 text-center" title="Ley: local (Bonar) / NY (Global)">LEY</th>}
-          <th className="!px-1 text-center">EMISOR</th>
           <th className="!px-1 text-center">VOL NOM</th>
         </tr>
       </thead>
@@ -85,6 +92,11 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
               <td className={`!px-1 text-center ${color(d1)}`}>
                 {d1 === null ? "--" : `${d1 > 0 ? "+" : ""}${d1.toFixed(2)}%`}
               </td>
+              {hayPagoFinal && (
+                <td className="!px-1 text-center">
+                  {b.flujo_vencimiento ? fmtPrice(b.flujo_vencimiento) : "--"}
+                </td>
+              )}
               <td className="!px-1 text-center">{pct(m.TEA)}</td>
               {esArs && <td className="!px-1 text-center">{pct(m.TEM, 2)}</td>}
               <td className="!px-1 text-center">{num(m.duration)}</td>
@@ -95,11 +107,6 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
                   {b.ley === "ny" ? "NY" : b.ley === "local" ? "LOCAL" : "--"}
                 </td>
               )}
-              <td className="!px-1 text-center opacity-70" title={b.emisor || ""}>
-                {b.emisor_tipo === "soberano" ? "SOB"
-                  : b.emisor_tipo === "corporativo" ? "CORP"
-                  : b.emisor_tipo === "provincial" ? "PROV" : "BCRA"}
-              </td>
               <td className="!px-1 text-center">
                 {m.total_nominals ? fmtVol(m.total_nominals) : "--"}
               </td>

@@ -53,7 +53,7 @@ interface Punto {
   y: number;
 }
 
-export type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked";
+export type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked" | "tamar" | "dual";
 type Metrica = "TEA" | "TEM" | "TNA";
 type Modo = "live" | "hist" | "fair";
 

@@ -21,20 +21,20 @@ import { BonosTable } from "@/components/bonos-table";
 // bonos (240 KB para usar 5 campos).
 const POLL_MS = 5_000;
 
-// La pill de acá → la curva que el chart sabe pedirle al backend. `tamar` existe
-// en `_CURVAS_VALIDAS`; `duales` todavía NO es una curva del backend (los duales
-// viven repartidos en cer/tamar hasta que se les dé la suya), así que ese lado
-// muestra la tabla y avisa en vez de dibujar un gráfico vacío.
-const PILL_A_CURVA: Record<string, Curva | null> = {
+// La pill de acá → la curva que el chart le pide al backend. Las 6 tienen la
+// suya: `dual` no existe como `curva` en el master (los duales viven bajo
+// cer/tamar) y se resuelve por el EJE `ajuste`.
+const PILL_A_CURVA: Record<string, Curva> = {
   tasa_fija: "tasa_fija",
   cer: "cer",
   hard_dolar: "soberanos",
   dolar_linked: "dolar_linked",
-  tamar: null,
-  duales: null,
+  tamar: "tamar",
+  duales: "dual",   // los duales se resuelven por el EJE `ajuste` en el backend
 };
 
 interface Props {
+  barra?: React.ReactNode;   // las tabs, para que compartan fila con el filtro
   inicial: CurvasVista;
   forwards: ForwardDoc[];
   flujos: FlujoTicker[];
@@ -55,7 +55,7 @@ function Columna({
 }) {
   const delLado = pills.filter((p) => p.lado === lado);
   const filas = bonos.filter((b) => b.pill === pill);
-  const curva = PILL_A_CURVA[pill] ?? null;
+  const curva = PILL_A_CURVA[pill];
 
   return (
     <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
@@ -82,27 +82,19 @@ function Columna({
       </Panel>
 
       <Panel title={`CURVA ${lado}`} fill expandable>
-        {curva ? (
-          <CurvasChart
-            forwards={forwards}
-            flujos={flujos}
-            fairValueInicial={fairValueInicial}
-            curvaFija={curva}
-            sinPills
-          />
-        ) : (
-          <div className="h-full flex items-center justify-center text-center px-4
-                          text-[var(--t-text-2)] text-xs">
-            La curva de <b className="mx-1">{pill.toUpperCase()}</b> todavía no
-            existe en el backend — la tabla de arriba sí está completa.
-          </div>
-        )}
+        <CurvasChart
+          forwards={forwards}
+          flujos={flujos}
+          fairValueInicial={fairValueInicial}
+          curvaFija={curva}
+          sinPills
+        />
       </Panel>
     </div>
   );
 }
 
-export function CurvasTab({ inicial, forwards, flujos, fairValueInicial }: Props) {
+export function CurvasTab({ barra, inicial, forwards, flujos, fairValueInicial }: Props) {
   const { data } = usePoll<CurvasVista>(
     "/api/cotizaciones/curvas-vista", inicial, POLL_MS,
   );
@@ -136,8 +128,11 @@ export function CurvasTab({ inicial, forwards, flujos, fairValueInicial }: Props
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-2">
+      {/* UNA sola fila: tabs + filtro de emisor. Dos filas de controles le
+          comían alto a los datos, que es lo que la vista tiene para dar. */}
       <div className="flex items-center gap-2 flex-wrap shrink-0 text-xs">
-        <span className="text-[var(--t-text-2)]">EMISOR</span>
+        {barra}
+        <span className="text-[var(--t-text-2)] ml-1">EMISOR</span>
         <FilterBtn active={emisores.length === 0} onClick={() => setEmisores([])}>
           TODOS <span className="ml-1 opacity-60">{data.bonos.length}</span>
         </FilterBtn>

@@ -88,58 +88,75 @@ export function RentaFijaLiveView({
     curvasVista ? "curvas" : "clasica",
   );
 
+  // Las TABS se pasan a la tab activa para que compartan fila con SUS controles
+  // (el filtro de emisor en CURVAS, los modos en FORWARDS). Una fila de tabs +
+  // otra de filtros le comía alto a los datos, que es lo que la vista da.
+  const tabs = (
+    <>
+      {curvasVista && (
+        <FilterBtn active={tab === "curvas"} onClick={() => setTab("curvas")}>
+          CURVAS
+        </FilterBtn>
+      )}
+      <FilterBtn active={tab === "forwards"} onClick={() => setTab("forwards")}>
+        FORWARDS
+      </FilterBtn>
+      <FilterBtn active={tab === "clasica"} onClick={() => setTab("clasica")}>
+        CLÁSICA
+      </FilterBtn>
+      <span className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
+    </>
+  );
+
   return (
     <div className="h-full min-h-0 p-3 flex flex-col gap-2">
-      <div className="flex items-center gap-2 shrink-0">
-        {curvasVista && (
-          <FilterBtn active={tab === "curvas"} onClick={() => setTab("curvas")}>
-            CURVAS
-          </FilterBtn>
-        )}
-        <FilterBtn active={tab === "forwards"} onClick={() => setTab("forwards")}>
-          FORWARDS
-        </FilterBtn>
-        <FilterBtn active={tab === "clasica"} onClick={() => setTab("clasica")}>
-          CLÁSICA
-        </FilterBtn>
-        {sub && <span className="ml-auto text-xs text-[var(--t-text-2)]">{sub}</span>}
-      </div>
-
       {tab === "curvas" && curvasVista ? (
         <CurvasTab
+          barra={tabs}
           inicial={curvasVista}
           forwards={forwards}
           flujos={flujos}
           fairValueInicial={fairValueInicial}
         />
       ) : tab === "forwards" ? (
-        <ForwardsTab
-          forwards={forwards}
-          historico={forwardsHist}
-          zscoreInicial={forwardsZscore}
-        />
+        <>
+          <div className="flex items-center gap-2 shrink-0 text-xs">
+            {tabs}
+            {sub && <span className="ml-auto text-[var(--t-text-2)]">{sub}</span>}
+          </div>
+          <ForwardsTab
+            forwards={forwards}
+            historico={forwardsHist}
+            zscoreInicial={forwardsZscore}
+          />
+        </>
       ) : (
-        // La vista de SIEMPRE, sin tocar un panel. Se conserva entera mientras
-        // la tab nueva se valida en uso real; el paso 4 la reemplaza por las
-        // tabs FORWARDS y BREAKEVENS con su rediseño.
-        <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
-          <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-            <Panel title="RENTA FIJA" count={rentaFija.length} sub={sub} expandable>
-              <RentaFijaTable data={rentaFija} flujos={flujos} forwards={forwards} />
-            </Panel>
-            <Panel title="CURVAS" sub={sub} fill expandable>
-              <CurvasChart forwards={forwards} flujos={flujos} fairValueInicial={fairValueInicial} />
-            </Panel>
+        // La vista de SIEMPRE, sin tocar un panel. El paso 4 ya tiene su tab
+        // propia; esta queda como red de seguridad mientras se valida.
+        <>
+          <div className="flex items-center gap-2 shrink-0 text-xs">
+            {tabs}
+            {sub && <span className="ml-auto text-[var(--t-text-2)]">{sub}</span>}
           </div>
-          <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-            <Panel title="FORWARDS" sub={sub} expandable>
-              <ForwardsPanel forwards={forwards} historico={forwardsHist} zscoreInicial={forwardsZscore} />
-            </Panel>
-            <Panel title="BREAKEVENS" sub={sub} fill expandable>
-              <BreakevensBlock pares={pares} historico={breakevensHist} />
-            </Panel>
+          <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
+            <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+              <Panel title="RENTA FIJA" count={rentaFija.length} sub={sub} expandable>
+                <RentaFijaTable data={rentaFija} flujos={flujos} forwards={forwards} />
+              </Panel>
+              <Panel title="CURVAS" sub={sub} fill expandable>
+                <CurvasChart forwards={forwards} flujos={flujos} fairValueInicial={fairValueInicial} />
+              </Panel>
+            </div>
+            <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+              <Panel title="FORWARDS" sub={sub} expandable>
+                <ForwardsPanel forwards={forwards} historico={forwardsHist} zscoreInicial={forwardsZscore} />
+              </Panel>
+              <Panel title="BREAKEVENS" sub={sub} fill expandable>
+                <BreakevensBlock pares={pares} historico={breakevensHist} />
+              </Panel>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
