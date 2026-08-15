@@ -59,6 +59,7 @@ export function ForwardsPanel({
   zscoreInicial,
   curvaFija,
   modoFijo,
+  sinGrafico = false,
 }: {
   forwards: ForwardDoc[];
   historico?: ForwardHistDoc[];
@@ -69,6 +70,8 @@ export function ForwardsPanel({
   // estas props el panel se comporta igual que siempre.
   curvaFija?: Curva;
   modoFijo?: Modo;
+  // La matriz ya no ofrece GRÁFICO: ese modo tiene su propio panel debajo.
+  sinGrafico?: boolean;
 }) {
   const [curvaInterna, setCurva] = useState<Curva>("tasa_fija");
   const [modoInterno, setModo] = useState<Modo>("live");
@@ -195,13 +198,15 @@ export function ForwardsPanel({
         )}
         {!modoFijo && (
           <>
-            <FilterBtn
-              active={modo === "grafico"}
-              onClick={() => hayHistorico && setModo("grafico")}
-              disabled={!hayHistorico}
-            >
-              GRÁFICO
-            </FilterBtn>
+            {!sinGrafico && (
+              <FilterBtn
+                active={modo === "grafico"}
+                onClick={() => hayHistorico && setModo("grafico")}
+                disabled={!hayHistorico}
+              >
+                GRÁFICO
+              </FilterBtn>
+            )}
             <FilterBtn
               active={modo === "zscore"}
               onClick={() => hayZscore && setModo("zscore")}

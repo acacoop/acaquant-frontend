@@ -59,6 +59,7 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
               Pago Final
             </th>
           )}
+          <th className="!px-1 text-center">TNA</th>
           <th className="!px-1 text-center">TEA</th>
           {esArs && <th className="!px-1 text-center">TEM</th>}
           <th className="!px-1 text-center">DUR</th>
@@ -97,8 +98,19 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
                   {b.flujo_vencimiento ? fmtPrice(b.flujo_vencimiento) : "--"}
                 </td>
               )}
+              {/* TNA y TEM se DERIVAN de la TEA con la misma fórmula que la vista
+                  de siempre (TEM = (1+TEA)^(1/12)−1, TNA = TEM×12): el snapshot
+                  no publica TNA, y calcularla de otra forma daría un número que
+                  no coincide con el que la mesa viene mirando. */}
+              <td className="!px-1 text-center">
+                {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`}
+              </td>
               <td className="!px-1 text-center">{pct(m.TEA)}</td>
-              {esArs && <td className="!px-1 text-center">{pct(m.TEM, 2)}</td>}
+              {esArs && (
+                <td className="!px-1 text-center">
+                  {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 100).toFixed(2)}%`}
+                </td>
+              )}
               <td className="!px-1 text-center">{num(m.duration)}</td>
               <td className="!px-1 text-center">{num(m.mod_duration)}</td>
               {!esArs && <td className="!px-1 text-center">{num(m.paridad)}</td>}

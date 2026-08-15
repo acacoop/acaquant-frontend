@@ -48,6 +48,7 @@ export function ForwardsTab({ forwards, historico, zscoreInicial }: Props) {
               historico={historico}
               zscoreInicial={zscoreInicial}
               curvaFija={curva}
+              sinGrafico
             />
           </Panel>
           <Panel title={`HISTÓRICO DE PARES ${titulo}`} fill expandable>

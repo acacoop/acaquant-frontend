@@ -7,16 +7,39 @@ interface ForwardMatrixProps {
 }
 
 
-function heatmapColor(value: number, min: number, median: number, max: number): string {
-  if (min === max) return "#ffaa00";
+// Posición del valor en la DISTRIBUCIÓN (0 = el más bajo, 1 = el más alto).
+// `sorted` viene ordenado ascendente.
+function percentil(value: number, sorted: number[]): number {
+  if (sorted.length < 2) return 0.5;
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] < value) lo = mid + 1; else hi = mid;
+  }
+  return lo / (sorted.length - 1);
+}
+
+// El color sale del PERCENTIL, no del valor absoluto (fix 2026-08-15).
+//
+// Antes se interpolaba linealmente entre el mínimo y el máximo de la matriz, y
+// eso funciona solo si los valores están repartidos parejo. En CER no lo están:
+// casi todos caen entre 6% y 10% y un par se va a 31%, así que el outlier
+// estiraba la escala y dejaba a TODO el resto en el mismo amarillo — el color
+// dejaba de informar, que es exactamente lo que no puede pasar en un heatmap.
+//
+// Con percentil el reparto es parejo POR CONSTRUCCIÓN: la mitad más baja va de
+// rojo a amarillo y la mitad más alta de amarillo a verde, sin importar cómo
+// estén distribuidos los números. El color pasa a decir "alto/bajo respecto de
+// ESTA matriz", que es como se lee de verdad.
+function heatmapColor(p: number): string {
   let r: number, g: number, b: number;
-  if (value <= median) {
-    const t = (value - min) / (median - min || 1);
+  if (p <= 0.5) {
+    const t = p / 0.5;
     r = 220;
     g = Math.round(60 + t * 160);
     b = Math.round(60 + t * 40);
   } else {
-    const t = (value - median) / (max - median || 1);
+    const t = (p - 0.5) / 0.5;
     r = Math.round(220 - t * 180);
     g = Math.round(220 - t * 40);
     b = Math.round(100 - t * 40);
@@ -44,9 +67,8 @@ export function ForwardMatrix({ tickers, matrix }: ForwardMatrixProps) {
     }
   }
   allValues.sort((a, b) => a - b);
-  const vMin = allValues[0] ?? 0;
-  const vMax = allValues[allValues.length - 1] ?? 1;
-  const vMedian = allValues[Math.floor(allValues.length / 2)] ?? 0.5;
+  // (min/median/max ya no hacen falta: la escala es por percentil sobre
+  // `allValues`, que queda ordenado ascendente para la búsqueda binaria.)
 
   return (
     <div className="overflow-x-auto">
@@ -75,7 +97,7 @@ export function ForwardMatrix({ tickers, matrix }: ForwardMatrixProps) {
                 if (val === null || val === undefined) {
                   return <td key={tCorto} className="!px-2 !py-1 text-center text-[var(--t-text-muted)]">--</td>;
                 }
-                const bg = heatmapColor(val, vMin, vMedian, vMax);
+                const bg = heatmapColor(percentil(val, allValues));
                 const fg = textColor(bg);
                 return (
                   <td
