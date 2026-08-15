@@ -33,8 +33,8 @@ interface ForwardHistDoc {
   matrix: Record<string, Record<string, number>>;
 }
 
-type Curva = "tasa_fija" | "cer";
-type Modo = "live" | "grafico" | "zscore";
+export type Curva = "tasa_fija" | "cer";
+export type Modo = "live" | "grafico" | "zscore";
 
 // Coeficientes (media/desvío) cambian 1x/día post-cierre. Polleamos lento
 // para que cuando llega el cierre, el front lo refleje sin esperar a que
@@ -57,13 +57,23 @@ export function ForwardsPanel({
   forwards,
   historico,
   zscoreInicial,
+  curvaFija,
+  modoFijo,
 }: {
   forwards: ForwardDoc[];
   historico?: ForwardHistDoc[];
   zscoreInicial?: ForwardZscoreDoc[];
+  // Rediseño 2026-08-15 (docs/RENTA_FIJA.md §0, paso 4): en la tab FORWARDS la
+  // curva la fija la COLUMNA (izq tasa fija / der CER) y el modo la FILA (arriba
+  // la matriz, abajo el gráfico de pares), en vez de togglearse entre sí. Sin
+  // estas props el panel se comporta igual que siempre.
+  curvaFija?: Curva;
+  modoFijo?: Modo;
 }) {
-  const [curva, setCurva] = useState<Curva>("tasa_fija");
-  const [modo, setModo] = useState<Modo>("live");
+  const [curvaInterna, setCurva] = useState<Curva>("tasa_fija");
+  const [modoInterno, setModo] = useState<Modo>("live");
+  const curva: Curva = curvaFija ?? curvaInterna;
+  const modo: Modo = modoFijo ?? modoInterno;
   const vpKey = useViewportKey();
 
   const { data: zscoreDocs } = usePoll<ForwardZscoreDoc[]>(
@@ -164,33 +174,43 @@ export function ForwardsPanel({
   return (
     <div>
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <FilterBtn
-          active={curva === "tasa_fija"}
-          onClick={() => setCurva("tasa_fija")}
-        >
-          TASA FIJA
-        </FilterBtn>
-        <FilterBtn active={curva === "cer"} onClick={() => setCurva("cer")}>
-          CER
-        </FilterBtn>
-        <span className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
+        {!curvaFija && (
+          <>
+            <FilterBtn
+              active={curva === "tasa_fija"}
+              onClick={() => setCurva("tasa_fija")}
+            >
+              TASA FIJA
+            </FilterBtn>
+            <FilterBtn active={curva === "cer"} onClick={() => setCurva("cer")}>
+              CER
+            </FilterBtn>
+            <span className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
+          </>
+        )}
+        {!modoFijo && (
         <FilterBtn active={modo === "live"} onClick={() => setModo("live")}>
           LIVE
         </FilterBtn>
-        <FilterBtn
-          active={modo === "grafico"}
-          onClick={() => hayHistorico && setModo("grafico")}
-          disabled={!hayHistorico}
-        >
-          GRÁFICO
-        </FilterBtn>
-        <FilterBtn
-          active={modo === "zscore"}
-          onClick={() => hayZscore && setModo("zscore")}
-          disabled={!hayZscore}
-        >
-          Z-SCORE
-        </FilterBtn>
+        )}
+        {!modoFijo && (
+          <>
+            <FilterBtn
+              active={modo === "grafico"}
+              onClick={() => hayHistorico && setModo("grafico")}
+              disabled={!hayHistorico}
+            >
+              GRÁFICO
+            </FilterBtn>
+            <FilterBtn
+              active={modo === "zscore"}
+              onClick={() => hayZscore && setModo("zscore")}
+              disabled={!hayZscore}
+            >
+              Z-SCORE
+            </FilterBtn>
+          </>
+        )}
         {modo === "grafico" && (
           <div className="relative ml-1">
             <input

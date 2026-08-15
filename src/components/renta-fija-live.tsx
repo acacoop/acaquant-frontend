@@ -18,6 +18,7 @@ import { ForwardsPanel } from "@/components/forwards-panel";
 import { CurvasChart } from "@/components/curvas-chart";
 import { BreakevensBlock } from "@/components/breakevens-block";
 import { CurvasTab } from "@/components/curvas-tab";
+import { ForwardsTab } from "@/components/forwards-tab";
 import type { CurvasVista } from "@/lib/types";
 
 // Polling unificado: 1 sola request al endpoint /snapshot-live cada 5s
@@ -83,7 +84,7 @@ export function RentaFijaLiveView({
   // TABS (rediseño 2026-08-15, docs/RENTA_FIJA.md §0). Antes era UNA pantalla
   // con los 4 paneles a la vez: se pagaban los 9 fetches y los 4,5 MB aunque
   // mirases uno solo. Los paneles viejos siguen intactos, cada uno en su tab.
-  const [tab, setTab] = useState<"curvas" | "clasica">(
+  const [tab, setTab] = useState<"curvas" | "forwards" | "clasica">(
     curvasVista ? "curvas" : "clasica",
   );
 
@@ -95,6 +96,9 @@ export function RentaFijaLiveView({
             CURVAS
           </FilterBtn>
         )}
+        <FilterBtn active={tab === "forwards"} onClick={() => setTab("forwards")}>
+          FORWARDS
+        </FilterBtn>
         <FilterBtn active={tab === "clasica"} onClick={() => setTab("clasica")}>
           CLÁSICA
         </FilterBtn>
@@ -107,6 +111,12 @@ export function RentaFijaLiveView({
           forwards={forwards}
           flujos={flujos}
           fairValueInicial={fairValueInicial}
+        />
+      ) : tab === "forwards" ? (
+        <ForwardsTab
+          forwards={forwards}
+          historico={forwardsHist}
+          zscoreInicial={forwardsZscore}
         />
       ) : (
         // La vista de SIEMPRE, sin tocar un panel. Se conserva entera mientras
