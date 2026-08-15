@@ -10,7 +10,6 @@ import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { ResearchBcra } from "@/components/research-bcra";
 import { type Doc, PdfViewer } from "@/components/research-documentos";
 import { ResearchFred } from "@/components/research-fred";
-import { ResearchForwards } from "@/components/research-forwards";
 import { Maximizable } from "@/components/maximizable";
 import { ResearchLab } from "@/components/research-lab";
 import { ResearchRetornoTotal } from "@/components/research-retorno-total";
@@ -80,10 +79,12 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
       <div className="flex-1 min-h-0 overflow-hidden relative">
         {visited.has("argentina") && (
           <Pane active={tab === "argentina"}>
-            {/* 4 cuadrantes: spread (TL) · forwards (TR) · comparar (BL) · retorno total (BR). */}
+            {/* 3 paneles: spread · comparar · retorno total. Forwards se mudó a renta fija. */}
             <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
+              {/* FORWARDS se MUDÓ a la tab FORWARDS de renta fija (rediseño
+                  2026-08-15): es donde se usa y no puede estar en dos lugares
+                  yéndose de a poco cada uno para su lado. */}
               <Maximizable><ResearchLab modoFijo="spread" /></Maximizable>
-              <Maximizable><ResearchForwards /></Maximizable>
               <Maximizable><ResearchLab modoFijo="overlay" /></Maximizable>
               <Maximizable><ResearchRetornoTotal /></Maximizable>
             </div>

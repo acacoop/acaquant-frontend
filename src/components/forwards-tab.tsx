@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ForwardDoc, ForwardHistDoc, ForwardZscoreDoc } from "@/lib/types";
 import { FilterBtn, Panel } from "@/components/ui";
 import { ForwardsPanel, type Curva, type Modo } from "@/components/forwards-panel";
+import { ResearchForwards } from "@/components/research-forwards";
 
 // Tab FORWARDS del rediseño (docs/RENTA_FIJA.md §0, paso 4).
 //
@@ -79,13 +80,9 @@ export function ForwardsTab({ forwards, historico, zscoreInicial }: Props) {
             />
           </Panel>
           <Panel title={`HISTÓRICO DE PARES ${titulo}`} fill expandable>
-            <ForwardsPanel
-              forwards={forwards}
-              historico={historico}
-              zscoreInicial={zscoreInicial}
-              curvaFija={curva}
-              modoFijo="grafico"
-            />
+            {/* El MISMO componente que estaba en Research: se movió, no se
+                duplicó. Trae su propio fetch filtrado por curva y rango. */}
+            <ResearchForwards curvaFija={curva} />
           </Panel>
         </div>
       ))}

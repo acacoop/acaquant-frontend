@@ -29,8 +29,20 @@ function desdeISO(dias: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function ResearchForwards() {
-  const [curva, setCurva] = useState<string>("tasa_fija");
+// Rediseño 2026-08-15 (docs/RENTA_FIJA.md §0, paso 4): este gráfico VIVE ahora
+// en la tab FORWARDS de renta fija, una instancia por curva. Se movió en vez de
+// copiarse — dos gráficos de forwards que se van separando con cada arreglo es
+// justo el problema que trajo el resto del rediseño.
+//
+// `curvaFija` lo usa la tab (la curva la manda la columna, izq tasa fija / der
+// CER); sin la prop se comporta como siempre, con su propio selector.
+//
+// De yapa resuelve perf: este componente pide `historico/forwards` FILTRADO por
+// curva y rango, mientras la vista de renta fija lo traía entero — 3.751 KB, el
+// 80% del peso de la pantalla, para dibujar una línea.
+export function ResearchForwards({ curvaFija }: { curvaFija?: string } = {}) {
+  const [curvaInterna, setCurva] = useState<string>("tasa_fija");
+  const curva = curvaFija ?? curvaInterna;
   const [dias, setDias] = useState(3650);   // default Máx (pedido del user)
   const [docs, setDocs] = useState<ForwardHistDoc[]>([]);
   const [largo, setLargo] = useState("");
@@ -111,15 +123,19 @@ export function ResearchForwards() {
     <section className="h-full min-h-0 flex flex-col bg-[var(--t-panel)] border border-[var(--t-border)] rounded-lg overflow-hidden">
       {/* HEADER ÚNICO — mismo diseño que Spread/Comparar */}
       <div className="px-3 py-1.5 border-b border-[var(--t-border)] flex items-center gap-x-2 gap-y-1 flex-wrap bg-[var(--t-panel)]">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)]">Forwards</span>
-        <span className={SEG}>
-          {CURVAS.map((c) => (
-            <button key={c.k} type="button" onClick={() => setCurva(c.k)}
-              className={`text-[10px] font-semibold px-2 py-[3px] transition-colors ${curva === c.k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
-              {c.label}
-            </button>
-          ))}
-        </span>
+        {!curvaFija && (
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--t-text)]">Forwards</span>
+        )}
+        {!curvaFija && (
+          <span className={SEG}>
+            {CURVAS.map((c) => (
+              <button key={c.k} type="button" onClick={() => setCurva(c.k)}
+                className={`text-[10px] font-semibold px-2 py-[3px] transition-colors ${curva === c.k ? "bg-[var(--t-accent)] text-white" : "text-[var(--t-text-muted)] hover:bg-[var(--t-surface-2)]"}`}>
+                {c.label}
+              </button>
+            ))}
+          </span>
+        )}
         {tickers.length > 0 && (
           <span className="flex items-center gap-1">
             <select value={largo} onChange={(e) => setLargo(e.target.value)} className={`${SEL} max-w-[110px] font-semibold`}>
