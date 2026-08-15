@@ -26,6 +26,12 @@ type AssetGap = {
   CODIGO_CNV?: string | null;
   // Fee de administración del FCI: FRACCIÓN decimal (0.01 = 1%). Solo FCI.
   FEE_ADMIN?: number | null;
+  // ¿El título sigue existiendo en el mercado? Un papel que amortizó NO se borra
+  // (la tenencia histórica lo referencia) — se apaga. Lo baja solo el job
+  // `validar_instrumentos` cuando pasó el vencimiento; destildarlo/tildarlo a
+  // mano sella `vigencia_motivo='manual'` y el job deja de opinar sobre la fila.
+  VIGENTE?: boolean | null;
+  vigencia_motivo?: string | null;
   actualizado_por?: string | null;
   actualizado_at?: string | null;
 };
@@ -234,6 +240,32 @@ export function TabAssets() {
     }
   };
 
+  // Tilde de vigencia. Va por separado de saveRow (que solo manda strings)
+  // porque el backend, al ver VIGENTE, sella `vigencia_motivo='manual'` — es lo
+  // que le dice al job nocturno que esta fila la decide un humano.
+  const saveVigente = async (a: AssetGap, vigente: boolean) => {
+    setRowState((s) => ({ ...s, [a.unidad]: { kind: "saving" } }));
+    try {
+      const r = await fetch(`/api/manager/assets`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unidad: a.unidad, VIGENTE: vigente }),
+      });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        let detail = txt;
+        try { const j = JSON.parse(txt); if (j && typeof j.detail === "string") detail = j.detail; } catch { /* texto plano */ }
+        throw new Error(`HTTP ${r.status} · ${detail.slice(0, 200) || r.statusText}`);
+      }
+      const updated: AssetGap = await r.json();
+      setAssets((prev) => prev.map((x) => (x.unidad === a.unidad ? updated : x)));
+      setRowState((s) => ({ ...s, [a.unidad]: { kind: "saved" } }));
+      setTimeout(() => setRowState((s) => ({ ...s, [a.unidad]: { kind: "idle" } })), 1500);
+    } catch (e) {
+      setRowState((s) => ({ ...s, [a.unidad]: { kind: "error", msg: e instanceof Error ? e.message : String(e) } }));
+    }
+  };
+
   // Campos abiertos (input editable): datalist con valores existentes.
   // Los campos cerrados (CARTERA, CLASE_ACTIVO) van como <select> y no usan list.
   const camposAbiertos = ASSET_CAMPOS.filter((c) => !ASSET_CAMPOS_CERRADOS.includes(c));
@@ -330,6 +362,7 @@ export function TabAssets() {
                 <th className="px-3 py-2 min-w-[280px]">UNIDAD</th>
                 {ASSET_CAMPOS.map((c) => <th key={c} className="px-2 py-2">{c}</th>)}
                 <th className="px-2 py-2 w-px whitespace-nowrap">FEE ADMIN<span className="text-[var(--t-text-muted)]"> (frac.)</span></th>
+                <th className="px-2 py-2 w-px whitespace-nowrap">VIGENTE</th>
                 <th className="px-2 py-2 w-px whitespace-nowrap">EDITADO</th>
                 <th className="px-3 py-2 w-px"></th>
               </tr>
@@ -411,6 +444,22 @@ export function TabAssets() {
                           </span>
                         </div>
                       ) : <span className="text-[var(--t-text-muted)]">—</span>}
+                    </td>
+                    <td className="px-2 py-1.5 w-px whitespace-nowrap text-center">
+                      <input
+                        type="checkbox"
+                        checked={a.VIGENTE !== false}
+                        onChange={(e) => saveVigente(a, e.target.checked)}
+                        title={a.vigencia_motivo === "vencido"
+                          ? "dado de baja automáticamente: ya venció"
+                          : a.vigencia_motivo === "manual"
+                            ? "marcado a mano — el job no lo toca"
+                            : "vigente"}
+                        className="accent-[var(--t-accent)] cursor-pointer"
+                      />
+                      {a.vigencia_motivo && (
+                        <div className="text-[9px] text-[var(--t-text-muted)]">{a.vigencia_motivo}</div>
+                      )}
                     </td>
                     <td className="px-2 py-1.5 text-[var(--t-text-muted)] text-[10px] w-px whitespace-nowrap">
                       {a.actualizado_at ? (
