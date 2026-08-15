@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ForwardDoc, ForwardHistDoc, ForwardZscoreDoc } from "@/lib/types";
+import type { ForwardDoc, ForwardZscoreDoc } from "@/lib/types";
 import { FilterBtn, Panel } from "@/components/ui";
 import { ForwardsPanel, type Curva, type Modo } from "@/components/forwards-panel";
 import { ResearchForwards } from "@/components/research-forwards";
@@ -32,7 +32,6 @@ import { ResearchForwards } from "@/components/research-forwards";
 
 interface Props {
   forwards: ForwardDoc[];
-  historico?: ForwardHistDoc[];
   zscoreInicial?: ForwardZscoreDoc[];
 }
 
@@ -41,7 +40,7 @@ const COLUMNAS: { curva: Curva; titulo: string }[] = [
   { curva: "cer", titulo: "CER" },
 ];
 
-export function ForwardsTab({ forwards, historico, zscoreInicial }: Props) {
+export function ForwardsTab({ forwards, zscoreInicial }: Props) {
   // El modo de cada matriz (LIVE / Z-SCORE) vive acá para poder renderizarlo en
   // la BARRA DE TÍTULO del panel: los controles dejan de comerle una fila al
   // contenido. GRÁFICO ya no es un modo de la matriz — tiene su panel propio.
@@ -72,7 +71,6 @@ export function ForwardsTab({ forwards, historico, zscoreInicial }: Props) {
           >
             <ForwardsPanel
               forwards={forwards}
-              historico={historico}
               zscoreInicial={zscoreInicial}
               curvaFija={curva}
               modoFijo={modo[curva]}

@@ -1,11 +1,8 @@
 import { safeFetch } from "@/lib/api";
 import type {
-  BreakevenDoc,
-  BreakevenHistDoc,
   FairValueDoc,
   FlujoTicker,
   ForwardDoc,
-  ForwardHistDoc,
   ForwardZscoreDoc,
   RentaFijaDoc,
   CurvasVista,
@@ -22,9 +19,6 @@ export default async function Home() {
     rentaFija,
     forwards,
     flujos,
-    breakevens,
-    breakevensHist,
-    forwardsHist,
     forwardsZscore,
     fairValueTF,
     fairValueCER,
@@ -33,9 +27,6 @@ export default async function Home() {
     safeFetch<RentaFijaDoc[]>("/api/cotizaciones/renta-fija", [], 10),
     safeFetch<ForwardDoc[]>("/api/cotizaciones/forwards", [], 30),
     safeFetch<FlujoTicker[]>("/api/titulos/flujos", [], 60),
-    safeFetch<BreakevenDoc[]>("/api/cotizaciones/breakevens", [], 30),
-    safeFetch<BreakevenHistDoc[]>("/api/cotizaciones/historico/breakevens", [], 300),
-    safeFetch<ForwardHistDoc[]>("/api/cotizaciones/historico/forwards", [], 300),
     safeFetch<ForwardZscoreDoc[]>("/api/cotizaciones/forwards-zscore", [], 300),
     safeFetch<FairValueDoc | { error: string }>("/api/cotizaciones/fair-value?curva=tasa_fija", { error: "init" }, 60),
     safeFetch<FairValueDoc | { error: string }>("/api/cotizaciones/fair-value?curva=cer", { error: "init" }, 60),
@@ -61,10 +52,7 @@ export default async function Home() {
     <RentaFijaLiveView
       initialRentaFija={rentaFija}
       initialForwards={forwards}
-      initialBreakevens={breakevens}
       flujos={allFlujos}
-      breakevensHist={breakevensHist}
-      forwardsHist={forwardsHist}
       forwardsZscore={forwardsZscore}
       fairValueInicial={fairValueInicial}
       curvasVista={curvasVista?.bonos ? curvasVista : undefined}

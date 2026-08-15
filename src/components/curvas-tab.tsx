@@ -59,26 +59,24 @@ function Columna({
 
   return (
     <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-      <Panel title={lado} count={filas.length} expandable>
-        <div className="h-full flex flex-col min-h-0">
-          <div className="flex items-center gap-2 mb-2 flex-wrap shrink-0">
-            {delLado.map((p) => (
-              <FilterBtn
-                key={p.codigo}
-                active={pill === p.codigo}
-                onClick={() => setPill(p.codigo)}
-              >
-                {p.display}
-                {/* el contador va en la pill: se ve de una si una curva quedó
-                    vacía, que es justo lo que antes no se notaba */}
-                <span className="ml-1 opacity-60">{p.n}</span>
-              </FilterBtn>
-            ))}
-          </div>
-          <div className="flex-1 min-h-0 overflow-auto">
-            <BonosTable bonos={filas} />
-          </div>
-        </div>
+      {/* Las pills viven en la BARRA DE TÍTULO: una fila menos de controles es
+          una fila más de bonos, y la tabla es lo que la vista da. */}
+      <Panel
+        title={lado}
+        count={filas.length}
+        expandable
+        actions={delLado.map((p) => (
+          <FilterBtn
+            key={p.codigo}
+            active={pill === p.codigo}
+            onClick={() => setPill(p.codigo)}
+          >
+            {p.display}
+            <span className="ml-1 opacity-60">{p.n}</span>
+          </FilterBtn>
+        ))}
+      >
+        <BonosTable bonos={filas} />
       </Panel>
 
       <Panel title={`CURVA ${lado}`} fill expandable>
@@ -102,7 +100,7 @@ export function CurvasTab({ barra, inicial, forwards, flujos, fairValueInicial }
   // Filtro de EMISOR: client-side a propósito. El emisor viaja en cada bono, así
   // que cambiarlo NO le pega al backend. Vacío = todos (decisión del user al
   // eliminar la vista de ONs: los corporativos se ven de entrada).
-  const [emisores, setEmisores] = useState<string[]>([]);
+  const [emisores, setEmisores] = useState<string[]>(["soberano"]);
   const [pillArs, setPillArs] = useState("tasa_fija");
   const [pillUsd, setPillUsd] = useState("hard_dolar");
 
@@ -133,9 +131,6 @@ export function CurvasTab({ barra, inicial, forwards, flujos, fairValueInicial }
       <div className="flex items-center gap-2 flex-wrap shrink-0 text-xs">
         {barra}
         <span className="text-[var(--t-text-2)] ml-1">EMISOR</span>
-        <FilterBtn active={emisores.length === 0} onClick={() => setEmisores([])}>
-          TODOS <span className="ml-1 opacity-60">{data.bonos.length}</span>
-        </FilterBtn>
         {data.emisores.map((e) => (
           <FilterBtn
             key={e.codigo}

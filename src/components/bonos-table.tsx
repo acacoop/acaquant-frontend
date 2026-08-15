@@ -76,7 +76,7 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
           const intra = last && m.open_price ? (last / m.open_price - 1) * 100 : null;
           const d1 = last && m.closing_price ? (last / m.closing_price - 1) * 100 : null;
           const color = (v: number | null) =>
-            v === null ? "" : v > 0 ? "text-[var(--t-up)]" : v < 0 ? "text-[var(--t-down)]" : "";
+            v === null ? "" : v > 0 ? "text-[var(--t-pos)]" : v < 0 ? "text-[var(--t-neg)]" : "";
           return (
             <tr key={b.ticker_corto}>
               <td className="!px-1 text-center font-medium" title={b.instrumento || ""}>

@@ -7,16 +7,11 @@ import type {
   FairValueDoc,
   FlujoTicker,
   ForwardDoc,
-  ForwardHistDoc,
   ForwardZscoreDoc,
   RentaFijaDoc,
 } from "@/lib/types";
 import { usePoll } from "@/lib/use-poll";
-import { FilterBtn, Panel, fmtHoraAR } from "@/components/ui";
-import { RentaFijaTable } from "@/components/renta-fija-table";
-import { ForwardsPanel } from "@/components/forwards-panel";
-import { CurvasChart } from "@/components/curvas-chart";
-import { BreakevensBlock } from "@/components/breakevens-block";
+import { FilterBtn, fmtHoraAR } from "@/components/ui";
 import { CurvasTab } from "@/components/curvas-tab";
 import { ForwardsTab } from "@/components/forwards-tab";
 import type { CurvasVista } from "@/lib/types";
@@ -38,10 +33,7 @@ interface SnapshotLive {
 interface Props {
   initialRentaFija:      RentaFijaDoc[];
   initialForwards:       ForwardDoc[];
-  initialBreakevens:     BreakevenDoc[];
   flujos:                FlujoTicker[];
-  breakevensHist:        BreakevenHistDoc[];
-  forwardsHist:          ForwardHistDoc[];
   forwardsZscore:        ForwardZscoreDoc[];
   fairValueInicial?:     Record<string, FairValueDoc>;
   curvasVista?:          CurvasVista;
@@ -50,10 +42,7 @@ interface Props {
 export function RentaFijaLiveView({
   initialRentaFija,
   initialForwards,
-  initialBreakevens,
   flujos,
-  breakevensHist,
-  forwardsHist,
   forwardsZscore,
   fairValueInicial,
   curvasVista,
@@ -65,17 +54,15 @@ export function RentaFijaLiveView({
   const initialSnapshot: SnapshotLive = useMemo(() => ({
     renta_fija: initialRentaFija,
     forwards:   initialForwards,
-    breakevens: initialBreakevens,
-  }), [initialRentaFija, initialForwards, initialBreakevens]);
+    breakevens: [],
+  }), [initialRentaFija, initialForwards]);
 
   const { data: snapshot, lastAt } = usePoll<SnapshotLive>(
     "/api/cotizaciones/snapshot-live", initialSnapshot, POLL_SNAPSHOT_MS,
   );
   const rentaFija  = snapshot.renta_fija;
   const forwards   = snapshot.forwards;
-  const breakevens = snapshot.breakevens;
 
-  const pares = breakevens[0]?.pares || [];
 
   // `lastAt === 0` → solo SSR todavía. Mismo timestamp para los 3 paneles:
   // el momento del fetch consolidado.
@@ -101,9 +88,6 @@ export function RentaFijaLiveView({
       <FilterBtn active={tab === "forwards"} onClick={() => setTab("forwards")}>
         FORWARDS
       </FilterBtn>
-      <FilterBtn active={tab === "clasica"} onClick={() => setTab("clasica")}>
-        CLÁSICA
-      </FilterBtn>
       <span className="w-px h-3 bg-[var(--t-border-2)] mx-1" />
     </>
   );
@@ -118,44 +102,13 @@ export function RentaFijaLiveView({
           flujos={flujos}
           fairValueInicial={fairValueInicial}
         />
-      ) : tab === "forwards" ? (
-        <>
-          <div className="flex items-center gap-2 shrink-0 text-xs">
-            {tabs}
-            {sub && <span className="ml-auto text-[var(--t-text-2)]">{sub}</span>}
-          </div>
-          <ForwardsTab
-            forwards={forwards}
-            historico={forwardsHist}
-            zscoreInicial={forwardsZscore}
-          />
-        </>
       ) : (
-        // La vista de SIEMPRE, sin tocar un panel. El paso 4 ya tiene su tab
-        // propia; esta queda como red de seguridad mientras se valida.
         <>
           <div className="flex items-center gap-2 shrink-0 text-xs">
             {tabs}
             {sub && <span className="ml-auto text-[var(--t-text-2)]">{sub}</span>}
           </div>
-          <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
-            <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-              <Panel title="RENTA FIJA" count={rentaFija.length} sub={sub} expandable>
-                <RentaFijaTable data={rentaFija} flujos={flujos} forwards={forwards} />
-              </Panel>
-              <Panel title="CURVAS" sub={sub} fill expandable>
-                <CurvasChart forwards={forwards} flujos={flujos} fairValueInicial={fairValueInicial} />
-              </Panel>
-            </div>
-            <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
-              <Panel title="FORWARDS" sub={sub} expandable>
-                <ForwardsPanel forwards={forwards} historico={forwardsHist} zscoreInicial={forwardsZscore} />
-              </Panel>
-              <Panel title="BREAKEVENS" sub={sub} fill expandable>
-                <BreakevensBlock pares={pares} historico={breakevensHist} />
-              </Panel>
-            </div>
-          </div>
+          <ForwardsTab forwards={forwards} zscoreInicial={forwardsZscore} />
         </>
       )}
     </div>
