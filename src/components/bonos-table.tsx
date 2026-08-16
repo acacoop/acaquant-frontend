@@ -40,7 +40,13 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
     );
   }
 
-  const esArs = bonos[0]?.moneda === "ARS";
+  // El LADO de la tabla, no la moneda del bono: son cosas distintas desde que un
+  // dual puede tener una pata de cada lado. TMVE8 es TAMAR (columna ARS) + DOLAR
+  // LINKED (columna USD): con `moneda` — que es ARS, y es correcto — el bono le
+  // cambiaba las columnas a TODA la tabla USD según qué fila cayera primera.
+  // `lado` lo manda el backend por fila y ya viene desde antes de los duales, así
+  // que este cambio funciona igual contra el backend viejo.
+  const esArs = bonos[0]?.lado === "ARS";
   // La columna solo aparece si ALGUIEN de esta pill la tiene: los bullet
   // (lecaps/boncaps) tienen pago final, los que amortizan en cuotas no.
   const hayPagoFinal = bonos.some((b) => b.flujo_vencimiento);
