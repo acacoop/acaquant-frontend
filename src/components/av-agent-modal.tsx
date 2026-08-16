@@ -263,6 +263,15 @@ function TabPreguntas({ data, enviando, notas, setNota, responder }: {
   setNota: (id: number, v: string) => void;
   responder: (id: number, respuesta: string) => void;
 }) {
+  // Los que la casa YA TIENE van primero: son los únicos donde no contestar
+  // tiene un costo hoy (esa posición no valúa). Marcarlos y dejarlos en la
+  // tarjeta 18 es lo mismo que no marcarlos.
+  const ordenadas = [...data.preguntas].sort((a, b) => {
+    const ca = a.contexto?.en_cartera === true ? 0 : 1;
+    const cb = b.contexto?.en_cartera === true ? 0 : 1;
+    return ca - cb || a.id - b.id;
+  });
+
   if (data.preguntas.length === 0 && data.decisiones.length === 0) {
     return (
       <p className="text-[11px] text-[var(--t-text-muted)]">
@@ -308,7 +317,7 @@ function TabPreguntas({ data, enviando, notas, setNota, responder }: {
               columna hay que scrollear tres pantallas para verlas; en dos entran
               de a doce y se contestan de arriba abajo. */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-            {data.preguntas.map((p) => (
+            {ordenadas.map((p) => (
               <Tarjeta key={p.id} p={p} enviando={enviando} nota={notas[p.id] ?? ""}
                        setNota={setNota} responder={responder} compacta />
             ))}
@@ -317,6 +326,22 @@ function TabPreguntas({ data, enviando, notas, setNota, responder }: {
       )}
     </div>
   );
+}
+
+// Los campos de la ficha que el backend manda en `contexto`. El front NO los
+// deriva ni los completa: si 1816 no mandó el emisor, la fila no aparece — una
+// celda vacía es honesta, un "—" inventado no.
+function fichaDe(ctx: Record<string, unknown> | null): [string, string][] {
+  if (!ctx) return [];
+  const s = (k: string) => (typeof ctx[k] === "string" ? (ctx[k] as string).trim() : "");
+  const filas: [string, string][] = [];
+  if (s("emisor")) filas.push(["Emisor", s("emisor")]);
+  if (s("denominacion")) filas.push(["Instrumento", s("denominacion")]);
+  const cur = s("curva_1816");
+  if (cur) filas.push(["Curva 1816", cur + (s("moneda") ? ` · ${s("moneda")}` : "")]);
+  const vto = s("vencimiento_1816");
+  if (vto) filas.push(["Vence", vto.slice(0, 10)]);
+  return filas;
 }
 
 function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
@@ -328,12 +353,53 @@ function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
   compacta?: boolean;
 }) {
   const ocupado = enviando === p.id;
+  const ctx = p.contexto ?? null;
+  const ficha = fichaDe(ctx);
+  const enCartera = ctx?.en_cartera === true;
+  // El TICKER se separa del resto de la pregunta: es lo que uno busca con la
+  // vista cuando recorre 21 tarjetas, y perdido dentro de un párrafo no se
+  // encuentra.
+  const ticker = (p.clave || "").startsWith("falta:") ? p.clave.slice(6) : "";
   return (
-    <div className={`border border-[var(--t-border)] bg-[var(--t-surface)] px-3 py-2 ${
+    <div className={`border bg-[var(--t-surface)] px-3 py-2 ${
+      enCartera ? "border-[var(--t-neg)]" : "border-[var(--t-border)]"} ${
       ocupado ? "opacity-50" : ""}`}>
-      <p className={`${compacta ? "text-[11px]" : "text-[12px]"} text-[var(--t-text)] leading-snug`}>
-        {p.pregunta}
-      </p>
+      {ticker ? (
+        <>
+          <div className="flex items-baseline gap-2">
+            <span className="text-[13px] font-bold tracking-wide text-[var(--t-text)] tabular-nums">
+              {ticker}
+            </span>
+            {/* Un bono en la tenencia que no está en mercado.curvas NO VALÚA:
+                eso no es una preferencia, es un arreglo pendiente, y tiene que
+                verse antes que el resto. */}
+            {enCartera && (
+              <span className="px-1 text-[9px] font-bold tracking-widest text-[var(--t-neg)] border border-[var(--t-neg)]">
+                EN CARTERA · NO VALÚA
+              </span>
+            )}
+          </div>
+          {/* La ficha en filas etiquetadas y no en prosa: con 21 tarjetas
+              iguales, alinear "Emisor" a la misma altura deja barrer la columna
+              con la vista en vez de leer 21 oraciones. */}
+          <dl className="mt-1 grid grid-cols-[64px_1fr] gap-x-2 gap-y-0.5">
+            {ficha.map(([k, v]) => (
+              <div key={k} className="contents">
+                <dt className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] pt-px">
+                  {k}
+                </dt>
+                <dd className="text-[10px] text-[var(--t-text)] leading-snug truncate" title={v}>
+                  {v}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      ) : (
+        <p className={`${compacta ? "text-[11px]" : "text-[12px]"} text-[var(--t-text)] leading-snug`}>
+          {p.pregunta}
+        </p>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         {p.opciones.map((o) => (
           <button
