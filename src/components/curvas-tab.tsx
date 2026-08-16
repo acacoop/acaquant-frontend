@@ -132,6 +132,12 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
           comían alto a los datos, que es lo que la vista tiene para dar. */}
       <div className="flex items-center gap-2 flex-wrap shrink-0 text-xs">
         {barra}
+        {/* Los SIN CLASIFICAR se sacaron de esta barra (2026-08-16, pedido del
+            user): es una pantalla de mercado y ese contador es una tarea de
+            mantenimiento. Ya vive donde se acciona — Manager → TÍTULOS · BONOS
+            lo muestra en el banner ámbar, con el botón para clasificar cada uno.
+            El campo sigue viajando en el payload: se sacó de la vista, no del
+            modelo. */}
         <span className="text-[var(--t-text-2)] ml-1">EMISOR</span>
         {data.emisores.map((e) => (
           <FilterBtn
@@ -142,14 +148,6 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
             {e.label} <span className="ml-1 opacity-60">{e.n}</span>
           </FilterBtn>
         ))}
-        {data.sin_clasificar.length > 0 && (
-          <span
-            className="ml-auto text-[var(--t-text-2)]"
-            title={data.sin_clasificar.join(", ")}
-          >
-            {data.sin_clasificar.length} sin clasificar
-          </span>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
