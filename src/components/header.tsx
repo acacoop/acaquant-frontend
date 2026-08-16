@@ -54,12 +54,6 @@ const NAV: Entry[] = [
   // me.modules a quien pueda escribir (allowlist de Mesa de Dinero) aunque no
   // tenga el rol — escribir implica ver.
   { kind: "link", href: "/aca",         label: "ACA",         module: "aca" },
-  // AV AGENT: el primer agente del sistema (docs/AV_AGENT.md en el backend).
-  // Módulo `ia` — el MISMO que gatea todo /api/ia, así el link y el endpoint no
-  // pueden decir cosas distintas. Va de primer nivel y no dentro de MERCADOS
-  // porque no es una vista de datos: es donde el agente conversa con la mesa, y
-  // enterrarla en un submenú es lo mismo que no tenerla.
-  { kind: "link", href: "/av-agent",    label: "AV AGENT",    module: "ia" },
   {
     kind: "group",
     label: "MERCADOS",

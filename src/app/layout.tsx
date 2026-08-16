@@ -8,6 +8,7 @@ import { SaludAlertasModal } from "@/components/salud-alertas-modal";
 import { SaludBoton } from "@/components/salud-boton";
 import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
+import { AvAgentModal } from "@/components/av-agent-modal";
 import { Header } from "@/components/header";
 import { PerfBoot } from "@/components/perf-boot";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -107,6 +108,15 @@ export default async function RootLayout({
                 automático salta ante un incidente confirmado; esto es para
                 mirar cuando uno quiere. */}
             {esAdmin && <SaludBoton />}
+            {/* AV AGENT (docs/AV_AGENT.md): el primer agente del sistema. Vive
+                ACÁ y no en el nav a propósito — no es una vista de datos que se
+                consulta, es un canal que interrumpe cuando tiene algo que
+                preguntar. Una entrada en el nav compite con RENTA FIJA y TRADING
+                (pantallas para trabajar) y pierde: nadie navega a un agente.
+                ADMIN-ONLY server-side, mismo criterio que SALUD — sin `manager`
+                el componente no existe en el HTML, no pollea y no puede mostrar
+                nada. El gate real es require_admin en el backend. */}
+            {esAdmin && <AvAgentModal />}
             <span>MERVAL / ROFEX</span>
           </div>
         </footer>
