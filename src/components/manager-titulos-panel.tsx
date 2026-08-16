@@ -950,9 +950,15 @@ function TabAltaTitulo({ prefill, onSaved }: { prefill?: TituloPrefill | null; o
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--t-border)] shrink-0 flex-wrap">
+        {/* El ALTA sigue teniendo dos formas y no es un resto del modelo viejo: un
+            corporativo se carga con otros campos (emisor, moneda de flujo, tasa de
+            cupón) y su write path todavía tiene que escribir `curva='on_<sector>'`,
+            porque el motor de TEA ramifica por ahí (engines/curvas.py:595). El día
+            que el motor use los ejes, los dos forms se funden en uno.
+            El LISTADO ya está fusionado: BONOS muestra y edita los dos. */}
         <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">Tipo de título</span>
-        <Pill label="Renta Fija" active={destino === "curvas"} onClick={() => setDestino("curvas")} />
-        <Pill label="ONs" active={destino === "ons"} onClick={() => setDestino("ons")} />
+        <Pill label="Soberano / Provincial" active={destino === "curvas"} onClick={() => setDestino("curvas")} />
+        <Pill label="Corporativo (ON)" active={destino === "ons"} onClick={() => setDestino("ons")} />
         {code && (
           <span className="text-[10px] ml-2 text-[var(--t-text-dim)]">
             {code}:{" "}
@@ -998,11 +1004,46 @@ function FlujosMini({ flujos }: { flujos: Record<string, unknown>[] }) {
   );
 }
 
+// ── Los EJES en la grilla ────────────────────────────────────────────────────
+// La columna CURVA se fue de la tabla: era una palabra escrita a mano por fila y
+// dejó de decidir nada (2026-08-16). Lo que define a un bono son sus EJES, así que
+// son los que se muestran Y por los que se filtra. Un bono sin ejes no es un bono
+// "raro": es uno que no se ve en NINGUNA tabla de renta fija, y por eso se canta
+// en rojo en vez de mostrarse como un guioncito más.
+
+const AJUSTE_LABEL: Record<string, string> = {
+  fija: "FIJA", cer: "CER", tamar: "TAMAR", badlar: "BADLAR",
+  dolar_linked: "DÓLAR LINKED", tpm: "TPM", caucion: "CAUCIÓN",
+};
+// Los ajustes que TODAVÍA no tienen curva. Un bono con uno de estos está bien
+// cargado y aun así no aparece en renta fija — es distinto de estar sin clasificar
+// y la grilla no puede decir lo mismo de los dos casos.
+const AJUSTES_SIN_CURVA = new Set(["badlar", "tpm", "caucion"]);
+
+function ejesDe(b: BonoMaster) {
+  const falta = !b.emisor_tipo || !b.moneda_eje || !b.ajuste;
+  const sinCurva = !falta && AJUSTES_SIN_CURVA.has(b.ajuste || "");
+  return { falta, sinCurva };
+}
+
+function PillEje({ txt, tono }: { txt: string; tono?: "emisor" | "moneda" | "ajuste" | "alt" }) {
+  const c = tono === "emisor" ? "text-[var(--t-text-muted)]"
+    : tono === "moneda" ? "text-[var(--t-text-dim)]"
+    : tono === "alt" ? "text-amber-500"
+    : "text-[var(--t-accent)]";
+  return <span className={`text-[10px] font-semibold tracking-wide ${c}`}>{txt}</span>;
+}
+
 function TabBonosListado({ onEditar }: { onEditar: (tc: string) => void }) {
   const [bonos, setBonos] = useState<BonoMaster[]>([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
-  const [curvaF, setCurvaF] = useState("");
+  // Un filtro por EJE, no por el string `curva`. Se pueden combinar.
+  const [fEmisor, setFEmisor] = useState("");
+  const [fMoneda, setFMoneda] = useState("");
+  const [fAjuste, setFAjuste] = useState("");
+  // Atajo al problema real: los que no entran a ninguna tabla.
+  const [soloProblemas, setSoloProblemas] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
@@ -1012,12 +1053,7 @@ function TabBonosListado({ onEditar }: { onEditar: (tc: string) => void }) {
       .then((d: { bonos: BonoMaster[] }) => setBonos(d.bonos || []))
       .catch(() => {}).finally(() => setLoading(false));
   }, []);
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/manager/bonos").then((r) => r.json())
-      .then((d: { bonos: BonoMaster[] }) => { if (alive) setBonos(d.bonos || []); }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
+  useEffect(() => { fetchBonos(); }, [fetchBonos]);
 
   const borrar = async (tc: string) => {
     if (!window.confirm(`¿Dar de baja ${tc}? Se elimina de Curvas → deja de figurar en Renta Fija.`)) return;
@@ -1030,40 +1066,85 @@ function TabBonosListado({ onEditar }: { onEditar: (tc: string) => void }) {
   };
 
   const ql = q.trim().toLowerCase();
-  const filtered = bonos
-    .filter((b) => (!curvaF || b.curva === curvaF)
-      && (!ql || [b.ticker_corto, b.ticker, b.tipo, b.curva].some((v) => (v || "").toLowerCase().includes(ql))))
-    .sort((a, b) => (a.fecha_vencimiento || "9999").localeCompare(b.fecha_vencimiento || "9999"));
-  const curvasSet = Array.from(new Set(bonos.map((b) => b.curva).filter(Boolean))) as string[];
+  const filtered = bonos.filter((b) => {
+    const { falta, sinCurva } = ejesDe(b);
+    if (soloProblemas && !(falta || sinCurva || bonoFlujoResumen(b).falta || !b.fecha_vencimiento)) return false;
+    if (fEmisor && b.emisor_tipo !== fEmisor) return false;
+    if (fMoneda && b.moneda_eje !== fMoneda) return false;
+    // El ajuste matchea contra las DOS patas: buscar TAMAR tiene que traer los
+    // duales CER+TAMAR, que es exactamente lo que el modelo viejo escondía.
+    if (fAjuste && b.ajuste !== fAjuste && b.ajuste_alt !== fAjuste) return false;
+    if (ql && ![b.ticker_corto, b.ticker, b.tipo, b.emisor].some((v) => (v || "").toLowerCase().includes(ql))) return false;
+    return true;
+  });
+
+  const nSinEjes = bonos.filter((b) => ejesDe(b).falta).length;
+  const nSinCurva = bonos.filter((b) => ejesDe(b).sinCurva).length;
   const nFalta = filtered.filter((b) => bonoFlujoResumen(b).falta || !b.fecha_vencimiento).length;
+  // `w-auto` en un flex-wrap hacía que los selects se estiraran a todo el ancho
+  // (el desplegable gigante del reporte). Ancho fijo y chico.
+  const sel = _onInput + " !w-[7.5rem] shrink-0";
 
   return (
     <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <input className={_onInput + " w-48"} placeholder="buscar ticker / tipo…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className={_onInput + " w-auto"} value={curvaF} onChange={(e) => setCurvaF(e.target.value)}>
-          <option value="">todas las curvas</option>
-          {curvasSet.sort().map((c) => <option key={c} value={c}>{c}</option>)}
+      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+        <input className={_onInput + " w-44 shrink-0"} placeholder="ticker / emisor…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select className={sel} value={fEmisor} onChange={(e) => setFEmisor(e.target.value)}>
+          <option value="">emisor: todos</option>
+          {EJE_EMISORES.map((v) => <option key={v} value={v}>{v}</option>)}
         </select>
-        <span className="text-[11px] text-[var(--t-text-dim)]">{filtered.length} bonos · {nFalta} incompletos</span>
-        <button type="button" onClick={fetchBonos} className={_onInput + " w-auto"}>↻</button>
+        <select className={sel} value={fMoneda} onChange={(e) => setFMoneda(e.target.value)}>
+          <option value="">moneda: todas</option>
+          {EJE_MONEDAS.map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+        <select className={sel} value={fAjuste} onChange={(e) => setFAjuste(e.target.value)}>
+          <option value="">ajuste: todos</option>
+          {EJE_AJUSTES.map((v) => <option key={v} value={v}>{AJUSTE_LABEL[v] || v}</option>)}
+        </select>
+        <Pill label="solo problemas" active={soloProblemas} onClick={() => setSoloProblemas((v) => !v)} />
+        <button type="button" onClick={fetchBonos} className={_onInput + " !w-8 shrink-0"} title="recargar">↻</button>
+        <span className="text-[11px] text-[var(--t-text-dim)] ml-auto">
+          {filtered.length} de {bonos.length}
+          {nFalta > 0 && <> · <span className="text-red-500 font-semibold">{nFalta} sin flujo/vto</span></>}
+        </span>
       </div>
+
+      {(nSinEjes > 0 || nSinCurva > 0) && (
+        <div className="mb-2 px-2 py-1.5 border border-amber-500/40 bg-amber-500/10 text-[10px] leading-relaxed">
+          {nSinEjes > 0 && <><span className="font-semibold text-amber-600">{nSinEjes} sin clasificar</span> — sin emisor/moneda/ajuste no entran a NINGUNA tabla de renta fija. </>}
+          {nSinCurva > 0 && <><span className="font-semibold">{nSinCurva} con ajuste sin curva</span> (badlar/tpm/caución): están bien cargados, pero esas familias todavía no tienen tabla propia.</>}
+        </div>
+      )}
+
       <table>
-        <thead><tr><th>Ticker</th><th>ROFEX</th><th>Curva</th><th>Tipo</th><th>Vto</th><th>Mon</th><th className="text-right">VN</th><th className="text-right">Cupón</th><th>Flujo</th><th></th></tr></thead>
+        <thead><tr><th>Ticker</th><th>ROFEX</th><th>Clasificación</th><th>Emisor</th><th>Vto</th><th className="text-right">VN</th><th className="text-right">Cupón</th><th>Flujo</th><th></th></tr></thead>
         <tbody>
           {filtered.map((b) => {
             const fl = bonoFlujoResumen(b);
             const sinVto = !b.fecha_vencimiento;
+            const { falta, sinCurva } = ejesDe(b);
             const open = expanded === b.ticker_corto;
             return (
               <Fragment key={b.ticker_corto}>
-                <tr className={fl.falta || sinVto ? "bg-red-500/10" : ""}>
+                <tr className={falta ? "bg-amber-500/10" : (fl.falta || sinVto ? "bg-red-500/10" : "")}>
                   <td className="font-semibold">{b.ticker_corto}</td>
                   <td className="text-[10px] text-[var(--t-text-dim)]">{b.ticker ? unwrapTicker(b.ticker) : "--"}</td>
-                  <td>{b.curva || "--"}</td>
-                  <td>{b.tipo || "--"}</td>
+                  <td className="whitespace-nowrap">
+                    {falta
+                      ? <button type="button" onClick={() => onEditar(b.ticker_corto)} className="text-[10px] font-semibold text-amber-600 underline" title="Sin ejes: no aparece en ninguna tabla. Clic para clasificarlo.">⚠️ sin clasificar</button>
+                      : (
+                        <span className="inline-flex items-center gap-1">
+                          <PillEje txt={(b.emisor_tipo || "").slice(0, 4).toUpperCase()} tono="emisor" />
+                          <PillEje txt={b.moneda_eje || ""} tono="moneda" />
+                          <PillEje txt={AJUSTE_LABEL[b.ajuste || ""] || (b.ajuste || "")} tono="ajuste" />
+                          {b.ajuste_alt && <PillEje txt={"+ " + (AJUSTE_LABEL[b.ajuste_alt] || b.ajuste_alt)} tono="alt" />}
+                          {b.ley && <span className="text-[9px] text-[var(--t-text-dim)]">({b.ley})</span>}
+                          {sinCurva && <span className="text-[9px] text-amber-500" title="Este ajuste todavía no tiene curva propia">sin curva</span>}
+                        </span>
+                      )}
+                  </td>
+                  <td className="text-[10px] max-w-[12rem] truncate" title={b.emisor || ""}>{b.emisor || "--"}</td>
                   <td className={"tabular-nums " + (sinVto ? "text-red-500 font-semibold" : "")}>{sinVto ? "⚠️ sin vto" : (b.fecha_vencimiento || "").slice(0, 10)}</td>
-                  <td>{b.moneda_flujo || "--"}</td>
                   <td className="tabular-nums text-right">{b.valor_nominal ?? "--"}</td>
                   <td className="tabular-nums text-right">{b.cupon_anual ?? "--"}</td>
                   <td>
@@ -1072,13 +1153,13 @@ function TabBonosListado({ onEditar }: { onEditar: (tc: string) => void }) {
                     </button>
                   </td>
                   <td className="text-right whitespace-nowrap">
-                    <button type="button" onClick={() => onEditar(b.ticker_corto)} className={_onInput + " w-auto text-[10px] mr-1"}>editar</button>
+                    <button type="button" onClick={() => onEditar(b.ticker_corto)} className={_onInput + " !w-auto px-1.5 text-[10px] mr-1"}>editar</button>
                     <button type="button" disabled={busy[b.ticker_corto]} onClick={() => borrar(b.ticker_corto)} className="px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white disabled:opacity-50">baja</button>
                   </td>
                 </tr>
                 {open && (
                   <tr>
-                    <td colSpan={10} className="bg-[var(--t-panel)] p-2">
+                    <td colSpan={9} className="bg-[var(--t-panel)] p-2">
                       {b.flujos?.length
                         ? <FlujosMini flujos={b.flujos} />
                         : <span className="text-[10px] text-[var(--t-text-dim)]">{b.flujo_vencimiento != null ? `Bullet: paga ${b.flujo_vencimiento} por 100 VN al vencimiento.` : "Sin flujos cargados."}</span>}
