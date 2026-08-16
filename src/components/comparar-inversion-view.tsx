@@ -228,10 +228,13 @@ const COLOR_A = "#ff9900";
 const COLOR_B = "#3fbf6f";
 
 // Agrupa el campo `curva` crudo en familias amigables para el filtro previo de
-// selección (Soberanos / CER / Tasa Fija / ONs / Dólar-Linked / …).
+// selección (Soberanos / CER / Tasa Fija / Dólar-Linked / …).
+//
+// `on_*` NO se contempla: dejó de ser una curva el 2026-08-16 (ser corporativo
+// es un EJE del emisor). Una ON en USD a tasa fija cae en Soberanos, que es
+// contra quién se compara su rendimiento.
 function grupoCurva(curva: string): string {
   const c = (curva || "").toLowerCase();
-  if (c.startsWith("on")) return "ONs";
   if (c === "cer") return "CER";
   if (c === "tasa_fija") return "Tasa Fija";
   if (c === "dolar_linked") return "Dólar-Linked";

@@ -41,7 +41,6 @@ const VISTA_IA_POR_RUTA: Record<string, string> = {
   "/renta-variable": "renta_variable",
   "/agro": "agro",
   "/derivados": "derivados",
-  "/ons": "ons",
 };
 
 const NAV: Entry[] = [
@@ -63,7 +62,6 @@ const NAV: Entry[] = [
       { href: "/agro",           label: "Agro",           module: "agro" },
       { href: "/derivados",      label: "Derivados",      module: "derivados" },
       { href: "/retorno",        label: "Estrategia",     module: "estrategia" },
-      { href: "/ons",            label: "ONs",            module: "renta-fija" },
       { href: "/renta-fija",     label: "Renta Fija",     module: "renta-fija" },
       { href: "/renta-variable", label: "Renta Variable", module: "renta-variable" },
       { href: "/sinteticos",     label: "Sintéticos",     module: "sinteticos" },
