@@ -36,13 +36,17 @@ function fmtMatur(iso: string | null | undefined): string {
   return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(2, 4)}`;
 }
 
-// La rueda de las tasas que NO vienen del motor live, o "" si son todas del
-// motor. Se muestra UNA vez arriba de la tabla en lugar de un ícono por fila:
-// el aviso importa una vez, y repetirlo 18 veces lo vuelve invisible.
-function filasConDelay(bonos: BonoCurva[]): string {
-  const f = bonos.find((b) => b.tea_fuente && b.tea_fecha);
-  return f?.tea_fecha ? String(f.tea_fecha).slice(0, 10) : "";
-}
+// Esta fila NO trae la tasa del motor live: la pata que la vista muestra acá no
+// la calcula el sistema todavía y llega de 1816, con delay. Se marca con un `*`
+// pegado al número y el porqué en el tooltip.
+//
+// Antes esto era un cartel arriba de la tabla y estaba MAL de dos formas: el
+// hecho es POR FILA (un solo dual TAMAR+DOLAR LINKED prendía el aviso en toda la
+// tabla de DOLAR LINKED, donde el resto de los bonos sí es live) y además esta
+// pantalla se le pasa a clientes — un renglón de texto explicativo la ensucia.
+const de1816 = (b: BonoCurva) => b.tea_fuente === "1816";
+const tip1816 =
+  "Tasa de 1816 (actualiza cada 30 min). Esta pata todavía no la calcula el motor, así que no es live.";
 
 const pct = (v: number | undefined, d = 1) =>
   v === undefined || v === null ? "--" : `${(v * 100).toFixed(d)}%`;
@@ -78,11 +82,6 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
   // necesidad de preguntarle a la pill: si algún día 1816 publica margen para
   // otra familia, la columna aparece ahí también.
   const hayMargen = bonos.some((b) => b.margen != null);
-  // La tasa de 1816 llega por un job cada 30', no por el motor live. Decirlo una
-  // vez arriba es más honesto que repetir un ícono en cada fila, y evita que
-  // alguien compare un TAMAR contra un soberano creyendo que son del mismo
-  // instante. `tea_fecha` es la rueda REAL del dato (puede ser la anterior).
-  const delayed = filasConDelay(bonos);
   // Mismo orden que la vista de siempre: por duration, y los que todavía no
   // tienen (ticker nuevo sin enriquecer) al final en vez de arriba.
   const filas = [...bonos].sort(
@@ -90,13 +89,6 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
   );
 
   return (
-    <>
-    {delayed && (
-      <div className="px-1 pb-1 text-[10px] text-[var(--t-text-2)]"
-           title="Los bonos TAMAR no se valúan con el motor live: la tasa y el margen se traen de 1816, que es la misma fuente que valida la mesa. Se actualizan cada 30 minutos.">
-        Tasa y margen de 1816 · rueda {fmtMatur(delayed)} · actualiza cada 30′
-      </div>
-    )}
     <table className="w-full">
       <thead>
         <tr>
@@ -180,7 +172,11 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
               <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>
                 {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`}
               </td>
-              <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>{pct(m.TEA)}</td>
+              <td className={`!px-1 text-center ${tasaCls(b)}`}
+                  title={de1816(b) ? tip1816 : tasaTip(b)}>
+                {pct(m.TEA)}
+                {de1816(b) && <span className="opacity-50" title={tip1816}>*</span>}
+              </td>
               {hayMargen && (
                 <td className="!px-1 text-center font-medium"
                     title={b.margen == null ? "1816 no publica margen para este bono" : ""}>
@@ -209,6 +205,5 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
         })}
       </tbody>
     </table>
-    </>
   );
 }
