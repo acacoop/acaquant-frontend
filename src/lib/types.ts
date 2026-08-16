@@ -166,6 +166,15 @@ export interface BonoCurva {
   // Por eso `bonos` puede tener más filas que bonos: filtrá por `pill` como
   // siempre y no cuentes bonos con `bonos.length`.
   ajuste_alt:        string | null;
+  // TC al que el bono en pesos empata contra comprar MEP hoy y esperar al
+  // vencimiento. Solo en tasa fija (flujo final determinado); `null` = no se pudo
+  // calcular (sin MEP, sin flujo final) — NUNCA 0, que se leería como un TC.
+  tc_breakeven?:     number | null;
+  // La TEA de este bono es un ARTEFACTO de plazo, no un rendimiento: con duration
+  // ~0, anualizar pocos días infla el número a tres dígitos. Lo decide el BACKEND
+  // para que la tabla y el gráfico no puedan contradecirse. La tabla la muestra
+  // apagada; el gráfico la EXCLUYE (un solo 142% aplasta a los otros 120 bonos).
+  tasa_ruido?:       boolean;
   // La INDUSTRIA del EMISOR (`mercado.emisores`), resuelta por el backend en la
   // lectura. Solo viaja para corporativos — un soberano no tiene industria.
   // `null` en un corporativo = SIN CLASIFICAR, y se muestra como grupo propio:

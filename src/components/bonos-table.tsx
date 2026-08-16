@@ -5,6 +5,16 @@ import { fmtPrice, fmtVol } from "./ui";
 
 // Tabla de la tab CURVAS (docs/RENTA_FIJA.md §0, paso 3b).
 //
+// Una tasa con duration ~0 no es un rendimiento: es un artefacto de anualizar
+// pocos días. Se muestra APAGADA con el motivo en el tooltip. Quién es ruido lo
+// decide el BACKEND (`tasa_ruido`) — acá solo se pinta, así la tabla y el gráfico
+// no pueden discrepar.
+const tasaCls = (b: BonoCurva) => (b.tasa_ruido ? "opacity-40" : "");
+const tasaTip = (b: BonoCurva) =>
+  b.tasa_ruido
+    ? "Vence en pocos días: anualizar ese plazo infla la tasa. No es comparable con el resto de la curva."
+    : "";
+
 // A diferencia de `renta-fija-table`, acá NO se clasifica ni se filtra por curva:
 // las filas llegan YA resueltas por el backend (`/api/cotizaciones/curvas-vista`).
 // Este componente solo formatea.
@@ -50,6 +60,10 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
   // La columna solo aparece si ALGUIEN de esta pill la tiene: los bullet
   // (lecaps/boncaps) tienen pago final, los que amortizan en cuotas no.
   const hayPagoFinal = bonos.some((b) => b.flujo_vencimiento);
+  // TC BREAKEVEN: solo en pesos (en USD no significa nada) y solo si el backend
+  // lo pudo calcular — necesita flujo final determinado + MEP. Estaba en la tabla
+  // vieja y se había perdido en esta.
+  const hayTcBe = bonos.some((b) => b.tc_breakeven != null);
   // Mismo orden que la vista de siempre: por duration, y los que todavía no
   // tienen (ticker nuevo sin enriquecer) al final en vez de arriba.
   const filas = [...bonos].sort(
@@ -68,6 +82,12 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
           {hayPagoFinal && (
             <th className="!px-1 text-center" title="Pago al vencimiento por 100 VN (bullet)">
               Pago Final
+            </th>
+          )}
+          {hayTcBe && (
+            <th className="!px-1 text-center"
+                title="TC al que este bono empata contra comprar MEP hoy y esperar al vencimiento">
+              TC BE
             </th>
           )}
           <th className="!px-1 text-center">TNA</th>
@@ -109,16 +129,28 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
                   {b.flujo_vencimiento ? fmtPrice(b.flujo_vencimiento) : "--"}
                 </td>
               )}
+              {hayTcBe && (
+                <td className="!px-1 text-center">
+                  {b.tc_breakeven != null
+                    ? Math.round(b.tc_breakeven).toLocaleString("es-AR")
+                    : "--"}
+                </td>
+              )}
               {/* TNA y TEM se DERIVAN de la TEA con la misma fórmula que la vista
                   de siempre (TEM = (1+TEA)^(1/12)−1, TNA = TEM×12): el snapshot
                   no publica TNA, y calcularla de otra forma daría un número que
                   no coincide con el que la mesa viene mirando. */}
-              <td className="!px-1 text-center">
+              {/* Tasa RUIDO (duration ~0): el número se MUESTRA pero apagado y
+                  con el porqué en el tooltip. Ocultarlo sería mentir por omisión;
+                  mostrarlo como si fuera comparable con un bono a 5 años es peor.
+                  Lo decide el backend (`tasa_ruido`) para que la tabla y el
+                  gráfico no puedan contradecirse. */}
+              <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>
                 {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`}
               </td>
-              <td className="!px-1 text-center">{pct(m.TEA)}</td>
+              <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>{pct(m.TEA)}</td>
               {esArs && (
-                <td className="!px-1 text-center">
+                <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>
                   {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 100).toFixed(2)}%`}
                 </td>
               )}

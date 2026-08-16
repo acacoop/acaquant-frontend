@@ -229,8 +229,10 @@ export function CurvasChart({
   const metricaUsada: Metrica =
     curva === "cer" || curva === "soberanos" ? "TEA" : metrica;
 
-  const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
+  const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos,
+          nRuido } = useMemo(() => {
     const puntosPorTipo: Record<string, Punto[]> = {};
+    let nRuido = 0;          // excluidos por tasa-artefacto (se avisa al pie)
     const pushPunto = (tipo: string | null | undefined, p: Punto) => {
       const t = (tipo || "default").toLowerCase();
       (puntosPorTipo[t] ??= []).push(p);
@@ -245,6 +247,12 @@ export function CurvasChart({
         const dur = b.metrics?.duration;
         const tea = b.metrics?.TEA;
         if (!b.ticker_corto || dur == null || dur <= 0 || tea == null) continue;
+        // ⚠️ Las tasas RUIDO no se grafican. Un bono a 3 días con TEA 142% no es
+        // un punto alto de la curva: es un artefacto de anualizar pocos días, y
+        // UNO SOLO estira el eje Y hasta aplastar a los otros 120 bonos contra el
+        // cero (visto en pantalla el 2026-08-16 con AFCHO, CS450 y HBCAO).
+        // Sigue en la TABLA, apagado — se saca del gráfico, no del dato.
+        if (b.tasa_ruido) { nRuido++; continue; }
         const teaPct = tea * 100;
         const temPct = b.metrics?.TEM != null
           ? b.metrics.TEM * 100
@@ -346,6 +354,7 @@ export function CurvasChart({
       puntosPorTipo,
       fitPorTipo,
       tipos,
+      nRuido,
       yMin: yScale.min,
       yMax: yScale.max,
       yTicks: yScale.ticks,
@@ -500,6 +509,17 @@ export function CurvasChart({
         </div>
       ) : totalPuntos >= 2 ? (
         <div className="flex-1 min-h-0 relative">
+          {/* Se AVISA cuántos quedaron afuera y por qué. Un gráfico que descarta
+              puntos en silencio hace pensar que el bono no existe; el aviso lo
+              manda a buscarlo a la tabla, donde sigue estando. */}
+          {nRuido > 0 && (
+            <span
+              className="absolute top-0 right-2 z-10 text-[9px] text-[var(--t-text-2)]"
+              title="Vencen en pocos días: anualizar ese plazo infla la tasa y deforma la escala. Siguen en la tabla."
+            >
+              {nRuido} fuera de escala (siguen en la tabla)
+            </span>
+          )}
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
             <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
               <XAxis

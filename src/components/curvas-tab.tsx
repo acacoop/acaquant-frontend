@@ -92,16 +92,20 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   );
 
   // Filtro de EMISOR: client-side a propósito. El emisor viaja en cada bono, así
-  // que cambiarlo NO le pega al backend. Vacío = todos (decisión del user al
-  // eliminar la vista de ONs: los corporativos se ven de entrada).
+  // que cambiarlo NO le pega al backend.
+  //
+  // ⚠️ NUNCA queda vacío. Antes "ninguno seleccionado" significaba "todos", y eso
+  // hacía que la pantalla contradijera a sus propios controles: con las 4 pills
+  // apagadas la tabla igual mostraba 129 bonos. Peor: como en ARS mandan los
+  // soberanos y en USD los corporativos, parecía un filtro aplicado al revés.
+  // Ahora el último activo no se puede apagar → lo que se ve es SIEMPRE lo que
+  // está encendido.
   const [emisores, setEmisores] = useState<string[]>(["soberano"]);
   const [pillArs, setPillArs] = useState("tasa_fija");
   const [pillUsd, setPillUsd] = useState("hard_dolar");
 
   const bonos = useMemo(
-    () => (emisores.length === 0
-      ? data.bonos
-      : data.bonos.filter((b) => emisores.includes(b.emisor_tipo))),
+    () => data.bonos.filter((b) => emisores.includes(b.emisor_tipo)),
     [data.bonos, emisores],
   );
 
@@ -115,8 +119,12 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   );
 
   const toggle = (cod: string) =>
-    setEmisores((prev) =>
-      prev.includes(cod) ? prev.filter((x) => x !== cod) : [...prev, cod]);
+    setEmisores((prev) => {
+      if (!prev.includes(cod)) return [...prev, cod];
+      // Apagar el ÚLTIMO no hace nada: un filtro vacío no tiene lectura honesta
+      // (o miente mostrando todo, o deja la pantalla muerta).
+      return prev.length === 1 ? prev : prev.filter((x) => x !== cod);
+    });
 
   return (
     <div className="h-full min-h-0 flex flex-col gap-2">
