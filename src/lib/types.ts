@@ -161,6 +161,11 @@ export interface BonoCurva {
   emisor:            string | null;
   moneda:            string;
   ajuste:            string;
+  // La SEGUNDA pata de un dual. Un dual llega REPETIDO — una fila por pill, misma
+  // ficha, distinto `pill`/`lado` — porque el trader lo mira en sus dos tablas.
+  // Por eso `bonos` puede tener más filas que bonos: filtrá por `pill` como
+  // siempre y no cuentes bonos con `bonos.length`.
+  ajuste_alt:        string | null;
   ley:               string | null;   // local (Bonar) | ny (Global)
   tipo:              string | null;
   vencimiento:       string | null;
