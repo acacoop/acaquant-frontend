@@ -36,6 +36,14 @@ function fmtMatur(iso: string | null | undefined): string {
   return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(2, 4)}`;
 }
 
+// La rueda de las tasas que NO vienen del motor live, o "" si son todas del
+// motor. Se muestra UNA vez arriba de la tabla en lugar de un ícono por fila:
+// el aviso importa una vez, y repetirlo 18 veces lo vuelve invisible.
+function filasConDelay(bonos: BonoCurva[]): string {
+  const f = bonos.find((b) => b.tea_fuente && b.tea_fecha);
+  return f?.tea_fecha ? String(f.tea_fecha).slice(0, 10) : "";
+}
+
 const pct = (v: number | undefined, d = 1) =>
   v === undefined || v === null ? "--" : `${(v * 100).toFixed(d)}%`;
 const num = (v: number | undefined, d = 2) =>
@@ -64,6 +72,17 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
   // lo pudo calcular — necesita flujo final determinado + MEP. Estaba en la tabla
   // vieja y se había perdido en esta.
   const hayTcBe = bonos.some((b) => b.tc_breakeven != null);
+  // MARGEN sobre la TAMAR: es LO que se mira de un bono TAMAR (cuánto paga por
+  // encima de la tasa de referencia del BCRA), y hasta ahora no existía en la
+  // app. La columna aparece sola donde hay dato — o sea en la pill TAMAR — sin
+  // necesidad de preguntarle a la pill: si algún día 1816 publica margen para
+  // otra familia, la columna aparece ahí también.
+  const hayMargen = bonos.some((b) => b.margen != null);
+  // La tasa de 1816 llega por un job cada 30', no por el motor live. Decirlo una
+  // vez arriba es más honesto que repetir un ícono en cada fila, y evita que
+  // alguien compare un TAMAR contra un soberano creyendo que son del mismo
+  // instante. `tea_fecha` es la rueda REAL del dato (puede ser la anterior).
+  const delayed = filasConDelay(bonos);
   // Mismo orden que la vista de siempre: por duration, y los que todavía no
   // tienen (ticker nuevo sin enriquecer) al final en vez de arriba.
   const filas = [...bonos].sort(
@@ -71,6 +90,13 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
   );
 
   return (
+    <>
+    {delayed && (
+      <div className="px-1 pb-1 text-[10px] text-[var(--t-text-2)]"
+           title="Los bonos TAMAR no se valúan con el motor live: la tasa y el margen se traen de 1816, que es la misma fuente que valida la mesa. Se actualizan cada 30 minutos.">
+        Tasa y margen de 1816 · rueda {fmtMatur(delayed)} · actualiza cada 30′
+      </div>
+    )}
     <table className="w-full">
       <thead>
         <tr>
@@ -92,6 +118,12 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
           )}
           <th className="!px-1 text-center">TNA</th>
           <th className="!px-1 text-center">TEA</th>
+          {hayMargen && (
+            <th className="!px-1 text-center"
+                title="Margen sobre la TAMAR: cuánto paga este bono por encima de la tasa de referencia del BCRA. Fuente 1816.">
+              MARGEN
+            </th>
+          )}
           {esArs && <th className="!px-1 text-center">TEM</th>}
           <th className="!px-1 text-center">DUR</th>
           <th className="!px-1 text-center">MOD DUR</th>
@@ -149,6 +181,12 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
                 {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`}
               </td>
               <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>{pct(m.TEA)}</td>
+              {hayMargen && (
+                <td className="!px-1 text-center font-medium"
+                    title={b.margen == null ? "1816 no publica margen para este bono" : ""}>
+                  {pct(b.margen ?? undefined, 2)}
+                </td>
+              )}
               {esArs && (
                 <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>
                   {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 100).toFixed(2)}%`}
@@ -171,5 +209,6 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
         })}
       </tbody>
     </table>
+    </>
   );
 }

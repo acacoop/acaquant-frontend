@@ -166,6 +166,21 @@ export interface BonoCurva {
   // Por eso `bonos` puede tener más filas que bonos: filtrá por `pill` como
   // siempre y no cuentes bonos con `bonos.length`.
   ajuste_alt:        string | null;
+  // Cuál de las dos patas del bono es ESTA fila (`cer` en la tabla CER, `tamar`
+  // en la de TAMAR). Antes las dos filas de un dual llevaban la MISMA tasa,
+  // porque el snapshot tiene una sola por símbolo — y entre las patas de TXMD9
+  // hay ~2.900 bps (6,82% real por CER contra 38,62% nominal por TAMAR).
+  pata?:             string | null;
+  // De dónde salió la TEA de esta fila. `null`/ausente = del motor (Primary,
+  // live). `"1816"` = del job `tamar_1816`, que corre cada 30' y por lo tanto
+  // tiene DELAY y puede ser de la rueda de `tea_fecha`. Viaja siempre para que
+  // una tasa nunca obligue a adivinar su procedencia.
+  tea_fuente?:       string | null;
+  tea_fecha?:        string | null;   // la rueda a la que corresponde (YYYY-MM-DD)
+  // El MARGEN sobre la TAMAR: lo que la mesa realmente mira de un bono TAMAR
+  // (cuánto paga por encima de la tasa de referencia del BCRA). En FRACCIÓN
+  // (0.0973 = 9,73%), la misma escala que la TEA. `null` = no lo tenemos.
+  margen?:           number | null;
   // TC al que el bono en pesos empata contra comprar MEP hoy y esperar al
   // vencimiento. Solo en tasa fija (flujo final determinado); `null` = no se pudo
   // calcular (sin MEP, sin flujo final) — NUNCA 0, que se leería como un TC.
