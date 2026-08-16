@@ -1205,20 +1205,54 @@ function TabBonos() {
   };
   const onSaved = () => { setDataKey((k) => k + 1); };
 
+  // La vista pasa de CUATRO CUADRANTES a tres solapas. El motivo no es estético:
+  // en 2×2 el formulario de alta entraba en un cuarto de pantalla y había que
+  // scrollear adentro de un panel para cargar un bono, mientras CONCILIAR —que
+  // ya no se usa— ocupaba el mismo espacio que la tarea principal.
+  //
+  //   CARGAR   (default) — el form a ancho completo. Es a lo que se entra.
+  //   BONOS               — ver / editar el master.
+  //   REVISAR             — lo que hay que mirar, junto: sin TEA + sin flujo.
+  //
+  // CONCILIAR se fusionó adentro de REVISAR: son la misma pregunta ("¿qué le
+  // falta a este bono?") partida en dos paneles por razones históricas.
+  const [vista, setVista] = usePersistedState<"cargar" | "listado" | "revisar">(
+    "manager.titulos.bonos.vista", "cargar");
+  // Editar o dar de alta desde otra solapa tiene que TRAER al form, si no el
+  // prefill se escribe en una pantalla que no se está mirando.
+  const irACargar = () => setVista("cargar");
+
   return (
-    <div className="h-full grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-2 gap-2 p-2 min-h-0">
-      <QuadPanel title="Ver / editar bonos">
-        <TabBonosListado key={`list-${dataKey}`} onEditar={editarBono} />
-      </QuadPanel>
-      <QuadPanel title="Agregar / editar">
-        <TabAltaTitulo key={`alta-${prefillKey}`} prefill={prefill} onSaved={onSaved} />
-      </QuadPanel>
-      <QuadPanel title="Conciliar — títulos sin flujo">
-        <TabBonosControl key={`conc-${dataKey}`} onDarDeAlta={darDeAlta} />
-      </QuadPanel>
-      <QuadPanel title="Errores de tasa — bonos sin TEA">
-        <BonosErroresPanel reloadKey={dataKey} />
-      </QuadPanel>
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-1 px-2 pt-2">
+        <Pill label="CARGAR" active={vista === "cargar"} onClick={() => setVista("cargar")} />
+        <Pill label="BONOS" active={vista === "listado"} onClick={() => setVista("listado")} />
+        <Pill label="REVISAR" active={vista === "revisar"} onClick={() => setVista("revisar")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-hidden p-2">
+        {vista === "cargar" && (
+          <QuadPanel title="Agregar / editar bono">
+            <TabAltaTitulo key={`alta-${prefillKey}`} prefill={prefill} onSaved={onSaved} />
+          </QuadPanel>
+        )}
+        {vista === "listado" && (
+          <QuadPanel title="Ver / editar bonos">
+            <TabBonosListado key={`list-${dataKey}`}
+                             onEditar={(tc) => { editarBono(tc); irACargar(); }} />
+          </QuadPanel>
+        )}
+        {vista === "revisar" && (
+          <div className="h-full grid grid-cols-1 lg:grid-cols-2 gap-2 min-h-0">
+            <QuadPanel title="Sin TEA — el bono cotiza y no muestra tasa">
+              <BonosErroresPanel reloadKey={dataKey} />
+            </QuadPanel>
+            <QuadPanel title="Sin flujo — está en cartera y no tiene cronograma">
+              <TabBonosControl key={`conc-${dataKey}`}
+                               onDarDeAlta={(b) => { darDeAlta(b); irACargar(); }} />
+            </QuadPanel>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
