@@ -91,6 +91,16 @@ function _familia(ley: string | null | undefined): string | null {
   return l === "local" ? "bonares" : l === "ny" ? "globales" : null;
 }
 
+// A qué FAMILIA pertenece un bono en el gráfico. Un soberano se separa por LEY
+// (Bonar/Global) y un corporativo por la INDUSTRIA de su emisor. Vive UNA sola vez
+// porque lo usan los puntos Y la leyenda: si cada uno lo derivara a su manera, la
+// leyenda podría ofrecer un filtro que no matchea ningún punto.
+function familiaDe(b: { emisor_tipo: string; ley: string | null; industria: string | null }) {
+  if (b.emisor_tipo === "soberano") return _familia(b.ley);
+  if (b.emisor_tipo === "corporativo") return b.industria || "sin_industria";
+  return null;
+}
+
 function colorDe(tipo: string) {
   return COLORES[(tipo || "").toLowerCase()] || COLORES.default;
 }
@@ -155,6 +165,13 @@ export function CurvasChart({
   const curva: Curva = curvaFija ?? curvaInterna;
   const [metrica, setMetrica] = useState<Metrica>("TEA");
   const [modo, setModo] = useState<Modo>("live");
+  // Familia AISLADA por la leyenda (null = todas). En HARD DOLAR conviven ~8
+  // industrias y el gráfico era ilegible; con esto se mira una sola.
+  const [aislada, setAislada] = useState<string | null>(null);
+  // Cambiar de pill LIMPIA el aislado: las familias de TASA FIJA no son las de
+  // HARD DOLAR, así que un aislado heredado dejaría el gráfico vacío y la leyenda
+  // sin nada resaltado — o sea, sin pista de por qué no se ve nada.
+  useEffect(() => { setAislada(null); }, [curva]);
   const vpKey = useViewportKey();
 
   const [histByCurva, setHistByCurva] = useState<Record<string, HistRow[]>>({});
@@ -229,12 +246,14 @@ export function CurvasChart({
   const metricaUsada: Metrica =
     curva === "cer" || curva === "soberanos" ? "TEA" : metrica;
 
-  const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos,
-          nRuido } = useMemo(() => {
+  const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
     const puntosPorTipo: Record<string, Punto[]> = {};
-    let nRuido = 0;          // excluidos por tasa-artefacto (se avisa al pie)
     const pushPunto = (tipo: string | null | undefined, p: Punto) => {
       const t = (tipo || "default").toLowerCase();
+      // El aislado se aplica ACÁ y no al dibujar: así el eje Y, el fit y las
+      // etiquetas se recalculan para lo que quedó. Filtrando solo en el render,
+      // aislar FINANZAS dejaría la escala de los 129 bonos y se vería una raya.
+      if (aislada && t !== aislada) return;
       (puntosPorTipo[t] ??= []).push(p);
     };
 
@@ -252,7 +271,7 @@ export function CurvasChart({
         // UNO SOLO estira el eje Y hasta aplastar a los otros 120 bonos contra el
         // cero (visto en pantalla el 2026-08-16 con AFCHO, CS450 y HBCAO).
         // Sigue en la TABLA, apagado — se saca del gráfico, no del dato.
-        if (b.tasa_ruido) { nRuido++; continue; }
+        if (b.tasa_ruido) continue;
         const teaPct = tea * 100;
         const temPct = b.metrics?.TEM != null
           ? b.metrics.TEM * 100
@@ -268,11 +287,7 @@ export function CurvasChart({
         // para poder leer HARD DOLAR, donde conviven 14 soberanos con ~100 ONs.
         // Sin industria cargada va a su propio grupo VISIBLE: mezclarlo con
         // `otros` haría que "nadie lo decidió" se vea igual que una decisión.
-        pushPunto(
-          b.emisor_tipo === "soberano" ? _familia(b.ley)
-          : b.emisor_tipo === "corporativo" ? (b.industria || "sin_industria")
-          : null,
-          {
+        pushPunto(familiaDe(b), {
           Ticker: b.ticker_corto,
           Duration: +dur.toFixed(4),
           y: +y.toFixed(4),
@@ -354,7 +369,6 @@ export function CurvasChart({
       puntosPorTipo,
       fitPorTipo,
       tipos,
-      nRuido,
       yMin: yScale.min,
       yMax: yScale.max,
       yTicks: yScale.ticks,
@@ -362,7 +376,8 @@ export function CurvasChart({
       xMax: xScale.max,
       xTicks: xScale.ticks,
     };
-  }, [bonos, curva, metricaUsada, modo, histByCurva, fechaSel, fairValueInicial]);
+  }, [bonos, curva, metricaUsada, modo, histByCurva, fechaSel, fairValueInicial,
+      aislada]);
 
   // Construir el dataset combinado: cada punto tiene un campo dinámico
   // por tipo (scatterY_<tipo> y fitY_<tipo>) para que recharts pueda
@@ -405,7 +420,17 @@ export function CurvasChart({
   // familia: es "todo lo demás", y no tiene nombre — mostrarlo produjo la
   // leyenda "DEFAULT · SOBERANO" que no significaba nada. Se muestra sólo si
   // hay DOS familias de verdad que distinguir.
-  const familias = tipos.filter((t) => t !== "default" && colorDe(t).label);
+  // ⚠️ La leyenda se arma con TODAS las familias, no con `tipos`: al aislar una,
+  // `tipos` queda con un solo elemento y la leyenda se autodestruía — sin forma de
+  // volver a ver el resto. Es el clásico control que se borra a sí mismo.
+  const familias = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of bonos) {
+      const t = (familiaDe(b) || "default").toLowerCase();
+      if (t !== "default" && colorDe(t).label) set.add(t);
+    }
+    return Array.from(set).sort();
+  }, [bonos]);
   const mostrarLegend = familias.length > 1;
 
   return (
@@ -458,18 +483,37 @@ export function CurvasChart({
 
         {mostrarLegend && (
           <div className="ml-auto flex items-center gap-3 text-[10px]">
+            {/* La leyenda ES el filtro. No se agrega una fila de controles nueva:
+                en HARD DOLAR conviven ~8 industrias y lo que hacía falta era poder
+                mirar una sola, no un panel más que le coma alto al gráfico.
+                UN click aísla; click en la aislada vuelve a todas. */}
             {familias.map((t) => {
               const c = colorDe(t);
+              const apagada = aislada !== null && aislada !== t;
               return (
-                <div key={t} className="flex items-center gap-1">
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setAislada((prev) => (prev === t ? null : t))}
+                  title={aislada === t ? "Ver todas" : `Ver solo ${c.label}`}
+                  className={`flex items-center gap-1 cursor-pointer transition-opacity ${
+                    apagada ? "opacity-30 hover:opacity-60" : "opacity-100"
+                  }`}
+                >
                   <span
                     className="inline-block w-2 h-2 rounded-full"
                     style={{ background: c.scatter }}
                   />
-                  <span className="text-[var(--t-text-dim)] tracking-wide">
+                  <span
+                    className={`tracking-wide ${
+                      aislada === t
+                        ? "text-[var(--t-accent)] font-semibold"
+                        : "text-[var(--t-text-dim)]"
+                    }`}
+                  >
                     {c.label}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -509,17 +553,6 @@ export function CurvasChart({
         </div>
       ) : totalPuntos >= 2 ? (
         <div className="flex-1 min-h-0 relative">
-          {/* Se AVISA cuántos quedaron afuera y por qué. Un gráfico que descarta
-              puntos en silencio hace pensar que el bono no existe; el aviso lo
-              manda a buscarlo a la tabla, donde sigue estando. */}
-          {nRuido > 0 && (
-            <span
-              className="absolute top-0 right-2 z-10 text-[9px] text-[var(--t-text-2)]"
-              title="Vencen en pocos días: anualizar ese plazo infla la tasa y deforma la escala. Siguen en la tabla."
-            >
-              {nRuido} fuera de escala (siguen en la tabla)
-            </span>
-          )}
           <ResponsiveContainer key={vpKey} width="100%" height="100%">
             <ComposedChart data={merged} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
               <XAxis
