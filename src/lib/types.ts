@@ -166,6 +166,12 @@ export interface BonoCurva {
   // Por eso `bonos` puede tener más filas que bonos: filtrá por `pill` como
   // siempre y no cuentes bonos con `bonos.length`.
   ajuste_alt:        string | null;
+  // La INDUSTRIA del EMISOR (`mercado.emisores`), resuelta por el backend en la
+  // lectura. Solo viaja para corporativos — un soberano no tiene industria.
+  // `null` en un corporativo = SIN CLASIFICAR, y se muestra como grupo propio:
+  // mezclarlo con "otros" haría que "nadie lo decidió" se vea igual que una
+  // decisión tomada.
+  industria:         string | null;
   ley:               string | null;   // local (Bonar) | ny (Global)
   tipo:              string | null;
   vencimiento:       string | null;

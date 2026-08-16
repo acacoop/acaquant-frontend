@@ -66,6 +66,21 @@ const COLORES: Record<string, { scatter: string; fit: string; label: string }> =
   lecap:    { scatter: "#ffee44",      fit: "#fff299", label: "LECAP" },
   boncap:   { scatter: "#ff66aa",      fit: "#ff99c4", label: "BONCAP" },
   bono:     { scatter: "#8899aa",      fit: "#aabbcc", label: "BONO" },
+  // INDUSTRIAS de los corporativos (2026-08-16). Un corporativo caía todo junto
+  // en un grupo único; ahora se separa por la industria de su EMISOR, que vive
+  // UNA vez en `mercado.emisores` y no repetida en cada bono.
+  // `sin_industria` tiene color propio y NO se pinta como "otros": son cosas
+  // distintas — uno es "nadie lo decidió todavía" y el otro es una decisión.
+  energia:            { scatter: "#ffaa33", fit: "#ffcc88", label: "ENERGÍA" },
+  finanzas:           { scatter: "#33ccaa", fit: "#88ddcc", label: "FINANZAS" },
+  agro:               { scatter: "#99dd44", fit: "#c2ee99", label: "AGRO" },
+  industria:          { scatter: "#dd7788", fit: "#eeaab4", label: "INDUSTRIA" },
+  consumo:            { scatter: "#dd66dd", fit: "#eeaaee", label: "CONSUMO" },
+  telecomunicaciones: { scatter: "#5599ff", fit: "#99bbff", label: "TELECOM" },
+  construccion:       { scatter: "#cc9966", fit: "#ddbb99", label: "CONSTRUCCIÓN" },
+  transporte:         { scatter: "#77bbcc", fit: "#aaddee", label: "TRANSPORTE" },
+  otros:              { scatter: "#99aabb", fit: "#bbccdd", label: "OTROS" },
+  sin_industria:      { scatter: "#666f7a", fit: "#8a929c", label: "SIN CLASIFICAR" },
   default:  { scatter: "#8899aa",      fit: "#aabbcc", label: "" },
 };
 
@@ -240,9 +255,16 @@ export function CurvasChart({
           metricaUsada === "TEM" ? temPct
           : metricaUsada === "TNA" ? tnaPct
           : teaPct;
-        // Por BONO, no por pill: sólo un soberano tiene familia. Un corporativo
-        // en la misma tabla cae al grupo único y no inventa una categoría.
-        pushPunto(b.emisor_tipo === "soberano" ? _familia(b.ley) : null, {
+        // Por BONO, no por pill. Un soberano se separa por LEY (Bonar/Global) y
+        // un corporativo por la INDUSTRIA de su emisor — que es lo que faltaba
+        // para poder leer HARD DOLAR, donde conviven 14 soberanos con ~100 ONs.
+        // Sin industria cargada va a su propio grupo VISIBLE: mezclarlo con
+        // `otros` haría que "nadie lo decidió" se vea igual que una decisión.
+        pushPunto(
+          b.emisor_tipo === "soberano" ? _familia(b.ley)
+          : b.emisor_tipo === "corporativo" ? (b.industria || "sin_industria")
+          : null,
+          {
           Ticker: b.ticker_corto,
           Duration: +dur.toFixed(4),
           y: +y.toFixed(4),
