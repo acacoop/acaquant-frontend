@@ -248,6 +248,12 @@ interface ONMaster {
   flujos?: ONFlujo[] | null;
 }
 
+// Espejo de `core/curvas_ejes.py`. Si divergen, el backend rechaza con 400 —
+// el front no puede colar un valor fuera del dominio, solo ofrecer uno de menos.
+const EJE_EMISORES = ["soberano", "provincial", "corporativo", "bcra"] as const;
+const EJE_MONEDAS = ["ARS", "USD", "EUR"] as const;
+const EJE_AJUSTES = ["fija", "cer", "tamar", "badlar", "dolar_linked", "tpm", "caucion"] as const;
+
 const ON_SECTORES = ["energia", "finanzas", "otros"];
 
 function _onNum(s: string): number {
@@ -520,7 +526,12 @@ const BONO_TIPOS: { tipo: string; label: string; curva: string; bullet?: boolean
 ];
 
 interface BonoSinFlujo { unidad: string; ticker: string | null; cartera: string; emisor: string | null; fuente: string; accion: string; motivo: string; en_cartera: boolean }
-interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_emision?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; cupon_anual?: number; tasa_referencia?: string; flujo_vencimiento?: number; flujos?: Record<string, unknown>[] }
+interface BonoMaster { ticker_corto: string; ticker?: string; curva?: string; tipo?: string; moneda_flujo?: string; fecha_emision?: string; fecha_vencimiento?: string; valor_nominal?: number; cer_emision?: number; cupon_anual?: number; tasa_referencia?: string; flujo_vencimiento?: number; flujos?: Record<string, unknown>[];
+  // Estos SEIS no vienen del blob `data` como el resto: son COLUMNAS, y el
+  // backend los mergea encima en `list_bonos`. Sin ellos el form cargaría la
+  // clasificación vacía y guardar un bono se la borraría, sacándolo de su tabla
+  // sin un solo error.
+  emisor?: string; emisor_tipo?: string; moneda_eje?: string; ajuste?: string; ajuste_alt?: string; ley?: string }
 interface BonoPrefill { ticker_corto: string; ticker?: string; curva?: string; editTicker?: string }
 
 interface ConcilResp { total: number; en_cartera: number; ok: boolean; por_fuente?: { curvas: number; on: number; ninguna: number }; titulos: BonoSinFlujo[] }
@@ -615,7 +626,12 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
   const tipoFromCurva = (c?: string) => c === "cer" ? "cer" : c === "soberanos" ? "soberano" : c === "tamar" ? "dual" : c === "dolar_linked" ? "dolar_linked" : "lecap";
   const [tipo, setTipo] = useState(prefill ? tipoFromCurva(prefill.curva) : "lecap");
   const cfg = BONO_TIPOS.find((t) => t.tipo === tipo) || BONO_TIPOS[0];
-  const empty = { ticker_corto: "", tkCode: "", moneda_flujo: "ARS", fecha_emision: "", fecha_vencimiento: "", valor_nominal: "100", cer_emision: "", cupon_anual: "0", tasa_referencia: "TAMAR", flujo_vencimiento: "" };
+  const empty = { ticker_corto: "", tkCode: "", moneda_flujo: "ARS", fecha_emision: "", fecha_vencimiento: "", valor_nominal: "100", cer_emision: "", cupon_anual: "0", tasa_referencia: "TAMAR", flujo_vencimiento: "",
+    // EJES — deciden en QUÉ TABLA de /renta-fija cae el bono. Hasta que fueron
+    // editables (2026-08-16) los escribía solo un script, así que un bono cargado
+    // desde acá nacía invisible para la vista. Vacío = sin clasificar, que es un
+    // estado válido y que la vista MUESTRA como pendiente (no lo esconde).
+    emisor: "", emisor_tipo: "", moneda_eje: "", ajuste: "", ajuste_alt: "", ley: "" };
   const [form, setForm] = useState({ ...empty, ...(prefill ? { ticker_corto: prefill.ticker_corto || "", tkCode: prefill.ticker ? unwrapTicker(prefill.ticker) : (prefill.ticker_corto || "") } : {}) });
   const [flujos, setFlujos] = useState<Record<string, string>[]>([]);
   const [existentes, setExistentes] = useState<BonoMaster[]>([]);
@@ -640,6 +656,8 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
       fecha_emision: (b.fecha_emision || "").slice(0, 10), fecha_vencimiento: (b.fecha_vencimiento || "").slice(0, 10),
       valor_nominal: String(b.valor_nominal ?? 100), cer_emision: b.cer_emision != null ? String(b.cer_emision) : "",
       cupon_anual: b.cupon_anual != null ? String(b.cupon_anual) : "0", tasa_referencia: b.tasa_referencia || "TAMAR",
+      emisor: b.emisor || "", emisor_tipo: b.emisor_tipo || "", moneda_eje: b.moneda_eje || "",
+      ajuste: b.ajuste || "", ajuste_alt: b.ajuste_alt || "", ley: b.ley || "",
       flujo_vencimiento: b.flujo_vencimiento != null ? String(b.flujo_vencimiento) : "",
     });
     setFlujos((b.flujos || []).map((f) => {
@@ -676,6 +694,12 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
       fecha_emision: form.fecha_emision || undefined,
       fecha_vencimiento: form.fecha_vencimiento || undefined,
       valor_nominal: form.valor_nominal ? _onNum(form.valor_nominal) : undefined,
+      emisor: form.emisor.trim() || undefined,
+      // Los ejes viajan SIEMPRE, incluso vacíos: `undefined` los saca del JSON y
+      // el backend no los tocaría, así que no habría forma de LIMPIAR uno mal
+      // cargado. `""` es la señal explícita de borrar.
+      emisor_tipo: form.emisor_tipo, moneda_eje: form.moneda_eje,
+      ajuste: form.ajuste, ajuste_alt: form.ajuste_alt, ley: form.ley,
     };
     if (cfg.cer) body.cer_emision = form.cer_emision ? _onNum(form.cer_emision) : undefined;
     if (cfg.cupon) body.cupon_anual = form.cupon_anual !== "" ? _onNum(form.cupon_anual) : undefined;
@@ -789,6 +813,54 @@ function TabBonosAlta({ prefill, onSaved }: { prefill?: BonoPrefill | null; onSa
         {cfg.cer && <OnField label="CER emisión"><input className={_onInput} value={form.cer_emision} onChange={(e) => setForm({ ...form, cer_emision: e.target.value })} placeholder="659.6789" /></OnField>}
         {cfg.cupon && <OnField label="Cupón anual"><input className={_onInput} value={form.cupon_anual} onChange={(e) => setForm({ ...form, cupon_anual: e.target.value })} placeholder="0" /></OnField>}
         {cfg.tasaRef && <OnField label="Tasa referencia"><input className={_onInput} value={form.tasa_referencia} onChange={(e) => setForm({ ...form, tasa_referencia: e.target.value })} placeholder="TAMAR" /></OnField>}
+      </div>
+
+      {/* EJES — es lo que decide en qué TABLA de /renta-fija aparece el bono.
+          Van aparte y rotulados porque son la parte que se olvidaba: sin ellos el
+          bono se guarda bien y no se ve en ningún lado. */}
+      <div className="mt-2 pt-2 border-t border-[var(--t-border)]">
+        <div className="text-[10px] uppercase tracking-wide text-[var(--t-text-2)] mb-1">
+          Clasificación — decide en qué tabla de RENTA FIJA aparece
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <OnField label="Emisor"><input className={_onInput} value={form.emisor} onChange={(e) => setForm({ ...form, emisor: e.target.value })} placeholder="Argentina" /></OnField>
+          <OnField label="Tipo de emisor">
+            <select className={_onInput} value={form.emisor_tipo} onChange={(e) => setForm({ ...form, emisor_tipo: e.target.value })}>
+              <option value="">— sin clasificar —</option>
+              {EJE_EMISORES.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </OnField>
+          <OnField label="Moneda">
+            <select className={_onInput} value={form.moneda_eje} onChange={(e) => setForm({ ...form, moneda_eje: e.target.value })}>
+              <option value="">— sin clasificar —</option>
+              {EJE_MONEDAS.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </OnField>
+          <OnField label="Ajuste">
+            <select className={_onInput} value={form.ajuste} onChange={(e) => setForm({ ...form, ajuste: e.target.value })}>
+              <option value="">— sin clasificar —</option>
+              {EJE_AJUSTES.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </OnField>
+          <OnField label="2ª pata (solo duales)">
+            <select className={_onInput} value={form.ajuste_alt} onChange={(e) => setForm({ ...form, ajuste_alt: e.target.value })}>
+              <option value="">— no es dual —</option>
+              {EJE_AJUSTES.filter((v) => v !== form.ajuste).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </OnField>
+          <OnField label="Ley">
+            <select className={_onInput} value={form.ley} onChange={(e) => setForm({ ...form, ley: e.target.value })}>
+              <option value="">— sin dato —</option>
+              <option value="local">local (Bonar)</option>
+              <option value="ny">ny (Global)</option>
+            </select>
+          </OnField>
+        </div>
+        <div className="text-[10px] text-[var(--t-text-2)] mt-1">
+          {form.ajuste_alt
+            ? `Dual: va a aparecer en la tabla de ${form.ajuste} Y en la de ${form.ajuste_alt}.`
+            : "Un dual tiene DOS patas: cargá la segunda y el bono aparece en las dos tablas."}
+        </div>
       </div>
 
       {cfg.bullet ? (
