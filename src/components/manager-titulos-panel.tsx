@@ -1926,15 +1926,153 @@ function TabBreakevens() {
   );
 }
 
+
+// ── EMISORES — la INDUSTRIA vive acá, no en el bono ──────────────────────────
+// Guardarla por bono es escribir el mismo dato N veces y esperar que nadie lo
+// escriba distinto. Medido: 8 emisores tienen HOY sectores que se contradicen
+// entre sus propios bonos (Pampa Energía tiene tres). Ninguna fila está "mal" —
+// cada una suma bien por separado — y por eso agrupar da distinto según de dónde
+// se lea. Acá el dato existe UNA vez.
+interface EmisorRow { emisor: string; industria?: string | null; bonos?: number; editado_por?: string | null }
+interface PendientesResp {
+  sin_clasificar: { emisor: string; bonos: number; falta_en_catalogo: boolean }[];
+  contradicciones: { emisor: string; bonos: number; sectores: string }[];
+  n_sin_clasificar: number; n_contradicciones: number;
+}
+
+function TabEmisores() {
+  const [rows, setRows] = useState<EmisorRow[]>([]);
+  const [industrias, setIndustrias] = useState<string[]>([]);
+  const [pend, setPend] = useState<PendientesResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [q, setQ] = useState("");
+  const [nueva, setNueva] = useState("");
+
+  const cargar = () => {
+    setLoading(true);
+    Promise.all([
+      fetch("/api/manager/emisores").then((r) => r.json()),
+      fetch("/api/manager/emisores/industrias").then((r) => r.json()),
+      fetch("/api/manager/emisores/pendientes").then((r) => r.json()),
+    ])
+      .then(([e, i, p]) => { setRows(e.emisores || []); setIndustrias(i.industrias || []); setPend(p); })
+      .catch(() => setMsg({ kind: "err", text: "no se pudo cargar" }))
+      .finally(() => setLoading(false));
+  };
+  useEffect(cargar, []);
+
+  const setIndustria = async (emisor: string, industria: string) => {
+    setMsg(null);
+    try {
+      const r = await fetch("/api/manager/emisores", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        // `""` (y no `undefined`) es la señal explícita de DEJAR SIN CLASIFICAR:
+        // sin clasificar es un estado válido y visible, no un error.
+        body: JSON.stringify({ emisor, industria }),
+      });
+      const txt = await r.text(); let d: { detail?: string } = {};
+      try { d = JSON.parse(txt); } catch { /* no-JSON */ }
+      if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+      setRows((prev) => prev.map((x) => (x.emisor === emisor ? { ...x, industria: industria || null } : x)));
+      fetch("/api/manager/emisores/pendientes").then((x) => x.json()).then(setPend).catch(() => {});
+    } catch (e) { setMsg({ kind: "err", text: e instanceof Error ? e.message : String(e) }); }
+  };
+
+  const crearIndustria = async () => {
+    const nombre = nueva.trim();
+    if (!nombre) return;
+    await fetch("/api/manager/emisores/industria", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ industria: nombre }),
+    }).catch(() => {});
+    setNueva(""); cargar();
+  };
+
+  const filtradas = rows.filter((r) => !q || r.emisor.toLowerCase().includes(q.toLowerCase()));
+  const sinIndustria = rows.filter((r) => !r.industria).length;
+
+  return (
+    <div className="h-full overflow-y-auto p-3 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <input className={_onInput + " w-48"} placeholder="buscar emisor…"
+               value={q} onChange={(e) => setQ(e.target.value)} />
+        <span className="text-[11px] text-[var(--t-text-2)]">
+          {rows.length} emisores · {sinIndustria} sin industria
+        </span>
+        <div className="flex-1" />
+        <input className={_onInput + " w-40"} placeholder="industria nueva…"
+               value={nueva} onChange={(e) => setNueva(e.target.value)} />
+        <button className={_onInput + " w-auto text-[10px]"} onClick={crearIndustria}>+ INDUSTRIA</button>
+        <button className={_onInput + " w-auto text-[10px]"} onClick={cargar}>recargar</button>
+      </div>
+      {msg && <p className={`text-[11px] ${msg.kind === "ok" ? "text-emerald-400" : "text-red-400"}`}>{msg.text}</p>}
+
+      {/* Los pendientes ARRIBA y no escondidos en otra pantalla: si hay que mirar
+          una lista para enterarse, se vuelve el incidente del backfill que falló
+          dos días sin que nadie lo viera. */}
+      {pend && pend.n_contradicciones > 0 && (
+        <div className="border border-amber-500/40 bg-amber-500/5 rounded p-2">
+          <div className="text-[11px] font-semibold text-amber-400 mb-1">
+            ⚠ {pend.n_contradicciones} emisor(es) con sectores contradictorios entre sus propios bonos
+          </div>
+          <div className="text-[10px] text-[var(--t-text-2)] mb-1">
+            Ninguno está mal: cada bono suma bien por separado, y por eso agrupar da
+            distinto según de dónde se lea. Elegí vos cuál queda — por eso no se
+            resolvieron solos.
+          </div>
+          {pend.contradicciones.map((c) => (
+            <div key={c.emisor} className="text-[11px] flex gap-2">
+              <span className="w-52 truncate">{c.emisor}</span>
+              <span className="text-[var(--t-text-2)]">{c.bonos} bonos · {c.sectores}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <table className="w-full text-[11px]">
+        <thead className="text-[var(--t-text-2)]">
+          <tr><th className="text-left">EMISOR</th><th className="text-right">BONOS</th>
+              <th className="text-left pl-3">INDUSTRIA</th><th className="text-left">EDITÓ</th></tr>
+        </thead>
+        <tbody>
+          {filtradas.map((r) => (
+            <tr key={r.emisor} className={r.industria ? "" : "bg-amber-500/5"}>
+              <td className="truncate max-w-[16rem]">{r.emisor}</td>
+              <td className="text-right">{r.bonos ?? 0}</td>
+              <td className="pl-3">
+                <select className={_onInput + " w-44"} value={r.industria || ""}
+                        onChange={(e) => setIndustria(r.emisor, e.target.value)}>
+                  <option value="">— sin clasificar —</option>
+                  {industrias.map((i) => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </td>
+              <td className="text-[10px] text-[var(--t-text-2)] truncate max-w-[12rem]">
+                {r.editado_por || ""}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {loading && <p className="text-[11px] text-[var(--t-text-muted)]">cargando…</p>}
+      {!loading && rows.length === 0 && (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          Catálogo vacío — corré <code>python -m scripts.sembrar_emisores --aplicar</code> en el Droplet.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function TitulosGroup({ modules }: { modules?: string[] | null }) {
   // "ons" se eliminó como sub-tab (2026-07-09): alta/edición + sector de ONs
   // viven en BONOS (editor unificado TabAltaTitulo). El persisted state viejo
   // con "ons" cae al default vía subVisible.
-  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "bonos" | "breakevens" | "renta_variable">("manager.titulos.sub", "instrumentos");
+  const [sub, setSub] = usePersistedState<"instrumentos" | "assets" | "bonos" | "emisores" | "breakevens" | "renta_variable">("manager.titulos.sub", "instrumentos");
   const has = (m: string) => modules == null || modules.includes(m);
   const canInstr = has("manager") || has("manager_instrumentos");
   const canMaestro = has("manager") || has("manager_titulos");
-  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "bonos" || sub === "breakevens" || sub === "renta_variable") && canMaestro);
+  const subVisible = (sub === "instrumentos" && canInstr) || ((sub === "assets" || sub === "bonos" || sub === "emisores" || sub === "breakevens" || sub === "renta_variable") && canMaestro);
   const eff = subVisible ? sub : (canInstr ? "instrumentos" : "assets");
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -1943,6 +2081,7 @@ export function TitulosGroup({ modules }: { modules?: string[] | null }) {
         {canInstr && <Pill label="INSTRUMENTOS" active={eff === "instrumentos"} onClick={() => setSub("instrumentos")} />}
         {canMaestro && <Pill label="ASSETS" active={eff === "assets"} onClick={() => setSub("assets")} />}
         {canMaestro && <Pill label="BONOS" active={eff === "bonos"} onClick={() => setSub("bonos")} />}
+        {canMaestro && <Pill label="EMISORES" active={eff === "emisores"} onClick={() => setSub("emisores")} />}
         {canMaestro && <Pill label="BREAKEVENS" active={eff === "breakevens"} onClick={() => setSub("breakevens")} />}
         {canMaestro && <Pill label="RENTA VARIABLE" active={eff === "renta_variable"} onClick={() => setSub("renta_variable")} />}
       </div>
@@ -1950,6 +2089,7 @@ export function TitulosGroup({ modules }: { modules?: string[] | null }) {
         {eff === "instrumentos"   && canInstr && <div className="h-full overflow-y-auto p-3"><TabInstrumentos /></div>}
         {eff === "assets"         && canMaestro && <TabAssets />}
         {eff === "bonos"          && canMaestro && <TabBonos />}
+        {eff === "emisores"       && canMaestro && <TabEmisores />}
         {eff === "breakevens"     && canMaestro && <TabBreakevens />}
         {eff === "renta_variable" && canMaestro && <TabRentaVariable />}
       </div>
