@@ -57,7 +57,7 @@ const NAV: Entry[] = [
   {
     kind: "group",
     label: "MERCADOS",
-    // Items ordenados alfabéticamente (A→Z) por label.
+    // El orden lo pone `ordenarAZ` en el render — acá se agrega donde caiga.
     items: [
       { href: "/agro",           label: "Agro",           module: "agro" },
       { href: "/derivados",      label: "Derivados",      module: "derivados" },
@@ -70,7 +70,7 @@ const NAV: Entry[] = [
   {
     kind: "group",
     label: "NEGOCIO",
-    // Items ordenados alfabéticamente (A→Z) por label.
+    // El orden lo pone `ordenarAZ` en el render — acá se agrega donde caiga.
     items: [
       { href: "/aum",          label: "AUM",           module: "portfolios" },
       { href: "/valuaciones",  label: "Carteras",      module: "portfolios" },
@@ -96,24 +96,39 @@ function hasModule(modules: string[] | null, module: string): boolean {
   return modules.includes(module);
 }
 
-// Portal invitado: la nav es una fila plana, TODA en mayúscula y ordenada A→Z,
-// con HOME siempre primero (es la vista por default). Se aplica sobre las
-// entries YA filtradas por RBAC, así cualquier vista que se sume al portal
-// entra ordenada sola — no hay lista paralela que mantener.
-// Ordena en español (`es`) para que los acentos no manden SINTÉTICOS al final.
-function navInvitado(entries: Entry[]): Entry[] {
-  return entries
-    .map((e) =>
-      e.kind === "link"
-        ? { ...e, label: e.label.toUpperCase() }
-        : { ...e, label: e.label.toUpperCase(), items: e.items.map((it) => ({ ...it, label: it.label.toUpperCase() })) },
-    )
+// Orden A→Z de la nav, con HOME SIEMPRE primero (es la vista por default: sacarla
+// de la izquierda rompería el reflejo de todo el mundo).
+//
+// Ordena en español (`es`) para que los acentos no manden SINTÉTICOS al final, y
+// ordena TAMBIÉN los items de cada grupo: así una vista nueva entra en su lugar
+// sola, sin depender de que quien la agregue se acuerde de insertarla ordenada —
+// que es exactamente cómo esta lista se había desordenado.
+//
+// Lo usan los DOS portales (interno e invitado): el criterio de orden existe una
+// sola vez, así el nav no puede quedar ordenado de una forma acá y de otra allá.
+function ordenarAZ(entries: Entry[]): Entry[] {
+  const porLabel = (a: { label: string }, b: { label: string }) =>
+    a.label.localeCompare(b.label, "es");
+  return [...entries]
+    .map((e) => (e.kind === "link" ? e : { ...e, items: [...e.items].sort(porLabel) }))
     .sort((a, b) => {
       const aHome = a.kind === "link" && a.href === "/";
       const bHome = b.kind === "link" && b.href === "/";
       if (aHome !== bHome) return aHome ? -1 : 1;
-      return a.label.localeCompare(b.label, "es");
+      return porLabel(a, b);
     });
+}
+
+// Portal invitado: la nav es una fila plana y TODA en mayúscula. El ORDEN lo pone
+// `ordenarAZ` (el mismo del portal interno); acá solo se cambia la grafía.
+function navInvitado(entries: Entry[]): Entry[] {
+  return ordenarAZ(
+    entries.map((e) =>
+      e.kind === "link"
+        ? { ...e, label: e.label.toUpperCase() }
+        : { ...e, label: e.label.toUpperCase(), items: e.items.map((it) => ({ ...it, label: it.label.toUpperCase() })) },
+    ),
+  );
 }
 
 export function Header({ modules = null }: { modules?: string[] | null }) {
@@ -142,7 +157,7 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
       crudas.push({ ...e, items });
     }
   }
-  const entries = isGuest ? navInvitado(crudas) : crudas;
+  const entries = isGuest ? navInvitado(crudas) : ordenarAZ(crudas);
 
   const linkClass = (active: boolean) =>
     "px-3 py-1 text-[11px] font-semibold tracking-wide transition-colors " +
