@@ -170,7 +170,14 @@ export function BonosTable({ bonos }: { bonos: BonoCurva[] }) {
                   Lo decide el backend (`tasa_ruido`) para que la tabla y el
                   gráfico no puedan contradecirse. */}
               <td className={`!px-1 text-center ${tasaCls(b)}`} title={tasaTip(b)}>
-                {m.TEA === undefined ? "--" : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`}
+                {/* Si el backend manda TNA, gana la del proveedor: derivarla
+                    teniéndola sería inventar una discrepancia con el número que
+                    la mesa mira. Si no viene, se deriva como siempre. */}
+                {m.TNA !== undefined
+                  ? `${(m.TNA * 100).toFixed(1)}%`
+                  : m.TEA === undefined
+                    ? "--"
+                    : `${((Math.pow(1 + m.TEA, 1 / 12) - 1) * 12 * 100).toFixed(1)}%`}
               </td>
               <td className={`!px-1 text-center ${tasaCls(b)}`}
                   title={de1816(b) ? tip1816 : tasaTip(b)}>

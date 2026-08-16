@@ -34,7 +34,11 @@ interface Punto {
 }
 
 export type Curva = "tasa_fija" | "cer" | "soberanos" | "dolar_linked" | "tamar" | "dual";
-type Metrica = "TEA" | "TEM" | "TNA";
+// MARGEN no es una opción del selector: es la métrica OBLIGADA de la curva
+// TAMAR (ver `metricaUsada`). Vive en el mismo type para que el eje, el fit, el
+// tooltip y la leyenda la traten como a cualquier otra y no haya un camino
+// paralelo que se olvide de actualizar.
+type Metrica = "TEA" | "TEM" | "TNA" | "MARGEN";
 type Modo = "live" | "hist" | "fair";
 
 // Los SOBERANOS se parten en familias — BONARES (ley local) vs GLOBALES (ley
@@ -224,8 +228,14 @@ export function CurvasChart({
   // Modo efectivo: si el usuario tiene "fair" seleccionado pero cambió a una
   // curva sin soporte (soberanos / dolar_linked), renderizamos como "live"
   // sin tocar el state. Cuando vuelva a tasa_fija/cer reaparece el modo fair.
+  // TAMAR entra por el mismo camino: se grafica por MARGEN y el histórico solo
+  // guarda TEA, así que en HISTÓRICO el eje diría una cosa y los puntos serían
+  // otra. Se renderiza como live sin tocar el state.
   const modoEfectivo: Modo =
-    modo === "fair" && curva !== "tasa_fija" && curva !== "cer" ? "live" : modo;
+    (modo === "fair" && curva !== "tasa_fija" && curva !== "cer") ||
+    (modo !== "live" && curva === "tamar")
+      ? "live"
+      : modo;
 
   // Reset del slider cuando cambia curva o modo, para que el default
   // (último = más reciente) se aplique sin arrastrar el valor anterior.
@@ -243,8 +253,16 @@ export function CurvasChart({
 
   // CER y soberanos siempre se grafican en TEA (TEM mensualizado no tiene
   // sentido en USD ni para CER real).
+  // ⚠️ Un TAMAR NO se compara por tasa. Los ocho flotan contra la MISMA
+  // referencia (la TAMAR del BCRA), así que su TEA nominal se mueve toda junta y
+  // ordenarlos por ella no dice nada del papel: lo que distingue a un TAMAR de
+  // otro es cuánto paga POR ENCIMA de esa referencia. La curva de la mesa es
+  // MARGEN vs duration, y por eso no es una opción del selector sino la única
+  // métrica posible de esa pill.
   const metricaUsada: Metrica =
-    curva === "cer" || curva === "soberanos" ? "TEA" : metrica;
+    curva === "tamar" ? "MARGEN"
+    : curva === "cer" || curva === "soberanos" ? "TEA"
+    : metrica;
 
   const { puntosPorTipo, fitPorTipo, yMin, yMax, yTicks, xMin, xMax, xTicks, tipos } = useMemo(() => {
     const puntosPorTipo: Record<string, Punto[]> = {};
@@ -265,6 +283,19 @@ export function CurvasChart({
       for (const b of bonos) {
         const dur = b.metrics?.duration;
         const tea = b.metrics?.TEA;
+        // Curva por MARGEN: no depende de la TEA, así que un TAMAR sin tasa
+        // igual entra al gráfico mientras tenga spread. Y el que no tiene margen
+        // (los corporativos que 1816 no cubre) NO se grafica en cero: se omite,
+        // porque un 0% ahí se leería como "paga la TAMAR pelada".
+        if (metricaUsada === "MARGEN") {
+          if (!b.ticker_corto || dur == null || dur <= 0 || b.margen == null) continue;
+          pushPunto(familiaDe(b), {
+            Ticker: b.ticker_corto,
+            Duration: +dur.toFixed(4),
+            y: +(b.margen * 100).toFixed(4),
+          });
+          continue;
+        }
         if (!b.ticker_corto || dur == null || dur <= 0 || tea == null) continue;
         // ⚠️ Las tasas RUIDO no se grafican. Un bono a 3 días con TEA 142% no es
         // un punto alto de la curva: es un artefacto de anualizar pocos días, y
@@ -573,6 +604,12 @@ export function CurvasChart({
                 axisLine={{ stroke: "var(--t-border-2)" }}
                 tickLine={false}
                 tickFormatter={(v: number) => `${v.toFixed(curva === "cer" ? 1 : 2)}%`}
+                label={
+                  metricaUsada === "MARGEN"
+                    ? { value: "Margen s/ TAMAR", angle: -90, position: "insideLeft",
+                        fill: "var(--t-text-muted)", fontSize: 10 }
+                    : undefined
+                }
               />
               <Tooltip
                 contentStyle={{
