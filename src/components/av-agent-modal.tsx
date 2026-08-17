@@ -112,6 +112,7 @@ const ACCION_LABEL: Record<string, string> = {
   crear_curva: "Creó la curva",
   alta_bono: "Dio de alta el bono",
   completar_flujo: "Completó el cuadro de flujos",
+  sembrar_especies: "Sembró las patas del papel",
 };
 
 function fechaHora(iso: string | null): string {
@@ -665,6 +666,7 @@ function AccionAlta({ h, sim, simular }: {
           pasos={pasos}
           veredicto={r?.veredicto as { estado: string; texto: string } | undefined}
           simEstado={simEstado}
+          calculo={Array.isArray(r?.calculo) ? (r.calculo as Insumo[]) : []}
         />
       )}
     </div>
@@ -678,9 +680,14 @@ function AccionAlta({ h, sim, simular }: {
 // que este cuadro viene a reemplazar.
 
 type Paso = {
-  n: number; titulo: string; estado: string;
+  n: number; clave: string; titulo: string; estado: string;
   detalle: string; tabla?: string; accion?: string;
 };
+
+// Un insumo del cálculo: el número Y de dónde salió. El "de dónde" pesa tanto
+// como el valor — cuando dos cuentas no coinciden, lo que hay que mirar es
+// justamente el insumo que difiere.
+type Insumo = { campo: string; valor: unknown; fuente: string };
 
 const PASO_ICONO: Record<string, string> = {
   ok: "✔", falla: "✘", atencion: "▲", no_se_puede_saber: "?",
@@ -690,12 +697,14 @@ const PASO_COLOR: Record<string, string> = {
   atencion: "#f59e0b", no_se_puede_saber: "var(--t-text-dim)",
 };
 
-function Chequeos({ pasos, veredicto, simEstado }: {
+function Chequeos({ pasos, veredicto, simEstado, calculo }: {
   pasos: Paso[];
   veredicto?: { estado: string; texto: string };
   simEstado?: { conocido: boolean | null; nota: string };
+  calculo?: Insumo[];
 }) {
   const [abierto, setAbierto] = useState(false);
+  const [verCalculo, setVerCalculo] = useState(false);
   const fallas = pasos.filter((p) => p.estado === "falla").length;
   const avisos = pasos.filter((p) => p.estado === "atencion"
     || p.estado === "no_se_puede_saber").length;
@@ -721,10 +730,45 @@ function Chequeos({ pasos, veredicto, simEstado }: {
         </p>
       )}
 
+      {/* CÓMO SE CALCULÓ. Una tasa sin su memoria de cálculo no se puede
+          auditar: solo se puede creer o no creer. Acá está cada insumo con su
+          fuente — que es lo que permite explicar una divergencia en vez de
+          quedarse con "202 bps y no sé por qué". */}
+      {(calculo?.length ?? 0) > 0 && (
+        <div className="mt-0.5">
+          <button
+            onClick={() => setVerCalculo((v) => !v)}
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            {verCalculo ? "▾" : "▸"} Cómo se calculó
+          </button>
+          {verCalculo && (
+            <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+              {calculo!.map((i) => (
+                <div key={i.campo} className="grid grid-cols-[110px_1fr] gap-2 px-2 py-1 items-baseline">
+                  <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
+                    {i.campo}
+                  </span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-[var(--t-text)] tabular-nums">
+                      {typeof i.valor === "number" ? i.valor.toLocaleString("es-AR", {
+                        maximumFractionDigits: 6 }) : String(i.valor ?? "—")}
+                    </span>
+                    <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                      {i.fuente}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {abierto && (
         <ol className="mt-1 border-l border-[var(--t-border)] pl-2 space-y-1">
           {pasos.map((p) => (
-            <li key={p.n} className="grid grid-cols-[14px_1fr] gap-1.5 items-baseline">
+            <li key={p.clave} className="grid grid-cols-[14px_1fr] gap-1.5 items-baseline">
               <span className="text-[10px] font-bold" style={{ color: PASO_COLOR[p.estado] }}>
                 {PASO_ICONO[p.estado] ?? "·"}
               </span>
