@@ -760,10 +760,17 @@ function AccionCadena({ h, sim, simular, modo }: {
     const n = Number(crudo.replace(",", "."));
     if (crudo && Number.isFinite(n) && n > 0) extra[k] = n;
   }
-  // Un paso que PIDE un dato y todavía no lo tiene: hasta completarlo, aplicar
-  // deja el bono sin tasa. No se bloquea (esa decisión ya se tomó: el cuadro
-  // vale igual), pero el botón principal pasa a ser «simular con el dato».
-  const pendientes = pasos.filter((p) => p.pide && !extra[p.pide.campo]);
+  // Los pasos que PIDEN un dato. **Se listan por `pide`, NO por si ya se tipeó
+  // algo** — y esa diferencia era un bug que hacía la función inusable: el filtro
+  // era `p.pide && !extra[p.pide.campo]`, así que al escribir el PRIMER carácter
+  // `extra` se llenaba, la lista quedaba vacía y **el input se desmontaba a mitad
+  // del tipeo**. Solo se podía pegar el valor entero de una sola vez, que es
+  // exactamente lo que había pasado las veces que "funcionó".
+  //
+  // Quién pide el dato es el BACKEND (el paso trae su `pide`); que el user haya
+  // empezado a escribir no es una respuesta a esa pregunta.
+  const piden = pasos.filter((p) => p.pide);
+  const faltan = piden.filter((p) => !extra[p.pide!.campo]);
   const cerNota = r?.cer_manual === true ? "cargado a mano" : copy.cer;
 
   return (
@@ -831,9 +838,9 @@ function AccionCadena({ h, sim, simular, modo }: {
           que rehaga la simulación con ese dato y si va todo bien ya lo aplique
           con eso». Antes había que aplicar a ciegas, ir a AVISOS, cargar el
           número y recién ahí enterarse de si la tasa cerraba. */}
-      {ok && !aplicado && pendientes.length > 0 && (
+      {ok && !aplicado && piden.length > 0 && (
         <div className="w-full mt-1 flex flex-wrap items-center gap-1.5 border-l-2 border-[#f59e0b] pl-2 py-1">
-          {pendientes.map((p) => (
+          {piden.map((p) => (
             <div key={p.clave} className="flex items-center gap-1">
               <span className="text-[9px] uppercase tracking-widest text-[#f59e0b]">
                 {p.pide!.label}
@@ -853,6 +860,9 @@ function AccionCadena({ h, sim, simular, modo }: {
                 className="w-24 bg-transparent border border-[#f59e0b] px-1 py-0.5 text-[10px] text-[var(--t-text)] outline-none"
               />
               <span className="text-[9px] text-[var(--t-text-dim)]">{p.pide!.ayuda}</span>
+              {faltan.includes(p) && (
+                <span className="text-[9px] text-[#f59e0b]">← falta</span>
+              )}
             </div>
           ))}
         </div>
@@ -865,7 +875,7 @@ function AccionCadena({ h, sim, simular, modo }: {
           onClick={() => simular(h.ticker, curva, false, extra, modo)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[#f59e0b] text-[#f59e0b] hover:bg-[#f59e0b] hover:text-black disabled:opacity-40"
         >
-          {corriendo ? "…" : "Simular con este dato"}
+          {corriendo ? "…" : faltan.length ? "Simular con lo cargado" : "Simular con este dato"}
         </button>
       )}
       {/* El PASO A PASO. Aplicar sin ver la cadena entera es firmar a ciegas: el
