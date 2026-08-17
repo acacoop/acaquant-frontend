@@ -214,6 +214,21 @@ export function AvAgentModal() {
     }
   }, [cargar]);
 
+  // «No me interesa» desde CUALQUIER hallazgo. Antes solo se podía ignorar
+  // contestando una pregunta del agente, y solo valía para los faltantes.
+  const ignorar = useCallback(async (ticker: string) => {
+    try {
+      await fetchJson("/api/ia/av-agent/ignorar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker }),
+      });
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [cargar]);
+
   const designorar = useCallback(async (ticker: string) => {
     try {
       // POST y no DELETE: el proxy catch-all de /api/ia expone solo GET y POST.
@@ -234,11 +249,17 @@ export function AvAgentModal() {
   // insumos.
   const simular = useCallback(async (ticker: string, curva1816: string,
                                      aplicar = false,
-                                     extra: Record<string, unknown> = {}) => {
+                                     extra: Record<string, unknown> = {},
+                                     modo: "alta" | "flujos" = "alta") => {
     setSims((s) => ({ ...s, [ticker]: null }));
+    // Dos rutas porque son dos escrituras DISTINTAS: el alta crea el bono entero;
+    // `flujos` completa el cronograma de uno que ya existe y no toca nada más.
+    const ruta = modo === "flujos"
+      ? (aplicar ? "aplicar-flujos" : "simular-flujos")
+      : (aplicar ? "aplicar-alta" : "simular");
     try {
       const r = await fetchJson<Record<string, unknown>>(
-        `/api/ia/av-agent/${aplicar ? "aplicar-alta" : "simular"}`, {
+        `/api/ia/av-agent/${ruta}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ticker, curva_1816: curva1816, ...extra }),
@@ -358,7 +379,7 @@ export function AvAgentModal() {
               )}
               {tab === "avisos" && <TabAvisos avisos={data.avisos ?? []} resolver={resolverAviso} completar={completarAviso} />}
               {tab === "hallazgos" && (
-                <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} />
+                <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} ignorar={ignorar} />
               )}
               {tab === "hizo" && <TabHizo acciones={data.acciones ?? []} />}
               {tab === "decidido" && <TabDecidido data={data} designorar={designorar} />}
@@ -580,11 +601,13 @@ function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
 
 // ── TAB 2: lo que encontró ─────────────────────────────────────────────────
 
-function TabHallazgos({ porTipo, data, sims, simular }: {
+function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   porTipo: Record<string, Hallazgo[]>;
   data: Vista;
   sims: Record<string, Record<string, unknown> | null>;
-  simular: (ticker: string, curva1816: string, aplicar?: boolean) => void;
+  simular: (ticker: string, curva1816: string, aplicar?: boolean,
+            extra?: Record<string, unknown>, modo?: "alta" | "flujos") => void;
+  ignorar: (ticker: string) => void;
 }) {
   if (data.hallazgos.length === 0) {
     return (
@@ -611,7 +634,7 @@ function TabHallazgos({ porTipo, data, sims, simular }: {
             {hs.map((h, i) => (
               <div
                 key={`${h.ticker}-${h.regla}-${i}`}
-                className="grid grid-cols-[3px_72px_150px_1fr] items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]"
+                className="grid grid-cols-[3px_72px_150px_1fr_auto] items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]"
               >
                 <span className="self-stretch" style={{ background: SEV_TINT[h.severidad] }}
                       title={`severidad ${h.severidad}`} />
@@ -633,12 +656,100 @@ function TabHallazgos({ porTipo, data, sims, simular }: {
                   {h.tipo === "falta_en_base" && (
                     <AccionAlta h={h} sim={sims[h.ticker]} simular={simular} />
                   )}
+                  {/* `flujos_vacios` era el único hallazgo que decía «se puede
+                      completar» y no ofrecía completarlo. Misma cadena, mismo
+                      cotejo contra 1816 — lo que cambia es QUÉ se escribe. */}
+                  {h.tipo === "flujos_vacios" && (
+                    <AccionFlujos h={h} sim={sims[h.ticker]} simular={simular} />
+                  )}
                 </div>
+                {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
+                    valor de la lista depende de poder sacarle lo que no importa.
+                    Reversible desde la tab DECIDIDO. */}
+                <button
+                  onClick={() => ignorar(h.ticker)}
+                  title="No me interesa: no vuelve a aparecer (reversible en DECIDIDO)"
+                  className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 self-center border border-transparent text-[var(--t-text-dim)] hover:border-[var(--t-neg)] hover:text-[var(--t-neg)]"
+                >
+                  Ignorar
+                </button>
               </div>
             ))}
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+// COMPLETAR EL CRONOGRAMA de un bono que ya existe. Es el alta al revés: los
+// ejes ya los cargó la mesa y NO se tocan; lo único que se escribe es el cuadro.
+// Por eso el cotejo contra 1816 pesa más que en un alta — el bono ya se muestra,
+// y con un cuadro mal convertido pasa de «sin TEA» a «con una TEA equivocada».
+function AccionFlujos({ h, sim, simular }: {
+  h: Hallazgo;
+  sim: Record<string, unknown> | null | undefined;
+  simular: (ticker: string, curva1816: string, aplicar?: boolean,
+            extra?: Record<string, unknown>, modo?: "alta" | "flujos") => void;
+}) {
+  const corriendo = sim === null;
+  const r = sim as Record<string, unknown> | undefined;
+  const ok = r?.ok === true;
+  const aplicado = r?.aplicado === true;
+  const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
+  const pasos: Paso[] = Array.isArray(r?.chequeos) ? (r.chequeos as Paso[]) : [];
+  const veredicto = r?.veredicto as Veredicto | undefined;
+  const puedeAplicar = veredicto
+    ? veredicto.puede_aplicar !== false
+    : !pasos.some((p) => p.estado === "bloquea");
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      {!aplicado && (
+        <button
+          disabled={corriendo}
+          onClick={() => simular(h.ticker, "", false, {}, "flujos")}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+        >
+          {corriendo ? "…" : "Simular flujos"}
+        </button>
+      )}
+      {ok && puedeAplicar && !aplicado && (
+        <button
+          onClick={() => simular(h.ticker, "", true, {}, "flujos")}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
+        >
+          Completar cronograma
+        </button>
+      )}
+      {ok && !puedeAplicar && !aplicado && (
+        <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)]">
+          ✘ Bloqueado
+        </span>
+      )}
+      {r && (
+        <span className={`text-[9px] ${r.ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
+          {r.ok === false && String(r.error ?? "falló")}
+          {ok && (
+            <>
+              {aplicado ? "✔ CRONOGRAMA ESCRITO · " : ""}
+              {`${r.cupones ?? 0} cupones · vence ${String(r.vencimiento ?? "—")} · `}
+              {`escala ${String(r.escala ?? "—")}`}
+              {tea !== null ? ` · TEA simulada ${(tea * 100).toFixed(2)}%` : ""}
+              {r.precio_fuente === "1816" ? " (precio de referencia 1816)" : ""}
+              {r.nota_tasa ? ` · ${String(r.nota_tasa)}` : ""}
+              {aplicado && r.aviso ? ` · ${String(r.aviso)}` : ""}
+            </>
+          )}
+        </span>
+      )}
+      {ok && pasos.length > 0 && (
+        <Chequeos
+          pasos={pasos}
+          veredicto={veredicto}
+          calculo={Array.isArray(r?.calculo) ? (r.calculo as Insumo[]) : []}
+        />
+      )}
     </div>
   );
 }
