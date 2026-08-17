@@ -607,6 +607,9 @@ function AccionAlta({ h, sim, simular }: {
   const aplicado = r?.aplicado === true;
   const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
   const simEstado = r?.simbolo_estado as { conocido: boolean | null; nota: string } | undefined;
+  const crudos = r?.chequeos;
+  const pasos: Paso[] = Array.isArray(crudos) ? (crudos as Paso[]) : [];
+  const bloqueado = pasos.some((p) => p.estado === "falla");
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -619,7 +622,7 @@ function AccionAlta({ h, sim, simular }: {
           {corriendo ? "…" : "Simular"}
         </button>
       )}
-      {ok && aplicable && !aplicado && (
+      {ok && aplicable && !bloqueado && !aplicado && (
         <button
           onClick={() => simular(h.ticker, curva, true)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
@@ -647,13 +650,105 @@ function AccionAlta({ h, sim, simular }: {
               {aplicado && r.aviso ? ` · ${String(r.aviso)}` : ""}
             </>
           )}
-          {/* ¿Va a tener precio? Dar de alta no alcanza: si Primary no lista el
-              símbolo, el bono nunca llega al snapshot y su TEA queda vacía sin
-              que nadie sepa por qué. */}
-          {ok && simEstado && simEstado.conocido === false && (
-            <span className="block text-[var(--t-neg)]">{simEstado.nota}</span>
-          )}
         </span>
+      )}
+      {/* El PASO A PASO. Antes acá solo se avisaba cuando Primary no listaba el
+          símbolo — o sea, un único eslabón, y solo al fallar. Aplicar sin ver la
+          cadena entera es firmar a ciegas: el bono queda escrito y el síntoma de
+          que algo faltó es una celda vacía tres días después. */}
+      {ok && pasos.length > 0 && (
+        <Chequeos
+          pasos={pasos}
+          veredicto={r?.veredicto as { estado: string; texto: string } | undefined}
+          simEstado={simEstado}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── El PRE-FLIGHT: la cadena completa antes de escribir ────────────────────
+//
+// Se muestran TODOS los pasos, también los que están en verde. Mostrar solo lo
+// que falla obliga a confiar en que el resto se chequeó, que es exactamente lo
+// que este cuadro viene a reemplazar.
+
+type Paso = {
+  n: number; titulo: string; estado: string;
+  detalle: string; tabla?: string; accion?: string;
+};
+
+const PASO_ICONO: Record<string, string> = {
+  ok: "✔", falla: "✘", atencion: "▲", no_se_puede_saber: "?",
+};
+const PASO_COLOR: Record<string, string> = {
+  ok: "var(--t-pos)", falla: "var(--t-neg)",
+  atencion: "#f59e0b", no_se_puede_saber: "var(--t-text-dim)",
+};
+
+function Chequeos({ pasos, veredicto, simEstado }: {
+  pasos: Paso[];
+  veredicto?: { estado: string; texto: string };
+  simEstado?: { conocido: boolean | null; nota: string };
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const fallas = pasos.filter((p) => p.estado === "falla").length;
+  const avisos = pasos.filter((p) => p.estado === "atencion"
+    || p.estado === "no_se_puede_saber").length;
+
+  return (
+    <div className="basis-full mt-1">
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className="flex items-baseline gap-1.5 text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+      >
+        <span>{abierto ? "▾" : "▸"} Cadena completa</span>
+        <span className="tabular-nums normal-case tracking-normal">
+          {pasos.length - fallas - avisos} ok
+          {fallas > 0 && <span className="text-[var(--t-neg)]"> · {fallas} bloquea</span>}
+          {avisos > 0 && <span style={{ color: "#f59e0b" }}> · {avisos} a mirar</span>}
+        </span>
+      </button>
+
+      {veredicto && (
+        <p className="text-[10px] leading-snug mt-0.5"
+           style={{ color: PASO_COLOR[veredicto.estado] ?? "var(--t-text-muted)" }}>
+          {veredicto.texto}
+        </p>
+      )}
+
+      {abierto && (
+        <ol className="mt-1 border-l border-[var(--t-border)] pl-2 space-y-1">
+          {pasos.map((p) => (
+            <li key={p.n} className="grid grid-cols-[14px_1fr] gap-1.5 items-baseline">
+              <span className="text-[10px] font-bold" style={{ color: PASO_COLOR[p.estado] }}>
+                {PASO_ICONO[p.estado] ?? "·"}
+              </span>
+              <div className="min-w-0">
+                <span className="text-[10px] text-[var(--t-text)]">{p.titulo}</span>
+                {p.tabla && (
+                  <span className="ml-1.5 text-[9px] font-mono text-[var(--t-text-dim)]">
+                    {p.tabla}
+                  </span>
+                )}
+                <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                  {p.detalle}
+                </p>
+                {p.accion && (
+                  <p className="text-[10px] leading-snug" style={{ color: "#f59e0b" }}>
+                    → {p.accion}
+                  </p>
+                )}
+              </div>
+            </li>
+          ))}
+          {/* Redundante con el paso 6 a propósito: si Primary no lista el símbolo
+              el bono NUNCA va a tener precio, y eso no puede depender de que
+              alguien haya desplegado la lista. */}
+          {simEstado?.conocido === false && (
+            <li className="text-[10px] text-[var(--t-neg)] leading-snug">{simEstado.nota}</li>
+          )}
+        </ol>
       )}
     </div>
   );
