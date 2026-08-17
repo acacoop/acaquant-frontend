@@ -640,8 +640,20 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
           {/* Tabla y no lista: son filas homogéneas (ticker · regla · motivo) y
               alinearlas deja comparar de un vistazo, que es justo lo que uno hace
               con 38 tasas sospechosas. */}
+          {/* **Un BONO, un diagnóstico.** Un mismo ticker puede disparar VARIAS
+              reglas —CO3D7 sale por `sin_tea_con_precio` Y por
+              `paridad_fuera_de_rango`, y son 5 de los 38— pero el bono es uno
+              solo y la propuesta de arreglo también. Sin esto la cadena entera
+              se renderiza dos veces para el mismo instrumento, y como el estado
+              de la simulación se guarda POR TICKER las dos filas mostrarían
+              exactamente el mismo resultado: el que mira cree que son dos cosas
+              distintas y son la misma. La acción va en la PRIMERA aparición; las
+              otras siguen mostrando su motivo, que es lo que las distingue. */}
           <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-            {hs.map((h, i) => (
+            {(() => { const vistos = new Set<string>(); return hs.map((h, i) => {
+              const primera = !vistos.has(h.ticker);
+              vistos.add(h.ticker);
+              return (
               <div
                 key={`${h.ticker}-${h.regla}-${i}`}
                 className="grid grid-cols-[3px_72px_150px_1fr_auto] items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]"
@@ -668,7 +680,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       puede hacer lo dice el backend** (`h.accion`) — replicar
                       acá la lista de tipos accionables es cómo se consigue un
                       botón que no aparece y no avisa por qué. */}
-                  {(h.accion === "alta" || h.accion === "flujos"
+                  {primera && (h.accion === "alta" || h.accion === "flujos"
                     || h.accion === "arreglo") && (
                     <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                   modo={h.accion} />
@@ -685,7 +697,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                   Ignorar
                 </button>
               </div>
-            ))}
+            ); }); })()}
           </div>
         </section>
       ))}
