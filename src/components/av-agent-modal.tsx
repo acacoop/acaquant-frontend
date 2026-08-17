@@ -48,6 +48,12 @@ type Decidida = {
   respondida_at: string | null; aplicada_at: string | null;
 };
 type Ignorado = { ticker: string; motivo: string; por: string | null; creado_at: string | null };
+type Accion = {
+  id: number; ts: string | null; accion: string; destino: string; objetivo: string;
+  detalle: Record<string, unknown> | null; antes: Record<string, unknown> | null;
+  origen: string; pregunta_id: number | null; por: string | null;
+  ok: boolean; error: string | null;
+};
 type Pendiente = {
   id: number; clave: string; ticker: string; respuesta: string | null;
   nota: string | null; respondida_por: string | null; respondida_at: string | null;
@@ -62,6 +68,7 @@ type Vista = {
   decididas: Decidida[];
   ignorados: Ignorado[];
   pendientes: Pendiente[];
+  acciones: Accion[];
   capacidades: { puede_ignorar: boolean; puede_dar_de_alta: boolean; motivo_alta: string };
 };
 
@@ -94,7 +101,31 @@ function haceCuanto(iso: string | null): string {
   return `hace ${Math.round(h / 24)} días`;
 }
 
-type Tab = "preguntas" | "hallazgos" | "decidido";
+type Tab = "preguntas" | "hallazgos" | "hizo" | "decidido";
+
+// Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
+// igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
+// el nombre exacto que se busca en la base.
+const ACCION_LABEL: Record<string, string> = {
+  ignorar_ticker: "Marcó como «no nos interesa»",
+  designorar: "Deshizo un «no nos interesa»",
+  crear_curva: "Creó la curva",
+  alta_bono: "Dio de alta el bono",
+  completar_flujo: "Completó el cuadro de flujos",
+};
+
+function fechaHora(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  // Hora de Buenos Aires: el libro se lee para reconstruir qué pasó a tal hora,
+  // y esa hora es la del que operó, no la del servidor.
+  return d.toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "2-digit", month: "2-digit", year: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
 
 const TITULO = "text-[10px] font-semibold tracking-widest text-[var(--t-accent)]";
 const SUB = "text-[10px] text-[var(--t-text-dim)]";
@@ -223,6 +254,7 @@ export function AvAgentModal() {
               {([
                 ["preguntas", "ME PREGUNTA", nPreg],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
+                ["hizo", "HIZO", (data.acciones ?? []).length],
                 ["decidido", "YA DECIDIDO", data.decididas.length],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
                 <button
@@ -256,6 +288,7 @@ export function AvAgentModal() {
                 />
               )}
               {tab === "hallazgos" && <TabHallazgos porTipo={porTipo} data={data} />}
+              {tab === "hizo" && <TabHizo acciones={data.acciones ?? []} />}
               {tab === "decidido" && <TabDecidido data={data} designorar={designorar} />}
             </div>
           </div>
@@ -527,7 +560,69 @@ function TabHallazgos({ porTipo, data }: {
   );
 }
 
-// ── TAB 3: lo ya decidido (y cómo deshacerlo) ──────────────────────────────
+// ── TAB 3: el LIBRO — qué escribió, cuándo y dónde ─────────────────────────
+
+function TabHizo({ acciones }: { acciones: Accion[] }) {
+  if (acciones.length === 0) {
+    return (
+      <p className="text-[11px] text-[var(--t-text-muted)]">
+        Todavía no escribí nada. Acá va a quedar cada cosa que toque, con la fecha,
+        la hora, la tabla y quién me lo pidió.
+      </p>
+    );
+  }
+  return (
+    <div>
+      <p className={`${SUB} mb-1.5`}>
+        Todo lo que escribí, lo más reciente primero. Incluye los intentos que
+        fallaron — un libro que solo anota los éxitos esconde justo lo que uno
+        quiere investigar.
+      </p>
+      <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+        <div className="grid grid-cols-[110px_170px_90px_1fr] gap-2 px-2 py-1 bg-[var(--t-surface)] text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+          <span>Cuándo</span><span>Qué hizo</span><span>Sobre</span><span>Dónde escribió</span>
+        </div>
+        {acciones.map((a) => (
+          <div
+            key={a.id}
+            className={`grid grid-cols-[110px_170px_90px_1fr] gap-2 px-2 py-1 items-baseline ${
+              a.ok ? "" : "bg-[var(--t-surface)]"}`}
+          >
+            <span className="text-[10px] tabular-nums text-[var(--t-text-muted)]">
+              {fechaHora(a.ts)}
+            </span>
+            <span className="text-[10px] text-[var(--t-text)]">
+              {!a.ok && <span className="text-[var(--t-neg)] font-bold">✘ </span>}
+              {ACCION_LABEL[a.accion] ?? a.accion}
+            </span>
+            <span className="text-[11px] font-bold tabular-nums text-[var(--t-text)]">
+              {a.objetivo}
+            </span>
+            <div className="min-w-0">
+              {/* La TABLA que se tocó, en crudo: es lo que uno necesita para ir a
+                  mirarla, y traducirla a lenguaje humano la haría inservible
+                  para eso. */}
+              <span className="text-[10px] font-mono text-[var(--t-text-dim)]">
+                {a.destino}
+              </span>
+              <div className="text-[9px] text-[var(--t-text-dim)] truncate"
+                   title={JSON.stringify(a.detalle ?? {})}>
+                {a.por || "—"}
+                {a.pregunta_id ? ` · pregunta #${a.pregunta_id}` : ""}
+                {a.error ? ` · ${a.error}` : ""}
+                {a.detalle && Object.keys(a.detalle).length > 0
+                  ? ` · ${JSON.stringify(a.detalle)}`
+                  : ""}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── TAB 4: lo ya decidido (y cómo deshacerlo) ──────────────────────────────
 
 function TabDecidido({ data, designorar }: {
   data: Vista;
