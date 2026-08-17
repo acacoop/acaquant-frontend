@@ -113,6 +113,7 @@ const ACCION_LABEL: Record<string, string> = {
   alta_bono: "Dio de alta el bono",
   completar_flujo: "Completó el cuadro de flujos",
   sembrar_especies: "Sembró las patas del papel",
+  sembrar_tasa_1816: "Cargó la tasa y el margen de 1816",
 };
 
 function fechaHora(iso: string | null): string {
