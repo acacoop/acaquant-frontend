@@ -39,7 +39,7 @@ type Hallazgo = {
   // el front tenía la condición escrita a mano y comparaba contra la REGLA
   // (`flujos_vacios`) creyendo que era el TIPO (`sin_flujo`): el botón no
   // aparecía, sin error y sin nada que mirar.
-  accion?: "alta" | "flujos" | null;
+  accion?: "alta" | "flujos" | "arreglo" | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -255,12 +255,17 @@ export function AvAgentModal() {
   const simular = useCallback(async (ticker: string, curva1816: string,
                                      aplicar = false,
                                      extra: Record<string, unknown> = {},
-                                     modo: "alta" | "flujos" = "alta") => {
+                                     modo: "alta" | "flujos" | "arreglo" = "alta") => {
     setSims((s) => ({ ...s, [ticker]: null }));
     // Dos rutas porque son dos escrituras DISTINTAS: el alta crea el bono entero;
     // `flujos` completa el cronograma de uno que ya existe y no toca nada más.
+    // Tres puertas, tres escrituras DISTINTAS: el alta crea el bono entero,
+    // `flujos` completa un cronograma vacío y `arreglo` PISA un insumo que ya
+    // está. Compartir ruta las haría indistinguibles en el libro de acciones.
     const ruta = modo === "flujos"
       ? (aplicar ? "aplicar-flujos" : "simular-flujos")
+      : modo === "arreglo"
+      ? (aplicar ? "aplicar-arreglo" : "simular-arreglo")
       : (aplicar ? "aplicar-alta" : "simular");
     try {
       const r = await fetchJson<Record<string, unknown>>(
@@ -663,7 +668,8 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       puede hacer lo dice el backend** (`h.accion`) — replicar
                       acá la lista de tipos accionables es cómo se consigue un
                       botón que no aparece y no avisa por qué. */}
-                  {(h.accion === "alta" || h.accion === "flujos") && (
+                  {(h.accion === "alta" || h.accion === "flujos"
+                    || h.accion === "arreglo") && (
                     <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                   modo={h.accion} />
                   )}
@@ -712,14 +718,20 @@ const COPY = {
     simular: "Simular flujos", aplicar: "Completar cronograma",
     hecho: "✔ CRONOGRAMA ESCRITO · ", cer: "del master",
   },
+  // La ÚNICA que pisa un dato existente — por eso el verbo es «arreglar» y no
+  // «aplicar»: lo que se hace acá es distinto y el botón tiene que decirlo.
+  arreglo: {
+    simular: "Diagnosticar", aplicar: "Arreglar",
+    hecho: "✔ ARREGLADO · ", cer: "del master",
+  },
 } as const;
 
 function AccionCadena({ h, sim, simular, modo }: {
   h: Hallazgo;
   sim: Record<string, unknown> | null | undefined;
   simular: (ticker: string, curva1816: string, aplicar?: boolean,
-            extra?: Record<string, unknown>, modo?: "alta" | "flujos") => void;
-  modo: "alta" | "flujos";
+            extra?: Record<string, unknown>, modo?: "alta" | "flujos" | "arreglo") => void;
+  modo: "alta" | "flujos" | "arreglo";
 }) {
   // Lo que el user tipeó EN la cadena. Vive acá —y no en el padre— porque es de
   // ESTE hallazgo: un estado compartido haría que el CER de un bono se filtrara
@@ -806,6 +818,14 @@ function AccionCadena({ h, sim, simular, modo }: {
           {ok && (
             <>
               {aplicado ? copy.hecho : ""}
+              {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
+                  resultado no dice si mejoró algo, que es toda la pregunta. */}
+              {modo === "arreglo" && r.antes ? (() => {
+                const a = r.antes as Record<string, unknown>;
+                const t0 = typeof a.tea === "number" ? `${(a.tea as number * 100).toFixed(2)}%` : "sin TEA";
+                const p0 = typeof a.paridad === "number" ? `${(a.paridad as number).toFixed(1)}%` : "—";
+                return `HOY: TEA ${t0} · paridad ${p0} → `;
+              })() : ""}
               {`${r.cupones ?? 0} cupones`}
               {/* Los YA PAGADOS, separados. 1816 manda el cronograma completo
                   desde la emisión, así que un bono de 2004 trae 60 cupones y de
