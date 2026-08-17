@@ -137,6 +137,9 @@ export function AvAgentModal() {
   const [tab, setTab] = useState<Tab>("preguntas");
   const [enviando, setEnviando] = useState<number | null>(null);
   const [notas, setNotas] = useState<Record<number, string>>({});
+  // Simulaciones por ticker. `null` = corriendo. El resultado se guarda para que
+  // uno pueda mirar el número antes de aplicar — que es todo el punto de E2.
+  const [sims, setSims] = useState<Record<string, Record<string, unknown> | null>>({});
 
   const cargar = useCallback(async () => {
     try {
@@ -179,6 +182,23 @@ export function AvAgentModal() {
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [cargar]);
+
+  const simular = useCallback(async (ticker: string, curva1816: string,
+                                     aplicar = false) => {
+    setSims((s) => ({ ...s, [ticker]: null }));
+    try {
+      const r = await fetchJson<Record<string, unknown>>(
+        `/api/ia/av-agent/${aplicar ? "aplicar-alta" : "simular"}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker, curva_1816: curva1816 }),
+        });
+      setSims((s) => ({ ...s, [ticker]: r }));
+      if (aplicar) await cargar();
+    } catch (e) {
+      setSims((s) => ({ ...s, [ticker]: { ok: false, error: String(e) } }));
     }
   }, [cargar]);
 
@@ -287,7 +307,9 @@ export function AvAgentModal() {
                   setTab={setTab}
                 />
               )}
-              {tab === "hallazgos" && <TabHallazgos porTipo={porTipo} data={data} />}
+              {tab === "hallazgos" && (
+                <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} />
+              )}
               {tab === "hizo" && <TabHizo acciones={data.acciones ?? []} />}
               {tab === "decidido" && <TabDecidido data={data} designorar={designorar} />}
             </div>
@@ -508,9 +530,11 @@ function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
 
 // ── TAB 2: lo que encontró ─────────────────────────────────────────────────
 
-function TabHallazgos({ porTipo, data }: {
+function TabHallazgos({ porTipo, data, sims, simular }: {
   porTipo: Record<string, Hallazgo[]>;
   data: Vista;
+  sims: Record<string, Record<string, unknown> | null>;
+  simular: (ticker: string, curva1816: string, aplicar?: boolean) => void;
 }) {
   if (data.hallazgos.length === 0) {
     return (
@@ -548,14 +572,78 @@ function TabHallazgos({ porTipo, data }: {
                       title={h.regla}>
                   {h.regla.replace(/_/g, " ")}
                 </span>
-                <span className="text-[10px] text-[var(--t-text-muted)] leading-snug">
-                  {h.motivo}
-                </span>
+                <div className="min-w-0">
+                  <span className="text-[10px] text-[var(--t-text-muted)] leading-snug">
+                    {h.motivo}
+                  </span>
+                  {/* ENCONTRÓ deja de ser solo un comentario: donde hay algo que
+                      el agente PUEDE hacer, el botón está en la misma fila. Un
+                      hallazgo accionable que obliga a irse a otra pantalla es un
+                      hallazgo que no se acciona. */}
+                  {h.tipo === "falta_en_base" && (
+                    <AccionAlta h={h} sim={sims[h.ticker]} simular={simular} />
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+function AccionAlta({ h, sim, simular }: {
+  h: Hallazgo;
+  sim: Record<string, unknown> | null | undefined;
+  simular: (ticker: string, curva1816: string, aplicar?: boolean) => void;
+}) {
+  const curva = String((h.evidencia ?? {}).curva_1816 ?? "");
+  if (!curva) return null;
+  const corriendo = sim === null;
+  const r = sim as Record<string, unknown> | undefined;
+  const ok = r?.ok === true;
+  const aplicable = r?.aplicable === true;
+  const aplicado = r?.aplicado === true;
+  const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      {!aplicado && (
+        <button
+          disabled={corriendo}
+          onClick={() => simular(h.ticker, curva)}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+        >
+          {corriendo ? "…" : "Simular"}
+        </button>
+      )}
+      {ok && aplicable && !aplicado && (
+        <button
+          onClick={() => simular(h.ticker, curva, true)}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
+        >
+          Aplicar
+        </button>
+      )}
+      {r && (
+        <span className={`text-[9px] ${r.ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
+          {r.ok === false && String(r.error ?? "falló")}
+          {ok && (
+            <>
+              {aplicado ? "✔ DADO DE ALTA · " : ""}
+              {`${r.cupones ?? 0} cupones · vence ${String(r.vencimiento ?? "—")} · `}
+              {`escala ${String(r.escala ?? "—")}`}
+              {tea !== null ? ` · TEA simulada ${(tea * 100).toFixed(2)}%` : ""}
+              {r.nota_tasa ? ` · ${String(r.nota_tasa)}` : ""}
+              {!aplicable && r.motivo_no_aplicable
+                ? ` · ${String(r.motivo_no_aplicable)}`
+                : ""}
+              {aplicado && r.aviso ? ` · ${String(r.aviso)}` : ""}
+            </>
+          )}
+        </span>
+      )}
     </div>
   );
 }
