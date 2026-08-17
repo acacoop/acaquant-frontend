@@ -48,6 +48,10 @@ type Decidida = {
   respondida_at: string | null; aplicada_at: string | null;
 };
 type Ignorado = { ticker: string; motivo: string; por: string | null; creado_at: string | null };
+type Pendiente = {
+  id: number; clave: string; ticker: string; respuesta: string | null;
+  nota: string | null; respondida_por: string | null; respondida_at: string | null;
+};
 type Vista = {
   corrida_at: string | null;
   hallazgos: Hallazgo[];
@@ -57,6 +61,7 @@ type Vista = {
   decisiones: Pregunta[];
   decididas: Decidida[];
   ignorados: Ignorado[];
+  pendientes: Pendiente[];
   capacidades: { puede_ignorar: boolean; puede_dar_de_alta: boolean; motivo_alta: string };
 };
 
@@ -528,7 +533,39 @@ function TabDecidido({ data, designorar }: {
   data: Vista;
   designorar: (ticker: string) => void;
 }) {
+  // Lo contestado que todavía NO surtió efecto va PRIMERO y a lo ancho: es la
+  // pregunta que el user se hace al volver ("¿qué pasó con las altas que
+  // contesté?"), y estaba solo como una línea gris en el historial.
+  const pend = data.pendientes ?? [];
+  const porResp: Record<string, Pendiente[]> = {};
+  for (const p of pend) (porResp[p.respuesta ?? "?"] ??= []).push(p);
   return (
+    <div className="flex flex-col gap-5">
+      {pend.length > 0 && (
+        <section className="border border-[var(--t-tint-amber)] bg-[var(--t-surface)] px-3 py-2">
+          <div className="flex items-baseline gap-2 mb-1">
+            <h3 className={TITULO}>ESPERANDO QUE PUEDA APLICARLAS</h3>
+            <span className={SUB}>{pend.length} · ya las contestaste</span>
+          </div>
+          {Object.entries(porResp).map(([resp, filas]) => (
+            <div key={resp} className="mt-1">
+              <div className="text-[10px] text-[var(--t-text)]">
+                <strong className="uppercase tracking-widest">{resp}</strong>
+                <span className="text-[var(--t-text-dim)]"> ({filas.length}): </span>
+                <span className="tabular-nums">
+                  {filas.map((f) => f.ticker).sort().join(", ")}
+                </span>
+              </div>
+              {resp === "alta" && (
+                <p className="text-[9px] text-[var(--t-text-dim)] mt-0.5">
+                  Falta E2: dar de alta necesita bajar el cuadro de flujos de 1816 y
+                  simular la TEA antes de escribir. Estas son las que va a procesar.
+                </p>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <section>
         <div className="flex items-baseline gap-2 mb-1">
@@ -595,6 +632,7 @@ function TabDecidido({ data, designorar }: {
           </div>
         )}
       </section>
+    </div>
     </div>
   );
 }
