@@ -645,9 +645,15 @@ function AccionAlta({ h, sim, simular }: {
   // APLICAR con el cronograma probadamente equivocado, y TMG27 escondía el botón
   // con la cadena entera en verde. El fallback local es solo para el caso de un
   // deploy desparejo — con el backend nuevo nunca se usa.
+  // **UNA sola condición, y NO se combina con nada.** Acá se hacía
+  // `aplicable && puedeAplicar`, y ese AND es el que escondía el botón en TZXA7:
+  // el veredicto decía «se puede aplicar A MANO» mientras `aplicable` —que
+  // miraba la rama Y el CER de emisión— decía que no. Sumar una segunda
+  // condición «por las dudas» es exactamente cómo se rompe esto: el gate real
+  // pasa a ser el más restrictivo, que nadie está mirando.
   const puedeAplicar = veredicto
     ? veredicto.puede_aplicar !== false
-    : aplicable && !pasos.some((p) => p.estado === "bloquea");
+    : !pasos.some((p) => p.estado === "bloquea");
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -660,7 +666,7 @@ function AccionAlta({ h, sim, simular }: {
           {corriendo ? "…" : "Simular"}
         </button>
       )}
-      {ok && aplicable && puedeAplicar && !aplicado && (
+      {ok && puedeAplicar && !aplicado && (
         <button
           onClick={() => simular(h.ticker, curva, true)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
