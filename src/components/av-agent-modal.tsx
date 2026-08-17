@@ -34,12 +34,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchJson } from "@/lib/fetch-json";
 
 // ── Contrato GET /api/ia/av-agent/vista ────────────────────────────────────
+// La firma de `simular`, **escrita UNA vez**. Estaba duplicada en tres lugares
+// (el `useCallback` que la crea y los dos componentes que la reciben como prop) y
+// al sumar el modo `arreglo` quedó actualizada en dos de los tres: el build de
+// Vercel falló con «Type "arreglo" is not assignable to "alta" | "flujos"».
+//
+// Es el MISMO patrón que venimos persiguiendo todo el día —un criterio copiado
+// que nada obliga a mantener de acuerdo— solo que en TypeScript el compilador sí
+// avisa. Con un alias, agregar un modo es una línea y no puede quedar a medias.
+type Modo = "alta" | "flujos" | "arreglo";
+type Simular = (ticker: string, curva1816: string, aplicar?: boolean,
+                extra?: Record<string, unknown>, modo?: Modo) => void;
+
 type Hallazgo = {
   // QUÉ puede hacer el agente con este hallazgo. **Lo decide el backend** —
   // el front tenía la condición escrita a mano y comparaba contra la REGLA
   // (`flujos_vacios`) creyendo que era el TIPO (`sin_flujo`): el botón no
   // aparecía, sin error y sin nada que mirar.
-  accion?: "alta" | "flujos" | "arreglo" | null;
+  accion?: Modo | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -255,7 +267,7 @@ export function AvAgentModal() {
   const simular = useCallback(async (ticker: string, curva1816: string,
                                      aplicar = false,
                                      extra: Record<string, unknown> = {},
-                                     modo: "alta" | "flujos" | "arreglo" = "alta") => {
+                                     modo: Modo = "alta") => {
     setSims((s) => ({ ...s, [ticker]: null }));
     // Dos rutas porque son dos escrituras DISTINTAS: el alta crea el bono entero;
     // `flujos` completa el cronograma de uno que ya existe y no toca nada más.
@@ -615,8 +627,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   porTipo: Record<string, Hallazgo[]>;
   data: Vista;
   sims: Record<string, Record<string, unknown> | null>;
-  simular: (ticker: string, curva1816: string, aplicar?: boolean,
-            extra?: Record<string, unknown>, modo?: "alta" | "flujos") => void;
+  simular: Simular;
   ignorar: (ticker: string) => void;
 }) {
   if (data.hallazgos.length === 0) {
@@ -741,9 +752,8 @@ const COPY = {
 function AccionCadena({ h, sim, simular, modo }: {
   h: Hallazgo;
   sim: Record<string, unknown> | null | undefined;
-  simular: (ticker: string, curva1816: string, aplicar?: boolean,
-            extra?: Record<string, unknown>, modo?: "alta" | "flujos" | "arreglo") => void;
-  modo: "alta" | "flujos" | "arreglo";
+  simular: Simular;
+  modo: Modo;
 }) {
   // Lo que el user tipeó EN la cadena. Vive acá —y no en el padre— porque es de
   // ESTE hallazgo: un estado compartido haría que el CER de un bono se filtrara
@@ -796,6 +806,16 @@ function AccionCadena({ h, sim, simular, modo }: {
   const piden = pasos.filter((p) => p.pide);
   const faltan = piden.filter((p) => !extra[p.pide!.campo]);
   const cerNota = r?.cer_manual === true ? "cargado a mano" : copy.cer;
+  // El ANTES → DESPUÉS del arreglo, como texto plano y FUERA del JSX. En el
+  // ARREGLO lo que importa es la comparación —ver solo el resultado no dice si
+  // mejoró algo, que es toda la pregunta de esa puerta— y armarla acá evita un
+  // ternario sobre `unknown` embebido en el markup, que se lee peor y es justo
+  // donde el compilador se pone quisquilloso.
+  const a0 = (r?.antes ?? null) as { tea?: unknown; paridad?: unknown } | null;
+  const antesTxt = modo === "arreglo" && a0
+    ? `HOY: TEA ${typeof a0.tea === "number" ? `${(a0.tea * 100).toFixed(2)}%` : "sin TEA"}`
+      + ` · paridad ${typeof a0.paridad === "number" ? `${a0.paridad.toFixed(1)}%` : "—"} → `
+    : "";
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -832,12 +852,7 @@ function AccionCadena({ h, sim, simular, modo }: {
               {aplicado ? copy.hecho : ""}
               {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
                   resultado no dice si mejoró algo, que es toda la pregunta. */}
-              {modo === "arreglo" && r.antes ? (() => {
-                const a = r.antes as Record<string, unknown>;
-                const t0 = typeof a.tea === "number" ? `${(a.tea as number * 100).toFixed(2)}%` : "sin TEA";
-                const p0 = typeof a.paridad === "number" ? `${(a.paridad as number).toFixed(1)}%` : "—";
-                return `HOY: TEA ${t0} · paridad ${p0} → `;
-              })() : ""}
+              {antesTxt}
               {`${r.cupones ?? 0} cupones`}
               {/* Los YA PAGADOS, separados. 1816 manda el cronograma completo
                   desde la emisión, así que un bono de 2004 trae 60 cupones y de
