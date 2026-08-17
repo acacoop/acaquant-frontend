@@ -61,10 +61,15 @@ type Vista = {
 };
 
 const TIPO_LABEL: Record<string, string> = {
+  hueco_de_curva: "Le falta al sistema (no es un dato mal cargado)",
   falta_en_base: "Están en 1816 y no en tu base",
   sin_flujo: "Tuyos sin cronograma de flujos",
   tasa_sospechosa: "Tasas que pueden estar mal",
 };
+
+// Los huecos van PRIMEROS: un ajuste sin curva deja bonos invisibles, y arreglar
+// un dato de un bono que igual no se ve es trabajo perdido.
+const ORDEN_TIPO = ["hueco_de_curva", "falta_en_base", "sin_flujo", "tasa_sospechosa"];
 
 const SEV_TINT: Record<string, string> = {
   alta: "var(--t-neg)",
@@ -356,6 +361,10 @@ function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
   const ctx = p.contexto ?? null;
   const ficha = fichaDe(ctx);
   const enCartera = ctx?.en_cartera === true;
+  // Darlo de alta NO alcanza para verlo si su ajuste no tiene curva.
+  const sinCurva = ctx?.ajuste_sin_curva === true;
+  const ajuste = String((ctx?.ejes_sugeridos as Record<string, unknown> | undefined)
+    ?.ajuste ?? "").toUpperCase();
   // El TICKER se separa del resto de la pregunta: es lo que uno busca con la
   // vista cuando recorre 21 tarjetas, y perdido dentro de un párrafo no se
   // encuentra.
@@ -376,6 +385,18 @@ function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
             {enCartera && (
               <span className="px-1 text-[9px] font-bold tracking-widest text-[var(--t-neg)] border border-[var(--t-neg)]">
                 EN CARTERA · NO VALÚA
+              </span>
+            )}
+            {/* Sin pill no hay curva, y sin curva el bono queda cargado y no
+                aparece en ninguna pantalla. Decirlo ANTES del alta es la
+                diferencia entre una decisión informada y cargar diez bonos que
+                no se van a poder mirar. */}
+            {sinCurva && (
+              <span
+                className="px-1 text-[9px] font-bold tracking-widest text-[var(--t-tint-amber)] border border-[var(--t-tint-amber)]"
+                title={`El ajuste ${ajuste} todavía no tiene tabla en la app: si lo das de alta, no va a aparecer en ninguna vista.`}
+              >
+                {ajuste} SIN CURVA
               </span>
             )}
           </div>
@@ -441,7 +462,9 @@ function TabHallazgos({ porTipo, data }: {
   }
   return (
     <div className="flex flex-col gap-5">
-      {Object.entries(porTipo).map(([tipo, hs]) => (
+      {Object.entries(porTipo)
+        .sort(([a], [b]) => (ORDEN_TIPO.indexOf(a) + 1 || 99) - (ORDEN_TIPO.indexOf(b) + 1 || 99))
+        .map(([tipo, hs]) => (
         <section key={tipo}>
           <div className="flex items-baseline gap-2 mb-1.5">
             <h3 className={TITULO}>{(TIPO_LABEL[tipo] ?? tipo).toUpperCase()}</h3>
