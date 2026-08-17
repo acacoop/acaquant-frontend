@@ -228,15 +228,20 @@ export function AvAgentModal() {
     }
   }, [cargar]);
 
+  // `extra` lleva los datos que el user tipeó EN la cadena (hoy: el CER de
+  // emisión). Viajan igual a SIMULAR y a APLICAR, así que lo que se aplica es
+  // exactamente lo que se vio simulado — no una segunda cuenta con otros
+  // insumos.
   const simular = useCallback(async (ticker: string, curva1816: string,
-                                     aplicar = false) => {
+                                     aplicar = false,
+                                     extra: Record<string, unknown> = {}) => {
     setSims((s) => ({ ...s, [ticker]: null }));
     try {
       const r = await fetchJson<Record<string, unknown>>(
         `/api/ia/av-agent/${aplicar ? "aplicar-alta" : "simular"}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker, curva_1816: curva1816 }),
+          body: JSON.stringify({ ticker, curva_1816: curva1816, ...extra }),
         });
       setSims((s) => ({ ...s, [ticker]: r }));
       if (aplicar) await cargar();
@@ -641,8 +646,13 @@ function TabHallazgos({ porTipo, data, sims, simular }: {
 function AccionAlta({ h, sim, simular }: {
   h: Hallazgo;
   sim: Record<string, unknown> | null | undefined;
-  simular: (ticker: string, curva1816: string, aplicar?: boolean) => void;
+  simular: (ticker: string, curva1816: string, aplicar?: boolean,
+            extra?: Record<string, unknown>) => void;
 }) {
+  // Lo que el user tipeó EN la cadena. Vive acá —y no en el padre— porque es de
+  // ESTE hallazgo: un estado compartido haría que el CER de un bono se filtrara
+  // al siguiente que se simule.
+  const [pedido, setPedido] = useState<Record<string, string>>({});
   const curva = String((h.evidencia ?? {}).curva_1816 ?? "");
   if (!curva) return null;
   const corriendo = sim === null;
@@ -670,12 +680,27 @@ function AccionAlta({ h, sim, simular }: {
     ? veredicto.puede_aplicar !== false
     : !pasos.some((p) => p.estado === "bloquea");
 
+  // Los datos tipeados viajan IGUAL a SIMULAR y a APLICAR: lo que se aplica es
+  // exactamente lo que se vio simulado. Si fueran dos payloads distintos, el
+  // bono podría nacer con insumos que nadie miró.
+  const extra: Record<string, unknown> = {};
+  for (const k of Object.keys(pedido)) {
+    // Coma decimal: se tipea «12,3456» y el backend espera un número.
+    const crudo = (pedido[k] ?? "").trim();
+    const n = Number(crudo.replace(",", "."));
+    if (crudo && Number.isFinite(n) && n > 0) extra[k] = n;
+  }
+  // Un paso que PIDE un dato y todavía no lo tiene: hasta completarlo, aplicar
+  // deja el bono sin tasa. No se bloquea (esa decisión ya se tomó: el alta vale
+  // igual), pero el botón principal pasa a ser «simular con el dato».
+  const pendientes = pasos.filter((p) => p.pide && !extra[p.pide.campo]);
+
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
       {!aplicado && (
         <button
           disabled={corriendo}
-          onClick={() => simular(h.ticker, curva)}
+          onClick={() => simular(h.ticker, curva, false, extra)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
         >
           {corriendo ? "…" : "Simular"}
@@ -683,7 +708,7 @@ function AccionAlta({ h, sim, simular }: {
       )}
       {ok && puedeAplicar && !aplicado && (
         <button
-          onClick={() => simular(h.ticker, curva, true)}
+          onClick={() => simular(h.ticker, curva, true, extra)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
         >
           Aplicar
@@ -727,6 +752,48 @@ function AccionAlta({ h, sim, simular }: {
           símbolo — o sea, un único eslabón, y solo al fallar. Aplicar sin ver la
           cadena entera es firmar a ciegas: el bono queda escrito y el síntoma de
           que algo faltó es una celda vacía tres días después. */}
+      {/* EL DATO QUE FALTA, PEDIDO ACÁ MISMO (user, 2026-08-17): «no podría ser
+          acá mismo interactivo y que me pida el CER de emisión para continuar, y
+          que rehaga la simulación con ese dato y si va todo bien ya lo aplique
+          con eso». Antes había que aplicar a ciegas, ir a AVISOS, cargar el
+          número y recién ahí enterarse de si la tasa cerraba. */}
+      {ok && !aplicado && pendientes.length > 0 && (
+        <div className="w-full mt-1 flex flex-wrap items-center gap-1.5 border-l-2 border-[#f59e0b] pl-2 py-1">
+          {pendientes.map((p) => (
+            <div key={p.clave} className="flex items-center gap-1">
+              <span className="text-[9px] uppercase tracking-widest text-[#f59e0b]">
+                {p.pide!.label}
+              </span>
+              <input
+                value={pedido[p.pide!.campo] ?? ""}
+                onChange={(e) => setPedido((v) => ({ ...v, [p.pide!.campo]: e.target.value }))}
+                onKeyDown={(e) => {
+                  const n = Number(String((e.target as HTMLInputElement).value).replace(",", "."));
+                  if (e.key === "Enter" && Number.isFinite(n) && n > 0) {
+                    simular(h.ticker, curva, false, { [p.pide!.campo]: n });
+                  }
+                }}
+                placeholder="0,0000"
+                title={p.pide!.ayuda}
+                inputMode={p.pide!.tipo === "numero" ? "decimal" : "text"}
+                className="w-24 bg-transparent border border-[#f59e0b] px-1 py-0.5 text-[10px] text-[var(--t-text)] outline-none"
+              />
+              <span className="text-[9px] text-[var(--t-text-dim)]">{p.pide!.ayuda}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Con el dato ya escrito, el botón deja de ser «simular» a secas: dice
+          que va a rehacer la cuenta CON ese número. */}
+      {ok && !aplicado && Object.keys(extra).length > 0 && (
+        <button
+          disabled={corriendo}
+          onClick={() => simular(h.ticker, curva, false, extra)}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[#f59e0b] text-[#f59e0b] hover:bg-[#f59e0b] hover:text-black disabled:opacity-40"
+        >
+          {corriendo ? "…" : "Simular con este dato"}
+        </button>
+      )}
       {ok && pasos.length > 0 && (
         <Chequeos
           pasos={pasos}
@@ -752,6 +819,9 @@ type Paso = {
   frena?: boolean; frena_auto?: boolean;
   // Trabajo MANUAL que queda pendiente después de aplicar. No es un error.
   aviso?: string;
+  // El dato se puede TIPEAR en la propia cadena y volver a simular con él, en
+  // vez de aplicar a ciegas e ir a cargarlo a otra pantalla.
+  pide?: { campo: string; label: string; tipo: string; ayuda: string } | null;
 };
 
 // El veredicto trae la DECISIÓN ya tomada, no los insumos para tomarla.
