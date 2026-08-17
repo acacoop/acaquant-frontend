@@ -35,6 +35,11 @@ import { fetchJson } from "@/lib/fetch-json";
 
 // ── Contrato GET /api/ia/av-agent/vista ────────────────────────────────────
 type Hallazgo = {
+  // QUÉ puede hacer el agente con este hallazgo. **Lo decide el backend** —
+  // el front tenía la condición escrita a mano y comparaba contra la REGLA
+  // (`flujos_vacios`) creyendo que era el TIPO (`sin_flujo`): el botón no
+  // aparecía, sin error y sin nada que mirar.
+  accion?: "alta" | "flujos" | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -653,13 +658,15 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       el agente PUEDE hacer, el botón está en la misma fila. Un
                       hallazgo accionable que obliga a irse a otra pantalla es un
                       hallazgo que no se acciona. */}
-                  {h.tipo === "falta_en_base" && (
+                  {/* ENCONTRÓ deja de ser solo un comentario: donde el agente
+                      PUEDE hacer algo, el botón está en la misma fila. **Qué
+                      puede hacer lo dice el backend** (`h.accion`) — replicar
+                      acá la lista de tipos accionables es cómo se consigue un
+                      botón que no aparece y no avisa por qué. */}
+                  {h.accion === "alta" && (
                     <AccionAlta h={h} sim={sims[h.ticker]} simular={simular} />
                   )}
-                  {/* `flujos_vacios` era el único hallazgo que decía «se puede
-                      completar» y no ofrecía completarlo. Misma cadena, mismo
-                      cotejo contra 1816 — lo que cambia es QUÉ se escribe. */}
-                  {h.tipo === "flujos_vacios" && (
+                  {h.accion === "flujos" && (
                     <AccionFlujos h={h} sim={sims[h.ticker]} simular={simular} />
                   )}
                 </div>
