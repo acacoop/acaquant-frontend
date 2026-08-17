@@ -9,6 +9,9 @@
 //       saldo inicial de Tesorería son equipos distintos): quién CREA/EDITA.
 //   FILA DE ABAJO — permisos de ACCESO (quién VE la vista), que hasta el
 //     2026-08-11 los daba el módulo `operaciones` y ahora son per-usuario.
+//     Son DOS listas: acceso COMPLETO y acceso SOLO RESULTADOS (2026-08-17),
+//     este último para dar el tablero de resultados a gente que no tiene que
+//     ver la operatoria de la mesa. El recorte lo aplica el backend.
 // Consume /api/manager/mesa/*. Todo cambio queda auditado.
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -128,6 +131,13 @@ export function TabMesa() {
         detalle="Usuarios que PUEDEN VER la vista Mesa de Dinero (admin siempre puede). Antes la veía todo NEGOCIO; ahora solo esta lista. Los de PERMISOS ya la ven: escribir implica ver."
         base="/api/manager/mesa/lectores"
         vacio="Solo admin ve la vista. Buscá arriba para dar acceso."
+      />
+
+      <PanelEscritores
+        titulo="ACCESO — Mesa de Dinero (SOLO RESULTADOS)"
+        detalle="Entran a la vista pero SOLO a la tab RESULTADOS (por cliente y por comercial). NO ven el detalle de las operaciones ni ACA VALORES RETORNO. Para dar el tablero de resultados sin abrir la operatoria de la mesa."
+        base="/api/manager/mesa/lectores-resultados"
+        vacio="Nadie con acceso parcial. Buscá arriba para agregar."
       />
     </div>
     </div>

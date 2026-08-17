@@ -55,7 +55,15 @@ type Resultados = {
   por_cliente: PorCliente[]; por_comercial: PorComercial[];
   total_ars: number; total_usd: number; n_total: number; dias_sin_tc: number;
 };
-type Opciones = { traders: string[]; observaciones: string[]; clientes: string[]; puede_escribir: boolean };
+// `alcance` = hasta dónde ve la vista este usuario (lo decide el backend):
+// "todo" = las tres tabs; "resultados" = SOLO la tab RESULTADOS (grupo de acceso
+// parcial, Manager → MESA). El front esconde lo que no corresponde, pero el
+// permiso REAL lo aplica el backend en /ops, /resumen y /retorno.
+type Alcance = "todo" | "resultados";
+type Opciones = {
+  traders: string[]; observaciones: string[]; clientes: string[];
+  puede_escribir: boolean; alcance?: Alcance | null;
+};
 // ACA VALORES RETORNO TOTAL — filas crudas del período (se agregan en el cliente
 // para el cross-filter interactivo: tocar un agente/operación/papel/día filtra el resto).
 // La métrica `cash` = columna "Moneda de Concertación Bruto" del informe.
@@ -323,7 +331,10 @@ export function MesaDineroView() {
   const [fAg, setFAg] = useState<string | null>(null);
   const [fPa, setFPa] = useState<string | null>(null);
   const [fFecha, setFFecha] = useState<string | null>(null);
-  const [opciones, setOpciones] = useState<Opciones>({ traders: [], observaciones: [], clientes: [], puede_escribir: false });
+  // `null` hasta que responde /opciones: recién ahí se sabe el ALCANCE y, por
+  // lo tanto, qué endpoints tiene permitidos este usuario. Pedir /ops antes
+  // sería un 403 seguro para el grupo de solo-resultados.
+  const [opciones, setOpciones] = useState<Opciones | null>(null);
   const [moneda, setMoneda] = usePersistedState<"ARS" | "USD">("mesaDinero.moneda", "ARS");
   const [filtroTrader, setFiltroTrader] = useState<string>("");
   const [formAbierto, setFormAbierto] = useState(false);
@@ -331,36 +342,46 @@ export function MesaDineroView() {
   const [loading, setLoading] = useState(false);
 
   const { desde, hasta } = useMemo(() => rangoDeMes(mes), [mes]);
+  const soloResultados = opciones?.alcance === "resultados";
 
   const cargar = useCallback(() => {
+    if (!opciones) return;           // sin el alcance no se sabe qué se puede pedir
     setLoading(true);
     const qs = `?desde=${desde}&hasta=${hasta}` +
       (filtroTrader ? `&trader=${encodeURIComponent(filtroTrader)}` : "");
+    // El grupo de solo-resultados no pide /ops ni /resumen: son las fuentes de
+    // la tab OPERACIONES y el backend se las rechaza.
+    const solo = opciones.alcance === "resultados";
     Promise.all([
-      getJson<{ operaciones: Op[] }>(`/api/mesa-dinero/ops${qs}`),
-      getJson<Resumen>(`/api/mesa-dinero/resumen${qs}`),
+      solo ? Promise.resolve(null) : getJson<{ operaciones: Op[] }>(`/api/mesa-dinero/ops${qs}`),
+      solo ? Promise.resolve(null) : getJson<Resumen>(`/api/mesa-dinero/resumen${qs}`),
       getJson<Resultados>(`/api/mesa-dinero/resultados${qs}`),
     ])
-      .then(([o, r, res]) => { setOps(o.operaciones); setResumen(r); setResultados(res); })
+      .then(([o, r, res]) => { setOps(o?.operaciones ?? []); setResumen(r); setResultados(res); })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [desde, hasta, filtroTrader]);
+  }, [desde, hasta, filtroTrader, opciones]);
 
   useEffect(() => { cargar(); }, [cargar]);
   useEffect(() => {
     getJson<Opciones>("/api/mesa-dinero/opciones").then(setOpciones).catch(console.error);
   }, []);
 
+  // Tab EFECTIVA: con alcance parcial siempre RESULTADOS. Se DERIVA en vez de
+  // pisar el estado persistido — así no hay render en cascada y, si mañana le
+  // dan acceso completo, vuelve a abrir en la tab que él había elegido.
+  const tabActiva = soloResultados ? "resultados" : tab;
+
   // ACA VALORES RETORNO TOTAL — se carga solo al entrar a la tab / cambiar período.
   // El período (YYYY-MM) es el del archivo Excel importado, independiente del
   // selector de mes de la vista de operaciones.
   useEffect(() => {
-    if (tab !== "retorno") return;
+    if (tabActiva !== "retorno") return;
     const qs = retPeriodo ? `?periodo=${retPeriodo}` : "";
     getJson<Retorno>(`/api/mesa-dinero/retorno${qs}`)
       .then((r) => { setRetorno(r); if (!retPeriodo && r.periodo) setRetPeriodo(r.periodo); })
       .catch(console.error);
-  }, [tab, retPeriodo, setRetPeriodo]);
+  }, [tabActiva, retPeriodo, setRetPeriodo]);
 
   // Al cambiar de período se limpian los filtros cruzados.
   useEffect(() => { setFOp(null); setFAg(null); setFPa(null); setFFecha(null); }, [retPeriodo]);
@@ -452,7 +473,12 @@ export function MesaDineroView() {
   // en el backend; acá solo invertimos para mostrar (el chart sigue viejo→nuevo).
   const diasDesc = useMemo(() => [...(resumen?.dias ?? [])].reverse(), [resumen]);
 
-  const puedeEscribir = opciones.puede_escribir;
+  const puedeEscribir = opciones?.puede_escribir ?? false;
+  // Tabs visibles según el alcance. Con acceso parcial queda solo RESULTADOS —
+  // las otras dos no tienen de dónde traer datos (el backend las rechaza).
+  const TABS = ([["operaciones", "OPERACIONES"], ["resultados", "RESULTADOS"],
+                 ["retorno", "ACA VALORES RETORNO TOTAL"]] as const)
+    .filter(([id]) => !soloResultados || id === "resultados");
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -460,10 +486,10 @@ export function MesaDineroView() {
       <div className="flex items-center gap-3 px-3 py-2 border-b border-[var(--t-border)] bg-[var(--t-panel)] shrink-0">
         <span className="text-[11px] font-semibold text-[var(--t-accent)] tracking-widest">MESA DE DINERO</span>
         <div className="flex gap-1">
-          {([["operaciones", "OPERACIONES"], ["resultados", "RESULTADOS"], ["retorno", "ACA VALORES RETORNO TOTAL"]] as const).map(([id, label]) => (
+          {TABS.map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className={`px-2 py-0.5 text-[10px] font-semibold border ${
-                tab === id
+                tabActiva === id
                   ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
                   : "text-[var(--t-text-muted)] border-[var(--t-border-2)] hover:text-[var(--t-accent)]"
               }`}>
@@ -475,10 +501,12 @@ export function MesaDineroView() {
         <select value={filtroTrader} onChange={(e) => setFiltroTrader(e.target.value)}
           className={INPUT} title="Filtrar toda la vista por trader">
           <option value="">Todos los traders</option>
-          {opciones.traders.map((t) => <option key={t} value={t}>{t}</option>)}
+          {(opciones?.traders ?? []).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <span className="text-[10px] text-[var(--t-text-muted)]">{ops.length} registros</span>
-        {puedeEscribir && !formAbierto && tab === "operaciones" && (
+        {!soloResultados && (
+          <span className="text-[10px] text-[var(--t-text-muted)]">{ops.length} registros</span>
+        )}
+        {puedeEscribir && !formAbierto && tabActiva === "operaciones" && (
           <button onClick={() => { setEditando(null); setFormAbierto(true); }}
             className="px-3 py-1 text-[10px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)]">
             + NUEVA OPERACIÓN
@@ -490,14 +518,14 @@ export function MesaDineroView() {
         </button>
       </div>
 
-      {tab === "operaciones" && (
+      {tabActiva === "operaciones" && (
       <div className="flex-1 min-h-0 grid grid-cols-[55fr_45fr] gap-3 p-3">
         {/* IZQUIERDA: operaciones */}
         <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
           <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface)]">
             <span className="text-[11px] font-semibold text-[var(--t-text)]">OPERACIONES</span>
           </div>
-          {formAbierto && (
+          {formAbierto && opciones && (
             <OpForm key={editando?.id ?? "nueva"} opciones={opciones} editando={editando}
               onGuardado={() => { setFormAbierto(false); setEditando(null); cargar(); }}
               onCancelar={() => { setFormAbierto(false); setEditando(null); }}
@@ -621,7 +649,7 @@ export function MesaDineroView() {
       </div>
       )}
 
-      {tab === "resultados" && (
+      {tabActiva === "resultados" && (
       <div className="flex-1 min-h-0 grid grid-cols-2 gap-3 p-3">
         {/* IZQUIERDA: resultado por cliente */}
         <div className="flex flex-col min-h-0 border border-[var(--t-border-2)] bg-[var(--t-panel)] overflow-hidden">
@@ -756,7 +784,7 @@ export function MesaDineroView() {
       </div>
       )}
 
-      {tab === "retorno" && (
+      {tabActiva === "retorno" && (
       <div className="flex-1 min-h-0 flex flex-col p-3 gap-2">
         {/* Toolbar: período + total del slice + chips de filtro activo */}
         <div className="shrink-0 flex items-center gap-3 flex-wrap">
