@@ -611,7 +611,16 @@ function AccionAlta({ h, sim, simular }: {
   const simEstado = r?.simbolo_estado as { conocido: boolean | null; nota: string } | undefined;
   const crudos = r?.chequeos;
   const pasos: Paso[] = Array.isArray(crudos) ? (crudos as Paso[]) : [];
-  const bloqueado = pasos.some((p) => p.estado === "falla");
+  const veredicto = r?.veredicto as Veredicto | undefined;
+  // **UNA sola fuente decide si se puede aplicar: el veredicto del backend.**
+  // Acá convivían dos condiciones distintas (`aplicable`, que miraba la rama, y
+  // `bloqueado`, que miraba los pasos) y se contradecían entre sí: GD46 mostraba
+  // APLICAR con el cronograma probadamente equivocado, y TMG27 escondía el botón
+  // con la cadena entera en verde. El fallback local es solo para el caso de un
+  // deploy desparejo — con el backend nuevo nunca se usa.
+  const puedeAplicar = veredicto
+    ? veredicto.puede_aplicar !== false
+    : aplicable && !pasos.some((p) => p.estado === "bloquea");
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -624,13 +633,21 @@ function AccionAlta({ h, sim, simular }: {
           {corriendo ? "…" : "Simular"}
         </button>
       )}
-      {ok && aplicable && !bloqueado && !aplicado && (
+      {ok && aplicable && puedeAplicar && !aplicado && (
         <button
           onClick={() => simular(h.ticker, curva, true)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
         >
           Aplicar
         </button>
+      )}
+      {/* Un botón que DESAPARECE no explica nada: el que mira no sabe si falta
+          cargar algo o si el agente lo frenó. Cuando la cadena bloquea, en su
+          lugar va el motivo. */}
+      {ok && !puedeAplicar && !aplicado && (
+        <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)]">
+          ✘ Bloqueado
+        </span>
       )}
       {r && (
         <span className={`text-[9px] ${r.ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
@@ -665,7 +682,7 @@ function AccionAlta({ h, sim, simular }: {
       {ok && pasos.length > 0 && (
         <Chequeos
           pasos={pasos}
-          veredicto={r?.veredicto as { estado: string; texto: string } | undefined}
+          veredicto={veredicto}
           simEstado={simEstado}
           calculo={Array.isArray(r?.calculo) ? (r.calculo as Insumo[]) : []}
         />
@@ -683,6 +700,18 @@ function AccionAlta({ h, sim, simular }: {
 type Paso = {
   n: number; clave: string; titulo: string; estado: string;
   detalle: string; tabla?: string; accion?: string;
+  // Resueltos por el backend: `frena` = no se puede aplicar ni a mano;
+  // `frena_auto` = no puede aplicarse SOLO. El front no reimplementa el criterio.
+  frena?: boolean; frena_auto?: boolean;
+};
+
+// El veredicto trae la DECISIÓN ya tomada, no los insumos para tomarla.
+// `puede_aplicar` es para el humano; `puede_auto` es lo que va a leer la lane
+// automática el día que exista — dos preguntas distintas y por eso dos campos.
+type Veredicto = {
+  estado: string; texto: string;
+  puede_aplicar?: boolean; puede_auto?: boolean;
+  conteo?: { ok: number; info: number; revisar: number; bloquea: number; no_se: number };
 };
 
 // Un insumo del cálculo: el número Y de dónde salió. El "de dónde" pesa tanto
@@ -690,25 +719,39 @@ type Paso = {
 // justamente el insumo que difiere.
 type Insumo = { campo: string; valor: unknown; fuente: string };
 
+// LOS CINCO ESTADOS, y cada uno significa UNA cosa (rediseño 2026-08-17). El
+// modelo viejo metía en el mismo ámbar «la paridad se contradice» y «el alta va
+// a sembrar la especie» — una prueba de que el bono está mal y un aviso de
+// rutina, con el mismo triángulo. Ahora `info` es GRIS y deliberadamente
+// apagado: no es un aviso, es contexto, y no debe competir por la atención con
+// lo que sí decide.
 const PASO_ICONO: Record<string, string> = {
-  ok: "✔", falla: "✘", atencion: "▲", no_se_puede_saber: "?",
+  ok: "✔", bloquea: "✘", revisar: "▲", info: "○", no_se_puede_saber: "?",
 };
 const PASO_COLOR: Record<string, string> = {
-  ok: "var(--t-pos)", falla: "var(--t-neg)",
-  atencion: "#f59e0b", no_se_puede_saber: "var(--t-text-dim)",
+  ok: "var(--t-pos)", bloquea: "var(--t-neg)", revisar: "#f59e0b",
+  info: "var(--t-text-dim)", no_se_puede_saber: "var(--t-text-dim)",
 };
 
 function Chequeos({ pasos, veredicto, simEstado, calculo }: {
   pasos: Paso[];
-  veredicto?: { estado: string; texto: string };
+  veredicto?: Veredicto;
   simEstado?: { conocido: boolean | null; nota: string };
   calculo?: Insumo[];
 }) {
   const [abierto, setAbierto] = useState(false);
   const [verCalculo, setVerCalculo] = useState(false);
-  const fallas = pasos.filter((p) => p.estado === "falla").length;
-  const avisos = pasos.filter((p) => p.estado === "atencion"
-    || p.estado === "no_se_puede_saber").length;
+  // El RESUMEN lo cuenta el backend (`veredicto.conteo`) — contarlo acá otra vez
+  // sería la tercera copia del mismo criterio, que es cómo nacieron las dos
+  // contradicciones que este rediseño arregla. El fallback local existe solo por
+  // si el front queda deployado antes que el backend.
+  const c = veredicto?.conteo ?? {
+    ok: pasos.filter((p) => p.estado === "ok").length,
+    info: pasos.filter((p) => p.estado === "info").length,
+    revisar: pasos.filter((p) => p.estado === "revisar").length,
+    bloquea: pasos.filter((p) => p.estado === "bloquea").length,
+    no_se: pasos.filter((p) => p.estado === "no_se_puede_saber").length,
+  };
 
   return (
     <div className="basis-full mt-1">
@@ -718,9 +761,11 @@ function Chequeos({ pasos, veredicto, simEstado, calculo }: {
       >
         <span>{abierto ? "▾" : "▸"} Cadena completa</span>
         <span className="tabular-nums normal-case tracking-normal">
-          {pasos.length - fallas - avisos} ok
-          {fallas > 0 && <span className="text-[var(--t-neg)]"> · {fallas} bloquea</span>}
-          {avisos > 0 && <span style={{ color: "#f59e0b" }}> · {avisos} a mirar</span>}
+          <span style={{ color: "var(--t-pos)" }}>{c.ok} ok</span>
+          {c.bloquea > 0 && <span className="text-[var(--t-neg)]"> · {c.bloquea} bloquea</span>}
+          {c.revisar > 0 && <span style={{ color: "#f59e0b" }}> · {c.revisar} a revisar</span>}
+          {c.no_se > 0 && <span className="text-[var(--t-text-dim)]"> · {c.no_se} sin verificar</span>}
+          {c.info > 0 && <span className="text-[var(--t-text-dim)]"> · {c.info} informativos</span>}
         </span>
       </button>
 
