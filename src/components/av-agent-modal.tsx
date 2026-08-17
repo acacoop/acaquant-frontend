@@ -663,11 +663,9 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       puede hacer lo dice el backend** (`h.accion`) — replicar
                       acá la lista de tipos accionables es cómo se consigue un
                       botón que no aparece y no avisa por qué. */}
-                  {h.accion === "alta" && (
-                    <AccionAlta h={h} sim={sims[h.ticker]} simular={simular} />
-                  )}
-                  {h.accion === "flujos" && (
-                    <AccionFlujos h={h} sim={sims[h.ticker]} simular={simular} />
+                  {(h.accion === "alta" || h.accion === "flujos") && (
+                    <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
+                                  modo={h.accion} />
                   )}
                 </div>
                 {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
@@ -689,118 +687,72 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   );
 }
 
-// COMPLETAR EL CRONOGRAMA de un bono que ya existe. Es el alta al revés: los
-// ejes ya los cargó la mesa y NO se tocan; lo único que se escribe es el cuadro.
-// Por eso el cotejo contra 1816 pesa más que en un alta — el bono ya se muestra,
-// y con un cuadro mal convertido pasa de «sin TEA» a «con una TEA equivocada».
-function AccionFlujos({ h, sim, simular }: {
+// LA CADENA ACCIONABLE — **una sola** para las dos puertas del agente.
+//
+// Acá vivían DOS componentes casi idénticos (`AccionAlta` y `AccionFlujos`) que
+// se diferenciaban en tres strings. El costo de esa copia se cobró enseguida: el
+// bloque que PIDE el dato faltante (el CER de emisión, tipeado en la propia
+// cadena) se escribió solo en el alta, así que en COMPLETAR CRONOGRAMA el paso
+// llegaba con su `pide` y **no se renderizaba nada** — misma familia de bug que
+// el botón que no aparecía por comparar la REGLA en vez del TIPO: en silencio.
+//
+// Lo que cambia entre las dos puertas son las ETIQUETAS y de dónde sale la curva
+// de 1816; todo el resto —el veredicto que habilita aplicar, los datos tipeados
+// que viajan igual a simular y a aplicar, el paso a paso— es el mismo criterio y
+// ahora está escrito una sola vez.
+const COPY = {
+  alta: {
+    simular: "Simular", aplicar: "Aplicar", hecho: "✔ DADO DE ALTA · ",
+    // Un alta INFIERE el CER de emisión de la serie macro; un completar lo lee
+    // del master. Decir cuál de las dos cosas pasó es la diferencia entre un
+    // número que se puede auditar y uno que hay que creer.
+    cer: "inferido",
+  },
+  flujos: {
+    simular: "Simular flujos", aplicar: "Completar cronograma",
+    hecho: "✔ CRONOGRAMA ESCRITO · ", cer: "del master",
+  },
+} as const;
+
+function AccionCadena({ h, sim, simular, modo }: {
   h: Hallazgo;
   sim: Record<string, unknown> | null | undefined;
   simular: (ticker: string, curva1816: string, aplicar?: boolean,
             extra?: Record<string, unknown>, modo?: "alta" | "flujos") => void;
-}) {
-  const corriendo = sim === null;
-  const r = sim as Record<string, unknown> | undefined;
-  const ok = r?.ok === true;
-  const aplicado = r?.aplicado === true;
-  const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
-  const pasos: Paso[] = Array.isArray(r?.chequeos) ? (r.chequeos as Paso[]) : [];
-  const veredicto = r?.veredicto as Veredicto | undefined;
-  const puedeAplicar = veredicto
-    ? veredicto.puede_aplicar !== false
-    : !pasos.some((p) => p.estado === "bloquea");
-
-  return (
-    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-      {!aplicado && (
-        <button
-          disabled={corriendo}
-          onClick={() => simular(h.ticker, "", false, {}, "flujos")}
-          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
-        >
-          {corriendo ? "…" : "Simular flujos"}
-        </button>
-      )}
-      {ok && puedeAplicar && !aplicado && (
-        <button
-          onClick={() => simular(h.ticker, "", true, {}, "flujos")}
-          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
-        >
-          Completar cronograma
-        </button>
-      )}
-      {ok && !puedeAplicar && !aplicado && (
-        <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)]">
-          ✘ Bloqueado
-        </span>
-      )}
-      {r && (
-        <span className={`text-[9px] ${r.ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
-          {r.ok === false && String(r.error ?? "falló")}
-          {ok && (
-            <>
-              {aplicado ? "✔ CRONOGRAMA ESCRITO · " : ""}
-              {`${r.cupones ?? 0} cupones · vence ${String(r.vencimiento ?? "—")} · `}
-              {`escala ${String(r.escala ?? "—")}`}
-              {tea !== null ? ` · TEA simulada ${(tea * 100).toFixed(2)}%` : ""}
-              {r.precio_fuente === "1816" ? " (precio de referencia 1816)" : ""}
-              {r.nota_tasa ? ` · ${String(r.nota_tasa)}` : ""}
-              {aplicado && r.aviso ? ` · ${String(r.aviso)}` : ""}
-            </>
-          )}
-        </span>
-      )}
-      {ok && pasos.length > 0 && (
-        <Chequeos
-          pasos={pasos}
-          veredicto={veredicto}
-          calculo={Array.isArray(r?.calculo) ? (r.calculo as Insumo[]) : []}
-        />
-      )}
-    </div>
-  );
-}
-
-function AccionAlta({ h, sim, simular }: {
-  h: Hallazgo;
-  sim: Record<string, unknown> | null | undefined;
-  simular: (ticker: string, curva1816: string, aplicar?: boolean,
-            extra?: Record<string, unknown>) => void;
+  modo: "alta" | "flujos";
 }) {
   // Lo que el user tipeó EN la cadena. Vive acá —y no en el padre— porque es de
   // ESTE hallazgo: un estado compartido haría que el CER de un bono se filtrara
   // al siguiente que se simule.
   const [pedido, setPedido] = useState<Record<string, string>>({});
-  const curva = String((h.evidencia ?? {}).curva_1816 ?? "");
-  if (!curva) return null;
+  const copy = COPY[modo];
+  // El alta necesita la curva de 1816 (el bono todavía no existe, así que no hay
+  // de dónde deducirla); el completar NO — el bono ya está y su rama sale del
+  // doc que cargó la mesa.
+  const curva = modo === "alta" ? String((h.evidencia ?? {}).curva_1816 ?? "") : "";
+  if (modo === "alta" && !curva) return null;
   const corriendo = sim === null;
   const r = sim as Record<string, unknown> | undefined;
   const ok = r?.ok === true;
   const aplicable = r?.aplicable === true;
   const aplicado = r?.aplicado === true;
   const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
-  const crudos = r?.chequeos;
-  const pasos: Paso[] = Array.isArray(crudos) ? (crudos as Paso[]) : [];
+  const pasos: Paso[] = Array.isArray(r?.chequeos) ? (r.chequeos as Paso[]) : [];
   const veredicto = r?.veredicto as Veredicto | undefined;
   // **UNA sola fuente decide si se puede aplicar: el veredicto del backend.**
   // Acá convivían dos condiciones distintas (`aplicable`, que miraba la rama, y
   // `bloqueado`, que miraba los pasos) y se contradecían entre sí: GD46 mostraba
   // APLICAR con el cronograma probadamente equivocado, y TMG27 escondía el botón
-  // con la cadena entera en verde. El fallback local es solo para el caso de un
-  // deploy desparejo — con el backend nuevo nunca se usa.
-  // **UNA sola condición, y NO se combina con nada.** Acá se hacía
-  // `aplicable && puedeAplicar`, y ese AND es el que escondía el botón en TZXA7:
-  // el veredicto decía «se puede aplicar A MANO» mientras `aplicable` —que
-  // miraba la rama Y el CER de emisión— decía que no. Sumar una segunda
-  // condición «por las dudas» es exactamente cómo se rompe esto: el gate real
-  // pasa a ser el más restrictivo, que nadie está mirando.
+  // con la cadena entera en verde. Y sumarle un AND «por las dudas» es lo que
+  // escondió el botón en TZXA7 — el gate real pasa a ser el más restrictivo, que
+  // nadie está mirando. El fallback local es solo para un deploy desparejo.
   const puedeAplicar = veredicto
     ? veredicto.puede_aplicar !== false
     : !pasos.some((p) => p.estado === "bloquea");
 
   // Los datos tipeados viajan IGUAL a SIMULAR y a APLICAR: lo que se aplica es
   // exactamente lo que se vio simulado. Si fueran dos payloads distintos, el
-  // bono podría nacer con insumos que nadie miró.
+  // bono podría escribirse con insumos que nadie miró.
   const extra: Record<string, unknown> = {};
   for (const k of Object.keys(pedido)) {
     // Coma decimal: se tipea «12,3456» y el backend espera un número.
@@ -809,27 +761,28 @@ function AccionAlta({ h, sim, simular }: {
     if (crudo && Number.isFinite(n) && n > 0) extra[k] = n;
   }
   // Un paso que PIDE un dato y todavía no lo tiene: hasta completarlo, aplicar
-  // deja el bono sin tasa. No se bloquea (esa decisión ya se tomó: el alta vale
-  // igual), pero el botón principal pasa a ser «simular con el dato».
+  // deja el bono sin tasa. No se bloquea (esa decisión ya se tomó: el cuadro
+  // vale igual), pero el botón principal pasa a ser «simular con el dato».
   const pendientes = pasos.filter((p) => p.pide && !extra[p.pide.campo]);
+  const cerNota = r?.cer_manual === true ? "cargado a mano" : copy.cer;
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
       {!aplicado && (
         <button
           disabled={corriendo}
-          onClick={() => simular(h.ticker, curva, false, extra)}
+          onClick={() => simular(h.ticker, curva, false, extra, modo)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
         >
-          {corriendo ? "…" : "Simular"}
+          {corriendo ? "…" : copy.simular}
         </button>
       )}
       {ok && puedeAplicar && !aplicado && (
         <button
-          onClick={() => simular(h.ticker, curva, true, extra)}
+          onClick={() => simular(h.ticker, curva, true, extra, modo)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
         >
-          Aplicar
+          {copy.aplicar}
         </button>
       )}
       {/* Un botón que DESAPARECE no explica nada: el que mira no sabe si falta
@@ -845,11 +798,18 @@ function AccionAlta({ h, sim, simular }: {
           {r.ok === false && String(r.error ?? "falló")}
           {ok && (
             <>
-              {aplicado ? "✔ DADO DE ALTA · " : ""}
-              {`${r.cupones ?? 0} cupones · vence ${String(r.vencimiento ?? "—")} · `}
-              {`escala ${String(r.escala ?? "—")}`}
+              {aplicado ? copy.hecho : ""}
+              {`${r.cupones ?? 0} cupones`}
+              {/* Los YA PAGADOS, separados. 1816 manda el cronograma completo
+                  desde la emisión, así que un bono de 2004 trae 60 cupones y de
+                  los 60 se valúan 6: sin partir el número, el cuadro parece
+                  otro bono. */}
+              {typeof r.cupones_pagados === "number" && (r.cupones_pagados as number) > 0
+                ? ` (${String(r.cupones_pagados)} ya pagados · ${String(r.cupones_futuros ?? 0)} futuros)`
+                : ""}
+              {` · vence ${String(r.vencimiento ?? "—")} · escala ${String(r.escala ?? "—")}`}
               {typeof r.cer_emision === "number"
-                ? ` · CER emisión ${(r.cer_emision as number).toFixed(4)} (inferido)`
+                ? ` · CER emisión ${(r.cer_emision as number).toFixed(4)} (${cerNota})`
                 : ""}
               {r.nota_cer ? ` · ${String(r.nota_cer)}` : ""}
               {tea !== null ? ` · TEA simulada ${(tea * 100).toFixed(2)}%` : ""}
@@ -858,7 +818,7 @@ function AccionAlta({ h, sim, simular }: {
                   leería como si viniera del mercado. */}
               {r.precio_fuente === "1816" ? " (precio de referencia 1816)" : ""}
               {r.nota_tasa ? ` · ${String(r.nota_tasa)}` : ""}
-              {!aplicable && r.motivo_no_aplicable
+              {modo === "alta" && !aplicable && r.motivo_no_aplicable
                 ? ` · ${String(r.motivo_no_aplicable)}`
                 : ""}
               {aplicado && r.aviso ? ` · ${String(r.aviso)}` : ""}
@@ -866,10 +826,6 @@ function AccionAlta({ h, sim, simular }: {
           )}
         </span>
       )}
-      {/* El PASO A PASO. Antes acá solo se avisaba cuando Primary no listaba el
-          símbolo — o sea, un único eslabón, y solo al fallar. Aplicar sin ver la
-          cadena entera es firmar a ciegas: el bono queda escrito y el síntoma de
-          que algo faltó es una celda vacía tres días después. */}
       {/* EL DATO QUE FALTA, PEDIDO ACÁ MISMO (user, 2026-08-17): «no podría ser
           acá mismo interactivo y que me pida el CER de emisión para continuar, y
           que rehaga la simulación con ese dato y si va todo bien ya lo aplique
@@ -888,7 +844,7 @@ function AccionAlta({ h, sim, simular }: {
                 onKeyDown={(e) => {
                   const n = Number(String((e.target as HTMLInputElement).value).replace(",", "."));
                   if (e.key === "Enter" && Number.isFinite(n) && n > 0) {
-                    simular(h.ticker, curva, false, { [p.pide!.campo]: n });
+                    simular(h.ticker, curva, false, { [p.pide!.campo]: n }, modo);
                   }
                 }}
                 placeholder="0,0000"
@@ -906,12 +862,15 @@ function AccionAlta({ h, sim, simular }: {
       {ok && !aplicado && Object.keys(extra).length > 0 && (
         <button
           disabled={corriendo}
-          onClick={() => simular(h.ticker, curva, false, extra)}
+          onClick={() => simular(h.ticker, curva, false, extra, modo)}
           className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[#f59e0b] text-[#f59e0b] hover:bg-[#f59e0b] hover:text-black disabled:opacity-40"
         >
           {corriendo ? "…" : "Simular con este dato"}
         </button>
       )}
+      {/* El PASO A PASO. Aplicar sin ver la cadena entera es firmar a ciegas: el
+          bono queda escrito y el síntoma de que algo faltó es una celda vacía
+          tres días después. */}
       {ok && pasos.length > 0 && (
         <Chequeos
           pasos={pasos}
