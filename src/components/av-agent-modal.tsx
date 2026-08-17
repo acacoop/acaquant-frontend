@@ -58,8 +58,16 @@ type Pendiente = {
   id: number; clave: string; ticker: string; respuesta: string | null;
   nota: string | null; respondida_por: string | null; respondida_at: string | null;
 };
+// Un AVISO es trabajo MANUAL pendiente: el agente hizo todo salvo un dato que
+// solo puede poner una persona. No es un error — es la parte que ninguna fuente
+// tiene. Se DERIVA en el backend, así que desaparece solo al cargar el dato.
+type Aviso = {
+  ticker: string; clave: string; que_hacer: string; por_que: string;
+  donde: string; alta_at: string | null;
+};
 type Vista = {
   corrida_at: string | null;
+  avisos: Aviso[];
   hallazgos: Hallazgo[];
   por_tipo: Record<string, number>;
   por_regla: Record<string, number>;
@@ -101,7 +109,7 @@ function haceCuanto(iso: string | null): string {
   return `hace ${Math.round(h / 24)} días`;
 }
 
-type Tab = "preguntas" | "hallazgos" | "hizo" | "decidido";
+type Tab = "preguntas" | "avisos" | "hallazgos" | "hizo" | "decidido";
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
 // igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
@@ -275,6 +283,7 @@ export function AvAgentModal() {
             <div className="flex items-stretch border-b border-[var(--t-border)] bg-[var(--t-surface)]">
               {([
                 ["preguntas", "ME PREGUNTA", nPreg],
+                ["avisos", "AVISOS", (data.avisos ?? []).length],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
                 ["hizo", "HIZO", (data.acciones ?? []).length],
                 ["decidido", "YA DECIDIDO", data.decididas.length],
@@ -309,6 +318,7 @@ export function AvAgentModal() {
                   setTab={setTab}
                 />
               )}
+              {tab === "avisos" && <TabAvisos avisos={data.avisos ?? []} />}
               {tab === "hallazgos" && (
                 <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} />
               )}
@@ -703,6 +713,8 @@ type Paso = {
   // Resueltos por el backend: `frena` = no se puede aplicar ni a mano;
   // `frena_auto` = no puede aplicarse SOLO. El front no reimplementa el criterio.
   frena?: boolean; frena_auto?: boolean;
+  // Trabajo MANUAL que queda pendiente después de aplicar. No es un error.
+  aviso?: string;
 };
 
 // El veredicto trae la DECISIÓN ya tomada, no los insumos para tomarla.
@@ -833,6 +845,14 @@ function Chequeos({ pasos, veredicto, simEstado, calculo }: {
                     → {p.accion}
                   </p>
                 )}
+                {/* El aviso se distingue de la acción a propósito: la acción es
+                    algo que hay que resolver ANTES, el aviso queda pendiente
+                    DESPUÉS y se sigue desde la tab AVISOS. */}
+                {p.aviso && (
+                  <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                    ✎ queda en AVISOS: {p.aviso}
+                  </p>
+                )}
               </div>
             </li>
           ))}
@@ -849,6 +869,58 @@ function Chequeos({ pasos, veredicto, simEstado, calculo }: {
 }
 
 // ── TAB 3: el LIBRO — qué escribió, cuándo y dónde ─────────────────────────
+
+// AVISOS — la contrapartida de "el agente hace el 95% y te deja el 5%".
+//
+// **Por qué esta tab existe** (user, 2026-08-17): el CER de emisión BLOQUEABA el
+// alta. Era la decisión equivocada — el agente igual baja los flujos, resuelve
+// los ejes, completa la ficha y siembra las especies; negarse a todo eso porque
+// falta un número que ninguna fuente publica es tirar el trabajo hecho. *«A los
+// CER les perdonamos: me lo deja sencillo, solo poner el CER de emisión y nada
+// más.»*
+//
+// La lista se DERIVA en el backend contra el estado actual del master: cargás el
+// dato y la fila se va sola. Sin botón de "resuelto", que es lo que convierte a
+// toda lista de pendientes en un cementerio.
+function TabAvisos({ avisos }: { avisos: Aviso[] }) {
+  if (avisos.length === 0) {
+    return (
+      <p className={SUB}>
+        No hay nada pendiente de carga manual. Los avisos aparecen solos cuando
+        doy de alta un bono al que le falta un dato que no puedo sacar de ningún
+        lado, y desaparecen solos cuando lo cargás.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <p className={SUB}>
+        Di de alta estos bonos, pero les falta un dato que ninguna fuente publica.
+        Cargalo y la fila desaparece sola.
+      </p>
+      <table className="w-full text-[10px]">
+        <thead>
+          <tr className="text-left text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+            <th className="py-1 pr-3">Bono</th>
+            <th className="py-1 pr-3">Qué hacer</th>
+            <th className="py-1 pr-3">Dónde</th>
+            <th className="py-1">Por qué importa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {avisos.map((a) => (
+            <tr key={`${a.ticker}-${a.clave}`} className="border-t border-[var(--t-border)]">
+              <td className="py-1 pr-3 font-semibold text-[var(--t-text)]">{a.ticker}</td>
+              <td className="py-1 pr-3" style={{ color: "#f59e0b" }}>{a.que_hacer}</td>
+              <td className="py-1 pr-3 text-[var(--t-text-muted)]">{a.donde}</td>
+              <td className="py-1 text-[var(--t-text-dim)]">{a.por_que}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function TabHizo({ acciones }: { acciones: Accion[] }) {
   if (acciones.length === 0) {
