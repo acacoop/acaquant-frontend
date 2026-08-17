@@ -247,6 +247,7 @@ export function AvAgentModal() {
                   data={data} enviando={enviando} notas={notas}
                   setNota={(id, v) => setNotas((n) => ({ ...n, [id]: v }))}
                   responder={responder}
+                  setTab={setTab}
                 />
               )}
               {tab === "hallazgos" && <TabHallazgos porTipo={porTipo} data={data} />}
@@ -261,12 +262,13 @@ export function AvAgentModal() {
 
 // ── TAB 1: las preguntas ───────────────────────────────────────────────────
 
-function TabPreguntas({ data, enviando, notas, setNota, responder }: {
+function TabPreguntas({ data, enviando, notas, setNota, responder, setTab }: {
   data: Vista;
   enviando: number | null;
   notas: Record<number, string>;
   setNota: (id: number, v: string) => void;
   responder: (id: number, respuesta: string) => void;
+  setTab: (t: Tab) => void;
 }) {
   // Los que la casa YA TIENE van primero: son los únicos donde no contestar
   // tiene un costo hoy (esa posición no valúa). Marcarlos y dejarlos en la
@@ -278,11 +280,31 @@ function TabPreguntas({ data, enviando, notas, setNota, responder }: {
   });
 
   if (data.preguntas.length === 0 && data.decisiones.length === 0) {
+    // "No tengo preguntas" NO es "no pasa nada". Con 0 preguntas y 38 hallazgos
+    // de severidad alta, un tab vacío hace creer que el agente no encontró nada
+    // — y el trabajo que SÍ hizo queda a un click que nadie da.
+    const urgentes = data.hallazgos.filter((h) => h.severidad === "alta").length;
     return (
-      <p className="text-[11px] text-[var(--t-text-muted)]">
-        No tengo nada que preguntarte. Cuando encuentre un bono nuevo y no sepa si
-        te interesa, te lo voy a preguntar acá.
-      </p>
+      <div className="text-[11px] text-[var(--t-text-muted)]">
+        <p>
+          No tengo nada que preguntarte: contestaste todo. Cuando encuentre un bono
+          nuevo y no sepa si te interesa, te lo voy a preguntar acá.
+        </p>
+        {urgentes > 0 && (
+          <p className="mt-2">
+            Eso sí — <strong className="text-[var(--t-text)]">encontré {urgentes} cosa(s)
+            de severidad alta</strong> que no son preguntas para vos, son trabajo
+            pendiente. Están en el tab{" "}
+            <button
+              onClick={() => setTab("hallazgos")}
+              className="underline text-[var(--t-accent)] hover:opacity-80"
+            >
+              ENCONTRÓ
+            </button>
+            .
+          </p>
+        )}
+      </div>
     );
   }
   return (
