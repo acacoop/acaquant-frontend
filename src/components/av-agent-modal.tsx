@@ -68,6 +68,9 @@ type Aviso = {
   // Cruce contra el master EN VIVO. `null` = no se sabe verificar. Es lo que
   // hace seguro el cierre manual: marcado hecho + dato ausente se canta.
   ya_cargado: boolean | null;
+  // Si el dato se puede CARGAR desde acá mismo, el backend manda cómo pedirlo.
+  // `null` = no hay recetario para esa clave → hay que ir a Manager.
+  campo: { label: string; tipo: string; ayuda: string } | null;
 };
 type Vista = {
   corrida_at: string | null;
@@ -191,6 +194,19 @@ export function AvAgentModal() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, deshacer }),
+      });
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [cargar]);
+
+  const completarAviso = useCallback(async (id: number, valor: string) => {
+    try {
+      await fetchJson("/api/ia/av-agent/aviso/completar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, valor }),
       });
       await cargar();
     } catch (e) {
@@ -335,7 +351,7 @@ export function AvAgentModal() {
                   setTab={setTab}
                 />
               )}
-              {tab === "avisos" && <TabAvisos avisos={data.avisos ?? []} resolver={resolverAviso} />}
+              {tab === "avisos" && <TabAvisos avisos={data.avisos ?? []} resolver={resolverAviso} completar={completarAviso} />}
               {tab === "hallazgos" && (
                 <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} />
               )}
@@ -896,9 +912,10 @@ function Chequeos({ pasos, veredicto, calculo }: {
 // La lista se DERIVA en el backend contra el estado actual del master: cargás el
 // dato y la fila se va sola. Sin botón de "resuelto", que es lo que convierte a
 // toda lista de pendientes en un cementerio.
-function TabAvisos({ avisos, resolver }: {
+function TabAvisos({ avisos, resolver, completar }: {
   avisos: Aviso[];
   resolver: (id: number, deshacer: boolean) => void;
+  completar: (id: number, valor: string) => void;
 }) {
   const abiertos = avisos.filter((a) => !a.resuelto);
   const hechos = avisos.filter((a) => a.resuelto);
@@ -913,7 +930,51 @@ function TabAvisos({ avisos, resolver }: {
   }
 
   const fila = (a: Aviso) => (
-    <tr key={a.id} className={`border-t border-[var(--t-border)] ${a.resuelto ? "opacity-45" : ""}`}>
+    <FilaAviso key={a.id} a={a} resolver={resolver} completar={completar} />
+  );
+
+  return (
+    <div className="space-y-2">
+      <p className={SUB}>
+        Di de alta estos bonos, pero les falta un dato que ninguna fuente publica.
+        <strong className="text-[var(--t-text)]"> Cargalo acá mismo</strong> y el
+        aviso se cierra solo — el valor va al master y queda listo para simular.
+      </p>
+      <table className="w-full text-[10px]">
+        <thead>
+          <tr className="text-left text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+            <th className="py-1 pr-3">Bono</th>
+            <th className="py-1 pr-3">Qué hacer</th>
+            <th className="py-1 pr-3">Cargar el dato</th>
+            <th className="py-1 pr-3">Por qué importa</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>{abiertos.map(fila)}</tbody>
+      </table>
+      {hechos.length > 0 && (
+        <>
+          <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] pt-2">
+            Ya hechos ({hechos.length})
+          </p>
+          <table className="w-full text-[10px]"><tbody>{hechos.map(fila)}</tbody></table>
+        </>
+      )}
+    </div>
+  );
+}
+
+// UNA fila = un pendiente + su formulario. El input vive acá y no en el padre
+// para que cada aviso tenga su propio estado: un solo `valor` compartido haría
+// que escribir en uno pisara lo tipeado en otro.
+function FilaAviso({ a, resolver, completar }: {
+  a: Aviso;
+  resolver: (id: number, deshacer: boolean) => void;
+  completar: (id: number, valor: string) => void;
+}) {
+  const [valor, setValor] = useState("");
+  return (
+    <tr className={`border-t border-[var(--t-border)] ${a.resuelto ? "opacity-45" : ""}`}>
       <td className="py-1 pr-3 font-semibold text-[var(--t-text)]">{a.ticker}</td>
       <td className="py-1 pr-3" style={{ color: a.resuelto ? undefined : "#f59e0b" }}>
         {a.que_hacer}
@@ -930,7 +991,35 @@ function TabAvisos({ avisos, resolver }: {
           </span>
         )}
       </td>
-      <td className="py-1 pr-3 text-[var(--t-text-muted)]">{a.donde}</td>
+      <td className="py-1 pr-3 text-[var(--t-text-muted)]">
+        {/* El dato se escribe DONDE se lee el aviso. Antes esta celda decía
+            «Manager → Títulos» y te mandaba a otra pantalla a buscar el bono:
+            el agente hacía el 95% y el 5% quedaba a tres clics de distancia. */}
+        {a.campo && !a.resuelto ? (
+          <div className="flex items-center gap-1">
+            <input
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && valor.trim()) completar(a.id, valor.trim());
+              }}
+              placeholder={a.campo.label}
+              title={a.campo.ayuda}
+              inputMode={a.campo.tipo === "numero" ? "decimal" : "text"}
+              className="w-28 bg-transparent border border-[var(--t-border)] px-1 py-0.5 text-[10px] text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
+            />
+            <button
+              disabled={!valor.trim()}
+              onClick={() => completar(a.id, valor.trim())}
+              className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] disabled:opacity-30 disabled:border-[var(--t-border)] disabled:text-[var(--t-text-dim)]"
+            >
+              Guardar
+            </button>
+          </div>
+        ) : (
+          a.donde
+        )}
+      </td>
       <td className="py-1 pr-3 text-[var(--t-text-dim)]">{a.por_que}</td>
       <td className="py-1 text-right whitespace-nowrap">
         <button
@@ -941,35 +1030,6 @@ function TabAvisos({ avisos, resolver }: {
         </button>
       </td>
     </tr>
-  );
-
-  return (
-    <div className="space-y-2">
-      <p className={SUB}>
-        Di de alta estos bonos, pero les falta un dato que ninguna fuente publica.
-        Cargalo y marcá el aviso — no desaparece solo, así podés ver qué te queda.
-      </p>
-      <table className="w-full text-[10px]">
-        <thead>
-          <tr className="text-left text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-            <th className="py-1 pr-3">Bono</th>
-            <th className="py-1 pr-3">Qué hacer</th>
-            <th className="py-1 pr-3">Dónde</th>
-            <th className="py-1 pr-3">Por qué importa</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>{abiertos.map(fila)}</tbody>
-      </table>
-      {hechos.length > 0 && (
-        <>
-          <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] pt-2">
-            Ya hechos ({hechos.length})
-          </p>
-          <table className="w-full text-[10px]"><tbody>{hechos.map(fila)}</tbody></table>
-        </>
-      )}
-    </div>
   );
 }
 
