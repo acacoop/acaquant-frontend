@@ -606,6 +606,7 @@ function AccionAlta({ h, sim, simular }: {
   const aplicable = r?.aplicable === true;
   const aplicado = r?.aplicado === true;
   const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
+  const simEstado = r?.simbolo_estado as { conocido: boolean | null; nota: string } | undefined;
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -634,6 +635,10 @@ function AccionAlta({ h, sim, simular }: {
               {aplicado ? "✔ DADO DE ALTA · " : ""}
               {`${r.cupones ?? 0} cupones · vence ${String(r.vencimiento ?? "—")} · `}
               {`escala ${String(r.escala ?? "—")}`}
+              {typeof r.cer_emision === "number"
+                ? ` · CER emisión ${(r.cer_emision as number).toFixed(4)} (inferido)`
+                : ""}
+              {r.nota_cer ? ` · ${String(r.nota_cer)}` : ""}
               {tea !== null ? ` · TEA simulada ${(tea * 100).toFixed(2)}%` : ""}
               {r.nota_tasa ? ` · ${String(r.nota_tasa)}` : ""}
               {!aplicable && r.motivo_no_aplicable
@@ -641,6 +646,12 @@ function AccionAlta({ h, sim, simular }: {
                 : ""}
               {aplicado && r.aviso ? ` · ${String(r.aviso)}` : ""}
             </>
+          )}
+          {/* ¿Va a tener precio? Dar de alta no alcanza: si Primary no lista el
+              símbolo, el bono nunca llega al snapshot y su TEA queda vacía sin
+              que nadie sepa por qué. */}
+          {ok && simEstado && simEstado.conocido === false && (
+            <span className="block text-[var(--t-neg)]">{simEstado.nota}</span>
           )}
         </span>
       )}
