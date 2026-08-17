@@ -62,8 +62,12 @@ type Pendiente = {
 // solo puede poner una persona. No es un error — es la parte que ninguna fuente
 // tiene. Se DERIVA en el backend, así que desaparece solo al cargar el dato.
 type Aviso = {
-  ticker: string; clave: string; que_hacer: string; por_que: string;
-  donde: string; alta_at: string | null;
+  id: number; ticker: string; clave: string; que_hacer: string;
+  por_que: string; donde: string; creado_at: string | null;
+  resuelto: boolean; resuelto_por: string | null; resuelto_at: string | null;
+  // Cruce contra el master EN VIVO. `null` = no se sabe verificar. Es lo que
+  // hace seguro el cierre manual: marcado hecho + dato ausente se canta.
+  ya_cargado: boolean | null;
 };
 type Vista = {
   corrida_at: string | null;
@@ -181,6 +185,19 @@ export function AvAgentModal() {
     }
   }, [cargar, notas]);
 
+  const resolverAviso = useCallback(async (id: number, deshacer: boolean) => {
+    try {
+      await fetchJson("/api/ia/av-agent/aviso", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, deshacer }),
+      });
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [cargar]);
+
   const designorar = useCallback(async (ticker: string) => {
     try {
       // POST y no DELETE: el proxy catch-all de /api/ia expone solo GET y POST.
@@ -283,7 +300,7 @@ export function AvAgentModal() {
             <div className="flex items-stretch border-b border-[var(--t-border)] bg-[var(--t-surface)]">
               {([
                 ["preguntas", "ME PREGUNTA", nPreg],
-                ["avisos", "AVISOS", (data.avisos ?? []).length],
+                ["avisos", "AVISOS", (data.avisos ?? []).filter((a) => !a.resuelto).length],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
                 ["hizo", "HIZO", (data.acciones ?? []).length],
                 ["decidido", "YA DECIDIDO", data.decididas.length],
@@ -318,7 +335,7 @@ export function AvAgentModal() {
                   setTab={setTab}
                 />
               )}
-              {tab === "avisos" && <TabAvisos avisos={data.avisos ?? []} />}
+              {tab === "avisos" && <TabAvisos avisos={data.avisos ?? []} resolver={resolverAviso} />}
               {tab === "hallazgos" && (
                 <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} />
               )}
@@ -882,21 +899,58 @@ function Chequeos({ pasos, veredicto, simEstado, calculo }: {
 // La lista se DERIVA en el backend contra el estado actual del master: cargás el
 // dato y la fila se va sola. Sin botón de "resuelto", que es lo que convierte a
 // toda lista de pendientes en un cementerio.
-function TabAvisos({ avisos }: { avisos: Aviso[] }) {
+function TabAvisos({ avisos, resolver }: {
+  avisos: Aviso[];
+  resolver: (id: number, deshacer: boolean) => void;
+}) {
+  const abiertos = avisos.filter((a) => !a.resuelto);
+  const hechos = avisos.filter((a) => a.resuelto);
+
   if (avisos.length === 0) {
     return (
       <p className={SUB}>
-        No hay nada pendiente de carga manual. Los avisos aparecen solos cuando
-        doy de alta un bono al que le falta un dato que no puedo sacar de ningún
-        lado, y desaparecen solos cuando lo cargás.
+        No hay nada pendiente de carga manual. Los avisos aparecen cuando doy de
+        alta un bono al que le falta un dato que no puedo sacar de ningún lado.
       </p>
     );
   }
+
+  const fila = (a: Aviso) => (
+    <tr key={a.id} className={`border-t border-[var(--t-border)] ${a.resuelto ? "opacity-45" : ""}`}>
+      <td className="py-1 pr-3 font-semibold text-[var(--t-text)]">{a.ticker}</td>
+      <td className="py-1 pr-3" style={{ color: a.resuelto ? undefined : "#f59e0b" }}>
+        {a.que_hacer}
+        {/* El contraste con el master. Marcar hecho es una afirmación del user;
+            esto dice si el dato REALMENTE está. Sin este cruce, un aviso cerrado
+            sobre un dato ausente mentiría en silencio — que es exactamente el
+            riesgo de dejar que el cierre sea manual. */}
+        {a.resuelto && a.ya_cargado === false && (
+          <span className="ml-1.5 text-[var(--t-neg)]">⚠ el dato sigue faltando</span>
+        )}
+        {!a.resuelto && a.ya_cargado === true && (
+          <span className="ml-1.5" style={{ color: "var(--t-pos)" }}>
+            ✔ ya está cargado — podés marcarlo
+          </span>
+        )}
+      </td>
+      <td className="py-1 pr-3 text-[var(--t-text-muted)]">{a.donde}</td>
+      <td className="py-1 pr-3 text-[var(--t-text-dim)]">{a.por_que}</td>
+      <td className="py-1 text-right whitespace-nowrap">
+        <button
+          onClick={() => resolver(a.id, a.resuelto)}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+        >
+          {a.resuelto ? "Reabrir" : "Marcar hecho"}
+        </button>
+      </td>
+    </tr>
+  );
+
   return (
     <div className="space-y-2">
       <p className={SUB}>
         Di de alta estos bonos, pero les falta un dato que ninguna fuente publica.
-        Cargalo y la fila desaparece sola.
+        Cargalo y marcá el aviso — no desaparece solo, así podés ver qué te queda.
       </p>
       <table className="w-full text-[10px]">
         <thead>
@@ -904,20 +958,20 @@ function TabAvisos({ avisos }: { avisos: Aviso[] }) {
             <th className="py-1 pr-3">Bono</th>
             <th className="py-1 pr-3">Qué hacer</th>
             <th className="py-1 pr-3">Dónde</th>
-            <th className="py-1">Por qué importa</th>
+            <th className="py-1 pr-3">Por qué importa</th>
+            <th />
           </tr>
         </thead>
-        <tbody>
-          {avisos.map((a) => (
-            <tr key={`${a.ticker}-${a.clave}`} className="border-t border-[var(--t-border)]">
-              <td className="py-1 pr-3 font-semibold text-[var(--t-text)]">{a.ticker}</td>
-              <td className="py-1 pr-3" style={{ color: "#f59e0b" }}>{a.que_hacer}</td>
-              <td className="py-1 pr-3 text-[var(--t-text-muted)]">{a.donde}</td>
-              <td className="py-1 text-[var(--t-text-dim)]">{a.por_que}</td>
-            </tr>
-          ))}
-        </tbody>
+        <tbody>{abiertos.map(fila)}</tbody>
       </table>
+      {hechos.length > 0 && (
+        <>
+          <p className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] pt-2">
+            Ya hechos ({hechos.length})
+          </p>
+          <table className="w-full text-[10px]"><tbody>{hechos.map(fila)}</tbody></table>
+        </>
+      )}
     </div>
   );
 }
