@@ -643,6 +643,10 @@ function AccionAlta({ h, sim, simular }: {
                 : ""}
               {r.nota_cer ? ` · ${String(r.nota_cer)}` : ""}
               {tea !== null ? ` · TEA simulada ${(tea * 100).toFixed(2)}%` : ""}
+              {/* De dónde salió el precio con el que se calculó esa TEA. Un bono
+                  nuevo nunca tiene snapshot, así que sin decirlo el número se
+                  leería como si viniera del mercado. */}
+              {r.precio_fuente === "1816" ? " (precio de referencia 1816)" : ""}
               {r.nota_tasa ? ` · ${String(r.nota_tasa)}` : ""}
               {!aplicable && r.motivo_no_aplicable
                 ? ` · ${String(r.motivo_no_aplicable)}`
