@@ -635,7 +635,6 @@ function AccionAlta({ h, sim, simular }: {
   const aplicable = r?.aplicable === true;
   const aplicado = r?.aplicado === true;
   const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
-  const simEstado = r?.simbolo_estado as { conocido: boolean | null; nota: string } | undefined;
   const crudos = r?.chequeos;
   const pasos: Paso[] = Array.isArray(crudos) ? (crudos as Paso[]) : [];
   const veredicto = r?.veredicto as Veredicto | undefined;
@@ -716,7 +715,6 @@ function AccionAlta({ h, sim, simular }: {
         <Chequeos
           pasos={pasos}
           veredicto={veredicto}
-          simEstado={simEstado}
           calculo={Array.isArray(r?.calculo) ? (r.calculo as Insumo[]) : []}
         />
       )}
@@ -768,10 +766,9 @@ const PASO_COLOR: Record<string, string> = {
   info: "var(--t-text-dim)", no_se_puede_saber: "var(--t-text-dim)",
 };
 
-function Chequeos({ pasos, veredicto, simEstado, calculo }: {
+function Chequeos({ pasos, veredicto, calculo }: {
   pasos: Paso[];
   veredicto?: Veredicto;
-  simEstado?: { conocido: boolean | null; nota: string };
   calculo?: Insumo[];
 }) {
   const [abierto, setAbierto] = useState(false);
@@ -879,12 +876,6 @@ function Chequeos({ pasos, veredicto, simEstado, calculo }: {
               </div>
             </li>
           ))}
-          {/* Redundante con el paso 6 a propósito: si Primary no lista el símbolo
-              el bono NUNCA va a tener precio, y eso no puede depender de que
-              alguien haya desplegado la lista. */}
-          {simEstado?.conocido === false && (
-            <li className="text-[10px] text-[var(--t-neg)] leading-snug">{simEstado.nota}</li>
-          )}
         </ol>
       )}
     </div>
