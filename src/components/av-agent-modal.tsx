@@ -131,6 +131,18 @@ const TIPO_LABEL: Record<string, string> = {
   salud: "Salud del sistema (jobs y datos que no están bien)",
 };
 
+// El label del CHIP. Los de `TIPO_LABEL` son frases ("Están en 1816 y no en tu
+// base") — buenas como encabezado de sección, imposibles en una fila de filtros.
+// Son dos textos porque cumplen dos funciones: el chip identifica, el encabezado
+// explica. El chip lleva el largo en `title`, así no se pierde nada.
+const TIPO_CHIP: Record<string, string> = {
+  salud: "SALUD",
+  hueco_de_curva: "HUECOS",
+  falta_en_base: "FALTAN",
+  sin_flujo: "SIN FLUJO",
+  tasa_sospechosa: "TASAS",
+};
+
 // Los huecos van PRIMEROS: un ajuste sin curva deja bonos invisibles, y arreglar
 // un dato de un bono que igual no se ve es trabajo perdido.
 // SALUD va ARRIBA de todo por el mismo criterio de «aguas arriba» que ordena las
@@ -728,6 +740,38 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   simular: Simular;
   ignorar: (ticker: string) => void;
 }) {
+  // EL FILTRO. Con 84 hallazgos apilados en cinco secciones, la pantalla era un
+  // scroll infinito donde para llegar a `tasa_sospechosa` había que pasar por
+  // todo lo demás — y una vez abajo se perdía el contexto de cuánto quedaba.
+  // Con un tipo por vez, la vista entra en una pantalla y el resto sigue contado
+  // arriba: nada se esconde, solo deja de competir por el lugar.
+  const [filtro, setFiltro] = useState<string>("todos");
+  // La BÚSQUEDA es el otro camino: cuando uno ya sabe el ticker, filtrar por tipo
+  // es el paso de más. Matchea sujeto, regla y motivo — los tres son cosas que
+  // uno recuerda de un hallazgo.
+  const [q, setQ] = useState("");
+
+  const tipos = useMemo(
+    () => Object.keys(porTipo).sort(
+      (a, b) => (ORDEN_TIPO.indexOf(a) + 1 || 99) - (ORDEN_TIPO.indexOf(b) + 1 || 99)),
+    [porTipo]);
+
+  const visibles = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    const out: [string, Hallazgo[]][] = [];
+    for (const tipo of tipos) {
+      if (filtro !== "todos" && filtro !== tipo) continue;
+      const hs = t
+        ? porTipo[tipo].filter((h) =>
+            h.ticker.toLowerCase().includes(t) ||
+            h.regla.toLowerCase().includes(t) ||
+            h.motivo.toLowerCase().includes(t))
+        : porTipo[tipo];
+      if (hs.length) out.push([tipo, hs]);
+    }
+    return out;
+  }, [porTipo, tipos, filtro, q]);
+
   if (data.hallazgos.length === 0) {
     return (
       <p className="text-[11px] text-[var(--t-text-muted)]">
@@ -736,11 +780,58 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
       </p>
     );
   }
+
+  const nVisibles = visibles.reduce((a, [, hs]) => a + hs.length, 0);
+
   return (
-    <div className="flex flex-col gap-5">
-      {Object.entries(porTipo)
-        .sort(([a], [b]) => (ORDEN_TIPO.indexOf(a) + 1 || 99) - (ORDEN_TIPO.indexOf(b) + 1 || 99))
-        .map(([tipo, hs]) => (
+    <div className="flex flex-col gap-4">
+      {/* ── LA BARRA DE FILTROS ───────────────────────────────────────────
+          Sticky: con la lista larga, el filtro tiene que seguir a mano para
+          cambiar de tipo sin volver arriba. */}
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 px-4 pt-4 pb-2 bg-[var(--t-panel)] border-b border-[var(--t-border)] flex flex-wrap items-center gap-1.5">
+        {([["todos", "TODO", data.hallazgos.length]] as [string, string, number][])
+          .concat(tipos.map((t) => [t, TIPO_CHIP[t] ?? t.replace(/_/g, " ").toUpperCase(),
+                                    porTipo[t].length] as [string, string, number]))
+          .map(([k, label, n]) => (
+          <button
+            key={k}
+            onClick={() => setFiltro(k)}
+            title={TIPO_LABEL[k] ?? "Todos los hallazgos"}
+            className={`text-[9px] font-semibold uppercase tracking-widest px-2 py-1 border transition-colors ${
+              filtro === k
+                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+          >
+            {label}
+            <span className="ml-1.5 tabular-nums opacity-70">{n}</span>
+          </button>
+        ))}
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="buscar ticker, regla o motivo…"
+          className="ml-auto w-56 bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
+        />
+        {/* Lo que el filtro está ESCONDIENDO. Sin este número, una búsqueda sin
+            resultados y una lista vacía de verdad se ven igual. */}
+        {(q.trim() || filtro !== "todos") && (
+          <button
+            onClick={() => { setFiltro("todos"); setQ(""); }}
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            {nVisibles} de {data.hallazgos.length} · limpiar ✕
+          </button>
+        )}
+      </div>
+
+      {visibles.length === 0 && (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          Ningún hallazgo coincide con «{q}». Los {data.hallazgos.length} siguen
+          ahí — es el filtro, no la lista.
+        </p>
+      )}
+
+      {visibles.map(([tipo, hs]) => (
         <section key={tipo}>
           <div className="flex items-baseline gap-2 mb-1.5">
             <h3 className={TITULO}>{(TIPO_LABEL[tipo] ?? tipo).toUpperCase()}</h3>

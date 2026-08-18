@@ -5,7 +5,6 @@ import { AnuncioChicagoModal } from "@/components/anuncio-chicago-modal";
 import { AnuncioDiferenciasDiariasModal } from "@/components/anuncio-diferencias-diarias-modal";
 import { AnuncioDolarFuturoModal } from "@/components/anuncio-dolar-futuro-modal";
 import { SaludAlertasModal } from "@/components/salud-alertas-modal";
-import { SaludBoton } from "@/components/salud-boton";
 import { AnuncioResearchModal } from "@/components/anuncio-research-modal";
 import { BriefingModal } from "@/components/briefing-modal";
 import { AvAgentModal } from "@/components/av-agent-modal";
@@ -104,10 +103,13 @@ export default async function RootLayout({
             {/* Briefing de apertura (QuantAI P1): botón inline + modal.
                 Se auto-oculta sin módulo `ia` (decide el backend). */}
             <BriefingModal />
-            {/* SALUD inline (solo admin, decidido server-side): el modal
-                automático salta ante un incidente confirmado; esto es para
-                mirar cuando uno quiere. */}
-            {esAdmin && <SaludBoton />}
+            {/* SALUD ya NO tiene botón propio (2026-08-18). Sus chequeos entran
+                al AV AGENT como hallazgos —sección SALUD DEL SISTEMA, arriba de
+                todo— y ahí se diagnostican con las mismas lentes que un bono.
+                Dos botones en la misma barra para lo mismo obligaban a mirar dos
+                lugares para contestar UNA pregunta, que es justo lo que la fusión
+                vino a eliminar. El panel completo (silenciar un chequeo, ver lo
+                que está bien) sigue en Manager → OBSERVABILIDAD → SALUD. */}
             {/* AV AGENT (docs/AV_AGENT.md): el primer agente del sistema. Vive
                 ACÁ y no en el nav a propósito — no es una vista de datos que se
                 consulta, es un canal que interrumpe cuando tiene algo que
