@@ -68,8 +68,12 @@ import { usePoll } from "@/lib/use-poll";
  *    tablas: ni estirarlas ni escalarlas, que fue lo que se probó antes. Adentro, ARS primero
  *    y una línea más marcada donde cambia la moneda. Usa el MISMO día que la
  *    vista, así no puede decir algo distinto de la pantalla desde la que se
- *    abrió. Cabecera azul con el logo UNA vez arriba de todo: este modal se
- *    muestra y se captura, no es pantalla de trabajo.
+ *    abrió. Cabecera azul con el logo UNA vez arriba de todo y la firma «Hecho
+ *    en ACAQuant» en chico. Botón **COPIAR IMAGEN** para pegarlo en un mail: la
+ *    imagen se DIBUJA de cero en un canvas con los mismos datos (ver
+ *    `lib/reporte-imagen`), no es una captura — por eso el botón, el scroll y el
+ *    ✕ no pueden colarse en ella, y por eso sale siempre en claro aunque la app
+ *    esté en oscuro: un mail con fondo negro se imprime pésimo.
  *
  * ── SACAR FOTO (botón de la barra) — congela el consolidado del día.
  *    ⚠️ Acá la foto NO existe por el mismo motivo que en Tesorería. Allá la vista
@@ -1559,6 +1563,10 @@ function ModalDesglose({
  *  los bancos, no un tope duro. */
 const FILAS_OBJETIVO = 16;
 
+/** La firma del reporte. Va chica en la barra y también adentro de la imagen: si
+ *  el reporte termina reenviado tres veces, sigue diciendo de dónde salió. */
+const FIRMA = "Hecho en ACAQuant";
+
 /**
  * Reparte los bancos en columnas parejas, sin partir ninguna tabla.
  *
@@ -1605,6 +1613,40 @@ function ModalReporte({
 
   const columnas = useMemo(() => empaquetar(bancos), [bancos]);
 
+  // COPIAR IMAGEN. El botón vive en la barra pero **no aparece en la imagen**, y
+  // no porque se lo esconda: el reporte se DIBUJA de cero en un canvas a partir
+  // de los mismos datos, así que la UI no existe para él. Ver `lib/reporte-imagen`.
+  const [copia, setCopia] = useState<string | null>(null);
+  const [copiando, setCopiando] = useState(false);
+
+  async function copiarImagen() {
+    setCopiando(true); setCopia(null);
+    const { copiarReporte } = await import("@/lib/reporte-imagen");
+    const r = await copiarReporte({
+      columnas: columnas.map((col) => col.map((b) => ({
+        titulo: b.banco_nombre,
+        filas: cuentasOrdenadas(b).map((c, i, arr) => ({
+          cuenta: `${c.tipo} ${c.moneda} · ${c.numero}`,
+          sub: c.etiqueta || undefined,
+          // El saldo se manda YA formateado: formatearlo de nuevo del otro lado
+          // es la forma de que la imagen y la pantalla digan cosas distintas.
+          valor: c.saldo_cierre === null ? "—" : plata(c.saldo_cierre),
+          corte: i > 0 && esArs(arr[i - 1].moneda) !== esArs(c.moneda),
+        })),
+      }))),
+      titulo: "Reporte final · saldos al cierre",
+      fecha,
+      firma: FIRMA,
+      logoUrl: "/logo-login.png",
+      archivo: `reporte-bancos-${fecha}.png`,
+    });
+    setCopiando(false);
+    setCopia(r === "copiado" ? "Copiado · pegalo en el mail"
+      : r === "descargado" ? "Tu navegador no deja copiar imágenes: se descargó"
+      : "No se pudo generar la imagen");
+    window.setTimeout(() => setCopia(null), 6000);
+  }
+
   // ⚠️ El marco es CHICO a propósito —padding del fondo, del contenido y de los
   // huecos entre tablas—: cada píxel que se le da al marco se lo saca al reporte,
   // y el reporte entra por poco.
@@ -1626,9 +1668,26 @@ function ModalReporte({
             Reporte final · saldos al cierre
           </span>
           <span className="text-[12px] text-white/80">{fecha}</span>
+          {/* La firma va CHICA: dice de dónde salió el reporte sin competir con
+              el título. Va también adentro de la imagen. */}
+          <span className="text-[10px] text-white/60 tracking-normal normal-case">
+            {FIRMA}
+          </span>
+
+          {copia && (
+            <span className="ml-auto text-[11px] text-white/85">{copia}</span>
+          )}
+          <button
+            onClick={copiarImagen}
+            disabled={copiando || bancos.length === 0}
+            className={`${copia ? "" : "ml-auto"} px-2 py-0.5 text-[11px] uppercase tracking-wide border border-white/40 text-white hover:bg-white/10 disabled:opacity-40`}
+            title="Genera la imagen del reporte y la copia al portapapeles, para pegarla en un mail"
+          >
+            {copiando ? "Generando…" : "Copiar imagen"}
+          </button>
           <button
             onClick={onCerrar}
-            className="ml-auto px-2 py-0.5 text-white/80 hover:text-white hover:bg-white/10"
+            className="px-2 py-0.5 text-white/80 hover:text-white hover:bg-white/10"
             title="Cerrar (Esc)"
           >
             ✕
@@ -1672,15 +1731,20 @@ function ModalReporte({
  * cambio de moneda: separar por moneda importa más que ordenar, porque leer
  * pesos y dólares en la misma corrida visual es el error que este formato evita.
  */
-function TablaBanco({ banco }: { banco: Banco }) {
-  const cuentas = useMemo(() => {
-    const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
-    return [...banco.cuentas].sort((a, b) => (
-      `${esArs(a.moneda) ? "0" : "1"}|${a.tipo}|${a.numero}`
-    ).localeCompare(`${esArs(b.moneda) ? "0" : "1"}|${b.tipo}|${b.numero}`));
-  }, [banco.cuentas]);
+const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
 
-  const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
+/** Las cuentas de un banco, en el orden del reporte: ARS primero. Vive acá y no
+ *  adentro de la tabla porque la IMAGEN usa exactamente el mismo orden — si cada
+ *  una ordenara por su cuenta, lo que se pega en el mail podría no coincidir con
+ *  lo que se está mirando. */
+function cuentasOrdenadas(banco: Banco): CuentaConsolidada[] {
+  const clave = (c: CuentaConsolidada) =>
+    `${esArs(c.moneda) ? "0" : "1"}|${c.tipo}|${c.numero}`;
+  return [...banco.cuentas].sort((a, b) => clave(a).localeCompare(clave(b)));
+}
+
+function TablaBanco({ banco }: { banco: Banco }) {
+  const cuentas = useMemo(() => cuentasOrdenadas(banco), [banco]);
 
   return (
     <table className="border-collapse">
