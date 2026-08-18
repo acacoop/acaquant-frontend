@@ -82,6 +82,23 @@ import { usePoll } from "@/lib/use-poll";
  *    consolidado de un día cerrado desaparece. La foto es lo que lo hace durar, y
  *    guarda 30 fechas. Un día servido desde la foto se rotula en la barra.
  *
+ * ── MANUALES (botón de la barra) — lo que Interbanking no informa. Dos cosas que
+ *    van juntas porque son la misma necesidad: hay **bancos de la casa que no
+ *    están en Interbanking** y plata que el banco no reporta.
+ *    · Un movimiento manual **SIEMPRE impacta el saldo al cierre** del día que
+ *      muestra la vista. En una cuenta real se suma arriba de su extracto; en una
+ *      manual —sin extracto ni saldo del banco— el saldo ES la suma de estos
+ *      movimientos. Mismo modelo que los REGISTROS MANUALES de Tesorería.
+ *    · El día NO se elige en el formulario: es el de la vista. Con su propio
+ *      selector se podría cargar un ajuste en un día que nadie está mirando.
+ *    · La moneda tampoco: cada cuenta ya es de una moneda, y preguntarla sería
+ *      ofrecer la posibilidad de contradecirla. Elegido el banco, el selector de
+ *      cuenta se llena solo con las de ESE banco.
+ *    · La grilla lo canta: `manual` en la cuenta, `±man` cuando el cierre incluye
+ *      un ajuste y `s/banco` cuando el saldo entero sale de lo cargado a mano.
+ *    · Una cuenta manual **el job no la puede pisar**: recorre lo que le devuelve
+ *      Interbanking, y una cuenta manual no está en esa lista.
+ *
  * De dónde sale el dato: `jobs/interbanking_sync` trae extracto + saldo a
  * `bancos.*` cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla
  * nunca le pega a Interbanking**: el límite de 100 llamadas/minuto es del ABONADO
@@ -112,6 +129,21 @@ type Cuenta = {
   etiqueta: string;
   numero: string;
   activa: boolean;
+  /** La cargó una persona, no Interbanking. */
+  manual?: boolean;
+};
+
+/** Un movimiento que el banco no informa. Comparte las claves con `Movimiento`
+ *  para poder dibujarse en la misma tabla. */
+type Manual = {
+  id: number;
+  manual: true;
+  fecha: string | null;
+  hora: string | null;
+  importe: number | null;
+  tipo: string | null;
+  descripcion: string;
+  por: string | null;
 };
 
 type CuentaConsolidada = Cuenta & {
@@ -124,7 +156,8 @@ type CuentaConsolidada = Cuenta & {
   //   "saldo"    → `bancos.saldos`: la cuenta no se movió ese día y el extracto
   //                no la devuelve, pero el banco igual informa cuánto hay
   //   null       → no sabemos (cuenta con «—»)
-  fuente: "extracto" | "saldo" | null;
+  //   "manual"   → no está en Interbanking: el saldo ES lo cargado a mano
+  fuente: "extracto" | "saldo" | "manual" | null;
   saldo_banco: number | null;
   // El banco informó las DOS cosas y no coinciden: hallazgo de conciliación.
   discrepancia: number | null;
@@ -133,6 +166,10 @@ type CuentaConsolidada = Cuenta & {
   // que jamás cero por defecto.
   gastos_bancarios: number | null;
   gastos_desglose: Desglose | null;
+  // Cuánto del cierre lo puso una persona. Se muestra aparte: un saldo con
+  // ajuste manual no vale lo mismo que uno que informó el banco.
+  ajuste_manual: number | null;
+  movimientos_manuales: number;
 };
 
 type Banco = {
@@ -241,12 +278,15 @@ type RespVista = {
   fecha: string;
   dias: Dia[];
   movimientos: Movimiento[];
+  manuales: Manual[];
   resumen: {
     dias: number;
     movimientos: number;
     creditos: number;
     debitos: number;
     neto: number;
+    ajuste_manual: number;
+    movimientos_manuales: number;
     dias_que_no_cierran: string[];
     dias_incompletos: string[];
     saldo_final: number | null;
@@ -263,10 +303,11 @@ const CONSOLIDADO_VACIO: RespConsolidado = {
 
 const VISTA_VACIA: RespVista = {
   cuentas: [], cuenta_id: null, puede_escribir: false, reglas: [], desglose: [],
-  fecha: "", dias: [], movimientos: [],
+  fecha: "", dias: [], movimientos: [], manuales: [],
   resumen: {
     dias: 0, movimientos: 0, creditos: 0, debitos: 0, neto: 0, gastos: 0, gastos_desglose: {},
     dias_que_no_cierran: [], dias_incompletos: [], saldo_final: null,
+    ajuste_manual: 0, movimientos_manuales: 0,
   },
   sync: null,
 };
@@ -375,6 +416,7 @@ export function InterbankingView() {
   const cerrar = useCallback(() => setAbierta(null), []);
 
   const [reporte, setReporte] = useState(false);
+  const [manual, setManual] = useState(false);
   const [fotoMsg, setFotoMsg] = useState<string | null>(null);
   const [fotoBusy, setFotoBusy] = useState(false);
 
@@ -425,6 +467,15 @@ export function InterbankingView() {
           >
             Reporte final
           </button>
+          {resp.puede_escribir && (
+            <button
+              onClick={() => setManual(true)}
+              className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+              title="Movimientos que el banco no informa, y cuentas de bancos que no están en Interbanking"
+            >
+              Manuales
+            </button>
+          )}
           {resp.puede_escribir && !resp.es_foto && (
             <button
               onClick={sacarFoto}
@@ -449,6 +500,14 @@ export function InterbankingView() {
 
       {abierta && (
         <ModalMovimientos cuenta={abierta} fecha={fecha} onCerrar={cerrar} />
+      )}
+
+      {manual && (
+        <ModalManuales
+          bancos={resp.bancos}
+          fecha={resp.fecha || fecha}
+          onCerrar={() => setManual(false)}
+        />
       )}
 
       {reporte && (
@@ -595,6 +654,16 @@ function BloqueBanco({
               {c.etiqueta ? (
                 <span className="text-[var(--t-text-dim)]"> · {c.etiqueta}</span>
               ) : null}
+              {/* Una cuenta que no informa ningún banco no vale lo mismo que una
+                  conciliada contra un extracto: se dice. */}
+              {c.manual && (
+                <span
+                  className="ml-2 px-1 text-[9px] uppercase border border-[var(--t-border-2)] text-[var(--t-text-muted)]"
+                  title="Cuenta cargada a mano: no viene de Interbanking. Su saldo es la suma de sus movimientos manuales."
+                >
+                  manual
+                </span>
+              )}
             </span>
           </td>
           <Td center strong className={COL_DATO} copiar={plata(c.saldo_cierre)}>
@@ -602,6 +671,25 @@ function BloqueBanco({
             {/* El saldo que NO viene del extracto se rotula: es el mismo banco
                 informando, pero es otra fuente y el back office tiene que poder
                 distinguirlo de un cierre respaldado por su detalle. */}
+            {/* Cuánto de este cierre lo puso una persona. Un saldo ajustado a
+                mano y uno informado por el banco no se leen igual. */}
+            {c.ajuste_manual != null && (
+              <span
+                className="ml-1 text-[9px] uppercase text-[var(--t-accent)]"
+                title={`Incluye ${plata(c.ajuste_manual)} de ${c.movimientos_manuales} `
+                  + "movimiento(s) cargado(s) a mano, que el banco no informa."}
+              >
+                ±man
+              </span>
+            )}
+            {c.fuente === "manual" && (
+              <span
+                className="ml-1 text-[9px] uppercase text-[var(--t-text-dim)]"
+                title="Este banco no está en Interbanking: el saldo es la suma de los movimientos cargados a mano."
+              >
+                s/banco
+              </span>
+            )}
             {c.fuente === "saldo" && (
               <span
                 className="ml-1 text-[9px] uppercase text-[var(--t-text-dim)]"
@@ -1061,7 +1149,33 @@ function ModalMovimientos({
                   />
                 </tr>
               ))}
-              {visibles.length === 0 && <Vacia cols={10} hubo={lastAt > 0} />}
+              {/* Los MANUALES van en la misma tabla, abajo y marcados: son
+                  parte del saldo de esa cuenta ese día, así que esconderlos en
+                  otro panel obligaría a sumar dos listas para entender el
+                  cierre. No entran al filtro del auditor —no son gastos que
+                  cobró el banco— y por eso se dibujan siempre. */}
+              {data.manuales.map((m) => (
+                <tr key={`man-${m.id}`} className="border-b border-[var(--t-border-2)] bg-[var(--t-surface)]">
+                  <Td className="whitespace-nowrap">{m.fecha}</Td>
+                  <Td colSpan={6}>
+                    {m.descripcion}
+                    <span className="ml-2 px-1 text-[9px] uppercase border border-[var(--t-border-2)] text-[var(--t-text-muted)]">
+                      manual
+                    </span>
+                    <span className="ml-1 text-[10px] text-[var(--t-text-dim)]">
+                      {m.por} {m.hora}
+                    </span>
+                  </Td>
+                  <Td center strong className={`${COL_SEP} ${
+                    m.tipo === "C" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
+                  }`} copiar={plata(m.importe)}>
+                    {m.tipo === "D" ? "−" : "+"}{plata(m.importe)}
+                  </Td>
+                  <Td colSpan={2} className={COL_SEP} />
+                </tr>
+              ))}
+              {visibles.length === 0 && data.manuales.length === 0
+                && <Vacia cols={10} hubo={lastAt > 0} />}
             </tbody>
           </table>
         </div>
@@ -1793,6 +1907,276 @@ function TablaBanco({ banco }: { banco: Banco }) {
   );
 }
 
+type MovManual = {
+  id: number; cuenta_id: number; cuenta: string; fecha: string | null;
+  descripcion: string; importe: number | null; tipo: string | null;
+  por: string | null; hora: string | null;
+};
+
+/**
+ * MOVIMIENTOS Y CUENTAS MANUALES — lo que Interbanking no informa.
+ *
+ * Dos cosas que van juntas porque son la misma necesidad: **hay bancos de la
+ * casa que no están en Interbanking y plata que el banco no reporta.**
+ *
+ * ⚠️ Un movimiento manual **siempre impacta el saldo al cierre** del día que se
+ * le cargue. En una cuenta real se suma arriba de su extracto; en una cuenta
+ * manual —donde no hay extracto ni saldo del banco— el saldo ES la suma de estos
+ * movimientos. Mismo modelo que los REGISTROS MANUALES de Tesorería.
+ *
+ * El día NO se elige acá: es el que muestra la vista. Si el formulario tuviera su
+ * propio selector, se podría cargar un ajuste en un día que no se está mirando y
+ * el saldo cambiaría en una pantalla que nadie tiene abierta.
+ *
+ * **La moneda tampoco se elige**: cada cuenta bancaria ya es de una moneda, así
+ * que preguntarla sería ofrecer la posibilidad de contradecir a la cuenta.
+ *
+ * Al elegir el banco, el selector de cuenta se llena solo con las cuentas de ESE
+ * banco — que es lo que evita el error de cargarle un movimiento a la cuenta de
+ * otro banco con número parecido.
+ */
+function ModalManuales({
+  bancos, fecha, onCerrar,
+}: {
+  bancos: Banco[]; fecha: string; onCerrar: () => void;
+}) {
+  const [movs, setMovs] = useState<MovManual[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Alta de movimiento.
+  const [banco, setBanco] = useState("");
+  const [cuentaId, setCuentaId] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [importe, setImporte] = useState("");
+  const [tipo, setTipo] = useState<"C" | "D">("D");
+
+  // Alta de cuenta/banco manual.
+  const [altaCuenta, setAltaCuenta] = useState(false);
+  const [nBanco, setNBanco] = useState("");
+  const [nNumero, setNNumero] = useState("");
+  const [nTipo, setNTipo] = useState("CC");
+  const [nMoneda, setNMoneda] = useState("ARS");
+  const [nEtiqueta, setNEtiqueta] = useState("");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  const recargar = useCallback(async () => {
+    const r = await fetch(
+      `/api/back-office/interbanking/manual/movimientos?fecha=${fecha}`,
+      { cache: "no-store" });
+    setMovs(r.ok ? await r.json() : []);
+  }, [fecha]);
+
+  useEffect(() => { recargar(); }, [recargar]);
+
+  // Las cuentas del banco elegido. Es lo que hace que no se pueda cargar un
+  // movimiento en la cuenta de otro banco.
+  const cuentas = useMemo(
+    () => bancos.find((b) => b.banco === banco)?.cuentas ?? [], [bancos, banco]);
+
+  async function pegar(url: string, method: string, body?: unknown) {
+    setBusy(true); setErr(null);
+    const res = await fetch(`/api/back-office/interbanking${url}`, {
+      method,
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).detail ?? "No se pudo guardar.");
+      return false;
+    }
+    await recargar();
+    return true;
+  }
+
+  async function alta() {
+    const monto = Number((importe || "").replace(/\./g, "").replace(",", "."));
+    if (!cuentaId) { setErr("Elegí la cuenta."); return; }
+    if (!Number.isFinite(monto) || !monto) { setErr("Poné un importe."); return; }
+    if (await pegar("/manual/movimientos", "POST", {
+      cuenta_id: Number(cuentaId), descripcion, importe: Math.abs(monto), tipo, fecha,
+    })) {
+      setDescripcion(""); setImporte("");
+    }
+  }
+
+  async function altaCuentaManual() {
+    if (await pegar("/manual/cuentas", "POST", {
+      banco: nBanco, numero: nNumero, tipo: nTipo, moneda: nMoneda, etiqueta: nEtiqueta,
+    })) {
+      setNBanco(""); setNNumero(""); setNEtiqueta(""); setAltaCuenta(false);
+      // El catálogo de cuentas lo trae el consolidado en su próximo poll: no hay
+      // nada que refrescar a mano acá, y forzarlo sería una copia que se puede
+      // quedar vieja.
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1000px] max-h-[88vh] flex flex-col text-[12px]"
+      >
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex items-center gap-2">
+          <span className="font-semibold tracking-wide uppercase text-[11px]">
+            Movimientos manuales
+          </span>
+          <span className="text-[var(--t-accent)]">{fecha}</span>
+          <Ayuda texto={
+            "Lo que el banco no informa. SIEMPRE impacta el saldo al cierre del "
+            + "día que muestra la vista.\n\n"
+            + "En una cuenta de Interbanking se suma arriba de su extracto. En una "
+            + "cuenta manual —un banco que no está en Interbanking— el saldo ES la "
+            + "suma de estos movimientos.\n\n"
+            + "La moneda no se elige: cada cuenta ya es de una moneda."
+          } />
+          <button
+            onClick={() => { setAltaCuenta((v) => !v); setErr(null); }}
+            className="ml-auto px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+          >
+            {altaCuenta ? "Cancelar" : "+ Cuenta manual"}
+          </button>
+          <button onClick={onCerrar} className="px-2 py-1 hover:bg-[var(--t-surface)]" title="Cerrar (Esc)">
+            ✕
+          </button>
+        </div>
+
+        {err && (
+          <div className="shrink-0 px-3 py-1 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)]">
+            {err}
+          </div>
+        )}
+
+        {/* Alta de una cuenta que Interbanking no informa. El BANCO se escribe
+            por nombre: si ya existe, la cuenta queda agrupada abajo de él; si no,
+            se da de alta un banco nuevo. Con un solo formulario se resuelven las
+            dos cosas, y al usuario no se le pide un "código de banco" que no
+            tiene. */}
+        {altaCuenta && (
+          <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] flex flex-wrap items-center gap-2">
+            <input value={nBanco} onChange={(e) => setNBanco(e.target.value)}
+                   placeholder="banco (nuevo o existente)" className={`${INPUT} w-[220px]`} />
+            <input value={nNumero} onChange={(e) => setNNumero(e.target.value)}
+                   placeholder="número de cuenta" className={`${INPUT} w-[200px]`} />
+            <select value={nTipo} onChange={(e) => setNTipo(e.target.value)} className={INPUT}>
+              <option value="CC">CC</option>
+              <option value="CA">CA</option>
+            </select>
+            <select value={nMoneda} onChange={(e) => setNMoneda(e.target.value)} className={INPUT}>
+              <option value="ARS">ARS</option>
+              <option value="USD">USD</option>
+            </select>
+            <input value={nEtiqueta} onChange={(e) => setNEtiqueta(e.target.value)}
+                   placeholder="etiqueta (opcional)" className={`${INPUT} flex-1 min-w-[160px]`} />
+            <button onClick={altaCuentaManual} disabled={busy}
+                    className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40">
+              Crear cuenta
+            </button>
+          </div>
+        )}
+
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] flex flex-wrap items-center gap-2">
+          <select
+            value={banco}
+            onChange={(e) => { setBanco(e.target.value); setCuentaId(""); }}
+            className={`${INPUT} w-[200px]`}
+          >
+            <option value="">Banco…</option>
+            {bancos.map((b) => (
+              <option key={b.banco} value={b.banco}>{b.banco_nombre}</option>
+            ))}
+          </select>
+          {/* Se llena solo con las cuentas del banco elegido. */}
+          <select
+            value={cuentaId}
+            onChange={(e) => setCuentaId(e.target.value)}
+            disabled={!banco}
+            className={`${INPUT} w-[280px] disabled:opacity-40`}
+          >
+            <option value="">Cuenta…</option>
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.tipo} {c.moneda} · {c.numero}{c.etiqueta ? ` · ${c.etiqueta}` : ""}
+              </option>
+            ))}
+          </select>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value as "C" | "D")}
+                  className={INPUT}>
+            <option value="D">Resta (−)</option>
+            <option value="C">Suma (+)</option>
+          </select>
+          <input value={importe} onChange={(e) => setImporte(e.target.value)}
+                 onKeyDown={(e) => { if (e.key === "Enter") alta(); }}
+                 placeholder="importe" className={`${INPUT} w-[130px] text-right`} />
+          <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)}
+                 onKeyDown={(e) => { if (e.key === "Enter") alta(); }}
+                 placeholder="descripción" className={`${INPUT} flex-1 min-w-[200px]`} />
+          <button onClick={alta} disabled={busy}
+                  className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40">
+            Registrar
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              <tr className="border-b border-[var(--t-border-2)]">
+                <Th>Cuenta</Th>
+                <Th className="w-full">Descripción</Th>
+                <Th center className={COL_SEP}>Importe</Th>
+                <Th center className={COL_SEP}>Cargado</Th>
+                <Th className={COL_SEP} />
+              </tr>
+            </thead>
+            <tbody>
+              {movs.map((m) => (
+                <tr key={m.id} className="border-b border-[var(--t-border-2)]">
+                  <Td copiar={m.cuenta} className="whitespace-nowrap">{m.cuenta}</Td>
+                  <Td copiar={m.descripcion}>{m.descripcion}</Td>
+                  <Td center strong className={`${COL_SEP} whitespace-nowrap ${
+                    m.tipo === "C" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
+                  }`} copiar={plata(m.importe)}>
+                    {m.tipo === "D" ? "−" : "+"}{plata(m.importe)}
+                  </Td>
+                  <Td center className={`${COL_SEP} whitespace-nowrap text-[var(--t-text-dim)]`}>
+                    {m.por} {m.hora}
+                  </Td>
+                  <td className={`px-2 py-1 text-right ${COL_SEP}`}>
+                    <button
+                      onClick={() => pegar(`/manual/movimientos/${m.id}`, "DELETE")}
+                      disabled={busy}
+                      title="Borrar el movimiento. El saldo al cierre vuelve atrás."
+                      className="px-1 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {movs.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-3 py-4 text-[var(--t-text-dim)]">
+                    No hay movimientos manuales cargados en {fecha}.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** El «?» que reemplaza a un párrafo. La explicación completa está, pero no
  *  ocupa la pantalla de todos los días. */
 function Ayuda({ texto }: { texto: string }) {
@@ -2100,15 +2484,16 @@ function useCopiar(texto?: string | null) {
 }
 
 function Td({
-  children, right, center, strong, className = "", copiar,
+  children, right, center, strong, className = "", copiar, colSpan,
 }: {
   children?: React.ReactNode; right?: boolean; center?: boolean; strong?: boolean;
-  className?: string; copiar?: string | null;
+  className?: string; copiar?: string | null; colSpan?: number;
 }) {
   const cp = useCopiar(copiar);
   const al = center ? "text-center tabular-nums" : right ? "text-right tabular-nums" : "";
   return (
     <td
+      colSpan={colSpan}
       onClick={cp.onClick}
       title={cp.title}
       className={`px-2 py-1 ${al} ${strong ? "font-semibold" : ""} ${cp.clase} ${className}`}

@@ -33,9 +33,10 @@ type Ctx = { params: Promise<{ path?: string[] }> };
 
 /** Los únicos sub-paths donde se admite escribir. Todo lo demás es lectura.
  *  `gastos` = la clasificación (reglas, marcas, ignorados, desglose).
- *  `foto`   = congelar el consolidado del día. Las dos escriben en tablas
- *  NUESTRAS; hacia el banco no sale nada. */
-const ESCRITURA = new Set(["gastos", "foto"]);
+ *  `foto`   = congelar el consolidado del día.
+ *  `manual` = cuentas y movimientos que Interbanking no informa.
+ *  Las tres escriben en tablas NUESTRAS; hacia el banco no sale nada. */
+const ESCRITURA = new Set(["gastos", "foto", "manual"]);
 
 function esEscrituraPermitida(path: string[] | undefined) {
   return ESCRITURA.has(path?.[0] ?? "");
