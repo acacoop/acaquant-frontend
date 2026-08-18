@@ -51,8 +51,14 @@ type Modo = "alta" | "flujos" | "arreglo" | "salud";
 // nada y las 10 aplicaciones salían todas juntas: se pisan entre sí escribiendo
 // en `mercado.curvas` y el error de una se pierde entre las otras nueve. El tipo
 // es lo único que hace que el compilador sostenga esa garantía.
+// Devuelve el RESULTADO, no `void`. Dos motivos y los dos se pagaron: con
+// `void` el `await` del lote no esperaba nada (las 10 aplicaciones salían
+// juntas y se pisaban escribiendo en `mercado.curvas`), y el resumen «8 de 10»
+// no se puede armar leyendo `sims` dentro del loop — el estado de React se
+// actualiza asincrónico y ahí adentro todavía tiene el valor viejo.
+type ResSim = Record<string, unknown> & { ok?: boolean; aplicado?: boolean };
 type Simular = (ticker: string, curva1816: string, aplicar?: boolean,
-                extra?: Record<string, unknown>, modo?: Modo) => Promise<void>;
+                extra?: Record<string, unknown>, modo?: Modo) => Promise<ResSim>;
 
 type Hallazgo = {
   // QUÉ puede hacer el agente con este hallazgo. **Lo decide el backend** —
@@ -392,8 +398,11 @@ export function AvAgentModal() {
         });
       setSims((s) => ({ ...s, [ticker]: r }));
       if (aplicar) await cargar();
+      return r as ResSim;
     } catch (e) {
-      setSims((s) => ({ ...s, [ticker]: { ok: false, error: String(e) } }));
+      const err = { ok: false, error: String(e) };
+      setSims((s) => ({ ...s, [ticker]: err }));
+      return err;
     }
   }, [cargar]);
 
@@ -1995,7 +2004,12 @@ function InformeMasivo({ run, simular, sims }: {
 }) {
   const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
-  const [lote, setLote] = useState(false);
+  // El PROGRESO del lote. Sin esto el botón aplicaba los 10 —y funcionaba— pero
+  // el panel no decía nada: el resultado aparecía en las filas de abajo, fuera
+  // de la vista. Una acción que no confirma en el lugar donde se apretó se lee
+  // como que no pasó nada, y se vuelve a apretar.
+  const [lote, setLote] = useState<{ i: number; ticker: string } | null>(null);
+  const [hechoLote, setHechoLote] = useState<{ ok: number; mal: string[] } | null>(null);
   // EL ANÁLISIS con la IA propia. Es una capa ARRIBA del informe determinista,
   // nunca un reemplazo: si el LLM no está, el informe queda igual de completo.
   const [ia, setIa] = useState<string>("");
@@ -2019,11 +2033,21 @@ function InformeMasivo({ run, simular, sims }: {
   // vuelve a leer la vista. En paralelo se pisan entre sí y el error de uno se
   // pierde entre los otros nueve.
   const aplicarLote = async () => {
-    setLote(true);
-    for (const f of listos) {
-      await simular(f.sujeto, "", true, {}, f.accion as Modo);
+    setHechoLote(null);
+    const mal: string[] = [];
+    let ok = 0;
+    for (let i = 0; i < listos.length; i++) {
+      const f = listos[i];
+      setLote({ i: i + 1, ticker: f.sujeto });
+      const r = await simular(f.sujeto, "", true, {}, f.accion as Modo);
+      // El RESULTADO de cada uno se cuenta acá y no se deduce de `sims`: el
+      // estado de React se actualiza asincrónico y leerlo dentro del loop
+      // devolvía el valor viejo — el resumen habría contado mal.
+      if (r?.aplicado) ok++;
+      else mal.push(f.sujeto);
     }
-    setLote(false);
+    setLote(null);
+    setHechoLote({ ok, mal });
   };
   const corriendo = run.estado === "corriendo";
   const pct = run.total ? Math.round((run.hechos / run.total) * 100) : 0;
@@ -2052,11 +2076,13 @@ function InformeMasivo({ run, simular, sims }: {
             por su propia cadena server-side, uno detrás de otro. */}
         {listos.length > 0 && (
           <button
-            disabled={lote}
+            disabled={!!lote}
             onClick={() => void aplicarLote()}
             className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
           >
-            {lote ? "aplicando…" : `aplicar los ${listos.length} listos`}
+            {lote
+              ? `aplicando ${lote.i}/${listos.length} · ${lote.ticker}`
+              : `aplicar los ${listos.length} listos`}
           </button>
         )}
         {/* ANALIZAR CON IA — para no tener que sacar el informe de la app. Lo que
@@ -2091,6 +2117,32 @@ function InformeMasivo({ run, simular, sims }: {
 
       {run.error && (
         <span className="text-[10px] text-[var(--t-neg)]">⚠ {run.error}</span>
+      )}
+
+      {/* EL RESULTADO DEL LOTE, en el panel donde se apretó. Y NOMBRA a los que
+          fallaron: «8 de 10» sin decir cuáles dos obliga a leer las 16 filas de
+          abajo para encontrarlos. */}
+      {hechoLote && (
+        <div className={`border-l-2 pl-3 py-1 ${
+          hechoLote.mal.length ? "border-[#f59e0b]" : "border-[var(--t-pos)]"}`}>
+          <span className="text-[11px] text-[var(--t-text)]">
+            <span className="text-[var(--t-pos)]">✔ {hechoLote.ok} aplicados</span>
+            {hechoLote.mal.length > 0 && (
+              <span className="text-[#f59e0b]">
+                {" · "}{hechoLote.mal.length} no: {hechoLote.mal.join(", ")}
+              </span>
+            )}
+          </span>
+          {/* Los motores leen `mercado.curvas` AL ARRANCAR: escribir el dato no
+              alcanza para que la mesa vea el número nuevo. Decirlo acá evita la
+              conclusión equivocada de que el arreglo no funcionó. */}
+          {hechoLote.ok > 0 && (
+            <div className="text-[10px] text-[var(--t-text-dim)] mt-0.5">
+              Los motores leen `mercado.curvas` al arrancar: la tasa nueva llega a
+              la vista cuando se reinicie `motor_curvas` (fuera de rueda).
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── EL AGREGADO ─────────────────────────────────────────────────── */}
