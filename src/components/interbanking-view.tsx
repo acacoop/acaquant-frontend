@@ -20,10 +20,16 @@ import { usePoll } from "@/lib/use-poll";
  *    movimientos**, así que de una cuenta quieta no sabemos el saldo. Poner 0
  *    sería inventar un número. La barra dice cuántas están en esa situación.
  *
- * ── DETALLE POR CUENTA — una cuenta a la vez, al 50/50: EXTRACTO a la izquierda
- *    (el día: apertura · créditos · débitos · cierre) y MOVIMIENTOS a la derecha
- *    (el detalle). La cuenta se elige en DOS pasos —primero el banco, después la
- *    cuenta de ESE banco— porque un selector único con 38 opciones no se navega.
+ * ── DETALLE POR CUENTA — una cuenta a la vez, repartido 1/3 · 2/3: EXTRACTO a la
+ *    izquierda (el día: apertura · créditos · débitos · cierre) y MOVIMIENTOS a
+ *    la derecha, con las 8 columnas que pidió el back office el 2026-08-18:
+ *    FECHA · DESCRIPCIÓN · CONCEPTO · COD OP · COD OP BCO · COMPROBANTE ·
+ *    SUCURSAL · IMPORTE. Las dos últimas que faltaban (`sucursal` y
+ *    `codigo_banco`) ya estaban GUARDADAS en `bancos.movimientos` desde la
+ *    primera corrida: el backend simplemente no las publicaba, así que sumarlas
+ *    no costó ni una llamada nueva a Interbanking ni un backfill.
+ *    La cuenta se elige en DOS pasos —primero el banco, después la cuenta de ESE
+ *    banco— porque un selector único con 38 opciones no se navega.
  *
  * De dónde sale el dato: `jobs/interbanking_sync` trae los extractos a `bancos.*`
  * cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla nunca le pega
@@ -115,6 +121,8 @@ type Movimiento = {
   descripcion: string;
   concepto: string;
   codigo: string | null;
+  codigo_banco: string | null;
+  sucursal: string | null;
   extracto: string | null;
   correlativo: number | null;
   comprobante: number | null;
@@ -539,8 +547,11 @@ function Detalle({
         </div>
       )}
 
-      {/* 50 / 50 — EXTRACTO a la izquierda, MOVIMIENTOS a la derecha. */}
-      <div className="flex-1 min-h-0 grid grid-cols-2">
+      {/* EXTRACTO a la izquierda, MOVIMIENTOS a la derecha. Ya NO es 50/50: el
+          extracto son 6 columnas fijas y MOVIMIENTOS pasó a 8 (2026-08-18), así
+          que se reparte 1/3 · 2/3. Cada panel scrollea solo, así que si el
+          navegador es angosto la tabla ancha no empuja a la otra. */}
+      <div className="flex-1 min-h-0 grid grid-cols-3">
         <Panel titulo="Extracto" subtitulo={`${data.dias.length} día(s)`} borde>
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
@@ -594,13 +605,26 @@ function Detalle({
           </table>
         </Panel>
 
-        <Panel titulo="Movimientos" subtitulo={`${data.movimientos.length} movimiento(s)`}>
+        <Panel
+          titulo="Movimientos"
+          subtitulo={`${data.movimientos.length} movimiento(s)`}
+          ancho="col-span-2"
+        >
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              {/* Las 8 columnas que pidió el back office (2026-08-18). IMPORTE va
+                  último y a la derecha, que es como se lee una tabla de plata;
+                  CONTRAPARTE no es una columna propia porque viene en el 13% de
+                  los movimientos (medido) y una columna vacía 9 de cada 10 filas
+                  cuesta ancho sin aportar — va debajo de la descripción. */}
               <tr>
                 <Th>Fecha</Th>
                 <Th>Descripción</Th>
-                <Th>Contraparte</Th>
+                <Th>Concepto</Th>
+                <Th>Cod op</Th>
+                <Th>Cod op bco</Th>
+                <Th right>Comprobante</Th>
+                <Th>Sucursal</Th>
                 <Th right>Importe</Th>
               </tr>
             </thead>
@@ -612,22 +636,29 @@ function Detalle({
                 >
                   <Td>
                     {m.fecha}
-                    {m.hora ? (
+                    {/* La hora solo si el banco la informa DE VERDAD. Medido el
+                        2026-08-18 sobre 178 movimientos: `process_date` viene
+                        siempre a las 00:00:00, así que pintarla era mostrar una
+                        precisión que no tenemos. Si algún banco manda hora real,
+                        aparece sola. */}
+                    {m.hora && m.hora !== "00:00:00" ? (
                       <span className="text-[var(--t-text-dim)]"> {m.hora}</span>
                     ) : null}
                   </Td>
                   <Td>
                     {m.descripcion}
-                    {m.concepto && m.concepto !== m.descripcion ? (
-                      <span className="text-[var(--t-text-dim)]"> · {m.concepto}</span>
+                    {m.contraparte ? (
+                      <div className="text-[10px] text-[var(--t-text-dim)]">
+                        {m.contraparte}
+                        {m.contraparte_cuit ? ` · ${m.contraparte_cuit}` : ""}
+                      </div>
                     ) : null}
                   </Td>
-                  <Td>
-                    {m.contraparte || "—"}
-                    {m.contraparte_cuit ? (
-                      <span className="text-[var(--t-text-dim)]"> · {m.contraparte_cuit}</span>
-                    ) : null}
-                  </Td>
+                  <Td>{m.concepto || "—"}</Td>
+                  <Td>{m.codigo || "—"}</Td>
+                  <Td>{m.codigo_banco || "—"}</Td>
+                  <Td right>{m.comprobante ?? "—"}</Td>
+                  <Td>{m.sucursal || "—"}</Td>
                   <Td
                     right
                     strong
@@ -638,7 +669,7 @@ function Detalle({
                   </Td>
                 </tr>
               ))}
-              {data.movimientos.length === 0 && <Vacia cols={4} hubo={lastAt > 0} />}
+              {data.movimientos.length === 0 && <Vacia cols={8} hubo={lastAt > 0} />}
             </tbody>
           </table>
         </Panel>
@@ -650,13 +681,14 @@ function Detalle({
 /* ── Piezas compartidas ─────────────────────────────────────────────────── */
 
 function Panel({
-  titulo, subtitulo, borde, children,
+  titulo, subtitulo, borde, ancho = "", children,
 }: {
-  titulo: string; subtitulo?: string; borde?: boolean; children: React.ReactNode;
+  titulo: string; subtitulo?: string; borde?: boolean; ancho?: string;
+  children: React.ReactNode;
 }) {
   return (
     <div
-      className={`min-h-0 flex flex-col ${
+      className={`min-h-0 flex flex-col ${ancho} ${
         borde ? "border-r border-[var(--t-border)]" : ""
       }`}
     >
