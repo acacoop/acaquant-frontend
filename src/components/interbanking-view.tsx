@@ -97,6 +97,7 @@ type CuentaConsolidada = Cuenta & {
   // clasificación no esté definida** — «no sabemos» no es «no hubo gastos», así
   // que jamás cero por defecto.
   gastos_bancarios: number | null;
+  gastos_desglose: Desglose | null;
 };
 
 type Banco = {
@@ -109,6 +110,14 @@ type Sync = { corrida_at: string; cuentas: number; con_error: number } | null;
 
 type Conectado = { email: string; visto_at: string };
 
+/** Un balde del desglose de gastos. Las etiquetas las manda el BACKEND: si el
+ *  front las copiara, cambiar un balde obligaría a tocar dos lados. */
+type Balde = { clave: string; etiqueta: string; grupo: "concepto" | "otros" };
+
+/** {clave: monto} + `total` + `resto`. `resto` es el gasto que no cayó en
+ *  ningún balde — no es columna, se muestra en el modal solo si no es cero. */
+type Desglose = Record<string, number>;
+
 /** Una regla del catálogo que clasifica un movimiento como gasto bancario. */
 type Regla = {
   id: number; campo: string; operador: string; valor: string;
@@ -119,6 +128,7 @@ type RespConsolidado = {
   fecha: string;
   conectados: Conectado[];
   puede_escribir: boolean;
+  desglose: Balde[];
   bancos: Banco[];
   cuentas: number;
   sin_datos: number;
@@ -167,6 +177,7 @@ type RespVista = {
   cuenta_id: number | null;
   puede_escribir: boolean;
   reglas: Regla[];
+  desglose: Balde[];
   fecha: string;
   dias: Dia[];
   movimientos: Movimiento[];
@@ -180,20 +191,21 @@ type RespVista = {
     dias_incompletos: string[];
     saldo_final: number | null;
     gastos: number;
+    gastos_desglose: Desglose;
   };
   sync: Sync;
 };
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
-  fecha: "", conectados: [], puede_escribir: false, bancos: [], cuentas: 0,
+  fecha: "", conectados: [], puede_escribir: false, desglose: [], bancos: [], cuentas: 0,
   sin_datos: 0, gastos_definidos: false, sync: null,
 };
 
 const VISTA_VACIA: RespVista = {
-  cuentas: [], cuenta_id: null, puede_escribir: false, reglas: [],
+  cuentas: [], cuenta_id: null, puede_escribir: false, reglas: [], desglose: [],
   fecha: "", dias: [], movimientos: [],
   resumen: {
-    dias: 0, movimientos: 0, creditos: 0, debitos: 0, neto: 0, gastos: 0,
+    dias: 0, movimientos: 0, creditos: 0, debitos: 0, neto: 0, gastos: 0, gastos_desglose: {},
     dias_que_no_cierran: [], dias_incompletos: [], saldo_final: null,
   },
   sync: null,
@@ -256,10 +268,16 @@ function momento(iso: string | null | undefined) {
     + `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function signo(v: number | null | undefined) {
-  if (v === null || v === undefined || v === 0) return "";
-  return v > 0 ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]";
+/**
+ * Suma varios baldes del desglose. Devuelve **null y no 0** cuando no hay
+ * desglose: «no sabemos» y «no hubo gastos» son cosas distintas, y un cero acá
+ * se leería como que el banco no cobró nada.
+ */
+function sumaBaldes(d: Desglose | null | undefined, baldes: Balde[]) {
+  if (!d) return null;
+  return Math.round(baldes.reduce((a, b) => a + (d[b.clave] ?? 0), 0) * 100) / 100;
 }
+
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 
@@ -346,6 +364,13 @@ function Consolidado({
 
   useEffect(() => { onEnLinea(data.conectados); }, [data.conectados, onEnLinea]);
 
+  // Los conceptos tienen columna propia; el grupo "otros" se suma en UNA sola
+  // (OTROS IMP) y se abre adentro del modal.
+  const conceptos = useMemo(
+    () => data.desglose.filter((b) => b.grupo === "concepto"), [data.desglose]);
+  const otros = useMemo(
+    () => data.desglose.filter((b) => b.grupo === "otros"), [data.desglose]);
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
       <ErrorLinea error={error} />
@@ -368,20 +393,37 @@ function Consolidado({
                 que el texto salte de línea — no le da ancho a la columna, así
                 que el nombre seguía cortado. Y `w-auto` en la tabla tampoco:
                 sin slack que repartir, cada columna se queda con lo justo. */}
+            {/* SALDO AL INICIO, VARIACIÓN y MOVS. se sacaron (user, 2026-08-18:
+                «no sirven»). En su lugar entra el DESGLOSE de los gastos, que es
+                lo que el back office sí mira: cuánto del total es IVA, cuánto
+                percepción y cuánto comisión.
+
+                Las columnas del desglose las declara el BACKEND (`data.desglose`)
+                — acá no hay una lista de etiquetas copiada que pueda quedar
+                diciendo algo distinto que el número que la llena. */}
             <tr>
               <Th>Cuenta</Th>
-              <Th center className={COL_DATO}>Saldo al inicio</Th>
               <Th center className={COL_DATO}>Saldo al cierre</Th>
-              <Th center className={COL_DATO}>Variación</Th>
               <Th center className={COL_DATO}>Gastos bancarios</Th>
-              <Th center className={COL_DATO}>Movs.</Th>
+              {conceptos.map((b) => (
+                <Th key={b.clave} center className={COL_DATO}>{b.etiqueta}</Th>
+              ))}
+              <Th center className={COL_DATO}>Otros imp.</Th>
             </tr>
           </thead>
           <tbody>
             {data.bancos.map((b) => (
-              <BloqueBanco key={`${b.banco}-${b.banco_nombre}`} banco={b} onAbrir={onAbrir} />
+              <BloqueBanco
+                key={`${b.banco}-${b.banco_nombre}`}
+                banco={b}
+                conceptos={conceptos}
+                otros={otros}
+                onAbrir={onAbrir}
+              />
             ))}
-            {data.bancos.length === 0 && <Vacia cols={6} hubo={lastAt > 0} />}
+            {data.bancos.length === 0 && (
+              <Vacia cols={3 + conceptos.length + 1} hubo={lastAt > 0} />
+            )}
           </tbody>
         </table>
       </div>
@@ -390,15 +432,21 @@ function Consolidado({
 }
 
 function BloqueBanco({
-  banco, onAbrir,
-}: { banco: Banco; onAbrir: (c: CuentaConsolidada) => void }) {
+  banco, conceptos, otros, onAbrir,
+}: {
+  banco: Banco; conceptos: Balde[]; otros: Balde[];
+  onAbrir: (c: CuentaConsolidada) => void;
+}) {
   return (
     <>
       {/* El banco como TÍTULO de su bloque de cuentas. Agrupa para poder
           navegar 38 cuentas, nada más: los subtotales por banco y por moneda se
           ELIMINARON (user, 2026-08-18) — cada fila se lee sola. */}
       <tr className="bg-[var(--t-surface-2)] border-y border-[var(--t-border)]">
-        <td colSpan={6} className="px-2 py-1.5 font-semibold tracking-wide">
+        <td
+          colSpan={3 + conceptos.length + 1}
+          className="px-2 py-1.5 font-semibold tracking-wide"
+        >
           {banco.banco_nombre || "(sin nombre)"}
           <span className="ml-2 text-[10px] font-normal text-[var(--t-text-dim)]">
             BCRA {banco.banco} · {banco.cuentas.length} cuenta(s)
@@ -426,9 +474,6 @@ function BloqueBanco({
               ) : null}
             </span>
           </td>
-          <Td center className={COL_DATO} copiar={plata(c.saldo_inicio)}>
-            {plata(c.saldo_inicio)}
-          </Td>
           <Td center strong className={COL_DATO} copiar={plata(c.saldo_cierre)}>
             {plata(c.saldo_cierre)}
             {/* El saldo que NO viene del extracto se rotula: es el mismo banco
@@ -453,15 +498,19 @@ function BloqueBanco({
               </span>
             )}
           </Td>
-          <Td center className={`${COL_DATO} ${signo(c.variacion)}`}
-              copiar={plata(c.variacion)}>
-            {plata(c.variacion)}
-          </Td>
-          <Td center className={COL_DATO} copiar={plata(c.gastos_bancarios)}>
+          <Td center strong className={COL_DATO} copiar={plata(c.gastos_bancarios)}>
             {plata(c.gastos_bancarios)}
           </Td>
-          <Td center className={COL_DATO}>
-            {c.movimientos ?? <span className="text-[var(--t-text-dim)]">—</span>}
+          {conceptos.map((b) => {
+            const v = c.gastos_desglose?.[b.clave] ?? null;
+            return (
+              <Td key={b.clave} center className={COL_DATO} copiar={plata(v)}>
+                {plata(v)}
+              </Td>
+            );
+          })}
+          <Td center className={COL_DATO} copiar={plata(sumaBaldes(c.gastos_desglose, otros))}>
+            {plata(sumaBaldes(c.gastos_desglose, otros))}
           </Td>
         </tr>
       ))}
@@ -618,9 +667,31 @@ function ModalMovimientos({
             día, ya se ven en la grilla del consolidado, y repetirlos acá no
             ayuda a leer una lista de movimientos. Queda lo que SÍ habla de esta
             lista: cuántos son y cuánto de eso es gasto bancario. */}
-        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap gap-5">
-          <Dato label="Movimientos" valor={String(r.movimientos)} />
+        {/* El desglose COMPLETO, en horizontal: acá sí se abren de a uno los
+            impuestos que en el consolidado van juntos bajo OTROS IMP. El
+            contador de movimientos se sacó (user, 2026-08-18) — la lista está
+            abajo, contarla arriba no agrega nada.
+
+            `resto` (gasto que no cayó en ningún balde) aparece SOLO si no es
+            cero: OTROS IMP son únicamente las 4 descripciones declaradas, así
+            que puede quedar gasto afuera de toda columna, y eso hay que verlo
+            en vez de que se pierda adentro de otra celda. */}
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap gap-x-5 gap-y-2">
           <Dato label="Gastos bancarios" valor={plata(r.gastos, mon)} fuerte />
+          {data.desglose.map((b) => (
+            <Dato
+              key={b.clave}
+              label={b.etiqueta}
+              valor={plata(r.gastos_desglose?.[b.clave] ?? null)}
+            />
+          ))}
+          {!!r.gastos_desglose?.resto && (
+            <Dato
+              label="Sin clasificar"
+              valor={plata(r.gastos_desglose.resto)}
+              clase="text-[var(--t-accent)]"
+            />
+          )}
           {/* Las dos alertas de conciliación las calcula el BACKEND. */}
           {dia?.cierra === false && (
             <span className="self-center px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-red)] text-[var(--t-neg)]">
