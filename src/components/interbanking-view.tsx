@@ -270,15 +270,21 @@ function Consolidado({
           tabla. */}
 
       <div className="flex-1 min-h-0 overflow-auto">
-        <table className="w-auto min-w-full border-collapse">
+        <table className="w-full border-collapse table-auto">
           <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-            {/* `w-full` haría que las columnas se repartan el ancho por igual y
-                CUENTA quedaba comprimida con el nombre cortado. Con `w-auto` +
-                `whitespace-nowrap` en la celda, CUENTA toma lo que necesita y
-                las de números —que son cortas y de ancho parejo— se acomodan
-                alrededor. */}
+            {/* ⚠️ El ancho de CUENTA se resuelve ACÁ, con `w-full` en su `<th>`.
+                En una tabla de layout automático, la columna que declara
+                `width:100%` se queda con TODO el espacio que sobra después de
+                que las demás toman el que necesitan para su contenido. Las de
+                números son cortas, así que el sobrante es casi todo para CUENTA
+                y el nombre entra entero sin scroll.
+
+                Lo que NO alcanzaba: `whitespace-nowrap` en la celda solo evita
+                que el texto salte de línea — no le da ancho a la columna, así
+                que el nombre seguía cortado. Y `w-auto` en la tabla tampoco:
+                sin slack que repartir, cada columna se queda con lo justo. */}
             <tr>
-              <Th>Cuenta</Th>
+              <Th className="w-full">Cuenta</Th>
               <Th right>Saldo al inicio</Th>
               <Th right>Saldo al cierre</Th>
               <Th right>Variación</Th>
@@ -571,7 +577,7 @@ function Detalle({
                   cuesta ancho sin aportar — va debajo de la descripción. */}
               <tr>
                 <Th>Fecha</Th>
-                <Th>Descripción</Th>
+                <Th className="w-full">Descripción</Th>
                 <Th>Concepto</Th>
                 <Th>Cod op</Th>
                 <Th>Cod op bco</Th>
@@ -729,9 +735,15 @@ function Pill({
   );
 }
 
-function Th({ children, right }: { children?: React.ReactNode; right?: boolean }) {
+function Th({
+  children, right, className = "",
+}: { children?: React.ReactNode; right?: boolean; className?: string }) {
   return (
-    <th className={`px-2 py-1.5 font-normal ${right ? "text-right" : "text-left"}`}>
+    <th
+      className={`px-2 py-1.5 font-normal whitespace-nowrap ${
+        right ? "text-right" : "text-left"
+      } ${className}`}
+    >
       {children}
     </th>
   );
