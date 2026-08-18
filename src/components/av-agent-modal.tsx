@@ -161,6 +161,10 @@ const TIPO_LABEL: Record<string, string> = {
   // SALUD deja de ser una pantalla aparte: un chequeo que no está en verde ES un
   // hallazgo del agente, con el mismo modal y las mismas lentes que un bono.
   salud: "Salud del sistema (jobs y datos que no están bien)",
+  // EN RUEDA (2026-08-18). Estos dos no existen de noche: que un símbolo no
+  // tenga precio a las 11 es un problema, a las 3 de la madrugada es lo normal.
+  sin_precio: "En rueda: el motor no les está dando precio",
+  precio_moneda: "En rueda: el precio llega en la moneda equivocada",
 };
 
 // El label del CHIP. Los de `TIPO_LABEL` son frases ("Están en 1816 y no en tu
@@ -168,6 +172,8 @@ const TIPO_LABEL: Record<string, string> = {
 // Son dos textos porque cumplen dos funciones: el chip identifica, el encabezado
 // explica. El chip lleva el largo en `title`, así no se pierde nada.
 const TIPO_CHIP: Record<string, string> = {
+  sin_precio: "● SIN PRECIO",
+  precio_moneda: "● MONEDA",
   salud: "SALUD",
   hueco_de_curva: "HUECOS",
   falta_en_base: "FALTAN",
@@ -180,8 +186,12 @@ const TIPO_CHIP: Record<string, string> = {
 // SALUD va ARRIBA de todo por el mismo criterio de «aguas arriba» que ordena las
 // lentes: si el job que carga los precios no corrió, cualquier tasa sospechosa de
 // abajo puede ser consecuencia de eso y no un dato mal cargado.
-const ORDEN_TIPO = ["salud", "hueco_de_curva", "falta_en_base", "sin_flujo",
-                    "tasa_sospechosa"];
+// Lo de RUEDA va primero de todo mientras el mercado está abierto: es lo único
+// de esta pantalla que se puede perder si no se mira ahora. Un bono mal cargado
+// sigue mal cargado mañana; un símbolo sin suscribir se arregla hoy o no se
+// arregla.
+const ORDEN_TIPO = ["sin_precio", "precio_moneda", "salud", "hueco_de_curva",
+                    "falta_en_base", "sin_flujo", "tasa_sospechosa"];
 
 const SEV_TINT: Record<string, string> = {
   alta: "var(--t-neg)",
