@@ -1630,9 +1630,27 @@ function ModalReporte({
             de la de al lado. */}
         <div className="flex-1 min-h-0 overflow-auto px-4 py-3 flex flex-col gap-8">
           {bandas.map((banda, i) => (
-            <div key={i} className="flex flex-wrap items-start gap-x-8 gap-y-6">
+            // ⚠️ GRID con `grid-auto-flow: column`, NO `flex-wrap`. Con flex, una
+            // columna que no entra por ancho se va a un renglón nuevo: quedaba
+            // una sola columna larguísima, media pantalla en blanco a la derecha
+            // y tablas abajo del fold. Con el grid las columnas de la banda son
+            // hermanas por definición —van sí o sí una al lado de la otra— y
+            // `minmax(min-content, 1fr)` reparte el ancho sobrante entre ellas en
+            // vez de dejarlo vacío, sin apretar ninguna tabla por debajo de lo
+            // que mide.
+            <div
+              key={i}
+              className="grid items-start gap-x-8 gap-y-6"
+              style={{
+                gridAutoFlow: "column",
+                gridAutoColumns: "minmax(min-content, 1fr)",
+              }}
+            >
               {banda.map((col, j) => (
-                <div key={j} className="flex flex-col gap-5">
+                // El tope de ancho es para el caso de UNA sola columna: sin
+                // él, un reporte de dos bancos estiraría su tabla a lo ancho de
+                // toda la pantalla. Con tres columnas no llega a aplicar.
+                <div key={j} className="flex flex-col gap-5 max-w-[560px]">
                   {col.map((b) => <TablaBanco key={b.banco} banco={b} />)}
                 </div>
               ))}
@@ -1665,7 +1683,7 @@ function TablaBanco({ banco }: { banco: Banco }) {
   const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
 
   return (
-    <table className="border-collapse">
+    <table className="border-collapse w-full">
       <thead>
         <tr>
           <th
