@@ -42,7 +42,11 @@ import { fetchJson } from "@/lib/fetch-json";
 // Es el MISMO patrón que venimos persiguiendo todo el día —un criterio copiado
 // que nada obliga a mantener de acuerdo— solo que en TypeScript el compilador sí
 // avisa. Con un alias, agregar un modo es una línea y no puede quedar a medias.
-type Modo = "alta" | "flujos" | "arreglo";
+// `salud` es la CUARTA puerta y la única de SOLO LECTURA: diagnostica un chequeo
+// del sistema (un cron, una tabla que quedó vieja) con las mismas ocho lentes que
+// un bono, y no escribe nada. Comparte el componente a propósito — que SALUD y un
+// bono se lean IGUAL es lo que permite que una sola cabeza mire las dos cosas.
+type Modo = "alta" | "flujos" | "arreglo" | "salud";
 type Simular = (ticker: string, curva1816: string, aplicar?: boolean,
                 extra?: Record<string, unknown>, modo?: Modo) => void;
 
@@ -109,11 +113,18 @@ const TIPO_LABEL: Record<string, string> = {
   falta_en_base: "Están en 1816 y no en tu base",
   sin_flujo: "Tuyos sin cronograma de flujos",
   tasa_sospechosa: "Tasas que pueden estar mal",
+  // SALUD deja de ser una pantalla aparte: un chequeo que no está en verde ES un
+  // hallazgo del agente, con el mismo modal y las mismas lentes que un bono.
+  salud: "Salud del sistema (jobs y datos que no están bien)",
 };
 
 // Los huecos van PRIMEROS: un ajuste sin curva deja bonos invisibles, y arreglar
 // un dato de un bono que igual no se ve es trabajo perdido.
-const ORDEN_TIPO = ["hueco_de_curva", "falta_en_base", "sin_flujo", "tasa_sospechosa"];
+// SALUD va ARRIBA de todo por el mismo criterio de «aguas arriba» que ordena las
+// lentes: si el job que carga los precios no corrió, cualquier tasa sospechosa de
+// abajo puede ser consecuencia de eso y no un dato mal cargado.
+const ORDEN_TIPO = ["salud", "hueco_de_curva", "falta_en_base", "sin_flujo",
+                    "tasa_sospechosa"];
 
 const SEV_TINT: Record<string, string> = {
   alta: "var(--t-neg)",
@@ -274,7 +285,9 @@ export function AvAgentModal() {
     // Tres puertas, tres escrituras DISTINTAS: el alta crea el bono entero,
     // `flujos` completa un cronograma vacío y `arreglo` PISA un insumo que ya
     // está. Compartir ruta las haría indistinguibles en el libro de acciones.
-    const ruta = modo === "flujos"
+    const ruta = modo === "salud"
+      ? "salud"
+      : modo === "flujos"
       ? (aplicar ? "aplicar-flujos" : "simular-flujos")
       : modo === "arreglo"
       ? (aplicar ? "aplicar-arreglo" : "simular-arreglo")
@@ -284,7 +297,12 @@ export function AvAgentModal() {
         `/api/ia/av-agent/${ruta}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker, curva_1816: curva1816, ...extra }),
+          // SALUD habla de un CHEQUEO, no de un ticker: el sujeto del hallazgo es
+          // el id del cron. El campo `ticker` del hallazgo lo transporta (ver el
+          // comentario de `detectar_salud` en el backend).
+          body: JSON.stringify(modo === "salud"
+            ? { chequeo_id: ticker }
+            : { ticker, curva_1816: curva1816, ...extra }),
         });
       setSims((s) => ({ ...s, [ticker]: r }));
       if (aplicar) await cargar();
@@ -664,14 +682,22 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
             {(() => { const vistos = new Set<string>(); return hs.map((h, i) => {
               const primera = !vistos.has(h.ticker);
               vistos.add(h.ticker);
+              // El SUJETO de un hallazgo de SALUD no es un ticker de 4 letras
+              // sino el id del chequeo (`job:mercado_1816_series`): en la columna
+              // de 72px entraba «job:merc» y las filas quedaban indistinguibles.
+              // Misma tabla, primera columna más ancha.
+              const esSalud = h.tipo === "salud";
               return (
               <div
                 key={`${h.ticker}-${h.regla}-${i}`}
-                className="grid grid-cols-[3px_72px_150px_1fr_auto] items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]"
+                className={`grid ${esSalud
+                  ? "grid-cols-[3px_190px_150px_1fr_auto]"
+                  : "grid-cols-[3px_72px_150px_1fr_auto]"} items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]`}
               >
                 <span className="self-stretch" style={{ background: SEV_TINT[h.severidad] }}
                       title={`severidad ${h.severidad}`} />
-                <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums">
+                <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums truncate"
+                      title={h.ticker}>
                   {h.ticker}
                 </span>
                 <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
@@ -692,7 +718,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       acá la lista de tipos accionables es cómo se consigue un
                       botón que no aparece y no avisa por qué. */}
                   {primera && (h.accion === "alta" || h.accion === "flujos"
-                    || h.accion === "arreglo") && (
+                    || h.accion === "arreglo" || h.accion === "salud") && (
                     <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                   modo={h.accion} />
                   )}
@@ -747,6 +773,12 @@ const COPY = {
     simular: "Diagnosticar", aplicar: "Arreglar",
     hecho: "✔ ARREGLADO · ", cer: "del master",
   },
+  // SOLO LECTURA: no hay `aplicar` porque el agente todavía no toca SALUD —
+  // relanzar un job tiene efectos afuera de `mercado.curvas` y se habilita cuando
+  // el eval set diga que el diagnóstico acierta.
+  salud: {
+    simular: "Analizar", aplicar: "", hecho: "", cer: "",
+  },
 } as const;
 
 function AccionCadena({ h, sim, simular, modo }: {
@@ -780,7 +812,11 @@ function AccionCadena({ h, sim, simular, modo }: {
   // con la cadena entera en verde. Y sumarle un AND «por las dudas» es lo que
   // escondió el botón en TZXA7 — el gate real pasa a ser el más restrictivo, que
   // nadie está mirando. El fallback local es solo para un deploy desparejo.
-  const puedeAplicar = veredicto
+  // En SALUD **no hay nada que aplicar**: la puerta es de solo lectura. No es un
+  // permiso que falta, es que el agente todavía no escribe de ese lado.
+  const puedeAplicar = modo === "salud"
+    ? false
+    : veredicto
     ? veredicto.puede_aplicar !== false
     : !pasos.some((p) => p.estado === "bloquea");
 
@@ -839,15 +875,26 @@ function AccionCadena({ h, sim, simular, modo }: {
       {/* Un botón que DESAPARECE no explica nada: el que mira no sabe si falta
           cargar algo o si el agente lo frenó. Cuando la cadena bloquea, en su
           lugar va el motivo. */}
-      {ok && !puedeAplicar && !aplicado && (
+      {/* En SALUD no va: ahí `puedeAplicar` es false porque la puerta es de solo
+          lectura, no porque el agente haya frenado nada. Pintarlo en rojo diría
+          que el chequeo está trabado cuando el diagnóstico salió bien. */}
+      {ok && !puedeAplicar && !aplicado && modo !== "salud" && (
         <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)]">
           ✘ Bloqueado
+        </span>
+      )}
+      {ok && modo === "salud" && (
+        <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)]">
+          Solo lectura
         </span>
       )}
       {r && (
         <span className={`text-[9px] ${r.ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
           {r.ok === false && String(r.error ?? "falló")}
-          {ok && (
+          {ok && modo === "salud" && (
+            <>{`${String(r.titulo ?? "")}${r.motivo ? ` · ${String(r.motivo)}` : ""}`}</>
+          )}
+          {ok && modo !== "salud" && (
             <>
               {aplicado ? copy.hecho : ""}
               {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
