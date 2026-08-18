@@ -115,6 +115,23 @@ type Vista = {
 type Fuente = {
   clave: string; titulo: string; estado: string; detalle: string; para: string;
 };
+// EL DIAGNÓSTICO MASIVO. `informe` llega PARCIAL mientras corre — se puede
+// mirar sin esperar el final, que es lo que deja abortar una corrida que ya se
+// ve mal.
+type FilaInforme = {
+  sujeto: string; tipo?: string; regla?: string; estado: string;
+  causa?: string; veredicto?: string; detalle?: string;
+  trabas?: { paso: string; estado: string; detalle: string }[];
+};
+type RunMasivo = {
+  ok: boolean; id: number; estado: string; total: number; hechos: number;
+  sin_red: boolean; creditos: number | null; error: string | null;
+  informe: FilaInforme[];
+  resumen: { por_estado: Record<string, number>; por_causa: Record<string, number>;
+             segundos: number };
+  texto: string;
+};
+
 type Control = {
   parada: { parada: boolean; motivo: string; por: string; cambiado_at: string | null };
   fuentes: Fuente[];
@@ -816,6 +833,58 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   const nVisibles = visibles.reduce((a, [, hs]) => a + hs.length, 0);
   const nVisiblesPre = preFiltrados.reduce((a, [, hs]) => a + hs.length, 0);
 
+  // ── EL DIAGNÓSTICO MASIVO ─────────────────────────────────────────────────
+  // Corre sobre LO FILTRADO, no sobre los 84: «diagnosticá los 30 de
+  // moneda_flujo» es la operación real, y respetar el filtro es lo que la hace
+  // posible sin un segundo selector.
+  const [run, setRun] = useState<RunMasivo | null>(null);
+  const [corriendo, setCorriendo] = useState(false);
+
+  const planos = useMemo(
+    () => visibles.flatMap(([, hs]) => hs), [visibles]);
+
+  const lanzar = useCallback(async (sinRed: boolean) => {
+    setCorriendo(true);
+    try {
+      const r = await fetchJson<{ ok: boolean; run_id?: number; error?: string }>(
+        "/api/ia/av-agent/masivo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            // Se manda el hallazgo entero: el backend necesita la acción (qué
+            // puerta abrir) y la evidencia (la curva de 1816, para un alta).
+            casos: planos.map((h) => ({
+              ticker: h.ticker, tipo: h.tipo, regla: h.regla,
+              accion: h.accion, motivo: h.motivo, evidencia: h.evidencia,
+            })),
+            filtro: { tipo: filtro, regla: reglaOk, busqueda: q.trim() },
+            sin_red: sinRed,
+          }),
+        });
+      if (!r.ok) { setRun(null); setCorriendo(false); return; }
+    } catch {
+      setCorriendo(false);
+    }
+  }, [planos, filtro, reglaOk, q]);
+
+  // El POLL. Arranca cuando hay una corrida y se apaga sola al terminar — un
+  // poll que sigue después del final es tráfico que nadie mira.
+  useEffect(() => {
+    if (!corriendo) return;
+    let vivo = true;
+    const tick = async () => {
+      try {
+        const r = await fetchJson<RunMasivo>("/api/ia/av-agent/masivo");
+        if (!vivo) return;
+        setRun(r);
+        if (r.estado !== "corriendo") setCorriendo(false);
+      } catch { /* un poll que falla no puede romper la pantalla */ }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 2000);
+    return () => { vivo = false; clearInterval(id); };
+  }, [corriendo]);
+
   return (
     <div className="flex flex-col gap-4">
       {/* ── LA BARRA DE FILTROS ───────────────────────────────────────────
@@ -856,6 +925,41 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
           </button>
         )}
       </div>
+
+      {/* ── DIAGNOSTICAR TODO ─────────────────────────────────────────────
+          Corre sobre lo FILTRADO. El botón dice el número para que no haya
+          sorpresa: «analizar todo» sobre 84 y sobre 30 son cosas distintas. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          disabled={corriendo || nVisibles === 0}
+          onClick={() => void lanzar(false)}
+          className="text-[9px] font-semibold uppercase tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t-accent)]"
+        >
+          {corriendo ? "Diagnosticando…" : `⚑ Diagnosticar los ${nVisibles}`}
+        </button>
+        {/* SIN RED es una opción y no el default: el user fue explícito en que
+            los créditos están para gastarse. Queda porque el modo local
+            devuelve en segundos lo que con 1816 tarda minutos — cuando uno
+            quiere una foto rápida, la cola de 1,2s por caso es el costo real. */}
+        <button
+          disabled={corriendo || nVisibles === 0}
+          onClick={() => void lanzar(true)}
+          title="Solo lo que se puede saber sin salir a la red: instantáneo y sin créditos"
+          className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-30"
+        >
+          sin red
+        </button>
+        {!corriendo && nVisibles > 0 && (
+          // La ESPERA, dicha ANTES. Sin esto, el que arranca una corrida de 3
+          // minutos cree que se colgó y la vuelve a arrancar.
+          <span className="text-[9px] text-[var(--t-text-dim)]">
+            con 1816 son ~{Math.ceil(nVisibles * 1.4 / 60)} min (1 pedido por
+            segundo, es el límite del plan) · sin red, segundos
+          </span>
+        )}
+      </div>
+
+      {run && <InformeMasivo run={run} />}
 
       {/* ── SEGUNDO NIVEL: POR QUÉ ERROR ──────────────────────────────────
           Aparece solo si hay MÁS DE UNA regla en lo visible: con una sola, la
@@ -1849,6 +1953,136 @@ function TabControl({ ctrl, setParada, recargar }: {
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+// ── EL INFORME MASIVO ───────────────────────────────────────────────────────
+//
+// Lo que hace útil a este panel no es el detalle —ese ya está fila por fila— es
+// el AGREGADO: 68 casos que resultan ser 4 causas dicen que el trabajo real es
+// mucho más chico de lo que parece, y 9 que fallan con la misma excepción son UN
+// bug de código disfrazado de 9 hallazgos.
+//
+// El bloque de TEXTO lo arma el backend, no acá: el que lo lee (una persona o un
+// modelo) tiene que ver exactamente lo mismo que la pantalla, y dos renderizados
+// del mismo informe se desincronizan al primer cambio.
+
+const EST_MASIVO: Record<string, { label: string; color: string }> = {
+  // Los que EXPLOTARON primero y en rojo: son bugs del agente, no bonos mal
+  // cargados, y son lo único de este informe que hay que arreglar en el código.
+  error: { label: "explotaron", color: "var(--t-neg)" },
+  no_pudo: { label: "sin diagnóstico", color: "#f59e0b" },
+  bloqueado: { label: "bloqueados", color: "#f59e0b" },
+  sin_puerta: { label: "sin puerta", color: "var(--t-text-dim)" },
+  listo: { label: "listos", color: "var(--t-pos)" },
+};
+const ORDEN_MASIVO = ["error", "no_pudo", "bloqueado", "sin_puerta", "listo"];
+
+function InformeMasivo({ run }: { run: RunMasivo }) {
+  const [copiado, setCopiado] = useState(false);
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const corriendo = run.estado === "corriendo";
+  const pct = run.total ? Math.round((run.hechos / run.total) * 100) : 0;
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(run.texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch { /* sin permiso de portapapeles: queda el <pre> para seleccionar */ }
+  };
+
+  return (
+    <div className="border border-[var(--t-border)] p-3 flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h3 className={TITULO}>INFORME #{run.id}</h3>
+        <span className={SUB}>
+          {run.hechos}/{run.total}
+          {corriendo ? ` · ${pct}%` : ` · ${run.estado}`}
+          {run.sin_red ? " · sin red" : ""}
+          {run.creditos !== null ? ` · ${run.creditos} créditos` : ""}
+          {run.resumen?.segundos ? ` · ${run.resumen.segundos}s` : ""}
+        </span>
+        <button
+          onClick={() => void copiar()}
+          className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+        >
+          {copiado ? "✔ copiado" : "copiar informe"}
+        </button>
+      </div>
+
+      {/* La BARRA de progreso. Con 2-3 minutos de corrida, un spinner sin número
+          no distingue «avanzando despacio» de «colgado». */}
+      {corriendo && (
+        <div className="h-[3px] bg-[var(--t-surface)]">
+          <div className="h-full bg-[var(--t-accent)] transition-all"
+               style={{ width: `${pct}%` }} />
+        </div>
+      )}
+
+      {run.error && (
+        <span className="text-[10px] text-[var(--t-neg)]">⚠ {run.error}</span>
+      )}
+
+      {/* ── EL AGREGADO ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap gap-1.5">
+        {ORDEN_MASIVO.filter((e) => run.resumen?.por_estado?.[e]).map((e) => (
+          <button
+            key={e}
+            onClick={() => setAbierto(abierto === e ? null : e)}
+            className={`text-[9px] uppercase tracking-widest px-2 py-1 border transition-colors ${
+              abierto === e ? "border-[var(--t-accent)]" : "border-[var(--t-border)]"}`}
+            style={{ color: EST_MASIVO[e].color }}
+          >
+            {run.resumen.por_estado[e]} {EST_MASIVO[e].label}
+          </button>
+        ))}
+      </div>
+
+      {/* POR CAUSA — el número que contesta «cuánto trabajo hay de verdad». */}
+      {run.resumen?.por_causa && Object.keys(run.resumen.por_causa).length > 0 && (
+        <div>
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+            {Object.keys(run.resumen.por_causa).length} causas para {run.hechos} casos
+          </span>
+          <div className="mt-1 flex flex-col gap-0.5">
+            {Object.entries(run.resumen.por_causa).map(([c, n]) => (
+              <div key={c} className="flex items-center gap-2">
+                <span className="text-[10px] tabular-nums text-[var(--t-text)] w-8 text-right">
+                  {n}
+                </span>
+                {/* Barra proporcional: qué causa domina se ve antes de leer. */}
+                <span className="h-[6px] bg-[var(--t-accent)] opacity-60"
+                      style={{ width: `${(n / Math.max(1, run.hechos)) * 200}px` }} />
+                <span className="text-[10px] text-[var(--t-text-muted)]">{c}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* El DETALLE del grupo abierto. Cerrado por default: el informe entero es
+          para copiar, la pantalla es para decidir dónde mirar. */}
+      {abierto && (
+        <div className="border-t border-[var(--t-border)] pt-2 flex flex-col gap-1 max-h-64 overflow-y-auto">
+          {run.informe.filter((f) => f.estado === abierto).map((f, i) => (
+            <div key={`${f.sujeto}-${i}`} className="text-[10px] leading-snug">
+              <span className="font-bold text-[var(--t-text)]">{f.sujeto}</span>
+              <span className="text-[var(--t-text-dim)]"> · {f.regla ?? f.tipo}</span>
+              {f.causa && <span className="text-[var(--t-accent)]"> → {f.causa}</span>}
+              {f.detalle && (
+                <div className="text-[var(--t-text-muted)] pl-3">{f.detalle}</div>
+              )}
+              {(f.trabas ?? []).slice(0, 3).map((t, j) => (
+                <div key={j} className="text-[var(--t-text-dim)] pl-3">
+                  · {t.paso}: {t.detalle}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
