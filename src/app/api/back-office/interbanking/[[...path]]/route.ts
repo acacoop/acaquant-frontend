@@ -4,11 +4,17 @@ import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 // Proxy de la tab INTERBANKING (Back Office) hacia
 // /api/back-office/interbanking/* del backend: /vista y /cuentas.
 //
-// ⚠️ SOLO EXPORTA **GET**, a propósito. Toda la integración con Interbanking es
-// de lectura: los datos los trae `jobs/interbanking_sync` al esquema `bancos` y
-// la vista los lee de Postgres. Si mañana alguien agrega un POST del lado del
-// backend, este proxy NO lo deja pasar — es una segunda cerradura sobre la
-// misma puerta, y la de acá es la que mira internet.
+// ⚠️ **Hacia INTERBANKING no se escribe nunca**: los datos los trae
+// `jobs/interbanking_sync` y la vista los lee de Postgres. Este proxy no puede
+// llegar a Interbanking ni queriendo.
+//
+// Desde 2026-08-18 sí pasan POST/PUT/DELETE, y **solo para `/gastos/*`**: la
+// clasificación de gastos bancarios, que escribe en tablas nuestras
+// (`bancos.gastos_reglas` / `gastos_overrides`). El resto de los paths siguen
+// siendo de lectura y una escritura contra ellos se rechaza ACÁ, antes de salir
+// — es una segunda cerradura sobre la misma puerta, y la de acá es la que mira
+// internet. El permiso REAL (allowlist + admin) lo aplica el backend; esto solo
+// acota la superficie.
 //
 // Mismo patrón de auth que /api/back-office/senebis: bearer + service token de
 // CF + propagación de la identidad real del usuario, que el backend necesita
@@ -23,9 +29,20 @@ export const revalidate = 0;
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
-export async function GET(req: Request, { params }: Ctx) {
+/** Los únicos sub-paths donde se admite escribir. Todo lo demás es lectura. */
+function esEscrituraPermitida(path: string[] | undefined) {
+  return (path?.[0] ?? "") === "gastos";
+}
+
+async function proxy(req: Request, params: Ctx["params"], method: string) {
   try {
     const { path } = await params;
+    if (method !== "GET" && !esEscrituraPermitida(path)) {
+      return NextResponse.json(
+        { error: "Esta ruta es de solo lectura." },
+        { status: 405 },
+      );
+    }
     const url = new URL(req.url);
     const sub = path?.length ? `/${path.join("/")}` : "";
     const target = `${API_URL}/api/back-office/interbanking${sub}${url.search}`;
@@ -52,9 +69,15 @@ export async function GET(req: Request, { params }: Ctx) {
       headers["x-acaquant-portal"] = "guest";
     }
 
-    const res = await fetch(target, { method: "GET", headers, cache: "no-store" });
-    const body = await res.text();
-    return new NextResponse(body, {
+    let body: string | undefined;
+    if (method !== "GET") {
+      body = await req.text();
+      headers["content-type"] = "application/json";
+    }
+
+    const res = await fetch(target, { method, headers, body, cache: "no-store" });
+    const texto = await res.text();
+    return new NextResponse(texto, {
       status: res.status,
       headers: {
         "content-type": res.headers.get("content-type") || "application/json",
@@ -65,3 +88,8 @@ export async function GET(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: String(e) }, { status: 502 });
   }
 }
+
+export const GET = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "GET");
+export const POST = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "POST");
+export const PUT = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "PUT");
+export const DELETE = (req: Request, ctx: Ctx) => proxy(req, ctx.params, "DELETE");

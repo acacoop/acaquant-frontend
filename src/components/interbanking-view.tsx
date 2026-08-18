@@ -107,8 +107,18 @@ type Banco = {
 
 type Sync = { corrida_at: string; cuentas: number; con_error: number } | null;
 
+type Conectado = { email: string; visto_at: string };
+
+/** Una regla del catálogo que clasifica un movimiento como gasto bancario. */
+type Regla = {
+  id: number; campo: string; operador: string; valor: string;
+  nota: string | null; activa: boolean; creado_por: string | null;
+};
+
 type RespConsolidado = {
   fecha: string;
+  conectados: Conectado[];
+  puede_escribir: boolean;
   bancos: Banco[];
   cuentas: number;
   sin_datos: number;
@@ -129,6 +139,13 @@ type Dia = {
 };
 
 type Movimiento = {
+  // Identidad del movimiento: es lo que se manda para marcarlo como gasto.
+  mov_hash: string;
+  es_gasto?: boolean;
+  // De DÓNDE salió la marca: "regla" (la clasificó el catálogo) o "manual"
+  // (alguien la decidió). Viaja hasta la pantalla a propósito — ver el comentario
+  // de la columna GASTO.
+  gasto_origen?: "regla" | "manual" | null;
   fecha: string | null;
   hora: string | null;
   importe: number | null;
@@ -148,6 +165,8 @@ type Movimiento = {
 type RespVista = {
   cuentas: Cuenta[];
   cuenta_id: number | null;
+  puede_escribir: boolean;
+  reglas: Regla[];
   fecha: string;
   dias: Dia[];
   movimientos: Movimiento[];
@@ -160,18 +179,21 @@ type RespVista = {
     dias_que_no_cierran: string[];
     dias_incompletos: string[];
     saldo_final: number | null;
+    gastos: number;
   };
   sync: Sync;
 };
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
-  fecha: "", bancos: [], cuentas: 0, sin_datos: 0, gastos_definidos: false, sync: null,
+  fecha: "", conectados: [], puede_escribir: false, bancos: [], cuentas: 0,
+  sin_datos: 0, gastos_definidos: false, sync: null,
 };
 
 const VISTA_VACIA: RespVista = {
-  cuentas: [], cuenta_id: null, fecha: "", dias: [], movimientos: [],
+  cuentas: [], cuenta_id: null, puede_escribir: false, reglas: [],
+  fecha: "", dias: [], movimientos: [],
   resumen: {
-    dias: 0, movimientos: 0, creditos: 0, debitos: 0, neto: 0,
+    dias: 0, movimientos: 0, creditos: 0, debitos: 0, neto: 0, gastos: 0,
     dias_que_no_cierran: [], dias_incompletos: [], saldo_final: null,
   },
   sync: null,
@@ -204,6 +226,25 @@ function plata(v: number | null | undefined, moneda = "") {
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(v);
   return moneda ? `${moneda} ${s}` : s;
+}
+
+/** Quién más tiene la vista abierta. Mismo patrón que Tesorería y SENEBIS. */
+function Presencia({ conectados }: { conectados: Conectado[] }) {
+  if (!conectados.length) return null;
+  return (
+    <div className="flex items-center gap-1" title={conectados.map((c) => c.email).join("\n")}>
+      <span className="text-[9px] text-[var(--t-text-muted)] uppercase">En vista:</span>
+      {conectados.map((c) => (
+        <span
+          key={c.email}
+          title={c.email}
+          className="text-[9px] px-1.5 py-0.5 border border-[var(--t-border)] bg-[var(--t-panel)] uppercase"
+        >
+          {c.email.split("@")[0]}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /** «18/08/2026 13:42». Fecha, hora y minuto — nada más (user, 2026-08-18). */
@@ -240,6 +281,9 @@ export function InterbankingView() {
   // dato: el back office la sacó, y tenía razón — una pantalla no se explica a
   // sí misma en prosa. Lo único que hace falta saber es de cuándo es el dato.
   const [syncAt, setSyncAt] = useState<string | null>(null);
+  // Quién más tiene la vista abierta. Mismo patrón que Tesorería y SENEBIS: el
+  // poll de la vista ES el heartbeat, no hay un endpoint aparte que golpear.
+  const [enLinea, setEnLinea] = useState<Conectado[]>([]);
 
   // La cuenta cuyo detalle está abierto. `null` = modal cerrado.
   const [abierta, setAbierta] = useState<CuentaConsolidada | null>(null);
@@ -255,6 +299,7 @@ export function InterbankingView() {
           Última actualización {momento(syncAt)}
         </span>
         <div className="ml-auto flex items-center gap-3">
+          <Presencia conectados={enLinea} />
           <Fecha label="Fecha" value={fecha} onChange={setFecha} />
         </div>
       </div>
@@ -263,6 +308,7 @@ export function InterbankingView() {
         fecha={fecha}
         onFecha={aplicarFecha}
         onSync={setSyncAt}
+        onEnLinea={setEnLinea}
         onAbrir={setAbierta}
       />
 
@@ -276,10 +322,10 @@ export function InterbankingView() {
 /* ── CONSOLIDADO BANCOS ─────────────────────────────────────────────────── */
 
 function Consolidado({
-  fecha, onFecha, onSync, onAbrir,
+  fecha, onFecha, onSync, onEnLinea, onAbrir,
 }: {
   fecha: string; onFecha: (f: string) => void; onSync: (s: string | null) => void;
-  onAbrir: (c: CuentaConsolidada) => void;
+  onEnLinea: (c: Conectado[]) => void; onAbrir: (c: CuentaConsolidada) => void;
 }) {
   const url = useMemo(
     () => `/api/back-office/interbanking/consolidado${fecha ? `?fecha=${fecha}` : ""}`,
@@ -297,6 +343,8 @@ function Consolidado({
   useEffect(() => {
     onSync(data.sync?.corrida_at ?? null);
   }, [data.sync?.corrida_at, onSync]);
+
+  useEffect(() => { onEnLinea(data.conectados); }, [data.conectados, onEnLinea]);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -447,9 +495,15 @@ function ModalMovimientos({
 
   // `fetchOnMount` + poll: si el modal queda abierto y el job sincroniza, se
   // actualiza solo. No hay nada que "guardar", así que refrescar no pisa nada.
-  const { data, lastAt, error } = usePoll<RespVista>(url, VISTA_VACIA, POLL_MS, {
-    fetchOnMount: true,
-  });
+  // `bump` fuerza un refetch después de marcar: el total del día lo recalcula el
+  // BACKEND con la misma función que alimenta la columna del consolidado, así
+  // que la pantalla no puede quedar diciendo otra cosa que el total.
+  const [bump, setBump] = useState(0);
+  const recargar = useCallback(() => setBump((n) => n + 1), []);
+  const { data, lastAt, error } = usePoll<RespVista>(
+    `${url}${url.includes("?") ? "&" : "?"}_r=${bump}`, VISTA_VACIA, POLL_MS,
+    { fetchOnMount: true },
+  );
 
   // Escape cierra: es un modal, tiene que poder salirse sin mouse.
   useEffect(() => {
@@ -461,6 +515,23 @@ function ModalMovimientos({
   const dia = data.dias[0] ?? null;
   const r = data.resumen;
   const mon = cuenta.moneda;
+  const [reglasAbierto, setReglasAbierto] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  /** Marca / desmarca / vuelve al criterio de las reglas. `null` BORRA la marca. */
+  async function marcar(mov: Movimiento, es_gasto: boolean | null) {
+    setErr(null);
+    const res = await fetch("/api/back-office/interbanking/gastos/movimiento", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mov_hash: mov.mov_hash, es_gasto }),
+    });
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).detail ?? "No se pudo guardar la marca.");
+      return;
+    }
+    recargar();   // el total del día lo recalcula el BACKEND, no la pantalla
+  }
 
   async function descargar() {
     const { exportToXlsx } = await import("@/lib/xlsx-export");
@@ -519,6 +590,13 @@ function ModalMovimientos({
 
           <div className="ml-auto flex items-center gap-2">
             <button
+              onClick={() => setReglasAbierto(true)}
+              className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)]"
+              title="Qué movimientos se clasifican solos como gasto bancario"
+            >
+              Reglas ({data.reglas.filter((x) => x.activa).length})
+            </button>
+            <button
               onClick={descargar}
               disabled={data.movimientos.length === 0}
               className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40 disabled:cursor-not-allowed"
@@ -543,6 +621,7 @@ function ModalMovimientos({
           <Dato label="Cierre" valor={plata(dia?.saldo_cierre, mon)} fuerte />
           <Dato label="Neto" valor={plata(r.neto, mon)} clase={signo(r.neto)} />
           <Dato label="Movimientos" valor={String(r.movimientos)} />
+          <Dato label="Gastos bancarios" valor={plata(r.gastos, mon)} />
           {/* Las dos alertas de conciliación las calcula el BACKEND. */}
           {dia?.cierra === false && (
             <span className="self-center px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-red)] text-[var(--t-neg)]">
@@ -556,7 +635,7 @@ function ModalMovimientos({
           )}
         </div>
 
-        <ErrorLinea error={error} />
+        <ErrorLinea error={err ?? error} />
 
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full border-collapse">
@@ -570,6 +649,7 @@ function ModalMovimientos({
                 <Th center className={COL_SEP}>Comprobante</Th>
                 <Th center className={COL_SEP}>Sucursal</Th>
                 <Th center className={COL_SEP}>Importe</Th>
+                <Th center className={COL_SEP}>Gasto</Th>
               </tr>
             </thead>
             <tbody>
@@ -621,9 +701,275 @@ function ModalMovimientos({
                     {m.tipo === "D" ? "−" : "+"}
                     {plata(m.importe)}
                   </Td>
+                  <CeldaGasto
+                    mov={m}
+                    editable={data.puede_escribir}
+                    onMarcar={marcar}
+                  />
                 </tr>
               ))}
-              {data.movimientos.length === 0 && <Vacia cols={8} hubo={lastAt > 0} />}
+              {data.movimientos.length === 0 && <Vacia cols={9} hubo={lastAt > 0} />}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {reglasAbierto && (
+        <ModalReglas
+          reglas={data.reglas}
+          editable={data.puede_escribir}
+          onCambio={recargar}
+          onCerrar={() => setReglasAbierto(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── GASTOS BANCARIOS ───────────────────────────────────────────────────── */
+
+/**
+ * La celda SÍ/NO de un movimiento. Un clic la cambia — mismo gesto que el estado
+ * de un cheque en Tesorería: sin abrir nada, sin confirmar.
+ *
+ * ⚠️ Muestra de DÓNDE salió la marca, y eso no es decorativo:
+ *   · sin subrayado = lo clasificó una REGLA (nadie tuvo que hacer nada);
+ *   · subrayado     = lo marcó una PERSONA a mano.
+ * Si el equipo ve una columna llena de subrayados repitiéndose todos los días,
+ * eso no es trabajo manual bien hecho: es una regla que falta.
+ *
+ * El tercer estado (VOLVER A LA REGLA) existe para poder deshacer: sin él,
+ * arreglar una marca equivocada obligaría a adivinar qué decía la regla y marcar
+ * el opuesto a mano, congelando para siempre algo que la regla ya resolvía.
+ */
+function CeldaGasto({
+  mov, editable, onMarcar,
+}: {
+  mov: Movimiento;
+  editable: boolean;
+  onMarcar: (m: Movimiento, v: boolean | null) => void;
+}) {
+  const manual = mov.gasto_origen === "manual";
+  const si = !!mov.es_gasto;
+
+  if (!editable) {
+    return (
+      <Td center className={COL_SEP}>
+        <span className={si ? "text-[var(--t-accent)]" : "text-[var(--t-text-dim)]"}>
+          {si ? "SÍ" : "no"}
+        </span>
+      </Td>
+    );
+  }
+
+  return (
+    <td className={`px-2 py-1 text-center ${COL_SEP}`}>
+      <button
+        onClick={() => onMarcar(mov, !si)}
+        title={manual ? "Marcado a mano · clic para cambiar" : "Lo clasificó una regla · clic para cambiar"}
+        className={`px-1.5 py-0.5 text-[11px] hover:bg-[var(--t-surface)] ${
+          si ? "text-[var(--t-accent)] font-semibold" : "text-[var(--t-text-dim)]"
+        } ${manual ? "underline decoration-dotted underline-offset-2" : ""}`}
+      >
+        {si ? "SÍ" : "no"}
+      </button>
+      {manual && (
+        <button
+          onClick={() => onMarcar(mov, null)}
+          title="Volver al criterio de las reglas"
+          className="ml-1 text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"
+        >
+          ↺
+        </button>
+      )}
+    </td>
+  );
+}
+
+const CAMPOS: Record<string, string> = {
+  codigo_ib: "Cod op",
+  codigo_banco: "Cod op bco",
+  descripcion_banco: "Descripción",
+  descripcion_ib: "Concepto",
+};
+
+/**
+ * El catálogo de reglas. Es el CONOCIMIENTO durable: una regla acá vale para
+ * todos los bancos y para todos los días, y es lo que hace que mañana no haya
+ * que marcar nada a mano.
+ *
+ * La validación REAL vive en el backend (`crear_regla` valida campo y operador
+ * contra las constantes del service). Esto es solo la UI.
+ */
+function ModalReglas({
+  reglas, editable, onCambio, onCerrar,
+}: {
+  reglas: Regla[]; editable: boolean; onCambio: () => void; onCerrar: () => void;
+}) {
+  const [campo, setCampo] = useState("descripcion_banco");
+  const [operador, setOperador] = useState("contiene");
+  const [valor, setValor] = useState("");
+  const [nota, setNota] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  async function alta() {
+    if (!valor.trim()) { setErr("Escribí qué tiene que coincidir."); return; }
+    setBusy(true); setErr(null);
+    const res = await fetch("/api/back-office/interbanking/gastos/reglas", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ campo, operador, valor, nota }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).detail ?? "No se pudo crear la regla.");
+      return;
+    }
+    setValor(""); setNota("");
+    onCambio();
+  }
+
+  async function baja(id: number) {
+    setBusy(true); setErr(null);
+    const res = await fetch(`/api/back-office/interbanking/gastos/reglas/${id}`, {
+      method: "DELETE",
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).detail ?? "No se pudo borrar la regla.");
+      return;
+    }
+    onCambio();
+  }
+
+  const INPUT = "bg-[var(--t-surface)] border border-[var(--t-border)] px-1.5 py-1 "
+    + "text-[12px] outline-none";
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border)] w-full max-w-[820px] max-h-[85vh] flex flex-col text-[12px]"
+      >
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-3">
+          <span className="font-semibold tracking-wide uppercase text-[11px]">
+            Reglas de gasto bancario
+          </span>
+          <button
+            onClick={onCerrar}
+            className="ml-auto px-2 py-1 hover:bg-[var(--t-surface)]"
+            title="Cerrar (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+
+        <p className="shrink-0 px-3 py-2 text-[11px] text-[var(--t-text-dim)] border-b border-[var(--t-border)]">
+          Un movimiento que cumpla CUALQUIERA de estas reglas se marca solo como
+          gasto bancario. La marca hecha a mano sobre un movimiento puntual siempre
+          gana sobre la regla. Los gastos ya están adentro del saldo: esto los
+          DISTINGUE, no los suma de nuevo.
+        </p>
+
+        {err && (
+          <div className="shrink-0 px-3 py-1 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)]">
+            {err}
+          </div>
+        )}
+
+        {editable && (
+          <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap items-center gap-2">
+            <select value={campo} onChange={(e) => setCampo(e.target.value)} className={INPUT}>
+              {Object.entries(CAMPOS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+            <select
+              value={operador}
+              onChange={(e) => setOperador(e.target.value)}
+              className={INPUT}
+            >
+              <option value="contiene">contiene</option>
+              <option value="igual">es igual a</option>
+            </select>
+            <input
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") alta(); }}
+              placeholder="COMISION"
+              className={`${INPUT} w-[200px]`}
+            />
+            <input
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="para qué es (opcional)"
+              className={`${INPUT} flex-1 min-w-[160px]`}
+            />
+            <button
+              onClick={alta}
+              disabled={busy}
+              className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+            >
+              Agregar
+            </button>
+          </div>
+        )}
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              <tr>
+                <Th>Campo</Th>
+                <Th className={COL_SEP}>Condición</Th>
+                <Th className={COL_SEP}>Valor</Th>
+                <Th className={COL_SEP}>Nota</Th>
+                <Th className={COL_SEP}>Creada por</Th>
+                {editable && <Th center className={COL_SEP}>—</Th>}
+              </tr>
+            </thead>
+            <tbody>
+              {reglas.map((r) => (
+                <tr key={r.id} className="border-b border-[var(--t-border)]">
+                  <Td>{CAMPOS[r.campo] ?? r.campo}</Td>
+                  <Td className={COL_SEP}>{r.operador === "igual" ? "es igual a" : "contiene"}</Td>
+                  <Td className={COL_SEP} copiar={r.valor}>
+                    <span className="font-semibold">{r.valor}</span>
+                  </Td>
+                  <Td className={COL_SEP}>{r.nota || "—"}</Td>
+                  <Td className={COL_SEP}>{r.creado_por || "—"}</Td>
+                  {editable && (
+                    <td className={`px-2 py-1 text-center ${COL_SEP}`}>
+                      <button
+                        onClick={() => baja(r.id)}
+                        disabled={busy}
+                        title="Borrar la regla (las marcas hechas a mano no se tocan)"
+                        className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {reglas.length === 0 && (
+                <tr>
+                  <td colSpan={editable ? 6 : 5} className="px-3 py-6 text-center text-[var(--t-text-dim)]">
+                    Todavía no hay ninguna regla. Mientras no haya ninguna, la
+                    columna GASTOS BANCARIOS muestra «—» y no cero: nadie afirmó
+                    que el banco no cobró nada.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
