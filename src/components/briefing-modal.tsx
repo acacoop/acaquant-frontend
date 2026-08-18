@@ -167,6 +167,13 @@ function renderFuturos(rows: MetricRow[]): ReactNode[] {
 
 export function BriefingModal() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  // POR QUÉ falló, cuando falló por algo que NO es el gate. Sin esto el briefing
+  // se volvía INVISIBLE ante cualquier error del backend, exactamente igual que
+  // si el usuario no tuviera el módulo `ia` — y "desapareció sin motivo" es lo
+  // más caro de diagnosticar que hay: no hay síntoma, no hay mensaje, no hay
+  // nada que buscar. (user, 2026-08-18: «no sé por qué desapareció lo de
+  // BRIEFING… ¿desapareció por algo en particular?»)
+  const [falla, setFalla] = useState("");
   const [data, setData] = useState<BriefingResp | null>(null);
   const [open, setOpen] = useState(false);
   const autoShownRef = useRef(false); // auto-apertura: máx. 1 vez por carga de página
@@ -176,14 +183,25 @@ export function BriefingModal() {
       const res = await fetch("/api/ia/briefing", { cache: "no-store" });
       if (!res.ok) {
         // 401/403 = sin módulo `ia` → el componente no existe para este user.
-        if (res.status === 401 || res.status === 403) setAllowed(false);
+        // Ese es el ÚNICO motivo legítimo para no dibujar nada.
+        if (res.status === 401 || res.status === 403) { setAllowed(false); return null; }
+        // Cualquier otro código NO es el gate: el gate corre como dependencia
+        // ANTES del handler (`ENDPOINT_MODULE_PREFIXES` → `ia`), así que si la
+        // respuesta es un 500 o un 502 es que el permiso YA pasó y lo que se
+        // rompió es el briefing. El botón tiene que seguir estando y decirlo.
+        setAllowed(true);
+        setFalla(`el backend respondió ${res.status}`);
         return null;
       }
       const j = (await res.json()) as BriefingResp;
       setAllowed(true);
+      setFalla("");
       setData(j);
       return j;
-    } catch {
+    } catch (e) {
+      // La red se cayó del todo (ni el proxy de Next contesta). No se toca
+      // `allowed`: sin ninguna respuesta no hay forma de saber si tiene el módulo.
+      setFalla(String(e));
       return null;
     }
   }, []);
@@ -242,12 +260,45 @@ export function BriefingModal() {
           void cargar();
           setOpen(true);
         }}
-        title="Volver a abrir el briefing de apertura"
-        className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
+        title={falla ? `El briefing no cargó: ${falla}` : "Volver a abrir el briefing de apertura"}
+        className={`inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold transition-colors ${
+          falla
+            ? "text-[var(--t-neg)] hover:text-[var(--t-neg)]"
+            : "text-[var(--t-text-muted)] hover:text-[var(--t-accent)]"}`}
       >
-        <span>☀</span>
+        <span>{falla ? "⚠" : "☀"}</span>
         <span className="tracking-widest">BRIEFING</span>
       </button>
+
+      {/* Sin datos, el modal decía nada — literalmente: `open && data` dejaba el
+          click sin efecto. Un botón que no reacciona se lee como "está roto el
+          front", cuando lo que falló está del otro lado y tiene número. */}
+      {open && !data && falla && (
+        <div
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-50 bg-[var(--t-panel)]/70 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg bg-[var(--t-panel)] border border-[var(--t-neg)] p-4 flex flex-col gap-2"
+          >
+            <span className="text-[11px] font-semibold tracking-widest text-[var(--t-neg)]">
+              ⚠ EL BRIEFING NO CARGÓ
+            </span>
+            <span className="text-[11px] text-[var(--t-text-muted)]">{falla}</span>
+            <span className="text-[10px] text-[var(--t-text-dim)]">
+              No es un permiso: el módulo `ia` ya pasó (si no, este botón no estaría).
+              Falló <span className="font-mono">GET /api/ia/briefing</span> en el backend.
+            </span>
+            <button
+              onClick={() => void cargar()}
+              className="self-start text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+            >
+              Reintentar
+            </button>
+          </div>
+        </div>
+      )}
 
       {open && data && (
         <div
