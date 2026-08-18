@@ -9,7 +9,7 @@ import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 // llegar a Interbanking ni queriendo.
 //
 // Desde 2026-08-18 sí pasan POST/PUT/DELETE, y **solo para `/gastos/*` y
-// `/foto`**: la clasificación de gastos bancarios y la foto del día, que
+// `/manual/*`**: la clasificación de gastos bancarios y lo cargado a mano, que
 // escriben en tablas nuestras
 // (`bancos.gastos_reglas` / `gastos_overrides` / `movimientos_ignorados`). El
 // resto de los paths siguen siendo de lectura y una escritura contra ellos se
@@ -33,10 +33,9 @@ type Ctx = { params: Promise<{ path?: string[] }> };
 
 /** Los únicos sub-paths donde se admite escribir. Todo lo demás es lectura.
  *  `gastos` = la clasificación (reglas, marcas, ignorados, desglose).
- *  `foto`   = congelar el consolidado del día.
  *  `manual` = cuentas y movimientos que Interbanking no informa.
- *  Las tres escriben en tablas NUESTRAS; hacia el banco no sale nada. */
-const ESCRITURA = new Set(["gastos", "foto", "manual"]);
+ *  Las dos escriben en tablas NUESTRAS; hacia el banco no sale nada. */
+const ESCRITURA = new Set(["gastos", "manual"]);
 
 function esEscrituraPermitida(path: string[] | undefined) {
   return ESCRITURA.has(path?.[0] ?? "");

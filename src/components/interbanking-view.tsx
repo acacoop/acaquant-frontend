@@ -52,6 +52,14 @@ import { usePoll } from "@/lib/use-poll";
  *    cuándo, y afuera de los totales (el equivalente al destildado por celda de
  *    Tesorería). Borrarla haría que el detalle deje de coincidir con el extracto.
  *
+ * **FILTRO POR BANCO** en la barra. Es client-side sobre lo que ya trajo el
+ * consolidado —pedirle la vista filtrada al backend sería un request por cada
+ * cambio de selector para esconder filas que ya están en memoria— y alcanza
+ * también al REPORTE FINAL: el reporte no puede decir algo distinto de la
+ * pantalla desde la que se abrió. El alta de movimientos manuales NO se filtra:
+ * es una herramienta de carga, y no poder cargarle un movimiento a un banco por
+ * tener la vista filtrada sería una trampa.
+ *
  * **Clic en una celda con dato = se copia al portapapeles** (flash verde). Estos
  * datos se pegan en otros sistemas todo el día. Las celdas sin dato («—») no
  * reaccionan: un cursor de mano que no hace nada promete algo que no pasa.
@@ -74,30 +82,6 @@ import { usePoll } from "@/lib/use-poll";
  *    `lib/reporte-imagen`), no es una captura — por eso el botón, el scroll y el
  *    ✕ no pueden colarse en ella, y por eso sale siempre en claro aunque la app
  *    esté en oscuro: un mail con fondo negro se imprime pésimo.
- *
- * ── SACAR FOTO (botón de la barra) — congela el consolidado del día.
- *    ⚠️ Acá la foto NO existe por el mismo motivo que en Tesorería. Allá la vista
- *    se arma en vivo contra Aunesa y sin foto el día se pierde. Acá el dato SÍ
- *    está en la base… pero `bancos.*` retiene solo 3 fechas: al cuarto día el
- *    consolidado de un día cerrado desaparece. La foto es lo que lo hace durar, y
- *    guarda 30 fechas. Un día servido desde la foto se rotula en la barra.
- *
- * ── MANUALES (botón de la barra) — lo que Interbanking no informa. Dos cosas que
- *    van juntas porque son la misma necesidad: hay **bancos de la casa que no
- *    están en Interbanking** y plata que el banco no reporta.
- *    · Un movimiento manual **SIEMPRE impacta el saldo al cierre** del día que
- *      muestra la vista. En una cuenta real se suma arriba de su extracto; en una
- *      manual —sin extracto ni saldo del banco— el saldo ES la suma de estos
- *      movimientos. Mismo modelo que los REGISTROS MANUALES de Tesorería.
- *    · El día NO se elige en el formulario: es el de la vista. Con su propio
- *      selector se podría cargar un ajuste en un día que nadie está mirando.
- *    · La moneda tampoco: cada cuenta ya es de una moneda, y preguntarla sería
- *      ofrecer la posibilidad de contradecirla. Elegido el banco, el selector de
- *      cuenta se llena solo con las de ESE banco.
- *    · La grilla lo canta: `manual` en la cuenta, `±man` cuando el cierre incluye
- *      un ajuste y `s/banco` cuando el saldo entero sale de lo cargado a mano.
- *    · Una cuenta manual **el job no la puede pisar**: recorre lo que le devuelve
- *      Interbanking, y una cuenta manual no está en esa lista.
  *
  * De dónde sale el dato: `jobs/interbanking_sync` trae extracto + saldo a
  * `bancos.*` cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla
@@ -204,14 +188,7 @@ type Regla = {
   nota: string | null; activa: boolean; creado_por: string | null;
 };
 
-type Foto = { tomado_at: string; tomado_por: string | null; hash_ok: boolean };
-
 type RespConsolidado = {
-  // Cuando el día ya no está en la base (la retención guarda 3 fechas), lo que
-  // se muestra es la FOTO congelada. La vista lo canta: un dato de archivo y uno
-  // vivo no valen lo mismo.
-  es_foto: boolean;
-  foto: Foto | null;
   fecha: string;
   conectados: Conectado[];
   puede_escribir: boolean;
@@ -298,7 +275,7 @@ type RespVista = {
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
   fecha: "", conectados: [], puede_escribir: false, desglose: [], bancos: [], cuentas: 0,
-  sin_datos: 0, gastos_definidos: false, sync: null, es_foto: false, foto: null,
+  sin_datos: 0, gastos_definidos: false, sync: null,
 };
 
 const VISTA_VACIA: RespVista = {
@@ -417,27 +394,19 @@ export function InterbankingView() {
 
   const [reporte, setReporte] = useState(false);
   const [manual, setManual] = useState(false);
-  const [fotoMsg, setFotoMsg] = useState<string | null>(null);
-  const [fotoBusy, setFotoBusy] = useState(false);
 
-  /** Congela el consolidado del día. Mismo gesto que SACAR FOTO en Tesorería,
-   *  pero acá el motivo es otro: la base retiene 3 fechas y sin foto el día se
-   *  pierde al cuarto. */
-  async function sacarFoto() {
-    setFotoBusy(true); setFotoMsg(null);
-    const res = await fetch("/api/back-office/interbanking/foto", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ fecha: fecha || null }),
-    });
-    setFotoBusy(false);
-    const body = await res.json().catch(() => ({}));
-    setFotoMsg(res.ok
-      ? `Foto guardada · ${body.cuentas} cuentas`
-      : (body.detail ?? "No se pudo sacar la foto."));
-    window.setTimeout(() => setFotoMsg(null), 6000);
-  }
-
+  // FILTRO POR BANCO. Es client-side sobre lo que ya trajo el consolidado: pedir
+  // la vista filtrada al backend sería un request por cada cambio de selector
+  // para esconder filas que ya están en memoria.
+  //
+  // Filtra la grilla Y el REPORTE FINAL, a propósito: el reporte no puede decir
+  // algo distinto de la pantalla desde la que se abrió. El alta de movimientos
+  // manuales NO se filtra — es una herramienta de carga, y no poder cargarle un
+  // movimiento a un banco por tener la vista filtrada sería una trampa.
+  const [banco, setBanco] = useState("");
+  const bancosVista = useMemo(
+    () => (banco ? resp.bancos.filter((b) => b.banco === banco) : resp.bancos),
+    [resp.bancos, banco]);
   return (
     <div className="h-full min-h-0 flex flex-col text-[12px]">
       <div className="shrink-0 border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-1.5 flex flex-wrap items-center gap-3">
@@ -447,19 +416,18 @@ export function InterbankingView() {
         <span className="text-[11px] text-[var(--t-text-dim)]">
           Última actualización {momento(syncAt)}
         </span>
-        {/* Un día servido desde la FOTO no es lo mismo que uno vivo: se dice. */}
-        {resp.es_foto && (
-          <span
-            className="px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
-            title={`Este día ya no está en la base (se retienen 3 fechas). Foto tomada por ${resp.foto?.tomado_por ?? "—"} el ${momento(resp.foto?.tomado_at ?? null)}`}
-          >
-            Foto{resp.foto?.hash_ok === false ? " · editada por fuera" : ""}
-          </span>
-        )}
-        {fotoMsg && (
-          <span className="text-[11px] text-[var(--t-accent)]">{fotoMsg}</span>
-        )}
         <div className="ml-auto flex items-center gap-2">
+          <select
+            value={banco}
+            onChange={(e) => setBanco(e.target.value)}
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[11px] outline-none"
+            title="Ver un solo banco. Afecta también al reporte final."
+          >
+            <option value="">Todos los bancos</option>
+            {resp.bancos.map((b) => (
+              <option key={b.banco} value={b.banco}>{b.banco_nombre}</option>
+            ))}
+          </select>
           <button
             onClick={() => setReporte(true)}
             className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
@@ -473,17 +441,7 @@ export function InterbankingView() {
               className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
               title="Movimientos que el banco no informa, y cuentas de bancos que no están en Interbanking"
             >
-              Manuales
-            </button>
-          )}
-          {resp.puede_escribir && !resp.es_foto && (
-            <button
-              onClick={sacarFoto}
-              disabled={fotoBusy}
-              className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40"
-              title="Congela el consolidado de este día para que no se pierda cuando la retención lo purgue"
-            >
-              Sacar foto
+              Registrar movimientos manuales
             </button>
           )}
           <Presencia conectados={enLinea} />
@@ -493,6 +451,7 @@ export function InterbankingView() {
 
       <Consolidado
         fecha={fecha}
+        banco={banco}
         onFecha={aplicarFecha}
         onDatos={setResp}
         onAbrir={setAbierta}
@@ -512,7 +471,7 @@ export function InterbankingView() {
 
       {reporte && (
         <ModalReporte
-          bancos={resp.bancos}
+          bancos={bancosVista}
           fecha={resp.fecha || fecha}
           onCerrar={() => setReporte(false)}
         />
@@ -524,9 +483,9 @@ export function InterbankingView() {
 /* ── CONSOLIDADO BANCOS ─────────────────────────────────────────────────── */
 
 function Consolidado({
-  fecha, onFecha, onDatos, onAbrir,
+  fecha, banco, onFecha, onDatos, onAbrir,
 }: {
-  fecha: string; onFecha: (f: string) => void;
+  fecha: string; banco: string; onFecha: (f: string) => void;
   onDatos: (d: RespConsolidado) => void; onAbrir: (c: CuentaConsolidada) => void;
 }) {
   const url = useMemo(
@@ -545,6 +504,14 @@ function Consolidado({
   // El payload entero sube a la barra. `onDatos` es un setter de estado, así que
   // su identidad es estable y el efecto corre solo cuando llega data nueva.
   useEffect(() => { onDatos(data); }, [data, onDatos]);
+
+  // El filtro se aplica al DIBUJO, no al fetch: el payload llega entero (lo
+  // necesita la barra para armar el selector y el reporte) y acá se elige qué se
+  // muestra. Un request por cada cambio de selector, para esconder filas que ya
+  // están en memoria, sería pagar 8,5ms por nada.
+  const visibles = useMemo(
+    () => (banco ? data.bancos.filter((b) => b.banco === banco) : data.bancos),
+    [data.bancos, banco]);
 
   // Los conceptos tienen columna propia; el grupo "otros" se suma en UNA sola
   // (OTROS IMP) y se abre adentro del modal.
@@ -594,7 +561,7 @@ function Consolidado({
             </tr>
           </thead>
           <tbody>
-            {data.bancos.map((b) => (
+            {visibles.map((b) => (
               <BloqueBanco
                 key={`${b.banco}-${b.banco_nombre}`}
                 banco={b}
@@ -603,7 +570,7 @@ function Consolidado({
                 onAbrir={onAbrir}
               />
             ))}
-            {data.bancos.length === 0 && (
+            {visibles.length === 0 && (
               <Vacia cols={3 + conceptos.length + 1} hubo={lastAt > 0} />
             )}
           </tbody>
