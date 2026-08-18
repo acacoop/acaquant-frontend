@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 
 /**
@@ -55,6 +55,22 @@ import { usePoll } from "@/lib/use-poll";
  * **Clic en una celda con dato = se copia al portapapeles** (flash verde). Estos
  * datos se pegan en otros sistemas todo el día. Las celdas sin dato («—») no
  * reaccionan: un cursor de mano que no hace nada promete algo que no pasa.
+ *
+ * ── REPORTE FINAL (botón de la barra) — el saldo al cierre de TODAS las cuentas
+ *    en una matriz para pasar hacia afuera: **una columna por banco, una fila por
+ *    cuenta**, y en el cruce el saldo. Con una COLUMNA vacía entre banco y banco
+ *    y una FILA vacía entre el bloque ARS y el USD — separar por moneda importa
+ *    más que ordenar: sumar pesos con dólares en la misma corrida visual es el
+ *    error que este formato evita. Usa el MISMO día que la vista, así no puede
+ *    decir algo distinto de la pantalla desde la que se abrió. Cabecera azul con
+ *    el logo: este modal se muestra y se captura, no es pantalla de trabajo.
+ *
+ * ── SACAR FOTO (botón de la barra) — congela el consolidado del día.
+ *    ⚠️ Acá la foto NO existe por el mismo motivo que en Tesorería. Allá la vista
+ *    se arma en vivo contra Aunesa y sin foto el día se pierde. Acá el dato SÍ
+ *    está en la base… pero `bancos.*` retiene solo 3 fechas: al cuarto día el
+ *    consolidado de un día cerrado desaparece. La foto es lo que lo hace durar, y
+ *    guarda 30 fechas. Un día servido desde la foto se rotula en la barra.
  *
  * De dónde sale el dato: `jobs/interbanking_sync` trae extracto + saldo a
  * `bancos.*` cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla
@@ -141,7 +157,14 @@ type Regla = {
   nota: string | null; activa: boolean; creado_por: string | null;
 };
 
+type Foto = { tomado_at: string; tomado_por: string | null; hash_ok: boolean };
+
 type RespConsolidado = {
+  // Cuando el día ya no está en la base (la retención guarda 3 fechas), lo que
+  // se muestra es la FOTO congelada. La vista lo canta: un dato de archivo y uno
+  // vivo no valen lo mismo.
+  es_foto: boolean;
+  foto: Foto | null;
   fecha: string;
   conectados: Conectado[];
   puede_escribir: boolean;
@@ -225,7 +248,7 @@ type RespVista = {
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
   fecha: "", conectados: [], puede_escribir: false, desglose: [], bancos: [], cuentas: 0,
-  sin_datos: 0, gastos_definidos: false, sync: null,
+  sin_datos: 0, gastos_definidos: false, sync: null, es_foto: false, foto: null,
 };
 
 const VISTA_VACIA: RespVista = {
@@ -325,14 +348,43 @@ export function InterbankingView() {
   // de texto explicando cada cuánto corre el cron y cuántas cuentas no tenían
   // dato: el back office la sacó, y tenía razón — una pantalla no se explica a
   // sí misma en prosa. Lo único que hace falta saber es de cuándo es el dato.
-  const [syncAt, setSyncAt] = useState<string | null>(null);
+  //
+  // ⚠️ La respuesta del consolidado se guarda ENTERA acá arriba (`resp`) en vez
+  // de mandar tres callbacks distintos hacia abajo. La barra necesita cosas de
+  // ese payload (última sync, quién está en línea, si es una foto) y el REPORTE
+  // FINAL necesita los bancos: con callbacks sueltos cada dato nuevo agregaba un
+  // prop y una copia de estado que se podía quedar vieja.
+  const [resp, setResp] = useState<RespConsolidado>(CONSOLIDADO_VACIO);
+  const syncAt = resp.sync?.corrida_at ?? null;
   // Quién más tiene la vista abierta. Mismo patrón que Tesorería y SENEBIS: el
   // poll de la vista ES el heartbeat, no hay un endpoint aparte que golpear.
-  const [enLinea, setEnLinea] = useState<Conectado[]>([]);
+  const enLinea = resp.conectados;
 
   // La cuenta cuyo detalle está abierto. `null` = modal cerrado.
   const [abierta, setAbierta] = useState<CuentaConsolidada | null>(null);
   const cerrar = useCallback(() => setAbierta(null), []);
+
+  const [reporte, setReporte] = useState(false);
+  const [fotoMsg, setFotoMsg] = useState<string | null>(null);
+  const [fotoBusy, setFotoBusy] = useState(false);
+
+  /** Congela el consolidado del día. Mismo gesto que SACAR FOTO en Tesorería,
+   *  pero acá el motivo es otro: la base retiene 3 fechas y sin foto el día se
+   *  pierde al cuarto. */
+  async function sacarFoto() {
+    setFotoBusy(true); setFotoMsg(null);
+    const res = await fetch("/api/back-office/interbanking/foto", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fecha: fecha || null }),
+    });
+    setFotoBusy(false);
+    const body = await res.json().catch(() => ({}));
+    setFotoMsg(res.ok
+      ? `Foto guardada · ${body.cuentas} cuentas`
+      : (body.detail ?? "No se pudo sacar la foto."));
+    window.setTimeout(() => setFotoMsg(null), 6000);
+  }
 
   return (
     <div className="h-full min-h-0 flex flex-col text-[12px]">
@@ -343,7 +395,36 @@ export function InterbankingView() {
         <span className="text-[11px] text-[var(--t-text-dim)]">
           Última actualización {momento(syncAt)}
         </span>
-        <div className="ml-auto flex items-center gap-3">
+        {/* Un día servido desde la FOTO no es lo mismo que uno vivo: se dice. */}
+        {resp.es_foto && (
+          <span
+            className="px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+            title={`Este día ya no está en la base (se retienen 3 fechas). Foto tomada por ${resp.foto?.tomado_por ?? "—"} el ${momento(resp.foto?.tomado_at ?? null)}`}
+          >
+            Foto{resp.foto?.hash_ok === false ? " · editada por fuera" : ""}
+          </span>
+        )}
+        {fotoMsg && (
+          <span className="text-[11px] text-[var(--t-accent)]">{fotoMsg}</span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setReporte(true)}
+            className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+            title="El saldo al cierre de cada cuenta, por banco, para pasar"
+          >
+            Reporte final
+          </button>
+          {resp.puede_escribir && !resp.es_foto && (
+            <button
+              onClick={sacarFoto}
+              disabled={fotoBusy}
+              className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+              title="Congela el consolidado de este día para que no se pierda cuando la retención lo purgue"
+            >
+              Sacar foto
+            </button>
+          )}
           <Presencia conectados={enLinea} />
           <Fecha label="Fecha" value={fecha} onChange={setFecha} />
         </div>
@@ -352,13 +433,20 @@ export function InterbankingView() {
       <Consolidado
         fecha={fecha}
         onFecha={aplicarFecha}
-        onSync={setSyncAt}
-        onEnLinea={setEnLinea}
+        onDatos={setResp}
         onAbrir={setAbierta}
       />
 
       {abierta && (
         <ModalMovimientos cuenta={abierta} fecha={fecha} onCerrar={cerrar} />
+      )}
+
+      {reporte && (
+        <ModalReporte
+          bancos={resp.bancos}
+          fecha={resp.fecha || fecha}
+          onCerrar={() => setReporte(false)}
+        />
       )}
     </div>
   );
@@ -367,10 +455,10 @@ export function InterbankingView() {
 /* ── CONSOLIDADO BANCOS ─────────────────────────────────────────────────── */
 
 function Consolidado({
-  fecha, onFecha, onSync, onEnLinea, onAbrir,
+  fecha, onFecha, onDatos, onAbrir,
 }: {
-  fecha: string; onFecha: (f: string) => void; onSync: (s: string | null) => void;
-  onEnLinea: (c: Conectado[]) => void; onAbrir: (c: CuentaConsolidada) => void;
+  fecha: string; onFecha: (f: string) => void;
+  onDatos: (d: RespConsolidado) => void; onAbrir: (c: CuentaConsolidada) => void;
 }) {
   const url = useMemo(
     () => `/api/back-office/interbanking/consolidado${fecha ? `?fecha=${fecha}` : ""}`,
@@ -385,11 +473,9 @@ function Consolidado({
     if (data.fecha) onFecha(data.fecha);
   }, [data.fecha, onFecha]);
 
-  useEffect(() => {
-    onSync(data.sync?.corrida_at ?? null);
-  }, [data.sync?.corrida_at, onSync]);
-
-  useEffect(() => { onEnLinea(data.conectados); }, [data.conectados, onEnLinea]);
+  // El payload entero sube a la barra. `onDatos` es un setter de estado, así que
+  // su identidad es estable y el efecto corre solo cuando llega data nueva.
+  useEffect(() => { onDatos(data); }, [data, onDatos]);
 
   // Los conceptos tienen columna propia; el grupo "otros" se suma en UNA sola
   // (OTROS IMP) y se abre adentro del modal.
@@ -721,10 +807,10 @@ function ModalMovimientos({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border)] w-full max-w-[1400px] max-h-[90vh] flex flex-col text-[12px]"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1400px] max-h-[90vh] flex flex-col text-[12px]"
       >
         {/* Cabecera: de qué cuenta y de qué día es esto. */}
-        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-semibold tracking-wide">{cuenta.banco_nombre}</span>
           <span className="text-[var(--t-text-dim)]">
             {cuenta.tipo} {mon} ·{" "}
@@ -739,14 +825,14 @@ function ModalMovimientos({
               className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)]"
               title="Qué movimientos se clasifican solos como gasto bancario"
             >
-              Reglas ({data.reglas.filter((x) => x.activa).length})
+              Reglas de gastos ({data.reglas.filter((x) => x.activa).length})
             </button>
             <button
               onClick={() => setDesgloseAbierto(true)}
               className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)]"
-              title="Qué columnas tiene el desglose y qué texto cae en cada una"
+              title="Qué columnas de impuestos hay y qué texto cae en cada una"
             >
-              Desglose ({data.desglose.length})
+              Desglose de impuestos ({data.desglose.length})
             </button>
             <button
               onClick={descargar}
@@ -781,8 +867,8 @@ function ModalMovimientos({
 
             Todos los valores se copian con un clic (mismo gesto que las celdas
             de la tabla): estos números se pegan en otros sistemas todo el día. */}
-        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap items-stretch gap-4">
-          <div className="pr-4 border-r-2 border-[var(--t-border)] flex items-center">
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] flex flex-wrap items-stretch gap-4">
+          <div className="pr-4 border-r-2 border-[var(--t-border-2)] flex items-center">
             <Dato
               label="Gastos bancarios"
               valor={plata(r.gastos, mon)}
@@ -845,7 +931,7 @@ function ModalMovimientos({
         <ErrorLinea error={err ?? error} />
 
         {filtro && (
-          <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-3 text-[11px]">
+          <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-3 text-[11px]">
             <span className="uppercase tracking-wide text-[var(--t-text-dim)]">
               Mostrando
             </span>
@@ -872,8 +958,8 @@ function ModalMovimientos({
 
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-              <tr>
+            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              <tr className="border-b border-[var(--t-border-2)]">
                 {/* ⚠️ `w-full` en DESCRIPCIÓN: en una tabla de ancho
                     automático, la columna que lo lleva se queda con TODO el
                     sobrante y las demás se ajustan a su contenido. Es el mismo
@@ -1112,6 +1198,12 @@ function CeldaIgnorar({
   );
 }
 
+/** Los inputs de los dos modales. Con `--t-border-2` (el borde FUERTE): en modo
+ *  oscuro el borde principal es casi del color del panel y un input sin marco no
+ *  se ve que es un input. */
+const INPUT = "bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 "
+  + "text-[12px] outline-none";
+
 const CAMPOS: Record<string, string> = {
   codigo_ib: "Cod op",
   codigo_banco: "Cod op bco",
@@ -1137,18 +1229,23 @@ const CAMPOS: Record<string, string> = {
  * P/DEB` es el back office. Ahora lo cargan ellos y el número se mueve en el
  * próximo poll, porque el desglose se DERIVA en la lectura y no se materializa.
  *
- * Un balde = una columna. Sus MATCHERS son las grafías con que llega ese mismo
- * concepto según el banco: agregar una es el 90% del uso.
+ * Una fila = una columna del desglose. Sus TEXTOS QUE SUMAN son las formas en
+ * que llega ese mismo concepto según el banco: agregar uno es el 90% del uso, y
+ * por eso el alta sale INLINE en la misma fila. Si el formulario apareciera
+ * abajo, cada apertura estiraría el modal y el resto de las columnas se irían de
+ * la pantalla.
  *
- * Las dos cosas que hay que entender para no romper un total, explicadas también
- * dentro de la pantalla:
- *   · **CONTIENE vs ES IGUAL** — cuando un texto es PREFIJO de otro (`IVA` de
- *     `IVAPERCEP`), `contiene` se come al otro: IVA mostraría de más, IVAPERCEP
- *     quedaría en cero y el TOTAL seguiría dando bien. Un error que no se ve.
- *   · **El ORDEN decide los empates** — gana el primer balde que matchea, así
- *     que un movimiento nunca suma en dos columnas.
+ * ⚠️ **Toda la explicación vive en el «?» del título, no en un párrafo.** La
+ * versión anterior arrancaba con cinco renglones de prosa que nadie leía y que
+ * empujaban la tabla fuera de la vista. Lo que hay que saber sigue estando —
+ * CONTIENE vs EXACTO (con `contiene`, «IVA» se come «IVAPERCEP»: el total daría
+ * bien y dos columnas quedarían mal) y que el # decide los empates — pero se pide.
  *
- * Al lado de cada balde va su TOTAL DEL DÍA: después de agregar una grafía se ve
+ * ⚠️ Los bordes van con `--t-border-2` y no con `--t-border`: en modo OSCURO el
+ * borde principal (#1a1a1a) sobre el panel (#080808) no se ve, y la tabla se leía
+ * como un bloque de texto sin delimitar.
+ *
+ * Al lado de cada columna va su TOTAL DEL DÍA: después de agregar un texto se ve
  * el número moverse sin salir de acá, que es la forma de comprobar que agarró.
  */
 function ModalDesglose({
@@ -1163,14 +1260,13 @@ function ModalDesglose({
 }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Qué balde está abierto para sumarle una grafía. Uno a la vez: el formulario
-  // aparece DEBAJO del balde que se está tocando, no en una zona aparte donde
-  // habría que volver a elegir a cuál va.
+  // Qué columna está abierta para sumarle un texto. Una a la vez, y el formulario
+  // sale DENTRO de su misma fila: si apareciera abajo, cada apertura estiraría el
+  // modal hacia abajo y el resto de las columnas se irían de la pantalla.
   const [abierto, setAbierto] = useState<string | null>(null);
   const [campo, setCampo] = useState("descripcion_banco");
   const [operador, setOperador] = useState("contiene");
   const [valor, setValor] = useState("");
-  // Alta de columna nueva.
   const [nueva, setNueva] = useState("");
   const [nuevaGrupo, setNuevaGrupo] = useState<"concepto" | "otros">("otros");
 
@@ -1196,7 +1292,7 @@ function ModalDesglose({
     return true;
   }
 
-  async function agregarMatcher(balde: string) {
+  async function agregarTexto(balde: string) {
     if (!valor.trim()) { setErr("Escribí el texto que llega en el movimiento."); return; }
     if (await pegar("/gastos/desglose/matchers", "POST",
                     { balde, campo, operador, valor })) {
@@ -1206,18 +1302,14 @@ function ModalDesglose({
 
   async function nuevaColumna() {
     if (!nueva.trim()) { setErr("Poné cómo se llama la columna."); return; }
-    // Va al final: mover el orden es una decisión aparte, y una columna nueva
-    // que se cuele antes que las existentes cambiaría dónde caen movimientos que
-    // hoy ya están bien clasificados.
+    // Va al final: mover el orden es una decisión aparte, y una columna nueva que
+    // se cuele antes cambiaría dónde caen movimientos que hoy ya están bien.
     const orden = Math.max(0, ...baldes.map((b) => b.orden)) + 10;
     if (await pegar("/gastos/desglose", "POST",
                     { etiqueta: nueva, grupo: nuevaGrupo, orden })) {
       setNueva("");
     }
   }
-
-  const INPUT = "bg-[var(--t-surface)] border border-[var(--t-border)] px-1.5 py-1 "
-    + "text-[12px] outline-none";
 
   return (
     <div
@@ -1226,12 +1318,25 @@ function ModalDesglose({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border)] w-full max-w-[920px] max-h-[85vh] flex flex-col text-[12px]"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1100px] max-h-[85vh] flex flex-col text-[12px]"
       >
-        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-3">
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex items-center gap-2">
           <span className="font-semibold tracking-wide uppercase text-[11px]">
-            Desglose de gastos · columnas
+            Desglose para contabilizar Impuestos
           </span>
+          {/* Toda la explicación vive ACÁ y no en un párrafo: la pantalla se lee
+              sola y el que necesita el detalle lo pide. Un modal que arranca con
+              cinco renglones de prosa se cierra sin leer. */}
+          <Ayuda texto={
+            "Cada columna suma los movimientos cuyo texto coincida.\n\n"
+            + "⊃ CONTIENE — para texto que llega cortado o con cola.\n"
+            + "= EXACTO — cuando un valor es principio de otro: con «contiene», "
+            + "IVA se comería IVAPERCEP (el total daría bien y dos columnas "
+            + "quedarían mal).\n\n"
+            + "Si dos columnas se pisan gana la de # más chico. Lo que no cae en "
+            + "ninguna aparece como MOVIMIENTOS RESTANTES: ahí se ve qué falta.\n\n"
+            + "Esto no suma ni resta plata: parte el total que ya está."
+          } />
           <button
             onClick={onCerrar}
             className="ml-auto px-2 py-1 hover:bg-[var(--t-surface)]"
@@ -1241,131 +1346,143 @@ function ModalDesglose({
           </button>
         </div>
 
-        <p className="shrink-0 px-3 py-2 text-[11px] text-[var(--t-text-dim)] border-b border-[var(--t-border)]">
-          Cada columna del desglose junta un concepto. Adentro van las{" "}
-          <b>grafías</b> con que llega, porque cada banco lo escribe distinto
-          (<code>LEY25413DB</code> y <code>IMP.DB/CR BANCARIOS P/DEB</code> son el
-          mismo impuesto). Un gasto que no cae en ninguna columna aparece como{" "}
-          <b>MOVIMIENTOS RESTANTES</b>: ahí se ve qué falta cargar. Esto no suma ni
-          resta plata — parte el total que ya está.
-          <br />
-          <b>CONTIENE</b> para texto que llega cortado o con cola;{" "}
-          <b>ES IGUAL</b> cuando un valor es principio de otro (con{" "}
-          <i>contiene</i>, «IVA» se comería «IVAPERCEP»). Si dos columnas se
-          pisan, gana la de <b>orden</b> más chico.
-        </p>
-
         {err && (
           <div className="shrink-0 px-3 py-1 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)]">
             {err}
           </div>
         )}
 
-        <div className="flex-1 min-h-0 overflow-auto divide-y divide-[var(--t-border)]">
-          {baldes.map((b) => (
-            <div key={b.clave} className="px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[var(--t-text-muted)] text-[10px] tabular-nums w-[28px]">
-                  {b.orden}
-                </span>
-                <span className="font-semibold tracking-wide">{b.etiqueta}</span>
-                <span className="text-[10px] uppercase text-[var(--t-text-muted)] border border-[var(--t-border)] px-1">
-                  {b.grupo === "concepto" ? "columna propia" : "otros imp"}
-                </span>
-                {/* El total del día al lado de su columna: después de agregar una
-                    grafía se ve el número moverse sin salir de acá. */}
-                <span className="tabular-nums text-[var(--t-text-dim)]">
-                  {totales?.[b.clave] !== undefined
-                    ? plata(totales[b.clave], moneda)
-                    : ""}
-                </span>
-                {editable && (
-                  <div className="ml-auto flex items-center gap-2">
-                    <button
-                      onClick={() => { setAbierto(abierto === b.clave ? null : b.clave); setErr(null); }}
-                      className="px-2 py-0.5 text-[10px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)]"
-                    >
-                      + grafía
-                    </button>
-                    <button
-                      onClick={() => pegar(`/gastos/desglose/${b.clave}`, "DELETE")}
-                      disabled={busy}
-                      title="Borrar la columna. Sus movimientos pasan a MOVIMIENTOS RESTANTES; ningún total cambia."
-                      className="px-1.5 py-0.5 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-              </div>
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full border-collapse">
+            {/* ⚠️ Los bordes van con `--t-border-2` y no con `--t-border`: en modo
+                OSCURO el borde principal es #1a1a1a sobre un panel #080808 y las
+                filas quedan sin delimitar — se lee como un bloque de texto. El
+                borde fuerte se ve en los dos temas. */}
+            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              <tr className="border-b border-[var(--t-border-2)]">
+                <th className="px-2 py-1.5 font-normal text-right w-[36px]" title="Orden: si dos columnas se pisan, gana la de número más chico">#</th>
+                <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap">Columna</th>
+                <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap border-l border-[var(--t-border-2)]">Dónde se muestra</th>
+                <th className="px-2 py-1.5 font-normal text-right whitespace-nowrap border-l border-[var(--t-border-2)]">Total del día</th>
+                <th className="px-2 py-1.5 font-normal text-left w-full border-l border-[var(--t-border-2)]">Textos que suman</th>
+                <th className="px-2 py-1.5 font-normal border-l border-[var(--t-border-2)]" />
+              </tr>
+            </thead>
+            <tbody>
+              {baldes.map((b) => (
+                <tr key={b.clave} className="border-b border-[var(--t-border-2)] align-top">
+                  <td className="px-2 py-1.5 text-right tabular-nums text-[var(--t-text-muted)]">
+                    {b.orden}
+                  </td>
+                  <td className="px-2 py-1.5 font-semibold whitespace-nowrap">{b.etiqueta}</td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-[var(--t-text-dim)] border-l border-[var(--t-border-2)]">
+                    {b.grupo === "concepto" ? "Columna propia" : "Otros imp."}
+                  </td>
+                  {/* El total del día al lado de su columna: después de agregar un
+                      texto se ve el número moverse sin salir de acá. Esa es la
+                      comprobación de que agarró. */}
+                  <td className="px-2 py-1.5 text-right tabular-nums whitespace-nowrap border-l border-[var(--t-border-2)]">
+                    {totales?.[b.clave] !== undefined ? plata(totales[b.clave], moneda) : "—"}
+                  </td>
+                  <td className="px-2 py-1.5 border-l border-[var(--t-border-2)]">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {b.matchers.map((m) => (
+                        <span
+                          key={m.id}
+                          className="inline-flex items-center gap-1 border border-[var(--t-border-2)] bg-[var(--t-surface)] px-1.5 py-0.5 text-[11px]"
+                          title={`${CAMPOS[m.campo] ?? m.campo} ${m.operador === "igual" ? "exacto" : "contiene"}`}
+                        >
+                          <span className="text-[9px] uppercase text-[var(--t-text-muted)]">
+                            {CAMPOS[m.campo] ?? m.campo}{m.operador === "igual" ? " =" : " ⊃"}
+                          </span>
+                          {m.valor}
+                          {editable && (
+                            <button
+                              onClick={() => pegar(`/gastos/desglose/matchers/${m.id}`, "DELETE")}
+                              disabled={busy}
+                              title="Sacar este texto de la columna"
+                              className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                      {b.matchers.length === 0 && (
+                        <span className="text-[11px] text-[var(--t-accent)]">
+                          sin textos — esta columna no agarra nada
+                        </span>
+                      )}
 
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {b.matchers.map((m) => (
-                  <span
-                    key={m.id}
-                    className="inline-flex items-center gap-1 border border-[var(--t-border)] px-1.5 py-0.5 text-[11px]"
-                    title={`${CAMPOS[m.campo] ?? m.campo} ${m.operador === "igual" ? "es igual a" : "contiene"}`}
-                  >
-                    <span className="text-[9px] uppercase text-[var(--t-text-muted)]">
-                      {CAMPOS[m.campo] ?? m.campo}
-                      {m.operador === "igual" ? " =" : " ⊃"}
-                    </span>
-                    {m.valor}
+                      {/* El alta, INLINE y en la misma fila. */}
+                      {editable && abierto === b.clave && (
+                        <>
+                          <select value={campo} onChange={(e) => setCampo(e.target.value)} className={INPUT}>
+                            {Object.entries(CAMPOS).map(([k, v]) => (
+                              <option key={k} value={k}>{v}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={operador}
+                            onChange={(e) => setOperador(e.target.value)}
+                            className={INPUT}
+                          >
+                            <option value="contiene">contiene</option>
+                            <option value="igual">exacto</option>
+                          </select>
+                          <input
+                            autoFocus
+                            value={valor}
+                            onChange={(e) => setValor(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") agregarTexto(b.clave);
+                              if (e.key === "Escape") { setAbierto(null); setValor(""); }
+                            }}
+                            placeholder="el texto tal como llega"
+                            className={`${INPUT} w-[240px]`}
+                          />
+                          <button
+                            onClick={() => agregarTexto(b.clave)}
+                            disabled={busy}
+                            className="px-2 py-0.5 text-[10px] uppercase border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+                          >
+                            Guardar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-2 py-1.5 whitespace-nowrap text-right border-l border-[var(--t-border-2)]">
                     {editable && (
-                      <button
-                        onClick={() => pegar(`/gastos/desglose/matchers/${m.id}`, "DELETE")}
-                        disabled={busy}
-                        className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
-                      >
-                        ✕
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            setAbierto(abierto === b.clave ? null : b.clave);
+                            setValor(""); setErr(null);
+                          }}
+                          className="px-2 py-0.5 text-[10px] uppercase border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+                        >
+                          {abierto === b.clave ? "Cancelar" : "Agregar"}
+                        </button>
+                        <button
+                          onClick={() => pegar(`/gastos/desglose/${b.clave}`, "DELETE")}
+                          disabled={busy}
+                          title="Borrar la columna. Sus movimientos pasan a MOVIMIENTOS RESTANTES; ningún total cambia."
+                          className="ml-1 px-1 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
+                        >
+                          ✕
+                        </button>
+                      </>
                     )}
-                  </span>
-                ))}
-                {b.matchers.length === 0 && (
-                  <span className="text-[11px] text-[var(--t-accent)]">
-                    sin grafías — esta columna no agarra nada
-                  </span>
-                )}
-              </div>
-
-              {editable && abierto === b.clave && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <select value={campo} onChange={(e) => setCampo(e.target.value)} className={INPUT}>
-                    {Object.entries(CAMPOS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={operador}
-                    onChange={(e) => setOperador(e.target.value)}
-                    className={INPUT}
-                  >
-                    <option value="contiene">contiene</option>
-                    <option value="igual">es igual a</option>
-                  </select>
-                  <input
-                    value={valor}
-                    onChange={(e) => setValor(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") agregarMatcher(b.clave); }}
-                    placeholder="el texto tal como llega"
-                    className={`${INPUT} flex-1 min-w-[220px]`}
-                  />
-                  <button
-                    onClick={() => agregarMatcher(b.clave)}
-                    disabled={busy}
-                    className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40"
-                  >
-                    Agregar
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {editable && (
-          <div className="shrink-0 px-3 py-2 border-t border-[var(--t-border)] flex flex-wrap items-center gap-2">
+          <div className="shrink-0 px-3 py-2 border-t border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
               Columna nueva
             </span>
@@ -1387,7 +1504,7 @@ function ModalDesglose({
             <button
               onClick={nuevaColumna}
               disabled={busy}
-              className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+              className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40"
             >
               Crear
             </button>
@@ -1395,6 +1512,163 @@ function ModalDesglose({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * REPORTE FINAL — el saldo al cierre de todas las cuentas, en UNA grilla para
+ * pasar hacia afuera.
+ *
+ * Es una MATRIZ, no una lista: **una columna por banco**, **una fila por cuenta**
+ * y en el cruce el saldo al cierre. Cada cuenta pertenece a un solo banco, así
+ * que la grilla queda escalonada por banco — que es exactamente cómo se lee un
+ * reporte de posición bancaria y cómo se pega en una planilla.
+ *
+ * Dos separadores en blanco, pedidos por el back office, que no son decorativos:
+ *   · una COLUMNA vacía entre banco y banco;
+ *   · una FILA vacía entre el bloque ARS y el bloque USD.
+ * Separar por moneda importa más que ordenar: sumar pesos con dólares en la misma
+ * corrida visual es el error que este formato evita.
+ *
+ * El día es el MISMO que muestra la vista (el hábil anterior por default): el
+ * reporte no elige su propia fecha, así no puede decir algo distinto de la
+ * pantalla desde la que se abrió.
+ *
+ * La cabecera va en el azul de la casa con el logo — este modal se muestra y se
+ * captura, no es una pantalla de trabajo.
+ */
+function ModalReporte({
+  bancos, fecha, onCerrar,
+}: {
+  bancos: Banco[]; fecha: string; onCerrar: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  // Las filas se ordenan por MONEDA primero (ARS arriba, el resto después) y
+  // dentro de cada moneda por banco. `null` es la fila vacía que separa bloques.
+  const filas = useMemo(() => {
+    const cuentas = bancos.flatMap((b) =>
+      b.cuentas.map((c) => ({ ...c, _banco: b.banco_nombre })));
+    const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
+    const orden = (c: typeof cuentas[number]) =>
+      `${esArs(c.moneda) ? "0" : "1"}|${c._banco}|${c.tipo}|${c.numero}`;
+    const ars = cuentas.filter((c) => esArs(c.moneda)).sort(
+      (a, b) => orden(a).localeCompare(orden(b)));
+    const resto = cuentas.filter((c) => !esArs(c.moneda)).sort(
+      (a, b) => orden(a).localeCompare(orden(b)));
+    // La fila en blanco solo si hay algo de los dos lados: un separador que no
+    // separa nada es una fila vacía y nada más.
+    return ars.length && resto.length ? [...ars, null, ...resto] : [...ars, ...resto];
+  }, [bancos]);
+
+  const totalCols = bancos.length * 2;   // cada banco + su separador
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1500px] max-h-[92vh] flex flex-col text-[12px]"
+      >
+        <div className="shrink-0 flex items-center gap-3 px-3 py-2 bg-[#094293] text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element -- el modal se
+              captura como imagen; `next/image` mete un wrapper que complica eso */}
+          <img src="/logo-login.png" alt="ACA Valores" height={24} className="h-6 w-auto" />
+          <div className="h-4 w-px bg-white/25" />
+          <span className="text-[12px] font-semibold tracking-wide uppercase">
+            Reporte final · saldos al cierre
+          </span>
+          <span className="text-[12px] text-white/80">{fecha}</span>
+          <button
+            onClick={onCerrar}
+            className="ml-auto px-2 py-0.5 text-white/80 hover:text-white hover:bg-white/10"
+            title="Cerrar (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              <tr className="border-b border-[var(--t-border-2)]">
+                <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap border-r border-[var(--t-border-2)]">
+                  Cuenta
+                </th>
+                {bancos.map((b) => (
+                  <Fragment key={b.banco}>
+                    <th className="px-3 py-1.5 font-semibold text-right whitespace-nowrap text-[var(--t-text)]">
+                      {b.banco_nombre}
+                    </th>
+                    {/* La columna vacía que separa un banco del siguiente. */}
+                    <th className="w-4" />
+                  </Fragment>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((c, i) => c === null ? (
+                <tr key={`sep-${i}`}><td className="h-4" colSpan={totalCols + 1} /></tr>
+              ) : (
+                <tr key={c.id} className="border-b border-[var(--t-border-2)]">
+                  {/* El título de la fila es EXACTO lo que dice la columna CUENTA
+                      del consolidado: si acá dijera otra cosa, el que compara las
+                      dos pantallas tendría que traducir. */}
+                  <Td copiar={`${c.tipo} ${c.moneda} · ${c.numero}`}
+                      className="whitespace-nowrap border-r border-[var(--t-border-2)]">
+                    {c.tipo} {c.moneda} · <span className="font-semibold">{c.numero}</span>
+                    {c.etiqueta ? (
+                      <span className="text-[var(--t-text-dim)]"> · {c.etiqueta}</span>
+                    ) : null}
+                  </Td>
+                  {bancos.map((b) => (
+                    <Fragment key={b.banco}>
+                      <Td
+                        right
+                        strong={b.banco_nombre === c._banco}
+                        className="whitespace-nowrap"
+                        copiar={b.banco_nombre === c._banco ? plata(c.saldo_cierre) : null}
+                      >
+                        {b.banco_nombre === c._banco
+                          ? (c.saldo_cierre === null ? "—" : plata(c.saldo_cierre))
+                          : ""}
+                      </Td>
+                      <td className="w-4" />
+                    </Fragment>
+                  ))}
+                </tr>
+              ))}
+              {filas.length === 0 && (
+                <tr>
+                  <td className="px-3 py-4 text-[var(--t-text-dim)]" colSpan={totalCols + 1}>
+                    No hay cuentas para ese día.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** El «?» que reemplaza a un párrafo. La explicación completa está, pero no
+ *  ocupa la pantalla de todos los días. */
+function Ayuda({ texto }: { texto: string }) {
+  return (
+    <span
+      title={texto}
+      className="inline-flex items-center justify-center w-[15px] h-[15px] rounded-full border border-[var(--t-border-2)] text-[10px] text-[var(--t-text-dim)] cursor-help"
+    >
+      ?
+    </span>
   );
 }
 
@@ -1446,9 +1720,6 @@ function ModalReglas({
     onCambio();
   }
 
-  const INPUT = "bg-[var(--t-surface)] border border-[var(--t-border)] px-1.5 py-1 "
-    + "text-[12px] outline-none";
-
   return (
     <div
       className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
@@ -1456,11 +1727,11 @@ function ModalReglas({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border)] w-full max-w-[820px] max-h-[85vh] flex flex-col text-[12px]"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[820px] max-h-[85vh] flex flex-col text-[12px]"
       >
-        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-3">
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] flex items-center gap-3">
           <span className="font-semibold tracking-wide uppercase text-[11px]">
-            Reglas de gasto bancario
+            Reglas para contabilizar Gastos Bancarios
           </span>
           <button
             onClick={onCerrar}
@@ -1471,7 +1742,7 @@ function ModalReglas({
           </button>
         </div>
 
-        <p className="shrink-0 px-3 py-2 text-[11px] text-[var(--t-text-dim)] border-b border-[var(--t-border)]">
+        <p className="shrink-0 px-3 py-2 text-[11px] text-[var(--t-text-dim)] border-b border-[var(--t-border-2)]">
           Un movimiento que cumpla CUALQUIERA de estas reglas se marca solo como
           gasto bancario. La marca hecha a mano sobre un movimiento puntual siempre
           gana sobre la regla. Los gastos ya están adentro del saldo: esto los
@@ -1485,7 +1756,7 @@ function ModalReglas({
         )}
 
         {editable && (
-          <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap items-center gap-2">
+          <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] flex flex-wrap items-center gap-2">
             <select value={campo} onChange={(e) => setCampo(e.target.value)} className={INPUT}>
               {Object.entries(CAMPOS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -1515,7 +1786,7 @@ function ModalReglas({
             <button
               onClick={alta}
               disabled={busy}
-              className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+              className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40"
             >
               Agregar
             </button>
@@ -1524,7 +1795,7 @@ function ModalReglas({
 
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
               <tr>
                 <Th>Campo</Th>
                 <Th className={COL_SEP}>Condición</Th>
@@ -1536,7 +1807,7 @@ function ModalReglas({
             </thead>
             <tbody>
               {reglas.map((r) => (
-                <tr key={r.id} className="border-b border-[var(--t-border)]">
+                <tr key={r.id} className="border-b border-[var(--t-border-2)]">
                   <Td>{CAMPOS[r.campo] ?? r.campo}</Td>
                   <Td className={COL_SEP}>{r.operador === "igual" ? "es igual a" : "contiene"}</Td>
                   <Td className={COL_SEP} copiar={r.valor}>
@@ -1583,7 +1854,7 @@ function ModalReglas({
 function ErrorLinea({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <div className="shrink-0 px-3 py-1 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)] border-b border-[var(--t-border)]">
+    <div className="shrink-0 px-3 py-1 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)] border-b border-[var(--t-border-2)]">
       {error}
     </div>
   );
@@ -1601,7 +1872,7 @@ function Fecha({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[12px]"
+        className="bg-[var(--t-bg)] border border-[var(--t-border-2)] px-2 py-1 text-[12px]"
       />
     </label>
   );

@@ -8,8 +8,9 @@ import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 // `jobs/interbanking_sync` y la vista los lee de Postgres. Este proxy no puede
 // llegar a Interbanking ni queriendo.
 //
-// Desde 2026-08-18 sí pasan POST/PUT/DELETE, y **solo para `/gastos/*`**: la
-// clasificación de gastos bancarios, que escribe en tablas nuestras
+// Desde 2026-08-18 sí pasan POST/PUT/DELETE, y **solo para `/gastos/*` y
+// `/foto`**: la clasificación de gastos bancarios y la foto del día, que
+// escriben en tablas nuestras
 // (`bancos.gastos_reglas` / `gastos_overrides` / `movimientos_ignorados`). El
 // resto de los paths siguen siendo de lectura y una escritura contra ellos se
 // rechaza ACÁ, antes de salir
@@ -30,9 +31,14 @@ export const revalidate = 0;
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
-/** Los únicos sub-paths donde se admite escribir. Todo lo demás es lectura. */
+/** Los únicos sub-paths donde se admite escribir. Todo lo demás es lectura.
+ *  `gastos` = la clasificación (reglas, marcas, ignorados, desglose).
+ *  `foto`   = congelar el consolidado del día. Las dos escriben en tablas
+ *  NUESTRAS; hacia el banco no sale nada. */
+const ESCRITURA = new Set(["gastos", "foto"]);
+
 function esEscrituraPermitida(path: string[] | undefined) {
-  return (path?.[0] ?? "") === "gastos";
+  return ESCRITURA.has(path?.[0] ?? "");
 }
 
 async function proxy(req: Request, params: Ctx["params"], method: string) {
