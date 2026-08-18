@@ -156,6 +156,9 @@ type Movimiento = {
   // (alguien la decidió). Viaja hasta la pantalla a propósito — ver el comentario
   // de la columna GASTO.
   gasto_origen?: "regla" | "manual" | null;
+  // En qué balde del desglose cayó. Es lo que permite abrir un número del
+  // desglose y ver EXACTAMENTE qué filas lo componen.
+  gasto_balde?: string | null;
   fecha: string | null;
   hora: string | null;
   importe: number | null;
@@ -567,6 +570,37 @@ function ModalMovimientos({
   const [reglasAbierto, setReglasAbierto] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // AUDITOR del desglose. Clic en un número → la tabla queda mostrando SOLO las
+  // filas que lo componen. Mismo gesto que el modal por celda de Tesorería →
+  // BANCOS: un total que no se puede abrir es un total en el que hay que creer.
+  //
+  // Filtra la tabla de abajo en vez de abrir otro modal encima: las filas ya
+  // están, con todas sus columnas, y apilar modales para mirar lo mismo es
+  // ceremonia. `"__total"` = todos los gastos.
+  const [filtro, setFiltro] = useState<string | null>(null);
+  const auditar = useCallback(
+    (clave: string) => setFiltro((p) => (p === clave ? null : clave)), []);
+
+  const visibles = useMemo(() => {
+    if (!filtro) return data.movimientos;
+    if (filtro === "__total") return data.movimientos.filter((m) => m.es_gasto);
+    return data.movimientos.filter((m) => m.es_gasto && m.gasto_balde === filtro);
+  }, [data.movimientos, filtro]);
+
+  // La suma de lo FILTRADO, calculada acá sobre las filas que se están viendo.
+  // Es la verificación: si no coincide con el número que clickeaste, el desglose
+  // y el detalle se contradicen — y eso hay que poder verlo.
+  const sumaVisible = useMemo(
+    () => Math.round(visibles.reduce(
+      (a, m) => a + (m.importe ?? 0) * (m.tipo === "D" ? 1 : -1), 0) * 100) / 100,
+    [visibles]);
+
+  const etiquetaFiltro = filtro === "__total"
+    ? "Gastos bancarios"
+    : filtro === "resto"
+      ? "Movimientos restantes"
+      : data.desglose.find((b) => b.clave === filtro)?.etiqueta ?? filtro;
+
   /** Marca / desmarca / vuelve al criterio de las reglas. `null` BORRA la marca. */
   async function marcar(mov: Movimiento, es_gasto: boolean | null) {
     setErr(null);
@@ -589,7 +623,9 @@ function ModalMovimientos({
         name: "Movimientos",
         // El importe va FIRMADO (débito negativo): así la columna suma el neto
         // del día en Excel sin que nadie tenga que armar la fórmula.
-        rows: data.movimientos.map((m) => ({
+        // Se descarga lo que se ESTÁ VIENDO: si el filtro está puesto, bajar la
+        // lista completa sería darle al usuario algo distinto de lo que pidió.
+        rows: visibles.map((m) => ({
           ...m,
           importe_firmado: m.importe === null
             ? null
@@ -610,7 +646,8 @@ function ModalMovimientos({
           { header: "Importe",      key: "importe_firmado",  format: "number",  width: 16 },
         ],
         title: `${cuenta.banco_nombre} · ${cuenta.tipo} ${mon} ${cuenta.numero}`
-          + `${cuenta.etiqueta ? ` · ${cuenta.etiqueta}` : ""} · ${data.fecha || fecha}`,
+          + `${cuenta.etiqueta ? ` · ${cuenta.etiqueta}` : ""} · ${data.fecha || fecha}`
+          + `${filtro ? ` · ${etiquetaFiltro}` : ""}`,
       }],
       filename: `interbanking-${cuenta.numero}-${data.fecha || fecha}.xlsx`,
     });
@@ -647,7 +684,7 @@ function ModalMovimientos({
             </button>
             <button
               onClick={descargar}
-              disabled={data.movimientos.length === 0}
+              disabled={visibles.length === 0}
               className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Descargar
@@ -684,6 +721,8 @@ function ModalMovimientos({
               label="Gastos bancarios"
               valor={plata(r.gastos, mon)}
               copiar={plata(r.gastos)}
+              onAuditar={() => auditar("__total")}
+              activo={filtro === "__total"}
               fuerte
             />
           </div>
@@ -699,6 +738,8 @@ function ModalMovimientos({
                   label={b.etiqueta}
                   valor={plata(r.gastos_desglose?.[b.clave] ?? null)}
                   copiar={plata(r.gastos_desglose?.[b.clave] ?? null)}
+                  onAuditar={() => auditar(b.clave)}
+                  activo={filtro === b.clave}
                   chico
                 />
               ))}
@@ -711,6 +752,8 @@ function ModalMovimientos({
                   label="Movimientos restantes"
                   valor={plata(r.gastos_desglose.resto)}
                   copiar={plata(r.gastos_desglose.resto)}
+                  onAuditar={() => auditar("resto")}
+                  activo={filtro === "resto"}
                   clase="text-[var(--t-accent)]"
                   chico
                 />
@@ -735,6 +778,27 @@ function ModalMovimientos({
 
         <ErrorLinea error={err ?? error} />
 
+        {filtro && (
+          <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-3 text-[11px]">
+            <span className="uppercase tracking-wide text-[var(--t-text-dim)]">
+              Mostrando
+            </span>
+            <span className="font-semibold">{etiquetaFiltro}</span>
+            <span className="text-[var(--t-text-dim)]">
+              {visibles.length} movimiento(s)
+            </span>
+            {/* La suma de las filas que se están viendo. Si no coincide con el
+                número del desglose, el detalle y el total se contradicen. */}
+            <span className="tabular-nums font-semibold">{plata(sumaVisible, mon)}</span>
+            <button
+              onClick={() => setFiltro(null)}
+              className="ml-auto px-2 py-0.5 border border-[var(--t-border)] hover:bg-[var(--t-surface)] uppercase text-[10px]"
+            >
+              Ver todos
+            </button>
+          </div>
+        )}
+
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
@@ -751,7 +815,7 @@ function ModalMovimientos({
               </tr>
             </thead>
             <tbody>
-              {data.movimientos.map((m, i) => (
+              {visibles.map((m, i) => (
                 <tr
                   key={`${m.fecha}-${m.extracto}-${m.correlativo}-${i}`}
                   className="border-b border-[var(--t-border)]"
@@ -806,7 +870,7 @@ function ModalMovimientos({
                   />
                 </tr>
               ))}
-              {data.movimientos.length === 0 && <Vacia cols={9} hubo={lastAt > 0} />}
+              {visibles.length === 0 && <Vacia cols={9} hubo={lastAt > 0} />}
             </tbody>
           </table>
         </div>
@@ -1109,21 +1173,41 @@ function Fecha({
 }
 
 function Dato({
-  label, valor, fuerte, chico, clase = "", copiar,
+  label, valor, fuerte, chico, clase = "", copiar, onAuditar, activo,
 }: {
   label: string; valor: string; fuerte?: boolean; chico?: boolean;
   clase?: string; copiar?: string | null;
+  // Si viene, el VALOR se vuelve clickeable y abre las filas que lo componen.
+  onAuditar?: () => void; activo?: boolean;
 }) {
   const cp = useCopiar(copiar);
   return (
-    <div onClick={cp.onClick} title={cp.title} className={`px-1 -mx-1 ${cp.clase}`}>
-      <div className={`${chico ? "text-[9px]" : "text-[10px]"} uppercase tracking-wide text-[var(--t-text-dim)]`}>
+    <div
+      className={`px-1 -mx-1 ${activo ? "bg-[var(--t-surface-2)]" : ""}`}
+    >
+      <div
+        className={`${chico ? "text-[9px]" : "text-[10px]"} uppercase tracking-wide text-[var(--t-text-dim)] flex items-center gap-1`}
+      >
         {label}
+        {/* El copiar vive acá, en un ícono chico y SIEMPRE visible, no escondido
+            en un hover: si el gesto principal del bloque pasa a ser "ver las
+            filas", el copiar necesita su propio lugar o desaparece. */}
+        {cp.hay && (
+          <button
+            onClick={cp.onClick}
+            title="Copiar"
+            className={`text-[9px] text-[var(--t-text-muted)] hover:text-[var(--t-text)] ${cp.clase}`}
+          >
+            ⧉
+          </button>
+        )}
       </div>
       <div
+        onClick={onAuditar}
+        title={onAuditar ? "Ver los movimientos que suman este número" : undefined}
         className={`tabular-nums ${
           fuerte ? "text-[15px] font-semibold" : chico ? "text-[12px]" : "text-[13px]"
-        } ${clase}`}
+        } ${onAuditar ? "cursor-pointer hover:underline decoration-dotted underline-offset-2" : ""} ${clase}`}
       >
         {valor}
       </div>
