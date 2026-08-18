@@ -667,42 +667,70 @@ function ModalMovimientos({
             día, ya se ven en la grilla del consolidado, y repetirlos acá no
             ayuda a leer una lista de movimientos. Queda lo que SÍ habla de esta
             lista: cuántos son y cuánto de eso es gasto bancario. */}
-        {/* El desglose COMPLETO, en horizontal: acá sí se abren de a uno los
-            impuestos que en el consolidado van juntos bajo OTROS IMP. El
-            contador de movimientos se sacó (user, 2026-08-18) — la lista está
-            abajo, contarla arriba no agrega nada.
+        {/* ⚠️ La JERARQUÍA es el punto de este bloque: GASTOS BANCARIOS es el
+            TOTAL y todo lo que sigue son sus PARTES. Sin esa distinción visual,
+            nueve números en una fila se leen como nueve totales — y alguien
+            termina sumando el total con sus propios componentes.
 
-            `resto` (gasto que no cayó en ningún balde) aparece SOLO si no es
-            cero: OTROS IMP son únicamente las 4 descripciones declaradas, así
-            que puede quedar gasto afuera de toda columna, y eso hay que verlo
-            en vez de que se pierda adentro de otra celda. */}
-        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap gap-x-5 gap-y-2">
-          <Dato label="Gastos bancarios" valor={plata(r.gastos, mon)} fuerte />
-          {data.desglose.map((b) => (
+            Lo dice de tres formas a la vez: el total va más grande, tiene su
+            propio bloque, y una LÍNEA VERTICAL lo separa del desglose. Después,
+            «= suma de» arriba de las partes lo deja explícito.
+
+            Todos los valores se copian con un clic (mismo gesto que las celdas
+            de la tabla): estos números se pegan en otros sistemas todo el día. */}
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap items-stretch gap-4">
+          <div className="pr-4 border-r-2 border-[var(--t-border)] flex items-center">
             <Dato
-              key={b.clave}
-              label={b.etiqueta}
-              valor={plata(r.gastos_desglose?.[b.clave] ?? null)}
+              label="Gastos bancarios"
+              valor={plata(r.gastos, mon)}
+              copiar={plata(r.gastos)}
+              fuerte
             />
-          ))}
-          {!!r.gastos_desglose?.resto && (
-            <Dato
-              label="Sin clasificar"
-              valor={plata(r.gastos_desglose.resto)}
-              clase="text-[var(--t-accent)]"
-            />
-          )}
-          {/* Las dos alertas de conciliación las calcula el BACKEND. */}
-          {dia?.cierra === false && (
-            <span className="self-center px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-red)] text-[var(--t-neg)]">
-              No cierra · {plata(dia.diferencia)}
+          </div>
+
+          <div className="flex flex-col justify-center gap-1">
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+              = suma de
             </span>
-          )}
-          {r.dias_incompletos.length > 0 && (
-            <span className="self-center px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]">
-              Incompleto · el banco declara {dia?.movimientos_banco}
-            </span>
-          )}
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {data.desglose.map((b) => (
+                <Dato
+                  key={b.clave}
+                  label={b.etiqueta}
+                  valor={plata(r.gastos_desglose?.[b.clave] ?? null)}
+                  copiar={plata(r.gastos_desglose?.[b.clave] ?? null)}
+                  chico
+                />
+              ))}
+              {/* Gasto que no cayó en ningún balde. OTROS IMP son SOLO las 4
+                  descripciones declaradas, así que puede quedar algo afuera —
+                  y eso hay que verlo, no esconderlo adentro de otra celda.
+                  Aparece únicamente cuando no es cero. */}
+              {!!r.gastos_desglose?.resto && (
+                <Dato
+                  label="Movimientos restantes"
+                  valor={plata(r.gastos_desglose.resto)}
+                  copiar={plata(r.gastos_desglose.resto)}
+                  clase="text-[var(--t-accent)]"
+                  chico
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            {/* Las dos alertas de conciliación las calcula el BACKEND. */}
+            {dia?.cierra === false && (
+              <span className="px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-red)] text-[var(--t-neg)]">
+                No cierra · {plata(dia.diferencia)}
+              </span>
+            )}
+            {r.dias_incompletos.length > 0 && (
+              <span className="px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]">
+                Incompleto · el banco declara {dia?.movimientos_banco}
+              </span>
+            )}
+          </div>
         </div>
 
         <ErrorLinea error={err ?? error} />
@@ -1081,14 +1109,22 @@ function Fecha({
 }
 
 function Dato({
-  label, valor, fuerte, clase = "",
-}: { label: string; valor: string; fuerte?: boolean; clase?: string }) {
+  label, valor, fuerte, chico, clase = "", copiar,
+}: {
+  label: string; valor: string; fuerte?: boolean; chico?: boolean;
+  clase?: string; copiar?: string | null;
+}) {
+  const cp = useCopiar(copiar);
   return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+    <div onClick={cp.onClick} title={cp.title} className={`px-1 -mx-1 ${cp.clase}`}>
+      <div className={`${chico ? "text-[9px]" : "text-[10px]"} uppercase tracking-wide text-[var(--t-text-dim)]`}>
         {label}
       </div>
-      <div className={`${fuerte ? "text-[14px] font-semibold" : "text-[13px]"} ${clase}`}>
+      <div
+        className={`tabular-nums ${
+          fuerte ? "text-[15px] font-semibold" : chico ? "text-[12px]" : "text-[13px]"
+        } ${clase}`}
+      >
         {valor}
       </div>
     </div>
@@ -1109,36 +1145,49 @@ function Th({
   );
 }
 
+/**
+ * Clic para copiar. Está acá, en un hook, y no repetida en cada componente:
+ * `Td` (las celdas de las tablas) y `Dato` (el desglose del modal) hacen
+ * exactamente lo mismo, y si la lógica viviera dos veces una de las dos se
+ * quedaría vieja.
+ *
+ * Sin dato NO se copia y la celda no reacciona: un cursor de mano sobre un «—»
+ * promete algo que no pasa.
+ */
+function useCopiar(texto?: string | null) {
+  const [copiado, setCopiado] = useState(false);
+  const hay = texto != null && texto !== "" && texto !== "—";
+  const onClick = hay
+    ? () => {
+        navigator.clipboard.writeText(texto as string).then(
+          () => { setCopiado(true); setTimeout(() => setCopiado(false), 900); },
+          () => {},   // sin portapapeles (http, permiso denegado): no rompe nada
+        );
+      }
+    : undefined;
+  return {
+    hay,
+    onClick,
+    title: hay ? "Clic para copiar" : undefined,
+    clase: `${hay ? "cursor-pointer hover:bg-[var(--t-surface)]" : ""} ${
+      copiado ? "bg-[var(--t-tint-green)]" : ""
+    }`,
+  };
+}
+
 function Td({
   children, right, center, strong, className = "", copiar,
 }: {
   children?: React.ReactNode; right?: boolean; center?: boolean; strong?: boolean;
   className?: string; copiar?: string | null;
 }) {
-  const [copiado, setCopiado] = useState(false);
+  const cp = useCopiar(copiar);
   const al = center ? "text-center tabular-nums" : right ? "text-right tabular-nums" : "";
-
-  // Los datos de esta vista se copian y se pegan en otros sistemas todo el día
-  // (user, 2026-08-18), así que la celda con dato se copia con UN clic. Sin
-  // dato no hay nada que copiar y la celda no reacciona: un cursor de mano
-  // sobre un «—» promete algo que no pasa.
-  const hay = copiar != null && copiar !== "" && copiar !== "—";
-  const onClick = hay
-    ? () => {
-        navigator.clipboard.writeText(copiar as string).then(
-          () => { setCopiado(true); setTimeout(() => setCopiado(false), 900); },
-          () => {},   // sin portapapeles (http, permiso denegado): no rompe nada
-        );
-      }
-    : undefined;
-
   return (
     <td
-      onClick={onClick}
-      title={hay ? "Clic para copiar" : undefined}
-      className={`px-2 py-1 ${al} ${strong ? "font-semibold" : ""} ${
-        hay ? "cursor-pointer hover:bg-[var(--t-surface)]" : ""
-      } ${copiado ? "bg-[var(--t-tint-green)]" : ""} ${className}`}
+      onClick={cp.onClick}
+      title={cp.title}
+      className={`px-2 py-1 ${al} ${strong ? "font-semibold" : ""} ${cp.clase} ${className}`}
     >
       {children}
     </td>
