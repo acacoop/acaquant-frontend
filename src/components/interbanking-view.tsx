@@ -57,15 +57,16 @@ import { usePoll } from "@/lib/use-poll";
  * reaccionan: un cursor de mano que no hace nada promete algo que no pasa.
  *
  * ── REPORTE FINAL (botón de la barra) — el saldo al cierre de TODAS las cuentas
- *    en una matriz para pasar hacia afuera: **una columna por banco, una fila por
+ *    en una matriz para pasar hacia afuera: **una FILA por banco, una COLUMNA por
  *    cuenta**, y en el cruce el saldo. **Partido en BLOQUES de 5 bancos**,
- *    apilados y cada uno con su fila de títulos: en una sola tabla eran 19
- *    columnas que no entran en pantalla y que además quedaban casi vacías —cada
- *    cuenta pertenece a UN banco— mientras que en cada bloque las filas son SOLO
- *    las cuentas de sus bancos. Con una COLUMNA vacía entre banco y banco y una
- *    FILA vacía entre el bloque ARS y el USD — separar por moneda importa más que
- *    ordenar: sumar pesos con dólares en la misma corrida visual es el error que
- *    este formato evita. Usa el MISMO día que la vista, así no puede decir algo
+ *    apilados y cada uno con su fila de títulos, porque las 38 cuentas no entran
+ *    como columnas en ninguna pantalla y la mayoría quedaría vacía en cada fila:
+ *    cada bloque solo necesita las columnas de SUS 5 bancos. El título de cada
+ *    columna va APILADO (tipo y moneda, número, etiqueta): escrito a lo largo
+ *    mide media pantalla por columna. Separadores en blanco entre ARS y el resto
+ *    y cada vez que cambia el banco — separar por moneda importa más que ordenar:
+ *    sumar pesos con dólares en la misma corrida visual es el error que este
+ *    formato evita. Usa el MISMO día que la vista, así no puede decir algo
  *    distinto de la pantalla desde la que se abrió. Cabecera azul con el logo UNA
  *    vez arriba de todo: este modal se muestra y se captura, no es pantalla de
  *    trabajo.
@@ -1524,25 +1525,23 @@ function ModalDesglose({
  * REPORTE FINAL — el saldo al cierre de todas las cuentas, en UNA grilla para
  * pasar hacia afuera.
  *
- * Es una MATRIZ, no una lista: **una columna por banco**, **una fila por cuenta**
+ * Es una MATRIZ, no una lista: **una FILA por banco**, **una COLUMNA por cuenta**
  * y en el cruce el saldo al cierre. Cada cuenta pertenece a un solo banco, así
- * que la grilla queda escalonada por banco — que es exactamente cómo se lee un
- * reporte de posición bancaria y cómo se pega en una planilla.
+ * que la grilla queda escalonada — que es exactamente cómo se lee un reporte de
+ * posición bancaria y cómo se pega en una planilla.
  *
  * ⚠️ **Se parte en BLOQUES de `BANCOS_POR_BLOQUE` bancos**, apilados, cada uno
- * con su propia fila de títulos. Con 9 bancos en una sola tabla eran 19 columnas
- * que no entran en pantalla y que además quedaban casi vacías: como cada cuenta
- * pertenece a UN banco, las otras 8 celdas de su fila van en blanco. Partido, las
- * filas de cada bloque son SOLO las cuentas de sus bancos — dos tablas densas en
- * vez de una gigante y hueca. La cabecera azul con el logo va UNA vez, arriba de
- * todo: repetirla partiría el reporte en dos documentos en lugar de en dos partes
- * del mismo.
+ * con su propia fila de títulos. Las 38 cuentas no entran como columnas en
+ * ninguna pantalla y además la mayoría quedarían vacías en cada fila: como cada
+ * cuenta pertenece a UN banco, un bloque de 5 bancos solo necesita las columnas
+ * de esas 5. Dos tablas de ~10 columnas en vez de una de 38. La cabecera azul con
+ * el logo va UNA vez, arriba de todo: repetirla partiría el reporte en dos
+ * documentos en lugar de en dos partes del mismo.
  *
- * Dos separadores en blanco, pedidos por el back office, que no son decorativos:
- *   · una COLUMNA vacía entre banco y banco;
- *   · una FILA vacía entre el bloque ARS y el bloque USD.
- * Separar por moneda importa más que ordenar: sumar pesos con dólares en la misma
- * corrida visual es el error que este formato evita.
+ * Los separadores en blanco viven todos sobre el eje de las COLUMNAS, que es
+ * donde están las cuentas: uno entre el bloque ARS y el resto, y uno cada vez que
+ * cambia el banco. Separar por moneda importa más que ordenar — sumar pesos con
+ * dólares en la misma corrida visual es el error que este formato evita.
  *
  * El día es el MISMO que muestra la vista (el hábil anterior por default): el
  * reporte no elige su propia fecha, así no puede decir algo distinto de la
@@ -1551,13 +1550,13 @@ function ModalDesglose({
  * La cabecera va en el azul de la casa con el logo — este modal se muestra y se
  * captura, no es una pantalla de trabajo.
  */
-/** Cuántos bancos entran como columnas en cada bloque del REPORTE FINAL.
+/** Cuántos bancos entran como FILAS en cada bloque del REPORTE FINAL.
  *
- *  Con los 9 bancos de hoy (10 cuando se sume el manual) una sola tabla mide 19
- *  columnas: no entra en pantalla, se lee con scroll horizontal y —peor— queda
- *  casi vacía, porque cada cuenta pertenece a UN banco y las otras 8 celdas de su
- *  fila van en blanco. Partiendo de a 5, cada bloque muestra solo las cuentas de
- *  SUS bancos: dos tablas densas, apiladas, que entran enteras. */
+ *  Las cuentas son las columnas, y son 38: en una sola tabla no entran en ninguna
+ *  pantalla, y encima la mayoría quedaría vacía en cada fila porque cada cuenta
+ *  pertenece a UN banco. Partiendo de a 5 bancos, cada bloque solo necesita las
+ *  columnas de esas 5 cuentas — dos tablas de ~10 columnas, apiladas, que entran
+ *  enteras. Con los 9 bancos de hoy quedan 5 y 4; con el manual que falta, 5 y 5. */
 const BANCOS_POR_BLOQUE = 5;
 
 function ModalReporte({
@@ -1629,84 +1628,103 @@ function ModalReporte({
 }
 
 /**
- * Un bloque del reporte: hasta `BANCOS_POR_BLOQUE` bancos como columnas y, como
- * filas, SOLO las cuentas de esos bancos.
+ * Un bloque del reporte: hasta `BANCOS_POR_BLOQUE` bancos como **filas** y, como
+ * **columnas**, solo las cuentas de esos bancos.
  *
- * Que las filas salgan de los bancos del bloque es lo que hace que esto funcione.
- * Si las filas fueran siempre todas las cuentas, cada bloque repetiría 38
- * renglones con 33 celdas vacías — que es exactamente el problema que se está
+ * Que las columnas salgan de los bancos del bloque es lo que hace que esto
+ * funcione. Si fueran siempre las 38 cuentas, cada bloque repetiría 38 columnas
+ * con 30 celdas vacías por fila — que es exactamente el problema que se está
  * arreglando.
+ *
+ * ⚠️ **El título de cada columna va APILADO** (tipo y moneda arriba, el número
+ * abajo y la etiqueta debajo) y no en una línea. Escrito a lo largo,
+ * `CC ARS · 300100000153476 · ACA VALORES SA - CTA ADMINISTRATIVA` mide media
+ * pantalla **por columna**: con diez columnas el reporte no entra en ningún lado.
+ * Apilado dice exactamente lo mismo en el ancho del número.
+ *
+ * Dos separadores en blanco, los dos sobre el eje de las columnas ahora que las
+ * cuentas viven ahí:
+ *   · entre el bloque ARS y el resto — separar por moneda importa más que
+ *     ordenar: sumar pesos con dólares en la misma corrida visual es el error
+ *     que este formato evita;
+ *   · cada vez que cambia el banco adentro de una misma moneda.
  */
 function BloqueReporte({ bancos }: { bancos: Banco[] }) {
-  // ARS arriba, el resto abajo, con una fila en blanco en el medio. `null` es esa
-  // fila. La separación por MONEDA importa más que el orden: sumar pesos con
-  // dólares en la misma corrida visual es el error que este formato evita.
-  const filas = useMemo(() => {
-    const cuentas = bancos.flatMap((b) =>
-      b.cuentas.map((c) => ({ ...c, _banco: b.banco_nombre })));
+  // Las columnas del bloque, ya con los separadores adentro. `null` = columna en
+  // blanco: se arman acá y no con CSS para que la tabla sea EXACTAMENTE lo que se
+  // ve, y para que copiar/pegar en una planilla arrastre los mismos huecos.
+  const columnas = useMemo(() => {
     const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
-    const orden = (c: typeof cuentas[number]) =>
-      `${c._banco}|${c.tipo}|${c.numero}`;
-    const ars = cuentas.filter((c) => esArs(c.moneda)).sort(
-      (a, b) => orden(a).localeCompare(orden(b)));
-    const resto = cuentas.filter((c) => !esArs(c.moneda)).sort(
-      (a, b) => orden(a).localeCompare(orden(b)));
-    // El separador solo si hay algo de los dos lados: una fila que no separa nada
-    // es una fila vacía y nada más.
-    return ars.length && resto.length ? [...ars, null, ...resto] : [...ars, ...resto];
-  }, [bancos]);
+    const cuentas = bancos
+      .flatMap((b) => b.cuentas.map((c) => ({ ...c, _banco: b.banco_nombre })))
+      .sort((a, b) => (
+        `${esArs(a.moneda) ? "0" : "1"}|${a._banco}|${a.tipo}|${a.numero}`
+      ).localeCompare(
+        `${esArs(b.moneda) ? "0" : "1"}|${b._banco}|${b.tipo}|${b.numero}`,
+      ));
 
-  const cols = bancos.length * 2 + 1;
+    const out: (typeof cuentas[number] | null)[] = [];
+    cuentas.forEach((c, i) => {
+      const previa = cuentas[i - 1];
+      if (previa && (esArs(previa.moneda) !== esArs(c.moneda)
+                     || previa._banco !== c._banco)) {
+        out.push(null);
+      }
+      out.push(c);
+    });
+    return out;
+  }, [bancos]);
 
   return (
     <table className="w-full border-collapse">
       {/* Cada bloque repite los TÍTULOS de sus columnas. Sin eso, el de abajo
-          serían números sin banco. */}
+          serían números sin cuenta. */}
       <thead className="bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
         <tr className="border-y border-[var(--t-border-2)]">
           <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap border-r border-[var(--t-border-2)]">
-            Cuenta
+            Banco
           </th>
-          {bancos.map((b) => (
-            <Fragment key={b.banco}>
-              <th className="px-3 py-1.5 font-semibold text-right whitespace-nowrap text-[var(--t-text)]">
-                {b.banco_nombre}
-              </th>
-              {/* La columna vacía que separa un banco del siguiente. */}
-              <th className="w-4" />
-            </Fragment>
+          {columnas.map((c, i) => c === null ? (
+            <th key={`sep-${i}`} className="w-4" />
+          ) : (
+            // El título dice EXACTO lo mismo que la columna CUENTA del
+            // consolidado (tipo · moneda · número · etiqueta): si dijera otra
+            // cosa, el que compara las dos pantallas tendría que traducir.
+            <th key={c.id} className="px-2 py-1 font-normal text-right align-bottom whitespace-nowrap">
+              <div>{c.tipo} {c.moneda}</div>
+              <div className="text-[11px] text-[var(--t-text)] font-semibold tracking-normal">
+                {c.numero}
+              </div>
+              {c.etiqueta ? (
+                <div className="text-[9px] normal-case text-[var(--t-text-muted)]">
+                  {c.etiqueta}
+                </div>
+              ) : null}
+            </th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {filas.map((c, i) => c === null ? (
-          <tr key={`sep-${i}`}><td className="h-4" colSpan={cols} /></tr>
-        ) : (
-          <tr key={c.id} className="border-b border-[var(--t-border-2)]">
-            {/* El título de la fila es EXACTO lo que dice la columna CUENTA del
-                consolidado: si acá dijera otra cosa, el que compara las dos
-                pantallas tendría que traducir. */}
-            <Td copiar={`${c.tipo} ${c.moneda} · ${c.numero}`}
-                className="whitespace-nowrap border-r border-[var(--t-border-2)]">
-              {c.tipo} {c.moneda} · <span className="font-semibold">{c.numero}</span>
-              {c.etiqueta ? (
-                <span className="text-[var(--t-text-dim)]"> · {c.etiqueta}</span>
-              ) : null}
+        {bancos.map((b) => (
+          <tr key={b.banco} className="border-b border-[var(--t-border-2)]">
+            <Td copiar={b.banco_nombre}
+                className="whitespace-nowrap font-semibold border-r border-[var(--t-border-2)]">
+              {b.banco_nombre}
             </Td>
-            {bancos.map((b) => (
-              <Fragment key={b.banco}>
-                <Td
-                  right
-                  strong={b.banco_nombre === c._banco}
-                  className="whitespace-nowrap"
-                  copiar={b.banco_nombre === c._banco ? plata(c.saldo_cierre) : null}
-                >
-                  {b.banco_nombre === c._banco
-                    ? (c.saldo_cierre === null ? "—" : plata(c.saldo_cierre))
-                    : ""}
-                </Td>
-                <td className="w-4" />
-              </Fragment>
+            {columnas.map((c, i) => c === null ? (
+              <td key={`sep-${i}`} className="w-4" />
+            ) : (
+              <Td
+                key={c.id}
+                right
+                strong={c._banco === b.banco_nombre}
+                className="whitespace-nowrap"
+                copiar={c._banco === b.banco_nombre ? plata(c.saldo_cierre) : null}
+              >
+                {c._banco === b.banco_nombre
+                  ? (c.saldo_cierre === null ? "—" : plata(c.saldo_cierre))
+                  : ""}
+              </Td>
             ))}
           </tr>
         ))}
