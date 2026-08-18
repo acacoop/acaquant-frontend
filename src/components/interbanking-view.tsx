@@ -6,19 +6,29 @@ import { usePoll } from "@/lib/use-poll";
 /**
  * Back Office → INTERBANKING. Los bancos de ACA, para CONCILIAR.
  *
- * DOS sub-tabs:
+ * **UN día, no un rango** (user, 2026-08-18: «la fecha es una sola, es siempre el
+ * mismo día»). Un solo selector de fecha, compartido por las dos sub-tabs; sin
+ * fecha manda el backend, que usa HOY en hora argentina — así la pantalla no
+ * depende del reloj del navegador.
  *
  * ── CONSOLIDADO BANCOS (default) — UNA fila por cuenta, agrupadas bajo el
- *    nombre del banco, con SALDO AL INICIO y SALDO AL CIERRE del rango. Es la
- *    foto de dónde está la plata. Los dos saldos los informa el banco (apertura
- *    del primer día con extracto, cierre del último): no los calculamos.
- *    Totales por banco y globales **por moneda y nunca mezclados** — sumar pesos
- *    con dólares no significa nada.
+ *    nombre del banco: SALDO AL INICIO · SALDO AL CIERRE · VARIACIÓN · GASTOS
+ *    BANCARIOS · MOVS. Los dos saldos los informa el banco (apertura y cierre de
+ *    ESE día): no los calculamos.
  *
- *    ⚠️ Lista TODAS las cuentas activas. Las que no tienen extracto en el rango
- *    van con «—», no con cero: **el extracto solo devuelve los días CON
- *    movimientos**, así que de una cuenta quieta no sabemos el saldo. Poner 0
- *    sería inventar un número. La barra dice cuántas están en esa situación.
+ *    El agrupado por banco existe para poder navegar 38 cuentas, nada más: **no
+ *    hay subtotales por banco ni totales por moneda** — los sacó el back office
+ *    porque no los usaba, y sin ellos la vista arranca directo en la tabla.
+ *
+ *    ⚠️ Lista TODAS las cuentas activas. El CIERRE tiene dos fuentes y la celda
+ *    rotula cuál: sin rótulo = extracto; «saldo» = lo informa el banco pero la
+ *    cuenta no se movió y no hay extracto que lo respalde; «≠» = el banco
+ *    informa las dos y no coinciden (hallazgo de conciliación). Sin ninguna de
+ *    las dos va «—» y la barra dice cuántas están así. Poner 0 sería inventar.
+ *
+ *    GASTOS BANCARIOS sale del backend y hoy viene **null** en todas las filas:
+ *    la regla de qué movimiento es un gasto todavía no está definida. Se muestra
+ *    «—» y NO cero, porque «no sabemos» y «no hubo gastos» son cosas distintas.
  *
  * ── DETALLE POR CUENTA — una cuenta a la vez, repartido 1/3 · 2/3: EXTRACTO a la
  *    izquierda (el día: apertura · créditos · débitos · cierre) y MOVIMIENTOS a
@@ -31,21 +41,20 @@ import { usePoll } from "@/lib/use-poll";
  *    La cuenta se elige en DOS pasos —primero el banco, después la cuenta de ESE
  *    banco— porque un selector único con 38 opciones no se navega.
  *
- * De dónde sale el dato: `jobs/interbanking_sync` trae los extractos a `bancos.*`
- * cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla nunca le pega
- * a Interbanking**: el límite de 100 llamadas/minuto es del ABONADO y no del
- * proceso, así que unos pocos usuarios refrescando podrían agotar la cuota y
- * romper el job. Por eso siempre se muestra cuándo fue la última sincronización:
- * una tabla vacía con el job caído no es "no hubo movimientos".
+ * De dónde sale el dato: `jobs/interbanking_sync` trae extracto + saldo a
+ * `bancos.*` cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla
+ * nunca le pega a Interbanking**: el límite de 100 llamadas/minuto es del ABONADO
+ * y no del proceso, así que unos pocos usuarios refrescando podrían agotar la
+ * cuota y romper el job. Por eso siempre se muestra cuándo fue la última
+ * sincronización: una tabla vacía con el job caído no es "no hubo movimientos".
+ *
+ * ⚠️ **Nada de esto se mezcla con TESORERÍA.** Son objetos sin clave en común: la
+ * cuenta operativa de Aunesa es una imputación interna del agente; esto es la
+ * cuenta bancaria real. Ver docs/INTERBANKING.md.
  *
  * Lo que NO se muestra, por diseño (el backend directamente no lo manda): el CBU
  * y el CUIT de nuestras cuentas, el número de cuenta completo —va solo la
  * terminación— y el CUIT de la contraparte, que viene enmascarado.
- *
- * Las alertas de conciliación las calcula el BACKEND, no esta pantalla:
- *   · NO CIERRA   → apertura + créditos − débitos ≠ cierre, según el banco.
- *   · INCOMPLETO  → guardamos distinta cantidad de movimientos de la que el
- *                   propio extracto dice que tiene ese día.
  */
 
 type Cuenta = {
@@ -63,41 +72,36 @@ type CuentaConsolidada = Cuenta & {
   saldo_inicio: number | null;
   saldo_cierre: number | null;
   variacion: number | null;
-  dias_con_dato: number;
-  desde_real: string | null;
-  hasta_real: string | null;
+  movimientos: number | null;
   // De dónde salió el CIERRE. Lo decide el backend, la pantalla solo lo rotula.
   //   "extracto" → apertura/cierre del extracto (con su detalle de movimientos)
-  //   "saldo"    → `bancos.saldos`: la cuenta no se movió en el rango y el
-  //                extracto no la devuelve, pero el banco igual informa cuánto hay
+  //   "saldo"    → `bancos.saldos`: la cuenta no se movió ese día y el extracto
+  //                no la devuelve, pero el banco igual informa cuánto hay
   //   null       → no sabemos (cuenta con «—»)
   fuente: "extracto" | "saldo" | null;
   saldo_banco: number | null;
-  saldo_banco_fecha: string | null;
   // El banco informó las DOS cosas y no coinciden: hallazgo de conciliación.
   discrepancia: number | null;
-  proyectado_24hs: number | null;
-  proyectado_48hs: number | null;
+  // Suma de los gastos que cobró el banco ese día. **null mientras la regla de
+  // clasificación no esté definida** — «no sabemos» no es «no hubo gastos», así
+  // que jamás cero por defecto.
+  gastos_bancarios: number | null;
 };
-
-type Total = { inicio: number; cierre: number; variacion: number; cuentas: number };
 
 type Banco = {
   banco: string;
   banco_nombre: string;
   cuentas: CuentaConsolidada[];
-  totales: Record<string, Total>;
 };
 
 type Sync = { corrida_at: string; cuentas: number; con_error: number } | null;
 
 type RespConsolidado = {
-  desde: string;
-  hasta: string;
+  fecha: string;
   bancos: Banco[];
-  totales: Record<string, Total>;
   cuentas: number;
   sin_datos: number;
+  gastos_definidos: boolean;
   sync: Sync;
 };
 
@@ -133,8 +137,7 @@ type Movimiento = {
 type RespVista = {
   cuentas: Cuenta[];
   cuenta_id: number | null;
-  desde: string;
-  hasta: string;
+  fecha: string;
   dias: Dia[];
   movimientos: Movimiento[];
   resumen: {
@@ -151,11 +154,11 @@ type RespVista = {
 };
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
-  desde: "", hasta: "", bancos: [], totales: {}, cuentas: 0, sin_datos: 0, sync: null,
+  fecha: "", bancos: [], cuentas: 0, sin_datos: 0, gastos_definidos: false, sync: null,
 };
 
 const VISTA_VACIA: RespVista = {
-  cuentas: [], cuenta_id: null, desde: "", hasta: "", dias: [], movimientos: [],
+  cuentas: [], cuenta_id: null, fecha: "", dias: [], movimientos: [],
   resumen: {
     dias: 0, movimientos: 0, creditos: 0, debitos: 0, neto: 0,
     dias_que_no_cierran: [], dias_incompletos: [], saldo_final: null,
@@ -192,21 +195,18 @@ function signo(v: number | null | undefined) {
 
 export function InterbankingView() {
   const [sub, setSub] = useState<"consolidado" | "detalle">("consolidado");
-  // El rango es COMPARTIDO por las dos sub-tabs: cambiar de vista no hace
-  // perder el período que estabas mirando.
-  // Arranca vacío A PROPÓSITO: sin fechas el backend usa ayer+hoy, así que el
-  // default lo decide el servidor y no el reloj del navegador.
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  // UNA fecha, no un rango (user, 2026-08-18: «la fecha es una sola, es siempre
+  // el mismo día»). Es COMPARTIDA por las dos sub-tabs: cambiar de vista no hace
+  // perder el día que estabas mirando.
+  // Arranca vacía A PROPÓSITO: sin fecha el backend usa HOY en hora argentina,
+  // así que el default lo decide el servidor y no el reloj del navegador.
+  const [fecha, setFecha] = useState("");
 
-  // Identidad ESTABLE (useCallback sin deps) + updates funcionales: si se pasara
-  // una arrow inline, cambiaría en cada render y el efecto de los hijos que la
-  // tiene en deps correría en cada render. Solo completa lo que está vacío, así
-  // que nunca pisa lo que el usuario eligió a mano.
-  const aplicarRango = useCallback((d: string, h: string) => {
-    setDesde((p) => p || d);
-    setHasta((p) => p || h);
-  }, []);
+  // Identidad ESTABLE (useCallback sin deps) + update funcional: si se pasara una
+  // arrow inline, cambiaría en cada render y el efecto de los hijos que la tiene
+  // en deps correría en cada render. Solo completa si está vacía, así que nunca
+  // pisa el día que el usuario eligió a mano.
+  const aplicarFecha = useCallback((f: string) => setFecha((p) => p || f), []);
 
   return (
     <div className="h-full min-h-0 flex flex-col text-[12px]">
@@ -221,15 +221,14 @@ export function InterbankingView() {
         </div>
 
         <div className="ml-auto flex items-center gap-3 py-1.5">
-          <Fecha label="Desde" value={desde} onChange={setDesde} />
-          <Fecha label="Hasta" value={hasta} onChange={setHasta} />
+          <Fecha label="Fecha" value={fecha} onChange={setFecha} />
         </div>
       </div>
 
       {sub === "consolidado" ? (
-        <Consolidado desde={desde} hasta={hasta} onRango={aplicarRango} />
+        <Consolidado fecha={fecha} onFecha={aplicarFecha} />
       ) : (
-        <Detalle desde={desde} hasta={hasta} onRango={aplicarRango} />
+        <Detalle fecha={fecha} onFecha={aplicarFecha} />
       )}
     </div>
   );
@@ -238,25 +237,20 @@ export function InterbankingView() {
 /* ── CONSOLIDADO BANCOS ─────────────────────────────────────────────────── */
 
 function Consolidado({
-  desde, hasta, onRango,
-}: { desde: string; hasta: string; onRango: (d: string, h: string) => void }) {
-  const url = useMemo(() => {
-    const p = new URLSearchParams();
-    if (desde) p.set("desde", desde);
-    if (hasta) p.set("hasta", hasta);
-    const qs = p.toString();
-    return `/api/back-office/interbanking/consolidado${qs ? `?${qs}` : ""}`;
-  }, [desde, hasta]);
+  fecha, onFecha,
+}: { fecha: string; onFecha: (f: string) => void }) {
+  const url = useMemo(
+    () => `/api/back-office/interbanking/consolidado${fecha ? `?fecha=${fecha}` : ""}`,
+    [fecha],
+  );
 
   const { data, lastAt, error } = usePoll<RespConsolidado>(url, CONSOLIDADO_VACIO, POLL_MS, {
     fetchOnMount: true,
   });
 
   useEffect(() => {
-    if (data.desde && data.hasta) onRango(data.desde, data.hasta);
-  }, [data.desde, data.hasta, onRango]);
-
-  const monedas = Object.keys(data.totales).sort();
+    if (data.fecha) onFecha(data.fecha);
+  }, [data.fecha, onFecha]);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -266,51 +260,37 @@ function Consolidado({
         error={error}
         extra={
           data.sin_datos > 0
-            ? `${data.sin_datos} de ${data.cuentas} cuentas sin extracto NI saldo informado por el banco en el rango — de esas no sabemos cuánto tienen`
+            ? `${data.sin_datos} de ${data.cuentas} cuentas sin extracto NI saldo informado por el banco ese día — de esas no sabemos cuánto tienen`
             : null
         }
       />
 
-      {/* Totales globales, por moneda. Nunca mezclados. */}
-      <div className="shrink-0 border-b border-[var(--t-border)] px-3 py-2 flex flex-wrap gap-6">
-        {monedas.length === 0 ? (
-          <span className="text-[var(--t-text-dim)]">
-            {lastAt > 0 ? "Sin datos en el rango." : "Cargando…"}
-          </span>
-        ) : (
-          monedas.map((m) => {
-            const t = data.totales[m];
-            return (
-              <div key={m} className="flex items-center gap-4">
-                <div className="text-[11px] font-semibold tracking-wide">{m}</div>
-                <Dato label="Inicio" valor={plata(t.inicio)} />
-                <Dato label="Cierre" valor={plata(t.cierre)} fuerte />
-                <Dato label="Variación" valor={plata(t.variacion)} clase={signo(t.variacion)} />
-                <Dato label="Cuentas" valor={String(t.cuentas)} />
-              </div>
-            );
-          })
-        )}
-      </div>
+      {/* La barra de totales por moneda se ELIMINÓ (user, 2026-08-18: «no tiene
+          sentido todas esas columnas de ahí arriba»). La vista arranca en la
+          tabla. */}
 
       <div className="flex-1 min-h-0 overflow-auto">
-        <table className="w-full border-collapse">
+        <table className="w-auto min-w-full border-collapse">
           <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+            {/* `w-full` haría que las columnas se repartan el ancho por igual y
+                CUENTA quedaba comprimida con el nombre cortado. Con `w-auto` +
+                `whitespace-nowrap` en la celda, CUENTA toma lo que necesita y
+                las de números —que son cortas y de ancho parejo— se acomodan
+                alrededor. */}
             <tr>
               <Th>Cuenta</Th>
               <Th right>Saldo al inicio</Th>
               <Th right>Saldo al cierre</Th>
               <Th right>Variación</Th>
-              <Th right>Proy. 24hs</Th>
-              <Th right>Proy. 48hs</Th>
-              <Th right>Días</Th>
+              <Th right>Gastos bancarios</Th>
+              <Th right>Movs.</Th>
             </tr>
           </thead>
           <tbody>
             {data.bancos.map((b) => (
               <BloqueBanco key={`${b.banco}-${b.banco_nombre}`} banco={b} />
             ))}
-            {data.bancos.length === 0 && <Vacia cols={7} hubo={lastAt > 0} />}
+            {data.bancos.length === 0 && <Vacia cols={6} hubo={lastAt > 0} />}
           </tbody>
         </table>
       </div>
@@ -319,12 +299,13 @@ function Consolidado({
 }
 
 function BloqueBanco({ banco }: { banco: Banco }) {
-  const monedas = Object.keys(banco.totales).sort();
   return (
     <>
-      {/* El banco como TÍTULO de su bloque de cuentas. */}
+      {/* El banco como TÍTULO de su bloque de cuentas. Agrupa para poder
+          navegar 38 cuentas, nada más: los subtotales por banco y por moneda se
+          ELIMINARON (user, 2026-08-18) — cada fila se lee sola. */}
       <tr className="bg-[var(--t-surface-2)] border-y border-[var(--t-border)]">
-        <td colSpan={7} className="px-2 py-1.5 font-semibold tracking-wide">
+        <td colSpan={6} className="px-2 py-1.5 font-semibold tracking-wide">
           {banco.banco_nombre || "(sin nombre)"}
           <span className="ml-2 text-[10px] font-normal text-[var(--t-text-dim)]">
             BCRA {banco.banco} · {banco.cuentas.length} cuenta(s)
@@ -334,7 +315,9 @@ function BloqueBanco({ banco }: { banco: Banco }) {
 
       {banco.cuentas.map((c) => (
         <tr key={c.id} className="border-b border-[var(--t-border)]">
-          <Td>
+          {/* `whitespace-nowrap`: la cuenta entra ENTERA. Antes la columna se
+              comprimía y el nombre salía cortado. */}
+          <Td className="whitespace-nowrap">
             <span className="pl-3">
               {c.tipo} {c.moneda} · {c.referencia}
               {c.etiqueta ? (
@@ -351,9 +334,7 @@ function BloqueBanco({ banco }: { banco: Banco }) {
             {c.fuente === "saldo" && (
               <span
                 className="ml-1 text-[9px] uppercase text-[var(--t-text-dim)]"
-                title={`Saldo informado por el banco al ${c.saldo_banco_fecha ?? "—"}. `
-                  + "La cuenta no tuvo movimientos en el rango, así que no hay extracto "
-                  + "que lo respalde."}
+                title="Saldo informado por el banco. La cuenta no tuvo movimientos ese día, así que no hay extracto que lo respalde."
               >
                 saldo
               </span>
@@ -370,40 +351,12 @@ function BloqueBanco({ banco }: { banco: Banco }) {
             )}
           </Td>
           <Td right className={signo(c.variacion)}>{plata(c.variacion)}</Td>
-          <Td right className="text-[var(--t-text-dim)]">{plata(c.proyectado_24hs)}</Td>
-          <Td right className="text-[var(--t-text-dim)]">{plata(c.proyectado_48hs)}</Td>
+          <Td right>{plata(c.gastos_bancarios)}</Td>
           <Td right>
-            {c.dias_con_dato > 0 ? (
-              c.dias_con_dato
-            ) : (
-              <span className="text-[var(--t-text-dim)]">sin mov.</span>
-            )}
+            {c.movimientos ?? <span className="text-[var(--t-text-dim)]">—</span>}
           </Td>
         </tr>
       ))}
-
-      {/* Subtotal del banco, una fila POR MONEDA. */}
-      {monedas.map((m) => {
-        const t = banco.totales[m];
-        return (
-          <tr key={`${banco.banco}-${m}`} className="border-b border-[var(--t-border)]">
-            <Td>
-              <span className="pl-3 text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-                Total {banco.banco_nombre} · {m}
-              </span>
-            </Td>
-            <Td right strong>{plata(t.inicio)}</Td>
-            <Td right strong>{plata(t.cierre)}</Td>
-            <Td right strong className={signo(t.variacion)}>{plata(t.variacion)}</Td>
-            {/* Los proyectados NO se subtotalizan: son de las cuentas que los
-                informan, y sumarlos con las que no daría un total que parece
-                completo sin serlo. */}
-            <Td right />
-            <Td right />
-            <Td right />
-          </tr>
-        );
-      })}
     </>
   );
 }
@@ -411,19 +364,18 @@ function BloqueBanco({ banco }: { banco: Banco }) {
 /* ── DETALLE POR CUENTA ─────────────────────────────────────────────────── */
 
 function Detalle({
-  desde, hasta, onRango,
-}: { desde: string; hasta: string; onRango: (d: string, h: string) => void }) {
+  fecha, onFecha,
+}: { fecha: string; onFecha: (f: string) => void }) {
   const [banco, setBanco] = useState<string | null>(null);
   const [cuentaId, setCuentaId] = useState<number | null>(null);
 
   const url = useMemo(() => {
     const p = new URLSearchParams();
     if (cuentaId !== null) p.set("cuenta_id", String(cuentaId));
-    if (desde) p.set("desde", desde);
-    if (hasta) p.set("hasta", hasta);
+    if (fecha) p.set("fecha", fecha);
     const qs = p.toString();
     return `/api/back-office/interbanking/vista${qs ? `?${qs}` : ""}`;
-  }, [cuentaId, desde, hasta]);
+  }, [cuentaId, fecha]);
 
   const { data, lastAt, error } = usePoll<RespVista>(url, VISTA_VACIA, POLL_MS, {
     fetchOnMount: true,
@@ -443,8 +395,8 @@ function Detalle({
   );
 
   useEffect(() => {
-    if (data.desde && data.hasta) onRango(data.desde, data.hasta);
-  }, [data.desde, data.hasta, onRango]);
+    if (data.fecha) onFecha(data.fecha);
+  }, [data.fecha, onFecha]);
 
   // Primer render: el banco sale de la cuenta que el backend eligió por default.
   useEffect(() => {
