@@ -47,8 +47,12 @@ import { fetchJson } from "@/lib/fetch-json";
 // un bono, y no escribe nada. Comparte el componente a propósito — que SALUD y un
 // bono se lean IGUAL es lo que permite que una sola cabeza mire las dos cosas.
 type Modo = "alta" | "flujos" | "arreglo" | "salud";
+// Devuelve una PROMESA, no `void`. Con `void` el `await` del lote no esperaba
+// nada y las 10 aplicaciones salían todas juntas: se pisan entre sí escribiendo
+// en `mercado.curvas` y el error de una se pierde entre las otras nueve. El tipo
+// es lo único que hace que el compilador sostenga esa garantía.
 type Simular = (ticker: string, curva1816: string, aplicar?: boolean,
-                extra?: Record<string, unknown>, modo?: Modo) => void;
+                extra?: Record<string, unknown>, modo?: Modo) => Promise<void>;
 
 type Hallazgo = {
   // QUÉ puede hacer el agente con este hallazgo. **Lo decide el backend** —
@@ -120,6 +124,11 @@ type Fuente = {
 // ve mal.
 type FilaInforme = {
   sujeto: string; tipo?: string; regla?: string; estado: string;
+  // QUÉ PUERTA abrir. Sin esto el informe era de solo lectura y había que
+  // volver a buscar el bono en la lista para aplicarle lo que el informe ya
+  // había dicho que estaba listo — o sea, el informe hacía el trabajo y
+  // después te lo hacía repetir.
+  accion?: Modo | null;
   causa?: string; veredicto?: string; detalle?: string;
   trabas?: { paso: string; estado: string; detalle: string }[];
 };
@@ -959,7 +968,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
         )}
       </div>
 
-      {run && <InformeMasivo run={run} />}
+      {run && <InformeMasivo run={run} simular={simular} sims={sims} />}
 
       {/* ── SEGUNDO NIVEL: POR QUÉ ERROR ──────────────────────────────────
           Aparece solo si hay MÁS DE UNA regla en lo visible: con una sola, la
@@ -1979,9 +1988,43 @@ const EST_MASIVO: Record<string, { label: string; color: string }> = {
 };
 const ORDEN_MASIVO = ["error", "no_pudo", "bloqueado", "sin_puerta", "listo"];
 
-function InformeMasivo({ run }: { run: RunMasivo }) {
+function InformeMasivo({ run, simular, sims }: {
+  run: RunMasivo;
+  simular: Simular;
+  sims: Record<string, Record<string, unknown> | null>;
+}) {
   const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [lote, setLote] = useState(false);
+  // EL ANÁLISIS con la IA propia. Es una capa ARRIBA del informe determinista,
+  // nunca un reemplazo: si el LLM no está, el informe queda igual de completo.
+  const [ia, setIa] = useState<string>("");
+  const [pensando, setPensando] = useState(false);
+
+  const analizar = async () => {
+    setPensando(true);
+    try {
+      const r = await fetchJson<{ ok: boolean; analisis?: string; error?: string }>(
+        `/api/ia/av-agent/masivo/analizar?run_id=${run.id}`, { method: "POST" });
+      setIa(r.ok ? (r.analisis ?? "") : `⚠ ${r.error ?? "no se pudo analizar"}`);
+    } catch (e) {
+      setIa(`⚠ ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setPensando(false);
+  };
+
+  const listos = run.informe.filter((f) => f.estado === "listo" && f.accion);
+
+  // SECUENCIAL y no en paralelo: cada aplicación escribe en `mercado.curvas` y
+  // vuelve a leer la vista. En paralelo se pisan entre sí y el error de uno se
+  // pierde entre los otros nueve.
+  const aplicarLote = async () => {
+    setLote(true);
+    for (const f of listos) {
+      await simular(f.sujeto, "", true, {}, f.accion as Modo);
+    }
+    setLote(false);
+  };
   const corriendo = run.estado === "corriendo";
   const pct = run.total ? Math.round((run.hechos / run.total) * 100) : 0;
 
@@ -2004,9 +2047,34 @@ function InformeMasivo({ run }: { run: RunMasivo }) {
           {run.creditos !== null ? ` · ${run.creditos} créditos` : ""}
           {run.resumen?.segundos ? ` · ${run.resumen.segundos}s` : ""}
         </span>
+        {/* EL LOTE. Aplicar de a uno los 10 que el informe ya declaró listos es
+            trabajo que el informe vino a evitar. No saltea nada: cada uno pasa
+            por su propia cadena server-side, uno detrás de otro. */}
+        {listos.length > 0 && (
+          <button
+            disabled={lote}
+            onClick={() => void aplicarLote()}
+            className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+          >
+            {lote ? "aplicando…" : `aplicar los ${listos.length} listos`}
+          </button>
+        )}
+        {/* ANALIZAR CON IA — para no tener que sacar el informe de la app. Lo que
+            se le pide es el PATRÓN: qué causas dominan, qué huele a bug del
+            agente, en qué orden atacar. Los diagnósticos ya están hechos y son
+            deterministas; la IA no los toca ni inventa números. */}
+        {run.estado !== "corriendo" && (
+          <button
+            disabled={pensando}
+            onClick={() => void analizar()}
+            className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+          >
+            {pensando ? "analizando…" : "◆ analizar con IA"}
+          </button>
+        )}
         <button
           onClick={() => void copiar()}
-          className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+          className={`${listos.length ? "" : "ml-auto "}text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]`}
         >
           {copiado ? "✔ copiado" : "copiar informe"}
         </button>
@@ -2040,6 +2108,21 @@ function InformeMasivo({ run }: { run: RunMasivo }) {
         ))}
       </div>
 
+      {/* EL ANÁLISIS. Va ARRIBA de los agregados: si uno pidió que la IA lea el
+          informe, lo que quiere leer primero es la conclusión. */}
+      {ia && (
+        <div className="border-l-2 border-[var(--t-accent)] pl-3 py-1">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-accent)]">
+            ◆ análisis
+          </span>
+          {/* `whitespace-pre-wrap`: el modelo devuelve texto plano con saltos, y
+              renderizarlo sin respetarlos lo convierte en un párrafo ilegible. */}
+          <p className="mt-1 text-[11px] text-[var(--t-text-muted)] leading-relaxed whitespace-pre-wrap">
+            {ia}
+          </p>
+        </div>
+      )}
+
       {/* POR CAUSA — el número que contesta «cuánto trabajo hay de verdad». */}
       {run.resumen?.por_causa && Object.keys(run.resumen.por_causa).length > 0 && (
         <div>
@@ -2071,6 +2154,27 @@ function InformeMasivo({ run }: { run: RunMasivo }) {
               <span className="font-bold text-[var(--t-text)]">{f.sujeto}</span>
               <span className="text-[var(--t-text-dim)]"> · {f.regla ?? f.tipo}</span>
               {f.causa && <span className="text-[var(--t-accent)]"> → {f.causa}</span>}
+              {/* APLICAR desde el informe. El backend RE-SIMULA y vuelve a correr
+                  la cadena entera antes de escribir, así que esto no es un
+                  atajo que saltea el pre-flight: es el mismo camino, sin
+                  obligar a volver a buscar el bono en la lista. */}
+              {f.estado === "listo" && f.accion && (
+                <button
+                  disabled={sims[f.sujeto] === null}
+                  onClick={() => simular(f.sujeto, "", true, {}, f.accion as Modo)}
+                  className="ml-2 text-[9px] uppercase tracking-widest px-1.5 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+                >
+                  {sims[f.sujeto] === null ? "…" : "aplicar"}
+                </button>
+              )}
+              {(sims[f.sujeto] as Record<string, unknown> | undefined)?.aplicado === true && (
+                <span className="ml-2 text-[9px] text-[var(--t-pos)]">✔ aplicado</span>
+              )}
+              {(sims[f.sujeto] as Record<string, unknown> | undefined)?.ok === false && (
+                <span className="ml-2 text-[9px] text-[var(--t-neg)]">
+                  ✘ {String((sims[f.sujeto] as Record<string, unknown>).error ?? "")}
+                </span>
+              )}
               {f.detalle && (
                 <div className="text-[var(--t-text-muted)] pl-3">{f.detalle}</div>
               )}
