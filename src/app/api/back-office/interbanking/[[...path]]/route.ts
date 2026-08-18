@@ -10,8 +10,9 @@ import { isGuestRequest, trustedEmail } from "@/lib/cf-access";
 //
 // Desde 2026-08-18 sí pasan POST/PUT/DELETE, y **solo para `/gastos/*`**: la
 // clasificación de gastos bancarios, que escribe en tablas nuestras
-// (`bancos.gastos_reglas` / `gastos_overrides`). El resto de los paths siguen
-// siendo de lectura y una escritura contra ellos se rechaza ACÁ, antes de salir
+// (`bancos.gastos_reglas` / `gastos_overrides` / `movimientos_ignorados`). El
+// resto de los paths siguen siendo de lectura y una escritura contra ellos se
+// rechaza ACÁ, antes de salir
 // — es una segunda cerradura sobre la misma puerta, y la de acá es la que mira
 // internet. El permiso REAL (allowlist + admin) lo aplica el backend; esto solo
 // acota la superficie.

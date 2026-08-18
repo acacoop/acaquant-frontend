@@ -28,20 +28,29 @@ import { usePoll } from "@/lib/use-poll";
  *    informa las dos y no coinciden (hallazgo de conciliación). Sin ninguna de
  *    las dos va «—» y nunca 0 — poner cero sería inventar.
  *
- *    GASTOS BANCARIOS sale del backend y hoy viene **null** en todas las filas:
- *    la regla de qué movimiento es un gasto todavía no está definida. Se muestra
- *    «—» y NO cero, porque «no sabemos» y «no hubo gastos» son cosas distintas.
+ *    GASTOS BANCARIOS lo DERIVA el backend de las reglas de clasificación. Sin
+ *    una sola regla ni marca cargada viene **null** y se muestra «—» y NO cero,
+ *    porque «no sabemos» y «no hubo gastos» son cosas distintas.
  *
- * ── DETALLE POR CUENTA — una cuenta a la vez, repartido 1/3 · 2/3: EXTRACTO a la
- *    izquierda (el día: apertura · créditos · débitos · cierre) y MOVIMIENTOS a
- *    la derecha, con las 8 columnas que pidió el back office el 2026-08-18:
- *    FECHA · DESCRIPCIÓN · CONCEPTO · COD OP · COD OP BCO · COMPROBANTE ·
- *    SUCURSAL · IMPORTE. Las dos últimas que faltaban (`sucursal` y
- *    `codigo_banco`) ya estaban GUARDADAS en `bancos.movimientos` desde la
- *    primera corrida: el backend simplemente no las publicaba, así que sumarlas
- *    no costó ni una llamada nueva a Interbanking ni un backfill.
- *    La cuenta se elige en DOS pasos —primero el banco, después la cuenta de ESE
- *    banco— porque un selector único con 38 opciones no se navega.
+ * ── MOVIMIENTOS — clic en una cuenta del consolidado abre el MODAL del día, con
+ *    las 8 columnas que pidió el back office el 2026-08-18: FECHA · DESCRIPCIÓN ·
+ *    CONCEPTO · COD OP · COD OP BCO · COMPROBANTE · SUCURSAL · IMPORTE, más
+ *    GASTO y CUENTA. Las dos que faltaban (`sucursal` y `codigo_banco`) ya
+ *    estaban GUARDADAS en `bancos.movimientos` desde la primera corrida: el
+ *    backend simplemente no las publicaba, así que sumarlas no costó ni una
+ *    llamada nueva a Interbanking ni un backfill.
+ *
+ *    Arriba, el AUDITOR: GASTOS BANCARIOS (el total) y su desglose por balde;
+ *    clic en cualquiera de esos números deja la tabla mostrando SOLO las filas
+ *    que lo componen, con su suma al lado. Un total que no se puede abrir es un
+ *    total en el que hay que creer.
+ *
+ *    Las DOS columnas del final responden preguntas distintas y por eso son dos:
+ *    **GASTO** dice QUÉ ES el movimiento (lo cobró el banco o no) y **CUENTA**
+ *    dice SI SUMA. Un duplicado del banco sigue siendo un gasto — lo que no es,
+ *    es dos gastos. Ignorarlo no lo borra: la fila queda tachada, con quién y
+ *    cuándo, y afuera de los totales (el equivalente al destildado por celda de
+ *    Tesorería). Borrarla haría que el detalle deje de coincidir con el extracto.
  *
  * **Clic en una celda con dato = se copia al portapapeles** (flash verde). Estos
  * datos se pegan en otros sistemas todo el día. Las celdas sin dato («—») no
@@ -159,6 +168,13 @@ type Movimiento = {
   // En qué balde del desglose cayó. Es lo que permite abrir un número del
   // desglose y ver EXACTAMENTE qué filas lo componen.
   gasto_balde?: string | null;
+  // IGNORADO — el equivalente al destildado por celda de Tesorería. La fila
+  // SIGUE viéndose (tachada): lo único que cambia es que no suma. Borrarla
+  // haría que el detalle deje de coincidir con el extracto del banco.
+  ignorado?: boolean;
+  ignorado_motivo?: string | null;
+  ignorado_por?: string | null;
+  ignorado_at?: string | null;
   fecha: string | null;
   hora: string | null;
   importe: number | null;
@@ -590,10 +606,18 @@ function ModalMovimientos({
   // La suma de lo FILTRADO, calculada acá sobre las filas que se están viendo.
   // Es la verificación: si no coincide con el número que clickeaste, el desglose
   // y el detalle se contradicen — y eso hay que poder verlo.
+  // ⚠️ Los IGNORADOS quedan afuera de la suma, igual que en el backend — si
+  // sumaran, este número nunca coincidiría con el del desglose y el auditor
+  // acusaría una diferencia que no existe. Se siguen VIENDO (tachados) y se
+  // cuentan aparte, que es justo lo que explica por qué N filas dan menos.
   const sumaVisible = useMemo(
     () => Math.round(visibles.reduce(
-      (a, m) => a + (m.importe ?? 0) * (m.tipo === "D" ? 1 : -1), 0) * 100) / 100,
+      (a, m) => a + (m.ignorado ? 0 : (m.importe ?? 0) * (m.tipo === "D" ? 1 : -1)),
+      0) * 100) / 100,
     [visibles]);
+
+  const ignoradosVisibles = useMemo(
+    () => visibles.filter((m) => m.ignorado).length, [visibles]);
 
   const etiquetaFiltro = filtro === "__total"
     ? "Gastos bancarios"
@@ -616,6 +640,28 @@ function ModalMovimientos({
     recargar();   // el total del día lo recalcula el BACKEND, no la pantalla
   }
 
+  /** IGNORA / des-ignora un movimiento. No lo borra: deja de sumar. */
+  async function ignorar(mov: Movimiento) {
+    setErr(null);
+    const quiere = !mov.ignorado;
+    // El motivo es OPCIONAL a propósito: pedirlo obligatorio convierte un gesto
+    // de un clic en un formulario, y el equipo termina escribiendo "x" para
+    // sacárselo de encima. Quién y cuándo los sella el backend siempre.
+    const motivo = quiere
+      ? (window.prompt("Motivo (opcional) — por qué este movimiento no cuenta:") ?? "")
+      : "";
+    const res = await fetch("/api/back-office/interbanking/gastos/ignorar", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mov_hash: mov.mov_hash, ignorar: quiere, motivo }),
+    });
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).detail ?? "No se pudo guardar.");
+      return;
+    }
+    recargar();
+  }
+
   async function descargar() {
     const { exportToXlsx } = await import("@/lib/xlsx-export");
     await exportToXlsx({
@@ -630,6 +676,9 @@ function ModalMovimientos({
           importe_firmado: m.importe === null
             ? null
             : (m.tipo === "D" ? -m.importe : m.importe),
+          // El ignorado va marcado en el archivo: si no, la planilla suma una
+          // fila que la pantalla dejó afuera y los dos totales no coinciden.
+          cuenta_txt: m.ignorado ? "NO CUENTA" : "",
         })),
         columns: [
           { header: "Fecha",        key: "fecha",            format: "date",    width: 12 },
@@ -644,6 +693,7 @@ function ModalMovimientos({
           { header: "CUIT",         key: "contraparte_cuit", format: "text",    width: 14 },
           { header: "Tipo",         key: "tipo",             format: "text",    width: 6 },
           { header: "Importe",      key: "importe_firmado",  format: "number",  width: 16 },
+          { header: "Ignorado",     key: "cuenta_txt",       format: "text",    width: 12 },
         ],
         title: `${cuenta.banco_nombre} · ${cuenta.tipo} ${mon} ${cuenta.numero}`
           + `${cuenta.etiqueta ? ` · ${cuenta.etiqueta}` : ""} · ${data.fecha || fecha}`
@@ -790,6 +840,11 @@ function ModalMovimientos({
             {/* La suma de las filas que se están viendo. Si no coincide con el
                 número del desglose, el detalle y el total se contradicen. */}
             <span className="tabular-nums font-semibold">{plata(sumaVisible, mon)}</span>
+            {ignoradosVisibles > 0 && (
+              <span className="text-[var(--t-text-muted)]">
+                ({ignoradosVisibles} ignorado(s), fuera de la suma)
+              </span>
+            )}
             <button
               onClick={() => setFiltro(null)}
               className="ml-auto px-2 py-0.5 border border-[var(--t-border)] hover:bg-[var(--t-surface)] uppercase text-[10px]"
@@ -812,13 +867,19 @@ function ModalMovimientos({
                 <Th center className={COL_SEP}>Sucursal</Th>
                 <Th center className={COL_SEP}>Importe</Th>
                 <Th center className={COL_SEP}>Gasto</Th>
+                <Th center className={COL_SEP}>Cuenta</Th>
               </tr>
             </thead>
             <tbody>
               {visibles.map((m, i) => (
+                // Ignorado = tachado y apagado. Se sigue viendo a propósito:
+                // que la fila desaparezca esconde justamente la decisión que
+                // alguien tomó sobre ella.
                 <tr
                   key={`${m.fecha}-${m.extracto}-${m.correlativo}-${i}`}
-                  className="border-b border-[var(--t-border)]"
+                  className={`border-b border-[var(--t-border)] ${
+                    m.ignorado ? "line-through opacity-45" : ""
+                  }`}
                 >
                   <Td copiar={m.fecha}>
                     {m.fecha}
@@ -868,9 +929,14 @@ function ModalMovimientos({
                     editable={data.puede_escribir}
                     onMarcar={marcar}
                   />
+                  <CeldaIgnorar
+                    mov={m}
+                    editable={data.puede_escribir}
+                    onIgnorar={ignorar}
+                  />
                 </tr>
               ))}
-              {visibles.length === 0 && <Vacia cols={9} hubo={lastAt > 0} />}
+              {visibles.length === 0 && <Vacia cols={10} hubo={lastAt > 0} />}
             </tbody>
           </table>
         </div>
@@ -944,6 +1010,64 @@ function CeldaGasto({
           ↺
         </button>
       )}
+    </td>
+  );
+}
+
+/**
+ * IGNORAR un movimiento. Es OTRA pregunta que la columna GASTO:
+ *   · GASTO   dice QUÉ ES el movimiento (lo cobró el banco o no).
+ *   · IGNORAR dice SI CUENTA (esta fila no tiene que sumar).
+ * Por eso son dos columnas y no una: un duplicado del banco sigue siendo un
+ * gasto — lo que no es, es dos gastos.
+ *
+ * La fila NO se borra nunca. Se tacha y queda con su observación (quién y
+ * cuándo), igual que el destildado por celda de Tesorería: el extracto del
+ * banco sigue teniendo esa línea, y una vista que la esconda deja de poder
+ * conciliarse contra él.
+ */
+function CeldaIgnorar({
+  mov, editable, onIgnorar,
+}: {
+  mov: Movimiento;
+  editable: boolean;
+  onIgnorar: (m: Movimiento) => void;
+}) {
+  const fuera = !!mov.ignorado;
+  // La observación completa vive en el tooltip: en la celda ocuparía media
+  // tabla, pero sin ella «no cuenta» es una decisión sin autor.
+  const detalle = fuera
+    ? `Ignorado${mov.ignorado_por ? ` por ${mov.ignorado_por}` : ""}`
+      + `${mov.ignorado_at ? ` · ${mov.ignorado_at.slice(0, 16).replace("T", " ")}` : ""}`
+      + `${mov.ignorado_motivo ? ` · ${mov.ignorado_motivo}` : ""}`
+    : "Cuenta en los totales";
+
+  if (!editable) {
+    return (
+      <Td center className={COL_SEP}>
+        <span
+          title={detalle}
+          className={fuera ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}
+        >
+          {fuera ? "NO CUENTA" : "cuenta"}
+        </span>
+      </Td>
+    );
+  }
+
+  return (
+    <td className={`px-2 py-1 text-center ${COL_SEP}`}>
+      <button
+        onClick={() => onIgnorar(mov)}
+        title={`${detalle} · clic para ${fuera ? "volver a contarlo" : "ignorarlo"}`}
+        className={`px-1.5 py-0.5 text-[11px] no-underline hover:bg-[var(--t-surface)] ${
+          fuera
+            ? "text-[var(--t-neg)] font-semibold"
+            : "text-[var(--t-text-dim)]"
+        }`}
+      >
+        {fuera ? "NO CUENTA" : "cuenta"}
+      </button>
     </td>
   );
 }
