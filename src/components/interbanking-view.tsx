@@ -14,7 +14,9 @@ import { usePoll } from "@/lib/use-poll";
  * ── CONSOLIDADO BANCOS (default) — UNA fila por cuenta, agrupadas bajo el
  *    nombre del banco: SALDO AL INICIO · SALDO AL CIERRE · VARIACIÓN · GASTOS
  *    BANCARIOS · MOVS. Los dos saldos los informa el banco (apertura y cierre de
- *    ESE día): no los calculamos.
+ *    ESE día): no los calculamos. La cuenta va a la IZQUIERDA con el número
+ *    ENTERO; las columnas de datos van CENTRADAS, de ancho parejo y separadas
+ *    por una línea.
  *
  *    El agrupado por banco existe para poder navegar 38 cuentas, nada más: **no
  *    hay subtotales por banco ni totales por moneda** — los sacó el back office
@@ -24,7 +26,7 @@ import { usePoll } from "@/lib/use-poll";
  *    rotula cuál: sin rótulo = extracto; «saldo» = lo informa el banco pero la
  *    cuenta no se movió y no hay extracto que lo respalde; «≠» = el banco
  *    informa las dos y no coinciden (hallazgo de conciliación). Sin ninguna de
- *    las dos va «—» y la barra dice cuántas están así. Poner 0 sería inventar.
+ *    las dos va «—» y nunca 0 — poner cero sería inventar.
  *
  *    GASTOS BANCARIOS sale del backend y hoy viene **null** en todas las filas:
  *    la regla de qué movimiento es un gasto todavía no está definida. Se muestra
@@ -41,20 +43,29 @@ import { usePoll } from "@/lib/use-poll";
  *    La cuenta se elige en DOS pasos —primero el banco, después la cuenta de ESE
  *    banco— porque un selector único con 38 opciones no se navega.
  *
+ * **Clic en una celda con dato = se copia al portapapeles** (flash verde). Estos
+ * datos se pegan en otros sistemas todo el día. Las celdas sin dato («—») no
+ * reaccionan: un cursor de mano que no hace nada promete algo que no pasa.
+ *
  * De dónde sale el dato: `jobs/interbanking_sync` trae extracto + saldo a
  * `bancos.*` cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla
  * nunca le pega a Interbanking**: el límite de 100 llamadas/minuto es del ABONADO
- * y no del proceso, así que unos pocos usuarios refrescando podrían agotar la
- * cuota y romper el job. Por eso siempre se muestra cuándo fue la última
- * sincronización: una tabla vacía con el job caído no es "no hubo movimientos".
+ * y no del proceso. La barra de arriba dice **Última actualización** con la fecha
+ * y hora de la última sincronización del job — una tabla vacía con el job caído
+ * no es "no hubo movimientos".
+ *
+ * El día por defecto es el **hábil ANTERIOR a hoy**, que es el que está cerrado:
+ * el banco ya informó su extracto completo. Lo decide el backend, no el reloj
+ * del navegador. `bancos.*` guarda solo las **3 fechas** más recientes.
  *
  * ⚠️ **Nada de esto se mezcla con TESORERÍA.** Son objetos sin clave en común: la
  * cuenta operativa de Aunesa es una imputación interna del agente; esto es la
  * cuenta bancaria real. Ver docs/INTERBANKING.md.
  *
- * Lo que NO se muestra, por diseño (el backend directamente no lo manda): el CBU
- * y el CUIT de nuestras cuentas, el número de cuenta completo —va solo la
- * terminación— y el CUIT de la contraparte, que viene enmascarado.
+ * El **número de cuenta va ENTERO** (decisión del user 2026-08-18: son las
+ * cuentas de la casa y el número es lo que se copia a otros sistemas). El **CBU
+ * NO sale nunca** — identificar la cuenta y poder transferirle plata son dos
+ * permisos distintos; hay tests que lo congelan.
  */
 
 type Cuenta = {
@@ -64,7 +75,7 @@ type Cuenta = {
   tipo: string;
   moneda: string;
   etiqueta: string;
-  referencia: string;
+  numero: string;
   activa: boolean;
 };
 
@@ -169,6 +180,24 @@ const VISTA_VACIA: RespVista = {
 // El dato cambia cada 2 horas: pollear seguido no aporta.
 const POLL_MS = 60_000;
 
+/**
+ * Las columnas de DATOS del consolidado: contenido centrado, ancho parejo y una
+ * línea a la izquierda que las separa.
+ *
+ * El `w-[13%]` es lo que arregla el hueco: sin un ancho declarado, la columna
+ * CUENTA se quedaba con TODO el espacio sobrante y los números terminaban
+ * apretados contra el margen derecho, con una franja en blanco enorme en el
+ * medio. Con 5 columnas al 13% ocupan el 65% de la fila y se reparten parejo;
+ * CUENTA se queda con el resto, que le alcanza de sobra para entrar entera.
+ *
+ * Se declara UNA vez para que la cabecera y las filas no puedan desalinearse.
+ */
+const COL_DATO = "w-[13%] border-l border-[var(--t-border)]";
+
+/** Igual que `COL_DATO` pero SIN ancho fijo, para las tablas del DETALLE: ahí las
+ *  columnas son muchas y angostas, y forzarles un porcentaje las desbordaría. */
+const COL_SEP = "border-l border-[var(--t-border)]";
+
 function plata(v: number | null | undefined, moneda = "") {
   if (v === null || v === undefined) return "—";
   const s = new Intl.NumberFormat("es-AR", {
@@ -177,13 +206,13 @@ function plata(v: number | null | undefined, moneda = "") {
   return moneda ? `${moneda} ${s}` : s;
 }
 
-function haceCuanto(iso: string | null | undefined, ahora: number) {
-  if (!iso || !ahora) return "—";
-  const min = Math.round((ahora - new Date(iso).getTime()) / 60000);
-  if (min < 1) return "recién";
-  if (min < 60) return `hace ${min} min`;
-  const h = Math.floor(min / 60);
-  return h < 24 ? `hace ${h} h` : `hace ${Math.floor(h / 24)} d`;
+/** «18/08/2026 13:42». Fecha, hora y minuto — nada más (user, 2026-08-18). */
+function momento(iso: string | null | undefined) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} `
+    + `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function signo(v: number | null | undefined) {
@@ -208,6 +237,14 @@ export function InterbankingView() {
   // pisa el día que el usuario eligió a mano.
   const aplicarFecha = useCallback((f: string) => setFecha((p) => p || f), []);
 
+  // Cuándo sincronizó el JOB con el banco. Lo reporta la sub-tab que esté activa
+  // (viene en su payload) y se muestra ACÁ ARRIBA, en una sola línea. Antes era
+  // una franja de texto explicando cada cuánto corre el cron y cuántas cuentas
+  // no tenían dato: el back office la sacó («es un asco»), y tenía razón — una
+  // pantalla no se explica a sí misma en prosa. Lo único que hace falta saber es
+  // de cuándo es el dato.
+  const [syncAt, setSyncAt] = useState<string | null>(null);
+
   return (
     <div className="h-full min-h-0 flex flex-col text-[12px]">
       <div className="shrink-0 border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex flex-wrap items-center gap-3">
@@ -220,15 +257,19 @@ export function InterbankingView() {
           </Pill>
         </div>
 
+        <span className="text-[11px] text-[var(--t-text-dim)]">
+          Última actualización {momento(syncAt)}
+        </span>
+
         <div className="ml-auto flex items-center gap-3 py-1.5">
           <Fecha label="Fecha" value={fecha} onChange={setFecha} />
         </div>
       </div>
 
       {sub === "consolidado" ? (
-        <Consolidado fecha={fecha} onFecha={aplicarFecha} />
+        <Consolidado fecha={fecha} onFecha={aplicarFecha} onSync={setSyncAt} />
       ) : (
-        <Detalle fecha={fecha} onFecha={aplicarFecha} />
+        <Detalle fecha={fecha} onFecha={aplicarFecha} onSync={setSyncAt} />
       )}
     </div>
   );
@@ -237,8 +278,8 @@ export function InterbankingView() {
 /* ── CONSOLIDADO BANCOS ─────────────────────────────────────────────────── */
 
 function Consolidado({
-  fecha, onFecha,
-}: { fecha: string; onFecha: (f: string) => void }) {
+  fecha, onFecha, onSync,
+}: { fecha: string; onFecha: (f: string) => void; onSync: (s: string | null) => void }) {
   const url = useMemo(
     () => `/api/back-office/interbanking/consolidado${fecha ? `?fecha=${fecha}` : ""}`,
     [fecha],
@@ -252,18 +293,13 @@ function Consolidado({
     if (data.fecha) onFecha(data.fecha);
   }, [data.fecha, onFecha]);
 
+  useEffect(() => {
+    onSync(data.sync?.corrida_at ?? null);
+  }, [data.sync?.corrida_at, onSync]);
+
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <BarraEstado
-        sync={data.sync}
-        lastAt={lastAt}
-        error={error}
-        extra={
-          data.sin_datos > 0
-            ? `${data.sin_datos} de ${data.cuentas} cuentas sin extracto NI saldo informado por el banco ese día — de esas no sabemos cuánto tienen`
-            : null
-        }
-      />
+      <ErrorLinea error={error} />
 
       {/* La barra de totales por moneda se ELIMINÓ (user, 2026-08-18: «no tiene
           sentido todas esas columnas de ahí arriba»). La vista arranca en la
@@ -284,12 +320,12 @@ function Consolidado({
                 que el nombre seguía cortado. Y `w-auto` en la tabla tampoco:
                 sin slack que repartir, cada columna se queda con lo justo. */}
             <tr>
-              <Th className="w-full">Cuenta</Th>
-              <Th right>Saldo al inicio</Th>
-              <Th right>Saldo al cierre</Th>
-              <Th right>Variación</Th>
-              <Th right>Gastos bancarios</Th>
-              <Th right>Movs.</Th>
+              <Th>Cuenta</Th>
+              <Th center className={COL_DATO}>Saldo al inicio</Th>
+              <Th center className={COL_DATO}>Saldo al cierre</Th>
+              <Th center className={COL_DATO}>Variación</Th>
+              <Th center className={COL_DATO}>Gastos bancarios</Th>
+              <Th center className={COL_DATO}>Movs.</Th>
             </tr>
           </thead>
           <tbody>
@@ -321,18 +357,21 @@ function BloqueBanco({ banco }: { banco: Banco }) {
 
       {banco.cuentas.map((c) => (
         <tr key={c.id} className="border-b border-[var(--t-border)]">
-          {/* `whitespace-nowrap`: la cuenta entra ENTERA. Antes la columna se
-              comprimía y el nombre salía cortado. */}
-          <Td className="whitespace-nowrap">
+          {/* El NÚMERO va entero (decisión del user, 2026-08-18) y el clic copia
+              el número solo, no la línea entera con el tipo y la etiqueta: lo
+              que se pega en otro sistema es el número. */}
+          <Td className="whitespace-nowrap" copiar={c.numero}>
             <span className="pl-3">
-              {c.tipo} {c.moneda} · {c.referencia}
+              {c.tipo} {c.moneda} · <span className="font-semibold">{c.numero}</span>
               {c.etiqueta ? (
                 <span className="text-[var(--t-text-dim)]"> · {c.etiqueta}</span>
               ) : null}
             </span>
           </Td>
-          <Td right>{plata(c.saldo_inicio)}</Td>
-          <Td right strong>
+          <Td center className={COL_DATO} copiar={plata(c.saldo_inicio)}>
+            {plata(c.saldo_inicio)}
+          </Td>
+          <Td center strong className={COL_DATO} copiar={plata(c.saldo_cierre)}>
             {plata(c.saldo_cierre)}
             {/* El saldo que NO viene del extracto se rotula: es el mismo banco
                 informando, pero es otra fuente y el back office tiene que poder
@@ -356,9 +395,14 @@ function BloqueBanco({ banco }: { banco: Banco }) {
               </span>
             )}
           </Td>
-          <Td right className={signo(c.variacion)}>{plata(c.variacion)}</Td>
-          <Td right>{plata(c.gastos_bancarios)}</Td>
-          <Td right>
+          <Td center className={`${COL_DATO} ${signo(c.variacion)}`}
+              copiar={plata(c.variacion)}>
+            {plata(c.variacion)}
+          </Td>
+          <Td center className={COL_DATO} copiar={plata(c.gastos_bancarios)}>
+            {plata(c.gastos_bancarios)}
+          </Td>
+          <Td center className={COL_DATO}>
             {c.movimientos ?? <span className="text-[var(--t-text-dim)]">—</span>}
           </Td>
         </tr>
@@ -370,8 +414,8 @@ function BloqueBanco({ banco }: { banco: Banco }) {
 /* ── DETALLE POR CUENTA ─────────────────────────────────────────────────── */
 
 function Detalle({
-  fecha, onFecha,
-}: { fecha: string; onFecha: (f: string) => void }) {
+  fecha, onFecha, onSync,
+}: { fecha: string; onFecha: (f: string) => void; onSync: (s: string | null) => void }) {
   const [banco, setBanco] = useState<string | null>(null);
   const [cuentaId, setCuentaId] = useState<number | null>(null);
 
@@ -403,6 +447,10 @@ function Detalle({
   useEffect(() => {
     if (data.fecha) onFecha(data.fecha);
   }, [data.fecha, onFecha]);
+
+  useEffect(() => {
+    onSync(data.sync?.corrida_at ?? null);
+  }, [data.sync?.corrida_at, onSync]);
 
   // Primer render: el banco sale de la cuenta que el backend eligió por default.
   useEffect(() => {
@@ -462,7 +510,7 @@ function Detalle({
           >
             {cuentasDelBanco.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.tipo} {c.moneda} · {c.referencia}
+                {c.tipo} {c.moneda} · {c.numero}
                 {c.etiqueta ? ` · ${c.etiqueta}` : ""}
               </option>
             ))}
@@ -474,7 +522,7 @@ function Detalle({
         </span>
       </div>
 
-      <BarraEstado sync={data.sync} lastAt={lastAt} error={error} extra={null} />
+      <ErrorLinea error={error} />
 
       {/* Los saldos, al ANCHO COMPLETO. */}
       <div className="shrink-0 border-b border-[var(--t-border)] px-3 py-2 flex flex-wrap gap-6">
@@ -515,11 +563,11 @@ function Detalle({
             <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
               <tr>
                 <Th>Fecha</Th>
-                <Th right>Apertura</Th>
-                <Th right>Créditos</Th>
-                <Th right>Débitos</Th>
-                <Th right>Cierre</Th>
-                <Th right>Movs.</Th>
+                <Th center className={COL_SEP}>Apertura</Th>
+                <Th center className={COL_SEP}>Créditos</Th>
+                <Th center className={COL_SEP}>Débitos</Th>
+                <Th center className={COL_SEP}>Cierre</Th>
+                <Th center className={COL_SEP}>Movs.</Th>
               </tr>
             </thead>
             <tbody>
@@ -577,13 +625,13 @@ function Detalle({
                   cuesta ancho sin aportar — va debajo de la descripción. */}
               <tr>
                 <Th>Fecha</Th>
-                <Th className="w-full">Descripción</Th>
-                <Th>Concepto</Th>
-                <Th>Cod op</Th>
-                <Th>Cod op bco</Th>
-                <Th right>Comprobante</Th>
-                <Th>Sucursal</Th>
-                <Th right>Importe</Th>
+                <Th>Descripción</Th>
+                <Th center className={COL_SEP}>Concepto</Th>
+                <Th center className={COL_SEP}>Cod op</Th>
+                <Th center className={COL_SEP}>Cod op bco</Th>
+                <Th center className={COL_SEP}>Comprobante</Th>
+                <Th center className={COL_SEP}>Sucursal</Th>
+                <Th center className={COL_SEP}>Importe</Th>
               </tr>
             </thead>
             <tbody>
@@ -612,15 +660,28 @@ function Detalle({
                       </div>
                     ) : null}
                   </Td>
-                  <Td>{m.concepto || "—"}</Td>
-                  <Td>{m.codigo || "—"}</Td>
-                  <Td>{m.codigo_banco || "—"}</Td>
-                  <Td right>{m.comprobante ?? "—"}</Td>
-                  <Td>{m.sucursal || "—"}</Td>
+                  <Td center className={COL_SEP} copiar={m.concepto}>
+                    {m.concepto || "—"}
+                  </Td>
+                  <Td center className={COL_SEP} copiar={m.codigo}>
+                    {m.codigo || "—"}
+                  </Td>
+                  <Td center className={COL_SEP} copiar={m.codigo_banco}>
+                    {m.codigo_banco || "—"}
+                  </Td>
+                  <Td center className={COL_SEP} copiar={m.comprobante?.toString()}>
+                    {m.comprobante ?? "—"}
+                  </Td>
+                  <Td center className={COL_SEP} copiar={m.sucursal}>
+                    {m.sucursal || "—"}
+                  </Td>
                   <Td
-                    right
+                    center
                     strong
-                    className={m.tipo === "C" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"}
+                    className={`${COL_SEP} ${
+                      m.tipo === "C" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
+                    }`}
+                    copiar={plata(m.importe)}
                   >
                     {m.tipo === "D" ? "−" : "+"}
                     {plata(m.importe)}
@@ -661,27 +722,14 @@ function Panel({
   );
 }
 
-function BarraEstado({
-  sync, lastAt, error, extra,
-}: { sync: Sync; lastAt: number; error: string | null; extra: string | null }) {
+/** Solo aparece cuando algo FALLA. En el caso normal la pantalla no dice nada:
+ *  de cuándo es el dato ya lo informa «Última actualización» arriba. */
+function ErrorLinea({ error }: { error: string | null }) {
+  if (!error) return null;
   return (
-    <>
-      {error ? (
-        <div className="shrink-0 px-3 py-1.5 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)] border-b border-[var(--t-border)]">
-          No se pudo leer: {error}
-        </div>
-      ) : null}
-      <div className="shrink-0 px-3 py-1 border-b border-[var(--t-border)] text-[10px] text-[var(--t-text-dim)] flex flex-wrap gap-x-4">
-        <span>
-          Sincronizado con el banco {haceCuanto(sync?.corrida_at, lastAt)} · el job corre
-          cada 2 hs, de 9 a 19
-        </span>
-        {sync?.con_error ? (
-          <span className="text-[var(--t-neg)]">{sync.con_error} cuentas fallaron</span>
-        ) : null}
-        {extra ? <span>{extra}</span> : null}
-      </div>
-    </>
+    <div className="shrink-0 px-3 py-1 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)] border-b border-[var(--t-border)]">
+      {error}
+    </div>
   );
 }
 
@@ -736,29 +784,48 @@ function Pill({
 }
 
 function Th({
-  children, right, className = "",
-}: { children?: React.ReactNode; right?: boolean; className?: string }) {
+  children, right, center, className = "",
+}: {
+  children?: React.ReactNode; right?: boolean; center?: boolean; className?: string;
+}) {
+  const al = center ? "text-center" : right ? "text-right" : "text-left";
   return (
-    <th
-      className={`px-2 py-1.5 font-normal whitespace-nowrap ${
-        right ? "text-right" : "text-left"
-      } ${className}`}
-    >
+    <th className={`px-2 py-1.5 font-normal whitespace-nowrap ${al} ${className}`}>
       {children}
     </th>
   );
 }
 
 function Td({
-  children, right, strong, className = "",
+  children, right, center, strong, className = "", copiar,
 }: {
-  children?: React.ReactNode; right?: boolean; strong?: boolean; className?: string;
+  children?: React.ReactNode; right?: boolean; center?: boolean; strong?: boolean;
+  className?: string; copiar?: string | null;
 }) {
+  const [copiado, setCopiado] = useState(false);
+  const al = center ? "text-center tabular-nums" : right ? "text-right tabular-nums" : "";
+
+  // Los datos de esta vista se copian y se pegan en otros sistemas todo el día
+  // (user, 2026-08-18), así que la celda con dato se copia con UN clic. Sin
+  // dato no hay nada que copiar y la celda no reacciona: un cursor de mano
+  // sobre un «—» promete algo que no pasa.
+  const hay = copiar != null && copiar !== "" && copiar !== "—";
+  const onClick = hay
+    ? () => {
+        navigator.clipboard.writeText(copiar as string).then(
+          () => { setCopiado(true); setTimeout(() => setCopiado(false), 900); },
+          () => {},   // sin portapapeles (http, permiso denegado): no rompe nada
+        );
+      }
+    : undefined;
+
   return (
     <td
-      className={`px-2 py-1 ${right ? "text-right tabular-nums" : ""} ${
-        strong ? "font-semibold" : ""
-      } ${className}`}
+      onClick={onClick}
+      title={hay ? "Clic para copiar" : undefined}
+      className={`px-2 py-1 ${al} ${strong ? "font-semibold" : ""} ${
+        hay ? "cursor-pointer hover:bg-[var(--t-surface)]" : ""
+      } ${copiado ? "bg-[var(--t-tint-green)]" : ""} ${className}`}
     >
       {children}
     </td>
