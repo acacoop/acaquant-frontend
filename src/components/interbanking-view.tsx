@@ -1605,14 +1605,17 @@ function ModalReporte({
 
   const columnas = useMemo(() => empaquetar(bancos), [bancos]);
 
+  // ⚠️ El marco es CHICO a propósito —padding del fondo, del contenido y de los
+  // huecos entre tablas—: cada píxel que se le da al marco se lo saca al reporte,
+  // y el reporte entra por poco.
   return (
     <div
-      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-2"
       onClick={onCerrar}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] max-w-[95vw] max-h-[92vh] flex flex-col text-[12px]"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] max-w-[97vw] max-h-[97vh] flex flex-col text-[12px]"
       >
         <div className="shrink-0 flex items-center gap-3 px-3 py-2 bg-[#094293] text-white">
           {/* eslint-disable-next-line @next/next/no-img-element -- el modal se
@@ -1632,7 +1635,7 @@ function ModalReporte({
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto p-4">
+        <div className="flex-1 min-h-0 overflow-auto px-4 py-3">
           {/* ⚠️ GRID con `grid-auto-flow: column`, NO `flex-wrap`. Con flex, una
               columna que no entra por ancho se va a un renglón nuevo: quedaba una
               sola columna larguísima, media pantalla en blanco al lado y las
@@ -1641,14 +1644,14 @@ function ModalReporte({
               Y `max-content`, NO `1fr`: estirarlas para llenar el ancho deforma
               las tablas. El ancho lo da el contenido; el modal se ajusta a él. */}
           <div
-            className="inline-grid items-start gap-x-8 gap-y-6"
+            className="inline-grid items-start gap-x-8 gap-y-5"
             style={{ gridAutoFlow: "column", gridAutoColumns: "max-content" }}
           >
             {columnas.map((col, j) => (
               // Los espacios entre tablas son GRANDES a propósito: son lo único
               // que dice que cada bloque es una tabla independiente y no la
               // continuación de la de al lado.
-              <div key={j} className="flex flex-col gap-5">
+              <div key={j} className="flex flex-col gap-4">
                 {col.map((b) => <TablaBanco key={b.banco} banco={b} />)}
               </div>
             ))}
