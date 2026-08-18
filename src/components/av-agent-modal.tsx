@@ -750,13 +750,23 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   // es el paso de más. Matchea sujeto, regla y motivo — los tres son cosas que
   // uno recuerda de un hallazgo.
   const [q, setQ] = useState("");
+  // SEGUNDO NIVEL: la REGLA, o sea QUÉ error encontró dentro del tipo. El tipo
+  // dice de qué familia es el problema («tasas que pueden estar mal»); la regla
+  // dice cuál es —`moneda_flujo_contradice` no se parece en nada a `sin_ejes` y
+  // se arreglan distinto—. Con 68 tasas mezcladas, filtrar por tipo dejaba
+  // igual una lista que no se puede trabajar de corrido: **uno trabaja por
+  // CAUSA, no por familia.**
+  const [regla, setRegla] = useState<string>("todas");
 
   const tipos = useMemo(
     () => Object.keys(porTipo).sort(
       (a, b) => (ORDEN_TIPO.indexOf(a) + 1 || 99) - (ORDEN_TIPO.indexOf(b) + 1 || 99)),
     [porTipo]);
 
-  const visibles = useMemo(() => {
+  // Los hallazgos que pasan TIPO + BÚSQUEDA. Es el paso previo a la regla, y se
+  // calcula aparte a propósito: las chips de regla tienen que contar sobre ESTO
+  // y no sobre el total, o mostrarían opciones que no van a devolver nada.
+  const preFiltrados = useMemo(() => {
     const t = q.trim().toLowerCase();
     const out: [string, Hallazgo[]][] = [];
     for (const tipo of tipos) {
@@ -772,6 +782,28 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
     return out;
   }, [porTipo, tipos, filtro, q]);
 
+  // Las reglas presentes, con su cuenta, **ordenadas por cantidad**: la causa
+  // que más aparece es la que conviene atacar primero, y es la que uno busca.
+  const reglas = useMemo(() => {
+    const n: Record<string, number> = {};
+    for (const [, hs] of preFiltrados) for (const h of hs) n[h.regla] = (n[h.regla] ?? 0) + 1;
+    return Object.entries(n).sort((a, b) => b[1] - a[1]);
+  }, [preFiltrados]);
+
+  // Una regla elegida que ya no existe en lo visible dejaría la lista vacía sin
+  // motivo aparente (pasa al cambiar de tipo). Se cae sola a «todas».
+  const reglaOk = regla !== "todas" && reglas.some(([r]) => r === regla) ? regla : "todas";
+
+  const visibles = useMemo(() => {
+    if (reglaOk === "todas") return preFiltrados;
+    const out: [string, Hallazgo[]][] = [];
+    for (const [tipo, hs] of preFiltrados) {
+      const f = hs.filter((h) => h.regla === reglaOk);
+      if (f.length) out.push([tipo, f]);
+    }
+    return out;
+  }, [preFiltrados, reglaOk]);
+
   if (data.hallazgos.length === 0) {
     return (
       <p className="text-[11px] text-[var(--t-text-muted)]">
@@ -782,6 +814,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   }
 
   const nVisibles = visibles.reduce((a, [, hs]) => a + hs.length, 0);
+  const nVisiblesPre = preFiltrados.reduce((a, [, hs]) => a + hs.length, 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -814,9 +847,9 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
         />
         {/* Lo que el filtro está ESCONDIENDO. Sin este número, una búsqueda sin
             resultados y una lista vacía de verdad se ven igual. */}
-        {(q.trim() || filtro !== "todos") && (
+        {(q.trim() || filtro !== "todos" || reglaOk !== "todas") && (
           <button
-            onClick={() => { setFiltro("todos"); setQ(""); }}
+            onClick={() => { setFiltro("todos"); setQ(""); setRegla("todas"); }}
             className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
           >
             {nVisibles} de {data.hallazgos.length} · limpiar ✕
@@ -824,10 +857,38 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
         )}
       </div>
 
+      {/* ── SEGUNDO NIVEL: POR QUÉ ERROR ──────────────────────────────────
+          Aparece solo si hay MÁS DE UNA regla en lo visible: con una sola, la
+          fila de chips no ofrece ninguna decisión y es ruido. Va fuera de la
+          barra sticky para que ésta no crezca y se coma media pantalla. */}
+      {reglas.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] mr-1">
+            por error
+          </span>
+          {([["todas", `TODOS (${reglas.length})`, nVisiblesPre]] as [string, string, number][])
+            .concat(reglas.map(([r, n]) =>
+              [r, r.replace(/_/g, " ").toUpperCase(), n] as [string, string, number]))
+            .map(([k, label, n]) => (
+            <button
+              key={k}
+              onClick={() => setRegla(k)}
+              className={`text-[9px] uppercase tracking-wide px-2 py-0.5 border transition-colors ${
+                reglaOk === k
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"}`}
+            >
+              {label}
+              <span className="ml-1.5 tabular-nums opacity-70">{n}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {visibles.length === 0 && (
         <p className="text-[11px] text-[var(--t-text-muted)]">
-          Ningún hallazgo coincide con «{q}». Los {data.hallazgos.length} siguen
-          ahí — es el filtro, no la lista.
+          Ningún hallazgo coincide con {q.trim() ? `«${q}»` : "el filtro puesto"}.
+          Los {data.hallazgos.length} siguen ahí — es el filtro, no la lista.
         </p>
       )}
 
