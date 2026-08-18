@@ -121,7 +121,15 @@ type Conectado = { email: string; visto_at: string };
 
 /** Un balde del desglose de gastos. Las etiquetas las manda el BACKEND: si el
  *  front las copiara, cambiar un balde obligaría a tocar dos lados. */
-type Balde = { clave: string; etiqueta: string; grupo: "concepto" | "otros" };
+/** Una columna del desglose. Desde el 2026-08-18 el catálogo vive en la BASE y
+ *  lo edita el equipo desde la vista: `matchers` son las GRAFÍAS con que llega
+ *  ese concepto (cada banco lo escribe distinto) y `orden` es lo que decide los
+ *  empates cuando dos baldes se pisan. */
+type Matcher = { id: number; campo: string; operador: string; valor: string };
+type Balde = {
+  clave: string; etiqueta: string; grupo: "concepto" | "otros";
+  orden: number; matchers: Matcher[];
+};
 
 /** {clave: monto} + `total` + `resto`. `resto` es el gasto que no cayó en
  *  ningún balde — no es columna, se muestra en el modal solo si no es cero. */
@@ -584,6 +592,7 @@ function ModalMovimientos({
   const r = data.resumen;
   const mon = cuenta.moneda;
   const [reglasAbierto, setReglasAbierto] = useState(false);
+  const [desgloseAbierto, setDesgloseAbierto] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   // AUDITOR del desglose. Clic en un número → la tabla queda mostrando SOLO las
@@ -733,6 +742,13 @@ function ModalMovimientos({
               Reglas ({data.reglas.filter((x) => x.activa).length})
             </button>
             <button
+              onClick={() => setDesgloseAbierto(true)}
+              className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)]"
+              title="Qué columnas tiene el desglose y qué texto cae en cada una"
+            >
+              Desglose ({data.desglose.length})
+            </button>
+            <button
               onClick={descargar}
               disabled={visibles.length === 0}
               className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40 disabled:cursor-not-allowed"
@@ -858,8 +874,15 @@ function ModalMovimientos({
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
               <tr>
-                <Th>Fecha</Th>
-                <Th>Descripción</Th>
+                {/* ⚠️ `w-full` en DESCRIPCIÓN: en una tabla de ancho
+                    automático, la columna que lo lleva se queda con TODO el
+                    sobrante y las demás se ajustan a su contenido. Es el mismo
+                    truco que hizo entrar entera la columna CUENTA del
+                    consolidado. Sin esto, con 10 columnas el reparto es parejo,
+                    la descripción queda angosta y el texto —que es el dato más
+                    largo de la fila— se lee cortado. */}
+                <Th className="whitespace-nowrap">Fecha</Th>
+                <Th className="w-full">Descripción</Th>
                 <Th center className={COL_SEP}>Concepto</Th>
                 <Th center className={COL_SEP}>Cod op</Th>
                 <Th center className={COL_SEP}>Cod op bco</Th>
@@ -881,7 +904,7 @@ function ModalMovimientos({
                     m.ignorado ? "line-through opacity-45" : ""
                   }`}
                 >
-                  <Td copiar={m.fecha}>
+                  <Td copiar={m.fecha} className="whitespace-nowrap">
                     {m.fecha}
                     {/* La hora solo si el banco la informa DE VERDAD: medido,
                         `process_date` viene siempre a las 00:00:00. */}
@@ -889,7 +912,13 @@ function ModalMovimientos({
                       <span className="text-[var(--t-text-dim)]"> {m.hora}</span>
                     ) : null}
                   </Td>
-                  <Td copiar={m.descripcion}>
+                  {/* La descripción va ENTERA (pedido del back office,
+                      2026-08-18). Si el texto igual se lee cortado, el corte lo
+                      hizo el BANCO: `code_description_bank` llega truncado a
+                      ~25 caracteres y con los acentos rotos. Por eso las reglas
+                      y las grafías del desglose van por `contiene` sobre la raíz
+                      de la palabra y nunca por `igual` sobre el texto completo. */}
+                  <Td copiar={m.descripcion} className="break-words">
                     {m.descripcion}
                     {m.contraparte ? (
                       <div className="text-[10px] text-[var(--t-text-dim)]">
@@ -948,6 +977,17 @@ function ModalMovimientos({
           editable={data.puede_escribir}
           onCambio={recargar}
           onCerrar={() => setReglasAbierto(false)}
+        />
+      )}
+
+      {desgloseAbierto && (
+        <ModalDesglose
+          baldes={data.desglose}
+          totales={r.gastos_desglose ?? null}
+          moneda={mon}
+          editable={data.puede_escribir}
+          onCambio={recargar}
+          onCerrar={() => setDesgloseAbierto(false)}
         />
       )}
     </div>
@@ -1087,6 +1127,277 @@ const CAMPOS: Record<string, string> = {
  * La validación REAL vive en el backend (`crear_regla` valida campo y operador
  * contra las constantes del service). Esto es solo la UI.
  */
+/**
+ * ABM del DESGLOSE: qué columnas hay y qué texto cae en cada una.
+ *
+ * ⚠️ Por qué existe esta pantalla. Hasta el 2026-08-18 los baldes eran una
+ * constante en el código: cuando aparecía un impuesto que ninguna columna
+ * agarraba, la única salida era pedir un cambio y esperar un deploy. Pero el que
+ * sabe que el Banco X escribe `LEY25413DB` donde el Y dice `IMP.DB/CR BANCARIOS
+ * P/DEB` es el back office. Ahora lo cargan ellos y el número se mueve en el
+ * próximo poll, porque el desglose se DERIVA en la lectura y no se materializa.
+ *
+ * Un balde = una columna. Sus MATCHERS son las grafías con que llega ese mismo
+ * concepto según el banco: agregar una es el 90% del uso.
+ *
+ * Las dos cosas que hay que entender para no romper un total, explicadas también
+ * dentro de la pantalla:
+ *   · **CONTIENE vs ES IGUAL** — cuando un texto es PREFIJO de otro (`IVA` de
+ *     `IVAPERCEP`), `contiene` se come al otro: IVA mostraría de más, IVAPERCEP
+ *     quedaría en cero y el TOTAL seguiría dando bien. Un error que no se ve.
+ *   · **El ORDEN decide los empates** — gana el primer balde que matchea, así
+ *     que un movimiento nunca suma en dos columnas.
+ *
+ * Al lado de cada balde va su TOTAL DEL DÍA: después de agregar una grafía se ve
+ * el número moverse sin salir de acá, que es la forma de comprobar que agarró.
+ */
+function ModalDesglose({
+  baldes, totales, moneda, editable, onCambio, onCerrar,
+}: {
+  baldes: Balde[];
+  totales: Desglose | null;
+  moneda: string;
+  editable: boolean;
+  onCambio: () => void;
+  onCerrar: () => void;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // Qué balde está abierto para sumarle una grafía. Uno a la vez: el formulario
+  // aparece DEBAJO del balde que se está tocando, no en una zona aparte donde
+  // habría que volver a elegir a cuál va.
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [campo, setCampo] = useState("descripcion_banco");
+  const [operador, setOperador] = useState("contiene");
+  const [valor, setValor] = useState("");
+  // Alta de columna nueva.
+  const [nueva, setNueva] = useState("");
+  const [nuevaGrupo, setNuevaGrupo] = useState<"concepto" | "otros">("otros");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  async function pegar(url: string, method: string, body?: unknown) {
+    setBusy(true); setErr(null);
+    const res = await fetch(`/api/back-office/interbanking${url}`, {
+      method,
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setErr((await res.json().catch(() => ({}))).detail ?? "No se pudo guardar.");
+      return false;
+    }
+    onCambio();
+    return true;
+  }
+
+  async function agregarMatcher(balde: string) {
+    if (!valor.trim()) { setErr("Escribí el texto que llega en el movimiento."); return; }
+    if (await pegar("/gastos/desglose/matchers", "POST",
+                    { balde, campo, operador, valor })) {
+      setValor("");
+    }
+  }
+
+  async function nuevaColumna() {
+    if (!nueva.trim()) { setErr("Poné cómo se llama la columna."); return; }
+    // Va al final: mover el orden es una decisión aparte, y una columna nueva
+    // que se cuele antes que las existentes cambiaría dónde caen movimientos que
+    // hoy ya están bien clasificados.
+    const orden = Math.max(0, ...baldes.map((b) => b.orden)) + 10;
+    if (await pegar("/gastos/desglose", "POST",
+                    { etiqueta: nueva, grupo: nuevaGrupo, orden })) {
+      setNueva("");
+    }
+  }
+
+  const INPUT = "bg-[var(--t-surface)] border border-[var(--t-border)] px-1.5 py-1 "
+    + "text-[12px] outline-none";
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border)] w-full max-w-[920px] max-h-[85vh] flex flex-col text-[12px]"
+      >
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex items-center gap-3">
+          <span className="font-semibold tracking-wide uppercase text-[11px]">
+            Desglose de gastos · columnas
+          </span>
+          <button
+            onClick={onCerrar}
+            className="ml-auto px-2 py-1 hover:bg-[var(--t-surface)]"
+            title="Cerrar (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+
+        <p className="shrink-0 px-3 py-2 text-[11px] text-[var(--t-text-dim)] border-b border-[var(--t-border)]">
+          Cada columna del desglose junta un concepto. Adentro van las{" "}
+          <b>grafías</b> con que llega, porque cada banco lo escribe distinto
+          (<code>LEY25413DB</code> y <code>IMP.DB/CR BANCARIOS P/DEB</code> son el
+          mismo impuesto). Un gasto que no cae en ninguna columna aparece como{" "}
+          <b>MOVIMIENTOS RESTANTES</b>: ahí se ve qué falta cargar. Esto no suma ni
+          resta plata — parte el total que ya está.
+          <br />
+          <b>CONTIENE</b> para texto que llega cortado o con cola;{" "}
+          <b>ES IGUAL</b> cuando un valor es principio de otro (con{" "}
+          <i>contiene</i>, «IVA» se comería «IVAPERCEP»). Si dos columnas se
+          pisan, gana la de <b>orden</b> más chico.
+        </p>
+
+        {err && (
+          <div className="shrink-0 px-3 py-1 text-[11px] bg-[var(--t-tint-red)] text-[var(--t-neg)]">
+            {err}
+          </div>
+        )}
+
+        <div className="flex-1 min-h-0 overflow-auto divide-y divide-[var(--t-border)]">
+          {baldes.map((b) => (
+            <div key={b.clave} className="px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[var(--t-text-muted)] text-[10px] tabular-nums w-[28px]">
+                  {b.orden}
+                </span>
+                <span className="font-semibold tracking-wide">{b.etiqueta}</span>
+                <span className="text-[10px] uppercase text-[var(--t-text-muted)] border border-[var(--t-border)] px-1">
+                  {b.grupo === "concepto" ? "columna propia" : "otros imp"}
+                </span>
+                {/* El total del día al lado de su columna: después de agregar una
+                    grafía se ve el número moverse sin salir de acá. */}
+                <span className="tabular-nums text-[var(--t-text-dim)]">
+                  {totales?.[b.clave] !== undefined
+                    ? plata(totales[b.clave], moneda)
+                    : ""}
+                </span>
+                {editable && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={() => { setAbierto(abierto === b.clave ? null : b.clave); setErr(null); }}
+                      className="px-2 py-0.5 text-[10px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)]"
+                    >
+                      + grafía
+                    </button>
+                    <button
+                      onClick={() => pegar(`/gastos/desglose/${b.clave}`, "DELETE")}
+                      disabled={busy}
+                      title="Borrar la columna. Sus movimientos pasan a MOVIMIENTOS RESTANTES; ningún total cambia."
+                      className="px-1.5 py-0.5 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {b.matchers.map((m) => (
+                  <span
+                    key={m.id}
+                    className="inline-flex items-center gap-1 border border-[var(--t-border)] px-1.5 py-0.5 text-[11px]"
+                    title={`${CAMPOS[m.campo] ?? m.campo} ${m.operador === "igual" ? "es igual a" : "contiene"}`}
+                  >
+                    <span className="text-[9px] uppercase text-[var(--t-text-muted)]">
+                      {CAMPOS[m.campo] ?? m.campo}
+                      {m.operador === "igual" ? " =" : " ⊃"}
+                    </span>
+                    {m.valor}
+                    {editable && (
+                      <button
+                        onClick={() => pegar(`/gastos/desglose/matchers/${m.id}`, "DELETE")}
+                        disabled={busy}
+                        className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </span>
+                ))}
+                {b.matchers.length === 0 && (
+                  <span className="text-[11px] text-[var(--t-accent)]">
+                    sin grafías — esta columna no agarra nada
+                  </span>
+                )}
+              </div>
+
+              {editable && abierto === b.clave && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select value={campo} onChange={(e) => setCampo(e.target.value)} className={INPUT}>
+                    {Object.entries(CAMPOS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={operador}
+                    onChange={(e) => setOperador(e.target.value)}
+                    className={INPUT}
+                  >
+                    <option value="contiene">contiene</option>
+                    <option value="igual">es igual a</option>
+                  </select>
+                  <input
+                    value={valor}
+                    onChange={(e) => setValor(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") agregarMatcher(b.clave); }}
+                    placeholder="el texto tal como llega"
+                    className={`${INPUT} flex-1 min-w-[220px]`}
+                  />
+                  <button
+                    onClick={() => agregarMatcher(b.clave)}
+                    disabled={busy}
+                    className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+                  >
+                    Agregar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {editable && (
+          <div className="shrink-0 px-3 py-2 border-t border-[var(--t-border)] flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              Columna nueva
+            </span>
+            <input
+              value={nueva}
+              onChange={(e) => setNueva(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") nuevaColumna(); }}
+              placeholder="cómo se llama"
+              className={`${INPUT} w-[220px]`}
+            />
+            <select
+              value={nuevaGrupo}
+              onChange={(e) => setNuevaGrupo(e.target.value as "concepto" | "otros")}
+              className={INPUT}
+            >
+              <option value="otros">adentro de OTROS IMP</option>
+              <option value="concepto">columna propia en el consolidado</option>
+            </select>
+            <button
+              onClick={nuevaColumna}
+              disabled={busy}
+              className="px-2 py-1 text-[11px] uppercase border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+            >
+              Crear
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ModalReglas({
   reglas, editable, onCambio, onCerrar,
 }: {
