@@ -223,53 +223,51 @@ function signo(v: number | null | undefined) {
 /* ══════════════════════════════════════════════════════════════════════════ */
 
 export function InterbankingView() {
-  const [sub, setSub] = useState<"consolidado" | "detalle">("consolidado");
   // UNA fecha, no un rango (user, 2026-08-18: «la fecha es una sola, es siempre
-  // el mismo día»). Es COMPARTIDA por las dos sub-tabs: cambiar de vista no hace
-  // perder el día que estabas mirando.
-  // Arranca vacía A PROPÓSITO: sin fecha el backend usa HOY en hora argentina,
-  // así que el default lo decide el servidor y no el reloj del navegador.
+  // el mismo día»). Arranca vacía A PROPÓSITO: sin fecha el backend usa el día
+  // HÁBIL ANTERIOR, así el default lo decide el servidor y no el navegador.
   const [fecha, setFecha] = useState("");
 
   // Identidad ESTABLE (useCallback sin deps) + update funcional: si se pasara una
-  // arrow inline, cambiaría en cada render y el efecto de los hijos que la tiene
-  // en deps correría en cada render. Solo completa si está vacía, así que nunca
+  // arrow inline, cambiaría en cada render y el efecto del hijo que la tiene en
+  // deps correría en cada render. Solo completa si está vacía, así que nunca
   // pisa el día que el usuario eligió a mano.
   const aplicarFecha = useCallback((f: string) => setFecha((p) => p || f), []);
 
-  // Cuándo sincronizó el JOB con el banco. Lo reporta la sub-tab que esté activa
-  // (viene en su payload) y se muestra ACÁ ARRIBA, en una sola línea. Antes era
-  // una franja de texto explicando cada cuánto corre el cron y cuántas cuentas
-  // no tenían dato: el back office la sacó («es un asco»), y tenía razón — una
-  // pantalla no se explica a sí misma en prosa. Lo único que hace falta saber es
-  // de cuándo es el dato.
+  // Cuándo sincronizó el JOB con el banco. Lo reporta el consolidado (viene en
+  // su payload) y se muestra ACÁ ARRIBA, en una sola línea. Antes era una franja
+  // de texto explicando cada cuánto corre el cron y cuántas cuentas no tenían
+  // dato: el back office la sacó, y tenía razón — una pantalla no se explica a
+  // sí misma en prosa. Lo único que hace falta saber es de cuándo es el dato.
   const [syncAt, setSyncAt] = useState<string | null>(null);
+
+  // La cuenta cuyo detalle está abierto. `null` = modal cerrado.
+  const [abierta, setAbierta] = useState<CuentaConsolidada | null>(null);
+  const cerrar = useCallback(() => setAbierta(null), []);
 
   return (
     <div className="h-full min-h-0 flex flex-col text-[12px]">
-      <div className="shrink-0 border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 flex flex-wrap items-center gap-3">
-        <div className="flex gap-1">
-          <Pill activo={sub === "consolidado"} onClick={() => setSub("consolidado")}>
-            Consolidado Bancos
-          </Pill>
-          <Pill activo={sub === "detalle"} onClick={() => setSub("detalle")}>
-            Detalle por cuenta
-          </Pill>
-        </div>
-
+      <div className="shrink-0 border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-1.5 flex flex-wrap items-center gap-3">
+        <span className="text-[11px] uppercase tracking-wide font-semibold">
+          Consolidado Bancos
+        </span>
         <span className="text-[11px] text-[var(--t-text-dim)]">
           Última actualización {momento(syncAt)}
         </span>
-
-        <div className="ml-auto flex items-center gap-3 py-1.5">
+        <div className="ml-auto flex items-center gap-3">
           <Fecha label="Fecha" value={fecha} onChange={setFecha} />
         </div>
       </div>
 
-      {sub === "consolidado" ? (
-        <Consolidado fecha={fecha} onFecha={aplicarFecha} onSync={setSyncAt} />
-      ) : (
-        <Detalle fecha={fecha} onFecha={aplicarFecha} onSync={setSyncAt} />
+      <Consolidado
+        fecha={fecha}
+        onFecha={aplicarFecha}
+        onSync={setSyncAt}
+        onAbrir={setAbierta}
+      />
+
+      {abierta && (
+        <ModalMovimientos cuenta={abierta} fecha={fecha} onCerrar={cerrar} />
       )}
     </div>
   );
@@ -278,8 +276,11 @@ export function InterbankingView() {
 /* ── CONSOLIDADO BANCOS ─────────────────────────────────────────────────── */
 
 function Consolidado({
-  fecha, onFecha, onSync,
-}: { fecha: string; onFecha: (f: string) => void; onSync: (s: string | null) => void }) {
+  fecha, onFecha, onSync, onAbrir,
+}: {
+  fecha: string; onFecha: (f: string) => void; onSync: (s: string | null) => void;
+  onAbrir: (c: CuentaConsolidada) => void;
+}) {
   const url = useMemo(
     () => `/api/back-office/interbanking/consolidado${fecha ? `?fecha=${fecha}` : ""}`,
     [fecha],
@@ -330,7 +331,7 @@ function Consolidado({
           </thead>
           <tbody>
             {data.bancos.map((b) => (
-              <BloqueBanco key={`${b.banco}-${b.banco_nombre}`} banco={b} />
+              <BloqueBanco key={`${b.banco}-${b.banco_nombre}`} banco={b} onAbrir={onAbrir} />
             ))}
             {data.bancos.length === 0 && <Vacia cols={6} hubo={lastAt > 0} />}
           </tbody>
@@ -340,7 +341,9 @@ function Consolidado({
   );
 }
 
-function BloqueBanco({ banco }: { banco: Banco }) {
+function BloqueBanco({
+  banco, onAbrir,
+}: { banco: Banco; onAbrir: (c: CuentaConsolidada) => void }) {
   return (
     <>
       {/* El banco como TÍTULO de su bloque de cuentas. Agrupa para poder
@@ -357,17 +360,24 @@ function BloqueBanco({ banco }: { banco: Banco }) {
 
       {banco.cuentas.map((c) => (
         <tr key={c.id} className="border-b border-[var(--t-border)]">
-          {/* El NÚMERO va entero (decisión del user, 2026-08-18) y el clic copia
-              el número solo, no la línea entera con el tipo y la etiqueta: lo
-              que se pega en otro sistema es el número. */}
-          <Td className="whitespace-nowrap" copiar={c.numero}>
+          {/* ⚠️ La fila tiene DOS gestos distintos y no es arbitrario:
+              · clic en la CUENTA → abre el detalle del día (la cuenta es la
+                identidad de la fila, y "entrar" es la acción sobre ella);
+              · clic en una celda de DATOS → copia el número al portapapeles.
+              Si la cuenta también copiara, no habría con qué abrir el detalle;
+              el número igual se copia desde el encabezado del modal. */}
+          <td
+            onClick={() => onAbrir(c)}
+            title="Ver los movimientos del día"
+            className="px-2 py-1 whitespace-nowrap cursor-pointer hover:bg-[var(--t-surface)]"
+          >
             <span className="pl-3">
               {c.tipo} {c.moneda} · <span className="font-semibold">{c.numero}</span>
               {c.etiqueta ? (
                 <span className="text-[var(--t-text-dim)]"> · {c.etiqueta}</span>
               ) : null}
             </span>
-          </Td>
+          </td>
           <Td center className={COL_DATO} copiar={plata(c.saldo_inicio)}>
             {plata(c.saldo_inicio)}
           </Td>
@@ -411,218 +421,146 @@ function BloqueBanco({ banco }: { banco: Banco }) {
   );
 }
 
-/* ── DETALLE POR CUENTA ─────────────────────────────────────────────────── */
+/* ── MODAL: los movimientos del día de UNA cuenta ───────────────────────── */
 
-function Detalle({
-  fecha, onFecha, onSync,
-}: { fecha: string; onFecha: (f: string) => void; onSync: (s: string | null) => void }) {
-  const [banco, setBanco] = useState<string | null>(null);
-  const [cuentaId, setCuentaId] = useState<number | null>(null);
-
+/**
+ * Se abre haciendo clic en la cuenta del CONSOLIDADO. Reemplazó a la sub-tab
+ * "Detalle por cuenta" (user, 2026-08-18): esa vista obligaba a elegir banco y
+ * después cuenta en dos selectores, para ver el detalle de una fila que ya
+ * estabas mirando en la otra pantalla. El modal parte de donde estás.
+ *
+ * Es el mismo patrón que el modal por celda de Tesorería → BANCOS: el número
+ * grande se ve en la grilla, y lo que lo compone se abre encima sin perder el
+ * contexto.
+ *
+ * Reusa `GET /vista?cuenta_id&fecha`, que ya devolvía exactamente esto. No hizo
+ * falta un endpoint nuevo.
+ */
+function ModalMovimientos({
+  cuenta, fecha, onCerrar,
+}: { cuenta: CuentaConsolidada; fecha: string; onCerrar: () => void }) {
   const url = useMemo(() => {
-    const p = new URLSearchParams();
-    if (cuentaId !== null) p.set("cuenta_id", String(cuentaId));
+    const p = new URLSearchParams({ cuenta_id: String(cuenta.id) });
     if (fecha) p.set("fecha", fecha);
-    const qs = p.toString();
-    return `/api/back-office/interbanking/vista${qs ? `?${qs}` : ""}`;
-  }, [cuentaId, fecha]);
+    return `/api/back-office/interbanking/vista?${p.toString()}`;
+  }, [cuenta.id, fecha]);
 
+  // `fetchOnMount` + poll: si el modal queda abierto y el job sincroniza, se
+  // actualiza solo. No hay nada que "guardar", así que refrescar no pisa nada.
   const { data, lastAt, error } = usePoll<RespVista>(url, VISTA_VACIA, POLL_MS, {
     fetchOnMount: true,
   });
 
-  // Bancos únicos, derivados del listado de cuentas.
-  const bancos = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const c of data.cuentas) m.set(c.banco, c.banco_nombre || c.banco);
-    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [data.cuentas]);
-
-  // Solo las cuentas del banco elegido: es el punto del selector en cascada.
-  const cuentasDelBanco = useMemo(
-    () => data.cuentas.filter((c) => c.banco === banco),
-    [data.cuentas, banco],
-  );
-
+  // Escape cierra: es un modal, tiene que poder salirse sin mouse.
   useEffect(() => {
-    if (data.fecha) onFecha(data.fecha);
-  }, [data.fecha, onFecha]);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
 
-  useEffect(() => {
-    onSync(data.sync?.corrida_at ?? null);
-  }, [data.sync?.corrida_at, onSync]);
+  const dia = data.dias[0] ?? null;
+  const r = data.resumen;
+  const mon = cuenta.moneda;
 
-  // Primer render: el banco sale de la cuenta que el backend eligió por default.
-  useEffect(() => {
-    if (banco === null && data.cuenta_id !== null) {
-      const c = data.cuentas.find((x) => x.id === data.cuenta_id);
-      if (c) {
-        setBanco(c.banco);
-        setCuentaId(c.id);
-      }
-    }
-  }, [banco, data.cuenta_id, data.cuentas]);
-
-  function elegirBanco(b: string) {
-    setBanco(b);
-    // Saltar a la primera cuenta del banco nuevo: dejar una cuenta de OTRO
-    // banco seleccionada mostraría datos que no corresponden al filtro.
-    const primera = data.cuentas.find((c) => c.banco === b);
-    setCuentaId(primera ? primera.id : null);
+  async function descargar() {
+    const { exportToXlsx } = await import("@/lib/xlsx-export");
+    await exportToXlsx({
+      sheets: [{
+        name: "Movimientos",
+        // El importe va FIRMADO (débito negativo): así la columna suma el neto
+        // del día en Excel sin que nadie tenga que armar la fórmula.
+        rows: data.movimientos.map((m) => ({
+          ...m,
+          importe_firmado: m.importe === null
+            ? null
+            : (m.tipo === "D" ? -m.importe : m.importe),
+        })),
+        columns: [
+          { header: "Fecha",        key: "fecha",            format: "date",    width: 12 },
+          { header: "Descripción",  key: "descripcion",      format: "text",    width: 38 },
+          { header: "Concepto",     key: "concepto",         format: "text",    width: 20 },
+          { header: "Cod op",       key: "codigo",           format: "text",    width: 10 },
+          { header: "Cod op bco",   key: "codigo_banco",     format: "text",    width: 12 },
+          { header: "Comprobante",  key: "comprobante",      format: "text",    width: 14 },
+          // Sucursal como TEXTO: viene "010" y como número perdería el cero.
+          { header: "Sucursal",     key: "sucursal",         format: "text",    width: 10 },
+          { header: "Contraparte",  key: "contraparte",      format: "text",    width: 30 },
+          { header: "CUIT",         key: "contraparte_cuit", format: "text",    width: 14 },
+          { header: "Tipo",         key: "tipo",             format: "text",    width: 6 },
+          { header: "Importe",      key: "importe_firmado",  format: "number",  width: 16 },
+        ],
+        title: `${cuenta.banco_nombre} · ${cuenta.tipo} ${mon} ${cuenta.numero}`
+          + `${cuenta.etiqueta ? ` · ${cuenta.etiqueta}` : ""} · ${data.fecha || fecha}`,
+      }],
+      filename: `interbanking-${cuenta.numero}-${data.fecha || fecha}.xlsx`,
+    });
   }
 
-  const cuenta = data.cuentas.find((c) => c.id === data.cuenta_id) || null;
-  const mon = cuenta?.moneda || "";
-  const r = data.resumen;
-  const noCierran = new Set(r.dias_que_no_cierran);
-  const incompletos = new Set(r.dias_incompletos);
-
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
-      {/* Selector en cascada: primero el banco, después su cuenta. */}
-      <div className="shrink-0 border-b border-[var(--t-border)] px-3 py-2 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-            Banco
+    // El fondo cierra al hacer clic. `stopPropagation` en el panel para que un
+    // clic adentro (copiar una celda, por ejemplo) no lo cierre de rebote.
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border)] w-full max-w-[1400px] max-h-[90vh] flex flex-col text-[12px]"
+      >
+        {/* Cabecera: de qué cuenta y de qué día es esto. */}
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-semibold tracking-wide">{cuenta.banco_nombre}</span>
+          <span className="text-[var(--t-text-dim)]">
+            {cuenta.tipo} {mon} ·{" "}
+            <span className="text-[var(--t-text)] font-semibold">{cuenta.numero}</span>
+            {cuenta.etiqueta ? ` · ${cuenta.etiqueta}` : ""}
           </span>
-          <select
-            value={banco ?? ""}
-            onChange={(e) => elegirBanco(e.target.value)}
-            className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[12px] min-w-[200px]"
-          >
-            {bancos.map(([cod, nombre]) => (
-              <option key={cod} value={cod}>
-                {nombre}
-              </option>
-            ))}
-          </select>
-        </label>
+          <span className="text-[var(--t-accent)]">{data.fecha || fecha}</span>
 
-        <label className="flex items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-            Cuenta
-          </span>
-          <select
-            value={cuentaId ?? ""}
-            onChange={(e) => setCuentaId(e.target.value ? Number(e.target.value) : null)}
-            className="bg-[var(--t-bg)] border border-[var(--t-border)] px-2 py-1 text-[12px] min-w-[240px]"
-            disabled={cuentasDelBanco.length === 0}
-          >
-            {cuentasDelBanco.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.tipo} {c.moneda} · {c.numero}
-                {c.etiqueta ? ` · ${c.etiqueta}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={descargar}
+              disabled={data.movimientos.length === 0}
+              className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border)] hover:bg-[var(--t-surface)] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Descargar
+            </button>
+            <button
+              onClick={onCerrar}
+              className="px-2 py-1 text-[13px] hover:bg-[var(--t-surface)]"
+              title="Cerrar (Esc)"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
 
-        <span className="text-[10px] text-[var(--t-text-dim)]">
-          {cuentasDelBanco.length} cuenta(s) en este banco
-        </span>
-      </div>
-
-      <ErrorLinea error={error} />
-
-      {/* Los saldos, al ANCHO COMPLETO. */}
-      <div className="shrink-0 border-b border-[var(--t-border)] px-3 py-2 flex flex-wrap gap-6">
-        <Dato label="Saldo al cierre" valor={plata(r.saldo_final, mon)} fuerte />
-        <Dato label="Créditos" valor={plata(r.creditos, mon)} />
-        <Dato label="Débitos" valor={plata(r.debitos, mon)} />
-        <Dato label="Neto" valor={plata(r.neto, mon)} clase={signo(r.neto)} />
-        <Dato label="Días" valor={String(r.dias)} />
-        <Dato label="Movimientos" valor={String(r.movimientos)} />
-      </div>
-
-      {(r.dias_que_no_cierran.length > 0 || r.dias_incompletos.length > 0) && (
-        <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] flex flex-col gap-1 text-[11px]">
-          {r.dias_que_no_cierran.length > 0 && (
-            <div className="text-[var(--t-neg)]">
-              NO CIERRA en {r.dias_que_no_cierran.length} día(s):{" "}
-              {r.dias_que_no_cierran.join(", ")} — apertura + créditos − débitos no da
-              el cierre que informa el banco.
-            </div>
+        {/* El día, según el banco. Es el contexto que explica los movimientos. */}
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap gap-5">
+          <Dato label="Apertura" valor={plata(dia?.saldo_apertura, mon)} />
+          <Dato label="Créditos" valor={plata(dia?.creditos, mon)} />
+          <Dato label="Débitos" valor={plata(dia?.debitos, mon)} />
+          <Dato label="Cierre" valor={plata(dia?.saldo_cierre, mon)} fuerte />
+          <Dato label="Neto" valor={plata(r.neto, mon)} clase={signo(r.neto)} />
+          <Dato label="Movimientos" valor={String(r.movimientos)} />
+          {/* Las dos alertas de conciliación las calcula el BACKEND. */}
+          {dia?.cierra === false && (
+            <span className="self-center px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-red)] text-[var(--t-neg)]">
+              No cierra · {plata(dia.diferencia)}
+            </span>
           )}
           {r.dias_incompletos.length > 0 && (
-            <div className="text-[var(--t-accent)]">
-              INCOMPLETO en {r.dias_incompletos.length} día(s):{" "}
-              {r.dias_incompletos.join(", ")} — tenemos guardada distinta cantidad de
-              movimientos de la que declara el extracto.
-            </div>
+            <span className="self-center px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]">
+              Incompleto · el banco declara {dia?.movimientos_banco}
+            </span>
           )}
         </div>
-      )}
 
-      {/* EXTRACTO a la izquierda, MOVIMIENTOS a la derecha. Ya NO es 50/50: el
-          extracto son 6 columnas fijas y MOVIMIENTOS pasó a 8 (2026-08-18), así
-          que se reparte 1/3 · 2/3. Cada panel scrollea solo, así que si el
-          navegador es angosto la tabla ancha no empuja a la otra. */}
-      <div className="flex-1 min-h-0 grid grid-cols-3">
-        <Panel titulo="Extracto" subtitulo={`${data.dias.length} día(s)`} borde>
+        <ErrorLinea error={error} />
+
+        <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-              <tr>
-                <Th>Fecha</Th>
-                <Th center className={COL_SEP}>Apertura</Th>
-                <Th center className={COL_SEP}>Créditos</Th>
-                <Th center className={COL_SEP}>Débitos</Th>
-                <Th center className={COL_SEP}>Cierre</Th>
-                <Th center className={COL_SEP}>Movs.</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.dias.map((d) => {
-                const mal = noCierran.has(d.fecha);
-                const inc = incompletos.has(d.fecha);
-                return (
-                  <tr
-                    key={d.fecha}
-                    className={`border-b border-[var(--t-border)] ${
-                      mal ? "bg-[var(--t-tint-red)]" : inc ? "bg-[var(--t-tint-amber)]" : ""
-                    }`}
-                  >
-                    <Td>
-                      {d.fecha}
-                      {mal ? (
-                        <span className="ml-1 text-[10px] text-[var(--t-neg)]">
-                          NO CIERRA ({plata(d.diferencia)})
-                        </span>
-                      ) : inc ? (
-                        <span className="ml-1 text-[10px] text-[var(--t-accent)]">
-                          INCOMPLETO
-                        </span>
-                      ) : null}
-                    </Td>
-                    <Td right>{plata(d.saldo_apertura)}</Td>
-                    <Td right>{plata(d.creditos)}</Td>
-                    <Td right>{plata(d.debitos)}</Td>
-                    <Td right strong>{plata(d.saldo_cierre)}</Td>
-                    <Td right>
-                      {d.movimientos_base}
-                      {d.movimientos_banco !== d.movimientos_base
-                        ? ` / ${d.movimientos_banco}`
-                        : ""}
-                    </Td>
-                  </tr>
-                );
-              })}
-              {data.dias.length === 0 && <Vacia cols={6} hubo={lastAt > 0} />}
-            </tbody>
-          </table>
-        </Panel>
-
-        <Panel
-          titulo="Movimientos"
-          subtitulo={`${data.movimientos.length} movimiento(s)`}
-          ancho="col-span-2"
-        >
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-[var(--t-panel)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-              {/* Las 8 columnas que pidió el back office (2026-08-18). IMPORTE va
-                  último y a la derecha, que es como se lee una tabla de plata;
-                  CONTRAPARTE no es una columna propia porque viene en el 13% de
-                  los movimientos (medido) y una columna vacía 9 de cada 10 filas
-                  cuesta ancho sin aportar — va debajo de la descripción. */}
               <tr>
                 <Th>Fecha</Th>
                 <Th>Descripción</Th>
@@ -640,18 +578,15 @@ function Detalle({
                   key={`${m.fecha}-${m.extracto}-${m.correlativo}-${i}`}
                   className="border-b border-[var(--t-border)]"
                 >
-                  <Td>
+                  <Td copiar={m.fecha}>
                     {m.fecha}
-                    {/* La hora solo si el banco la informa DE VERDAD. Medido el
-                        2026-08-18 sobre 178 movimientos: `process_date` viene
-                        siempre a las 00:00:00, así que pintarla era mostrar una
-                        precisión que no tenemos. Si algún banco manda hora real,
-                        aparece sola. */}
+                    {/* La hora solo si el banco la informa DE VERDAD: medido,
+                        `process_date` viene siempre a las 00:00:00. */}
                     {m.hora && m.hora !== "00:00:00" ? (
                       <span className="text-[var(--t-text-dim)]"> {m.hora}</span>
                     ) : null}
                   </Td>
-                  <Td>
+                  <Td copiar={m.descripcion}>
                     {m.descripcion}
                     {m.contraparte ? (
                       <div className="text-[10px] text-[var(--t-text-dim)]">
@@ -691,7 +626,7 @@ function Detalle({
               {data.movimientos.length === 0 && <Vacia cols={8} hubo={lastAt > 0} />}
             </tbody>
           </table>
-        </Panel>
+        </div>
       </div>
     </div>
   );
@@ -699,28 +634,6 @@ function Detalle({
 
 /* ── Piezas compartidas ─────────────────────────────────────────────────── */
 
-function Panel({
-  titulo, subtitulo, borde, ancho = "", children,
-}: {
-  titulo: string; subtitulo?: string; borde?: boolean; ancho?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={`min-h-0 flex flex-col ${ancho} ${
-        borde ? "border-r border-[var(--t-border)]" : ""
-      }`}
-    >
-      <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-panel)] flex items-baseline gap-2">
-        <span className="text-[11px] uppercase tracking-wide font-semibold">{titulo}</span>
-        {subtitulo ? (
-          <span className="text-[10px] text-[var(--t-text-dim)]">{subtitulo}</span>
-        ) : null}
-      </div>
-      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
-    </div>
-  );
-}
 
 /** Solo aparece cuando algo FALLA. En el caso normal la pantalla no dice nada:
  *  de cuándo es el dato ya lo informa «Última actualización» arriba. */
@@ -766,22 +679,6 @@ function Dato({
   );
 }
 
-function Pill({
-  activo, onClick, children,
-}: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-[11px] uppercase tracking-wide px-3 py-2 border-b-2 ${
-        activo
-          ? "text-[var(--t-accent)] border-[var(--t-accent)]"
-          : "text-[var(--t-text-dim)] border-transparent hover:text-[var(--t-text)]"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 function Th({
   children, right, center, className = "",
