@@ -58,12 +58,17 @@ import { usePoll } from "@/lib/use-poll";
  *
  * ── REPORTE FINAL (botón de la barra) — el saldo al cierre de TODAS las cuentas
  *    en una matriz para pasar hacia afuera: **una columna por banco, una fila por
- *    cuenta**, y en el cruce el saldo. Con una COLUMNA vacía entre banco y banco
- *    y una FILA vacía entre el bloque ARS y el USD — separar por moneda importa
- *    más que ordenar: sumar pesos con dólares en la misma corrida visual es el
- *    error que este formato evita. Usa el MISMO día que la vista, así no puede
- *    decir algo distinto de la pantalla desde la que se abrió. Cabecera azul con
- *    el logo: este modal se muestra y se captura, no es pantalla de trabajo.
+ *    cuenta**, y en el cruce el saldo. **Partido en BLOQUES de 5 bancos**,
+ *    apilados y cada uno con su fila de títulos: en una sola tabla eran 19
+ *    columnas que no entran en pantalla y que además quedaban casi vacías —cada
+ *    cuenta pertenece a UN banco— mientras que en cada bloque las filas son SOLO
+ *    las cuentas de sus bancos. Con una COLUMNA vacía entre banco y banco y una
+ *    FILA vacía entre el bloque ARS y el USD — separar por moneda importa más que
+ *    ordenar: sumar pesos con dólares en la misma corrida visual es el error que
+ *    este formato evita. Usa el MISMO día que la vista, así no puede decir algo
+ *    distinto de la pantalla desde la que se abrió. Cabecera azul con el logo UNA
+ *    vez arriba de todo: este modal se muestra y se captura, no es pantalla de
+ *    trabajo.
  *
  * ── SACAR FOTO (botón de la barra) — congela el consolidado del día.
  *    ⚠️ Acá la foto NO existe por el mismo motivo que en Tesorería. Allá la vista
@@ -1524,6 +1529,15 @@ function ModalDesglose({
  * que la grilla queda escalonada por banco — que es exactamente cómo se lee un
  * reporte de posición bancaria y cómo se pega en una planilla.
  *
+ * ⚠️ **Se parte en BLOQUES de `BANCOS_POR_BLOQUE` bancos**, apilados, cada uno
+ * con su propia fila de títulos. Con 9 bancos en una sola tabla eran 19 columnas
+ * que no entran en pantalla y que además quedaban casi vacías: como cada cuenta
+ * pertenece a UN banco, las otras 8 celdas de su fila van en blanco. Partido, las
+ * filas de cada bloque son SOLO las cuentas de sus bancos — dos tablas densas en
+ * vez de una gigante y hueca. La cabecera azul con el logo va UNA vez, arriba de
+ * todo: repetirla partiría el reporte en dos documentos en lugar de en dos partes
+ * del mismo.
+ *
  * Dos separadores en blanco, pedidos por el back office, que no son decorativos:
  *   · una COLUMNA vacía entre banco y banco;
  *   · una FILA vacía entre el bloque ARS y el bloque USD.
@@ -1537,6 +1551,15 @@ function ModalDesglose({
  * La cabecera va en el azul de la casa con el logo — este modal se muestra y se
  * captura, no es una pantalla de trabajo.
  */
+/** Cuántos bancos entran como columnas en cada bloque del REPORTE FINAL.
+ *
+ *  Con los 9 bancos de hoy (10 cuando se sume el manual) una sola tabla mide 19
+ *  columnas: no entra en pantalla, se lee con scroll horizontal y —peor— queda
+ *  casi vacía, porque cada cuenta pertenece a UN banco y las otras 8 celdas de su
+ *  fila van en blanco. Partiendo de a 5, cada bloque muestra solo las cuentas de
+ *  SUS bancos: dos tablas densas, apiladas, que entran enteras. */
+const BANCOS_POR_BLOQUE = 5;
+
 function ModalReporte({
   bancos, fecha, onCerrar,
 }: {
@@ -1548,24 +1571,17 @@ function ModalReporte({
     return () => document.removeEventListener("keydown", onKey);
   }, [onCerrar]);
 
-  // Las filas se ordenan por MONEDA primero (ARS arriba, el resto después) y
-  // dentro de cada moneda por banco. `null` es la fila vacía que separa bloques.
-  const filas = useMemo(() => {
-    const cuentas = bancos.flatMap((b) =>
-      b.cuentas.map((c) => ({ ...c, _banco: b.banco_nombre })));
-    const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
-    const orden = (c: typeof cuentas[number]) =>
-      `${esArs(c.moneda) ? "0" : "1"}|${c._banco}|${c.tipo}|${c.numero}`;
-    const ars = cuentas.filter((c) => esArs(c.moneda)).sort(
-      (a, b) => orden(a).localeCompare(orden(b)));
-    const resto = cuentas.filter((c) => !esArs(c.moneda)).sort(
-      (a, b) => orden(a).localeCompare(orden(b)));
-    // La fila en blanco solo si hay algo de los dos lados: un separador que no
-    // separa nada es una fila vacía y nada más.
-    return ars.length && resto.length ? [...ars, null, ...resto] : [...ars, ...resto];
+  // Los bancos se parten en BLOQUES y cada bloque se apila debajo del anterior
+  // con su propia fila de títulos. Ver el comentario del componente: es lo que
+  // convierte una matriz casi vacía y con scroll horizontal en dos tablas densas
+  // que entran en una pantalla.
+  const bloques = useMemo(() => {
+    const out: Banco[][] = [];
+    for (let i = 0; i < bancos.length; i += BANCOS_POR_BLOQUE) {
+      out.push(bancos.slice(i, i + BANCOS_POR_BLOQUE));
+    }
+    return out;
   }, [bancos]);
-
-  const totalCols = bancos.length * 2;   // cada banco + su separador
 
   return (
     <div
@@ -1576,6 +1592,9 @@ function ModalReporte({
         onClick={(e) => e.stopPropagation()}
         className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1500px] max-h-[92vh] flex flex-col text-[12px]"
       >
+        {/* La cabecera de la casa va UNA sola vez, arriba de todo. Repetirla por
+            bloque partiría el reporte en dos documentos en vez de en dos partes
+            del mismo. */}
         <div className="shrink-0 flex items-center gap-3 px-3 py-2 bg-[#094293] text-white">
           {/* eslint-disable-next-line @next/next/no-img-element -- el modal se
               captura como imagen; `next/image` mete un wrapper que complica eso */}
@@ -1594,68 +1613,105 @@ function ModalReporte({
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
-              <tr className="border-b border-[var(--t-border-2)]">
-                <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap border-r border-[var(--t-border-2)]">
-                  Cuenta
-                </th>
-                {bancos.map((b) => (
-                  <Fragment key={b.banco}>
-                    <th className="px-3 py-1.5 font-semibold text-right whitespace-nowrap text-[var(--t-text)]">
-                      {b.banco_nombre}
-                    </th>
-                    {/* La columna vacía que separa un banco del siguiente. */}
-                    <th className="w-4" />
-                  </Fragment>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((c, i) => c === null ? (
-                <tr key={`sep-${i}`}><td className="h-4" colSpan={totalCols + 1} /></tr>
-              ) : (
-                <tr key={c.id} className="border-b border-[var(--t-border-2)]">
-                  {/* El título de la fila es EXACTO lo que dice la columna CUENTA
-                      del consolidado: si acá dijera otra cosa, el que compara las
-                      dos pantallas tendría que traducir. */}
-                  <Td copiar={`${c.tipo} ${c.moneda} · ${c.numero}`}
-                      className="whitespace-nowrap border-r border-[var(--t-border-2)]">
-                    {c.tipo} {c.moneda} · <span className="font-semibold">{c.numero}</span>
-                    {c.etiqueta ? (
-                      <span className="text-[var(--t-text-dim)]"> · {c.etiqueta}</span>
-                    ) : null}
-                  </Td>
-                  {bancos.map((b) => (
-                    <Fragment key={b.banco}>
-                      <Td
-                        right
-                        strong={b.banco_nombre === c._banco}
-                        className="whitespace-nowrap"
-                        copiar={b.banco_nombre === c._banco ? plata(c.saldo_cierre) : null}
-                      >
-                        {b.banco_nombre === c._banco
-                          ? (c.saldo_cierre === null ? "—" : plata(c.saldo_cierre))
-                          : ""}
-                      </Td>
-                      <td className="w-4" />
-                    </Fragment>
-                  ))}
-                </tr>
-              ))}
-              {filas.length === 0 && (
-                <tr>
-                  <td className="px-3 py-4 text-[var(--t-text-dim)]" colSpan={totalCols + 1}>
-                    No hay cuentas para ese día.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="flex-1 min-h-0 overflow-auto px-3 py-2 space-y-5">
+          {bloques.map((grupo, i) => (
+            <BloqueReporte key={i} bancos={grupo} />
+          ))}
+          {bancos.length === 0 && (
+            <div className="px-1 py-4 text-[var(--t-text-dim)]">
+              No hay cuentas para ese día.
+            </div>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Un bloque del reporte: hasta `BANCOS_POR_BLOQUE` bancos como columnas y, como
+ * filas, SOLO las cuentas de esos bancos.
+ *
+ * Que las filas salgan de los bancos del bloque es lo que hace que esto funcione.
+ * Si las filas fueran siempre todas las cuentas, cada bloque repetiría 38
+ * renglones con 33 celdas vacías — que es exactamente el problema que se está
+ * arreglando.
+ */
+function BloqueReporte({ bancos }: { bancos: Banco[] }) {
+  // ARS arriba, el resto abajo, con una fila en blanco en el medio. `null` es esa
+  // fila. La separación por MONEDA importa más que el orden: sumar pesos con
+  // dólares en la misma corrida visual es el error que este formato evita.
+  const filas = useMemo(() => {
+    const cuentas = bancos.flatMap((b) =>
+      b.cuentas.map((c) => ({ ...c, _banco: b.banco_nombre })));
+    const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
+    const orden = (c: typeof cuentas[number]) =>
+      `${c._banco}|${c.tipo}|${c.numero}`;
+    const ars = cuentas.filter((c) => esArs(c.moneda)).sort(
+      (a, b) => orden(a).localeCompare(orden(b)));
+    const resto = cuentas.filter((c) => !esArs(c.moneda)).sort(
+      (a, b) => orden(a).localeCompare(orden(b)));
+    // El separador solo si hay algo de los dos lados: una fila que no separa nada
+    // es una fila vacía y nada más.
+    return ars.length && resto.length ? [...ars, null, ...resto] : [...ars, ...resto];
+  }, [bancos]);
+
+  const cols = bancos.length * 2 + 1;
+
+  return (
+    <table className="w-full border-collapse">
+      {/* Cada bloque repite los TÍTULOS de sus columnas. Sin eso, el de abajo
+          serían números sin banco. */}
+      <thead className="bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+        <tr className="border-y border-[var(--t-border-2)]">
+          <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap border-r border-[var(--t-border-2)]">
+            Cuenta
+          </th>
+          {bancos.map((b) => (
+            <Fragment key={b.banco}>
+              <th className="px-3 py-1.5 font-semibold text-right whitespace-nowrap text-[var(--t-text)]">
+                {b.banco_nombre}
+              </th>
+              {/* La columna vacía que separa un banco del siguiente. */}
+              <th className="w-4" />
+            </Fragment>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {filas.map((c, i) => c === null ? (
+          <tr key={`sep-${i}`}><td className="h-4" colSpan={cols} /></tr>
+        ) : (
+          <tr key={c.id} className="border-b border-[var(--t-border-2)]">
+            {/* El título de la fila es EXACTO lo que dice la columna CUENTA del
+                consolidado: si acá dijera otra cosa, el que compara las dos
+                pantallas tendría que traducir. */}
+            <Td copiar={`${c.tipo} ${c.moneda} · ${c.numero}`}
+                className="whitespace-nowrap border-r border-[var(--t-border-2)]">
+              {c.tipo} {c.moneda} · <span className="font-semibold">{c.numero}</span>
+              {c.etiqueta ? (
+                <span className="text-[var(--t-text-dim)]"> · {c.etiqueta}</span>
+              ) : null}
+            </Td>
+            {bancos.map((b) => (
+              <Fragment key={b.banco}>
+                <Td
+                  right
+                  strong={b.banco_nombre === c._banco}
+                  className="whitespace-nowrap"
+                  copiar={b.banco_nombre === c._banco ? plata(c.saldo_cierre) : null}
+                >
+                  {b.banco_nombre === c._banco
+                    ? (c.saldo_cierre === null ? "—" : plata(c.saldo_cierre))
+                    : ""}
+                </Td>
+                <td className="w-4" />
+              </Fragment>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
