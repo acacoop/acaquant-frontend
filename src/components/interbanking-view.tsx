@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePoll } from "@/lib/use-poll";
 
 /**
@@ -1532,10 +1539,18 @@ function ModalDesglose({
  * tiene dos cuentas, seis si tiene seis— y las tablas se **acomodan** una al lado
  * de la otra hasta llenar el espacio. Cero celdas vacías.
  *
- * El acomodado es un empaquetado explícito y no `columns` de CSS: se apilan
- * tablas en una columna mientras entren en `MAX_FILAS_ALTO`, y cuando no entra la
- * siguiente se abre otra columna. Así una tabla **nunca se parte al medio**, que
- * es lo que hace el flujo de CSS y lo que volvería ilegible el reporte.
+ * El acomodado es un empaquetado explícito y no `columns` de CSS: así una tabla
+ * **nunca se parte al medio**, que es lo que hace el flujo de CSS y lo que
+ * volvería ilegible el reporte. Las columnas se reparten **equilibradas**, no
+ * llenando la primera hasta el borde.
+ *
+ * ⚠️ **El reporte ENTRA ENTERO, siempre: no se desplaza.** Se muestra y se
+ * captura, así que una tabla abajo del fold es una tabla que no existe — y eso
+ * pasaba. Ningún reparto fijo lo puede garantizar, porque depende del tamaño de
+ * la pantalla, de cuántos bancos hay y de cuántas cuentas tiene cada uno: se
+ * MIDE el contenido contra el hueco disponible y se ESCALA. El contenedor va en
+ * `overflow-hidden` a propósito — si algo no entra, la respuesta es achicar la
+ * escala, nunca una barra de scroll.
  *
  * El día es el MISMO que muestra la vista (el hábil anterior por default): el
  * reporte no elige su propia fecha, así no puede decir algo distinto de la
@@ -1544,34 +1559,55 @@ function ModalDesglose({
  * pantalla de trabajo.
  */
 
-/** El presupuesto de la pantalla, en filas y columnas de contenido.
+/** Cuántas filas puede llegar a medir una columna de tablas.
  *
- *  `MAX_FILAS_ALTO` cuenta el título del banco + una fila por cuenta. Cuando una
- *  columna llega al tope, la tabla siguiente arranca una columna nueva.
- *
- *  Cada tabla usa DOS columnas de contenido (la cuenta y su saldo), así que con
- *  15 de ancho entran 7 tablas a lo largo antes de bajar a una banda nueva. */
-const MAX_FILAS_ALTO = 20;
-const MAX_COLUMNAS_ANCHO = 15;
-const TABLAS_POR_BANDA = Math.floor(MAX_COLUMNAS_ANCHO / 2);
+ *  Ya NO es un tope duro: es el objetivo con el que se decide EN CUÁNTAS columnas
+ *  se reparten los bancos. Después el reporte se escala para entrar entero, así
+ *  que pasarse por una fila no rompe nada — antes sí, y era lo que dejaba la
+ *  tercera tabla afuera de la foto. */
+const FILAS_OBJETIVO = 16;
 
-/** Reparte los bancos en columnas sin partir ninguna tabla al medio. */
+/** Hasta dónde se puede achicar o agrandar el reporte para que entre.
+ *
+ *  Achicar tiene piso porque abajo de eso los números no se leen, y ahí el
+ *  problema ya no es el layout: son demasiados bancos para una sola pantalla.
+ *  Agrandar tiene techo para que un reporte de dos bancos no quede como un
+ *  cartel. */
+const ESCALA_MIN = 0.55;
+const ESCALA_MAX = 1.15;
+
+/**
+ * Reparte los bancos en columnas **equilibradas**, sin partir ninguna tabla.
+ *
+ * El equilibrio importa: con un tope duro, la primera columna se llenaba hasta el
+ * borde y la última quedaba con un banco. Acá primero se decide CUÁNTAS columnas
+ * hacen falta y después se reparte apuntando a que todas midan parecido — que es
+ * lo que hace que el bloque entero tenga una forma compacta y entre en la foto.
+ */
 function empaquetar(bancos: Banco[]): Banco[][] {
+  const mide = (b: Banco) => 1 + b.cuentas.length;   // título + una fila por cuenta
+  const total = bancos.reduce((a, b) => a + mide(b), 0);
+  const n = Math.max(1, Math.ceil(total / FILAS_OBJETIVO));
+  const objetivo = Math.ceil(total / n);
+
   const cols: Banco[][] = [];
   let actual: Banco[] = [];
   let alto = 0;
-  for (const b of bancos) {
-    // Título del banco + una fila por cuenta.
-    const mide = 1 + b.cuentas.length;
-    // Una tabla más alta que el presupuesto entera igual arranca sola: partirla
-    // sería peor que pasarse.
-    if (actual.length && alto + mide > MAX_FILAS_ALTO) {
+  for (let i = 0; i < bancos.length; i++) {
+    const b = bancos[i];
+    const restantes = bancos.length - i;          // este banco incluido
+    const columnasQueFaltan = n - cols.length;    // la actual incluida
+    // Se abre columna nueva cuando la actual llegó al objetivo — salvo que no
+    // queden bancos para llenar las que faltan. Una columna vacía al final sería
+    // otro agujero blanco, que es justo lo que se está sacando.
+    if (actual.length && alto + mide(b) > objetivo
+        && columnasQueFaltan > 1 && restantes >= columnasQueFaltan) {
       cols.push(actual);
       actual = [];
       alto = 0;
     }
     actual.push(b);
-    alto += mide;
+    alto += mide(b);
   }
   if (actual.length) cols.push(actual);
   return cols;
@@ -1588,15 +1624,34 @@ function ModalReporte({
     return () => document.removeEventListener("keydown", onKey);
   }, [onCerrar]);
 
-  // Columnas de tablas, agrupadas en BANDAS para no pasarse del ancho.
-  const bandas = useMemo(() => {
-    const cols = empaquetar(bancos);
-    const out: Banco[][][] = [];
-    for (let i = 0; i < cols.length; i += TABLAS_POR_BANDA) {
-      out.push(cols.slice(i, i + TABLAS_POR_BANDA));
-    }
-    return out;
-  }, [bancos]);
+  const columnas = useMemo(() => empaquetar(bancos), [bancos]);
+
+  // ── ENTRAR ENTERO ─────────────────────────────────────────────────────────
+  // El reporte **no se desplaza**: se muestra y se captura, así que una tabla
+  // abajo del fold es una tabla que no existe. Ningún reparto fijo garantiza eso
+  // —depende del tamaño de la pantalla, de cuántos bancos hay y de cuántas
+  // cuentas tiene cada uno—, así que se mide y se ESCALA.
+  //
+  // `offsetWidth`/`offsetHeight` son el tamaño de LAYOUT y no los afecta el
+  // `transform`, así que medir después de escalar no se retroalimenta: siempre se
+  // compara el tamaño natural del contenido contra el hueco disponible.
+  const hueco = useRef<HTMLDivElement | null>(null);
+  const contenido = useRef<HTMLDivElement | null>(null);
+  const [escala, setEscala] = useState(1);
+
+  useLayoutEffect(() => {
+    const calcular = () => {
+      const h = hueco.current, c = contenido.current;
+      if (!h || !c || !c.offsetWidth || !c.offsetHeight) return;
+      const k = Math.min(h.clientWidth / c.offsetWidth, h.clientHeight / c.offsetHeight);
+      setEscala(Math.min(ESCALA_MAX, Math.max(ESCALA_MIN, k)));
+    };
+    calcular();
+    const obs = new ResizeObserver(calcular);
+    if (hueco.current) obs.observe(hueco.current);
+    if (contenido.current) obs.observe(contenido.current);
+    return () => obs.disconnect();
+  }, [columnas]);
 
   return (
     <div
@@ -1605,7 +1660,7 @@ function ModalReporte({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1500px] max-h-[92vh] flex flex-col text-[12px]"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1500px] h-[92vh] flex flex-col text-[12px]"
       >
         <div className="shrink-0 flex items-center gap-3 px-3 py-2 bg-[#094293] text-white">
           {/* eslint-disable-next-line @next/next/no-img-element -- el modal se
@@ -1625,40 +1680,35 @@ function ModalReporte({
           </button>
         </div>
 
-        {/* Los espacios entre tablas son GRANDES a propósito: son lo único que
-            dice que cada bloque es una tabla independiente y no la continuación
-            de la de al lado. */}
-        <div className="flex-1 min-h-0 overflow-auto px-4 py-3 flex flex-col gap-8">
-          {bandas.map((banda, i) => (
-            // ⚠️ GRID con `grid-auto-flow: column`, NO `flex-wrap`. Con flex, una
-            // columna que no entra por ancho se va a un renglón nuevo: quedaba
-            // una sola columna larguísima, media pantalla en blanco a la derecha
-            // y tablas abajo del fold. Con el grid las columnas de la banda son
-            // hermanas por definición —van sí o sí una al lado de la otra— y
-            // `minmax(min-content, 1fr)` reparte el ancho sobrante entre ellas en
-            // vez de dejarlo vacío, sin apretar ninguna tabla por debajo de lo
-            // que mide.
-            <div
-              key={i}
-              className="grid items-start gap-x-8 gap-y-6"
-              style={{
-                gridAutoFlow: "column",
-                gridAutoColumns: "minmax(min-content, 1fr)",
-              }}
-            >
-              {banda.map((col, j) => (
-                // El tope de ancho es para el caso de UNA sola columna: sin
-                // él, un reporte de dos bancos estiraría su tabla a lo ancho de
-                // toda la pantalla. Con tres columnas no llega a aplicar.
-                <div key={j} className="flex flex-col gap-5 max-w-[560px]">
-                  {col.map((b) => <TablaBanco key={b.banco} banco={b} />)}
-                </div>
-              ))}
-            </div>
-          ))}
-          {bancos.length === 0 && (
-            <div className="text-[var(--t-text-dim)]">No hay cuentas para ese día.</div>
-          )}
+        {/* `overflow-hidden` y no `auto`: si algo no entra, la respuesta es
+            achicar la escala, nunca una barra de scroll. */}
+        <div ref={hueco} className="flex-1 min-h-0 overflow-hidden p-4">
+          <div
+            ref={contenido}
+            // Las columnas van en GRID y no en flex-wrap: con flex, una columna
+            // que no entra por ancho se va a un renglón nuevo y el reporte se
+            // desarma. Acá son hermanas por definición. Se dimensionan por su
+            // CONTENIDO (`max-content`) porque estirarlas para llenar el ancho
+            // deformaba las tablas — el que llena la pantalla es el escalado.
+            className="inline-grid items-start gap-x-8 gap-y-6 origin-top-left"
+            style={{
+              gridAutoFlow: "column",
+              gridAutoColumns: "max-content",
+              transform: `scale(${escala})`,
+            }}
+          >
+            {columnas.map((col, j) => (
+              // Los espacios entre tablas son GRANDES a propósito: son lo único
+              // que dice que cada bloque es una tabla independiente y no la
+              // continuación de la de al lado.
+              <div key={j} className="flex flex-col gap-5">
+                {col.map((b) => <TablaBanco key={b.banco} banco={b} />)}
+              </div>
+            ))}
+            {bancos.length === 0 && (
+              <div className="text-[var(--t-text-dim)]">No hay cuentas para ese día.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1683,7 +1733,7 @@ function TablaBanco({ banco }: { banco: Banco }) {
   const esArs = (m: string) => (m || "").toUpperCase().startsWith("ARS");
 
   return (
-    <table className="border-collapse w-full">
+    <table className="border-collapse">
       <thead>
         <tr>
           <th
