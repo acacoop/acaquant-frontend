@@ -613,15 +613,14 @@ function ModalMovimientos({
           </div>
         </div>
 
-        {/* El día, según el banco. Es el contexto que explica los movimientos. */}
+        {/* Este modal es de MOVIMIENTOS. Apertura / créditos / débitos / cierre
+            se sacaron (user, 2026-08-18: «es texto al pedo»): son los saldos del
+            día, ya se ven en la grilla del consolidado, y repetirlos acá no
+            ayuda a leer una lista de movimientos. Queda lo que SÍ habla de esta
+            lista: cuántos son y cuánto de eso es gasto bancario. */}
         <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border)] flex flex-wrap gap-5">
-          <Dato label="Apertura" valor={plata(dia?.saldo_apertura, mon)} />
-          <Dato label="Créditos" valor={plata(dia?.creditos, mon)} />
-          <Dato label="Débitos" valor={plata(dia?.debitos, mon)} />
-          <Dato label="Cierre" valor={plata(dia?.saldo_cierre, mon)} fuerte />
-          <Dato label="Neto" valor={plata(r.neto, mon)} clase={signo(r.neto)} />
           <Dato label="Movimientos" valor={String(r.movimientos)} />
-          <Dato label="Gastos bancarios" valor={plata(r.gastos, mon)} />
+          <Dato label="Gastos bancarios" valor={plata(r.gastos, mon)} fuerte />
           {/* Las dos alertas de conciliación las calcula el BACKEND. */}
           {dia?.cierra === false && (
             <span className="self-center px-2 py-0.5 text-[10px] uppercase bg-[var(--t-tint-red)] text-[var(--t-neg)]">
