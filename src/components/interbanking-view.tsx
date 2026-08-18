@@ -60,6 +60,18 @@ type CuentaConsolidada = Cuenta & {
   dias_con_dato: number;
   desde_real: string | null;
   hasta_real: string | null;
+  // De dónde salió el CIERRE. Lo decide el backend, la pantalla solo lo rotula.
+  //   "extracto" → apertura/cierre del extracto (con su detalle de movimientos)
+  //   "saldo"    → `bancos.saldos`: la cuenta no se movió en el rango y el
+  //                extracto no la devuelve, pero el banco igual informa cuánto hay
+  //   null       → no sabemos (cuenta con «—»)
+  fuente: "extracto" | "saldo" | null;
+  saldo_banco: number | null;
+  saldo_banco_fecha: string | null;
+  // El banco informó las DOS cosas y no coinciden: hallazgo de conciliación.
+  discrepancia: number | null;
+  proyectado_24hs: number | null;
+  proyectado_48hs: number | null;
 };
 
 type Total = { inicio: number; cierre: number; variacion: number; cuentas: number };
@@ -246,7 +258,7 @@ function Consolidado({
         error={error}
         extra={
           data.sin_datos > 0
-            ? `${data.sin_datos} de ${data.cuentas} cuentas sin movimientos en el rango (el extracto solo trae los días con actividad, así que de esas no sabemos el saldo)`
+            ? `${data.sin_datos} de ${data.cuentas} cuentas sin extracto NI saldo informado por el banco en el rango — de esas no sabemos cuánto tienen`
             : null
         }
       />
@@ -281,6 +293,8 @@ function Consolidado({
               <Th right>Saldo al inicio</Th>
               <Th right>Saldo al cierre</Th>
               <Th right>Variación</Th>
+              <Th right>Proy. 24hs</Th>
+              <Th right>Proy. 48hs</Th>
               <Th right>Días</Th>
             </tr>
           </thead>
@@ -288,7 +302,7 @@ function Consolidado({
             {data.bancos.map((b) => (
               <BloqueBanco key={`${b.banco}-${b.banco_nombre}`} banco={b} />
             ))}
-            {data.bancos.length === 0 && <Vacia cols={5} hubo={lastAt > 0} />}
+            {data.bancos.length === 0 && <Vacia cols={7} hubo={lastAt > 0} />}
           </tbody>
         </table>
       </div>
@@ -302,7 +316,7 @@ function BloqueBanco({ banco }: { banco: Banco }) {
     <>
       {/* El banco como TÍTULO de su bloque de cuentas. */}
       <tr className="bg-[var(--t-surface-2)] border-y border-[var(--t-border)]">
-        <td colSpan={5} className="px-2 py-1.5 font-semibold tracking-wide">
+        <td colSpan={7} className="px-2 py-1.5 font-semibold tracking-wide">
           {banco.banco_nombre || "(sin nombre)"}
           <span className="ml-2 text-[10px] font-normal text-[var(--t-text-dim)]">
             BCRA {banco.banco} · {banco.cuentas.length} cuenta(s)
@@ -321,8 +335,35 @@ function BloqueBanco({ banco }: { banco: Banco }) {
             </span>
           </Td>
           <Td right>{plata(c.saldo_inicio)}</Td>
-          <Td right strong>{plata(c.saldo_cierre)}</Td>
+          <Td right strong>
+            {plata(c.saldo_cierre)}
+            {/* El saldo que NO viene del extracto se rotula: es el mismo banco
+                informando, pero es otra fuente y el back office tiene que poder
+                distinguirlo de un cierre respaldado por su detalle. */}
+            {c.fuente === "saldo" && (
+              <span
+                className="ml-1 text-[9px] uppercase text-[var(--t-text-dim)]"
+                title={`Saldo informado por el banco al ${c.saldo_banco_fecha ?? "—"}. `
+                  + "La cuenta no tuvo movimientos en el rango, así que no hay extracto "
+                  + "que lo respalde."}
+              >
+                saldo
+              </span>
+            )}
+            {c.discrepancia != null && (
+              <span
+                className="ml-1 text-[9px] uppercase text-[var(--t-neg)]"
+                title={`El extracto cierra en ${plata(c.saldo_cierre)} y el saldo `
+                  + `informado dice ${plata(c.saldo_banco)} (${plata(c.discrepancia)} de `
+                  + "diferencia). Las dos las informa el banco."}
+              >
+                ≠
+              </span>
+            )}
+          </Td>
           <Td right className={signo(c.variacion)}>{plata(c.variacion)}</Td>
+          <Td right className="text-[var(--t-text-dim)]">{plata(c.proyectado_24hs)}</Td>
+          <Td right className="text-[var(--t-text-dim)]">{plata(c.proyectado_48hs)}</Td>
           <Td right>
             {c.dias_con_dato > 0 ? (
               c.dias_con_dato
@@ -346,6 +387,11 @@ function BloqueBanco({ banco }: { banco: Banco }) {
             <Td right strong>{plata(t.inicio)}</Td>
             <Td right strong>{plata(t.cierre)}</Td>
             <Td right strong className={signo(t.variacion)}>{plata(t.variacion)}</Td>
+            {/* Los proyectados NO se subtotalizan: son de las cuentas que los
+                informan, y sumarlos con las que no daría un total que parece
+                completo sin serlo. */}
+            <Td right />
+            <Td right />
             <Td right />
           </tr>
         );
