@@ -6,6 +6,7 @@ import { usePoll } from "@/lib/use-poll";
 import { FilterBtn, Panel } from "@/components/ui";
 import { CurvasChart, type Curva } from "@/components/curvas-chart";
 import { BonosTable } from "@/components/bonos-table";
+import { LibroPanel } from "@/components/libro-panel";
 
 // Tab CURVAS del rediseño (docs/RENTA_FIJA.md §0, paso 3b).
 //
@@ -32,6 +33,17 @@ const PILL_A_CURVA: Record<string, Curva> = {
   duales: "dual",   // los duales se resuelven por el EJE `ajuste` en el backend
 };
 
+// LIBRO: la pill de TIME & SALES. No es una curva ni sale del backend — es una
+// VISTA distinta del mismo universo (el tape intradía de un ticker), así que se
+// agrega acá, del lado ARS, y no en `data.pills`.
+//
+// Existía en la tabla vieja (`renta-fija-table`) y se perdió cuando la tab CURVAS
+// la reemplazó: el componente `LibroPanel` quedó vivo pero sin nadie que lo
+// montara. Se restaura tal cual funcionaba — mismo panel, mismo `/api/trades`,
+// mismo poll de 5s — sobre los bonos del lado ARS que pasan el filtro de EMISOR
+// (con SOBERANO prendido, que es el default, son exactamente los soberanos ARS).
+const PILL_LIBRO = "libro";
+
 interface Props {
   barra?: React.ReactNode;   // las tabs, para que compartan fila con el filtro
   inicial: CurvasVista;
@@ -39,7 +51,7 @@ interface Props {
 }
 
 function Columna({
-  lado, pills, bonos, pill, setPill, fairValueInicial,
+  lado, pills, bonos, pill, setPill, fairValueInicial, conLibro,
 }: {
   lado: "ARS" | "USD";
   pills: PillDef[];
@@ -47,30 +59,89 @@ function Columna({
   pill: string;
   setPill: (p: string) => void;
   fairValueInicial?: Record<string, FairValueDoc>;
+  conLibro?: boolean;
 }) {
   const delLado = pills.filter((p) => p.lado === lado);
+  const esLibro = Boolean(conLibro) && pill === PILL_LIBRO;
   const filas = bonos.filter((b) => b.pill === pill);
   const curva = PILL_A_CURVA[pill];
+
+  // El universo del LIBRO es el LADO entero, no una pill: el tape se mira por
+  // TICKER y partirlo por ajuste obligaría a saber de antemano si el bono es CER
+  // o tasa fija para encontrarlo. Respeta el filtro de EMISOR de arriba, igual
+  // que las tablas — lo que se ve es siempre lo que está encendido.
+  //
+  // Tres cuidados:
+  //   · `lado` y no `moneda`: un dual TAMAR + DOLAR LINKED es ARS pero tiene una
+  //     fila de cada lado (mismo criterio que `bonos-table`).
+  //   · DEDUPE por instrumento — un dual llega REPETIDO, una fila por pata, y el
+  //     selector mostraría el ticker dos veces.
+  //   · solo los que tienen `last_price`: sin precio no hay rueda, y el tape
+  //     arrancaría en un bono sin trades. Es el mismo filtro que hacía la tabla
+  //     vieja antes de montar el libro.
+  const libro = useMemo(() => {
+    const vistos = new Set<string>();
+    const out: { instrumento: string; metrics: { last_price?: number; total_nominals?: number } }[] = [];
+    for (const b of bonos) {
+      if (b.lado !== lado || !b.instrumento) continue;
+      if (!b.metrics?.last_price) continue;
+      if (vistos.has(b.instrumento)) continue;
+      vistos.add(b.instrumento);
+      out.push({
+        instrumento: b.instrumento,
+        metrics: {
+          last_price: b.metrics.last_price,
+          total_nominals: b.metrics.total_nominals,
+        },
+      });
+    }
+    return out;
+  }, [bonos, lado]);
+
+  const acciones = (
+    <>
+      {delLado.map((p) => (
+        <FilterBtn
+          key={p.codigo}
+          active={pill === p.codigo}
+          onClick={() => setPill(p.codigo)}
+        >
+          {p.display}
+          <span className="ml-1 opacity-60">{p.n}</span>
+        </FilterBtn>
+      ))}
+      {conLibro && (
+        <FilterBtn
+          active={esLibro}
+          onClick={() => setPill(PILL_LIBRO)}
+          title="Time & Sales intradía por ticker"
+        >
+          LIBRO
+          <span className="ml-1 opacity-60">{libro.length}</span>
+        </FilterBtn>
+      )}
+    </>
+  );
+
+  // Con LIBRO prendido la columna es UN solo panel a todo el alto: el tape no
+  // tiene curva que graficar, y dejar el gráfico de la pill anterior debajo
+  // pondría en pantalla dos cosas que no se corresponden. De paso el Time &
+  // Sales gana el alto que le faltaba cuando vivía en medio panel.
+  if (esLibro) {
+    return (
+      <div className="min-w-0 min-h-0">
+        <Panel title={`${lado} · LIBRO`} count={libro.length} fill expandable actions={acciones}>
+          <LibroPanel data={libro} />
+        </Panel>
+      </div>
+    );
+  }
 
   return (
     <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
       {/* Las pills viven en la BARRA DE TÍTULO: una fila menos de controles es
           una fila más de bonos, y la tabla es lo que la vista da. */}
-      <Panel
-        title={lado}
-        count={filas.length}
-        expandable
-        actions={delLado.map((p) => (
-          <FilterBtn
-            key={p.codigo}
-            active={pill === p.codigo}
-            onClick={() => setPill(p.codigo)}
-          >
-            {p.display}
-            <span className="ml-1 opacity-60">{p.n}</span>
-          </FilterBtn>
-        ))}
-      >
+      <Panel title={lado} count={filas.length} expandable actions={acciones}>
         <BonosTable bonos={filas} />
       </Panel>
 
@@ -154,6 +225,7 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
         <Columna
           lado="ARS" pills={pills} bonos={bonos} pill={pillArs} setPill={setPillArs}
           fairValueInicial={fairValueInicial}
+          conLibro
         />
         <Columna
           lado="USD" pills={pills} bonos={bonos} pill={pillUsd} setPill={setPillUsd}
