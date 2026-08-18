@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 
 /**
@@ -69,8 +62,10 @@ import { usePoll } from "@/lib/use-poll";
  *    lo mismo — cada cuenta pertenece a UN banco, así que en una grilla común la
  *    enorme mayoría de las celdas queda vacía y la tabla queda larguísima o
  *    anchísima al pedo. Cada tabla mide lo que su banco necesita y se acomodan
- *    unas al lado de otras hasta llenar el espacio, con espacios grandes en el
- *    medio para que se lea que cada una es su propia tabla. Adentro, ARS primero
+ *    unas al lado de otras, repartidas con los bancos GRANDES primero para que
+ *    las columnas queden parejas, y con espacios grandes en el medio para que se
+ *    lea que cada una es su propia tabla. El modal toma el ancho que piden las
+ *    tablas: ni estirarlas ni escalarlas, que fue lo que se probó antes. Adentro, ARS primero
  *    y una línea más marcada donde cambia la moneda. Usa el MISMO día que la
  *    vista, así no puede decir algo distinto de la pantalla desde la que se
  *    abrió. Cabecera azul con el logo UNA vez arriba de todo: este modal se
@@ -1541,16 +1536,16 @@ function ModalDesglose({
  *
  * El acomodado es un empaquetado explícito y no `columns` de CSS: así una tabla
  * **nunca se parte al medio**, que es lo que hace el flujo de CSS y lo que
- * volvería ilegible el reporte. Las columnas se reparten **equilibradas**, no
- * llenando la primera hasta el borde.
+ * volvería ilegible el reporte. El reparto es un **bin packing con los bancos
+ * grandes primero** (ver `empaquetar`): es lo que hace que las columnas queden
+ * parejas y que no aparezca una casi vacía al final.
  *
- * ⚠️ **El reporte ENTRA ENTERO, siempre: no se desplaza.** Se muestra y se
- * captura, así que una tabla abajo del fold es una tabla que no existe — y eso
- * pasaba. Ningún reparto fijo lo puede garantizar, porque depende del tamaño de
- * la pantalla, de cuántos bancos hay y de cuántas cuentas tiene cada uno: se
- * MIDE el contenido contra el hueco disponible y se ESCALA. El contenedor va en
- * `overflow-hidden` a propósito — si algo no entra, la respuesta es achicar la
- * escala, nunca una barra de scroll.
+ * ⚠️ **El MODAL se ajusta al contenido, no al revés.** Ancho fijo + tablas que
+ * miden lo suyo = media pantalla en blanco al costado; ancho fijo + tablas
+ * estiradas para llenarlo = tablas deformadas; y escalar todo para que entrase
+ * dejaba la letra ilegible. Las tres se probaron. Lo que funciona es lo simple:
+ * las columnas se dimensionan por su CONTENIDO (`max-content`) y el modal toma
+ * el ancho que eso pide, hasta el borde de la pantalla.
  *
  * El día es el MISMO que muestra la vista (el hábil anterior por default): el
  * reporte no elige su propia fecha, así no puede decir algo distinto de la
@@ -1559,58 +1554,42 @@ function ModalDesglose({
  * pantalla de trabajo.
  */
 
-/** Cuántas filas puede llegar a medir una columna de tablas.
- *
- *  Ya NO es un tope duro: es el objetivo con el que se decide EN CUÁNTAS columnas
- *  se reparten los bancos. Después el reporte se escala para entrar entero, así
- *  que pasarse por una fila no rompe nada — antes sí, y era lo que dejaba la
- *  tercera tabla afuera de la foto. */
+/** Cuántas filas apunta a medir cada columna de tablas (título del banco + una
+ *  fila por cuenta). Es un OBJETIVO para decidir en cuántas columnas se reparten
+ *  los bancos, no un tope duro. */
 const FILAS_OBJETIVO = 16;
 
-/** Hasta dónde se puede achicar o agrandar el reporte para que entre.
- *
- *  Achicar tiene piso porque abajo de eso los números no se leen, y ahí el
- *  problema ya no es el layout: son demasiados bancos para una sola pantalla.
- *  Agrandar tiene techo para que un reporte de dos bancos no quede como un
- *  cartel. */
-const ESCALA_MIN = 0.55;
-const ESCALA_MAX = 1.15;
-
 /**
- * Reparte los bancos en columnas **equilibradas**, sin partir ninguna tabla.
+ * Reparte los bancos en columnas parejas, sin partir ninguna tabla.
  *
- * El equilibrio importa: con un tope duro, la primera columna se llenaba hasta el
- * borde y la última quedaba con un banco. Acá primero se decide CUÁNTAS columnas
- * hacen falta y después se reparte apuntando a que todas midan parecido — que es
- * lo que hace que el bloque entero tenga una forma compacta y entre en la foto.
+ * Es un **bin packing** clásico y la idea es la que propuso el back office: los
+ * bancos GRANDES primero. Banco Valores tiene 9 cuentas e Industrial 5 — puestos
+ * uno abajo del otro llenan una columna entera; después los chicos (Coinag 3,
+ * Comafi 4, Galicia 5) rellenan los huecos que quedan.
+ *
+ * Al revés no funciona: si se van tomando en el orden que vienen, los chicos
+ * ocupan las primeras columnas y el banco de 9 cuentas ya no entra en ninguna,
+ * así que se abre una columna nueva casi vacía. Eso es lo que dejaba media
+ * pantalla en blanco y una tabla afuera de la foto.
+ *
+ * Cada banco va a la columna que HOY está más vacía. Con eso las columnas quedan
+ * parejas sin buscar el óptimo perfecto, que para 9 elementos no hace falta.
  */
 function empaquetar(bancos: Banco[]): Banco[][] {
   const mide = (b: Banco) => 1 + b.cuentas.length;   // título + una fila por cuenta
   const total = bancos.reduce((a, b) => a + mide(b), 0);
   const n = Math.max(1, Math.ceil(total / FILAS_OBJETIVO));
-  const objetivo = Math.ceil(total / n);
 
-  const cols: Banco[][] = [];
-  let actual: Banco[] = [];
-  let alto = 0;
-  for (let i = 0; i < bancos.length; i++) {
-    const b = bancos[i];
-    const restantes = bancos.length - i;          // este banco incluido
-    const columnasQueFaltan = n - cols.length;    // la actual incluida
-    // Se abre columna nueva cuando la actual llegó al objetivo — salvo que no
-    // queden bancos para llenar las que faltan. Una columna vacía al final sería
-    // otro agujero blanco, que es justo lo que se está sacando.
-    if (actual.length && alto + mide(b) > objetivo
-        && columnasQueFaltan > 1 && restantes >= columnasQueFaltan) {
-      cols.push(actual);
-      actual = [];
-      alto = 0;
-    }
-    actual.push(b);
-    alto += mide(b);
+  const cols: Banco[][] = Array.from({ length: n }, () => []);
+  const alto = new Array(n).fill(0);
+  // Grandes primero: es lo que hace que el reparto cierre.
+  for (const b of [...bancos].sort((x, y) => mide(y) - mide(x))) {
+    let i = 0;
+    for (let k = 1; k < n; k++) if (alto[k] < alto[i]) i = k;
+    cols[i].push(b);
+    alto[i] += mide(b);
   }
-  if (actual.length) cols.push(actual);
-  return cols;
+  return cols.filter((c) => c.length);
 }
 
 function ModalReporte({
@@ -1626,33 +1605,6 @@ function ModalReporte({
 
   const columnas = useMemo(() => empaquetar(bancos), [bancos]);
 
-  // ── ENTRAR ENTERO ─────────────────────────────────────────────────────────
-  // El reporte **no se desplaza**: se muestra y se captura, así que una tabla
-  // abajo del fold es una tabla que no existe. Ningún reparto fijo garantiza eso
-  // —depende del tamaño de la pantalla, de cuántos bancos hay y de cuántas
-  // cuentas tiene cada uno—, así que se mide y se ESCALA.
-  //
-  // `offsetWidth`/`offsetHeight` son el tamaño de LAYOUT y no los afecta el
-  // `transform`, así que medir después de escalar no se retroalimenta: siempre se
-  // compara el tamaño natural del contenido contra el hueco disponible.
-  const hueco = useRef<HTMLDivElement | null>(null);
-  const contenido = useRef<HTMLDivElement | null>(null);
-  const [escala, setEscala] = useState(1);
-
-  useLayoutEffect(() => {
-    const calcular = () => {
-      const h = hueco.current, c = contenido.current;
-      if (!h || !c || !c.offsetWidth || !c.offsetHeight) return;
-      const k = Math.min(h.clientWidth / c.offsetWidth, h.clientHeight / c.offsetHeight);
-      setEscala(Math.min(ESCALA_MAX, Math.max(ESCALA_MIN, k)));
-    };
-    calcular();
-    const obs = new ResizeObserver(calcular);
-    if (hueco.current) obs.observe(hueco.current);
-    if (contenido.current) obs.observe(contenido.current);
-    return () => obs.disconnect();
-  }, [columnas]);
-
   return (
     <div
       className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
@@ -1660,7 +1612,7 @@ function ModalReporte({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1500px] h-[92vh] flex flex-col text-[12px]"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] max-w-[95vw] max-h-[92vh] flex flex-col text-[12px]"
       >
         <div className="shrink-0 flex items-center gap-3 px-3 py-2 bg-[#094293] text-white">
           {/* eslint-disable-next-line @next/next/no-img-element -- el modal se
@@ -1680,22 +1632,17 @@ function ModalReporte({
           </button>
         </div>
 
-        {/* `overflow-hidden` y no `auto`: si algo no entra, la respuesta es
-            achicar la escala, nunca una barra de scroll. */}
-        <div ref={hueco} className="flex-1 min-h-0 overflow-hidden p-4">
+        <div className="flex-1 min-h-0 overflow-auto p-4">
+          {/* ⚠️ GRID con `grid-auto-flow: column`, NO `flex-wrap`. Con flex, una
+              columna que no entra por ancho se va a un renglón nuevo: quedaba una
+              sola columna larguísima, media pantalla en blanco al lado y las
+              tablas que seguían abajo del fold. Acá las columnas son hermanas por
+              definición.
+              Y `max-content`, NO `1fr`: estirarlas para llenar el ancho deforma
+              las tablas. El ancho lo da el contenido; el modal se ajusta a él. */}
           <div
-            ref={contenido}
-            // Las columnas van en GRID y no en flex-wrap: con flex, una columna
-            // que no entra por ancho se va a un renglón nuevo y el reporte se
-            // desarma. Acá son hermanas por definición. Se dimensionan por su
-            // CONTENIDO (`max-content`) porque estirarlas para llenar el ancho
-            // deformaba las tablas — el que llena la pantalla es el escalado.
-            className="inline-grid items-start gap-x-8 gap-y-6 origin-top-left"
-            style={{
-              gridAutoFlow: "column",
-              gridAutoColumns: "max-content",
-              transform: `scale(${escala})`,
-            }}
+            className="inline-grid items-start gap-x-8 gap-y-6"
+            style={{ gridAutoFlow: "column", gridAutoColumns: "max-content" }}
           >
             {columnas.map((col, j) => (
               // Los espacios entre tablas son GRANDES a propósito: son lo único
