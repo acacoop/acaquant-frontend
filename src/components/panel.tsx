@@ -25,6 +25,7 @@ export function Panel({
   count,
   sub,
   actions,
+  rightActions,
   fill,
   expandable,
 }: {
@@ -33,6 +34,12 @@ export function Panel({
   count?: number;
   sub?: string;
   actions?: React.ReactNode;
+  // Acciones alineadas a la DERECHA del header, separadas de `actions`. Existe
+  // para lo que NO es un filtro más: `actions` son los cortes del mismo dato
+  // (las pills de ajuste), y pegarles al lado un botón que hace otra cosa los
+  // hace leer como uno más de la lista. Aditivo: sin esta prop el header queda
+  // exactamente igual que antes.
+  rightActions?: React.ReactNode;
   fill?: boolean;
   expandable?: boolean;
 }) {
@@ -54,13 +61,21 @@ export function Panel({
         <span className="ml-2 text-[10px] text-[var(--t-text-muted)]">({count})</span>
       )}
       {actions && <div className="ml-3 flex items-center gap-1">{actions}</div>}
+      {rightActions && (
+        <div className="ml-auto flex items-center gap-1 pl-3">{rightActions}</div>
+      )}
       {sub && (
         <span className="ml-auto text-[10px] text-[var(--t-text-muted)]">{sub}</span>
       )}
       {expandable && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="ml-auto text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors p-0.5"
+          // Con `rightActions` el que empuja a la derecha es ESE bloque; si el
+          // botón también llevara `ml-auto`, flexbox REPARTE el espacio libre
+          // entre los dos y las acciones quedan flotando en el medio en vez de
+          // pegadas al borde (medido: x=695 de 1100). Sin `rightActions` nada
+          // cambia — los ~12 paneles que ya existen siguen igual.
+          className={`${rightActions ? "ml-1" : "ml-auto"} text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors p-0.5`}
           title={expanded ? "Minimizar" : "Maximizar"}
         >
           {expanded ? <CollapseIcon /> : <ExpandIcon />}

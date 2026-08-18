@@ -7,6 +7,7 @@ import { FilterBtn, Panel } from "@/components/ui";
 import { CurvasChart, type Curva } from "@/components/curvas-chart";
 import { BonosTable } from "@/components/bonos-table";
 import { LibroPanel } from "@/components/libro-panel";
+import { VentanaFlotante } from "@/components/ventana-flotante";
 
 // Tab CURVAS del rediseño (docs/RENTA_FIJA.md §0, paso 3b).
 //
@@ -33,16 +34,17 @@ const PILL_A_CURVA: Record<string, Curva> = {
   duales: "dual",   // los duales se resuelven por el EJE `ajuste` en el backend
 };
 
-// LIBRO: la pill de TIME & SALES. No es una curva ni sale del backend — es una
-// VISTA distinta del mismo universo (el tape intradía de un ticker), así que se
-// agrega acá, del lado ARS, y no en `data.pills`.
+// LIBRO: el TIME & SALES. **No es una pill y no es una asset class** — es una
+// herramienta sobre el mismo universo, así que vive a la DERECHA del header, con
+// aire, y abre una VENTANA FLOTANTE (`ventana-flotante.tsx`).
 //
-// Existía en la tabla vieja (`renta-fija-table`) y se perdió cuando la tab CURVAS
-// la reemplazó: el componente `LibroPanel` quedó vivo pero sin nadie que lo
-// montara. Se restaura tal cual funcionaba — mismo panel, mismo `/api/trades`,
-// mismo poll de 5s — sobre los bonos del lado ARS que pasan el filtro de EMISOR
-// (con SOBERANO prendido, que es el default, son exactamente los soberanos ARS).
-const PILL_LIBRO = "libro";
+// Las dos decisiones son del user (2026-08-18) y son la misma:
+//   1. pegado a TASA FIJA / CER / TAMAR / BADLAR se leía como un ajuste más;
+//   2. al ocupar el panel te TAPABA la tabla y la curva — justo contra lo que
+//      uno compara el tape. Flotando, se mira el libro Y la vista entera.
+//
+// Existía en la tabla vieja (`renta-fija-table`) y se perdió en la migración a
+// la tab CURVAS: el componente quedó vivo y sin nadie que lo montara.
 
 interface Props {
   barra?: React.ReactNode;   // las tabs, para que compartan fila con el filtro
@@ -51,7 +53,7 @@ interface Props {
 }
 
 function Columna({
-  lado, pills, bonos, pill, setPill, fairValueInicial, conLibro,
+  lado, pills, bonos, pill, setPill, fairValueInicial, libro,
 }: {
   lado: "ARS" | "USD";
   pills: PillDef[];
@@ -59,89 +61,34 @@ function Columna({
   pill: string;
   setPill: (p: string) => void;
   fairValueInicial?: Record<string, FairValueDoc>;
-  conLibro?: boolean;
+  // El botón del LIBRO, ya armado por el padre (es él quien tiene la ventana).
+  // La columna no sabe qué hace: solo dónde va.
+  libro?: React.ReactNode;
 }) {
   const delLado = pills.filter((p) => p.lado === lado);
-  const esLibro = Boolean(conLibro) && pill === PILL_LIBRO;
   const filas = bonos.filter((b) => b.pill === pill);
   const curva = PILL_A_CURVA[pill];
-
-  // El universo del LIBRO es el LADO entero, no una pill: el tape se mira por
-  // TICKER y partirlo por ajuste obligaría a saber de antemano si el bono es CER
-  // o tasa fija para encontrarlo. Respeta el filtro de EMISOR de arriba, igual
-  // que las tablas — lo que se ve es siempre lo que está encendido.
-  //
-  // Tres cuidados:
-  //   · `lado` y no `moneda`: un dual TAMAR + DOLAR LINKED es ARS pero tiene una
-  //     fila de cada lado (mismo criterio que `bonos-table`).
-  //   · DEDUPE por instrumento — un dual llega REPETIDO, una fila por pata, y el
-  //     selector mostraría el ticker dos veces.
-  //   · solo los que tienen `last_price`: sin precio no hay rueda, y el tape
-  //     arrancaría en un bono sin trades. Es el mismo filtro que hacía la tabla
-  //     vieja antes de montar el libro.
-  const libro = useMemo(() => {
-    const vistos = new Set<string>();
-    const out: { instrumento: string; metrics: { last_price?: number; total_nominals?: number } }[] = [];
-    for (const b of bonos) {
-      if (b.lado !== lado || !b.instrumento) continue;
-      if (!b.metrics?.last_price) continue;
-      if (vistos.has(b.instrumento)) continue;
-      vistos.add(b.instrumento);
-      out.push({
-        instrumento: b.instrumento,
-        metrics: {
-          last_price: b.metrics.last_price,
-          total_nominals: b.metrics.total_nominals,
-        },
-      });
-    }
-    return out;
-  }, [bonos, lado]);
-
-  const acciones = (
-    <>
-      {delLado.map((p) => (
-        <FilterBtn
-          key={p.codigo}
-          active={pill === p.codigo}
-          onClick={() => setPill(p.codigo)}
-        >
-          {p.display}
-          <span className="ml-1 opacity-60">{p.n}</span>
-        </FilterBtn>
-      ))}
-      {conLibro && (
-        <FilterBtn
-          active={esLibro}
-          onClick={() => setPill(PILL_LIBRO)}
-          title="Time & Sales intradía por ticker"
-        >
-          LIBRO
-          <span className="ml-1 opacity-60">{libro.length}</span>
-        </FilterBtn>
-      )}
-    </>
-  );
-
-  // Con LIBRO prendido la columna es UN solo panel a todo el alto: el tape no
-  // tiene curva que graficar, y dejar el gráfico de la pill anterior debajo
-  // pondría en pantalla dos cosas que no se corresponden. De paso el Time &
-  // Sales gana el alto que le faltaba cuando vivía en medio panel.
-  if (esLibro) {
-    return (
-      <div className="min-w-0 min-h-0">
-        <Panel title={`${lado} · LIBRO`} count={libro.length} fill expandable actions={acciones}>
-          <LibroPanel data={libro} />
-        </Panel>
-      </div>
-    );
-  }
 
   return (
     <div className="min-w-0 min-h-0 grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
       {/* Las pills viven en la BARRA DE TÍTULO: una fila menos de controles es
           una fila más de bonos, y la tabla es lo que la vista da. */}
-      <Panel title={lado} count={filas.length} expandable actions={acciones}>
+      <Panel
+        title={lado}
+        count={filas.length}
+        expandable
+        rightActions={libro}
+        actions={delLado.map((p) => (
+          <FilterBtn
+            key={p.codigo}
+            active={pill === p.codigo}
+            onClick={() => setPill(p.codigo)}
+          >
+            {p.display}
+            <span className="ml-1 opacity-60">{p.n}</span>
+          </FilterBtn>
+        ))}
+      >
         <BonosTable bonos={filas} />
       </Panel>
 
@@ -174,6 +121,10 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
   const [emisores, setEmisores] = useState<string[]>(["soberano"]);
   const [pillArs, setPillArs] = useState("tasa_fija");
   const [pillUsd, setPillUsd] = useState("hard_dolar");
+  // Abierto/cerrado NO se persiste (la geometría sí, adentro de la ventana): que
+  // la app te abra sola una ventana que no pediste esta vez es peor que tener
+  // que clickear de nuevo.
+  const [libroAbierto, setLibroAbierto] = useState(false);
 
   const bonos = useMemo(
     () => data.bonos.filter((b) => emisores.includes(b.emisor_tipo)),
@@ -187,6 +138,49 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
       ...p, n: bonos.filter((b) => b.pill === p.codigo).length,
     })),
     [data.pills, bonos],
+  );
+
+  // El universo del LIBRO es el lado ARS ENTERO, no una pill: el tape se busca
+  // por TICKER, y cortarlo por ajuste obligaría a saber de antemano si el bono es
+  // CER o tasa fija para encontrarlo. Respeta el filtro de EMISOR de arriba, así
+  // que con el default (SOBERANO) la lista son exactamente los soberanos ARS.
+  //
+  // Tres cuidados:
+  //   · `lado` y no `moneda`: un dual TAMAR + DOLAR LINKED es ARS pero tiene una
+  //     fila de cada lado (mismo criterio que `bonos-table`).
+  //   · DEDUPE por instrumento — un dual llega REPETIDO, una fila por pata, y el
+  //     selector mostraría el ticker dos veces.
+  //   · solo los que tienen `last_price`: sin precio no hubo rueda y el tape
+  //     arrancaría vacío. Es el mismo filtro que la tabla vieja hacía con
+  //     `flujos` (bonos VIVOS), sin volver a pedir los 240 KB de cronogramas.
+  const libroBonos = useMemo(() => {
+    const vistos = new Set<string>();
+    const out: { instrumento: string; metrics: { last_price?: number; total_nominals?: number } }[] = [];
+    for (const b of bonos) {
+      if (b.lado !== "ARS" || !b.instrumento) continue;
+      if (!b.metrics?.last_price) continue;
+      if (vistos.has(b.instrumento)) continue;
+      vistos.add(b.instrumento);
+      out.push({
+        instrumento: b.instrumento,
+        metrics: {
+          last_price: b.metrics.last_price,
+          total_nominals: b.metrics.total_nominals,
+        },
+      });
+    }
+    return out;
+  }, [bonos]);
+
+  const botonLibro = (
+    <FilterBtn
+      active={libroAbierto}
+      onClick={() => setLibroAbierto((v) => !v)}
+      title="Time & Sales intradía por ticker — se abre en una ventana que podés arrastrar"
+    >
+      LIBRO
+      <span className="ml-1 opacity-60">{libroBonos.length}</span>
+    </FilterBtn>
   );
 
   const toggle = (cod: string) =>
@@ -225,13 +219,33 @@ export function CurvasTab({ barra, inicial, fairValueInicial }: Props) {
         <Columna
           lado="ARS" pills={pills} bonos={bonos} pill={pillArs} setPill={setPillArs}
           fairValueInicial={fairValueInicial}
-          conLibro
+          libro={botonLibro}
         />
         <Columna
           lado="USD" pills={pills} bonos={bonos} pill={pillUsd} setPill={setPillUsd}
           fairValueInicial={fairValueInicial}
         />
       </div>
+
+      {/* La ventana se monta FUERA de la grilla (va por portal al body): no le
+          saca ancho ni alto a las columnas, que es todo el punto. Se desmonta al
+          cerrar, así el poll de trades no sigue corriendo escondido. */}
+      {libroAbierto && (
+        <VentanaFlotante
+          titulo="LIBRO · ARS"
+          storageKey="rentaFija.libro.ventana"
+          onClose={() => setLibroAbierto(false)}
+          anchoInicial={440}
+          altoInicial={520}
+          sub={
+            <span className="text-[10px] text-[var(--t-text-muted)]">
+              {libroBonos.length} tickers
+            </span>
+          }
+        >
+          <LibroPanel data={libroBonos} />
+        </VentanaFlotante>
+      )}
     </div>
   );
 }
