@@ -108,6 +108,19 @@ type Vista = {
   capacidades: { puede_ignorar: boolean; puede_dar_de_alta: boolean; motivo_alta: string };
 };
 
+// EL TABLERO. Las fuentes usan el MISMO vocabulario de estados que el pre-flight
+// (`ok` / `revisar` / `bloquea`) — no es reuso por pereza: que una fuente
+// degradada y un paso de la cadena se pinten igual es lo que deja mirar toda la
+// pantalla con una sola convención en la cabeza.
+type Fuente = {
+  clave: string; titulo: string; estado: string; detalle: string; para: string;
+};
+type Control = {
+  parada: { parada: boolean; motivo: string; por: string; cambiado_at: string | null };
+  fuentes: Fuente[];
+  resumen: { bloquea: number; revisar: number; ok: number };
+};
+
 const TIPO_LABEL: Record<string, string> = {
   hueco_de_curva: "Le falta al sistema (no es un dato mal cargado)",
   falta_en_base: "Están en 1816 y no en tu base",
@@ -144,7 +157,11 @@ function haceCuanto(iso: string | null): string {
   return `hace ${Math.round(h / 24)} días`;
 }
 
-type Tab = "preguntas" | "avisos" | "hallazgos" | "hizo" | "decidido";
+// `control` es la SEXTA y la primera que no habla de un hallazgo sino del AGENTE
+// (user, 2026-08-18: «quiero control total del agente desde el modal por las
+// dudas»). Hasta acá las cinco tabs miraban el trabajo; ninguna miraba la
+// herramienta.
+type Tab = "preguntas" | "avisos" | "hallazgos" | "hizo" | "decidido" | "control";
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
 // igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
@@ -185,6 +202,18 @@ export function AvAgentModal() {
   // Simulaciones por ticker. `null` = corriendo. El resultado se guarda para que
   // uno pueda mirar el número antes de aplicar — que es todo el punto de E2.
   const [sims, setSims] = useState<Record<string, Record<string, unknown> | null>>({});
+  // El TABLERO. Va en su propio estado y su propio request: es lo único de la
+  // pantalla que tiene que seguir sirviendo cuando `/vista` falla — si el agente
+  // está roto, el tablero que dice POR QUÉ no puede caerse con él.
+  const [ctrl, setCtrl] = useState<Control | null>(null);
+
+  const cargarControl = useCallback(async () => {
+    try {
+      setCtrl(await fetchJson<Control>("/api/ia/av-agent/control"));
+    } catch {
+      setCtrl(null);
+    }
+  }, []);
 
   const cargar = useCallback(async () => {
     try {
@@ -198,7 +227,10 @@ export function AvAgentModal() {
   }, []);
 
   // Una sola carga al montar, para tener el contador en la barra sin abrir nada.
-  useEffect(() => { void cargar(); }, [cargar]);
+  // El tablero viene con ella: **la PARADA tiene que verse en la barra**, no
+  // adentro de una tab que hay que ir a buscar. Un agente frenado del que uno se
+  // entera abriendo el modal es un agente que va a quedar frenado tres días.
+  useEffect(() => { void cargar(); void cargarControl(); }, [cargar, cargarControl]);
 
   const responder = useCallback(async (id: number, respuesta: string) => {
     setEnviando(id);
@@ -215,6 +247,22 @@ export function AvAgentModal() {
       setEnviando(null);
     }
   }, [cargar, notas]);
+
+  const setParada = useCallback(async (activa: boolean, motivo: string) => {
+    try {
+      const r = await fetchJson<{ ok: boolean; error?: string }>(
+        "/api/ia/av-agent/control/parada", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ activa, motivo }),
+        });
+      if (r.ok === false) setError(r.error ?? "no se pudo cambiar la parada");
+      else setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+    await cargarControl();
+  }, [cargarControl]);
 
   const resolverAviso = useCallback(async (id: number, deshacer: boolean) => {
     try {
@@ -378,6 +426,30 @@ export function AvAgentModal() {
               </button>
             </div>
 
+            {/* ── LA PARADA, si está puesta ───────────────────────────────
+                Va ACÁ y no adentro de la tab CONTROL a propósito: el agente
+                frenado tiene que gritarlo desde cualquier pantalla. Si hubiera
+                que abrir una tab para enterarse, la parada de un martes se
+                descubre el viernes cuando alguien se pregunta por qué el botón
+                APLICAR devuelve un error raro. */}
+            {ctrl?.parada.parada && (
+              <div className="flex items-center gap-2 px-4 py-1.5 bg-[var(--t-neg)]/15 border-b border-[var(--t-neg)]">
+                <span className="text-[10px] font-semibold tracking-widest text-[var(--t-neg)]">
+                  ■ AGENTE FRENADO
+                </span>
+                <span className="text-[10px] text-[var(--t-text-muted)] truncate">
+                  {ctrl.parada.motivo}
+                  {ctrl.parada.por ? ` · la puso ${ctrl.parada.por}` : ""}
+                </span>
+                <button
+                  onClick={() => void setParada(false, "")}
+                  className="ml-auto shrink-0 text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)] hover:bg-[var(--t-neg)] hover:text-[var(--t-on-accent)]"
+                >
+                  Reanudar
+                </button>
+              </div>
+            )}
+
             {/* ── Tabs ───────────────────────────────────────────────────── */}
             <div className="flex items-stretch border-b border-[var(--t-border)] bg-[var(--t-surface)]">
               {([
@@ -386,6 +458,11 @@ export function AvAgentModal() {
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
                 ["hizo", "HIZO", (data.acciones ?? []).length],
                 ["decidido", "YA DECIDIDO", data.decididas.length],
+                // El contador de CONTROL es la cantidad de fuentes que NO están
+                // en verde. Un cero acá significa «no hay nada que mirar», que es
+                // exactamente lo que uno quiere leer de un vistazo.
+                ["control", "CONTROL",
+                  (ctrl?.resumen.bloquea ?? 0) + (ctrl?.resumen.revisar ?? 0)],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
                 <button
                   key={k}
@@ -423,6 +500,9 @@ export function AvAgentModal() {
               )}
               {tab === "hizo" && <TabHizo acciones={data.acciones ?? []} />}
               {tab === "decidido" && <TabDecidido data={data} designorar={designorar} />}
+              {tab === "control" && (
+                <TabControl ctrl={ctrl} setParada={setParada} recargar={cargarControl} />
+              )}
             </div>
           </div>
         </div>
@@ -1450,6 +1530,173 @@ function TabDecidido({ data, designorar }: {
         )}
       </section>
     </div>
+    </div>
+  );
+}
+
+// ── LA TAB CONTROL ──────────────────────────────────────────────────────────
+//
+// La primera pantalla del agente que no habla de un hallazgo sino de la
+// HERRAMIENTA. Contesta tres preguntas que hasta acá no tenían dónde: ¿puedo
+// frenarlo?, ¿de qué está leyendo?, ¿en qué estado está cada cosa.
+//
+// Diseñada para COMODIDAD, no para lucir: lo que se necesita en una emergencia
+// va arriba y sin scroll, y cada fuente dice PARA QUÉ sirve — «1816 está sin
+// token» no significa nada si uno no sabe que de ahí sale el cronograma.
+
+const FUENTE_ICONO: Record<string, string> = {
+  ok: "✔", revisar: "▲", bloquea: "✘",
+};
+const FUENTE_COLOR: Record<string, string> = {
+  ok: "var(--t-pos)", revisar: "#f59e0b", bloquea: "var(--t-neg)",
+};
+
+function TabControl({ ctrl, setParada, recargar }: {
+  ctrl: Control | null;
+  setParada: (activa: boolean, motivo: string) => void | Promise<void>;
+  recargar: () => void | Promise<void>;
+}) {
+  const [motivo, setMotivo] = useState("");
+  const frenado = ctrl?.parada.parada ?? false;
+
+  if (!ctrl) {
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="text-[11px] text-[var(--t-neg)]">
+          No se pudo leer el tablero de control.
+        </span>
+        <button
+          onClick={() => void recargar()}
+          className="self-start text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* ── LA PARADA ────────────────────────────────────────────────────── */}
+      <section>
+        <div className="flex items-baseline gap-2 mb-1.5">
+          <h3 className={TITULO}>PARADA DE EMERGENCIA</h3>
+          <span className={SUB}>
+            {frenado ? "el agente NO está escribiendo" : "el agente puede escribir"}
+          </span>
+        </div>
+        <div className={`border p-3 flex flex-col gap-2 ${
+          frenado ? "border-[var(--t-neg)]" : "border-[var(--t-border)]"}`}>
+          {frenado ? (
+            <>
+              <span className="text-[11px] text-[var(--t-neg)] font-semibold">
+                ■ FRENADO{ctrl.parada.por ? ` por ${ctrl.parada.por}` : ""}
+                {ctrl.parada.cambiado_at
+                  ? ` · ${haceCuanto(ctrl.parada.cambiado_at)}`
+                  : ""}
+              </span>
+              <span className="text-[11px] text-[var(--t-text-muted)]">
+                {ctrl.parada.motivo}
+              </span>
+              <button
+                onClick={() => void setParada(false, "")}
+                className="self-start text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"
+              >
+                Reanudar el agente
+              </button>
+            </>
+          ) : (
+            <>
+              {/* El MOTIVO es obligatorio y lo exige el backend, no el front:
+                  la regla es de negocio y tiene que valer también para quien
+                  llame al endpoint directo. Acá solo se pide antes para no
+                  mandar un request que ya sabemos que va a ser rechazado. */}
+              <div className="flex items-center gap-2">
+                <input
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && motivo.trim()) {
+                      void setParada(true, motivo.trim());
+                      setMotivo("");
+                    }
+                  }}
+                  placeholder="¿Por qué lo frenás? (obligatorio)"
+                  className="flex-1 bg-transparent border border-[var(--t-border)] px-2 py-1 text-[11px] text-[var(--t-text)] outline-none focus:border-[var(--t-neg)]"
+                />
+                <button
+                  disabled={!motivo.trim()}
+                  onClick={() => { void setParada(true, motivo.trim()); setMotivo(""); }}
+                  className="shrink-0 text-[9px] uppercase tracking-widest px-3 py-1 border border-[var(--t-neg)] text-[var(--t-neg)] hover:bg-[var(--t-neg)] hover:text-[var(--t-on-accent)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t-neg)]"
+                >
+                  ■ Frenar
+                </button>
+              </div>
+              <span className="text-[10px] text-[var(--t-text-dim)] leading-relaxed">
+                Sin el motivo no se puede frenar: el que se lo encuentre parado
+                tiene que poder decidir si lo reanuda sin ir a preguntar.
+              </span>
+            </>
+          )}
+          {/* QUÉ cubre exactamente. Una parada de alcance ambiguo es peor que
+              ninguna: uno no sabe si puede seguir trabajando. */}
+          <div className="text-[10px] text-[var(--t-text-dim)] leading-relaxed border-t border-[var(--t-border)] pt-2">
+            <span className="text-[var(--t-text-muted)]">Frena</span> el alta de un
+            bono, completar flujos, arreglar un insumo y crear una curva — todo lo
+            que escribe datos de mercado.{" "}
+            <span className="text-[var(--t-text-muted)]">No frena</span> los
+            diagnósticos, ignorar un ticker ni cerrar un aviso: con la mano frenada
+            se tiene que poder seguir mirando y triando, o el primer reflejo ante
+            una duda sería quedarse sin la herramienta.
+          </div>
+        </div>
+      </section>
+
+      {/* ── LAS FUENTES ──────────────────────────────────────────────────── */}
+      <section>
+        <div className="flex items-baseline gap-2 mb-1.5">
+          <h3 className={TITULO}>DE DÓNDE LEE</h3>
+          <span className={SUB}>
+            {ctrl.resumen.bloquea + ctrl.resumen.revisar === 0
+              ? "todo en verde"
+              : `${ctrl.resumen.bloquea} caídas · ${ctrl.resumen.revisar} a revisar`}
+          </span>
+          <button
+            onClick={() => void recargar()}
+            title="Releer el tablero (no gasta créditos de 1816)"
+            className="ml-auto text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]"
+          >
+            ↻
+          </button>
+        </div>
+        <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+          {ctrl.fuentes.map((f) => (
+            <div key={f.clave}
+                 className="grid grid-cols-[16px_190px_1fr] items-baseline gap-2 px-2 py-1.5">
+              <span className="text-[11px]" style={{ color: FUENTE_COLOR[f.estado] }}>
+                {FUENTE_ICONO[f.estado] ?? "·"}
+              </span>
+              <span className="text-[11px] font-bold text-[var(--t-text)] truncate"
+                    title={f.titulo}>
+                {f.titulo}
+              </span>
+              <div className="min-w-0">
+                <div className="text-[10px] text-[var(--t-text-muted)] leading-snug">
+                  {f.detalle}
+                </div>
+                {/* PARA QUÉ sirve esta fuente. «1816 sin token» no dice nada si
+                    uno no sabe que de ahí sale el cronograma del bono — y el que
+                    mira el tablero en una emergencia no tiene por qué saberlo. */}
+                {f.para && (
+                  <div className="text-[9px] text-[var(--t-text-dim)] leading-snug">
+                    alimenta: {f.para}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
