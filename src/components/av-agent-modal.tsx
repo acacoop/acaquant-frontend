@@ -1346,6 +1346,22 @@ function AccionCadena({ h, sim, simular, modo }: {
   // ESTE hallazgo: un estado compartido haría que el CER de un bono se filtrara
   // al siguiente que se simule.
   const [pedido, setPedido] = useState<Record<string, string>>({});
+  const [rechequeando, setRechequeando] = useState(false);
+  const [rechequeo, setRechequeo] = useState("");
+
+  const rechequear = async (chequeoId: string) => {
+    setRechequeando(true);
+    setRechequeo("");
+    try {
+      const r = await fetchJson<{ ok: boolean; texto?: string; error?: string }>(
+        `/api/ia/av-agent/salud/recontrolar?control_id=${encodeURIComponent(chequeoId)}`,
+        { method: "POST" });
+      setRechequeo(r.ok ? (r.texto ?? "listo") : `✘ ${r.error ?? "falló"}`);
+    } catch (e) {
+      setRechequeo(`✘ ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setRechequeando(false);
+  };
   const copy = COPY[modo];
   // El alta necesita la curva de 1816 (el bono todavía no existe, así que no hay
   // de dónde deducirla); el completar NO — el bono ya está y su rama sale del
@@ -1439,17 +1455,29 @@ function AccionCadena({ h, sim, simular, modo }: {
           ✘ Bloqueado
         </span>
       )}
-      {ok && (modo === "salud" || modo === "sin_precio") && (
-        <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)]">
-          Solo lectura
-        </span>
+      {/* VOLVER A CHEQUEAR — corre ESE control en el momento. Un tablero que
+          dice «la última comprobación fue hace 1 día» y no ofrece rehacerla
+          deja al que mira sin saber si el problema sigue existiendo. */}
+      {modo === "salud" && h.ticker.startsWith("control:") && (
+        <button
+          disabled={rechequeando}
+          onClick={() => void rechequear(h.ticker)}
+          title="Corre este control ahora y dice cuántos siguen"
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+        >
+          {rechequeando ? "chequeando…" : "↻ chequear ahora"}
+        </button>
+      )}
+      {rechequeo && (
+        <span className="text-[9px] text-[var(--t-accent)]">{rechequeo}</span>
       )}
       {r && (
         <span className={`text-[9px] ${r.ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
           {r.ok === false && String(r.error ?? "falló")}
-          {ok && modo === "salud" && (
-            <>{`${String(r.titulo ?? "")}${r.motivo ? ` · ${String(r.motivo)}` : ""}`}</>
-          )}
+          {/* Acá se repetía «assets sin cartera · 8 anomalías sin resolver»,
+              que es LITERAL lo que ya dice la fila dos centímetros arriba. Tres
+              veces el mismo texto en la misma tarjeta (fila, resumen, veredicto)
+              no informa: cansa y hace dudar de si son cosas distintas. */}
           {ok && modo === "sin_precio" && (
             // La CAUSA y de quién es. «No es un bug nuestro» es la mitad del
             // valor del diagnóstico: evita perseguir un problema que no existe.
@@ -1689,14 +1717,27 @@ function Chequeos({ pasos, veredicto, calculo }: {
                     {p.tabla}
                   </span>
                 )}
-                <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                {/* `whitespace-pre-wrap`: el backend manda los casos UNO POR
+                    LÍNEA y el CSS los estaba colapsando en un párrafo separado
+                    por «·». Los 8 casos eran una lista y se veían como un
+                    chorizo — el user: «necesito que estén en modo listado, no
+                    tirados así uno al lado del otro que no entiendo nada». */}
+                <p className="text-[10px] leading-snug text-[var(--t-text-muted)] whitespace-pre-wrap">
                   {p.detalle}
                 </p>
-                {p.accion && (
+                {/* `accion` en un paso de SALUD es una URL: el ATAJO para ir a
+                    arreglarlo. Decir «se corrige en Manager → TÍTULOS» y hacer
+                    que el otro navegue a mano es media solución. */}
+                {p.accion && (p.accion.startsWith("/") ? (
+                  <a href={p.accion}
+                     className="inline-block mt-0.5 text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]">
+                    ir a arreglarlo →
+                  </a>
+                ) : (
                   <p className="text-[10px] leading-snug" style={{ color: "#f59e0b" }}>
                     → {p.accion}
                   </p>
-                )}
+                ))}
                 {/* El aviso se distingue de la acción a propósito: la acción es
                     algo que hay que resolver ANTES, el aviso queda pendiente
                     DESPUÉS y se sigue desde la tab AVISOS. */}
