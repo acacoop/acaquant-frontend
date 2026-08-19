@@ -147,6 +147,21 @@ type RunMasivo = {
   texto: string;
 };
 
+// EL CENTINELA. `vivo` sale de la EDAD del último latido, no de que alguna vez
+// haya corrido: un círculo verde que no puede apagarse solo no informa nada.
+type Vigilado = {
+  clave: string; tipo: string; sujeto: string; regla: string; severidad: string;
+  motivo: string; abierto_at: string; ultimo_at: string; veces: number;
+  visto_at: string | null; resuelto_at: string | null; resuelto_como: string | null;
+};
+type Centinela = {
+  ok: boolean; vivo: boolean; sin_ver: number;
+  latido: { at: string; hace_s: number; ciclo: number; en_rueda: boolean;
+            abiertos: number; nuevos: number; duracion_ms: number | null;
+            error: string | null } | null;
+  abiertos: Vigilado[]; resueltos: Vigilado[];
+};
+
 type Control = {
   parada: { parada: boolean; motivo: string; por: string; cambiado_at: string | null };
   fuentes: Fuente[];
@@ -215,7 +230,8 @@ function haceCuanto(iso: string | null): string {
 // (user, 2026-08-18: «quiero control total del agente desde el modal por las
 // dudas»). Hasta acá las cinco tabs miraban el trabajo; ninguna miraba la
 // herramienta.
-type Tab = "preguntas" | "avisos" | "hallazgos" | "hizo" | "decidido" | "control";
+type Tab = "centinela" | "preguntas" | "avisos" | "hallazgos" | "hizo"
+  | "decidido" | "control";
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
 // igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
@@ -250,7 +266,7 @@ export function AvAgentModal() {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Vista | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("preguntas");
+  const [tab, setTab] = useState<Tab>("centinela");
   const [enviando, setEnviando] = useState<number | null>(null);
   const [notas, setNotas] = useState<Record<number, string>>({});
   // Simulaciones por ticker. `null` = corriendo. El resultado se guarda para que
@@ -260,6 +276,31 @@ export function AvAgentModal() {
   // pantalla que tiene que seguir sirviendo cuando `/vista` falla — si el agente
   // está roto, el tablero que dice POR QUÉ no puede caerse con él.
   const [ctrl, setCtrl] = useState<Control | null>(null);
+
+  // EL CENTINELA. Se pollea SIEMPRE —esté el modal abierto o no— porque el
+  // círculo de la barra tiene que decir la verdad sin que nadie abra nada.
+  const [cent, setCent] = useState<Centinela | null>(null);
+
+  const cargarCentinela = useCallback(async () => {
+    try {
+      setCent(await fetchJson<Centinela>("/api/ia/av-agent/centinela"));
+    } catch {
+      // Un poll que falla no apaga el círculo por su cuenta: lo apaga el LATIDO
+      // viejo. Confundir «no pude preguntar» con «está muerto» daría una alarma
+      // cada vez que se corta el wifi.
+    }
+  }, []);
+
+  const marcarVisto = useCallback(async (claves: string[]) => {
+    try {
+      await fetchJson("/api/ia/av-agent/centinela/visto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ claves }),
+      });
+    } catch { /* ignorado: el próximo poll trae el estado real */ }
+    await cargarCentinela();
+  }, [cargarCentinela]);
 
   const cargarControl = useCallback(async () => {
     try {
@@ -285,6 +326,14 @@ export function AvAgentModal() {
   // adentro de una tab que hay que ir a buscar. Un agente frenado del que uno se
   // entera abriendo el modal es un agente que va a quedar frenado tres días.
   useEffect(() => { void cargar(); void cargarControl(); }, [cargar, cargarControl]);
+
+  // El latido es de 30s: pollear cada 20 deja el círculo como mucho un ciclo
+  // atrasado. Es UN request chico y es lo que sostiene la afirmación «prendido».
+  useEffect(() => {
+    void cargarCentinela();
+    const id = setInterval(() => void cargarCentinela(), 20_000);
+    return () => clearInterval(id);
+  }, [cargarCentinela]);
 
   const responder = useCallback(async (id: number, respuesta: string) => {
     setEnviando(id);
@@ -432,11 +481,34 @@ export function AvAgentModal() {
     <>
       <button
         onClick={() => { void cargar(); setOpen(true); }}
-        title="AV Agent — integridad de renta fija"
+        title={cent?.vivo
+          ? `Centinela PRENDIDO · ciclo ${cent.latido?.ciclo} · latió hace ${cent.latido?.hace_s}s`
+          + ` · ${cent.latido?.en_rueda ? "en rueda" : "fuera de rueda"}`
+          : "Centinela APAGADO — nadie está vigilando"}
         className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
       >
-        <span>◆</span>
+        {/* EL CÍRCULO. Verde = el centinela está vigilando AHORA; gris = nadie
+            está mirando. Lo decide la EDAD del último latido, no que alguna vez
+            haya corrido — un verde que no se puede apagar solo no informa nada.
+            Late mientras está en rueda: el pulso distingue de un vistazo
+            «vigilando» de «prendido pero dormido». */}
+        <span
+          aria-hidden
+          className={`inline-block w-[6px] h-[6px] rounded-full ${
+            cent?.vivo
+              ? (cent.latido?.en_rueda ? "animate-pulse" : "")
+              : ""}`}
+          style={{ background: cent?.vivo ? "var(--t-pos)" : "var(--t-text-dim)" }}
+        />
         <span className="tracking-widest">AV AGENT</span>
+        {/* Lo NUEVO y sin ver, en la barra. Es la única señal que puede
+            interrumpir: un hallazgo que apareció hace un minuto y que nadie
+            miró. En rojo, separado del contador de preguntas. */}
+        {(cent?.sin_ver ?? 0) > 0 && (
+          <span className="px-1 rounded-sm bg-[var(--t-neg)] text-[var(--t-on-accent)] text-[9px] font-bold tabular-nums">
+            {cent!.sin_ver}
+          </span>
+        )}
         {/* El contador es la única señal proactiva: si tiene preguntas, se ve
             desde cualquier pantalla sin abrir nada. */}
         {nPreg > 0 && (
@@ -510,6 +582,7 @@ export function AvAgentModal() {
             {/* ── Tabs ───────────────────────────────────────────────────── */}
             <div className="flex items-stretch border-b border-[var(--t-border)] bg-[var(--t-surface)]">
               {([
+                ["centinela", "● EN VIVO", cent?.sin_ver ?? 0],
                 ["preguntas", "ME PREGUNTA", nPreg],
                 ["avisos", "AVISOS", (data.avisos ?? []).filter((a) => !a.resuelto).length],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
@@ -557,6 +630,10 @@ export function AvAgentModal() {
               )}
               {tab === "hizo" && <TabHizo acciones={data.acciones ?? []} />}
               {tab === "decidido" && <TabDecidido data={data} designorar={designorar} />}
+              {tab === "centinela" && (
+                <TabCentinela cent={cent} marcarVisto={marcarVisto}
+                              recargar={cargarCentinela} />
+              )}
               {tab === "control" && (
                 <TabControl ctrl={ctrl} setParada={setParada} recargar={cargarControl} />
               )}
@@ -2247,6 +2324,166 @@ function InformeMasivo({ run, simular, sims }: {
               ))}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── LA TAB EN VIVO ──────────────────────────────────────────────────────────
+//
+// Lo que hace distinta a esta pantalla del resto del modal es que acá **el
+// tiempo importa**: no es una foto de anoche, es lo que está pasando. Por eso
+// cada fila lleva DESDE CUÁNDO y CUÁNTAS VECES, y lo nuevo sin ver va arriba.
+//
+// `veces` no es decoración: separa un problema que apareció una vez (puede ser
+// un instante del mercado) de uno que lleva 200 ciclos (es un dato roto).
+
+function edad(iso: string | null): string {
+  if (!iso) return "—";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 90) return `${Math.round(s)}s`;
+  if (s < 5400) return `${Math.round(s / 60)} min`;
+  if (s < 172800) return `${Math.round(s / 3600)} h`;
+  return `${Math.round(s / 86400)} d`;
+}
+
+const SEV_COLOR: Record<string, string> = {
+  alta: "var(--t-neg)", media: "#f59e0b", baja: "var(--t-text-dim)",
+};
+
+function TabCentinela({ cent, marcarVisto, recargar }: {
+  cent: Centinela | null;
+  marcarVisto: (claves: string[]) => Promise<void>;
+  recargar: () => void | Promise<void>;
+}) {
+  const [verResueltos, setVerResueltos] = useState(false);
+
+  if (!cent) {
+    return <p className="text-[11px] text-[var(--t-text-muted)]">Cargando…</p>;
+  }
+
+  const sinVer = cent.abiertos.filter((f) => !f.visto_at);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* ── EL PULSO ────────────────────────────────────────────────────── */}
+      <div className={`border p-3 flex flex-wrap items-center gap-3 ${
+        cent.vivo ? "border-[var(--t-border)]" : "border-[var(--t-neg)]"}`}>
+        <span className="inline-flex items-center gap-2">
+          <span className={`inline-block w-[8px] h-[8px] rounded-full ${
+            cent.vivo && cent.latido?.en_rueda ? "animate-pulse" : ""}`}
+                style={{ background: cent.vivo ? "var(--t-pos)" : "var(--t-neg)" }} />
+          <span className="text-[11px] font-semibold tracking-widest"
+                style={{ color: cent.vivo ? "var(--t-pos)" : "var(--t-neg)" }}>
+            {cent.vivo ? "VIGILANDO" : "APAGADO"}
+          </span>
+        </span>
+        {cent.latido && (
+          <span className="text-[10px] text-[var(--t-text-dim)]">
+            latió hace {cent.latido.hace_s}s · ciclo {cent.latido.ciclo.toLocaleString("es-AR")}
+            {" · "}{cent.latido.en_rueda ? "mercado ABIERTO" : "fuera de rueda"}
+            {cent.latido.duracion_ms ? ` · ${cent.latido.duracion_ms} ms` : ""}
+          </span>
+        )}
+        {/* Un centinela APAGADO no es un detalle: significa que nadie está
+            mirando, y hay que decir qué hacer al respecto. */}
+        {!cent.vivo && (
+          <span className="text-[10px] text-[var(--t-neg)] w-full">
+            Nadie está vigilando. En el Droplet:{" "}
+            <span className="font-mono">systemctl status av_agent_centinela</span>
+          </span>
+        )}
+        {cent.latido?.error && (
+          <span className="text-[10px] text-[var(--t-neg)] w-full">
+            último ciclo con error: {cent.latido.error}
+          </span>
+        )}
+        <button
+          onClick={() => void recargar()}
+          className="ml-auto text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]"
+        >
+          ↻
+        </button>
+      </div>
+
+      {/* ── LO NUEVO ────────────────────────────────────────────────────── */}
+      {sinVer.length > 0 && (
+        <div className="flex items-baseline gap-2">
+          <h3 className={TITULO}>NUEVO, SIN VER</h3>
+          <span className={SUB}>{sinVer.length}</span>
+          {/* Marcar todo visto es una sola acción porque revisar 30 casillas es
+              la forma más rápida de que nadie marque nada. NO los resuelve ni
+              los esconde: solo dejan de ser «nuevos». */}
+          <button
+            onClick={() => void marcarVisto(sinVer.map((f) => f.clave))}
+            className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+          >
+            marcar los {sinVer.length} como vistos
+          </button>
+        </div>
+      )}
+
+      {cent.abiertos.length === 0 ? (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          {cent.vivo
+            ? "Nada abierto. El centinela está mirando y no encuentra nada."
+            : "Nada abierto — pero el centinela está apagado, así que esto no "
+              + "significa que todo esté bien."}
+        </p>
+      ) : (
+        <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+          {cent.abiertos.map((f) => (
+            <div key={f.clave}
+                 className={`grid grid-cols-[3px_120px_170px_1fr_auto] items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)] ${
+                   f.visto_at ? "opacity-60" : ""}`}>
+              <span className="self-stretch" style={{ background: SEV_COLOR[f.severidad] }} />
+              <span className="text-[11px] font-bold text-[var(--t-text)] truncate"
+                    title={f.sujeto}>
+                {!f.visto_at && <span className="text-[var(--t-neg)]">• </span>}
+                {f.sujeto}
+              </span>
+              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
+                    title={f.regla}>
+                {f.regla.replace(/_/g, " ")}
+              </span>
+              <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0">
+                {f.motivo}
+              </span>
+              {/* DESDE CUÁNDO y CUÁNTAS VECES. `veces` separa un problema que
+                  apareció una vez —puede ser un instante del mercado— de uno que
+                  lleva 200 ciclos, que es un dato roto. */}
+              <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap self-center"
+                    title={`apareció ${f.abierto_at} · visto ${f.veces} veces`}>
+                hace {edad(f.abierto_at)} · ×{f.veces}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── LO QUE SE ARREGLÓ SOLO ──────────────────────────────────────── */}
+      {cent.resueltos.length > 0 && (
+        <div>
+          <button
+            onClick={() => setVerResueltos(!verResueltos)}
+            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            {verResueltos ? "▾" : "▸"} se arreglaron solos ({cent.resueltos.length})
+          </button>
+          {/* No se borran a propósito: «se arregló solo» es información, y ver
+              los que van y vienen es cómo se detecta un intermitente. */}
+          {verResueltos && (
+            <div className="mt-1 flex flex-col gap-0.5">
+              {cent.resueltos.map((f) => (
+                <div key={f.clave} className="text-[10px] text-[var(--t-text-dim)]">
+                  <span className="text-[var(--t-pos)]">✔</span> {f.sujeto}
+                  {" · "}{f.regla.replace(/_/g, " ")}
+                  {" · duró "}{edad(f.abierto_at)}{" · ×"}{f.veces}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
