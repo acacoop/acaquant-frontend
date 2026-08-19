@@ -158,7 +158,11 @@ type Centinela = {
   ok: boolean; vivo: boolean; sin_ver: number;
   latido: { at: string; hace_s: number; ciclo: number; en_rueda: boolean;
             abiertos: number; nuevos: number; duracion_ms: number | null;
-            error: string | null } | null;
+            error: string | null;
+            // El ritmo que el propio latido declara, y cuánto falta para que el
+            // círculo se apague. Con el umbral fijo, fuera de rueda el daemon
+            // latía cada 300s y lo dábamos por muerto a los 90.
+            cadencia_s: number; muere_en_s: number } | null;
   abiertos: Vigilado[]; resueltos: Vigilado[];
 };
 
@@ -486,7 +490,8 @@ export function AvAgentModal() {
       <button
         onClick={() => { void cargar(); setOpen(true); }}
         title={cent?.vivo
-          ? `Centinela PRENDIDO · ciclo ${cent.latido?.ciclo} · latió hace ${cent.latido?.hace_s}s`
+          ? `Centinela PRENDIDO · ciclo ${cent.latido?.ciclo} · latió hace `
+          + `${cent.latido?.hace_s}s · late cada ${cent.latido?.cadencia_s}s`
           + ` · ${cent.latido?.en_rueda ? "en rueda" : "fuera de rueda"}`
           : "Centinela APAGADO — nadie está vigilando"}
         className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
@@ -2404,6 +2409,13 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
           <span className="text-[10px] text-[var(--t-text-dim)]">
             latió hace {cent.latido.hace_s}s · ciclo {cent.latido.ciclo.toLocaleString("es-AR")}
             {" · "}{cent.latido.en_rueda ? "mercado ABIERTO" : "fuera de rueda"}
+            {/* EL RITMO, dicho. «Latió hace 110s» solo alarma si uno sabe cada
+                cuánto tiene que latir — y fuera de rueda son 5 minutos. Sin
+                este dato, un centinela sano se lee como uno caído. */}
+            {" · late cada "}{cent.latido.cadencia_s >= 60
+              ? `${Math.round(cent.latido.cadencia_s / 60)} min`
+              : `${cent.latido.cadencia_s}s`}
+            {cent.vivo && ` · se apaga en ${cent.latido.muere_en_s}s si no vuelve`}
             {cent.latido.duracion_ms ? ` · ${cent.latido.duracion_ms} ms` : ""}
           </span>
         )}
