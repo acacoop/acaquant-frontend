@@ -104,6 +104,15 @@ import { usePoll } from "@/lib/use-poll";
  *    mostrando SOLO las cuentas con diferencia — 38 filas en cero esconden las 2
  *    que importan.
  *
+ * ── MOVIMIENTOS A CONCILIAR (botón de la barra) — lo que se confirmó en
+ *    CONCILIAR y hay que arreglar en el sistema contable. Existe porque
+ *    **encontrar el movimiento no alcanza: el arreglo se hace en OTRO sistema y
+ *    en otro momento**, y sin anotarlo la próxima conciliación vuelve a
+ *    encontrar lo mismo sin que nadie sepa si ya se corrigió. Cada fila dice
+ *    QUÉ HACER (cargar en el mayor / sacar del mayor) y lleva la descripción
+ *    **tal como viene de SU lado**, que es lo que la hace encontrable allá.
+ *    Sin filtro de fecha; lo resuelto se marca y queda como traza.
+ *
  * ── CONCILIAR (botón de la barra) — compara UN número contra otro: nuestro saldo
  *    al cierre y el ÚLTIMO saldo del mayor del sistema contable, que el usuario
  *    sube como Excel. Si no coinciden, muestra qué movimientos del día podrían
@@ -333,6 +342,9 @@ type MovCandidato = {
 /** Una combinación de movimientos cuya suma da exactamente la diferencia. */
 type Candidato = {
   movimientos: MovCandidato[]; suma: number; cantidad: number;
+  /** De qué lado salió: no es lo mismo «cargá esto en HYGIRUS» que «sacá esto». */
+  lado: "banco" | "mayor";
+  accion: "falta_en_el_mayor" | "sobra_en_el_mayor";
   /** Cuánto queda SIN explicar. Se muestra siempre que no sea cero: una
    *  explicación aproximada no se puede confundir con una exacta. */
   resto: number;
@@ -498,6 +510,7 @@ export function InterbankingView() {
   const [reporte, setReporte] = useState(false);
   const [manual, setManual] = useState(false);
   const [difs, setDifs] = useState(false);
+  const [pendientes, setPendientes] = useState(false);
   const [conciliar, setConciliar] = useState(false);
 
   // FILTRO POR BANCO. Es client-side sobre lo que ya trajo el consolidado: pedir
@@ -548,6 +561,13 @@ export function InterbankingView() {
             Reporte final
           </button>
           <button
+            onClick={() => setPendientes(true)}
+            className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+            title="Lo que se confirmó que hay que arreglar en el sistema contable"
+          >
+            Movimientos a conciliar
+          </button>
+          <button
             onClick={() => setDifs(true)}
             className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
             title="¿La variación del saldo de cada cuenta está explicada por sus movimientos?"
@@ -580,6 +600,13 @@ export function InterbankingView() {
         <ModalMovimientos cuenta={abierta} fecha={fecha} onCerrar={cerrar} />
       )}
 
+      {pendientes && (
+        <ModalPendientes
+          puedeEscribir={resp.puede_escribir}
+          onCerrar={() => setPendientes(false)}
+        />
+      )}
+
       {difs && (
         <ModalDiferencias
           fecha={resp.fecha || fecha}
@@ -608,6 +635,7 @@ export function InterbankingView() {
         <ModalConciliar
           bancos={resp.bancos}
           fecha={resp.fecha || fecha}
+          puedeEscribir={resp.puede_escribir}
           onCerrar={() => setConciliar(false)}
         />
       )}
@@ -2591,6 +2619,211 @@ function ModalManuales({
   );
 }
 
+type Pendiente = {
+  id: number; cuenta_id: number; cuenta: string; moneda: string;
+  fecha: string | null;
+  accion: "falta_en_el_mayor" | "sobra_en_el_mayor";
+  descripcion: string; importe: number; diferencia: number | null;
+  nota: string | null; por: string | null; at: string | null;
+  resuelto: boolean; resuelto_por: string | null; resuelto_at: string | null;
+};
+
+/**
+ * MOVIMIENTOS A CONCILIAR — lo que se confirmó que hay que arreglar.
+ *
+ * ⚠️ Por qué existe: CONCILIAR encuentra el movimiento que explica la
+ * diferencia, pero **el arreglo se hace en OTRO sistema (HYGIRUS) y en otro
+ * momento**. Sin anotarlo, la próxima conciliación vuelve a encontrar lo mismo y
+ * nadie sabe si ya se corrigió — así es como un hallazgo se convierte en trabajo
+ * repetido.
+ *
+ * Cada fila dice **qué hacer**, no qué se detectó:
+ *   · FALTA EN EL MAYOR → cargarlo en HYGIRUS;
+ *   · SOBRA EN EL MAYOR → sacarlo de HYGIRUS.
+ *
+ * Y la **descripción va tal como viene de SU lado**: si sobra en el mayor, como
+ * la escribe HYGIRUS (`[Op. 1131723] Extracción…`); si falta, como la escribe el
+ * banco (`CREDITO POR DATANET`). Es lo que la hace encontrable en el sistema
+ * donde hay que ir a arreglarla — traducirla sería obligar a buscar a ciegas.
+ *
+ * **Sin filtro de fecha**: un pendiente puede tardar días en resolverse, y
+ * esconderlo al día siguiente sería perder justo lo que se quiso anotar. Lo
+ * resuelto se marca, no se borra: es la traza de qué se corrigió y quién.
+ */
+function ModalPendientes({
+  puedeEscribir, onCerrar,
+}: {
+  puedeEscribir: boolean; onCerrar: () => void;
+}) {
+  const [filas, setFilas] = useState<Pendiente[]>([]);
+  const [verResueltos, setVerResueltos] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  const recargar = useCallback(async () => {
+    const r = await fetch(
+      `/api/back-office/interbanking/conciliar/pendientes?incluir_resueltos=${verResueltos}`,
+      { cache: "no-store" });
+    setFilas(r.ok ? await r.json() : []);
+  }, [verResueltos]);
+
+  useEffect(() => { recargar(); }, [recargar]);
+
+  async function pegar(url: string, method: string, body?: unknown) {
+    setBusy(true); setErr(null);
+    const r = await fetch(`/api/back-office/interbanking${url}`, {
+      method,
+      headers: body ? { "content-type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    setBusy(false);
+    if (!r.ok) {
+      setErr((await r.json().catch(() => ({}))).detail ?? "No se pudo guardar.");
+      return;
+    }
+    await recargar();
+  }
+
+  const abiertos = filas.filter((f) => !f.resuelto).length;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1400px] max-h-[90vh] flex flex-col text-[12px]"
+      >
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-2">
+          <span className="font-semibold tracking-wide uppercase text-[11px]">
+            Movimientos a conciliar
+          </span>
+          <span className={abiertos ? "text-[var(--t-accent)]" : "text-[var(--t-pos)]"}>
+            {abiertos ? `${abiertos} sin arreglar` : "nada pendiente"}
+          </span>
+          <Ayuda texto={
+            "Lo que se confirmó en CONCILIAR y hay que arreglar en el sistema "
+            + "contable.\n\n"
+            + "FALTA EN EL MAYOR → cargarlo en HYGIRUS.\n"
+            + "SOBRA EN EL MAYOR → sacarlo de HYGIRUS.\n\n"
+            + "La descripción está tal como viene de SU lado, para que se pueda "
+            + "buscar igual en el sistema donde hay que arreglarla.\n\n"
+            + "No se filtra por fecha: un pendiente puede tardar días. Lo "
+            + "resuelto se marca y queda como traza, no se borra."
+          } />
+          <button
+            onClick={() => setVerResueltos((v) => !v)}
+            className="ml-auto px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+          >
+            {verResueltos ? "Solo pendientes" : "Ver arreglados"}
+          </button>
+          <button onClick={onCerrar} className="px-2 py-1 hover:bg-[var(--t-surface)]" title="Cerrar (Esc)">
+            ✕
+          </button>
+        </div>
+
+        <ErrorLinea error={err} />
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              <tr className="border-b border-[var(--t-border-2)]">
+                <Th>Día</Th>
+                <Th className={COL_SEP}>Cuenta</Th>
+                <Th className={COL_SEP}>Qué hacer</Th>
+                <Th className={`w-full ${COL_SEP}`}>Movimiento</Th>
+                <Th center className={COL_SEP}>Importe</Th>
+                <Th center className={COL_SEP}>Confirmó</Th>
+                <Th className={COL_SEP} />
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((f) => (
+                <tr
+                  key={f.id}
+                  className={`border-b border-[var(--t-border-2)] ${
+                    f.resuelto ? "line-through opacity-45" : ""
+                  }`}
+                >
+                  <Td className="whitespace-nowrap">{f.fecha}</Td>
+                  <Td className={`${COL_SEP} whitespace-nowrap`} copiar={f.cuenta}>
+                    {f.cuenta}
+                  </Td>
+                  {/* La ACCIÓN, no el diagnóstico. */}
+                  <Td className={`${COL_SEP} whitespace-nowrap`}>
+                    <span className={`px-1 text-[10px] uppercase no-underline ${
+                      f.accion === "falta_en_el_mayor"
+                        ? "bg-[var(--t-tint-red)] text-[var(--t-neg)]"
+                        : "bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+                    }`}>
+                      {f.accion === "falta_en_el_mayor" ? "cargar en el mayor"
+                                                        : "sacar del mayor"}
+                    </span>
+                  </Td>
+                  {/* Tal como viene de SU lado: así se busca igual en el otro
+                      sistema. */}
+                  <Td className={COL_SEP} copiar={f.descripcion}>{f.descripcion}</Td>
+                  <Td center strong className={`${COL_SEP} whitespace-nowrap ${
+                    f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+                  }`} copiar={plata(f.importe)}>
+                    {plata(f.importe, f.moneda)}
+                  </Td>
+                  <Td center className={`${COL_SEP} whitespace-nowrap text-[var(--t-text-dim)]`}>
+                    {f.por}
+                    {f.resuelto && f.resuelto_por && (
+                      <div className="text-[10px]">arregló {f.resuelto_por}</div>
+                    )}
+                  </Td>
+                  <td className={`px-2 py-1 text-right whitespace-nowrap ${COL_SEP}`}>
+                    {puedeEscribir && (
+                      <>
+                        <button
+                          onClick={() => pegar(`/conciliar/pendientes/${f.id}`, "PUT",
+                                               { resuelto: !f.resuelto })}
+                          disabled={busy}
+                          className="px-2 py-0.5 text-[10px] uppercase border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40 no-underline"
+                        >
+                          {f.resuelto ? "Reabrir" : "Ya lo arreglé"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!window.confirm("¿Borrar este pendiente? Usalo solo si se confirmó por error — lo ya arreglado se marca, no se borra.")) return;
+                            pegar(`/conciliar/pendientes/${f.id}`, "DELETE");
+                          }}
+                          disabled={busy}
+                          title="Confirmado por error"
+                          className="ml-1 px-1 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40 no-underline"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {filas.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-3 py-4 text-[var(--t-text-dim)]">
+                    Nada confirmado todavía. Se anota desde CONCILIAR, con el botón
+                    «Confirmar» de cada explicación.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── CONCILIAR contra el mayor del sistema contable ──────────────────────── */
 
 /**
@@ -2611,10 +2844,15 @@ function ModalManuales({
  *
  * No persiste nada: subir el archivo de nuevo recalcula y listo.
  */
+/** Identidad de una explicación, para no confirmar dos veces la misma. */
+function claveCand(c: Candidato) {
+  return `${c.accion}|${c.suma}|${c.movimientos.map((m) => m.descripcion).join("|")}`;
+}
+
 function ModalConciliar({
-  bancos, fecha, onCerrar,
+  bancos, fecha, puedeEscribir, onCerrar,
 }: {
-  bancos: Banco[]; fecha: string; onCerrar: () => void;
+  bancos: Banco[]; fecha: string; puedeEscribir: boolean; onCerrar: () => void;
 }) {
   const [banco, setBanco] = useState("");
   const [cuentaId, setCuentaId] = useState("");
@@ -2622,6 +2860,38 @@ function ModalConciliar({
   const [res, setRes] = useState<RespConciliacion | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Qué explicaciones ya se anotaron. Se marca en la pantalla para que nadie
+  // confirme dos veces lo mismo mirando la misma lista.
+  const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
+
+  /** Anota la explicación en MOVIMIENTOS A CONCILIAR.
+   *
+   * ⚠️ Se guarda la DESCRIPCIÓN tal como viene de SU lado: si el movimiento
+   * sobra en el mayor, como lo escribe HYGIRUS; si falta, como lo escribe el
+   * banco. Es lo que lo hace encontrable en el sistema donde hay que ir a
+   * arreglarlo — traducirlo sería obligar a buscar a ciegas. */
+  async function confirmar(c: Candidato) {
+    if (!cuentaId) return;
+    setBusy(true); setErr(null);
+    for (const m of c.movimientos) {
+      const r = await fetch("/api/back-office/interbanking/conciliar/pendientes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          cuenta_id: Number(cuentaId), fecha, accion: c.accion,
+          descripcion: m.descripcion, importe: m.importe_firmado,
+          diferencia: res?.diferencia ?? null,
+        }),
+      });
+      if (!r.ok) {
+        setErr((await r.json().catch(() => ({}))).detail ?? "No se pudo confirmar.");
+        setBusy(false);
+        return;
+      }
+    }
+    setConfirmados((p) => ({ ...p, [claveCand(c)]: true }));
+    setBusy(false);
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
@@ -2827,9 +3097,22 @@ function ModalConciliar({
 
               {res.candidatos.map((c, i) => (
                 <div key={i} className="border border-[var(--t-border-2)]">
-                  <div className="px-2 py-1 bg-[var(--t-surface-2)] flex items-center gap-2 text-[11px]">
+                  <div className="px-2 py-1 bg-[var(--t-surface-2)] flex flex-wrap items-center gap-2 text-[11px]">
                     <span className="uppercase tracking-wide">
                       {res.candidatos.length > 1 ? `Opción ${i + 1}` : "Explicación"}
+                    </span>
+                    {/* QUÉ HAY QUE HACER, dicho como acción y no como
+                        diagnóstico: el que lo lee tiene que saber qué toca sin
+                        traducir nada, y sin eso «hay una diferencia de X» no le
+                        dice a nadie si cargar o borrar. */}
+                    <span className={`px-1 text-[9px] uppercase ${
+                      c.accion === "falta_en_el_mayor"
+                        ? "bg-[var(--t-tint-red)] text-[var(--t-neg)]"
+                        : "bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+                    }`}>
+                      {c.accion === "falta_en_el_mayor"
+                        ? "falta en el mayor · cargarlo"
+                        : "sobra en el mayor · sacarlo"}
                     </span>
                     <span className="text-[var(--t-text-dim)]">
                       {c.cantidad} movimiento{c.cantidad === 1 ? "" : "s"}
@@ -2856,6 +3139,16 @@ function ModalConciliar({
                     <span className="ml-auto font-semibold">
                       {plata(c.suma, moneda)}
                     </span>
+                    {puedeEscribir && (
+                      <button
+                        onClick={() => confirmar(c)}
+                        disabled={busy || !!confirmados[claveCand(c)]}
+                        className="px-2 py-0.5 text-[10px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+                        title="Anotarlo en MOVIMIENTOS A CONCILIAR: el arreglo se hace en el otro sistema y en otro momento"
+                      >
+                        {confirmados[claveCand(c)] ? "Confirmado ✓" : "Confirmar"}
+                      </button>
+                    )}
                   </div>
                   <table className="w-full border-collapse">
                     <thead className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
@@ -2945,9 +3238,15 @@ function LadoConciliacion({
         <table className="w-full border-collapse">
           <tbody>
             {filas.map((f, i) => (
+              // `w-full` en la descripción: se lleva TODO el sobrante y el
+              // importe queda pegado a la derecha. Sin eso la tabla reparte el
+              // ancho por igual y quedan diez centímetros de aire entre las dos
+              // columnas, que es lo que hacía imposible comparar de un vistazo.
               <tr key={i} className="border-b border-[var(--t-border)]">
-                <Td copiar={f.texto} className="text-[11px]">{f.texto}</Td>
-                <Td right className={`text-[11px] whitespace-nowrap ${
+                <Td copiar={f.texto} className="text-[11px] w-full leading-tight">
+                  {f.texto}
+                </Td>
+                <Td right className={`text-[11px] whitespace-nowrap tabular-nums ${
                   f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
                 }`} copiar={plata(f.importe)}>
                   {plata(f.importe)}
