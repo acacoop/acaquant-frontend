@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { ControlesPanel } from "./manager-controles-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
@@ -188,121 +188,22 @@ type Tab =
 // ── Grupos consolidados (sub-tabs con Pill, patrón AunesaGroup) ───────────────
 
 
-// ── OBSERVABILIDAD → LATENCIA: ranking endpoint × latencia ────────────────────
-// Lee /api/manager/latencia (agregado endpoint × hora que flushea el
-// middleware del backend). Responde "¿qué vista está lenta hoy?" sin correr
-// diags a mano: ranking por tiempo total consumido + tendencia horaria.
-interface LatenciaResp {
-  ventana_horas: number;
-  endpoints: { endpoint: string; n: number; avg_ms: number; max_ms: number;
-               lentas: number; errores: number; pct_lentas: number }[];
-  serie: { hora: string; n: number; avg_ms: number; max_ms: number }[];
-  total_requests: number;
-}
+// (2026-08-19) Acá vivía LatenciaPanel — el ranking de endpoints por latencia.
+// Se dio de baja. El user: *«la verdad tengo eso en observabilidad, jamás lo
+// usé… ni siquiera se actualiza, puede haber cosas nuevas y no se entera»*.
+//
+// El diagnóstico es el correcto y vale dejarlo escrito: **un ranking muestra lo
+// LENTO, no lo ANORMAL**. Arriba de esa tabla estaban `/salud/diagnostico`
+// (11.724 ms — es una llamada al LLM) y `/tesoreria/dia` (726 ms — es Aunesa):
+// los dos BIEN, y los dos ahí mañana también. Una lista que no cambia nunca deja
+// de mirarse, y no tiene con qué "enterarse" de nada.
+//
+// Lo que sí es información —un endpoint peor que SÍ MISMO ayer— ahora lo detecta
+// el AV AGENT (`api/services/av_agent_latencia.py`) y lo canta sin que nadie
+// abra nada. `manager.latencia_endpoints` y el middleware NO se tocaron: se
+// eliminó la pantalla, no el dato.
 
-function LatenciaPanel() {
-  const [horas, setHoras] = useState<24 | 168 | 720>(24);
-  const [data, setData] = useState<LatenciaResp | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    setErr(null);
-    fetch(`/api/manager/latencia?horas=${horas}`, { cache: "no-store" })
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((d: LatenciaResp) => { if (alive) setData(d); })
-      .catch((e) => { if (alive) setErr(e instanceof Error ? e.message : "error"); });
-    return () => { alive = false; };
-  }, [horas]);
-
-  const maxAvgSerie = useMemo(
-    () => Math.max(1, ...(data?.serie ?? []).map((p) => p.avg_ms)),
-    [data],
-  );
-
-  // Semáforo del avg: <500ms ok · 500-1000 atención · >1s problema.
-  const colorAvg = (ms: number) =>
-    ms >= 1000 ? "var(--t-neg)" : ms >= 500 ? "#ff9900" : "var(--t-text)";
-
-  const VENTANAS = [[24, "24 h"], [168, "7 d"], [720, "30 d"]] as const;
-
-  return (
-    <div className="h-full overflow-auto p-3">
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="text-[10px] uppercase tracking-widest text-[var(--t-text-muted)]">
-          Latencia por endpoint {data ? `· ${data.total_requests.toLocaleString("es-AR")} requests` : ""}
-        </span>
-        <div className="flex rounded overflow-hidden border border-[var(--t-border-2)] ml-auto">
-          {VENTANAS.map(([h, label]) => (
-            <button key={h} type="button" onClick={() => setHoras(h)}
-              className={`text-[10px] font-semibold px-2.5 py-0.5 ${horas === h ? "bg-[var(--t-accent)] text-[var(--t-on-accent)]" : "text-[var(--t-text-muted)]"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {err && <p className="text-[11px] text-[var(--t-neg)]">No pude cargar la latencia ({err}).</p>}
-      {data && data.serie.length > 1 && (
-        <div className="flex items-end gap-[2px] h-10 mb-3" title="Latencia promedio por hora (toda la API)">
-          {data.serie.map((p) => (
-            <div key={p.hora} className="flex-1 min-w-[2px]"
-              title={`${new Date(p.hora).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit" })}h · avg ${p.avg_ms}ms · max ${p.max_ms}ms · ${p.n.toLocaleString("es-AR")} req`}
-              style={{
-                height: `${Math.max(6, Math.round((p.avg_ms / maxAvgSerie) * 100))}%`,
-                background: colorAvg(p.avg_ms) === "var(--t-text)" ? "var(--t-accent)" : colorAvg(p.avg_ms),
-                opacity: 0.85,
-              }}
-            />
-          ))}
-        </div>
-      )}
-      {data && data.endpoints.length === 0 && !err && (
-        <p className="text-[11px] text-[var(--t-text-muted)]">
-          Sin datos todavía — la telemetría acumula desde el deploy (flush cada ~60s).
-        </p>
-      )}
-      {data && data.endpoints.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th className="text-left">ENDPOINT</th>
-              <th className="text-right">REQ</th>
-              <th className="text-right">AVG MS</th>
-              <th className="text-right">MAX MS</th>
-              <th className="text-right">&gt;1s</th>
-              <th className="text-right">ERRORES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.endpoints.map((e) => (
-              <tr key={e.endpoint}>
-                <td className="font-mono text-[var(--t-accent)]">{e.endpoint}</td>
-                <td className="text-right tabular-nums">{e.n.toLocaleString("es-AR")}</td>
-                <td className="text-right tabular-nums font-semibold" style={{ color: colorAvg(e.avg_ms) }}>
-                  {e.avg_ms.toLocaleString("es-AR")}
-                </td>
-                <td className="text-right tabular-nums text-[var(--t-text-dim)]">{e.max_ms.toLocaleString("es-AR")}</td>
-                <td className="text-right tabular-nums" style={{ color: e.pct_lentas >= 10 ? "var(--t-neg)" : e.lentas ? "#ff9900" : "var(--t-text-dim)" }}>
-                  {e.lentas ? `${e.lentas.toLocaleString("es-AR")} (${e.pct_lentas}%)` : "·"}
-                </td>
-                <td className="text-right tabular-nums" style={{ color: e.errores ? "var(--t-neg)" : "var(--t-text-dim)" }}>
-                  {e.errores ? e.errores.toLocaleString("es-AR") : "·"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <p className="text-[10px] text-[var(--t-text-muted)] mt-2">
-        Ordenado por tiempo total consumido (req × avg) — lo que más &quot;factura&quot; latencia
-        arriba. &gt;1s = requests sobre el umbral de lentitud del backend.
-      </p>
-    </div>
-  );
-}
-
-// OBSERVABILIDAD: DIAGNÓSTICO (frescura de motores/jobs + logs) + BASE +
-// LATENCIA + IA.
+// OBSERVABILIDAD: DIAGNÓSTICO (frescura de motores/jobs + logs) + BASE.
 //
 // **SALUD ya no vive acá** (2026-08-19). El user: *«eliminar SALUD del front de
 // observabilidad… toda la salud, y esto pasa 100% por el agent»*. El motor no se
@@ -326,7 +227,7 @@ function ObservabilidadGroup() {
   // Migración del estado guardado: los que quedaron con una tab que ya no existe
   // (SALUD se fue al agente; CONTROLES/JOBS/USO se habían fusionado en SALUD)
   // caen a DIAGNÓSTICO. Sin esto la pantalla les abre vacía y parece rota.
-  const sub = ["ia", "uso", "salud", "controles", "jobs"].includes(subRaw)
+  const sub = ["ia", "uso", "salud", "controles", "jobs", "latencia"].includes(subRaw)
     ? "diagnostico" : subRaw;
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -334,12 +235,10 @@ function ObservabilidadGroup() {
         <span className={GROUP_TITLE}>OBSERVABILIDAD</span>
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
-        <Pill label="LATENCIA" active={sub === "latencia"} onClick={() => setSub("latencia")} />
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "diagnostico" && <DiagnosticoGroup />}
         {sub === "base"        && <DbBasePanel />}
-        {sub === "latencia"    && <LatenciaPanel />}
       </div>
     </div>
   );
