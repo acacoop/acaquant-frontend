@@ -74,6 +74,10 @@ type Hallazgo = {
   // Dónde se anota el voto del eval set. **Lo decide el backend**, igual que
   // `accion` y `de_quien`.
   dominio_eval?: string | null;
+  // CUÁNTO ACIERTA esta causa, medido. `null` = no se pudo medir, que es
+  // DISTINTO de 0 votos (eso sí es un dato: nadie juzgó nunca esta regla).
+  confianza?: { humanos: number; aciertos: number; votos: number;
+                precision: number | null; suficiente: boolean } | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -1880,6 +1884,17 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                 <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
                       title={h.regla}>
                   {h.regla.replace(/_/g, " ")}
+                  {/* ── LA CONFIANZA MEDIDA ──────────────────────────────
+                      Sin esto, los 20 hallazgos se leen todos igual aunque el
+                      sistema ya sepa que una causa acertó 10/10 y otra nunca se
+                      votó. Con esto dejás de revisar 20 cosas con el mismo
+                      cuidado y mirás las que el agente todavía no demostró que
+                      entiende.
+
+                      Se muestra SOLO cuando hay votos humanos: un «0/0» en cada
+                      fila sería ruido en las 20 y no informa nada que la propia
+                      ausencia no diga. */}
+                  <Confianza c={h.confianza} />
                 </span>
                 <div className="min-w-0">
                   <span className="text-[10px] text-[var(--t-text-muted)] leading-snug">
@@ -1923,6 +1938,44 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
         </section>
       ))}
     </div>
+  );
+}
+
+// LA CONFIANZA MEDIDA, en la fila del hallazgo.
+//
+// Es lo que hace que el eval set se pague solo: si votar no cambia nada visible,
+// nadie vota, y la medición tarda un mes en servir. Acá los votos de hoy mejoran
+// la lista de mañana.
+//
+// **Tres estados y no dos**, que es todo el punto:
+//   · con respaldo   ≥ MIN_VOTOS humanos → el % significa algo
+//   · sin evidencia  hay votos pero pocos → 2 de 2 NO es «100% de acierto»
+//   · nada           nunca se votó → no se muestra, la ausencia ya lo dice
+// Y si la medición no se pudo LEER, se marca distinto: «no pude preguntar» no es
+// «no hay votos».
+function Confianza({ c }: { c: Hallazgo["confianza"] }) {
+  if (c === null) {
+    return (
+      <span className="ml-1 text-[8px] normal-case text-[var(--t-neg)]"
+            title="No se pudo leer la medición — no es que no haya votos.">
+        ?
+      </span>
+    );
+  }
+  if (!c || !c.humanos) return null;
+  const pct = c.precision !== null ? Math.round(c.precision * 100) : null;
+  return (
+    <span
+      className="ml-1 text-[8px] normal-case tabular-nums"
+      style={{ color: !c.suficiente ? "#f59e0b"
+        : pct === 100 ? "var(--t-pos)"
+        : (pct ?? 0) >= 70 ? "var(--t-text-dim)" : "var(--t-neg)" }}
+      title={c.suficiente
+        ? `Esta causa acertó ${c.aciertos} de ${c.humanos} veces que la votaste.`
+        : `Solo ${c.humanos} voto(s): el porcentaje todavía no significa nada.`}
+    >
+      {c.aciertos}/{c.humanos}{pct !== null && !c.suficiente ? "?" : ""}
+    </span>
   );
 }
 
