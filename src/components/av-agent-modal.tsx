@@ -282,12 +282,15 @@ type Sabe = { id: string; pregunta: string; necesita: string; de_donde: string }
 // contar mal para los dos lados.
 type Skill = {
   id: string; nombre: string; que_hace: string;
+  tipo?: string; dominio?: string;
   usa_ia: "no" | "opcional" | "si"; para_que_la_ia: string;
   donde: string; fuente: string; extra?: Record<string, unknown> | null;
 };
 type SkillsVista = {
   total: number;
   por_tipo: Record<string, Skill[]>;
+  por_dominio?: Record<string, Skill[]>;
+  dominios?: string[];
   ia: { no: number; opcional: number; si: number };
   tareas_ia: string[];
 };
@@ -940,8 +943,11 @@ export function AvAgentModal() {
 // apuro, y una desactualizada es peor que no tenerla — dice que el agente sabe
 // algo que no sabe, o esconde algo que sí.
 //
-// Las TRES secciones son el orden en que crece el agente:
-//   darse cuenta  →  poder explicarlo  →  saber arreglarlo
+// **La jerarquía es por DOMINIO** (MERCADO, SISTEMA, SEGURIDAD, ADMINISTRACIÓN,
+// DATOS) y el tipo —detecta / explica / resuelve— pasa a ser una etiqueta de la
+// fila. El tipo dice CÓMO trabaja el agente; el dominio dice SOBRE QUÉ, que es
+// la pregunta que uno se hace primero: agrupado por tipo, para saber qué sabe de
+// seguridad había que leer las 37 filas.
 function TabSkills() {
   const [v, setV] = useState<SkillsVista | null>(null);
 
@@ -953,14 +959,25 @@ function TabSkills() {
     })();
   }, []);
 
-  const SECCIONES: [string, string, string][] = [
-    ["detectar", "SE DA CUENTA SOLO",
-     "corre sin que nadie lo pida y aparece en ENCONTRÓ"],
-    ["explicar", "SABE CONTESTAR",
-     "reproduce el cálculo paso a paso, con la fuente a la vista"],
-    ["resolver", "SABE ARREGLAR",
-     "propone, lo aplica con tu OK y verifica releyendo la base"],
-  ];
+  // ── LA JERARQUÍA ────────────────────────────────────────────────────────
+  //
+  // Pedido del user: *«necesito que en SKILLS haya jerarquías de habilidades:
+  // MERCADO, ADMINISTRATIVO, SEGURIDAD…»*.
+  //
+  // **El DOMINIO es el nivel 1 y el tipo pasa a ser una etiqueta de la fila.**
+  // El tipo (detecta / explica / resuelve) dice CÓMO trabaja; el dominio dice
+  // SOBRE QUÉ — y esa es la pregunta que uno se hace primero. Agrupado por tipo,
+  // para saber qué sabe el agente de seguridad había que leer las 37 filas.
+  const TIPO_CHIP: Record<string, string> = {
+    detectar: "DETECTA", explicar: "EXPLICA", resolver: "RESUELVE",
+  };
+  const TIPO_TITLE: Record<string, string> = {
+    detectar: "corre sin que nadie lo pida y aparece en ENCONTRÓ",
+    explicar: "reproduce el cálculo paso a paso, con la fuente a la vista",
+    resolver: "propone el arreglo, lo aplica con tu OK y lo verifica",
+  };
+  const grupos: [string, Skill[]][] = (v?.dominios ?? []).map(
+    (d) => [d, v?.por_dominio?.[d] ?? []] as [string, Skill[]]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -984,62 +1001,65 @@ function TabSkills() {
         </div>
       )}
 
-      {SECCIONES.map(([tipo, titulo, sub]) => {
-        const items = v?.por_tipo?.[tipo] ?? [];
-        if (!items.length) return null;
-        return (
-          <div key={tipo}>
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
-                {titulo}
-              </span>
-              <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
-                {items.length}
-              </span>
-              <span className={SUB}>{sub}</span>
-            </div>
-            <ul className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-              {items.map((s) => (
-                <li key={s.id} className="px-2 py-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-[10px] text-[var(--t-text)] flex-1 min-w-0">
-                      {s.nombre}
-                    </span>
-                    {/* La marca de IA va en la fila y no en una leyenda: si hay
-                        que ir a buscar qué significa un color, no se mira. */}
-                    <span
-                      className="shrink-0 text-[9px] uppercase tracking-widest"
-                      style={{ color: s.usa_ia === "no"
-                        ? "var(--t-text-dim)" : "#f59e0b" }}
-                      title={s.para_que_la_ia || "no usa el modelo"}
-                    >
-                      {s.usa_ia === "no" ? "función"
-                        : s.usa_ia === "opcional" ? "IA opcional" : "IA"}
-                    </span>
-                  </div>
-                  <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
-                    {s.que_hace}
-                    {s.para_que_la_ia && (
-                      <span style={{ color: "#f59e0b" }}> · el modelo {s.para_que_la_ia}</span>
-                    )}
-                  </p>
-                  {/* CUÁNDO corre solo. Es la mitad de la respuesta a «¿esto se
-                      mantiene al día o hay que pedírselo?»: una habilidad que
-                      nadie agenda no se entera de nada mientras la app avanza. */}
-                  {typeof s.extra?.corre_en === "string" && s.extra.corre_en && (
-                    <p className="text-[9px] text-[var(--t-text-dim)]"
-                       title={String(s.extra?.cada || "")}>
-                      corre solo · {String(s.extra.corre_en)}
-                      {typeof s.extra?.cada === "string" && s.extra.cada &&
-                        ` · ${cuandoCorre(s.extra.cada)}`}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
+      {grupos.map(([dominio, items]) => (
+        <div key={dominio}>
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+              {dominio}
+            </span>
+            <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
+              {items.length}
+            </span>
           </div>
-        );
-      })}
+          <ul className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+            {items.map((s) => (
+              <li key={s.id} className="px-2 py-1.5">
+                <div className="flex items-baseline gap-2">
+                  {/* El TIPO, como etiqueta y no como sección: al agrupar por
+                      dominio sigue haciendo falta saber si esto se da cuenta
+                      solo o hay que preguntárselo. */}
+                  <span
+                    className="shrink-0 text-[8px] font-semibold tracking-widest text-[var(--t-text-dim)] border border-[var(--t-border)] px-1 py-px"
+                    title={TIPO_TITLE[s.tipo ?? ""] ?? ""}
+                  >
+                    {TIPO_CHIP[s.tipo ?? ""] ?? s.tipo}
+                  </span>
+                  <span className="text-[11px] font-semibold text-[var(--t-text)] flex-1 min-w-0">
+                    {s.nombre}
+                  </span>
+                  {/* La marca de IA va en la fila y no en una leyenda: si hay
+                      que ir a buscar qué significa un color, no se mira. */}
+                  <span
+                    className="shrink-0 text-[9px] uppercase tracking-widest"
+                    style={{ color: s.usa_ia === "no"
+                      ? "var(--t-text-dim)" : "#f59e0b" }}
+                    title={s.para_que_la_ia || "no usa el modelo"}
+                  >
+                    {s.usa_ia === "no" ? "función"
+                      : s.usa_ia === "opcional" ? "IA opcional" : "IA"}
+                  </span>
+                </div>
+                <p className="text-[10px] leading-snug text-[var(--t-text-muted)] mt-0.5">
+                  {s.que_hace}
+                  {s.para_que_la_ia && (
+                    <span style={{ color: "#f59e0b" }}> · el modelo {s.para_que_la_ia}</span>
+                  )}
+                </p>
+                {/* CUÁNDO corre solo. Es la mitad de la respuesta a «¿esto se
+                    mantiene al día o hay que pedírselo?». */}
+                {typeof s.extra?.corre_en === "string" && s.extra.corre_en && (
+                  <p className="text-[9px] text-[var(--t-text-dim)]"
+                     title={String(s.extra?.cada || "")}>
+                    corre solo · {String(s.extra.corre_en)}
+                    {typeof s.extra?.cada === "string" && s.extra.cada &&
+                      ` · ${cuandoCorre(s.extra.cada)}`}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
 
       {/* PREGUNTARLE. Vive abajo del registro a propósito: primero se ve TODO lo
           que sabe, y después se usa la parte que hoy es interactiva. */}
