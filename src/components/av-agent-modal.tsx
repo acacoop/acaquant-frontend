@@ -272,6 +272,7 @@ export function AvAgentModal() {
   const [data, setData] = useState<Vista | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<Tab>("ahora");
+  const [subHist, setSubHist] = useState("hizo");
   const [enviando, setEnviando] = useState<number | null>(null);
   const [notas, setNotas] = useState<Record<number, string>>({});
   // Simulaciones por ticker. `null` = corriendo. El resultado se guarda para que
@@ -533,10 +534,9 @@ export function AvAgentModal() {
       <button
         onClick={() => { void cargar(); setOpen(true); }}
         title={cent?.vivo
-          ? `Centinela PRENDIDO · ciclo ${cent.latido?.ciclo} · latió hace `
-          + `${cent.latido?.hace_s}s · late cada ${cent.latido?.cadencia_s}s`
-          + ` · ${cent.latido?.en_rueda ? "en rueda" : "fuera de rueda"}`
-          : "Centinela APAGADO — nadie está vigilando"}
+          ? `El agente está revisando cada ${cent.latido?.cadencia_s}s`
+          + ` (última hace ${cent.latido?.hace_s}s)`
+          : "El agente NO está revisando"}
         className="inline-flex items-center gap-1 px-1.5 leading-none text-[10px] font-semibold text-[var(--t-text-muted)] hover:text-[var(--t-accent)] transition-colors"
       >
         {/* EL CÍRCULO. Verde = el centinela está vigilando AHORA; gris = nadie
@@ -734,10 +734,32 @@ export function AvAgentModal() {
               )}
               {/* HISTORIAL: lo que ya pasó. No se acciona, así que no merece dos
                   tabs — se lee de arriba abajo y listo. */}
+              {/* UNA cosa por vez. Apilar «lo que hice» y «lo ya decidido» en la
+                  misma pantalla dejaba dos tablas y cuatro listas encimadas — el
+                  user: «no puede estar todo junto como si nada, la vista es para
+                  una sola cosa». El selector va donde estaba el párrafo que se
+                  fue: mismo lugar, ahora sirve para algo. */}
               {tab === "historial" && (
-                <div className="flex flex-col gap-5">
-                  <TabHizo acciones={data.acciones ?? []} />
-                  <TabDecidido data={data} designorar={designorar} />
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    {([["hizo", "LO QUE HIZO", (data.acciones ?? []).length],
+                       ["decidido", "YA DECIDIDO", data.decididas.length]] as
+                       [string, string, number][]).map(([k, label, n]) => (
+                      <button
+                        key={k}
+                        onClick={() => setSubHist(k)}
+                        className={`text-[9px] font-semibold uppercase tracking-widest px-2 py-1 border transition-colors ${
+                          subHist === k
+                            ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                            : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+                      >
+                        {label} <span className="tabular-nums opacity-70">{n}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {subHist === "hizo"
+                    ? <TabHizo acciones={data.acciones ?? []} />
+                    : <TabDecidido data={data} designorar={designorar} />}
                 </div>
               )}
               {tab === "control" && (
@@ -1838,11 +1860,9 @@ function TabHizo({ acciones }: { acciones: Accion[] }) {
   }
   return (
     <div>
-      <p className={`${SUB} mb-1.5`}>
-        Todo lo que escribí, lo más reciente primero. Incluye los intentos que
-        fallaron — un libro que solo anota los éxitos esconde justo lo que uno
-        quiere investigar.
-      </p>
+      {/* Acá había un párrafo explicando que el libro incluye los intentos que
+          fallaron. Es cierto y no le sirve a nadie que ya lo tiene delante: la
+          tabla se explica sola, y el renglón se lo comía la pantalla. */}
       <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
         <div className="grid grid-cols-[110px_170px_90px_1fr] gap-2 px-2 py-1 bg-[var(--t-surface)] text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
           <span>Cuándo</span><span>Qué hizo</span><span>Sobre</span><span>Dónde escribió</span>
@@ -1938,7 +1958,12 @@ function TabDecidido({ data, designorar }: {
           <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
             {data.ignorados.map((ig) => (
               <div key={ig.ticker} className="flex items-center gap-2 px-2 py-1">
-                <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums w-16 shrink-0">
+                {/* `w-16` eran 4rem para un ticker de 4 letras, pero acá también
+                    entran ids de chequeo («JOB:MERCADO_1816_SERIES»): el texto se
+                    salía de la caja y se montaba sobre el motivo de al lado. Ancho
+                    mayor + `truncate` para que corte en vez de desbordar. */}
+                <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums w-40 shrink-0 truncate"
+                      title={ig.ticker}>
                   {ig.ticker}
                 </span>
                 <span className="text-[10px] text-[var(--t-text-muted)] flex-1 min-w-0 truncate"
@@ -2469,43 +2494,41 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── EL PULSO ────────────────────────────────────────────────────── */}
+      {/* El estado, en castellano. Acá decía «VIGILANDO · latió hace 32s ·
+          ciclo 10 · fuera de rueda · late cada 5 min · se apaga en 867s si no
+          vuelve · 2038 ms». Siete datos, cuatro de ellos sobre el MECANISMO
+          (latir, ciclos, cuándo se apagaría) que no cambian nada de lo que uno
+          hace. Quedan dos: si está funcionando, y desde cuándo no da señales
+          cuando no. El resto vive en el `title`. */}
       <div className={`border p-3 flex flex-wrap items-center gap-3 ${
         cent.vivo ? "border-[var(--t-border)]" : "border-[var(--t-neg)]"}`}>
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center gap-2"
+              title={cent.latido
+                ? `Revisa cada ${cent.latido.cadencia_s}s · ${cent.latido.ciclo} revisiones · última hace ${cent.latido.hace_s}s`
+                : "sin datos"}>
           <span className={`inline-block w-[8px] h-[8px] rounded-full ${
             cent.vivo && cent.latido?.en_rueda ? "animate-pulse" : ""}`}
                 style={{ background: cent.vivo ? "var(--t-pos)" : "var(--t-neg)" }} />
           <span className="text-[11px] font-semibold tracking-widest"
                 style={{ color: cent.vivo ? "var(--t-pos)" : "var(--t-neg)" }}>
-            {cent.vivo ? "VIGILANDO" : "APAGADO"}
+            {cent.vivo ? "REVISANDO" : "SIN REVISAR"}
           </span>
         </span>
-        {cent.latido && (
-          <span className="text-[10px] text-[var(--t-text-dim)]">
-            latió hace {cent.latido.hace_s}s · ciclo {cent.latido.ciclo.toLocaleString("es-AR")}
-            {" · "}{cent.latido.en_rueda ? "mercado ABIERTO" : "fuera de rueda"}
-            {/* EL RITMO, dicho. «Latió hace 110s» solo alarma si uno sabe cada
-                cuánto tiene que latir — y fuera de rueda son 5 minutos. Sin
-                este dato, un centinela sano se lee como uno caído. */}
-            {" · late cada "}{cent.latido.cadencia_s >= 60
-              ? `${Math.round(cent.latido.cadencia_s / 60)} min`
-              : `${cent.latido.cadencia_s}s`}
-            {cent.vivo && ` · se apaga en ${cent.latido.muere_en_s}s si no vuelve`}
-            {cent.latido.duracion_ms ? ` · ${cent.latido.duracion_ms} ms` : ""}
-          </span>
-        )}
-        {/* Un centinela APAGADO no es un detalle: significa que nadie está
-            mirando, y hay que decir qué hacer al respecto. */}
+        <span className="text-[10px] text-[var(--t-text-dim)]">
+          {cent.vivo
+            ? `cada ${cent.latido && cent.latido.cadencia_s >= 60
+                ? `${Math.round(cent.latido.cadencia_s / 60)} min` : "30s"}`
+              + `${cent.latido?.en_rueda ? "" : " · mercado cerrado"}`
+            : `sin señales desde hace ${cent.latido ? Math.round(cent.latido.hace_s / 60) : "?"} min`}
+        </span>
         {!cent.vivo && (
           <span className="text-[10px] text-[var(--t-neg)] w-full">
-            Nadie está vigilando. En el Droplet:{" "}
-            <span className="font-mono">systemctl status av_agent_centinela</span>
+            En el Droplet: <span className="font-mono">systemctl status av_agent_centinela</span>
           </span>
         )}
         {cent.latido?.error && (
           <span className="text-[10px] text-[var(--t-neg)] w-full">
-            último ciclo con error: {cent.latido.error}
+            último error: {cent.latido.error}
           </span>
         )}
         <button
