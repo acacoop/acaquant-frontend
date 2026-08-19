@@ -467,7 +467,13 @@ const TAB_MODULES: Record<Tab, string[]> = {
   clientes:     ["manager", "manager_clientes"],
   contrapartes: ["manager", "manager_contrapartes"],
   "aca-valores": ["manager", "manager_clientes"],
-  aca:          ["manager"],
+  // ACA NO la da el umbrella `manager`: la da poder ESCRIBIR en ACA (allowlist
+  // de Mesa de Dinero ∪ admin). `manager-aca` es una CAPACIDAD que publica
+  // /api/me dentro de `modules` (no es un módulo del RBAC, igual que
+  // `mesa-dinero`) — así un `asistente_comercial` que carga el histórico ve la
+  // tab sin ser admin, y un admin sin allowlist tampoco entra por accidente.
+  // Server-side lo enforcea `_ACA` en api/routers/manager/__init__.py.
+  aca:          ["manager-aca"],
   aunesa:       ["manager", "manager_aunesa"],
   operaciones:  ["manager"],
   mesa:         ["manager"],
