@@ -46,7 +46,7 @@ import { fetchJson } from "@/lib/fetch-json";
 // del sistema (un cron, una tabla que quedó vieja) con las mismas ocho lentes que
 // un bono, y no escribe nada. Comparte el componente a propósito — que SALUD y un
 // bono se lean IGUAL es lo que permite que una sola cabeza mire las dos cosas.
-type Modo = "alta" | "flujos" | "arreglo" | "salud";
+type Modo = "alta" | "flujos" | "arreglo" | "salud" | "sin_precio";
 // Devuelve una PROMESA, no `void`. Con `void` el `await` del lote no esperaba
 // nada y las 10 aplicaciones salían todas juntas: se pisan entre sí escribiendo
 // en `mercado.curvas` y el error de una se pierde entre las otras nueve. El tipo
@@ -436,7 +436,9 @@ export function AvAgentModal() {
     // Tres puertas, tres escrituras DISTINTAS: el alta crea el bono entero,
     // `flujos` completa un cronograma vacío y `arreglo` PISA un insumo que ya
     // está. Compartir ruta las haría indistinguibles en el libro de acciones.
-    const ruta = modo === "salud"
+    const ruta = modo === "sin_precio"
+      ? "sin-precio"
+      : modo === "salud"
       ? "salud"
       : modo === "flujos"
       ? (aplicar ? "aplicar-flujos" : "simular-flujos")
@@ -453,6 +455,8 @@ export function AvAgentModal() {
           // comentario de `detectar_salud` en el backend).
           body: JSON.stringify(modo === "salud"
             ? { chequeo_id: ticker }
+            : modo === "sin_precio"
+            ? { ticker }
             : { ticker, curva_1816: curva1816, ...extra }),
         });
       setSims((s) => ({ ...s, [ticker]: r }));
@@ -1159,7 +1163,8 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       acá la lista de tipos accionables es cómo se consigue un
                       botón que no aparece y no avisa por qué. */}
                   {primera && (h.accion === "alta" || h.accion === "flujos"
-                    || h.accion === "arreglo" || h.accion === "salud") && (
+                    || h.accion === "arreglo" || h.accion === "salud"
+                    || h.accion === "sin_precio") && (
                     <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                   modo={h.accion} />
                   )}
@@ -1220,6 +1225,12 @@ const COPY = {
   salud: {
     simular: "Analizar", aplicar: "", hecho: "", cer: "",
   },
+  // SOLO LECTURA, igual que SALUD: el agente explica POR QUÉ no hay precio
+  // —sin símbolo · fuera de Primary · pata equivocada · nunca operó· sin
+  // actividad hoy— y no toca nada. Dos de esas cinco ni siquiera son nuestras.
+  sin_precio: {
+    simular: "¿Por qué?", aplicar: "", hecho: "", cer: "",
+  },
 } as const;
 
 function AccionCadena({ h, sim, simular, modo }: {
@@ -1255,7 +1266,7 @@ function AccionCadena({ h, sim, simular, modo }: {
   // nadie está mirando. El fallback local es solo para un deploy desparejo.
   // En SALUD **no hay nada que aplicar**: la puerta es de solo lectura. No es un
   // permiso que falta, es que el agente todavía no escribe de ese lado.
-  const puedeAplicar = modo === "salud"
+  const puedeAplicar = (modo === "salud" || modo === "sin_precio")
     ? false
     : veredicto
     ? veredicto.puede_aplicar !== false
@@ -1319,12 +1330,13 @@ function AccionCadena({ h, sim, simular, modo }: {
       {/* En SALUD no va: ahí `puedeAplicar` es false porque la puerta es de solo
           lectura, no porque el agente haya frenado nada. Pintarlo en rojo diría
           que el chequeo está trabado cuando el diagnóstico salió bien. */}
-      {ok && !puedeAplicar && !aplicado && modo !== "salud" && (
+      {ok && !puedeAplicar && !aplicado && modo !== "salud"
+        && modo !== "sin_precio" && (
         <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)]">
           ✘ Bloqueado
         </span>
       )}
-      {ok && modo === "salud" && (
+      {ok && (modo === "salud" || modo === "sin_precio") && (
         <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-dim)]">
           Solo lectura
         </span>
@@ -1335,7 +1347,16 @@ function AccionCadena({ h, sim, simular, modo }: {
           {ok && modo === "salud" && (
             <>{`${String(r.titulo ?? "")}${r.motivo ? ` · ${String(r.motivo)}` : ""}`}</>
           )}
-          {ok && modo !== "salud" && (
+          {ok && modo === "sin_precio" && (
+            // La CAUSA y de quién es. «No es un bug nuestro» es la mitad del
+            // valor del diagnóstico: evita perseguir un problema que no existe.
+            <>
+              {String(r.titulo ?? "")}
+              {r.nuestro === false ? " · no es un bug nuestro" : ""}
+              {r.simbolo ? ` · pide «${String(r.simbolo).split(" - ")[2] ?? r.simbolo}»` : ""}
+            </>
+          )}
+          {ok && modo !== "salud" && modo !== "sin_precio" && (
             <>
               {aplicado ? copy.hecho : ""}
               {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
