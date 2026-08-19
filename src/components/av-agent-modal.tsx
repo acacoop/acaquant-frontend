@@ -1596,6 +1596,20 @@ type Paso = {
   // El dato se puede TIPEAR en la propia cadena y volver a simular con él, en
   // vez de aplicar a ciegas e ir a cargarlo a otra pantalla.
   pide?: { campo: string; label: string; tipo: string; ayuda: string } | null;
+  // LO QUE EL AGENTE SABE HACER con este control. Viene RESUELTO del backend
+  // (qué control tiene qué acción) — así una acción nueva aparece sola, sin
+  // tocar el front.
+  hacer?: { accion: string; titulo: string; campo: string; casos: number;
+            pendientes: number } | null;
+};
+
+// Una propuesta esperando OK. `propuesto` puede venir VACÍO a propósito (el ping
+// a una persona: a quién avisarle no lo puede adivinar el nombre del caso).
+type Propuesta = {
+  id: number; accion: string; sujeto: string; campo: string;
+  antes?: string | null; propuesto: string; porque: string;
+  fuente: string; confianza?: number | null;
+  extra?: { elige_destinatario?: boolean; n?: number } | null;
 };
 
 // El veredicto trae la DECISIÓN ya tomada, no los insumos para tomarla.
@@ -1625,6 +1639,189 @@ const PASO_COLOR: Record<string, string> = {
   ok: "var(--t-pos)", bloquea: "var(--t-neg)", revisar: "#f59e0b",
   info: "var(--t-text-dim)", no_se_puede_saber: "var(--t-text-dim)",
 };
+
+// ── LO QUE EL AGENTE SABE HACER ────────────────────────────────────────────
+//
+// *«Que el mismo agent aprenda a sugerir y que, si le das OK, actualice en el
+// momento y luego controle que lo hizo bien en el mismo proceso»* (user).
+//
+// Tres estados y nada más: **no hay nada** → botón. **Propuso** → la lista con
+// el valor editable. **Aplicó** → el resultado, uno por uno, verificado.
+//
+// El valor es un input y no un texto fijo por una razón concreta: ante una
+// sugerencia casi buena, sin poder corregirla solo queda descartarla e ir a
+// Manager a mano — o sea, todo el trabajo del agente a la basura por una letra.
+type Respuesta = { ok?: boolean; error?: string; pendientes?: Propuesta[] };
+
+function PanelHacer({ h }: { h: NonNullable<Paso["hacer"]> }) {
+  const [props, setProps] = useState<Propuesta[] | null>(null);
+  const [valores, setValores] = useState<Record<number, string>>({});
+  const [marcadas, setMarcadas] = useState<Record<number, boolean>>({});
+  const [ocupado, setOcupado] = useState("");
+  const [msg, setMsg] = useState("");
+  const [resultados, setResultados] = useState<
+    { id: number; sujeto: string; ok: boolean; detalle?: string; error?: string }[]
+  >([]);
+
+  const cargar = async (proponer: boolean) => {
+    setOcupado(proponer ? "proponiendo" : "cargando");
+    setMsg("");
+    try {
+      // Un solo tipo para las dos rutas: PROPONER agrega `ok`/`error`, LISTAR no
+      // los manda. Tipar la unión obligaba a estrechar por `"ok" in r`, y ahí
+      // TypeScript pierde `error` — un tipo con los dos campos opcionales dice
+      // lo mismo y se lee.
+      const r = await (proponer
+        ? fetchJson<Respuesta>(
+            "/api/ia/av-agent/hacer/proponer",
+            { method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ accion: h.accion }) })
+        : fetchJson<Respuesta>(
+            `/api/ia/av-agent/hacer?accion=${encodeURIComponent(h.accion)}`));
+      // El mensaje se arma en una variable LOCAL y se setea una sola vez al
+      // final: `msg` leído acá dentro sería el del render anterior (el estado no
+      // se actualiza en el medio de la función), y con eso un error viejo tapaba
+      // el «no encontré nada» del pedido nuevo.
+      let aviso = r.ok === false ? `✘ ${r.error ?? "falló"}` : "";
+      const lista = r.pendientes ?? [];
+      setProps(lista);
+      // Todas marcadas por default: el caso normal es aceptar lo que propuso, y
+      // obligar a tildar veinte casillas convierte una acción de un clic en
+      // trabajo manual — justo lo que esto vino a sacar.
+      setMarcadas(Object.fromEntries(lista.map((p) => [p.id, true])));
+      setValores(Object.fromEntries(lista.map((p) => [p.id, p.propuesto])));
+      if (proponer && lista.length === 0 && !aviso) {
+        aviso = "no encontré nada que pueda proponer con certeza.";
+      }
+      setMsg(aviso);
+    } catch (e) {
+      setMsg(`✘ ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setOcupado("");
+  };
+
+  const elegidas = (props ?? []).filter((p) => marcadas[p.id]);
+
+  const mandar = async (ruta: "aplicar" | "rechazar") => {
+    setOcupado(ruta);
+    setMsg("");
+    try {
+      const body: Record<string, unknown> = { ids: elegidas.map((p) => p.id) };
+      if (ruta === "aplicar") {
+        body.valores = Object.fromEntries(
+          elegidas.map((p) => [String(p.id), (valores[p.id] ?? "").trim()]));
+      }
+      const r = await fetchJson<{
+        ok: boolean; error?: string; texto?: string;
+        resultados?: { id: number; sujeto: string; ok: boolean;
+                       detalle?: string; error?: string }[];
+      }>(`/api/ia/av-agent/hacer/${ruta}`,
+         { method: "POST", headers: { "Content-Type": "application/json" },
+           body: JSON.stringify(body) });
+      setMsg(r.ok ? (r.texto ?? "listo") : `✘ ${r.error ?? "falló"}`);
+      setResultados(r.resultados ?? []);
+      if (r.ok) await cargar(false);   // la lista se relee: lo aplicado ya no espera OK
+    } catch (e) {
+      setMsg(`✘ ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setOcupado("");
+  };
+
+  return (
+    <div className="mt-1">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          disabled={!!ocupado}
+          onClick={() => void cargar(true)}
+          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+        >
+          {ocupado === "proponiendo" ? "pensando…" : "qué proponés"}
+        </button>
+        {h.pendientes > 0 && props === null && (
+          <button
+            disabled={!!ocupado}
+            onClick={() => void cargar(false)}
+            className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+          >
+            ver las {h.pendientes} de antes
+          </button>
+        )}
+        {msg && (
+          <span className={`text-[9px] ${msg.startsWith("✘")
+            ? "text-[var(--t-neg)]" : "text-[var(--t-accent)]"}`}>{msg}</span>
+        )}
+      </div>
+
+      {props !== null && props.length > 0 && (
+        <div className="mt-1 border border-[var(--t-border)]">
+          {props.map((p) => (
+            <div key={p.id}
+                 className="grid grid-cols-[16px_1fr_130px] gap-1.5 px-1.5 py-1 items-baseline border-b border-[var(--t-border)] last:border-b-0">
+              <input type="checkbox" checked={!!marcadas[p.id]}
+                     onChange={(e) => setMarcadas((m) => ({ ...m, [p.id]: e.target.checked }))}
+                     className="translate-y-0.5" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-[var(--t-text)] break-words">
+                  {p.sujeto}
+                </span>
+                {/* De dónde salió. **Cambia cuánto hay que mirarla**: una regla
+                    se audita leyendo el código una vez, una del modelo hay que
+                    mirarla caso por caso. */}
+                {p.fuente === "ia" && (
+                  <span className="ml-1.5 text-[9px] uppercase tracking-widest"
+                        style={{ color: "#f59e0b" }}>lo dedujo la IA</span>
+                )}
+                <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                  {p.porque}
+                </p>
+              </div>
+              <input
+                value={valores[p.id] ?? ""}
+                placeholder={p.extra?.elige_destinatario ? "email@aca" : p.campo}
+                onChange={(e) => setValores((v) => ({ ...v, [p.id]: e.target.value }))}
+                className="text-[10px] bg-transparent border border-[var(--t-border)] px-1 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none"
+              />
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center gap-1.5 px-1.5 py-1">
+            <button
+              disabled={!!ocupado || elegidas.length === 0}
+              onClick={() => void mandar("aplicar")}
+              className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+            >
+              {ocupado === "aplicar" ? "aplicando…" : `aplicar ${elegidas.length}`}
+            </button>
+            <button
+              disabled={!!ocupado || elegidas.length === 0}
+              onClick={() => void mandar("rechazar")}
+              className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-neg)] hover:text-[var(--t-neg)] disabled:opacity-40"
+            >
+              descartar
+            </button>
+            {/* Escribir y verificar es UN paso: decirlo acá es lo que hace que
+                apretar el botón no sea un acto de fe. */}
+            <span className={SUB}>
+              escribo en {h.titulo.toLowerCase()} y releo para confirmar
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* El resultado, uno por uno. Un «10 aplicadas» sin detalle obliga a ir a
+          Manager a comprobar — que es exactamente el viaje que esto elimina. */}
+      {resultados.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {resultados.map((r) => (
+            <li key={r.id} className="text-[10px] leading-snug"
+                style={{ color: r.ok ? "var(--t-pos)" : "var(--t-neg)" }}>
+              {r.ok ? "✔" : "✘"} {r.sujeto} — {r.ok ? r.detalle : (r.error ?? "falló")}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function Chequeos({ pasos, veredicto, calculo }: {
   pasos: Paso[];
@@ -1746,6 +1943,7 @@ function Chequeos({ pasos, veredicto, calculo }: {
                     ✎ queda en AVISOS: {p.aviso}
                   </p>
                 )}
+                {p.hacer && <PanelHacer h={p.hacer} />}
               </div>
             </li>
           ))}
