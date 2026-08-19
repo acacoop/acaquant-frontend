@@ -14,22 +14,30 @@ import {
 } from "recharts";
 import { MESES_CORTOS as MESES } from "@/lib/fmt";
 
-// Fila del resumen agregado que arma el backend: una por (día, cuenta, unidad),
-// con entradas (Σ ≥0) y salidas (Σ <0) separadas. Reemplaza a bajar 2 años de
-// movimientos crudos.
-interface ResumenRow {
-  dia: string;
-  cuenta: string;
-  unidad: string;
-  entradas: number;
-  salidas: number;
-  n: number;
+// Serie YA AGREGADA que arma el backend (`/api/operaciones/flujos/serie`): una
+// fila por periodo con el neto de cada moneda.
+//
+// ANTES esta vista bajaba el GRANO (día × cuenta × unidad) de 2 años y hacía
+// acá el filtrado, la agrupación y los totales: 20.559 filas y 2.512 KB en cada
+// apertura (medido con scripts/diag_peso_operaciones, 2026-08-19), para dibujar
+// ~500 barras. Todo ese cálculo se mudó a cashflow_sql.flujos_serie, con tests
+// que fijan la semántica de los filtros — que es la parte con criterio.
+interface SerieRow {
+  periodo: string;
+  ARS: number;
+  USD: number;
 }
 
-interface Accionista {
-  cuenta: string;
-  nombre: string;
-  grupo: string;
+interface Totales {
+  entradas: number;
+  salidas: number;
+}
+
+interface Resp {
+  serie: SerieRow[];
+  totales: Record<string, Totales>;
+  opciones: string[];
+  bounds: { min: string; max: string };
 }
 
 type FiltroAcc =
@@ -38,18 +46,29 @@ type FiltroAcc =
   | "Solo accionistas"
   | "Solo cooperativas";
 
+// Etiqueta de la UI → valor que entiende el backend. El backend es la ÚNICA
+// fuente de la semántica de estos filtros; acá solo se traduce el nombre.
+const FILTRO_API: Record<FiltroAcc, string> = {
+  "Todas": "todas",
+  "Sin accionistas": "sin_accionistas",
+  "Solo accionistas": "solo_accionistas",
+  "Solo cooperativas": "solo_cooperativas",
+};
+
+// El segundo desplegable cambia de nombre según el primero.
+const FILTRO_LABEL: Record<FiltroAcc, string> = {
+  "Todas": "Cuenta",
+  "Sin accionistas": "Cuenta",
+  "Solo accionistas": "Accionista",
+  "Solo cooperativas": "Cooperativa",
+};
+
 type Granularity = "Diario" | "Mensual";
 
 const COLOR_ARS = "#094293";
 const COLOR_ARS_NEG = "#3a6db5";
 const COLOR_USD = "var(--t-pos)";
 const COLOR_USD_NEG = "#5aa87f";
-const COOP_RE = /\bcoop/i;
-
-function esCooperativa(cuenta?: string | null): boolean {
-  return !!cuenta && COOP_RE.test(String(cuenta));
-}
-
 function fmtCompact(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1e12) return (n / 1e12).toFixed(2) + "T";
@@ -103,20 +122,63 @@ function fmtDia(key: string): string {
 export function CashFlowView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filas, setFilas] = useState<ResumenRow[]>([]);
-  const [accionistas, setAccionistas] = useState<Accionista[]>([]);
+  const [data, setData] = useState<Resp | null>(null);
+  // Los topes del calendario se guardan del PRIMER fetch y no se pisan: el
+  // backend los devuelve sobre la ventana leída, así que son estables, pero
+  // dejarlos fijos acá evita cualquier chance de que el calendario se encierre
+  // en el rango que el usuario acaba de elegir.
+  const [bounds, setBounds] = useState<{ min: string; max: string } | null>(null);
 
+  // Filtros. `null` = "todavía no lo tocó" → el backend usa su default.
+  const [desdeSel, setDesdeSel] = useState<string | null>(null);
+  const [hastaSel, setHastaSel] = useState<string | null>(null);
+  const [showArs, setShowArs] = useState(true);
+  const [showUsd, setShowUsd] = useState(true);
+  const [granularity, setGranularity] = useState<Granularity>("Diario");
+  const [filtroAcc, setFiltroAcc] = useState<FiltroAcc>("Todas");
+  // La selección se resetea sola al cambiar de filtro: un grupo de accionistas
+  // no existe en la lista de cuentas sueltas.
+  const [selState, setSelState] = useState<{ filtro: FiltroAcc; val: string }>({
+    filtro: "Todas",
+    val: "__TODAS__",
+  });
+  const seleccion = selState.filtro === filtroAcc ? selState.val : "__TODAS__";
+  const setSeleccion = (v: string) => setSelState({ filtro: filtroAcc, val: v });
+
+  const minDay = bounds?.min ?? "";
+  const maxDay = bounds?.max ?? "";
+  const desde = desdeSel ?? minDay;
+  const hasta = hastaSel ?? maxDay;
+  const setDesde = (s: string) => {
+    setDesdeSel(s);
+    if (hasta && s > hasta) setHastaSel(s);
+  };
+  const setHasta = (s: string) => {
+    setHastaSel(s);
+    if (desde && s < desde) setDesdeSel(s);
+  };
+
+  // Un fetch por combinación de filtros. Lo que vuelve ya está agregado y
+  // recortado — acá no se filtra ni se suma nada (antes se hacía todo en el
+  // browser sobre 20.559 filas).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         setLoading(true);
-        const res = await fetch("/api/cashflow", { cache: "no-store" });
+        const qs = new URLSearchParams({
+          agg: granularity === "Mensual" ? "MENSUAL" : "DIARIO",
+          filtro: FILTRO_API[filtroAcc],
+        });
+        if (desdeSel) qs.set("desde", desdeSel);
+        if (hastaSel) qs.set("hasta", hastaSel);
+        if (seleccion !== "__TODAS__") qs.set("seleccion", seleccion);
+        const res = await fetch(`/api/cashflow?${qs.toString()}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
+        const json: Resp = await res.json();
         if (cancelled) return;
-        setFilas(Array.isArray(json.filas) ? json.filas : []);
-        setAccionistas(Array.isArray(json.accionistas) ? json.accionistas : []);
+        setData(json);
+        setBounds((prev) => prev ?? json.bounds ?? null);
         setError(null);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "error");
@@ -127,172 +189,68 @@ export function CashFlowView() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [desdeSel, hastaSel, granularity, filtroAcc, seleccion]);
 
-  const accMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of accionistas) m.set(a.cuenta, a.grupo);
-    return m;
-  }, [accionistas]);
-
-  const { minDate, maxDate } = useMemo(() => {
-    if (filas.length === 0) return { minDate: "", maxDate: "" };
-    let mn = filas[0].dia;
-    let mx = filas[0].dia;
-    for (const r of filas) {
-      if (r.dia < mn) mn = r.dia;
-      if (r.dia > mx) mx = r.dia;
-    }
-    return { minDate: mn, maxDate: mx };
-  }, [filas]);
-
-  const [desdeSel, setDesdeSel] = useState<string | null>(null);
-  const [hastaSel, setHastaSel] = useState<string | null>(null);
-  const [showArs, setShowArs] = useState(true);
-  const [showUsd, setShowUsd] = useState(true);
-  const [granularity, setGranularity] = useState<Granularity>("Diario");
-  const [filtroAcc, setFiltroAcc] = useState<FiltroAcc>("Todas");
-  const [selState, setSelState] = useState<{ filtro: FiltroAcc; val: string }>({
-    filtro: "Todas",
-    val: "__TODAS__",
-  });
-  const seleccion = selState.filtro === filtroAcc ? selState.val : "__TODAS__";
-  const setSeleccion = (v: string) => setSelState({ filtro: filtroAcc, val: v });
-
-  // Rango de fechas (YYYY-MM-DD). Default = todo el rango de datos disponible.
-  // El usuario lo cambia con calendario; clamp para mantener desde ≤ hasta.
-  const minDay = minDate.slice(0, 10);
-  const maxDay = maxDate.slice(0, 10);
-  const desde = desdeSel ?? minDay;
-  const hasta = hastaSel ?? maxDay;
-  const setDesde = (s: string) => {
-    setDesdeSel(s);
-    if (s > hasta) setHastaSel(s);
-  };
-  const setHasta = (s: string) => {
-    setHastaSel(s);
-    if (s < desde) setDesdeSel(s);
-  };
-
+  const opciones = data?.opciones ?? [];
+  const label = FILTRO_LABEL[filtroAcc];
 
   const monedasSel = useMemo(
     () => [...(showArs ? ["ARS"] : []), ...(showUsd ? ["USD"] : [])],
     [showArs, showUsd]
   );
 
-  const { opciones, label } = useMemo(() => {
-    const todasCuentas = Array.from(
-      new Set(filas.map((r) => r.cuenta).filter(Boolean))
-    );
-    if (filtroAcc === "Solo accionistas") {
-      const grupos = Array.from(
-        new Set(
-          todasCuentas.filter((c) => accMap.has(c)).map((c) => accMap.get(c)!)
-        )
-      ).sort();
-      return { opciones: grupos, label: "Accionista" };
-    }
-    if (filtroAcc === "Sin accionistas") {
-      return {
-        opciones: todasCuentas.filter((c) => !accMap.has(c)).sort(),
-        label: "Cuenta",
-      };
-    }
-    if (filtroAcc === "Solo cooperativas") {
-      return {
-        opciones: todasCuentas
-          .filter((c) => !accMap.has(c) && esCooperativa(c))
-          .sort(),
-        label: "Cooperativa",
-      };
-    }
-    return { opciones: todasCuentas.sort(), label: "Cuenta" };
-  }, [filas, filtroAcc, accMap]);
+  // Lo único que queda en el cliente: ponerle la etiqueta legible a cada barra.
+  // El toggle de monedas tampoco necesita refetch — la serie trae las dos y el
+  // gráfico de cada moneda lee su propia columna.
+  const chartData = useMemo(
+    () =>
+      (data?.serie ?? []).map((r) => ({
+        key: r.periodo,
+        label: granularity === "Mensual" ? fmtMesAnio(r.periodo) : fmtDia(r.periodo),
+        ARS: r.ARS,
+        USD: r.USD,
+      })),
+    [data, granularity]
+  );
 
-  const filtered = useMemo(() => {
-    return filas.filter((r) => {
-      if (r.dia < desde || r.dia > hasta) return false;
-      if (!monedasSel.includes(r.unidad)) return false;
-      const cuenta = r.cuenta || "";
-      const grupo = accMap.get(cuenta);
-      if (filtroAcc === "Sin accionistas") {
-        if (grupo) return false;
-        if (seleccion !== "__TODAS__" && cuenta !== seleccion) return false;
-      } else if (filtroAcc === "Solo accionistas") {
-        if (!grupo) return false;
-        if (seleccion !== "__TODAS__" && grupo !== seleccion) return false;
-      } else if (filtroAcc === "Solo cooperativas") {
-        if (grupo) return false;
-        if (!esCooperativa(cuenta)) return false;
-        if (seleccion !== "__TODAS__" && cuenta !== seleccion) return false;
-      } else if (seleccion !== "__TODAS__") {
-        if (cuenta !== seleccion) return false;
-      }
-      return true;
-    });
-  }, [filas, desde, hasta, monedasSel, filtroAcc, seleccion, accMap]);
+  const totals = useMemo(
+    () => ({
+      ARS: data?.totales?.ARS ?? { entradas: 0, salidas: 0 },
+      USD: data?.totales?.USD ?? { entradas: 0, salidas: 0 },
+    }),
+    [data]
+  );
 
-  const chartData = useMemo(() => {
-    const byKey: Record<
-      string,
-      { key: string; label: string; ARS: number; USD: number }
-    > = {};
-    for (const r of filtered) {
-      const key = granularity === "Mensual" ? r.dia.slice(0, 7) : r.dia;
-      if (!byKey[key]) {
-        byKey[key] = {
-          key,
-          label: granularity === "Mensual" ? fmtMesAnio(key) : fmtDia(key),
-          ARS: 0,
-          USD: 0,
-        };
-      }
-      const neto = r.entradas + r.salidas;
-      if (r.unidad === "ARS") byKey[key].ARS += neto;
-      else if (r.unidad === "USD") byKey[key].USD += neto;
-    }
-    return Object.entries(byKey)
-      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-      .map(([, v]) => v);
-  }, [filtered, granularity]);
-
-  const totals = useMemo(() => {
-    const out: Record<string, { entradas: number; salidas: number }> = {
-      ARS: { entradas: 0, salidas: 0 },
-      USD: { entradas: 0, salidas: 0 },
-    };
-    for (const r of filtered) {
-      if (!out[r.unidad]) continue;
-      out[r.unidad].entradas += r.entradas;
-      out[r.unidad].salidas += r.salidas;
-    }
-    return out;
-  }, [filtered]);
-
-  if (loading) {
+  // La pantalla completa de "Cargando…" es SOLO para el primer fetch. Ahora que
+  // cada cambio de filtro pide de nuevo, si el guard siguiera mirando `loading`
+  // desmontaría la barra en cada click: se perdería el foco del selector y la
+  // vista parpadearía entera. Después de la primera carga, los datos viejos se
+  // quedan en pantalla atenuados hasta que llegan los nuevos.
+  if (loading && !data) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
         Cargando…
       </div>
     );
   }
-  if (error) {
+  if (error && !data) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--t-neg)] text-sm">
         Error: {error}
       </div>
     );
   }
-  if (filas.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
-        Sin datos.
-      </div>
-    );
-  }
+  // "Sin datos" NO puede desmontar la barra: si un filtro deja el resultado
+  // vacío, hay que poder cambiarlo. Se muestra dentro del área del gráfico.
+  const vacio = !chartData.length;
 
   return (
-    <div className="h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden">
+    <div
+      className={
+        "h-full min-h-0 flex flex-col p-3 gap-3 overflow-hidden transition-opacity " +
+        (loading ? "opacity-60" : "")
+      }
+    >
       <div className="border border-[var(--t-border)] bg-[var(--t-panel)] p-3 shrink-0">
         <div className="flex flex-wrap items-end gap-3">
           <LabeledInput label="Desde" className="shrink-0">
@@ -362,7 +320,12 @@ export function CashFlowView() {
             Seleccioná al menos una moneda.
           </div>
         )}
-        {showArs && (
+        {vacio && monedasSel.length > 0 && (
+          <div className="text-center text-[var(--t-text-muted)] text-xs py-8">
+            Sin movimientos para este filtro.
+          </div>
+        )}
+        {showArs && !vacio && (
           <MonedaChart
             moneda="ARS"
             color={COLOR_ARS}
@@ -372,7 +335,7 @@ export function CashFlowView() {
             granularity={granularity}
           />
         )}
-        {showUsd && (
+        {showUsd && !vacio && (
           <MonedaChart
             moneda="USD"
             color={COLOR_USD}
