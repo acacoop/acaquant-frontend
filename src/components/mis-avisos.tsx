@@ -20,18 +20,37 @@ import { fetchJson } from "@/lib/fetch-json";
  * acá solo llega lo que te mandó, con qué hacer y dónde. Un no-admin no ve
  * hallazgos, ni el estado del sistema, ni puede pedirle nada.
  *
- * Y no interrumpe: aparece en la barra solo si hay algo. Un badge que está
- * siempre deja de mirarse.
+ * Un aviso común NO interrumpe: aparece en la barra solo si hay algo. Un badge
+ * que está siempre deja de mirarse.
+ *
+ * ⚠️ **PERO ALGUNOS SÍ INTERRUMPEN** (user, 2026-08-19, sobre los saldos del
+ * día): *«tiene que ser como el modal de briefing: aparece en la pantalla, llama
+ * la atención y te hace hacer algo para continuar. No que aparezca en el cuerpo
+ * del agente como si nada»*.
+ *
+ * Los que traen `interrumpe` abren solos y traen una TABLA que se completa fila
+ * por fila. Cada tilde queda con quién y cuándo. Y **vencen**: el de saldos vale
+ * hoy, mañana el mercado abre con otros números.
  */
+type Item = {
+  id: number; etiqueta: string; hecho: boolean; hecho_at: string | null;
+  datos: { cuenta?: string; moneda?: string; saldo?: number; signo?: string };
+};
 type Aviso = {
   id: number; ticker: string; clave: string;
   que_hacer: string; por_que: string | null; donde: string | null;
   creado_at: string | null;
+  interrumpe?: boolean; vence_at?: string | null;
+  items?: Item[]; pendientes?: number;
 };
 
 export function MisAvisos() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [abierto, setAbierto] = useState(false);
+  // Los que ya se pospusieron EN ESTA SESIÓN. No se guarda en localStorage a
+  // propósito: un aviso del día que se puede silenciar para siempre con un click
+  // deja de ser un aviso. Al recargar vuelve — y vence solo a la medianoche.
+  const [pospuestos, setPospuestos] = useState<Set<number>>(new Set());
 
   const cargar = useCallback(async () => {
     try {
@@ -49,6 +68,16 @@ export function MisAvisos() {
     return () => clearInterval(id);
   }, [cargar]);
 
+  const marcarItem = useCallback(async (itemId: number, hecho: boolean) => {
+    try {
+      await fetchJson("/api/avisos/item", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: itemId, hecho }),
+      });
+    } catch { /* vuelve en el próximo poll */ }
+    await cargar();
+  }, [cargar]);
+
   const hecho = async (id: number) => {
     try {
       await fetchJson("/api/avisos/hecho", {
@@ -63,8 +92,102 @@ export function MisAvisos() {
   // no mirarlo, y el día que diga 1 tampoco se va a mirar.
   if (avisos.length === 0) return null;
 
+  // EL QUE INTERRUMPE. Uno por vez: dos modales encimados no son el doble de
+  // urgente, son ninguno.
+  const urgente = avisos.find(
+    (a) => a.interrumpe && !pospuestos.has(a.id) && (a.pendientes ?? 0) > 0);
+
   return (
     <>
+      {/* ── EL MODAL QUE TE FRENA ────────────────────────────────────────
+          Mismo lugar y mismo peso que el de briefing: aparece encima de todo y
+          hay que hacer algo con él. NO se cierra clickeando afuera —eso es lo
+          que lo diferencia de un panel— pero SÍ se puede posponer, y el botón
+          lo dice. Un modal del que no se puede salir en una app de trading es
+          peligroso: alguien puede necesitar la pantalla YA.
+
+          Posponer dura la sesión y no se guarda: un aviso del día que se
+          silencia para siempre con un click deja de ser un aviso. */}
+      {urgente && (
+        <div className="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center p-4">
+          <div className="w-[720px] max-w-[96vw] bg-[var(--t-panel)] border border-[var(--t-accent)] shadow-2xl flex flex-col max-h-[86vh]">
+            <div className="flex items-baseline gap-2 px-4 py-2 border-b border-[var(--t-border)]">
+              <span className="text-[11px] font-semibold tracking-widest text-[var(--t-accent)]">
+                {urgente.que_hacer}
+              </span>
+              <span className="ml-auto text-[10px] tabular-nums text-[var(--t-text-dim)]">
+                {urgente.pendientes} sin marcar de {urgente.items?.length ?? 0}
+              </span>
+            </div>
+            {urgente.por_que && (
+              <p className="px-4 pt-2 text-[10px] text-[var(--t-text-muted)]">
+                {urgente.por_que}
+              </p>
+            )}
+            <div className="overflow-y-auto px-4 py-2">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] text-left">
+                    <th className="font-normal py-1 w-8"></th>
+                    <th className="font-normal py-1">Cuenta</th>
+                    <th className="font-normal py-1 w-16">Moneda</th>
+                    <th className="font-normal py-1 w-32 text-right">Saldo</th>
+                    <th className="font-normal py-1 w-24"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--t-border)]">
+                  {(urgente.items ?? []).map((it) => {
+                    const neg = (it.datos.saldo ?? 0) < 0;
+                    return (
+                      <tr key={it.id} className={it.hecho ? "opacity-45" : ""}>
+                        <td className="py-1">
+                          <input
+                            type="checkbox" checked={it.hecho}
+                            onChange={() => void marcarItem(it.id, !it.hecho)}
+                            className="cursor-pointer"
+                          />
+                        </td>
+                        <td className={`py-1 ${it.hecho ? "line-through" : ""}`}>
+                          {it.datos.cuenta ?? it.etiqueta}
+                        </td>
+                        <td className="py-1 text-[var(--t-text-muted)]">
+                          {it.datos.moneda}
+                        </td>
+                        <td className="py-1 text-right tabular-nums font-semibold"
+                            style={{ color: neg ? "var(--t-neg)" : "var(--t-pos)" }}>
+                          {(it.datos.saldo ?? 0).toLocaleString("es-AR",
+                            { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        {/* CUÁNDO se marcó. El user pidió que persista con su
+                            hora — y verla es lo que hace que se note que quedó
+                            registrado, no solo tildado. */}
+                        <td className="py-1 text-[9px] text-[var(--t-text-dim)] tabular-nums">
+                          {it.hecho_at
+                            ? new Date(it.hecho_at).toLocaleTimeString("es-AR",
+                                { hour: "2-digit", minute: "2-digit" })
+                            : ""}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-2 border-t border-[var(--t-border)]">
+              <span className="text-[9px] text-[var(--t-text-dim)]">
+                Vale por hoy. Al marcar todas se cierra solo.
+              </span>
+              <button
+                onClick={() => setPospuestos((s) => new Set(s).add(urgente.id))}
+                className="ml-auto text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+              >
+                lo veo en un rato
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={() => setAbierto((v) => !v)}
         title="Cosas que te dejó el agente para hacer"
