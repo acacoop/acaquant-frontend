@@ -371,10 +371,9 @@ type RespConciliacion = {
   banco_suma: number;
   mayor_movimientos: { concepto: string; importe: number; fila: number }[];
   mayor_suma: number;
-  mayor_saldo_inicial: number | null;
-  /** ¿El detalle del mayor cierra contra su propio saldo? Es el auto-chequeo del
-   *  parseo: si no da, el detalle no se puede usar para explicar nada. */
-  mayor_cierra: boolean | null;
+  /** El margen con que se buscó la explicación. Se muestra: un criterio que
+   *  decide qué aparece en pantalla no puede vivir escondido en el código. */
+  tolerancia: number | null;
 };
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
@@ -2669,7 +2668,7 @@ function ModalConciliar({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1100px] max-h-[88vh] flex flex-col text-[12px]"
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1600px] max-h-[92vh] flex flex-col text-[12px]"
       >
         <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex items-center gap-2">
           <span className="font-semibold tracking-wide uppercase text-[11px]">
@@ -2810,13 +2809,6 @@ function ModalConciliar({
                     texto: m.concepto, importe: m.importe }))}
                   suma={res.mayor_suma}
                   moneda={moneda}
-                  // El auto-chequeo del parseo: inicial + movimientos = saldo
-                  // final del archivo. Si no da, el detalle no explica nada y
-                  // hay que decirlo acá, no en una nota al pie.
-                  nota={res.mayor_saldo_inicial !== null
-                    ? `Saldo inicial ${plata(res.mayor_saldo_inicial, moneda)}`
-                    : undefined}
-                  alerta={res.mayor_cierra === false}
                 />
               </div>
 
@@ -2826,6 +2818,9 @@ function ModalConciliar({
                     ? `Movimientos que podrían explicar la diferencia `
                       + `(sobre ${res.movimientos_dia} del día):`
                     : `El día tiene ${res.movimientos_dia} movimientos.`}
+                  {/* El margen con que se buscó, a la vista: un criterio que
+                      decide qué aparece en pantalla no puede vivir escondido. */}
+                  {!!res.tolerancia && ` · margen ±${plata(res.tolerancia)}`}
                   {res.candidatos_truncados && " — no se exploraron todas las combinaciones."}
                 </div>
               )}
@@ -2933,21 +2928,18 @@ function Numero({
  * que no sirve.
  */
 function LadoConciliacion({
-  titulo, filas, suma, moneda, nota, alerta,
+  titulo, filas, suma, moneda,
 }: {
   titulo: string;
   filas: { texto: string; importe: number }[];
   suma: number;
   moneda: string;
-  nota?: string;
-  alerta?: boolean;
 }) {
   return (
-    <div className={`border ${alerta ? "border-[var(--t-neg)]" : "border-[var(--t-border-2)]"}`}>
+    <div className="border border-[var(--t-border-2)]">
       <div className="px-2 py-1 bg-[var(--t-surface-2)] flex items-center gap-2 text-[11px] border-b border-[var(--t-border-2)]">
         <span className="uppercase tracking-wide">{titulo}</span>
         <span className="text-[var(--t-text-dim)]">{filas.length}</span>
-        {nota && <span className="text-[10px] text-[var(--t-text-muted)]">{nota}</span>}
       </div>
       <div className="max-h-[240px] overflow-auto">
         <table className="w-full border-collapse">
