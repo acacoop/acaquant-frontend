@@ -3046,12 +3046,22 @@ function ModalConciliar({
                     ? `fila ${res.saldo_excel_fila}${res.saldo_excel_letra ? ` · ${res.saldo_excel_letra}` : ""}`
                     : undefined}
                 />
+                {/* ⚠️ El SIGNO de la diferencia ya dice qué pasó, pero leerlo
+                    obliga a acordarse de la convención. Va escrito acá arriba,
+                    al lado del número, y no solo abajo en cada opción: el que
+                    abre el modal tiene que saber de una si el movimiento hay
+                    que CARGARLO o SACARLO del mayor. */}
                 <Numero
                   rotulo="Diferencia"
                   valor={plata(res.diferencia, moneda)}
                   clase={res.concilia === true
                     ? "text-[var(--t-pos)]"
                     : res.concilia === false ? "text-[var(--t-neg)]" : ""}
+                  marca={res.concilia === false && res.diferencia != null
+                    ? (res.diferencia > 0
+                        ? { texto: "falta en el mayor · cargarlo", tono: "neg" as const }
+                        : { texto: "sobra en el mayor · sacarlo", tono: "amber" as const })
+                    : undefined}
                 />
               </div>
 
@@ -3076,7 +3086,12 @@ function ModalConciliar({
                   donde no se puede. Lo único comparable es el IMPORTE, y por eso
                   las dos columnas de números quedan alineadas a la derecha, a la
                   misma altura: el ojo hace la comparación solo. */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* ⚠️ Las dos mitades NO son iguales: el concepto del mayor es
+                  larguísimo (`[Op. 1131651] Pago c/retención ganancias RG 830
+                  - …`) y la descripción del banco entra en una línea. Partir al
+                  50% dejaba aire de sobra a la izquierda y cortaba justo lo que
+                  hay que leer a la derecha. */}
+              <div className="grid grid-cols-1 md:grid-cols-[minmax(0,4fr)_minmax(0,6fr)] gap-3">
                 <LadoConciliacion
                   titulo="Movimientos del banco"
                   filas={res.banco_movimientos.map((m) => ({
@@ -3206,16 +3221,29 @@ function ModalConciliar({
 
 /** Un número grande con su rótulo, para los tres saldos de la conciliación. */
 function Numero({
-  rotulo, valor, nota, clase = "",
+  rotulo, valor, nota, clase = "", marca,
 }: {
   rotulo: string; valor: string; nota?: string; clase?: string;
+  /** La etiqueta de acción al lado del número (la usa DIFERENCIA). */
+  marca?: { texto: string; tono: "neg" | "amber" };
 }) {
   return (
     <div className="flex flex-col">
       <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
         {rotulo}
       </span>
-      <span className={`text-[16px] font-semibold ${clase}`}>{valor}</span>
+      <span className="flex items-center gap-2">
+        <span className={`text-[16px] font-semibold ${clase}`}>{valor}</span>
+        {marca && (
+          <span className={`px-1 text-[9px] uppercase ${
+            marca.tono === "neg"
+              ? "bg-[var(--t-tint-red)] text-[var(--t-neg)]"
+              : "bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+          }`}>
+            {marca.texto}
+          </span>
+        )}
+      </span>
       {nota && (
         <span className="text-[10px] text-[var(--t-text-dim)]">{nota}</span>
       )}
@@ -3245,7 +3273,7 @@ function LadoConciliacion({
         <span className="uppercase tracking-wide">{titulo}</span>
         <span className="text-[var(--t-text-dim)]">{filas.length}</span>
       </div>
-      <div className="max-h-[240px] overflow-auto">
+      <div className="max-h-[300px] overflow-auto">
         <table className="w-full border-collapse">
           <tbody>
             {filas.map((f, i) => (
@@ -3253,11 +3281,18 @@ function LadoConciliacion({
               // importe queda pegado a la derecha. Sin eso la tabla reparte el
               // ancho por igual y quedan diez centímetros de aire entre las dos
               // columnas, que es lo que hacía imposible comparar de un vistazo.
+              // Y `break-words`: el concepto del mayor no cabe en una línea, así
+              // que baja de renglón en vez de empujar la columna del importe
+              // fuera de la pantalla.
               <tr key={i} className="border-b border-[var(--t-border)]">
-                <Td copiar={f.texto} className="text-[11px] w-full leading-tight">
+                <Td
+                  copiar={f.texto}
+                  pad="px-1.5 py-[2px]"
+                  className="text-[10px] w-full leading-[1.15] break-words"
+                >
                   {f.texto}
                 </Td>
-                <Td right className={`text-[11px] whitespace-nowrap tabular-nums ${
+                <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums ${
                   f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
                 }`} copiar={plata(f.importe)}>
                   {plata(f.importe)}
@@ -3592,9 +3627,15 @@ function useCopiar(texto?: string | null) {
 
 function Td({
   children, right, center, strong, className = "", copiar, colSpan, title,
+  pad = "px-2 py-1",
 }: {
   children?: React.ReactNode; right?: boolean; center?: boolean; strong?: boolean;
   className?: string; copiar?: string | null; colSpan?: number; title?: string;
+  /** El padding, como prop y no dentro de `className`: dos clases de Tailwind
+   *  con la misma especificidad (`px-2` y `px-1`) las resuelve el ORDEN del CSS
+   *  generado, no el orden en el atributo — o sea que apretar una celda desde
+   *  afuera funcionaba a veces y a veces no. */
+  pad?: string;
 }) {
   const cp = useCopiar(copiar);
   const al = center ? "text-center tabular-nums" : right ? "text-right tabular-nums" : "";
@@ -3605,7 +3646,7 @@ function Td({
       // Un `title` propio GANA sobre el «Clic para copiar»: cuando la celda
       // necesita explicar qué es el número, eso importa más que el gesto.
       title={title ?? cp.title}
-      className={`px-2 py-1 ${al} ${strong ? "font-semibold" : ""} ${cp.clase} ${className}`}
+      className={`${pad} ${al} ${strong ? "font-semibold" : ""} ${cp.clase} ${className}`}
     >
       {children}
     </td>
