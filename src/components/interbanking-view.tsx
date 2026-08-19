@@ -55,7 +55,7 @@ import { usePoll } from "@/lib/use-poll";
  * **FILTRO POR BANCO** en la barra. Es client-side sobre lo que ya trajo el
  * consolidado —pedirle la vista filtrada al backend sería un request por cada
  * cambio de selector para esconder filas que ya están en memoria— y alcanza
- * también al REPORTE FINAL: el reporte no puede decir algo distinto de la
+ * también al REPORTE FIN DE DÍA: el reporte no puede decir algo distinto de la
  * pantalla desde la que se abrió. El alta de movimientos manuales NO se filtra:
  * es una herramienta de carga, y no poder cargarle un movimiento a un banco por
  * tener la vista filtrada sería una trampa.
@@ -64,7 +64,7 @@ import { usePoll } from "@/lib/use-poll";
  * datos se pegan en otros sistemas todo el día. Las celdas sin dato («—») no
  * reaccionan: un cursor de mano que no hace nada promete algo que no pasa.
  *
- * ── REPORTE FINAL (botón de la barra) — el saldo al cierre de TODAS las cuentas,
+ * ── REPORTE FIN DE DÍA (botón de la barra) — el saldo al cierre de TODAS las cuentas,
  *    para pasar hacia afuera. **Una tabla POR BANCO**, no una matriz: se probaron
  *    las dos (bancos en las columnas y bancos en las filas) y las dos fallan por
  *    lo mismo — cada cuenta pertenece a UN banco, así que en una grilla común la
@@ -517,7 +517,7 @@ export function InterbankingView() {
   // la vista filtrada al backend sería un request por cada cambio de selector
   // para esconder filas que ya están en memoria.
   //
-  // Filtra la grilla Y el REPORTE FINAL, a propósito: el reporte no puede decir
+  // Filtra la grilla Y el REPORTE FIN DE DÍA, a propósito: el reporte no puede decir
   // algo distinto de la pantalla desde la que se abrió. El alta de movimientos
   // manuales NO se filtra — es una herramienta de carga, y no poder cargarle un
   // movimiento a un banco por tener la vista filtrada sería una trampa.
@@ -527,52 +527,63 @@ export function InterbankingView() {
     [resp.bancos, banco]);
   return (
     <div className="h-full min-h-0 flex flex-col text-[12px]">
+      {/* ⚠️ La barra tiene UN solo renglón y siete controles: cada píxel que se
+          gasta compite con el siguiente. Por eso:
+          · el título «Consolidado Bancos» se sacó — la pantalla ya se llama así
+            en la solapa, y repetirlo costaba el ancho de dos botones;
+          · el filtro de banco vive a la IZQUIERDA, con la última actualización:
+            es CONTEXTO de lo que se está mirando, no una acción;
+          · CONCILIAR y MOVIMIENTOS A CONCILIAR van encuadrados juntos, porque
+            son las dos mitades de un mismo circuito —encontrar la diferencia y
+            anotar qué hay que arreglar— y el recuadro dice eso sin una palabra. */}
       <div className="shrink-0 border-b border-[var(--t-border)] bg-[var(--t-panel)] px-3 py-1.5 flex flex-wrap items-center gap-3">
-        <span className="text-[11px] uppercase tracking-wide font-semibold">
-          Consolidado Bancos
-        </span>
         <span className="text-[11px] text-[var(--t-text-dim)]">
           Última actualización {momento(syncAt)}
         </span>
+        <select
+          value={banco}
+          onChange={(e) => setBanco(e.target.value)}
+          className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[11px] outline-none"
+          title="Ver un solo banco. Afecta también al reporte de fin de día."
+        >
+          <option value="">Todos los bancos</option>
+          {resp.bancos.map((b) => (
+            <option key={b.banco} value={b.banco}>{b.banco_nombre}</option>
+          ))}
+        </select>
+
         <div className="ml-auto flex items-center gap-2">
-          <select
-            value={banco}
-            onChange={(e) => setBanco(e.target.value)}
-            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[11px] outline-none"
-            title="Ver un solo banco. Afecta también al reporte final."
-          >
-            <option value="">Todos los bancos</option>
-            {resp.bancos.map((b) => (
-              <option key={b.banco} value={b.banco}>{b.banco_nombre}</option>
-            ))}
-          </select>
+          {/* Las dos mitades del mismo circuito, en un solo bloque. */}
+          <div className="flex items-center gap-1 border border-[var(--t-border-2)] px-1 py-0.5">
+            <button
+              onClick={() => setConciliar(true)}
+              className="px-2 py-0.5 text-[11px] uppercase tracking-wide hover:bg-[var(--t-surface)]"
+              title="Subir el mayor del sistema contable y ver qué explica la diferencia de saldo"
+            >
+              Conciliar
+            </button>
+            <span className="text-[var(--t-border-2)]">·</span>
+            <button
+              onClick={() => setPendientes(true)}
+              className="px-2 py-0.5 text-[11px] uppercase tracking-wide hover:bg-[var(--t-surface)]"
+              title="Lo que se confirmó que hay que arreglar en el sistema contable"
+            >
+              Movimientos a conciliar
+            </button>
+          </div>
           <button
-            onClick={() => setConciliar(true)}
+            onClick={() => setDifs(true)}
             className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
-            title="Subir el mayor del sistema contable y ver qué explica la diferencia de saldo"
+            title="¿La variación del saldo de cada cuenta está explicada por sus movimientos?"
           >
-            Conciliar
+            Diferencias bancarias
           </button>
           <button
             onClick={() => setReporte(true)}
             className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
             title="El saldo al cierre de cada cuenta, por banco, para pasar"
           >
-            Reporte final
-          </button>
-          <button
-            onClick={() => setPendientes(true)}
-            className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
-            title="Lo que se confirmó que hay que arreglar en el sistema contable"
-          >
-            Movimientos a conciliar
-          </button>
-          <button
-            onClick={() => setDifs(true)}
-            className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
-            title="¿La variación del saldo de cada cuenta está explicada por sus movimientos?"
-          >
-            Diferencias
+            Reporte fin de día
           </button>
           {resp.puede_escribir && (
             <button
@@ -1835,7 +1846,7 @@ function ModalDesglose({
 }
 
 /**
- * REPORTE FINAL — el saldo al cierre de todas las cuentas, para pasar hacia afuera.
+ * REPORTE FIN DE DÍA — el saldo al cierre de todas las cuentas, para pasar hacia afuera.
  *
  * ⚠️ **Una tabla POR BANCO**, no una matriz única. Se probaron las dos matrices
  * —bancos en las columnas y después bancos en las filas— y las dos fallan por lo
@@ -1943,7 +1954,7 @@ function ModalReporte({
           corte: i > 0 && esArs(arr[i - 1].moneda) !== esArs(c.moneda),
         })),
       }))),
-      titulo: "Reporte final · saldos al cierre",
+      titulo: "Reporte fin de día · saldos al cierre",
       fecha,
       firma: FIRMA,
       logoUrl: "/logo-login.png",
@@ -1974,7 +1985,7 @@ function ModalReporte({
           <img src="/logo-login.png" alt="ACA Valores" height={24} className="h-6 w-auto" />
           <div className="h-4 w-px bg-white/25" />
           <span className="text-[12px] font-semibold tracking-wide uppercase">
-            Reporte final · saldos al cierre
+            Reporte fin de día · saldos al cierre
           </span>
           <span className="text-[12px] text-white/80">{fecha}</span>
           {/* La firma va CHICA: dice de dónde salió el reporte sin competir con

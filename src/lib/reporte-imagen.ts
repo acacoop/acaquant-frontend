@@ -1,5 +1,5 @@
 /**
- * El REPORTE FINAL como IMAGEN, para pegar en un mail.
+ * El REPORTE FIN DE DÍA como IMAGEN, para pegar en un mail.
  *
  * ⚠️ **No es una captura de la pantalla: el reporte se DIBUJA de cero en un
  * canvas.** Las dos alternativas se descartaron por buenos motivos:
