@@ -83,6 +83,25 @@ import { usePoll } from "@/lib/use-poll";
  *    ✕ no pueden colarse en ella, y por eso sale siempre en claro aunque la app
  *    esté en oscuro: un mail con fondo negro se imprime pésimo.
  *
+ * ── CONCILIAR (botón de la barra) — compara UN número contra otro: nuestro saldo
+ *    al cierre y el ÚLTIMO saldo del mayor del sistema contable, que el usuario
+ *    sube como Excel. Si no coinciden, muestra qué movimientos del día podrían
+ *    explicar la diferencia.
+ *
+ *    El usuario ELIGE banco y cuenta: no se infieren del archivo. El mayor no
+ *    trae CBU ni número de cuenta bancaria (verificado sobre exports reales), y
+ *    elegirla además fija el universo de movimientos sin ambigüedad.
+ *
+ *    Del archivo se usa **un solo número**: el último saldo. No se leen sus
+ *    movimientos — sus descripciones y comprobantes no tienen NADA en común con
+ *    los del banco (`[Op. 1130699] bco a bco` contra `TRANSF.O/BANCOS MISMO
+ *    TIT`), así que cruzarlos por texto no era una opción.
+ *
+ *    ⚠️ El navegador no interpreta el archivo: solo lo convierte en filas y
+ *    columnas crudas y las manda. Qué columna es el saldo y cómo se lee la
+ *    `D`/`A` que le da el signo (D = positivo, A = negativo) lo decide el
+ *    backend, donde se puede testear. **No se persiste nada.**
+ *
  * De dónde sale el dato: `jobs/interbanking_sync` trae extracto + saldo a
  * `bancos.*` cada 2 horas (9 a 19 ART) y esta vista lee de ahí. **La pantalla
  * nunca le pega a Interbanking**: el límite de 100 llamadas/minuto es del ABONADO
@@ -273,6 +292,49 @@ type RespVista = {
   sync: Sync;
 };
 
+/** Un movimiento del banco que podría explicar la diferencia contra el mayor. */
+type MovCandidato = {
+  mov_hash: string;
+  fecha: string | null;
+  hora: string | null;
+  importe: number;
+  tipo: string | null;
+  /** Con signo: C suma, D resta. Lo firma el BACKEND a partir de `tipo`. */
+  importe_firmado: number;
+  descripcion: string;
+  concepto: string;
+  codigo: string | null;
+  codigo_banco: string | null;
+  comprobante: number | null;
+  ignorado: boolean;
+};
+
+/** Una combinación de movimientos cuya suma da exactamente la diferencia. */
+type Candidato = { movimientos: MovCandidato[]; suma: number; cantidad: number };
+
+type RespConciliacion = {
+  fecha: string;
+  cuenta: {
+    id: number; banco: string; numero: string;
+    tipo: string; moneda: string; etiqueta: string;
+  };
+  saldo_nuestro: number | null;
+  saldo_nuestro_fuente: string | null;
+  ajuste_manual: number | null;
+  saldo_excel: number | null;
+  /** El texto crudo de la celda y en qué fila estaba: el usuario tiene que poder
+   *  verificar de dónde salió el número sin abrir el Excel al lado. */
+  saldo_excel_texto: string | null;
+  saldo_excel_letra: string | null;
+  saldo_excel_fila: number | null;
+  diferencia: number | null;
+  concilia: boolean | null;
+  movimientos_dia: number;
+  candidatos: Candidato[];
+  candidatos_truncados: boolean;
+  avisos: string[];
+};
+
 const CONSOLIDADO_VACIO: RespConsolidado = {
   fecha: "", conectados: [], puede_escribir: false, desglose: [], bancos: [], cuentas: 0,
   sin_datos: 0, gastos_definidos: false, sync: null,
@@ -394,6 +456,7 @@ export function InterbankingView() {
 
   const [reporte, setReporte] = useState(false);
   const [manual, setManual] = useState(false);
+  const [conciliar, setConciliar] = useState(false);
 
   // FILTRO POR BANCO. Es client-side sobre lo que ya trajo el consolidado: pedir
   // la vista filtrada al backend sería un request por cada cambio de selector
@@ -428,6 +491,13 @@ export function InterbankingView() {
               <option key={b.banco} value={b.banco}>{b.banco_nombre}</option>
             ))}
           </select>
+          <button
+            onClick={() => setConciliar(true)}
+            className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+            title="Subir el mayor del sistema contable y ver qué explica la diferencia de saldo"
+          >
+            Conciliar
+          </button>
           <button
             onClick={() => setReporte(true)}
             className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
@@ -474,6 +544,14 @@ export function InterbankingView() {
           bancos={bancosVista}
           fecha={resp.fecha || fecha}
           onCerrar={() => setReporte(false)}
+        />
+      )}
+
+      {conciliar && (
+        <ModalConciliar
+          bancos={resp.bancos}
+          fecha={resp.fecha || fecha}
+          onCerrar={() => setConciliar(false)}
         />
       )}
     </div>
@@ -2140,6 +2218,289 @@ function ModalManuales({
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ── CONCILIAR contra el mayor del sistema contable ──────────────────────── */
+
+/**
+ * Compara UN número contra otro: el saldo al cierre que tenemos del banco y el
+ * último saldo del mayor de HYGIRUS. Si no coinciden, muestra qué movimientos
+ * del día podrían explicar la diferencia.
+ *
+ * El usuario ELIGE banco y cuenta: no se infieren del archivo. El mayor no trae
+ * CBU ni número de cuenta bancaria (verificado sobre exports reales), así que no
+ * hay nada que inferir — y elegirla además fija el universo de movimientos sin
+ * ambigüedad.
+ *
+ * ⚠️ El navegador **no interpreta el archivo**: solo lo convierte en filas y
+ * columnas crudas (`readSheetGrid`) y las manda. Qué columna es el saldo, cómo
+ * se lee la `D`/`A` que le da el signo y qué se compara lo decide el backend,
+ * que es donde se puede testear. Si ese criterio viviera acá, cada ajuste sería
+ * un deploy del front sin una sola prueba que lo respalde.
+ *
+ * No persiste nada: subir el archivo de nuevo recalcula y listo.
+ */
+function ModalConciliar({
+  bancos, fecha, onCerrar,
+}: {
+  bancos: Banco[]; fecha: string; onCerrar: () => void;
+}) {
+  const [banco, setBanco] = useState("");
+  const [cuentaId, setCuentaId] = useState("");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [res, setRes] = useState<RespConciliacion | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  const cuentas = useMemo(
+    () => bancos.find((b) => b.banco === banco)?.cuentas ?? [], [bancos, banco]);
+
+  const cuenta = useMemo(
+    () => cuentas.find((c) => String(c.id) === cuentaId) ?? null, [cuentas, cuentaId]);
+
+  const moneda = res?.cuenta?.moneda ?? cuenta?.moneda ?? "";
+
+  async function correr() {
+    if (!cuentaId) { setErr("Elegí la cuenta."); return; }
+    if (!archivo) { setErr("Subí el Excel del mayor."); return; }
+    setBusy(true); setErr(null); setRes(null);
+    try {
+      const { readSheetGrid } = await import("@/lib/xlsx-read");
+      const filas = await readSheetGrid(archivo);
+      const r = await fetch("/api/back-office/interbanking/conciliar", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ cuenta_id: Number(cuentaId), fecha, filas }),
+      });
+      if (!r.ok) {
+        setErr((await r.json().catch(() => ({}))).detail ?? "No se pudo conciliar.");
+        return;
+      }
+      setRes(await r.json());
+    } catch {
+      setErr("No pude leer el archivo. ¿Es un .xlsx o .csv?");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1100px] max-h-[88vh] flex flex-col text-[12px]"
+      >
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex items-center gap-2">
+          <span className="font-semibold tracking-wide uppercase text-[11px]">
+            Conciliar
+          </span>
+          <span className="text-[var(--t-accent)]">{fecha}</span>
+          <Ayuda texto={
+            "Compara el saldo al cierre que tenemos del banco contra el ÚLTIMO "
+            + "saldo del mayor del sistema contable.\n\n"
+            + "Del Excel se usa un solo número: el último saldo, que es el "
+            + "vigente. El signo lo da la letra — D (deudor) es POSITIVO y "
+            + "A (acreedor) es NEGATIVO.\n\n"
+            + "Si hay diferencia, se busca qué combinación de movimientos del "
+            + "día la suma. Son POSIBLES explicaciones: con muchos movimientos, "
+            + "más de una combinación puede dar el mismo número.\n\n"
+            + "No se guarda nada."
+          } />
+          <button
+            onClick={onCerrar}
+            className="ml-auto px-2 py-0.5 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Elegir la cuenta y el archivo. */}
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] flex flex-wrap items-center gap-2">
+          <select
+            value={banco}
+            onChange={(e) => { setBanco(e.target.value); setCuentaId(""); setRes(null); }}
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[11px] outline-none"
+          >
+            <option value="">Banco…</option>
+            {bancos.map((b) => (
+              <option key={b.banco} value={b.banco}>{b.banco_nombre}</option>
+            ))}
+          </select>
+          <select
+            value={cuentaId}
+            onChange={(e) => { setCuentaId(e.target.value); setRes(null); }}
+            disabled={!banco}
+            className="bg-[var(--t-surface)] border border-[var(--t-border-2)] px-1.5 py-1 text-[11px] outline-none disabled:opacity-40"
+          >
+            <option value="">Cuenta…</option>
+            {cuentas.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.tipo} {c.moneda} · {c.numero}
+              </option>
+            ))}
+          </select>
+          <input
+            type="file"
+            accept=".xlsx,.xlsm,.xls,.csv"
+            onChange={(e) => { setArchivo(e.target.files?.[0] ?? null); setRes(null); }}
+            className="text-[11px] file:mr-2 file:px-2 file:py-1 file:text-[11px] file:uppercase file:tracking-wide file:border file:border-[var(--t-border-2)] file:bg-[var(--t-surface)] file:text-[var(--t-text)]"
+          />
+          <button
+            onClick={correr}
+            disabled={busy || !cuentaId || !archivo}
+            className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)] disabled:opacity-40"
+          >
+            {busy ? "Comparando…" : "Comparar"}
+          </button>
+          {cuenta && (
+            <span className="text-[11px] text-[var(--t-text-dim)]">
+              Nuestro cierre: {plata(cuenta.saldo_cierre, cuenta.moneda)}
+            </span>
+          )}
+        </div>
+
+        <ErrorLinea error={err} />
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          {!res && !busy && (
+            <div className="px-3 py-6 text-[var(--t-text-dim)]">
+              Elegí la cuenta y subí el Excel del mayor de ESA cuenta.
+              Se compara contra el día {fecha}.
+            </div>
+          )}
+
+          {res && (
+            <div className="p-3 flex flex-col gap-3">
+              {/* Los tres números. */}
+              <div className="flex flex-wrap gap-4 items-end">
+                <Numero
+                  rotulo="Nuestro saldo (banco)"
+                  valor={plata(res.saldo_nuestro, moneda)}
+                  nota={res.saldo_nuestro_fuente ?? undefined}
+                />
+                <Numero
+                  rotulo="Saldo del mayor"
+                  valor={plata(res.saldo_excel, moneda)}
+                  nota={res.saldo_excel_fila
+                    ? `fila ${res.saldo_excel_fila}${res.saldo_excel_letra ? ` · ${res.saldo_excel_letra}` : ""}`
+                    : undefined}
+                />
+                <Numero
+                  rotulo="Diferencia"
+                  valor={plata(res.diferencia, moneda)}
+                  clase={res.concilia === true
+                    ? "text-[var(--t-pos)]"
+                    : res.concilia === false ? "text-[var(--t-neg)]" : ""}
+                />
+              </div>
+
+              {res.concilia === true && (
+                <div className="px-2 py-1.5 border border-[var(--t-pos)] text-[var(--t-pos)]">
+                  Concilia: los dos saldos coinciden.
+                </div>
+              )}
+
+              {res.avisos.map((a, i) => (
+                <div
+                  key={i}
+                  className="px-2 py-1.5 border border-[var(--t-border-2)] text-[var(--t-text-dim)]"
+                >
+                  {a}
+                </div>
+              ))}
+
+              {res.concilia === false && (
+                <div className="text-[11px] text-[var(--t-text-dim)]">
+                  {res.candidatos.length > 0
+                    ? `Movimientos que podrían explicar la diferencia `
+                      + `(sobre ${res.movimientos_dia} del día):`
+                    : `El día tiene ${res.movimientos_dia} movimientos.`}
+                  {res.candidatos_truncados && " — no se exploraron todas las combinaciones."}
+                </div>
+              )}
+
+              {res.candidatos.map((c, i) => (
+                <div key={i} className="border border-[var(--t-border-2)]">
+                  <div className="px-2 py-1 bg-[var(--t-surface-2)] flex items-center gap-2 text-[11px]">
+                    <span className="uppercase tracking-wide">
+                      {res.candidatos.length > 1 ? `Opción ${i + 1}` : "Explicación"}
+                    </span>
+                    <span className="text-[var(--t-text-dim)]">
+                      {c.cantidad} movimiento{c.cantidad === 1 ? "" : "s"}
+                    </span>
+                    <span className="ml-auto font-semibold">
+                      {plata(c.suma, moneda)}
+                    </span>
+                  </div>
+                  <table className="w-full border-collapse">
+                    <thead className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+                      <tr className="border-b border-[var(--t-border-2)]">
+                        <Th>Hora</Th>
+                        <Th>Descripción</Th>
+                        <Th>Concepto</Th>
+                        <Th center>Cod op</Th>
+                        <Th center>Comprobante</Th>
+                        <Th center>Importe</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {c.movimientos.map((m) => (
+                        <tr key={m.mov_hash} className="border-b border-[var(--t-border-2)]">
+                          <Td className="whitespace-nowrap">{m.hora || "—"}</Td>
+                          <Td copiar={m.descripcion}>{m.descripcion || "—"}</Td>
+                          <Td className={COL_SEP}>{m.concepto || "—"}</Td>
+                          <Td center className={COL_SEP}>{m.codigo || "—"}</Td>
+                          <Td center className={COL_SEP}>{m.comprobante ?? "—"}</Td>
+                          <Td
+                            center
+                            strong
+                            className={`${COL_SEP} whitespace-nowrap ${
+                              m.tipo === "C" ? "text-[var(--t-pos)]" : "text-[var(--t-neg)]"
+                            }`}
+                            copiar={plata(m.importe)}
+                          >
+                            {m.tipo === "D" ? "−" : "+"}{plata(m.importe)}
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Un número grande con su rótulo, para los tres saldos de la conciliación. */
+function Numero({
+  rotulo, valor, nota, clase = "",
+}: {
+  rotulo: string; valor: string; nota?: string; clase?: string;
+}) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+        {rotulo}
+      </span>
+      <span className={`text-[16px] font-semibold ${clase}`}>{valor}</span>
+      {nota && (
+        <span className="text-[10px] text-[var(--t-text-dim)]">{nota}</span>
+      )}
     </div>
   );
 }

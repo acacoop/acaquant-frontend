@@ -31,11 +31,15 @@ export const revalidate = 0;
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 
-/** Los únicos sub-paths donde se admite escribir. Todo lo demás es lectura.
- *  `gastos` = la clasificación (reglas, marcas, ignorados, desglose).
- *  `manual` = cuentas y movimientos que Interbanking no informa.
- *  Las dos escriben en tablas NUESTRAS; hacia el banco no sale nada. */
-const ESCRITURA = new Set(["gastos", "manual"]);
+/** Los únicos sub-paths donde se admite un método que no sea GET.
+ *  `gastos`    = la clasificación (reglas, marcas, ignorados, desglose).
+ *  `manual`    = cuentas y movimientos que Interbanking no informa.
+ *  `conciliar` = compara el saldo del mayor contra el nuestro. Es POST porque
+ *                la grilla del Excel viaja en el cuerpo, pero **no persiste
+ *                nada**: no hay tabla ni estado, y el archivo no queda en
+ *                ningún lado.
+ *  Ninguna sale a Interbanking. */
+const ESCRITURA = new Set(["gastos", "manual", "conciliar"]);
 
 function esEscrituraPermitida(path: string[] | undefined) {
   return ESCRITURA.has(path?.[0] ?? "");

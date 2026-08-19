@@ -42,3 +42,25 @@ export async function readSheetTsv(file: File): Promise<string> {
   const { XLSX, ws } = await readWorkbook(file, true);
   return XLSX.utils.sheet_to_csv(ws, { FS: "\t", dateNF: "yyyy-mm-dd" });
 }
+
+/** Primera hoja → GRILLA CRUDA (filas × celdas), sin interpretar nada.
+ *
+ * A diferencia de `readSheetRows`, no usa la primera fila como encabezado: el
+ * archivo puede tener títulos arriba, o repetir el encabezado varias veces, y
+ * quien decide qué columna es cuál es el BACKEND. Acá el navegador solo abre el
+ * archivo.
+ *
+ * ⚠️ `raw: false` a propósito: devuelve el valor **formateado, como se ve en
+ * Excel**. Es lo que preserva sufijos que viven en el formato de celda — por
+ * ejemplo la `D`/`A` que le da el signo al saldo del mayor contable. Con
+ * `raw: true` esa letra desaparece y un saldo negativo llega como positivo.
+ */
+export async function readSheetGrid(file: File): Promise<string[][]> {
+  const { XLSX, ws } = await readWorkbook(file, false);
+  return XLSX.utils.sheet_to_json(ws, {
+    header: 1,
+    defval: "",
+    raw: false,
+    blankrows: false,
+  }) as string[][];
+}
