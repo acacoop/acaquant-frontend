@@ -991,6 +991,7 @@ export function AvAgentModal() {
 // seguridad había que leer las 37 filas.
 type EvalCausa = {
   dominio: string; causa: string; votos: number; aciertos: number;
+  humanos: number; derivados: number;
   precision: number | null; suficiente: boolean; candidata_a_auto: boolean;
 };
 type EvalResumen = {
@@ -1007,6 +1008,7 @@ function TabSkills() {
   // eso**, no un tablero aparte. Separarlos dejaría el catálogo prometiendo
   // capacidades sin decir cuáles funcionan.
   const [ev, setEv] = useState<EvalResumen | null>(null);
+  const [dom, setDom] = useState<string>("");
 
   useEffect(() => {
     void (async () => {
@@ -1038,6 +1040,36 @@ function TabSkills() {
   };
   const grupos: [string, Skill[]][] = (v?.dominios ?? []).map(
     (d) => [d, v?.por_dominio?.[d] ?? []] as [string, Skill[]]);
+  // El dominio elegido. Cae al primero solo si el guardado ya no existe — un
+  // dominio que desaparece dejaría la lista vacía sin motivo aparente.
+  const domOk = dom && grupos.some(([d]) => d === dom) ? dom : (grupos[0]?.[0] ?? "");
+
+  // QUÉ REGLAS emite cada skill, para poder cruzarla con su medición. Sale del
+  // `extra` que ya manda el backend; si no lo trae, no se inventa: la fila
+  // muestra «—» y eso es honesto.
+  const reglasDe = (sk: Skill): string[] => {
+    const r = sk.extra?.reglas;
+    if (Array.isArray(r)) return r.map(String);
+    const c = sk.extra?.control;
+    return typeof c === "string" ? [c] : [];
+  };
+
+  // La medición AGREGADA por dominio, para el número que va debajo de cada
+  // pestaña. Se calcula acá y no en el backend porque el dominio de una skill y
+  // el dominio de un voto son la misma taxonomía pero viven en dos registros —
+  // cruzarlos server-side pediría una tabla más para un número de display.
+  const medPorDominio: Record<string, { votos: number; aciertos: number;
+                                        humanos: number }> = {};
+  for (const [d, items] of grupos) {
+    const reglas = new Set(items.flatMap(reglasDe));
+    const cs = (ev?.causas ?? []).filter((c) => reglas.has(c.causa));
+    if (!cs.length) continue;
+    medPorDominio[d] = {
+      votos: cs.reduce((a, c) => a + c.votos, 0),
+      aciertos: cs.reduce((a, c) => a + c.aciertos, 0),
+      humanos: cs.reduce((a, c) => a + c.humanos, 0),
+    };
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -1061,170 +1093,116 @@ function TabSkills() {
         </div>
       )}
 
-      {/* ── CUÁNTO ACIERTA ─────────────────────────────────────────────────
-          La capa 1 del roadmap. Hasta que existió el botón de votar, esta
-          sección no podía existir: la tabla estaba y nadie escribía en ella.
+      {/* ── LOS DOMINIOS, COMO MENÚ HORIZONTAL ─────────────────────────────
+          Pedido del user: *«quiero las skills main una al lado de la otra a
+          nivel horizontal como si fuesen el menú de opciones, así quedan
+          fácilmente visibles, y abajo se muestran las funciones dentro de cada
+          una»*.
 
-          **Un 0 acá no es un error, es el estado real** — y decirlo así importa,
-          porque un tablero vacío sin explicación se lee como «está roto» y no
-          como «todavía no hay evidencia». */}
-      {/* Si la medición NO se pudo leer se DICE. Sin esto, el bloque
-          desaparecía y la tab quedaba igual que cuando no hay votos — o sea que
-          «no pude preguntar» se leía como «todavía nadie votó», que es la misma
-          confusión que este proyecto persigue en todos lados. */}
-      {ev && !ev.ok && (
-        <div className="border border-[var(--t-neg)] px-2.5 py-1.5">
-          <span className="text-[10px] text-[var(--t-neg)]">
-            No pude leer la medición — <strong>no es que no haya votos</strong>,
-            es que no se pudo preguntar.
-          </span>
+          Antes eran cinco secciones apiladas: para saber qué sabe el agente de
+          SEGURIDAD había que scrollear las 40 filas. Con el menú, los cinco
+          dominios se ven de una y **se mira uno por vez**, que es como uno
+          consulta un catálogo. */}
+      {grupos.length > 0 && (
+        <div className="flex items-stretch flex-wrap border-b border-[var(--t-border)] -mt-1">
+          {grupos.map(([d, items]) => {
+            const m = medPorDominio[d];
+            return (
+              <button
+                key={d}
+                onClick={() => setDom(d)}
+                className={`px-3 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px transition-colors ${
+                  domOk === d
+                    ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+              >
+                {d}
+                <span className="ml-1.5 tabular-nums opacity-60">{items.length}</span>
+                {/* LOS ACIERTOS, DEBAJO DEL TÍTULO. El user lo pidió así y tiene
+                    sentido: la precisión es un atributo del dominio, no una
+                    tabla aparte que hay que ir a cruzar a mano. */}
+                <span className="block text-[8px] font-normal tracking-normal tabular-nums"
+                      style={{ color: m && m.humanos >= (ev?.min_votos ?? 10)
+                        ? "var(--t-pos)" : m ? "#f59e0b" : "var(--t-text-dim)" }}>
+                  {m ? `${m.aciertos}/${m.votos}${m.humanos ? "" : " ·d"}` : "sin votos"}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {ev?.ok && (
-        <div className="border border-[var(--t-border)]">
-          <div className="flex flex-wrap items-baseline gap-3 px-2.5 py-1.5 border-b border-[var(--t-border)]">
-            <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
-              CUÁNTO ACIERTA
-            </span>
-            {ev.total > 0 ? (
-              <>
-                <span className="text-[11px] text-[var(--t-text)] tabular-nums">
-                  {ev.aciertos}/{ev.total}
-                  {ev.precision !== null
-                    && ` · ${(ev.precision * 100).toFixed(0)}%`}
-                </span>
-                <span className={`${SUB} ml-auto`}>
-                  hacen falta {ev.min_votos} votos por causa para que el número
-                  signifique algo
-                </span>
-              </>
-            ) : (
-              <span className={SUB}>
-                todavía nadie votó. Cada ✔/✖ en ENCONTRÓ suma acá — y hasta que
-                haya {ev.min_votos} por causa, no se puede afirmar que el agente
-                acierte ni que se equivoque.
+      {/* Las funciones del dominio elegido. Una línea por skill: nombre, qué
+          hace, si usa IA y su medición. **Sin títulos ni párrafos repetidos** —
+          el user: *«evitar títulos constantes, texto por todo»*. */}
+      <ul className="border border-[var(--t-border)] divide-y divide-[var(--t-border)] -mt-3">
+        {(v?.por_dominio?.[domOk] ?? []).map((s) => {
+          const m = ev?.causas.filter((c) => reglasDe(s).includes(c.causa)) ?? [];
+          const votos = m.reduce((a, c) => a + c.votos, 0);
+          const ok = m.reduce((a, c) => a + c.aciertos, 0);
+          return (
+            <li key={s.id}
+                className="grid grid-cols-[64px_minmax(0,1fr)_auto_58px] items-baseline gap-2 px-2 py-1">
+              <span className="text-[8px] font-semibold tracking-widest text-[var(--t-text-dim)]"
+                    title={TIPO_TITLE[s.tipo ?? ""] ?? ""}>
+                {TIPO_CHIP[s.tipo ?? ""] ?? s.tipo}
               </span>
-            )}
-          </div>
-          {ev.causas.length > 0 && (
-            <ul className="divide-y divide-[var(--t-border)]">
-              {ev.causas.map((c) => (
-                <li key={`${c.dominio}:${c.causa}`}
-                    className="grid grid-cols-[70px_1fr_auto_auto] items-baseline gap-2 px-2.5 py-1">
-                  <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
-                    {c.dominio}
-                  </span>
-                  <span className="text-[10px] text-[var(--t-text)] truncate"
-                        title={c.causa}>
-                    {c.causa.replace(/_/g, " ")}
-                  </span>
-                  <span className="text-[10px] tabular-nums text-[var(--t-text-muted)]">
-                    {c.aciertos}/{c.votos}
-                    {c.precision !== null && ` · ${(c.precision * 100).toFixed(0)}%`}
-                  </span>
-                  {/* `suficiente` separa un porcentaje con respaldo de uno con
-                      tres votos: 2 de 2 no es «100% de acierto», es «casi no hay
-                      evidencia», y presentarlo como lo primero es cómo se toman
-                      decisiones de autonomía sobre ruido. */}
-                  <span className="text-[8px] uppercase tracking-widest"
-                        style={{ color: c.candidata_a_auto
-                          ? "var(--t-pos)"
-                          : c.suficiente ? "var(--t-text-dim)" : "#f59e0b" }}
-                        title={c.candidata_a_auto
-                          ? "El número habilita a DISCUTIR automatizarla. No es un permiso: la lane se prende a mano, siempre."
-                          : c.suficiente
-                          ? "Con respaldo suficiente"
-                          : `Menos de ${ev.min_votos} votos: el % todavía no significa nada`}>
-                    {c.candidata_a_auto ? "◆ a discutir"
-                      : c.suficiente ? "medida" : "sin evidencia"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* DÓNDE SE EQUIVOCA. Es la mitad del valor del eval set y la que se
-              suele tirar: un ✖ con motivo dice qué regla hay que reescribir. */}
-          {ev.fallos.length > 0 && (
-            <div className="px-2.5 py-1.5 border-t border-[var(--t-border)]">
-              <span className="text-[9px] uppercase tracking-widest text-[var(--t-neg)]">
-                dónde se equivocó ({ev.fallos.length})
+              <span className="min-w-0">
+                <span className="text-[11px] font-semibold text-[var(--t-text)]">
+                  {s.nombre}
+                </span>
+                <span className="text-[10px] text-[var(--t-text-muted)]"
+                      title={typeof s.extra?.cada === "string" ? s.extra.cada : ""}>
+                  {" — "}{s.que_hace}
+                </span>
               </span>
-              <ul className="mt-1 flex flex-col gap-0.5">
-                {ev.fallos.slice(0, 8).map((f, i) => (
-                  <li key={i} className="text-[10px] text-[var(--t-text-muted)]">
-                    <span className="font-semibold text-[var(--t-text)]">{f.caso}</span>
-                    {" — dijo "}
-                    <span className="text-[var(--t-text-dim)]">{f.causa_dicha}</span>
-                    {f.causa_correcta ? ` · era ${f.causa_correcta}` : ""}
-                    {f.nota ? ` · ${f.nota}` : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      {grupos.map(([dominio, items]) => (
-        <div key={dominio}>
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
-              {dominio}
-            </span>
-            <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
-              {items.length}
-            </span>
-          </div>
-          <ul className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-            {items.map((s) => (
-              <li key={s.id} className="px-2 py-1.5">
-                <div className="flex items-baseline gap-2">
-                  {/* El TIPO, como etiqueta y no como sección: al agrupar por
-                      dominio sigue haciendo falta saber si esto se da cuenta
-                      solo o hay que preguntárselo. */}
-                  <span
-                    className="shrink-0 text-[8px] font-semibold tracking-widest text-[var(--t-text-dim)] border border-[var(--t-border)] px-1 py-px"
-                    title={TIPO_TITLE[s.tipo ?? ""] ?? ""}
-                  >
-                    {TIPO_CHIP[s.tipo ?? ""] ?? s.tipo}
-                  </span>
-                  <span className="text-[11px] font-semibold text-[var(--t-text)] flex-1 min-w-0">
-                    {s.nombre}
-                  </span>
-                  {/* La marca de IA va en la fila y no en una leyenda: si hay
-                      que ir a buscar qué significa un color, no se mira. */}
-                  <span
-                    className="shrink-0 text-[9px] uppercase tracking-widest"
+              {/* IA por FEATURE, como pidió el user: en cada fila y no en una
+                  leyenda. Si hay que ir a buscar qué significa un color, no se
+                  mira. */}
+              <span className="text-[8px] uppercase tracking-widest whitespace-nowrap"
                     style={{ color: s.usa_ia === "no"
                       ? "var(--t-text-dim)" : "#f59e0b" }}
-                    title={s.para_que_la_ia || "no usa el modelo"}
-                  >
-                    {s.usa_ia === "no" ? "función"
-                      : s.usa_ia === "opcional" ? "IA opcional" : "IA"}
-                  </span>
-                </div>
-                <p className="text-[10px] leading-snug text-[var(--t-text-muted)] mt-0.5">
-                  {s.que_hace}
-                  {s.para_que_la_ia && (
-                    <span style={{ color: "#f59e0b" }}> · el modelo {s.para_que_la_ia}</span>
-                  )}
-                </p>
-                {/* CUÁNDO corre solo. Es la mitad de la respuesta a «¿esto se
-                    mantiene al día o hay que pedírselo?». */}
-                {typeof s.extra?.corre_en === "string" && s.extra.corre_en && (
-                  <p className="text-[9px] text-[var(--t-text-dim)]"
-                     title={String(s.extra?.cada || "")}>
-                    corre solo · {String(s.extra.corre_en)}
-                    {typeof s.extra?.cada === "string" && s.extra.cada &&
-                      ` · ${cuandoCorre(s.extra.cada)}`}
-                  </p>
-                )}
+                    title={s.para_que_la_ia || "no usa el modelo"}>
+                {s.usa_ia === "no" ? "función"
+                  : s.usa_ia === "opcional" ? "IA opc" : "IA"}
+              </span>
+              <span className="text-[9px] tabular-nums text-right"
+                    style={{ color: votos ? "var(--t-text-muted)" : "var(--t-text-dim)" }}
+                    title={votos ? `${ok} de ${votos} votos` : "todavía sin votar"}>
+                {votos ? `${ok}/${votos}` : "—"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* DÓNDE SE EQUIVOCA. Es la mitad del valor del eval set y la que se suele
+          tirar: un ✖ con motivo dice qué regla hay que reescribir. Va al final y
+          solo si hay algo. */}
+      {ev?.ok && ev.fallos.length > 0 && (
+        <div>
+          <span className="text-[9px] uppercase tracking-widest text-[var(--t-neg)]">
+            se equivocó ({ev.fallos.length})
+          </span>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {ev.fallos.slice(0, 6).map((f, i) => (
+              <li key={i} className="text-[10px] text-[var(--t-text-muted)]">
+                <span className="font-semibold text-[var(--t-text)]">{f.caso}</span>
+                {" · dijo "}{f.causa_dicha}
+                {f.causa_correcta ? ` · era ${f.causa_correcta}` : ""}
+                {f.nota ? ` · ${f.nota}` : ""}
               </li>
             ))}
           </ul>
         </div>
-      ))}
+      )}
+
+      {ev && !ev.ok && (
+        <span className="text-[10px] text-[var(--t-neg)]">
+          No pude leer la medición — <strong>no es que no haya votos</strong>, es
+          que no se pudo preguntar.
+        </span>
+      )}
 
       {/* PREGUNTARLE. Vive abajo del registro a propósito: primero se ve TODO lo
           que sabe, y después se usa la parte que hoy es interactiva. */}
@@ -3788,12 +3766,25 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
               <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0">
                 {f.motivo}
               </span>
-              {/* DESDE CUÁNDO y CUÁNTAS VECES. `veces` separa un problema que
-                  apareció una vez —puede ser un instante del mercado— de uno que
-                  lleva 200 ciclos, que es un dato roto. */}
+              {/* ⚠️ **PRIMERO CUÁNDO SE CONFIRMÓ, DESPUÉS DESDE CUÁNDO.**
+                  (user, 2026-08-19: *«los avisos y las alertas no pueden quedar
+                  desactualizados; todo lo que está tiene que ser la posta»*.)
+
+                  Acá se leía «hace 22 h», que es **cuándo APARECIÓ** el aviso —
+                  y al lado de un motivo en pasado («la última corrida falló») se
+                  lee como que el aviso quedó viejo. La pregunta que uno se hace
+                  es la otra: *¿esto sigue pasando AHORA?*
+
+                  `ultimo_at` la contesta y ya se estaba guardando: el centinela
+                  lo refresca en cada pasada, así que «confirmado hace 30s»
+                  significa que treinta segundos atrás seguía siendo cierto. Va
+                  primero; la antigüedad y el ×N quedan de contexto. */}
               <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap self-center"
-                    title={`apareció ${f.abierto_at} · visto ${f.veces} veces`}>
-                hace {edad(f.abierto_at)} · ×{f.veces}
+                    title={`confirmado ${f.ultimo_at} · apareció ${f.abierto_at} · visto ${f.veces} veces`}>
+                <span className="text-[var(--t-text-muted)]">
+                  confirmado hace {edad(f.ultimo_at)}
+                </span>
+                {" · desde hace "}{edad(f.abierto_at)} · ×{f.veces}
               </span>
             </div>
           ))}
