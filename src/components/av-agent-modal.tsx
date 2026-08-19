@@ -193,7 +193,22 @@ const TIPO_LABEL: Record<string, string> = {
   // tenga precio a las 11 es un problema, a las 3 de la madrugada es lo normal.
   sin_precio: "En rueda: el motor no les está dando precio",
   precio_moneda: "En rueda: el precio llega en la moneda equivocada",
+  // EL SISTEMA, no el mercado (2026-08-19). Los cinco entraban con el tipo
+  // crudo de encabezado (`PERMISO_FLOJO`) y sin chip en la fila de filtros:
+  // el hallazgo llegaba a la pantalla y aun así no se podía filtrar ni leer.
+  motor_caido: "Motores, jobs y APIs caídos DENTRO de su ventana",
+  tabla_quieta: "Tablas que dejaron de escribir cuando deberían",
+  latencia: "Endpoints más lentos que su propia normalidad",
+  db_cambio: "La base cambió: tablas nuevas, que crecieron o que ya no están",
+  permiso_flojo: "Permisos que están en los papeles y el borde no aplica",
 };
+
+// Los hallazgos del SISTEMA no tienen por sujeto un ticker de 4 letras sino un
+// path (`/api/portfolio/aum`), una tabla (`mercado.market_snapshot`) o un motor.
+// En la columna de 72px entra «/api/po» y las filas quedan indistinguibles — el
+// mismo problema que ya había tenido SALUD, y la misma solución.
+const SUJETO_LARGO = new Set(["salud", "motor_caido", "tabla_quieta", "latencia",
+                              "db_cambio", "permiso_flojo"]);
 
 // El label del CHIP. Los de `TIPO_LABEL` son frases ("Están en 1816 y no en tu
 // base") — buenas como encabezado de sección, imposibles en una fila de filtros.
@@ -207,6 +222,11 @@ const TIPO_CHIP: Record<string, string> = {
   falta_en_base: "FALTAN",
   sin_flujo: "SIN FLUJO",
   tasa_sospechosa: "TASAS",
+  motor_caido: "MOTORES",
+  tabla_quieta: "TABLAS",
+  latencia: "LENTOS",
+  db_cambio: "BASE",
+  permiso_flojo: "PERMISOS",
 };
 
 // Los huecos van PRIMEROS: un ajuste sin curva deja bonos invisibles, y arreglar
@@ -218,8 +238,13 @@ const TIPO_CHIP: Record<string, string> = {
 // de esta pantalla que se puede perder si no se mira ahora. Un bono mal cargado
 // sigue mal cargado mañana; un símbolo sin suscribir se arregla hoy o no se
 // arregla.
-const ORDEN_TIPO = ["sin_precio", "precio_moneda", "salud", "hueco_de_curva",
-                    "falta_en_base", "sin_flujo", "tasa_sospechosa"];
+// Y el SISTEMA va arriba de los datos por el mismo criterio de «aguas arriba»:
+// un motor caído o un permiso abierto explica —o vuelve secundario— cualquier
+// bono mal cargado de más abajo.
+const ORDEN_TIPO = ["sin_precio", "precio_moneda", "salud", "permiso_flojo",
+                    "motor_caido", "tabla_quieta", "latencia", "db_cambio",
+                    "hueco_de_curva", "falta_en_base", "sin_flujo",
+                    "tasa_sospechosa"];
 
 const SEV_TINT: Record<string, string> = {
   alta: "var(--t-neg)",
@@ -266,6 +291,24 @@ type SkillsVista = {
   ia: { no: number; opcional: number; si: number };
   tareas_ia: string[];
 };
+
+// Un cron en castellano. **El horario NO se escribe acá**: viene del crontab real
+// (`extra.cada`) y esto solo lo traduce — un horario copiado a mano en el front se
+// desincroniza el día que se cambia el cron y nadie se entera.
+// Ante cualquier forma que no reconozca, muestra el cron crudo: mentir sobre
+// cuándo corre algo es peor que mostrar cinco caracteres feos.
+function cuandoCorre(cron: string): string {
+  const partes = cron.split(" · ")[0]?.trim().split(/\s+/) ?? [];
+  if (partes.length !== 5) return cron;
+  const [min, hora, , , dow] = partes;
+  const dias = dow === "1-5" ? " L-V" : dow === "*" ? "" : ` (${dow})`;
+  if (min.startsWith("*/")) return `cada ${min.slice(2)} min${dias}`;
+  if (min.includes("/")) return `cada ${min.split("/")[1]} min${dias}`;
+  if (hora === "*") return `cada hora${dias}`;
+  if (hora.includes(",") || hora.includes("-") || hora.includes("/"))
+    return `varias veces por día${dias}`;
+  return `${hora.padStart(2, "0")}:${min.padStart(2, "0")} UTC${dias}`;
+}
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
 // igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
@@ -965,6 +1008,17 @@ function TabSkills() {
                       <span style={{ color: "#f59e0b" }}> · el modelo {s.para_que_la_ia}</span>
                     )}
                   </p>
+                  {/* CUÁNDO corre solo. Es la mitad de la respuesta a «¿esto se
+                      mantiene al día o hay que pedírselo?»: una habilidad que
+                      nadie agenda no se entera de nada mientras la app avanza. */}
+                  {typeof s.extra?.corre_en === "string" && s.extra.corre_en && (
+                    <p className="text-[9px] text-[var(--t-text-dim)]"
+                       title={String(s.extra?.cada || "")}>
+                      corre solo · {String(s.extra.corre_en)}
+                      {typeof s.extra?.cada === "string" && s.extra.cada &&
+                        ` · ${cuandoCorre(s.extra.cada)}`}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -1566,15 +1620,16 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
             {(() => { const vistos = new Set<string>(); return hs.map((h, i) => {
               const primera = !vistos.has(h.ticker);
               vistos.add(h.ticker);
-              // El SUJETO de un hallazgo de SALUD no es un ticker de 4 letras
-              // sino el id del chequeo (`job:mercado_1816_series`): en la columna
-              // de 72px entraba «job:merc» y las filas quedaban indistinguibles.
-              // Misma tabla, primera columna más ancha.
-              const esSalud = h.tipo === "salud";
+              // El SUJETO de un hallazgo del SISTEMA no es un ticker de 4
+              // letras sino el id del chequeo (`job:mercado_1816_series`), un
+              // path o una tabla: en la columna de 72px entraba «job:merc» y
+              // las filas quedaban indistinguibles. Misma tabla, primera
+              // columna más ancha.
+              const sujetoLargo = SUJETO_LARGO.has(h.tipo);
               return (
               <div
                 key={`${h.ticker}-${h.regla}-${i}`}
-                className={`grid ${esSalud
+                className={`grid ${sujetoLargo
                   ? "grid-cols-[3px_190px_150px_1fr_auto]"
                   : "grid-cols-[3px_72px_150px_1fr_auto]"} items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]`}
               >
