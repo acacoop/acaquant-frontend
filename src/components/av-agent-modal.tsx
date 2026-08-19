@@ -85,6 +85,11 @@ type Pregunta = {
   id: number; clave: string; tipo: string; pregunta: string; opciones: string[];
   contexto: Record<string, unknown> | null;
 };
+type Mensaje = {
+  id: number; para: string; tema: string; asunto: string;
+  creado_at: string | null; resuelto: boolean; resuelto_at: string | null;
+  vence_at: string | null; filas: number; hechas: number;
+};
 type Decidida = {
   id: number; clave: string; tipo: string; pregunta: string;
   respuesta: string | null; nota: string | null; respondida_por: string | null;
@@ -124,6 +129,10 @@ type Vista = {
   preguntas: Pregunta[];
   decisiones: Pregunta[];
   decididas: Decidida[];
+  // Lo que el agente MANDÓ a alguien. Va aparte de `avisos` porque son dos cosas
+  // distintas que compartían tabla: un aviso de bono se COMPLETA acá; un mensaje
+  // se mandó y lo resuelve otra persona en SU pantalla.
+  mensajes?: Mensaje[];
   ignorados: Ignorado[];
   pendientes: Pendiente[];
   acciones: Accion[];
@@ -937,6 +946,7 @@ export function AvAgentModal() {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     {([["hizo", "LO QUE HIZO", (data.acciones ?? []).length],
+                       ["mensajes", "MANDÓ", (data.mensajes ?? []).length],
                        ["decidido", "YA DECIDIDO", data.decididas.length]] as
                        [string, string, number][]).map(([k, label, n]) => (
                       <button
@@ -953,6 +963,8 @@ export function AvAgentModal() {
                   </div>
                   {subHist === "hizo"
                     ? <TabHizo acciones={data.acciones ?? []} />
+                    : subHist === "mensajes"
+                    ? <TabMando mensajes={data.mensajes ?? []} />
                     : <TabDecidido data={data} designorar={designorar} />}
                 </div>
               )}
@@ -967,6 +979,59 @@ export function AvAgentModal() {
         </div>
       )}
     </>
+  );
+}
+
+// LO QUE EL AGENTE MANDÓ. Minimalista y completo, que es lo que pidió el user:
+// *«seguir viendo todo en AV AGENT de manera minimalista pero todo registrado»*.
+//
+// Va aparte de AVISOS porque son dos cosas distintas que compartían tabla: un
+// aviso de bono se COMPLETA en el agente (tiene su campo para tipear); un
+// mensaje se MANDÓ y lo resuelve otra persona en su pantalla. Mezclarlos hacía
+// que el aviso de saldos apareciera bajo la columna BONO pidiendo «cargá el
+// dato», que no significa nada.
+//
+// Lo único que importa por fila: a quién, qué, y **si lo atendieron**.
+function TabMando({ mensajes }: { mensajes: Mensaje[] }) {
+  if (mensajes.length === 0) {
+    return (
+      <p className="text-[11px] text-[var(--t-text-muted)]">
+        Todavía no mandé ningún mensaje.
+      </p>
+    );
+  }
+  return (
+    <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+      {mensajes.map((m) => {
+        const vencido = m.vence_at ? new Date(m.vence_at) < new Date() : false;
+        return (
+          <div key={m.id}
+               className="grid grid-cols-[200px_1fr_auto_auto] items-baseline gap-2 px-2 py-1">
+            <span className="text-[10px] text-[var(--t-text-muted)] truncate"
+                  title={m.para}>
+              {m.para}
+            </span>
+            <span className="text-[11px] text-[var(--t-text)] truncate"
+                  title={m.asunto}>
+              {m.asunto}
+            </span>
+            {/* CUÁNTAS FILAS RESOLVIÓ. Es lo que dice si el mensaje sirvió o
+                quedó sin abrir — y sin esto «mandado» y «atendido» se ven
+                igual. */}
+            <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
+              {m.filas > 0 ? `${m.hechas}/${m.filas}` : ""}
+            </span>
+            <span className="text-[8px] uppercase tracking-widest whitespace-nowrap"
+                  style={{ color: m.resuelto ? "var(--t-pos)"
+                    : vencido ? "var(--t-text-dim)" : "#f59e0b" }}
+                  title={m.resuelto ? `cerrado ${m.resuelto_at}`
+                    : vencido ? "venció sin cerrarse" : "abierto"}>
+              {m.resuelto ? "hecho" : vencido ? "venció" : "abierto"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
