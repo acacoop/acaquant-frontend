@@ -285,6 +285,43 @@ export function AvAgentModal() {
   // círculo de la barra tiene que decir la verdad sin que nadie abra nada.
   const [cent, setCent] = useState<Centinela | null>(null);
 
+  // VOLVER A MIRAR. El botón vive al lado de «última revisión hace 22 h» a
+  // propósito: el reclamo y la solución tienen que estar en el mismo lugar.
+  const [relevando, setRelevando] = useState(false);
+  const [relevAviso, setRelevAviso] = useState("");
+
+  const relevar = useCallback(async () => {
+    setRelevando(true);
+    setRelevAviso("censando 1816… ~1 min");
+    try {
+      const r = await fetchJson<{ ok: boolean; error?: string; aviso?: string }>(
+        "/api/ia/av-agent/relevar", { method: "POST" });
+      if (!r.ok) { setRelevAviso(r.error ?? "no se pudo"); setRelevando(false); }
+    } catch (e) {
+      setRelevAviso(e instanceof Error ? e.message : String(e));
+      setRelevando(false);
+    }
+  }, []);
+
+  // Mientras releva, se pregunta si terminó. Cuando termina, se recarga la vista
+  // sola: pedir «volver a mirar» y tener que apretar ↻ después sería la mitad
+  // del trabajo.
+  useEffect(() => {
+    if (!relevando) return;
+    let vivo = true;
+    const id = setInterval(async () => {
+      try {
+        const e = await fetchJson<{ si: boolean }>("/api/ia/av-agent/relevar");
+        if (!vivo || e.si) return;
+        clearInterval(id);
+        setRelevando(false);
+        setRelevAviso("");
+        await cargar();
+      } catch { /* el próximo tick reintenta */ }
+    }, 4000);
+    return () => { vivo = false; clearInterval(id); };
+  }, [relevando, cargar]);
+
   const cargarCentinela = useCallback(async () => {
     try {
       setCent(await fetchJson<Centinela>("/api/ia/av-agent/centinela"));
@@ -548,9 +585,24 @@ export function AvAgentModal() {
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
                 última revisión {haceCuanto(data.corrida_at)}
               </span>
+              {/* VOLVER A MIRAR — censa 1816 de nuevo. Va pegado al «hace 22 h»
+                  porque es la respuesta a lo que ese texto está diciendo. El ↻
+                  de al lado NO es lo mismo y por eso los dos llevan su título:
+                  uno relee lo guardado, el otro sale a preguntar. */}
+              <button
+                disabled={relevando}
+                onClick={() => void relevar()}
+                title="Volver a mirar AHORA: censa 1816 (~29 créditos, ~1 min)"
+                className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-40"
+              >
+                {relevando ? "mirando…" : "↻ volver a mirar"}
+              </button>
+              {relevAviso && (
+                <span className="text-[9px] text-[var(--t-text-dim)]">{relevAviso}</span>
+              )}
               <button
                 onClick={() => void cargar()}
-                title="Releer (no vuelve a censar 1816)"
+                title="Releer lo guardado (NO vuelve a censar 1816)"
                 className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]"
               >
                 ↻
