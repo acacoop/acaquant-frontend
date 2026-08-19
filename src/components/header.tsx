@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { useIsGuest } from "@/lib/use-is-guest";
 
 // Cada vista gateada por su `module` (coincide con core/roles.py::MODULES).
@@ -25,23 +24,10 @@ const MANAGER_MODULES = [
   "manager_clientes_bulk",
 ];
 
-// Vistas con copiloto IA cuyo botón vive ACÁ, en el slot derecho del header
-// (donde estaba el texto TERMINAL) — pedido del user 2026-07-12: usar el lugar
-// que ya existe, no crear una franja nueva por vista. /trading NO está en el
-// mapa: su botón vive en la propia vista porque va cableado a las tarjetas y
-// al vigía (getParams/preguntaExterna). El panel se auto-oculta sin módulo ia.
-// Rutas cuya vista monta su PROPIO botón de IA adentro (cableado a estado
-// local: tarjetas/vigía en trading, tab activa en research) → el header no
-// duplica el botón ahí.
-const RUTAS_CON_PANEL_PROPIO = ["/trading", "/research"];
-
-const VISTA_IA_POR_RUTA: Record<string, string> = {
-  "/": "home",
-  "/renta-fija": "renta_fija",
-  "/renta-variable": "renta_variable",
-  "/agro": "agro",
-  "/derivados": "derivados",
-};
+// (2026-08-19) Acá vivía el botón CONSULTALE A LA IA del header, con su mapa de
+// ruta → vista del copiloto. Se dio de baja junto con el copiloto entero: la IA
+// de la plataforma pasa a ser el AV AGENT (docs/AV_AGENT.md), que tiene su
+// propio botón en la barra inferior.
 
 const NAV: Entry[] = [
   { kind: "link", href: "/",            label: "HOME",        module: "home" },
@@ -215,25 +201,6 @@ export function Header({ modules = null }: { modules?: string[] | null }) {
         })}
       </nav>
       <div className="ml-auto flex items-center">
-        {/* UN SOLO botón de IA por página (captura del user 2026-07-20: en
-            /research se apilaban dos "Consultale a la IA"):
-            - rutas del mapa → su copiloto de datos acá en el header;
-            - rutas que montan su botón ADENTRO de la vista (/trading con las
-              tarjetas+vigía, /research con la tab activa) → el header NO pone
-              nada;
-            - el resto (vistas de NEGOCIO: operaciones, carteras, back office,
-              manager…) → el MISMO panel resuelve quién sos: los jefes con el
-              módulo `asistente` ven el ASISTENTE DE NEGOCIO (vista `negocio`,
-              QuantAI P7 — AuM, clientes, rendimientos vía la aduana PII) y el
-              resto cae al GUÍA (`ayuda`). Decide el backend con el probe. */}
-        {/* Invitados (2026-07-21): SÍ ven los copilotos de las vistas de
-            mercado, pero JAMÁS el guía ni el negocio (el backend también los
-            excluye; esto evita el probe extra). */}
-        {VISTA_IA_POR_RUTA[pathname] ? (
-          <IaVistaPanel vista={VISTA_IA_POR_RUTA[pathname]} tone="onDark" />
-        ) : isGuest || RUTAS_CON_PANEL_PROPIO.some((r) => pathname.startsWith(r)) ? null : (
-          <IaVistaPanel vista="negocio" fallback="ayuda" tone="onDark" />
-        )}
       </div>
     </header>
   );

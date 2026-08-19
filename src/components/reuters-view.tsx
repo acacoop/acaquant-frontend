@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 
-import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { ReutersFicha } from "@/components/reuters-ficha";
 import { ReutersFundamentals } from "@/components/reuters-fundamentals";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -424,7 +423,6 @@ export function ReutersView() {
             <span className="text-[9px] text-[var(--t-text-dim)]">live · 5s</span>
           )}
           {/* Copiloto IA de la vista REUTERS (oculto sin módulos ia+trading) */}
-          <IaVistaPanel vista="reuters" />
         </div>
       </div>
 

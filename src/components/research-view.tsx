@@ -6,7 +6,6 @@
 // tablero REUTERS (movido desde /trading el 2026-07-18).
 // La IA no interviene: los reportes muestran el texto crudo, limpio.
 import { useEffect, useMemo, useState } from "react";
-import { IaVistaPanel } from "@/components/ia-vista-panel";
 import { ResearchBcra } from "@/components/research-bcra";
 import { type Doc, PdfViewer } from "@/components/research-documentos";
 import { ResearchFred } from "@/components/research-fred";
@@ -72,7 +71,6 @@ export function ResearchView({ initial }: { initial: ResearchData }) {
             En RV INTERNACIONAL no se muestra: esa tab tiene su vista `reuters`. */}
         {tab !== "rv-int" && (
           <div className="ml-auto">
-            <IaVistaPanel vista="research" getParams={() => ({ tab })} />
           </div>
         )}
       </div>

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
-import { SaludPanel } from "@/components/manager-salud-panel";
 import { ControlesPanel } from "./manager-controles-panel";
 import { IaPanel } from "./manager-ia-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
@@ -303,18 +302,17 @@ function LatenciaPanel() {
   );
 }
 
-// OBSERVABILIDAD: consolida CONTROLES (calidad de datos) + DIAGNÓSTICO
-// (frescura de motores/jobs + logs) + JOBS (catálogo completo desde
-// el crontab + historial). La pill CONTROLES lleva "!" si hay anomalías.
+// OBSERVABILIDAD: DIAGNÓSTICO (frescura de motores/jobs + logs) + BASE +
+// LATENCIA + IA.
+//
+// **SALUD ya no vive acá** (2026-08-19). El user: *«eliminar SALUD del front de
+// observabilidad… toda la salud, y esto pasa 100% por el agent»*. El motor no se
+// tocó: lo lee el AV AGENT, que pasa a ser la ÚNICA puerta — con el diagnóstico
+// razonado paso por paso, el re-chequeo en el momento y las acciones. Tener el
+// mismo estado en dos pantallas era el problema original de SALUD, repetido.
 function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
   const [subRaw, setSub] = usePersistedState<"salud" | "controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
-    // SALUD es el default: es la pantalla que responde "¿está todo bien?". Las demás
-    // pasan a ser el DETALLE al que se llega cuando algo está roto.
-    // Clave NUEVA (.v2) a propósito: el default solo aplica a quien nunca eligió una
-    // tab, y todos los que ya usaban Manager tenían "controles"/"jobs" guardado en el
-    // navegador — con la clave vieja no habrían visto SALUD nunca. Al estrenar clave,
-    // todos entran una vez por SALUD y de ahí en más se respeta lo que elijan.
-    "manager.obs.sub.v2", "salud");
+    "manager.obs.sub.v2", "diagnostico");
   // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
   // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
   // al rol, no dejar la tab clavada en contenido inaccesible.
@@ -323,37 +321,21 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
   // telemetría de USO fue decomisada del backend) — cae a "controles".
   // Migración del estado guardado: quien tenía CONTROLES o JOBS elegidos cae a
   // SALUD, que es donde vive ese contenido ahora.
-  const sub = (subRaw === "ia" && !canIa) || subRaw === "uso"
-    || subRaw === "controles" || subRaw === "jobs" ? "salud" : subRaw;
-  const [anomalias, setAnomalias] = useState<number | null>(null);
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/manager/controles?resueltos_dias=0", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j: { totales?: Record<string, number> } | null) => {
-        if (alive && j?.totales) {
-          setAnomalias(Object.values(j.totales).reduce((s, n) => s + n, 0));
-        }
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [sub]); // re-chequea el badge al cambiar de sub-tab (barato: lee la tabla)
+  // Migración del estado guardado: los que quedaron con una tab que ya no existe
+  // (SALUD se fue al agente; CONTROLES/JOBS/USO se habían fusionado en SALUD)
+  // caen a DIAGNÓSTICO. Sin esto la pantalla les abre vacía y parece rota.
+  const sub = (subRaw === "ia" && !canIa) || subRaw === "uso" || subRaw === "salud"
+    || subRaw === "controles" || subRaw === "jobs" ? "diagnostico" : subRaw;
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
         <span className={GROUP_TITLE}>OBSERVABILIDAD</span>
-        <Pill label="SALUD" active={sub === "salud"} onClick={() => setSub("salud")} />
-        {/* CONTROLES y JOBS ya no tienen pill propia: su contenido vive DENTRO del
-            chequeo en SALUD (las anomalías de un control, las corridas con su log y
-            errores de un job). Tener las dos cosas en dos lugares era justamente el
-            problema — se miraba el tablero y no el detalle, o al revés. */}
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
         <Pill label="LATENCIA" active={sub === "latencia"} onClick={() => setSub("latencia")} />
         {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {sub === "salud"       && <SaludPanel />}
         {sub === "diagnostico" && <DiagnosticoGroup />}
         {sub === "base"        && <DbBasePanel />}
         {sub === "latencia"    && <LatenciaPanel />}

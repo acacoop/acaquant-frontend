@@ -29,7 +29,7 @@
 //    backend: hoy «alta» GUARDA la decisión pero no da de alta nada (eso es E2).
 //    Sin decirlo, el botón se lee como roto.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchJson } from "@/lib/fetch-json";
 
@@ -154,6 +154,15 @@ type Vigilado = {
   motivo: string; abierto_at: string; ultimo_at: string; veces: number;
   visto_at: string | null; resuelto_at: string | null; resuelto_como: string | null;
 };
+// Un chequeo que se ROMPIÓ y este admin todavía no vio. Viene de SALUD, que
+// sigue siendo el dueño de la evaluación — el agente solo es la puerta.
+// (`Pendiente`, a secas, ya es el hallazgo pendiente del centinela.)
+type SaludRoto = {
+  id: number; chequeo_id: string; familia: string | null; titulo: string | null;
+  de: string | null; a: string; motivo: string | null; evidencia: string | null;
+  at: string | null;
+};
+
 type Centinela = {
   ok: boolean; vivo: boolean; sin_ver: number;
   latido: { at: string; hace_s: number; ciclo: number; en_rueda: boolean;
@@ -377,6 +386,61 @@ export function AvAgentModal() {
     const id = setInterval(() => void cargarCentinela(), 20_000);
     return () => clearInterval(id);
   }, [cargarCentinela]);
+
+  // ── LA INTERRUPCIÓN ────────────────────────────────────────────────────────
+  //
+  // Esto vivía en un modal aparte (`SaludAlertasModal`), que se dio de baja el
+  // 2026-08-19 junto con toda la pantalla de SALUD: *«todo pasa 100% por el
+  // agent»*. Pero **la capacidad no se podía perder**, y es la razón por la que
+  // SALUD existe: el backfill de tenencias falló dos días y nadie se enteró
+  // porque la señal ESPERABA en una pantalla en vez de buscar al admin. Un
+  // tablero que hay que abrir para enterarse es un tablero que no se abre.
+  //
+  // Se mantienen las reglas que la hacían tolerable, porque son las que evitan
+  // que uno aprenda a cerrarla sin leer:
+  //  - solo ante una transición NUEVA a problema **que este admin no vio**;
+  //  - que algo se ARREGLE nunca abre nada (lo filtra el backend);
+  //  - **nunca en intervalo fijo**: si ya está abierto, no se toca.
+  const [rotos, setRotos] = useState<SaludRoto[]>([]);
+  const yaAvisado = useRef(false);
+
+  const mirarPendientes = useCallback(async () => {
+    try {
+      const r = await fetchJson<{ pendientes?: SaludRoto[] }>(
+        "/api/ia/av-agent/salud/pendientes");
+      const p = r.pendientes ?? [];
+      setRotos(p);
+      // Abre UNA vez por tanda. Sin el flag, cada poll de 5' reabriría lo mismo
+      // sobre alguien que ya lo estaba mirando.
+      if (p.length && !yaAvisado.current) {
+        yaAvisado.current = true;
+        setOpen(true);
+        setTab("ahora");
+        void cargar();
+      }
+      if (!p.length) yaAvisado.current = false;
+    } catch {
+      /* 403 (no admin) o backend caído: la barra sigue andando, sin interrumpir */
+    }
+  }, [cargar]);
+
+  useEffect(() => {
+    void mirarPendientes();
+    const id = setInterval(() => void mirarPendientes(), 5 * 60_000);
+    return () => clearInterval(id);
+  }, [mirarPendientes]);
+
+  const entendido = useCallback(async () => {
+    try {
+      await fetchJson("/api/ia/av-agent/salud/vistos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: rotos.map((r) => r.id) }),
+      });
+    } catch {
+      /* si falla, vuelve a avisar en el próximo poll — que es lo correcto */
+    }
+    setRotos([]);
+  }, [rotos]);
 
   const responder = useCallback(async (id: number, respuesta: string) => {
     setEnviando(id);
@@ -713,6 +777,13 @@ export function AvAgentModal() {
                   recorrer para saber si había algo que hacer. */}
               {tab === "ahora" && (
                 <div className="flex flex-col gap-5">
+                  {/* SE ROMPIÓ ALGO — va PRIMERO y por encima de todo. Es lo
+                      único que abre el modal solo, así que si abrió por esto y
+                      el motivo quedara a mitad de la pantalla, la interrupción
+                      no se explicaría a sí misma. */}
+                  {rotos.length > 0 && (
+                    <Rotos items={rotos} entendido={entendido} />
+                  )}
                   <TabCentinela cent={cent} marcarVisto={marcarVisto}
                                 recargar={cargarCentinela} />
                   {nPreg > 0 && (
@@ -2717,6 +2788,81 @@ function edad(iso: string | null): string {
 const SEV_COLOR: Record<string, string> = {
   alta: "var(--t-neg)", media: "#f59e0b", baja: "var(--t-text-dim)",
 };
+
+// SE ROMPIÓ ALGO — lo que antes te frenaba con un modal propio.
+//
+// Muestra el chequeo, el motivo y la evidencia CONGELADA del momento en que se
+// rompió: una vez que el job vuelve a correr, el motivo ya no existe y sin la
+// foto no queda nada que mirar.
+//
+// SILENCIAR **no lo esconde**: sigue en la lista de SALUD con su estado real,
+// solo deja de interrumpir. Un chequeo que desaparece al silenciarlo es un
+// problema que se te olvida.
+function Rotos({ items, entendido }: {
+  items: SaludRoto[];
+  entendido: () => void;
+}) {
+  const [silenciando, setSilenciando] = useState("");
+  const silenciar = async (chequeoId: string) => {
+    setSilenciando(chequeoId);
+    try {
+      await fetchJson("/api/ia/av-agent/salud/silenciar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chequeo_id: chequeoId, alertar: false }),
+      });
+    } catch {
+      /* si falla, sigue avisando — que es el lado seguro del error */
+    }
+    setSilenciando("");
+  };
+  return (
+    <div className="border border-[var(--t-neg)]">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--t-neg)]/10">
+        <span className="text-[10px] font-semibold tracking-widest text-[var(--t-neg)]">
+          SE ROMPIÓ ALGO · {items.length}
+        </span>
+        <button
+          onClick={entendido}
+          className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+        >
+          Entendido
+        </button>
+      </div>
+      <ul className="divide-y divide-[var(--t-border)]">
+        {items.map((r) => (
+          <li key={r.id} className="px-3 py-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-[11px] text-[var(--t-text)]">
+                {r.titulo ?? r.chequeo_id}
+              </span>
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                {r.familia}
+              </span>
+              <button
+                disabled={silenciando === r.chequeo_id}
+                onClick={() => void silenciar(r.chequeo_id)}
+                title="Deja de interrumpir con este chequeo (sigue en la lista)"
+                className="ml-auto text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)] disabled:opacity-40"
+              >
+                {silenciando === r.chequeo_id ? "…" : "silenciar"}
+              </button>
+            </div>
+            {r.motivo && (
+              <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                {r.motivo}
+              </p>
+            )}
+            {r.evidencia && (
+              <p className="text-[10px] leading-snug text-[var(--t-text-dim)] whitespace-pre-wrap">
+                {r.evidencia}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 function TabCentinela({ cent, marcarVisto, recargar }: {
   cent: Centinela | null;

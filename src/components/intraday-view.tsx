@@ -52,27 +52,6 @@ const PASOS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
 
 const keyOf = (p: Posicion) => `${p.especie}|${p.cuenta}`;
 
-// Puente al copiloto de la vista TRADING: las posiciones ABIERTAS quedan en
-// localStorage (son efímeras — el excel vive en este browser) y el panel IA
-// de /trading las manda como parámetro para aconsejar DESDE la posición.
-const POSICIONES_IA_KEY = "trd-fx-intraday-posiciones-v1";
-
-function persistirPosicionesAbiertas(posiciones: Posicion[]) {
-  try {
-    const abiertas = (posiciones ?? [])
-      .filter((p) => p.estado === "LONG" || p.estado === "SHORT")
-      .map((p) => ({
-        especie: p.especie,
-        estado: p.estado,
-        qty: Math.abs(p.qty_neta),
-        precio: p.precio_ponderado,
-      }));
-    localStorage.setItem(POSICIONES_IA_KEY, JSON.stringify(abiertas));
-  } catch {
-    /* storage lleno/bloqueado: el copiloto simplemente no las ve */
-  }
-}
-
 // Especies destildadas (no cuentan como daytrade). Persiste en sessionStorage.
 function loadExcl(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -281,7 +260,6 @@ export function IntradayView() {
         const m: Record<string, Posicion> = {};
         for (const pos of data.posiciones) m[`${pos.especie}|${pos.cuenta}`] = pos;
         setRecomp(m);
-        persistirPosicionesAbiertas(data.posiciones);
       } catch {
         /* abort / transitorio */
       }
@@ -312,7 +290,6 @@ export function IntradayView() {
       const data = (await res.json()) as Resultado;
       data.timestamp = Date.now();
       setResultado(data);
-      persistirPosicionesAbiertas(data.posiciones);
       setMarkOv({});
       setLiveMarks({});
       setLastRefresh(null);
