@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { ControlesPanel } from "./manager-controles-panel";
-import { IaPanel } from "./manager-ia-panel";
 // Imports estáticos: la carga diferida (next/dynamic) hacía que cada tab trajera
 // su chunk al entrar → se sentía lento (sobre todo Clientes). Con imports
 // estáticos las tabs son instantáneas (cuesta un poco más el load inicial, pero
@@ -310,13 +309,16 @@ function LatenciaPanel() {
 // tocó: lo lee el AV AGENT, que pasa a ser la ÚNICA puerta — con el diagnóstico
 // razonado paso por paso, el re-chequeo en el momento y las acciones. Tener el
 // mismo estado en dos pantallas era el problema original de SALUD, repetido.
-function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modules?: string[] | null }) {
+function ObservabilidadGroup() {
   const [subRaw, setSub] = usePersistedState<"salud" | "controles" | "diagnostico" | "jobs" | "base" | "ia" | "latencia" | "uso">(
     "manager.obs.sub.v2", "diagnostico");
-  // La pill IA solo existe con el módulo `ia` (marca AI, canary del RBAC).
-  // Guard sobre el estado persistido: si tildaron IA y después se lo sacaron
-  // al rol, no dejar la tab clavada en contenido inaccesible.
-  const canIa = modules == null || modules.includes("ia");
+  // (2026-08-19) La pill IA se eliminó. El user: *«¿qué sentido tiene toda esta
+  // parte de IA ahora? Más allá del crédito disponible —que tampoco es
+  // relevante— el resto ocupa espacio nada más»*. Y tenía razón: el historial de
+  // 874 llamadas no se abrió nunca. Lo único que importaba de ese panel —que el
+  // gasto no se dispare y que las llamadas no fallen— es ahora un CHEQUEO del
+  // AV AGENT (`ia:gateway`), o sea una señal que te busca en vez de una pantalla
+  // que hay que ir a abrir. Que es, otra vez, el argumento que fundó SALUD.
   // "uso" quedó en el union solo para migrar el estado persistido viejo (la
   // telemetría de USO fue decomisada del backend) — cae a "controles".
   // Migración del estado guardado: quien tenía CONTROLES o JOBS elegidos cae a
@@ -324,8 +326,8 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
   // Migración del estado guardado: los que quedaron con una tab que ya no existe
   // (SALUD se fue al agente; CONTROLES/JOBS/USO se habían fusionado en SALUD)
   // caen a DIAGNÓSTICO. Sin esto la pantalla les abre vacía y parece rota.
-  const sub = (subRaw === "ia" && !canIa) || subRaw === "uso" || subRaw === "salud"
-    || subRaw === "controles" || subRaw === "jobs" ? "diagnostico" : subRaw;
+  const sub = ["ia", "uso", "salud", "controles", "jobs"].includes(subRaw)
+    ? "diagnostico" : subRaw;
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className={GROUP_HEADER}>
@@ -333,13 +335,11 @@ function ObservabilidadGroup({ goTo, modules }: { goTo: (tab: Tab) => void; modu
         <Pill label="DIAGNÓSTICO" active={sub === "diagnostico"} onClick={() => setSub("diagnostico")} />
         <Pill label="BASE" active={sub === "base"} onClick={() => setSub("base")} />
         <Pill label="LATENCIA" active={sub === "latencia"} onClick={() => setSub("latencia")} />
-        {canIa && <Pill label="IA" active={sub === "ia"} onClick={() => setSub("ia")} />}
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {sub === "diagnostico" && <DiagnosticoGroup />}
         {sub === "base"        && <DbBasePanel />}
         {sub === "latencia"    && <LatenciaPanel />}
-        {sub === "ia"          && <IaPanel />}
       </div>
     </div>
   );
@@ -625,7 +625,7 @@ export function ManagerView({ modules = null }: { modules?: string[] | null }) {
 
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tab === "observabilidad" && <ObservabilidadGroup goTo={setTab} modules={modules} />}
+        {tab === "observabilidad" && <ObservabilidadGroup />}
         {tab === "validaciones" && <ValidacionesGroup />}
         {tab === "titulos"      && <TitulosGroup modules={modules} />}
         {tab === "clientes"     && <TabClientes canBulk={canBulk} />}

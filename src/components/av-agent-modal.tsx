@@ -245,7 +245,11 @@ function haceCuanto(iso: string | null): string {
 // herramienta.
 // TRES, agrupadas por lo que hay que HACER con cada una — no por de dónde sale
 // el dato. `control` existe pero no es una tab: vive en el ⚙ de la derecha.
-type Tab = "ahora" | "hallazgos" | "historial" | "control";
+type Tab = "ahora" | "hallazgos" | "sabe" | "historial" | "control";
+
+// Una pregunta que el agente sabe contestar. Sale del backend, así que el día
+// que se agregue una aparece sola: la pantalla no tiene su propia lista.
+type Sabe = { id: string; pregunta: string; necesita: string; de_donde: string };
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
 // igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
@@ -727,6 +731,7 @@ export function AvAgentModal() {
               {([
                 ["ahora", "AHORA", nAhora],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
+                ["sabe", "SABE", 0],
                 ["historial", "HISTORIAL",
                   (data.acciones ?? []).length + data.decididas.length],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
@@ -836,11 +841,150 @@ export function AvAgentModal() {
               {tab === "control" && (
                 <TabControl ctrl={ctrl} setParada={setParada} recargar={cargarControl} />
               )}
+              {tab === "sabe" && (
+                <TabSabe />
+              )}
             </div>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+// ── TAB: LO QUE SABE CONTESTAR ─────────────────────────────────────────────
+//
+// Las ocho pantallas de Manager → VALIDACIONES eran preguntas de trader con
+// nombre de programador («Debug TEA Curvas» = *¿por qué este bono rinde esto?*).
+// Acá vuelven a ser lo que siempre fueron: preguntas.
+//
+// El user: *«quiero ir migrando funciones útiles al agent para que el día de
+// mañana le hable y se lo pida»*. Por eso el catálogo lo manda el BACKEND — esta
+// lista es, además, el menú de lo que va a entender cuando se le pueda hablar, y
+// una capacidad nueva aparece sin tocar el front.
+function TabSabe() {
+  const [cat, setCat] = useState<Sabe[]>([]);
+  const [elegido, setElegido] = useState<Sabe | null>(null);
+  const [sujeto, setSujeto] = useState("");
+  const [opciones, setOpciones] = useState<string[]>([]);
+  const [cargando, setCargando] = useState(false);
+  const [res, setRes] = useState<{
+    ok: boolean; error?: string; frase?: string; discrepancia?: string;
+    pasos?: Paso[]; pregunta?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const r = await fetchJson<{ catalogo?: Sabe[] }>("/api/ia/av-agent/explicar");
+        setCat(r.catalogo ?? []);
+      } catch { /* sin catálogo: la tab queda vacía, no rota */ }
+    })();
+  }, []);
+
+  const elegir = async (e: Sabe) => {
+    setElegido(e);
+    setRes(null);
+    setSujeto("");
+    setOpciones([]);
+    if (!e.necesita) return;
+    try {
+      const r = await fetchJson<{ sugerencias?: string[] }>(
+        `/api/ia/av-agent/explicar?explicador=${encodeURIComponent(e.id)}`);
+      setOpciones(r.sugerencias ?? []);
+    } catch { /* sin sugerencias se escribe a mano */ }
+  };
+
+  const preguntar = async () => {
+    if (!elegido) return;
+    setCargando(true);
+    setRes(null);
+    try {
+      setRes(await fetchJson("/api/ia/av-agent/explicar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ explicador: elegido.id, sujeto }),
+      }));
+    } catch (e) {
+      setRes({ ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    setCargando(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className={SUB}>
+        Cosas que sé contestar. Los números los calculo yo, paso por paso, de la
+        misma fuente que usa la app — <strong className="text-[var(--t-text)]">
+        no son una opinión</strong>.
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {cat.map((e) => (
+          <button
+            key={e.id}
+            onClick={() => void elegir(e)}
+            className={`text-left px-2.5 py-1.5 border transition-colors ${
+              elegido?.id === e.id
+                ? "border-[var(--t-accent)] bg-[var(--t-accent)]/10"
+                : "border-[var(--t-border)] hover:border-[var(--t-accent)]"
+            }`}
+          >
+            <span className="text-[11px] text-[var(--t-text)]">{e.pregunta}</span>
+            <span className="block text-[9px] text-[var(--t-text-dim)]">
+              {e.de_donde}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {elegido && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {elegido.necesita === "ticker" && (
+            <input
+              value={sujeto}
+              onChange={(ev) => setSujeto(ev.target.value.toUpperCase())}
+              list="av-sabe-opciones"
+              placeholder="ticker (ej. AL30)"
+              className="text-[10px] bg-transparent border border-[var(--t-border)] px-1.5 py-0.5 text-[var(--t-text)] focus:border-[var(--t-accent)] outline-none w-[150px]"
+            />
+          )}
+          <datalist id="av-sabe-opciones">
+            {opciones.map((o) => <option key={o} value={o} />)}
+          </datalist>
+          <button
+            disabled={cargando || (!!elegido.necesita && !sujeto.trim())}
+            onClick={() => void preguntar()}
+            className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+          >
+            {cargando ? "calculando…" : "contestame"}
+          </button>
+        </div>
+      )}
+
+      {res && !res.ok && (
+        <p className="text-[10px] text-[var(--t-neg)]">{res.error ?? "no pude"}</p>
+      )}
+
+      {res?.ok && (
+        <div className="flex flex-col gap-2">
+          {/* LA FRASE. La escribe el modelo sobre números que ya salieron del
+              cálculo — si no hay modelo, no aparece y los pasos siguen ahí. */}
+          {res.frase && (
+            <p className="text-[12px] leading-snug text-[var(--t-text)] border-l-2 border-[var(--t-accent)] pl-2">
+              {res.frase}
+            </p>
+          )}
+          {/* LA DISCREPANCIA va SEPARADA y en rojo: es lo único de acá que no es
+              una explicación sino un aviso, y la frase no la puede tapar. */}
+          {res.discrepancia && (
+            <p className="text-[11px] leading-snug text-[var(--t-neg)] border border-[var(--t-neg)] px-2 py-1">
+              {res.discrepancia}
+            </p>
+          )}
+          <Chequeos pasos={res.pasos ?? []} />
+        </div>
+      )}
+    </div>
   );
 }
 
