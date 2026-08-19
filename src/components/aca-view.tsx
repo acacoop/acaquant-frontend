@@ -1005,10 +1005,8 @@ function TabHistorico({ hist }: { hist: Historico | null }) {
                   return (
                     <>
                       <td key={s.codigo + p + "m"}
-                          className={`px-2 py-1 text-right border-l border-[var(--t-border)] ${signo(c?.mensual)}`}
-                          title={c?.origen === "auto" ? "Calculado automáticamente desde una serie macro" : undefined}>
+                          className={`px-2 py-1 text-right border-l border-[var(--t-border)] ${signo(c?.mensual)}`}>
                         {fmtPct(c?.mensual ?? null, 2)}
-                        {c?.origen === "auto" && <span className="text-[var(--t-text-muted)]"> ·a</span>}
                       </td>
                       <td key={s.codigo + p + "a"} className="px-2 py-1 text-right text-[var(--t-text)]">
                         {fmtPct(c?.acumulado ?? null, 2)}

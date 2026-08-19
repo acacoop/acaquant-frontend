@@ -31,7 +31,7 @@ const BTN =
   "px-3 py-1 text-[10px] font-semibold bg-[var(--t-accent)] text-[var(--t-on-accent)] disabled:opacity-40";
 
 type Serie = {
-  codigo: string; nombre: string; grupo: string; fuente: string; escala: number;
+  codigo: string; nombre: string; grupo: string;
   graficos: string[]; color: string; orden: number; activo: boolean;
 };
 type Catalogos = {
@@ -52,7 +52,7 @@ type CeldaHist = {
 };
 type Historico = {
   periodos: string[];
-  series: { codigo: string; nombre: string; grupo: string; fuente: string }[];
+  series: { codigo: string; nombre: string; grupo: string }[];
   valores: Record<string, Record<string, CeldaHist>>;
 };
 
@@ -146,7 +146,7 @@ function PanelHistorico() {
       </div>
 
       <Card titulo="HISTÓRICO — rendimiento mensual por serie"
-            detalle="Las celdas marcadas ·a se completan solas desde una serie macro. Lo que tipees SIEMPRE gana sobre el automático.">
+            detalle="TODO se carga a mano: ninguna celda se completa sola desde otra fuente. Lo único derivado es el ACUMULADO, que encadena los mensuales que tipeaste.">
         <div className="overflow-auto">
           <table className="text-[11px] min-w-max">
             <thead className="sticky top-0 z-10 bg-[var(--t-surface)]">
@@ -154,8 +154,7 @@ function PanelHistorico() {
                 <th className="text-left px-2 py-1 font-medium sticky left-0 bg-[var(--t-surface)]">Período</th>
                 {hist.series.map((s) => (
                   <th key={s.codigo} colSpan={2}
-                      className="text-center px-2 py-1 font-medium border-l border-[var(--t-border)]"
-                      title={`fuente: ${s.fuente}`}>
+                      className="text-center px-2 py-1 font-medium border-l border-[var(--t-border)]">
                     {s.nombre}
                   </th>
                 ))}
@@ -209,11 +208,7 @@ function CeldaMensual({ periodo, serie, celda, onGuardado, onError }: {
   periodo: string; serie: string; celda?: CeldaHist;
   onGuardado: () => void; onError: (m: string | null) => void;
 }) {
-  // El valor AUTO se muestra pero no se pre-carga en el input: si se copiara al
-  // campo, el primer guardado lo convertiría en manual y la serie dejaría de
-  // actualizarse sola sin que nadie lo haya pedido.
-  const esAuto = celda?.origen === "auto";
-  const [v, setV] = useState(esAuto ? "" : fraccionAPct(celda?.mensual));
+  const [v, setV] = useState(fraccionAPct(celda?.mensual));
   const [busy, setBusy] = useState(false);
 
   // Re-sincronizar con el servidor durante el render (patrón oficial de React
@@ -222,11 +217,11 @@ function CeldaMensual({ periodo, serie, celda, onGuardado, onError }: {
   const [ultimaDelServidor, setUltimaDelServidor] = useState(celda);
   if (ultimaDelServidor !== celda) {
     setUltimaDelServidor(celda);
-    setV(celda?.origen === "auto" ? "" : fraccionAPct(celda?.mensual));
+    setV(fraccionAPct(celda?.mensual));
   }
 
   const guardar = async () => {
-    const anterior = celda?.origen === "auto" ? "" : fraccionAPct(celda?.mensual);
+    const anterior = fraccionAPct(celda?.mensual);
     if (v === anterior) return;
     setBusy(true);
     onError(null);
@@ -258,15 +253,10 @@ function CeldaMensual({ periodo, serie, celda, onGuardado, onError }: {
         onBlur={guardar}
         onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
         disabled={busy}
-        placeholder={esAuto ? fraccionAPct(celda?.mensual) : ""}
-        title={esAuto
-          ? `Calculado automático (${fmtPct(celda?.mensual)}). Escribí un valor para fijarlo a mano.`
-          : undefined}
         className={`w-20 text-right bg-transparent border border-transparent hover:border-[var(--t-border-2)] ` +
           `focus:border-[var(--t-accent)] focus:bg-[var(--t-surface)] focus:outline-none text-[11px] px-1 py-0.5 ` +
-          (esAuto ? "text-[var(--t-text-muted)] placeholder:text-[var(--t-text-dim)]" : "text-[var(--t-text)]")}
+          `text-[var(--t-text)]`}
       />
-      {esAuto && <span className="absolute -right-1 top-0 text-[8px] text-[var(--t-text-muted)]">a</span>}
     </div>
   );
 }
@@ -478,7 +468,7 @@ function ClasesDestacadas({ cat, llamar }: { cat: Catalogos; llamar: Llamar }) {
 
 function SeriesConfig({ cat, llamar }: { cat: Catalogos; llamar: Llamar }) {
   const vacia: Serie = {
-    codigo: "", nombre: "", grupo: "cartera", fuente: "manual", escala: 100,
+    codigo: "", nombre: "", grupo: "cartera",
     graficos: [], color: "", orden: (cat.series.at(-1)?.orden ?? 0) + 1, activo: true,
   };
   const [edit, setEdit] = useState<Serie | null>(null);
@@ -487,7 +477,7 @@ function SeriesConfig({ cat, llamar }: { cat: Catalogos; llamar: Llamar }) {
 
   return (
     <Card titulo="SERIES DEL HISTÓRICO"
-          detalle="Cada serie es una columna de la planilla histórica y, si se le tilda un gráfico, una línea de «Detalle de las carteras vs benchmarks». La fuente `macro_var:<SERIE>` calcula la variación mes contra mes de una serie macro (es un cociente: no depende de la unidad). `macro_pct:<SERIE>` toma el valor del mes como rendimiento y SÍ depende de la unidad — medila antes con `python -m scripts.diag_aca_benchmarks`.">
+          detalle="Cada serie es una columna de la planilla histórica y, si se le tilda un gráfico, una línea de «Detalle de las carteras vs benchmarks». El rendimiento mensual de TODAS se carga a mano en la tab HISTÓRICO.">
       <div className="p-3 flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-2 border border-[var(--t-border)] p-2">
           <label className="flex flex-col gap-0.5">
@@ -507,16 +497,6 @@ function SeriesConfig({ cat, llamar }: { cat: Catalogos; llamar: Llamar }) {
               <option value="benchmark">benchmark (punteada)</option>
               <option value="externo">externo</option>
             </select>
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase text-[var(--t-text-muted)]">Fuente</span>
-            <input value={s.fuente} onChange={(e) => set({ fuente: e.target.value })}
-                   className={INPUT + " w-40"} placeholder="manual" />
-          </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[9px] uppercase text-[var(--t-text-muted)]">Escala</span>
-            <input value={String(s.escala)} onChange={(e) => set({ escala: Number(e.target.value) || 100 })}
-                   className={INPUT + " w-16"} />
           </label>
           <div className="flex flex-col gap-0.5">
             <span className="text-[9px] uppercase text-[var(--t-text-muted)]">Gráficos</span>
@@ -555,7 +535,6 @@ function SeriesConfig({ cat, llamar }: { cat: Catalogos; llamar: Llamar }) {
               <th className="text-left px-2 py-1 font-medium">Código</th>
               <th className="text-left px-2 py-1 font-medium">Nombre</th>
               <th className="text-left px-2 py-1 font-medium">Grupo</th>
-              <th className="text-left px-2 py-1 font-medium">Fuente</th>
               <th className="text-left px-2 py-1 font-medium">Gráficos</th>
               <th className="px-2 py-1" />
             </tr>
@@ -567,7 +546,6 @@ function SeriesConfig({ cat, llamar }: { cat: Catalogos; llamar: Llamar }) {
                 <td className="px-2 py-1 text-[var(--t-text)]">{x.codigo}</td>
                 <td className="px-2 py-1 text-[var(--t-text-dim)]">{x.nombre}</td>
                 <td className="px-2 py-1 text-[var(--t-text-dim)]">{x.grupo}</td>
-                <td className="px-2 py-1 text-[var(--t-text-dim)]">{x.fuente}</td>
                 <td className="px-2 py-1 text-[var(--t-text-dim)]">{x.graficos.join(", ") || "—"}</td>
                 <td className="px-2 py-1 text-right whitespace-nowrap">
                   <button className="text-[10px] text-[var(--t-accent)] hover:underline"
