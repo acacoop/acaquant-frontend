@@ -1650,7 +1650,13 @@ function ModalDesglose({
                           {m.valor}
                           {editable && (
                             <button
-                              onClick={() => pegar(`/gastos/desglose/matchers/${m.id}`, "DELETE")}
+                              onClick={() => {
+                                if (!window.confirm(
+                                  `¿Sacar «${m.valor}» de ${b.etiqueta}?\n\n`
+                                  + "Los movimientos que agarraba pasan a "
+                                  + "MOVIMIENTOS RESTANTES.")) return;
+                                pegar(`/gastos/desglose/matchers/${m.id}`, "DELETE");
+                              }}
                               disabled={busy}
                               title="Sacar este texto de la columna"
                               className="text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
@@ -1716,14 +1722,27 @@ function ModalDesglose({
                         >
                           {abierto === b.clave ? "Cancelar" : "Agregar"}
                         </button>
-                        <button
-                          onClick={() => pegar(`/gastos/desglose/${b.clave}`, "DELETE")}
-                          disabled={busy}
-                          title="Borrar la columna. Sus movimientos pasan a MOVIMIENTOS RESTANTES; ningún total cambia."
-                          className="ml-1 px-1 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
-                        >
-                          ✕
-                        </button>
+                        {/* ⚠️ El ✕ de la COLUMNA aparece solo cuando está
+                            VACÍA. Incidente 2026-08-19: se borró COM.TRANSF con
+                            sus tres textos de un clic y no se pudieron
+                            recuperar. Una columna cargada se desarma sacándole
+                            los textos de a uno —cada uno queda auditado— y
+                            recién ahí se puede borrar: el gesto destructivo se
+                            vuelve deliberado en vez de instantáneo. El backend
+                            lo exige igual; esto es que no se pueda ni intentar. */}
+                        {b.matchers.length === 0 && (
+                          <button
+                            onClick={() => {
+                              if (!window.confirm(`¿Borrar la columna «${b.etiqueta}»?`)) return;
+                              pegar(`/gastos/desglose/${b.clave}`, "DELETE");
+                            }}
+                            disabled={busy}
+                            title="Borrar la columna. Está vacía, así que no se pierde nada."
+                            className="ml-1 px-1 text-[11px] text-[var(--t-text-muted)] hover:text-[var(--t-neg)] disabled:opacity-40"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </>
                     )}
                   </td>
