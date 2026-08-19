@@ -331,7 +331,15 @@ type MovCandidato = {
 };
 
 /** Una combinación de movimientos cuya suma da exactamente la diferencia. */
-type Candidato = { movimientos: MovCandidato[]; suma: number; cantidad: number };
+type Candidato = {
+  movimientos: MovCandidato[]; suma: number; cantidad: number;
+  /** Cuánto queda SIN explicar. Se muestra siempre que no sea cero: una
+   *  explicación aproximada no se puede confundir con una exacta. */
+  resto: number;
+  /** El mismo importe pero de la otra mano — el sistema contable lleva la cuenta
+   *  del otro lado. Se marca en vez de disimularlo. */
+  signo_invertido: boolean;
+};
 
 type RespConciliacion = {
   fecha: string;
@@ -354,6 +362,19 @@ type RespConciliacion = {
   candidatos: Candidato[];
   candidatos_truncados: boolean;
   avisos: string[];
+  /** Los dos detalles, uno de cada lado. Solo descripción e importe: los del
+   *  banco y los del mayor no tienen NADA en común en fechas ni comprobantes
+   *  (`[Op. 1130699] bco a bco` contra `TRANSF.O/BANCOS MISMO TIT`), así que
+   *  ponerlos al lado invitaría a cruzarlos por donde no se puede. Lo único que
+   *  se compara de verdad es el IMPORTE. */
+  banco_movimientos: { descripcion: string; importe: number }[];
+  banco_suma: number;
+  mayor_movimientos: { concepto: string; importe: number; fila: number }[];
+  mayor_suma: number;
+  mayor_saldo_inicial: number | null;
+  /** ¿El detalle del mayor cierra contra su propio saldo? Es el auto-chequeo del
+   *  parseo: si no da, el detalle no se puede usar para explicar nada. */
+  mayor_cierra: boolean | null;
 };
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
@@ -2769,6 +2790,36 @@ function ModalConciliar({
                 </div>
               ))}
 
+              {/* ⚠️ Los dos detalles, UNO DE CADA LADO. Solo descripción e
+                  importe: fechas y comprobantes no tienen nada en común entre el
+                  banco y el mayor, así que mostrarlos invitaría a cruzarlos por
+                  donde no se puede. Lo único comparable es el IMPORTE, y por eso
+                  las dos columnas de números quedan alineadas a la derecha, a la
+                  misma altura: el ojo hace la comparación solo. */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <LadoConciliacion
+                  titulo="Movimientos del banco"
+                  filas={res.banco_movimientos.map((m) => ({
+                    texto: m.descripcion, importe: m.importe }))}
+                  suma={res.banco_suma}
+                  moneda={moneda}
+                />
+                <LadoConciliacion
+                  titulo="Movimientos del mayor"
+                  filas={res.mayor_movimientos.map((m) => ({
+                    texto: m.concepto, importe: m.importe }))}
+                  suma={res.mayor_suma}
+                  moneda={moneda}
+                  // El auto-chequeo del parseo: inicial + movimientos = saldo
+                  // final del archivo. Si no da, el detalle no explica nada y
+                  // hay que decirlo acá, no en una nota al pie.
+                  nota={res.mayor_saldo_inicial !== null
+                    ? `Saldo inicial ${plata(res.mayor_saldo_inicial, moneda)}`
+                    : undefined}
+                  alerta={res.mayor_cierra === false}
+                />
+              </div>
+
               {res.concilia === false && (
                 <div className="text-[11px] text-[var(--t-text-dim)]">
                   {res.candidatos.length > 0
@@ -2788,6 +2839,25 @@ function ModalConciliar({
                     <span className="text-[var(--t-text-dim)]">
                       {c.cantidad} movimiento{c.cantidad === 1 ? "" : "s"}
                     </span>
+                    {c.signo_invertido && (
+                      <span
+                        className="px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+                        title="El importe es el mismo pero con el signo al revés: el sistema contable lleva la cuenta del otro lado."
+                      >
+                        signo invertido
+                      </span>
+                    )}
+                    {/* Lo que sobra se dice SIEMPRE. Una explicación que tapa un
+                        resto es peor que no tener explicación: cierra el caso
+                        con plata sin justificar adentro. */}
+                    {!!c.resto && (
+                      <span
+                        className="px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+                        title="Diferencia que queda sin explicar después de este movimiento."
+                      >
+                        resto {plata(c.resto)}
+                      </span>
+                    )}
                     <span className="ml-auto font-semibold">
                       {plata(c.suma, moneda)}
                     </span>
@@ -2850,6 +2920,64 @@ function Numero({
       {nota && (
         <span className="text-[10px] text-[var(--t-text-dim)]">{nota}</span>
       )}
+    </div>
+  );
+}
+
+/**
+ * Un lado de la conciliación: la lista de movimientos con su importe y el total.
+ *
+ * Compacta a propósito —dos columnas y nada más— porque el punto es poder mirar
+ * los dos lados A LA VEZ. Con fechas, comprobantes y códigos, cada lista ocuparía
+ * la pantalla entera y habría que scrollear para comparar, que es exactamente lo
+ * que no sirve.
+ */
+function LadoConciliacion({
+  titulo, filas, suma, moneda, nota, alerta,
+}: {
+  titulo: string;
+  filas: { texto: string; importe: number }[];
+  suma: number;
+  moneda: string;
+  nota?: string;
+  alerta?: boolean;
+}) {
+  return (
+    <div className={`border ${alerta ? "border-[var(--t-neg)]" : "border-[var(--t-border-2)]"}`}>
+      <div className="px-2 py-1 bg-[var(--t-surface-2)] flex items-center gap-2 text-[11px] border-b border-[var(--t-border-2)]">
+        <span className="uppercase tracking-wide">{titulo}</span>
+        <span className="text-[var(--t-text-dim)]">{filas.length}</span>
+        {nota && <span className="text-[10px] text-[var(--t-text-muted)]">{nota}</span>}
+      </div>
+      <div className="max-h-[240px] overflow-auto">
+        <table className="w-full border-collapse">
+          <tbody>
+            {filas.map((f, i) => (
+              <tr key={i} className="border-b border-[var(--t-border)]">
+                <Td copiar={f.texto} className="text-[11px]">{f.texto}</Td>
+                <Td right className={`text-[11px] whitespace-nowrap ${
+                  f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+                }`} copiar={plata(f.importe)}>
+                  {plata(f.importe)}
+                </Td>
+              </tr>
+            ))}
+            {filas.length === 0 && (
+              <tr>
+                <td colSpan={2} className="px-2 py-3 text-[11px] text-[var(--t-text-dim)]">
+                  Sin movimientos.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {/* El TOTAL de cada lado, a la misma altura en los dos: la resta entre los
+          dos números es la que explica la diferencia de saldos. */}
+      <div className="px-2 py-1 border-t border-[var(--t-border-2)] flex items-center gap-2 text-[11px] bg-[var(--t-surface-2)]">
+        <span className="uppercase tracking-wide text-[var(--t-text-dim)]">Total</span>
+        <span className="ml-auto font-semibold tabular-nums">{plata(suma, moneda)}</span>
+      </div>
     </div>
   );
 }
