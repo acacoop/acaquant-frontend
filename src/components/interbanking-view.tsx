@@ -83,6 +83,23 @@ import { usePoll } from "@/lib/use-poll";
  *    ✕ no pueden colarse en ella, y por eso sale siempre en claro aunque la app
  *    esté en oscuro: un mail con fondo negro se imprime pésimo.
  *
+ * ── DIFERENCIAS (botón de la barra) — el control de que el saldo NO se movió
+ *    solo. La cuenta que tiene que dar:
+ *        cierre(hoy) − cierre(día anterior) == Σ movimientos de hoy
+ *    Lo que sobra es la **diferencia sin explicar**, y casi siempre es el banco
+ *    registrando un movimiento con fecha de ANTEAYER que recién impacta en el
+ *    saldo de AYER: el movimiento queda en un día que ya cerramos y el salto
+ *    aparece en el otro.
+ *    ⚠️ La propiedad que la hace útil: como `Σ movimientos = cierre − apertura`
+ *    cuando el día cierra bien, la diferencia **ES** el salto entre el cierre de
+ *    un día y la apertura del siguiente. Por eso hay dos columnas —el número y
+ *    su evidencia—: la pantalla no dice solo cuánto falta, dice dónde mirar.
+ *    Se concilia contra el BANCO: los manuales no entran (se muestran aparte),
+ *    los ignorados sí (ignorar saca del GASTO, no del extracto). Sin alguno de
+ *    los dos cierres no se inventa una diferencia: dice «sin dato». Arranca
+ *    mostrando SOLO las cuentas con diferencia — 38 filas en cero esconden las 2
+ *    que importan.
+ *
  * ── CONCILIAR (botón de la barra) — compara UN número contra otro: nuestro saldo
  *    al cierre y el ÚLTIMO saldo del mayor del sistema contable, que el usuario
  *    sube como Excel. Si no coinciden, muestra qué movimientos del día podrían
@@ -456,6 +473,7 @@ export function InterbankingView() {
 
   const [reporte, setReporte] = useState(false);
   const [manual, setManual] = useState(false);
+  const [difs, setDifs] = useState(false);
   const [conciliar, setConciliar] = useState(false);
 
   // FILTRO POR BANCO. Es client-side sobre lo que ya trajo el consolidado: pedir
@@ -505,6 +523,13 @@ export function InterbankingView() {
           >
             Reporte final
           </button>
+          <button
+            onClick={() => setDifs(true)}
+            className="px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+            title="¿La variación del saldo de cada cuenta está explicada por sus movimientos?"
+          >
+            Diferencias
+          </button>
           {resp.puede_escribir && (
             <button
               onClick={() => setManual(true)}
@@ -529,6 +554,14 @@ export function InterbankingView() {
 
       {abierta && (
         <ModalMovimientos cuenta={abierta} fecha={fecha} onCerrar={cerrar} />
+      )}
+
+      {difs && (
+        <ModalDiferencias
+          fecha={resp.fecha || fecha}
+          banco={banco}
+          onCerrar={() => setDifs(false)}
+        />
       )}
 
       {manual && (
@@ -1998,6 +2031,242 @@ function TablaBanco({ banco }: { banco: Banco }) {
   );
 }
 
+type FilaDif = Cuenta & {
+  cierre: number | null;
+  cierre_previo: number | null;
+  variacion: number | null;
+  movimientos: number;
+  n_movimientos: number;
+  apertura: number | null;
+  salto_apertura: number | null;
+  sin_explicar: number | null;
+  cierra: boolean | null;
+  ajuste_manual: number | null;
+};
+
+type RespDif = {
+  fecha: string;
+  fecha_previa: string | null;
+  sin_previa: boolean;
+  filas: FilaDif[];
+};
+
+/**
+ * DIFERENCIAS — ¿la variación del saldo está explicada por sus movimientos?
+ *
+ * La cuenta que tiene que dar:
+ *
+ *     cierre(hoy) − cierre(día anterior)  ==  Σ movimientos de hoy
+ *
+ * Lo que sobra es la **diferencia sin explicar**, y tiene una causa concreta que
+ * el back office ya conocía: **el banco a veces registra un movimiento con fecha
+ * de ANTEAYER que recién impacta en el saldo de AYER**. El movimiento queda en un
+ * día que ya cerramos y el salto aparece en el otro.
+ *
+ * ⚠️ La propiedad que hace útil a esta pantalla: como `Σ movimientos =
+ * cierre − apertura` cuando el día cierra bien, la diferencia sin explicar
+ * **ES** el salto entre el cierre de un día y la apertura del siguiente — los dos
+ * informados por el banco. Por eso la fila muestra las dos lecturas: el número y
+ * su evidencia. La pantalla no dice solo cuánto falta: dice **dónde mirar**.
+ *
+ * Arranca mostrando **solo las cuentas con diferencia**, que son las que hay que
+ * mirar. Una lista de 38 filas en cero esconde las 2 que importan.
+ */
+function ModalDiferencias({
+  fecha, banco, onCerrar,
+}: {
+  fecha: string; banco: string; onCerrar: () => void;
+}) {
+  const [data, setData] = useState<RespDif | null>(null);
+  const [todas, setTodas] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCerrar]);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const r = await fetch(
+        `/api/back-office/interbanking/diferencias?fecha=${fecha}`, { cache: "no-store" });
+      if (!vivo) return;
+      if (!r.ok) { setError("No se pudo calcular."); return; }
+      setData(await r.json());
+    })();
+    return () => { vivo = false; };
+  }, [fecha]);
+
+  // El filtro por banco de la vista alcanza a esta pantalla: si estás mirando un
+  // banco, el control es de ese banco.
+  const filas = useMemo(() => {
+    const base = (data?.filas ?? []).filter((f) => !banco || f.banco === banco);
+    return todas ? base : base.filter((f) => Math.abs(f.sin_explicar ?? 0) >= 0.01);
+  }, [data, banco, todas]);
+
+  const conDif = useMemo(
+    () => (data?.filas ?? []).filter((f) => Math.abs(f.sin_explicar ?? 0) >= 0.01).length,
+    [data]);
+  // Sin los dos cierres no hay resta posible, y eso NO es «sin diferencia»: es
+  // «no sabemos». Se cuenta aparte para que no se lea como un verde.
+  const sinDato = useMemo(
+    () => (data?.filas ?? []).filter((f) => f.sin_explicar === null).length, [data]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+      onClick={onCerrar}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[var(--t-panel)] border border-[var(--t-border-2)] w-full max-w-[1300px] max-h-[90vh] flex flex-col text-[12px]"
+      >
+        <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex flex-wrap items-center gap-2">
+          <span className="font-semibold tracking-wide uppercase text-[11px]">
+            Diferencias
+          </span>
+          <span className="text-[var(--t-text-dim)]">
+            {data?.fecha_previa ?? "…"} <span className="text-[var(--t-text-muted)]">→</span>{" "}
+            <span className="text-[var(--t-accent)]">{data?.fecha ?? fecha}</span>
+          </span>
+          <Ayuda texto={
+            "Lo que tiene que dar:\n"
+            + "cierre(hoy) − cierre(día anterior) = suma de los movimientos de hoy.\n\n"
+            + "Lo que sobra es la DIFERENCIA SIN EXPLICAR. Casi siempre es el banco "
+            + "registrando un movimiento con fecha de anteayer que recién impacta "
+            + "en el saldo de ayer: el movimiento queda en un día que ya cerramos "
+            + "y el salto aparece en el otro.\n\n"
+            + "Por eso la columna SALTO muestra apertura(hoy) − cierre(ayer): "
+            + "cuando el día cierra bien contra sus propios movimientos, ese salto "
+            + "ES la diferencia, y ahí es donde hay que mirar.\n\n"
+            + "Se compara contra el BANCO: los movimientos manuales no entran (se "
+            + "muestran aparte)."
+          } />
+
+          {data && !data.sin_previa && (
+            <span className={conDif ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"}>
+              {conDif
+                ? `${conDif} cuenta(s) con diferencia`
+                : "Todas las cuentas cierran"}
+              {sinDato > 0 && (
+                <span className="text-[var(--t-accent)]"> · {sinDato} sin dato</span>
+              )}
+            </span>
+          )}
+
+          <button
+            onClick={() => setTodas((v) => !v)}
+            className="ml-auto px-2 py-1 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+          >
+            {todas ? "Solo diferencias" : "Ver todas"}
+          </button>
+          <button onClick={onCerrar} className="px-2 py-1 hover:bg-[var(--t-surface)]" title="Cerrar (Esc)">
+            ✕
+          </button>
+        </div>
+
+        <ErrorLinea error={error} />
+
+        {data?.sin_previa && (
+          <div className="px-3 py-3 text-[var(--t-accent)]">
+            No hay un día anterior en la base para comparar. La base retiene 3
+            fechas: esto pasa el primer día, o si la ingesta viene fallando.
+          </div>
+        )}
+
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              <tr className="border-b border-[var(--t-border-2)]">
+                <Th className="w-full">Cuenta</Th>
+                <Th center className={COL_SEP}>Cierre {data?.fecha_previa ?? "anterior"}</Th>
+                <Th center className={COL_SEP}>Movimientos</Th>
+                <Th center className={COL_SEP}>Cierre {data?.fecha ?? ""}</Th>
+                <Th center className={COL_SEP}>Sin explicar</Th>
+                <Th center className={COL_SEP}>Salto</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((f) => {
+                const hay = Math.abs(f.sin_explicar ?? 0) >= 0.01;
+                return (
+                  <tr key={f.id} className="border-b border-[var(--t-border-2)]">
+                    <Td copiar={`${f.banco_nombre} ${f.tipo} ${f.moneda} ${f.numero}`}>
+                      <span className="text-[var(--t-text-dim)]">{f.banco_nombre}</span>
+                      {" · "}{f.tipo} {f.moneda} ·{" "}
+                      <span className="font-semibold">{f.numero}</span>
+                      {f.etiqueta ? (
+                        <span className="text-[var(--t-text-dim)]"> · {f.etiqueta}</span>
+                      ) : null}
+                      {/* El otro chequeo, el de ADENTRO del día. Sirve para
+                          distinguir un asiento retroactivo de un día que
+                          directamente no cuadra contra sus movimientos. */}
+                      {f.cierra === false && (
+                        <span className="ml-2 px-1 text-[9px] uppercase bg-[var(--t-tint-red)] text-[var(--t-neg)]">
+                          el día no cierra
+                        </span>
+                      )}
+                      {f.ajuste_manual != null && (
+                        <span
+                          className="ml-2 px-1 text-[9px] uppercase border border-[var(--t-border-2)] text-[var(--t-text-muted)]"
+                          title={`Esta cuenta tiene ${plata(f.ajuste_manual)} de ajuste manual. NO entra en esta cuenta: acá se concilia contra el banco.`}
+                        >
+                          ±man
+                        </span>
+                      )}
+                    </Td>
+                    <Td center className={COL_SEP} copiar={plata(f.cierre_previo)}>
+                      {plata(f.cierre_previo)}
+                    </Td>
+                    <Td center className={COL_SEP} copiar={plata(f.movimientos)}
+                        title={`${f.n_movimientos} movimiento(s) del día`}>
+                      {f.movimientos >= 0 ? "+" : "−"}{plata(Math.abs(f.movimientos))}
+                    </Td>
+                    <Td center className={COL_SEP} copiar={plata(f.cierre)}>
+                      {plata(f.cierre)}
+                    </Td>
+                    <Td center strong className={`${COL_SEP} ${
+                      f.sin_explicar === null ? "text-[var(--t-accent)]"
+                        : hay ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"
+                    }`} copiar={plata(f.sin_explicar)}>
+                      {f.sin_explicar === null ? "sin dato" : plata(f.sin_explicar)}
+                    </Td>
+                    {/* La EVIDENCIA: el banco cerró un día en X y abrió el
+                        siguiente en Y. Cuando coincide con «sin explicar», el
+                        asiento retroactivo está confirmado. */}
+                    <Td center className={`${COL_SEP} text-[var(--t-text-dim)]`}
+                        copiar={plata(f.salto_apertura)}
+                        title="apertura de hoy − cierre del día anterior, las dos informadas por el banco">
+                      {f.salto_apertura === null ? "—" : plata(f.salto_apertura)}
+                    </Td>
+                  </tr>
+                );
+              })}
+              {data && !data.sin_previa && filas.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-4 text-[var(--t-pos)]">
+                    Todas las cuentas cierran: la variación del saldo está explicada
+                    por sus movimientos.
+                  </td>
+                </tr>
+              )}
+              {!data && !error && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-4 text-[var(--t-text-dim)]">
+                    Calculando…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type MovManual = {
   id: number; cuenta_id: number; cuenta: string; fecha: string | null;
   descripcion: string; importe: number | null; tipo: string | null;
@@ -2858,10 +3127,10 @@ function useCopiar(texto?: string | null) {
 }
 
 function Td({
-  children, right, center, strong, className = "", copiar, colSpan,
+  children, right, center, strong, className = "", copiar, colSpan, title,
 }: {
   children?: React.ReactNode; right?: boolean; center?: boolean; strong?: boolean;
-  className?: string; copiar?: string | null; colSpan?: number;
+  className?: string; copiar?: string | null; colSpan?: number; title?: string;
 }) {
   const cp = useCopiar(copiar);
   const al = center ? "text-center tabular-nums" : right ? "text-right tabular-nums" : "";
@@ -2869,7 +3138,9 @@ function Td({
     <td
       colSpan={colSpan}
       onClick={cp.onClick}
-      title={cp.title}
+      // Un `title` propio GANA sobre el «Clic para copiar»: cuando la celda
+      // necesita explicar qué es el número, eso importa más que el gesto.
+      title={title ?? cp.title}
       className={`px-2 py-1 ${al} ${strong ? "font-semibold" : ""} ${cp.clase} ${className}`}
     >
       {children}
