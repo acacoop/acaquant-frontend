@@ -46,7 +46,7 @@ import { fetchJson } from "@/lib/fetch-json";
 // del sistema (un cron, una tabla que quedó vieja) con las mismas ocho lentes que
 // un bono, y no escribe nada. Comparte el componente a propósito — que SALUD y un
 // bono se lean IGUAL es lo que permite que una sola cabeza mire las dos cosas.
-type Modo = "alta" | "flujos" | "arreglo" | "salud" | "sin_precio";
+type Modo = "alta" | "flujos" | "arreglo" | "salud" | "sin_precio" | "pata";
 // Devuelve una PROMESA, no `void`. Con `void` el `await` del lote no esperaba
 // nada y las 10 aplicaciones salían todas juntas: se pisan entre sí escribiendo
 // en `mercado.curvas` y el error de una se pierde entre las otras nueve. El tipo
@@ -66,6 +66,11 @@ type Hallazgo = {
   // (`flujos_vacios`) creyendo que era el TIPO (`sin_flujo`): el botón no
   // aparecía, sin error y sin nada que mirar.
   accion?: Modo | null;
+  // NUESTRO o DEL MERCADO. **Lo declara el backend** (`av_agent.DE_QUIEN`), por
+  // el mismo motivo que `accion`: el que sabe si algo tiene arreglo es el que
+  // sabe resolverlo. Si el front lo dedujera de la regla, tendría una segunda
+  // idea de qué es iliquidez y AHORA y ENCONTRÓ se contradirían.
+  de_quien?: string | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -153,6 +158,7 @@ type Vigilado = {
   clave: string; tipo: string; sujeto: string; regla: string; severidad: string;
   motivo: string; abierto_at: string; ultimo_at: string; veces: number;
   visto_at: string | null; resuelto_at: string | null; resuelto_como: string | null;
+  de_quien?: string | null;
 };
 // Un chequeo que se ROMPIÓ y este admin todavía no vio. Viene de SALUD, que
 // sigue siendo el dueño de la evaluación — el agente solo es la puerta.
@@ -609,7 +615,12 @@ export function AvAgentModal() {
     // Tres puertas, tres escrituras DISTINTAS: el alta crea el bono entero,
     // `flujos` completa un cronograma vacío y `arreglo` PISA un insumo que ya
     // está. Compartir ruta las haría indistinguibles en el libro de acciones.
-    const ruta = modo === "sin_precio"
+    const ruta = modo === "pata"
+      // La ÚNICA puerta de rueda que además escribe. `pata` busca (solo lectura)
+      // y `pata/pedir` siembra la especie si falta y la suscribe — el motor la
+      // levanta en 5s, sin reiniciar y en plena rueda.
+      ? (aplicar ? "pata/pedir" : "pata")
+      : modo === "sin_precio"
       ? "sin-precio"
       : modo === "salud"
       ? "salud"
@@ -628,7 +639,7 @@ export function AvAgentModal() {
           // comentario de `detectar_salud` en el backend).
           body: JSON.stringify(modo === "salud"
             ? { chequeo_id: ticker }
-            : modo === "sin_precio"
+            : (modo === "sin_precio" || modo === "pata")
             ? { ticker }
             : { ticker, curva_1816: curva1816, ...extra }),
         });
@@ -714,14 +725,37 @@ export function AvAgentModal() {
               <span className="text-[11px] font-semibold tracking-widest text-[var(--t-accent)]">
                 ◆ AV AGENT
               </span>
-              {/* Acá decía «integridad de renta fija · 1816 ↔ mercado.curvas».
-                  Eso describe la IMPLEMENTACIÓN —contra qué fuente compara— y no
-                  le sirve a nadie que abra la pantalla: el que la abre ya sabe
-                  qué es el agente. Se reemplaza por lo único que cambia y que
-                  hay que mirar: hace cuánto que miró. */}
-              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
-                revisado {haceCuanto(data.corrida_at)}
+              {/* ⚠️ **DOS RELOJES, DOS VERBOS** (user, 2026-08-19: *«es raro,
+                  dice REVISANDO cada 30 seg y arriba dice revisado hace 8 min»*).
+                  Tenía razón y no era un bug: son dos cosas distintas que se
+                  llamaban igual.
+
+                    CENSO       contra 1816 — cuesta ~29 créditos, corre de noche
+                                o cuando apretás VOLVER A MIRAR. Es lo que llena
+                                ENCONTRÓ.
+                    VIGILANCIA  local, cada 30s en rueda, cero créditos. Es lo
+                                que llena AHORA.
+
+                  Con las dos diciendo «revisado» la pantalla se contradecía sola.
+                  Ahora cada una usa su palabra y acá se muestran JUNTAS: el que
+                  mira ve los dos ritmos de una y no tiene que deducir cuál es
+                  cuál. */}
+              <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]"
+                    title="El censo completo contra 1816: es el que llena ENCONTRÓ.">
+                censo {haceCuanto(data.corrida_at)}
               </span>
+              {cent && (
+                <span className="text-[10px] font-mono"
+                      style={{ color: cent.vivo ? "var(--t-text-dim)" : "var(--t-neg)" }}
+                      title={cent.vivo
+                        ? "La vigilancia en vivo, local y sin créditos: es la que llena AHORA."
+                        : "El centinela no está dando señales."}>
+                  · {cent.vivo
+                      ? `vigilando cada ${cent.latido && cent.latido.cadencia_s >= 60
+                          ? `${Math.round(cent.latido.cadencia_s / 60)} min` : "30s"}`
+                      : "sin vigilar"}
+                </span>
+              )}
               {/* VOLVER A MIRAR — censa 1816 de nuevo. Va pegado al «hace 22 h»
                   porque es la respuesta a lo que ese texto está diciendo. El ↻
                   de al lado NO es lo mismo y por eso los dos llevan su título:
@@ -1432,6 +1466,18 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   // igual una lista que no se puede trabajar de corrido: **uno trabaja por
   // CAUSA, no por familia.**
   const [regla, setRegla] = useState<string>("todas");
+  // ⚠️ **LO DEL MERCADO NO ES TRABAJO** (user, 2026-08-19: *«los que el sistema
+  // detecta que no tienen punta es porque no tienen liquidez, no es un problema.
+  // Está bien que los marque como ilíquidos pero por defecto mostremos otra
+  // cosa»*).
+  //
+  // Con 29 `sin_punta` arriba de todo, la lista de trabajo empezaba con 29 filas
+  // que no se trabajan. **No se borran** —que un bono no opere es información y
+  // el día que uno lo busca tiene que estar— pero dejan de ser lo primero que se
+  // ve. El criterio lo declara el backend (`de_quien`), no un `regla === …`
+  // escrito acá: esa es justo la copia que ya nos costó que un botón no
+  // apareciera nunca.
+  const [verMercado, setVerMercado] = useState(false);
 
   const tipos = useMemo(
     () => Object.keys(porTipo).sort(
@@ -1441,21 +1487,32 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   // Los hallazgos que pasan TIPO + BÚSQUEDA. Es el paso previo a la regla, y se
   // calcula aparte a propósito: las chips de regla tienen que contar sobre ESTO
   // y no sobre el total, o mostrarían opciones que no van a devolver nada.
+  // Cuántos hay del lado del mercado. Se cuenta SIEMPRE (aunque estén ocultos):
+  // un filtro que esconde sin decir cuánto esconde es lo mismo que truncar en
+  // silencio, y acá eso ya tiene nombre propio.
+  const nMercado = useMemo(
+    () => data.hallazgos.filter((h) => h.de_quien === "mercado").length,
+    [data.hallazgos]);
+
   const preFiltrados = useMemo(() => {
     const t = q.trim().toLowerCase();
     const out: [string, Hallazgo[]][] = [];
     for (const tipo of tipos) {
       if (filtro !== "todos" && filtro !== tipo) continue;
-      const hs = t
-        ? porTipo[tipo].filter((h) =>
-            h.ticker.toLowerCase().includes(t) ||
-            h.regla.toLowerCase().includes(t) ||
-            h.motivo.toLowerCase().includes(t))
-        : porTipo[tipo];
+      let hs = porTipo[tipo];
+      // El corte va ANTES de la búsqueda: si uno tipea un ticker ilíquido lo
+      // quiere encontrar igual, así que buscar destapa lo oculto.
+      if (!verMercado && !t) hs = hs.filter((h) => h.de_quien !== "mercado");
+      if (t) {
+        hs = hs.filter((h) =>
+          h.ticker.toLowerCase().includes(t) ||
+          h.regla.toLowerCase().includes(t) ||
+          h.motivo.toLowerCase().includes(t));
+      }
       if (hs.length) out.push([tipo, hs]);
     }
     return out;
-  }, [porTipo, tipos, filtro, q]);
+  }, [porTipo, tipos, filtro, q, verMercado]);
 
   // Las reglas presentes, con su cuenta, **ordenadas por cantidad**: la causa
   // que más aparece es la que conviene atacar primero, y es la que uno busca.
@@ -1590,6 +1647,25 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
           className="w-40 bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
         />
 
+        {/* EL MERCADO, contado aunque esté oculto. **Un filtro que esconde sin
+            decir cuánto esconde es truncar en silencio** — la misma regla que
+            obliga a los workflows a loguear lo que dejaron afuera. Acá el número
+            está siempre a la vista y el clic lo destapa. */}
+        {nMercado > 0 && (
+          <button
+            onClick={() => setVerMercado((v) => !v)}
+            title={"Iliquidez: el símbolo está suscripto y el mercado no le puso "
+                   + "punta. No hay nada que arreglar de este lado — por eso no "
+                   + "encabeza la lista de trabajo."}
+            className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
+              verMercado
+                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
+          >
+            {verMercado ? "▾" : "▸"} {nMercado} del mercado
+          </button>
+        )}
+
         {(q.trim() || filtro !== "todos" || reglaOk !== "todas") && (
           <button
             onClick={() => { setFiltro("todos"); setQ(""); setRegla("todas"); }}
@@ -1693,7 +1769,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       botón que no aparece y no avisa por qué. */}
                   {primera && (h.accion === "alta" || h.accion === "flujos"
                     || h.accion === "arreglo" || h.accion === "salud"
-                    || h.accion === "sin_precio") && (
+                    || h.accion === "sin_precio" || h.accion === "pata") && (
                     <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                   modo={h.accion} />
                   )}
@@ -1760,6 +1836,13 @@ const COPY = {
   sin_precio: {
     simular: "¿Por qué?", aplicar: "", hecho: "", cer: "",
   },
+  // LA ÚNICA de rueda que además ESCRIBE. Busca la pata en dólares en las dos
+  // fuentes (`mercado.especies` y el catálogo de Primary) y, si hay algo que
+  // pedir, la siembra y la suscribe: el motor la levanta en 5s, sin reiniciar.
+  // No toca el master — eso exige reiniciar y no se vería hasta la noche.
+  pata: {
+    simular: "Buscar la pata USD", aplicar: "Pedirla", hecho: "✔ pedida", cer: "",
+  },
 } as const;
 
 function AccionCadena({ h, sim, simular, modo }: {
@@ -1800,7 +1883,12 @@ function AccionCadena({ h, sim, simular, modo }: {
   const aplicable = r?.aplicable === true;
   const aplicado = r?.aplicado === true;
   const tea = typeof r?.tea === "number" ? (r.tea as number) : null;
-  const pasos: Paso[] = Array.isArray(r?.chequeos) ? (r.chequeos as Paso[]) : [];
+  // `chequeos` en las puertas de bonos, `pasos` en las de rueda. Se aceptan las
+  // dos y no se renombra ninguna: el nombre lo elige quien arma la cadena, y
+  // forzar uno solo obligaría a tocar cuatro services por un campo de display.
+  const pasos: Paso[] = Array.isArray(r?.chequeos)
+    ? (r.chequeos as Paso[])
+    : Array.isArray(r?.pasos) ? (r.pasos as Paso[]) : [];
   const veredicto = r?.veredicto as Veredicto | undefined;
   // **UNA sola fuente decide si se puede aplicar: el veredicto del backend.**
   // Acá convivían dos condiciones distintas (`aplicable`, que miraba la rama, y
@@ -1811,7 +1899,14 @@ function AccionCadena({ h, sim, simular, modo }: {
   // nadie está mirando. El fallback local es solo para un deploy desparejo.
   // En SALUD **no hay nada que aplicar**: la puerta es de solo lectura. No es un
   // permiso que falta, es que el agente todavía no escribe de ese lado.
-  const puedeAplicar = (modo === "salud" || modo === "sin_precio")
+  // En `pata` lo decide el BACKEND con un campo explícito: `pedible` trae el
+  // símbolo exacto cuando hay algo que pedir, y viene vacío cuando ya está
+  // pedida y con precio, cuando no hay pata, o cuando no se pudo leer el
+  // catálogo. Las tres son razones distintas para no ofrecer el botón y ninguna
+  // se puede deducir de los pasos sin volver a escribir el criterio acá.
+  const puedeAplicar = modo === "pata"
+    ? Boolean(r?.pedible)
+    : (modo === "salud" || modo === "sin_precio")
     ? false
     : veredicto
     ? veredicto.puede_aplicar !== false
@@ -1876,7 +1971,7 @@ function AccionCadena({ h, sim, simular, modo }: {
           lectura, no porque el agente haya frenado nada. Pintarlo en rojo diría
           que el chequeo está trabado cuando el diagnóstico salió bien. */}
       {ok && !puedeAplicar && !aplicado && modo !== "salud"
-        && modo !== "sin_precio" && (
+        && modo !== "sin_precio" && modo !== "pata" && (
         <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)]">
           ✘ Bloqueado
         </span>
@@ -1913,7 +2008,28 @@ function AccionCadena({ h, sim, simular, modo }: {
               {r.simbolo ? ` · pide «${String(r.simbolo).split(" - ")[2] ?? r.simbolo}»` : ""}
             </>
           )}
-          {ok && modo !== "salud" && modo !== "sin_precio" && (
+          {ok && modo === "pata" && (
+            // El VEREDICTO en una frase. Los cuatro desenlaces se atienden
+            // distinto y por eso se nombran distinto: dos son nuestros (falta
+            // pedirla / falta sembrarla y pedirla), uno es del mercado (no hay
+            // pata) y el cuarto es «no pude mirar», que JAMÁS puede leerse como
+            // los otros tres.
+            <>
+              {aplicado || r.hecho
+                ? `${copy.hecho} · ${String(r.detalle ?? "")}`
+                : r.veredicto === "sin_pata"
+                ? "no hay pata en dólares — ni sembrada ni en Primary"
+                : r.veredicto === "no_pude_mirar"
+                ? "no pude leer el catálogo de Primary: no sé si existe"
+                : r.veredicto === "con_precio"
+                ? `«${String(r.pedible ?? "").split(" - ")[2] ?? ""}» ya se pide y tiene precio`
+                : r.pedible
+                ? `${r.sembrar ? "hay que sembrarla y pedirla" : "hay que pedirla"}`
+                  + `: «${String(r.pedible).split(" - ")[2] ?? ""}»`
+                : ""}
+            </>
+          )}
+          {ok && modo !== "salud" && modo !== "sin_precio" && modo !== "pata" && (
             <>
               {aplicado ? copy.hecho : ""}
               {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
@@ -3225,12 +3341,28 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
   recargar: () => void | Promise<void>;
 }) {
   const [verResueltos, setVerResueltos] = useState(false);
+  // ⚠️ **LO VISTO SE PLIEGA, NO SE QUEDA EN LA LISTA** (user, 2026-08-19: *«marqué
+  // como leído un montón y siguen apareciendo grisados»*).
+  //
+  // El diseño original decía —y con razón— que marcar visto NO puede RESOLVER ni
+  // BORRAR el hallazgo: si el botón hiciera desaparecer cosas, nadie lo tocaría.
+  // Pero de ahí se sacó la conclusión de más: dejarlos EN LA MISMA LISTA, en gris.
+  // Con 20 abiertos, marcar los 20 no cambia nada en pantalla, y un botón que no
+  // cambia nada se lee como roto.
+  //
+  // La tab se llama AHORA y su contrato es «lo que espera una decisión tuya». Un
+  // hallazgo ya visto sigue ABIERTO pero ya no espera nada: no se pierde, se
+  // pliega. Queda contado, a un clic, y con el mismo detalle.
+  const [verVistos, setVerVistos] = useState(false);
 
   if (!cent) {
     return <p className="text-[11px] text-[var(--t-text-muted)]">Cargando…</p>;
   }
 
   const sinVer = cent.abiertos.filter((f) => !f.visto_at);
+  const yaVistos = cent.abiertos.filter((f) => f.visto_at);
+  // Lo que la lista principal muestra. Los vistos entran solo si se pidieron.
+  const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
 
   return (
     <div className="flex flex-col gap-4">
@@ -3296,16 +3428,33 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
         </div>
       )}
 
-      {cent.abiertos.length === 0 ? (
+      {/* EL PLIEGUE. Va abajo del bloque de «nuevo, sin ver» y arriba de la
+          lista: es el que explica por qué la lista tiene menos filas de las que
+          uno esperaba. Sin este renglón, plegar sería esconder. */}
+      {yaVistos.length > 0 && (
+        <button
+          onClick={() => setVerVistos((v) => !v)}
+          className="self-start text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          title="Siguen abiertos: los marcaste vistos, así que dejaron de esperar una decisión."
+        >
+          {verVistos ? "▾" : "▸"} {yaVistos.length} ya vistos
+          {verVistos ? " — ocultar" : " (siguen abiertos)"}
+        </button>
+      )}
+
+      {enLista.length === 0 ? (
         <p className="text-[11px] text-[var(--t-text-muted)]">
-          {cent.vivo
+          {yaVistos.length > 0
+            ? `Nada nuevo. Los ${yaVistos.length} abiertos ya los viste — siguen `
+              + "acá arriba, plegados."
+            : cent.vivo
             ? "Nada abierto. El centinela está mirando y no encuentra nada."
             : "Nada abierto — pero el centinela está apagado, así que esto no "
               + "significa que todo esté bien."}
         </p>
       ) : (
         <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-          {cent.abiertos.map((f) => (
+          {enLista.map((f) => (
             <div key={f.clave}
                  className={`grid grid-cols-[3px_120px_170px_1fr_auto] items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)] ${
                    f.visto_at ? "opacity-60" : ""}`}>
