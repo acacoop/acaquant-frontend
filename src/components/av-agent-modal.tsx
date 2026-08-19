@@ -245,11 +245,27 @@ function haceCuanto(iso: string | null): string {
 // herramienta.
 // TRES, agrupadas por lo que hay que HACER con cada una — no por de dónde sale
 // el dato. `control` existe pero no es una tab: vive en el ⚙ de la derecha.
-type Tab = "ahora" | "hallazgos" | "sabe" | "historial" | "control";
+type Tab = "ahora" | "hallazgos" | "skills" | "historial" | "control";
 
 // Una pregunta que el agente sabe contestar. Sale del backend, así que el día
 // que se agregue una aparece sola: la pantalla no tiene su propia lista.
 type Sabe = { id: string; pregunta: string; necesita: string; de_donde: string };
+
+// UNA habilidad del registro único. `usa_ia` tiene TRES valores y no es un
+// booleano a propósito: `opcional` —la parte que resuelve es una función y el
+// modelo solo agrega la frase— es la categoría más común acá y la que se suele
+// contar mal para los dos lados.
+type Skill = {
+  id: string; nombre: string; que_hace: string;
+  usa_ia: "no" | "opcional" | "si"; para_que_la_ia: string;
+  donde: string; fuente: string; extra?: Record<string, unknown> | null;
+};
+type SkillsVista = {
+  total: number;
+  por_tipo: Record<string, Skill[]>;
+  ia: { no: number; opcional: number; si: number };
+  tareas_ia: string[];
+};
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
 // igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
@@ -731,7 +747,7 @@ export function AvAgentModal() {
               {([
                 ["ahora", "AHORA", nAhora],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
-                ["sabe", "SABE", 0],
+                ["skills", "SKILLS", 0],
                 ["historial", "HISTORIAL",
                   (data.acciones ?? []).length + data.decididas.length],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
@@ -841,8 +857,8 @@ export function AvAgentModal() {
               {tab === "control" && (
                 <TabControl ctrl={ctrl} setParada={setParada} recargar={cargarControl} />
               )}
-              {tab === "sabe" && (
-                <TabSabe />
+              {tab === "skills" && (
+                <TabSkills />
               )}
             </div>
           </div>
@@ -852,17 +868,128 @@ export function AvAgentModal() {
   );
 }
 
-// ── TAB: LO QUE SABE CONTESTAR ─────────────────────────────────────────────
+// ── TAB SKILLS: EL REGISTRO ÚNICO DE HABILIDADES ───────────────────────────
 //
-// Las ocho pantallas de Manager → VALIDACIONES eran preguntas de trader con
-// nombre de programador («Debug TEA Curvas» = *¿por qué este bono rinde esto?*).
-// Acá vuelven a ser lo que siempre fueron: preguntas.
+// **LA LEY** (user, 2026-08-19): *«necesito que se vaya centralizando todo: no
+// solo esto, también lo que sabe resolver, lo que va entendiendo cuando
+// encuentra algo… por ley y regla todo lo nuevo que se agregue de funcionalidad
+// o habilidad tiene que quedar en esta tab, para que se vaya mapeando todo lo
+// que va consolidando. Y dejar asentado si esa skill usa IA o no.»*
 //
-// El user: *«quiero ir migrando funciones útiles al agent para que el día de
-// mañana le hable y se lo pida»*. Por eso el catálogo lo manda el BACKEND — esta
-// lista es, además, el menú de lo que va a entender cuando se le pueda hablar, y
-// una capacidad nueva aparece sin tocar el front.
-function TabSabe() {
+// La lista la DERIVA el backend de los registros reales (detectores, controles,
+// explicadores, acciones): una skill nueva aparece por existir. Una lista de
+// capacidades mantenida a mano se queda vieja la primera vez que alguien tiene
+// apuro, y una desactualizada es peor que no tenerla — dice que el agente sabe
+// algo que no sabe, o esconde algo que sí.
+//
+// Las TRES secciones son el orden en que crece el agente:
+//   darse cuenta  →  poder explicarlo  →  saber arreglarlo
+function TabSkills() {
+  const [v, setV] = useState<SkillsVista | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setV(await fetchJson<SkillsVista>("/api/ia/av-agent/skills"));
+      } catch { /* sin catálogo la tab queda vacía, no rota */ }
+    })();
+  }, []);
+
+  const SECCIONES: [string, string, string][] = [
+    ["detectar", "SE DA CUENTA SOLO",
+     "corre sin que nadie lo pida y aparece en ENCONTRÓ"],
+    ["explicar", "SABE CONTESTAR",
+     "reproduce el cálculo paso a paso, con la fuente a la vista"],
+    ["resolver", "SABE ARREGLAR",
+     "propone, lo aplica con tu OK y verifica releyendo la base"],
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* EL RECUENTO DE IA. Es el número que contesta «¿cuánto de esto es IA de
+          verdad?» sin discutir — contarlas todas como IA infla lo que el modelo
+          hace, contarlas como no-IA esconde dónde hay que mirar. */}
+      {v && (
+        <div className="flex flex-wrap items-baseline gap-3 border border-[var(--t-border)] px-2.5 py-1.5">
+          <span className="text-[11px] text-[var(--t-text)]">
+            <strong className="tabular-nums">{v.total}</strong> habilidades
+          </span>
+          <span className={SUB}>
+            <span className="text-[var(--t-pos)]">{v.ia.no}</span> sin IA ·{" "}
+            <span style={{ color: "#f59e0b" }}>{v.ia.opcional}</span> con IA
+            opcional ·{" "}
+            <span style={{ color: "#f59e0b" }}>{v.ia.si}</span> dependen del modelo
+          </span>
+          <span className={`${SUB} ml-auto`}>
+            lo que encuentro lo encuentra una función, no el modelo
+          </span>
+        </div>
+      )}
+
+      {SECCIONES.map(([tipo, titulo, sub]) => {
+        const items = v?.por_tipo?.[tipo] ?? [];
+        if (!items.length) return null;
+        return (
+          <div key={tipo}>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+                {titulo}
+              </span>
+              <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
+                {items.length}
+              </span>
+              <span className={SUB}>{sub}</span>
+            </div>
+            <ul className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+              {items.map((s) => (
+                <li key={s.id} className="px-2 py-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[10px] text-[var(--t-text)] flex-1 min-w-0">
+                      {s.nombre}
+                    </span>
+                    {/* La marca de IA va en la fila y no en una leyenda: si hay
+                        que ir a buscar qué significa un color, no se mira. */}
+                    <span
+                      className="shrink-0 text-[9px] uppercase tracking-widest"
+                      style={{ color: s.usa_ia === "no"
+                        ? "var(--t-text-dim)" : "#f59e0b" }}
+                      title={s.para_que_la_ia || "no usa el modelo"}
+                    >
+                      {s.usa_ia === "no" ? "función"
+                        : s.usa_ia === "opcional" ? "IA opcional" : "IA"}
+                    </span>
+                  </div>
+                  <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                    {s.que_hace}
+                    {s.para_que_la_ia && (
+                      <span style={{ color: "#f59e0b" }}> · el modelo {s.para_que_la_ia}</span>
+                    )}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+
+      {/* PREGUNTARLE. Vive abajo del registro a propósito: primero se ve TODO lo
+          que sabe, y después se usa la parte que hoy es interactiva. */}
+      <div>
+        <div className="flex items-baseline gap-2 mb-1">
+          <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+            PREGUNTALE
+          </span>
+          <span className={SUB}>
+            los números los calculo yo, de la misma fuente que usa la app
+          </span>
+        </div>
+        <Preguntale />
+      </div>
+    </div>
+  );
+}
+
+function Preguntale() {
   const [cat, setCat] = useState<Sabe[]>([]);
   const [elegido, setElegido] = useState<Sabe | null>(null);
   const [sujeto, setSujeto] = useState("");
@@ -912,12 +1039,6 @@ function TabSabe() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className={SUB}>
-        Cosas que sé contestar. Los números los calculo yo, paso por paso, de la
-        misma fuente que usa la app — <strong className="text-[var(--t-text)]">
-        no son una opinión</strong>.
-      </p>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
         {cat.map((e) => (
           <button
