@@ -84,19 +84,23 @@ import { usePoll } from "@/lib/use-poll";
  *    esté en oscuro: un mail con fondo negro se imprime pésimo.
  *
  * ── DIFERENCIAS (botón de la barra) — el control de que el saldo NO se movió
- *    solo. La cuenta que tiene que dar:
- *        cierre(hoy) − cierre(día anterior) == Σ movimientos de hoy
- *    Lo que sobra es la **diferencia sin explicar**, y casi siempre es el banco
- *    registrando un movimiento con fecha de ANTEAYER que recién impacta en el
- *    saldo de AYER: el movimiento queda en un día que ya cerramos y el salto
- *    aparece en el otro.
- *    ⚠️ La propiedad que la hace útil: como `Σ movimientos = cierre − apertura`
- *    cuando el día cierra bien, la diferencia **ES** el salto entre el cierre de
- *    un día y la apertura del siguiente. Por eso hay dos columnas —el número y
- *    su evidencia—: la pantalla no dice solo cuánto falta, dice dónde mirar.
+ *    solo. Tres pasos, y las columnas son esos tres pasos en orden:
+ *      1. **VARIACIÓN** = saldo del día − saldo del día anterior.
+ *      2. **MOVIMIENTOS** = la suma de los importes del día.
+ *      3. **DIFERENCIA** = variación − movimientos. Si da cero, cierra.
+ *    ⚠️ Las cinco columnas están porque el número final **hay que poder
+ *    seguirlo**: con solo el resultado, el back office tendría que creerle. La
+ *    primera versión no mostraba la variación y por eso no se entendía de dónde
+ *    salía.
+ *    Cuando no da cero, casi siempre es el banco registrando un movimiento con
+ *    fecha del día ANTERIOR que recién impacta en el saldo de este: el
+ *    movimiento queda en un día que ya cerramos y el salto aparece en el otro.
+ *    El tooltip de la DIFERENCIA muestra la evidencia —en cuánto cerró el banco
+ *    el día anterior y en cuánto abrió este—, que cuando el día cuadra contra
+ *    sus propios movimientos es exactamente ese mismo número.
  *    Se concilia contra el BANCO: los manuales no entran (se muestran aparte),
  *    los ignorados sí (ignorar saca del GASTO, no del extracto). Sin alguno de
- *    los dos cierres no se inventa una diferencia: dice «sin dato». Arranca
+ *    los dos saldos no se inventa una diferencia: dice «sin dato». Arranca
  *    mostrando SOLO las cuentas con diferencia — 38 filas en cero esconden las 2
  *    que importan.
  *
@@ -2132,15 +2136,17 @@ function ModalDiferencias({
             <span className="text-[var(--t-accent)]">{data?.fecha ?? fecha}</span>
           </span>
           <Ayuda texto={
-            "Lo que tiene que dar:\n"
-            + "cierre(hoy) − cierre(día anterior) = suma de los movimientos de hoy.\n\n"
-            + "Lo que sobra es la DIFERENCIA SIN EXPLICAR. Casi siempre es el banco "
-            + "registrando un movimiento con fecha de anteayer que recién impacta "
-            + "en el saldo de ayer: el movimiento queda en un día que ya cerramos "
-            + "y el salto aparece en el otro.\n\n"
-            + "Por eso la columna SALTO muestra apertura(hoy) − cierre(ayer): "
-            + "cuando el día cierra bien contra sus propios movimientos, ese salto "
-            + "ES la diferencia, y ahí es donde hay que mirar.\n\n"
+            "La cuenta, paso a paso:\n"
+            + "1. Saldo del día − saldo del día anterior = VARIACIÓN.\n"
+            + "2. La suma de los importes de los MOVIMIENTOS del día.\n"
+            + "3. Variación − movimientos = DIFERENCIA. Si da cero, cierra.\n\n"
+            + "Cuando no da cero, casi siempre es el banco registrando un "
+            + "movimiento con fecha del día ANTERIOR que recién impacta en el "
+            + "saldo de este: el movimiento queda en un día que ya cerramos y el "
+            + "salto aparece en el otro. El tooltip de la DIFERENCIA muestra en "
+            + "cuánto cerró el banco el día anterior y en cuánto abrió este.\n\n"
+            + "El día anterior es el último que hay en la base, no T−2 de "
+            + "calendario: un feriado no rompe la comparación.\n\n"
             + "Se compara contra el BANCO: los movimientos manuales no entran (se "
             + "muestran aparte)."
           } />
@@ -2179,13 +2185,18 @@ function ModalDiferencias({
         <div className="flex-1 min-h-0 overflow-auto">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
+              {/* Las columnas siguen EXACTAMENTE los pasos de la cuenta, en
+                  orden: los dos saldos, su resta, los movimientos del día y la
+                  resta final. Antes faltaba la VARIACIÓN —el «monto» del paso
+                  1— y sin ella el número de la última columna había que creerlo:
+                  no se podía seguir de dónde salía. */}
               <tr className="border-b border-[var(--t-border-2)]">
                 <Th className="w-full">Cuenta</Th>
-                <Th center className={COL_SEP}>Cierre {data?.fecha_previa ?? "anterior"}</Th>
+                <Th center className={COL_SEP}>Saldo {data?.fecha_previa ?? "anterior"}</Th>
+                <Th center className={COL_SEP}>Saldo {data?.fecha ?? ""}</Th>
+                <Th center className={COL_SEP}>Variación</Th>
                 <Th center className={COL_SEP}>Movimientos</Th>
-                <Th center className={COL_SEP}>Cierre {data?.fecha ?? ""}</Th>
-                <Th center className={COL_SEP}>Sin explicar</Th>
-                <Th center className={COL_SEP}>Salto</Th>
+                <Th center className={COL_SEP}>Diferencia</Th>
               </tr>
             </thead>
             <tbody>
@@ -2220,26 +2231,30 @@ function ModalDiferencias({
                     <Td center className={COL_SEP} copiar={plata(f.cierre_previo)}>
                       {plata(f.cierre_previo)}
                     </Td>
-                    <Td center className={COL_SEP} copiar={plata(f.movimientos)}
-                        title={`${f.n_movimientos} movimiento(s) del día`}>
-                      {f.movimientos >= 0 ? "+" : "−"}{plata(Math.abs(f.movimientos))}
-                    </Td>
                     <Td center className={COL_SEP} copiar={plata(f.cierre)}>
                       {plata(f.cierre)}
                     </Td>
+                    {/* Paso 1: cuánto se movió el saldo. */}
+                    <Td center className={COL_SEP} copiar={plata(f.variacion)}
+                        title="Saldo del día menos saldo del día anterior">
+                      {f.variacion === null ? "—" : plata(f.variacion)}
+                    </Td>
+                    {/* Paso 2: cuánto dicen los movimientos que se movió. */}
+                    <Td center className={COL_SEP} copiar={plata(f.movimientos)}
+                        title={`Suma de los ${f.n_movimientos} movimiento(s) del día`}>
+                      {plata(f.movimientos)}
+                    </Td>
+                    {/* Paso 3: lo que sobra. Es lo único que hay que mirar. */}
                     <Td center strong className={`${COL_SEP} ${
                       f.sin_explicar === null ? "text-[var(--t-accent)]"
                         : hay ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"
-                    }`} copiar={plata(f.sin_explicar)}>
+                    }`} copiar={plata(f.sin_explicar)}
+                        title={f.salto_apertura === null
+                          ? "Variación menos movimientos."
+                          : "Variación menos movimientos. El banco cerró el día "
+                            + `anterior en ${plata(f.cierre_previo)} y abrió este en `
+                            + `${plata(f.apertura)}: un salto de ${plata(f.salto_apertura)}.`}>
                       {f.sin_explicar === null ? "sin dato" : plata(f.sin_explicar)}
-                    </Td>
-                    {/* La EVIDENCIA: el banco cerró un día en X y abrió el
-                        siguiente en Y. Cuando coincide con «sin explicar», el
-                        asiento retroactivo está confirmado. */}
-                    <Td center className={`${COL_SEP} text-[var(--t-text-dim)]`}
-                        copiar={plata(f.salto_apertura)}
-                        title="apertura de hoy − cierre del día anterior, las dos informadas por el banco">
-                      {f.salto_apertura === null ? "—" : plata(f.salto_apertura)}
                     </Td>
                   </tr>
                 );
