@@ -71,6 +71,9 @@ type Hallazgo = {
   // sabe resolverlo. Si el front lo dedujera de la regla, tendría una segunda
   // idea de qué es iliquidez y AHORA y ENCONTRÓ se contradirían.
   de_quien?: string | null;
+  // Dónde se anota el voto del eval set. **Lo decide el backend**, igual que
+  // `accion` y `de_quien`.
+  dominio_eval?: string | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -982,14 +985,33 @@ export function AvAgentModal() {
 // fila. El tipo dice CÓMO trabaja el agente; el dominio dice SOBRE QUÉ, que es
 // la pregunta que uno se hace primero: agrupado por tipo, para saber qué sabe de
 // seguridad había que leer las 37 filas.
+type EvalCausa = {
+  dominio: string; causa: string; votos: number; aciertos: number;
+  precision: number | null; suficiente: boolean; candidata_a_auto: boolean;
+};
+type EvalResumen = {
+  ok: boolean; total: number; aciertos: number; precision: number | null;
+  min_votos: number; causas: EvalCausa[];
+  fallos: { caso: string; causa_dicha: string; causa_correcta: string | null;
+            nota: string | null; por: string | null }[];
+};
+
 function TabSkills() {
   const [v, setV] = useState<SkillsVista | null>(null);
+  // LA MEDICIÓN, al lado del catálogo. Va acá y no en una tab nueva a propósito:
+  // SKILLS es «lo que el agente sabe hacer», y **cuánto acierta es un atributo de
+  // eso**, no un tablero aparte. Separarlos dejaría el catálogo prometiendo
+  // capacidades sin decir cuáles funcionan.
+  const [ev, setEv] = useState<EvalResumen | null>(null);
 
   useEffect(() => {
     void (async () => {
       try {
         setV(await fetchJson<SkillsVista>("/api/ia/av-agent/skills"));
       } catch { /* sin catálogo la tab queda vacía, no rota */ }
+      try {
+        setEv(await fetchJson<EvalResumen>("/api/ia/av-agent/eval"));
+      } catch { /* sin medición el catálogo se muestra igual */ }
     })();
   }, []);
 
@@ -1032,6 +1054,111 @@ function TabSkills() {
           <span className={`${SUB} ml-auto`}>
             lo que encuentro lo encuentra una función, no el modelo
           </span>
+        </div>
+      )}
+
+      {/* ── CUÁNTO ACIERTA ─────────────────────────────────────────────────
+          La capa 1 del roadmap. Hasta que existió el botón de votar, esta
+          sección no podía existir: la tabla estaba y nadie escribía en ella.
+
+          **Un 0 acá no es un error, es el estado real** — y decirlo así importa,
+          porque un tablero vacío sin explicación se lee como «está roto» y no
+          como «todavía no hay evidencia». */}
+      {/* Si la medición NO se pudo leer se DICE. Sin esto, el bloque
+          desaparecía y la tab quedaba igual que cuando no hay votos — o sea que
+          «no pude preguntar» se leía como «todavía nadie votó», que es la misma
+          confusión que este proyecto persigue en todos lados. */}
+      {ev && !ev.ok && (
+        <div className="border border-[var(--t-neg)] px-2.5 py-1.5">
+          <span className="text-[10px] text-[var(--t-neg)]">
+            No pude leer la medición — <strong>no es que no haya votos</strong>,
+            es que no se pudo preguntar.
+          </span>
+        </div>
+      )}
+
+      {ev?.ok && (
+        <div className="border border-[var(--t-border)]">
+          <div className="flex flex-wrap items-baseline gap-3 px-2.5 py-1.5 border-b border-[var(--t-border)]">
+            <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+              CUÁNTO ACIERTA
+            </span>
+            {ev.total > 0 ? (
+              <>
+                <span className="text-[11px] text-[var(--t-text)] tabular-nums">
+                  {ev.aciertos}/{ev.total}
+                  {ev.precision !== null
+                    && ` · ${(ev.precision * 100).toFixed(0)}%`}
+                </span>
+                <span className={`${SUB} ml-auto`}>
+                  hacen falta {ev.min_votos} votos por causa para que el número
+                  signifique algo
+                </span>
+              </>
+            ) : (
+              <span className={SUB}>
+                todavía nadie votó. Cada ✔/✖ en ENCONTRÓ suma acá — y hasta que
+                haya {ev.min_votos} por causa, no se puede afirmar que el agente
+                acierte ni que se equivoque.
+              </span>
+            )}
+          </div>
+          {ev.causas.length > 0 && (
+            <ul className="divide-y divide-[var(--t-border)]">
+              {ev.causas.map((c) => (
+                <li key={`${c.dominio}:${c.causa}`}
+                    className="grid grid-cols-[70px_1fr_auto_auto] items-baseline gap-2 px-2.5 py-1">
+                  <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                    {c.dominio}
+                  </span>
+                  <span className="text-[10px] text-[var(--t-text)] truncate"
+                        title={c.causa}>
+                    {c.causa.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] tabular-nums text-[var(--t-text-muted)]">
+                    {c.aciertos}/{c.votos}
+                    {c.precision !== null && ` · ${(c.precision * 100).toFixed(0)}%`}
+                  </span>
+                  {/* `suficiente` separa un porcentaje con respaldo de uno con
+                      tres votos: 2 de 2 no es «100% de acierto», es «casi no hay
+                      evidencia», y presentarlo como lo primero es cómo se toman
+                      decisiones de autonomía sobre ruido. */}
+                  <span className="text-[8px] uppercase tracking-widest"
+                        style={{ color: c.candidata_a_auto
+                          ? "var(--t-pos)"
+                          : c.suficiente ? "var(--t-text-dim)" : "#f59e0b" }}
+                        title={c.candidata_a_auto
+                          ? "El número habilita a DISCUTIR automatizarla. No es un permiso: la lane se prende a mano, siempre."
+                          : c.suficiente
+                          ? "Con respaldo suficiente"
+                          : `Menos de ${ev.min_votos} votos: el % todavía no significa nada`}>
+                    {c.candidata_a_auto ? "◆ a discutir"
+                      : c.suficiente ? "medida" : "sin evidencia"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* DÓNDE SE EQUIVOCA. Es la mitad del valor del eval set y la que se
+              suele tirar: un ✖ con motivo dice qué regla hay que reescribir. */}
+          {ev.fallos.length > 0 && (
+            <div className="px-2.5 py-1.5 border-t border-[var(--t-border)]">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-neg)]">
+                dónde se equivocó ({ev.fallos.length})
+              </span>
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {ev.fallos.slice(0, 8).map((f, i) => (
+                  <li key={i} className="text-[10px] text-[var(--t-text-muted)]">
+                    <span className="font-semibold text-[var(--t-text)]">{f.caso}</span>
+                    {" — dijo "}
+                    <span className="text-[var(--t-text-dim)]">{f.causa_dicha}</span>
+                    {f.causa_correcta ? ` · era ${f.causa_correcta}` : ""}
+                    {f.nota ? ` · ${f.nota}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -1773,6 +1900,12 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                     <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                   modo={h.accion} />
                   )}
+                  {/* EL VOTO va en TODA fila, tenga acción o no. Lo que se está
+                      midiendo es si el DIAGNÓSTICO acertó, y eso aplica igual a
+                      un hallazgo que solo se mira. Restringirlo a los accionables
+                      dejaría sin medir justo a los que todavía no sabemos si
+                      valen la pena automatizar. */}
+                  {primera && <Voto h={h} />}
                 </div>
                 {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
                     valor de la lista depende de poder sacarle lo que no importa.
@@ -1789,6 +1922,137 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
           </div>
         </section>
       ))}
+    </div>
+  );
+}
+
+// ── EL VOTO — el insumo del EVAL SET ────────────────────────────────────────
+//
+// **La capa 1 del roadmap, y la que traba las cinco que siguen.** La tabla y los
+// dos endpoints existían desde el 2026-08-17 y **nadie los llamaba**: cero
+// fetches en el front, cero llamadas desde jobs. O sea que la compuerta de toda
+// la autonomía era una tabla a la que no había por dónde escribir, y por eso
+// ninguna decisión de automatizar podía tomarse con un número.
+//
+// POR QUÉ EL BOTÓN VA ACÁ Y NO EN UNA PANTALLA APARTE
+// ====================================================
+//
+// El juicio ya se emite: cada vez que alguien lee un diagnóstico y decide, está
+// diciendo si la causa era la correcta. Lo que faltaba era GUARDARLO. Una
+// pantalla de votación separada pide que alguien se acuerde de ir, y lo que no
+// está en el camino no se hace — el dataset se seguiría tirando igual, solo que
+// con una tab más.
+//
+// TRES COSAS QUE NO SON OBVIAS
+// =============================
+//
+//  · **Un ✖ sin motivo se rechaza** (lo hace el backend, no este componente): de
+//    «está mal» no se aprende nada. Por eso el ✖ abre el campo en vez de votar.
+//  · **Votar NO cambia nada del sistema.** No re-clasifica el hallazgo ni corrige
+//    el dato: es una anotación sobre el AGENTE, no sobre el bono. Mezclarlas
+//    haría que corregir el diagnóstico parezca arreglar el problema.
+//  · **Se puede votar el mismo caso muchas veces y todas quedan.** Si el agente
+//    cambia de opinión sobre LOC6O dentro de un mes, la historia de los dos
+//    juicios es justamente lo que dice si mejoró.
+function Voto({ h }: { h: Hallazgo }) {
+  const [estado, setEstado] = useState<"" | "si" | "no" | "listo" | "error">("");
+  const [motivo, setMotivo] = useState("");
+  const [causa, setCausa] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const enviar = useCallback(async (acierta: boolean) => {
+    setMsg("");
+    try {
+      const r = await fetchJson<{ ok: boolean; error?: string }>(
+        "/api/ia/av-agent/eval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            caso: h.ticker,
+            // **El dominio lo dice el BACKEND** (`dominio_eval`), no se deduce
+            // del tipo acá: una segunda tabla de dominios se separa de la
+            // primera sin dar ningún error (REGLA #9).
+            dominio: h.dominio_eval ?? "bono",
+            // La CAUSA es la regla: es la unidad que después se automatiza o no.
+            causa: h.regla,
+            acierta,
+            nota: acierta ? "" : motivo.trim(),
+            causa_correcta: acierta ? "" : causa.trim(),
+          }),
+        });
+      if (r.ok) { setEstado("listo"); setMsg(acierta ? "✔ acertó" : "✖ registrado"); }
+      else { setEstado("error"); setMsg(r.error ?? "no se pudo guardar"); }
+    } catch (e) {
+      setEstado("error");
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  }, [h.ticker, h.regla, h.dominio_eval, motivo, causa]);
+
+  if (estado === "listo") {
+    return (
+      <span className="mt-1 inline-flex items-center gap-2 text-[9px] text-[var(--t-text-dim)]">
+        <span className="text-[var(--t-accent)]">{msg}</span>
+        {/* Se puede volver a votar: el servicio guarda TODOS los juicios y la
+            historia es el dato. Un voto que no se puede corregir se vota mal
+            una vez y queda mal para siempre. */}
+        <button onClick={() => { setEstado(""); setMsg(""); }}
+                className="uppercase tracking-widest hover:text-[var(--t-accent)]">
+          cambiar
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+      <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]"
+            title="¿La causa que dio el agente es la correcta? Tu voto no cambia nada del sistema: mide al agente.">
+        ¿acertó?
+      </span>
+      <button
+        onClick={() => void enviar(true)}
+        className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-pos)] hover:text-[var(--t-pos)]"
+      >
+        ✔ sí
+      </button>
+      <button
+        onClick={() => setEstado(estado === "no" ? "" : "no")}
+        className={`text-[9px] uppercase tracking-widest px-2 py-0.5 border ${
+          estado === "no"
+            ? "border-[var(--t-neg)] text-[var(--t-neg)]"
+            : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-neg)] hover:text-[var(--t-neg)]"}`}
+      >
+        ✖ no
+      </button>
+      {/* El ✖ PIDE el motivo antes de mandarse. No es fricción: un «está mal»
+          suelto no se puede usar para arreglar la regla, así que sería un voto
+          que ocupa lugar y no enseña nada. */}
+      {estado === "no" && (
+        <div className="w-full flex flex-wrap items-center gap-1.5 border-l-2 border-[var(--t-neg)] pl-2 py-1">
+          <input
+            value={causa}
+            onChange={(e) => setCausa(e.target.value)}
+            placeholder="¿cuál era la causa real?"
+            className="w-52 bg-transparent border border-[var(--t-border)] px-2 py-0.5 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
+          />
+          <input
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            placeholder="o una nota explicando por qué"
+            className="flex-1 min-w-[180px] bg-transparent border border-[var(--t-border)] px-2 py-0.5 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
+          />
+          <button
+            disabled={!causa.trim() && !motivo.trim()}
+            onClick={() => void enviar(false)}
+            className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)] hover:bg-[var(--t-neg)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+          >
+            registrar
+          </button>
+        </div>
+      )}
+      {estado === "error" && (
+        <span className="text-[9px] text-[var(--t-neg)]">{msg}</span>
+      )}
     </div>
   );
 }
