@@ -51,6 +51,10 @@ export async function GET(req: NextRequest) {
       hasta: q.get("hasta") || def.hasta,
       agg: q.get("agg") || "DIARIO",
       filtro: q.get("filtro") || "todas",
+      // La lista del selector son 1.021 cuentas / 44 KB y dependen SOLO de
+      // `filtro`: la vista la pide en su propio fetch y el resto de las veces
+      // manda con_opciones=0. Default true para no romper a un cliente viejo.
+      con_opciones: q.get("con_opciones") === "0" ? "false" : "true",
     });
     const seleccion = q.get("seleccion");
     if (seleccion && seleccion !== "__TODAS__") params.set("seleccion", seleccion);

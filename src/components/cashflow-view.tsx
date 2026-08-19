@@ -36,7 +36,7 @@ interface Totales {
 interface Resp {
   serie: SerieRow[];
   totales: Record<string, Totales>;
-  opciones: string[];
+  opciones: string[] | null;
   bounds: { min: string; max: string };
 }
 
@@ -128,6 +128,11 @@ export function CashFlowView() {
   // dejarlos fijos acá evita cualquier chance de que el calendario se encierre
   // en el rango que el usuario acaba de elegir.
   const [bounds, setBounds] = useState<{ min: string; max: string } | null>(null);
+  // La lista del selector vive aparte: son 1.021 cuentas = 44 KB (el 69% del
+  // payload en diario, el 96% en mensual) y dependen SOLO de `filtroAcc`.
+  // Mandarlas también al cambiar el rango o la cuenta sería repetir 44 KB por
+  // click. Se piden en su propio fetch, atado a `filtroAcc` y nada más.
+  const [opciones, setOpciones] = useState<string[]>([]);
 
   // Filtros. `null` = "todavía no lo tocó" → el backend usa su default.
   const [desdeSel, setDesdeSel] = useState<string | null>(null);
@@ -169,6 +174,7 @@ export function CashFlowView() {
         const qs = new URLSearchParams({
           agg: granularity === "Mensual" ? "MENSUAL" : "DIARIO",
           filtro: FILTRO_API[filtroAcc],
+          con_opciones: "0",
         });
         if (desdeSel) qs.set("desde", desdeSel);
         if (hastaSel) qs.set("hasta", hastaSel);
@@ -191,7 +197,32 @@ export function CashFlowView() {
     };
   }, [desdeSel, hastaSel, granularity, filtroAcc, seleccion]);
 
-  const opciones = data?.opciones ?? [];
+  // A lo sumo 4 fetches en toda la sesión (uno por valor del filtro), y el
+  // backend los cachea. No depende del rango a propósito: el desplegable se
+  // calcula sobre la ventana entera, no sobre el recorte.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          // agg=MENSUAL para que la serie que viene de arrastre sean 25 filas
+          // (~1 KB) en vez de 505: acá lo único que interesa son las opciones.
+          `/api/cashflow?filtro=${FILTRO_API[filtroAcc]}&agg=MENSUAL&con_opciones=1`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) return;
+        const json: Resp = await res.json();
+        if (!cancelled && json.opciones) setOpciones(json.opciones);
+      } catch {
+        // Sin opciones el selector queda en "Todas", que es un default usable —
+        // no vale romper la vista entera por el contenido de un desplegable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filtroAcc]);
+
   const label = FILTRO_LABEL[filtroAcc];
 
   const monedasSel = useMemo(
