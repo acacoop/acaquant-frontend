@@ -1469,6 +1469,18 @@ function ModalDesglose({
     }
   }
 
+  /** Sube o baja una columna. Se manda la lista COMPLETA en el orden nuevo: media
+   *  lista dejaría unas columnas con el orden viejo y otras con el nuevo, o sea
+   *  empates silenciosos. */
+  async function mover(clave: string, delta: number) {
+    const orden = baldes.map((b) => b.clave);
+    const i = orden.indexOf(clave);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= orden.length) return;
+    [orden[i], orden[j]] = [orden[j], orden[i]];
+    await pegar("/gastos/desglose/orden", "POST", { claves: orden });
+  }
+
   async function nuevaColumna() {
     if (!nueva.trim()) { setErr("Poné cómo se llama la columna."); return; }
     // Va al final: mover el orden es una decisión aparte, y una columna nueva que
@@ -1502,8 +1514,14 @@ function ModalDesglose({
             + "= EXACTO — cuando un valor es principio de otro: con «contiene», "
             + "IVA se comería IVAPERCEP (el total daría bien y dos columnas "
             + "quedarían mal).\n\n"
-            + "Si dos columnas se pisan gana la de # más chico. Lo que no cae en "
-            + "ninguna aparece como MOVIMIENTOS RESTANTES: ahí se ve qué falta.\n\n"
+            + "ORDEN: gana la PRIMERA columna que coincide. Si dos se pisan, "
+            + "subí la que tiene que ganar con ▲.\n"
+            + "Ejemplo real: un banco manda «IVA PERCEPCION RESOL GRAL» con el "
+            + "concepto en IVA. Se arregla subiendo IVAPERCEP arriba de IVA y "
+            + "dándole un texto por DESCRIPCIÓN — el IVA común sigue cayendo en "
+            + "IVA, porque ese texto no lo agarra.\n\n"
+            + "Lo que no cae en ninguna aparece como MOVIMIENTOS RESTANTES: ahí "
+            + "se ve qué falta.\n\n"
             + "Esto no suma ni resta plata: parte el total que ya está."
           } />
           <button
@@ -1529,7 +1547,7 @@ function ModalDesglose({
                 borde fuerte se ve en los dos temas. */}
             <thead className="sticky top-0 bg-[var(--t-surface-2)] text-[10px] uppercase tracking-wide text-[var(--t-text-dim)]">
               <tr className="border-b border-[var(--t-border-2)]">
-                <th className="px-2 py-1.5 font-normal text-right w-[36px]" title="Orden: si dos columnas se pisan, gana la de número más chico">#</th>
+                <th className="px-2 py-1.5 font-normal text-center w-[50px]" title="Orden en que se evalúan. Gana la PRIMERA que coincide, así que si dos columnas se pisan, subí la que tiene que ganar.">Orden</th>
                 <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap">Columna</th>
                 <th className="px-2 py-1.5 font-normal text-left whitespace-nowrap border-l border-[var(--t-border-2)]">Dónde se muestra</th>
                 <th className="px-2 py-1.5 font-normal text-right whitespace-nowrap border-l border-[var(--t-border-2)]">Total del día</th>
@@ -1538,10 +1556,38 @@ function ModalDesglose({
               </tr>
             </thead>
             <tbody>
-              {baldes.map((b) => (
+              {baldes.map((b, i) => (
                 <tr key={b.clave} className="border-b border-[var(--t-border-2)] align-top">
-                  <td className="px-2 py-1.5 text-right tabular-nums text-[var(--t-text-muted)]">
-                    {b.orden}
+                  {/* El ORDEN se mueve desde acá. No es cosmético: es lo
+                      ÚNICO que decide los empates cuando dos columnas se pisan.
+                      El caso que lo pidió: un banco manda «IVA PERCEPCION RESOL
+                      GRAL» con el concepto en IVA, y como IVA se evaluaba antes
+                      se lo comía. La salida no es una excepción escondida en el
+                      código: es subir IVAPERCEP y darle un matcher por
+                      descripción. */}
+                  <td className="px-1 py-1.5 whitespace-nowrap text-[var(--t-text-muted)]">
+                    {editable ? (
+                      <span className="inline-flex items-center">
+                        <button
+                          onClick={() => mover(b.clave, -1)}
+                          disabled={busy || i === 0}
+                          title="Subir: esta columna se evalúa antes"
+                          className="px-1 leading-none hover:text-[var(--t-text)] disabled:opacity-25"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => mover(b.clave, 1)}
+                          disabled={busy || i === baldes.length - 1}
+                          title="Bajar: esta columna se evalúa después"
+                          className="px-1 leading-none hover:text-[var(--t-text)] disabled:opacity-25"
+                        >
+                          ▼
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="px-2 tabular-nums">{b.orden}</span>
+                    )}
                   </td>
                   <td className="px-2 py-1.5 font-semibold whitespace-nowrap">{b.etiqueta}</td>
                   <td className="px-2 py-1.5 whitespace-nowrap text-[var(--t-text-dim)] border-l border-[var(--t-border-2)]">
