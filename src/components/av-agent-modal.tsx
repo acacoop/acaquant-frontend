@@ -234,8 +234,9 @@ function haceCuanto(iso: string | null): string {
 // (user, 2026-08-18: «quiero control total del agente desde el modal por las
 // dudas»). Hasta acá las cinco tabs miraban el trabajo; ninguna miraba la
 // herramienta.
-type Tab = "centinela" | "preguntas" | "avisos" | "hallazgos" | "hizo"
-  | "decidido" | "control";
+// TRES, agrupadas por lo que hay que HACER con cada una — no por de dónde sale
+// el dato. `control` existe pero no es una tab: vive en el ⚙ de la derecha.
+type Tab = "ahora" | "hallazgos" | "historial" | "control";
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
 // igual en la fila: el libro tiene que servir para auditar, y para eso hace falta
@@ -270,7 +271,7 @@ export function AvAgentModal() {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Vista | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("centinela");
+  const [tab, setTab] = useState<Tab>("ahora");
   const [enviando, setEnviando] = useState<number | null>(null);
   const [notas, setNotas] = useState<Record<number, string>>({});
   // Simulaciones por ticker. `null` = corriendo. El resultado se guarda para que
@@ -521,6 +522,11 @@ export function AvAgentModal() {
   if (!data && error) return null;
 
   const nPreg = (data?.preguntas.length ?? 0) + (data?.decisiones.length ?? 0);
+  // Lo que espera una decisión: lo nuevo del centinela + las preguntas + los
+  // avisos abiertos. Es UN número, y es el único que tiene que mirar el que
+  // abre la pantalla para saber si hay algo que hacer.
+  const nAhora = (cent?.sin_ver ?? 0) + nPreg
+    + (data?.avisos ?? []).filter((a) => !a.resuelto).length;
 
   return (
     <>
@@ -578,12 +584,13 @@ export function AvAgentModal() {
               <span className="text-[11px] font-semibold tracking-widest text-[var(--t-accent)]">
                 ◆ AV AGENT
               </span>
-              <span className="text-[10px] text-[var(--t-text-dim)]">
-                integridad de renta fija · 1816 ↔ mercado.curvas
-              </span>
-              {/* Una foto SIN su fecha es una foto que miente en silencio. */}
+              {/* Acá decía «integridad de renta fija · 1816 ↔ mercado.curvas».
+                  Eso describe la IMPLEMENTACIÓN —contra qué fuente compara— y no
+                  le sirve a nadie que abra la pantalla: el que la abre ya sabe
+                  qué es el agente. Se reemplaza por lo único que cambia y que
+                  hay que mirar: hace cuánto que miró. */}
               <span className="ml-auto text-[10px] font-mono text-[var(--t-text-dim)]">
-                última revisión {haceCuanto(data.corrida_at)}
+                revisado {haceCuanto(data.corrida_at)}
               </span>
               {/* VOLVER A MIRAR — censa 1816 de nuevo. Va pegado al «hace 22 h»
                   porque es la respuesta a lo que ese texto está diciendo. El ↻
@@ -642,18 +649,22 @@ export function AvAgentModal() {
 
             {/* ── Tabs ───────────────────────────────────────────────────── */}
             <div className="flex items-stretch border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+              {/* SIETE tabs era un menú, no una jerarquía: ME PREGUNTA · AVISOS ·
+                  ENCONTRÓ · HIZO · YA DECIDIDO · CONTROL · EN VIVO, todas al
+                  mismo peso, y el que abre no sabe por dónde empezar.
+                  Quedan TRES, agrupadas por lo que hay que HACER con cada una:
+
+                    AHORA      → algo espera una decisión tuya
+                    ENCONTRÓ   → la lista de trabajo
+                    HISTORIAL  → lo que ya pasó (no se acciona)
+
+                  y CONTROL pasa a un ⚙ a la derecha: se toca una vez cada mucho
+                  y no compite con lo que sí se mira todos los días. */}
               {([
-                ["centinela", "● EN VIVO", cent?.sin_ver ?? 0],
-                ["preguntas", "ME PREGUNTA", nPreg],
-                ["avisos", "AVISOS", (data.avisos ?? []).filter((a) => !a.resuelto).length],
+                ["ahora", "AHORA", nAhora],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
-                ["hizo", "HIZO", (data.acciones ?? []).length],
-                ["decidido", "YA DECIDIDO", data.decididas.length],
-                // El contador de CONTROL es la cantidad de fuentes que NO están
-                // en verde. Un cero acá significa «no hay nada que mirar», que es
-                // exactamente lo que uno quiere leer de un vistazo.
-                ["control", "CONTROL",
-                  (ctrl?.resumen.bloquea ?? 0) + (ctrl?.resumen.revisar ?? 0)],
+                ["historial", "HISTORIAL",
+                  (data.acciones ?? []).length + data.decididas.length],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
                 <button
                   key={k}
@@ -673,27 +684,61 @@ export function AvAgentModal() {
                   {error}
                 </span>
               )}
+              {/* CONTROL, en un ⚙ a la derecha. Se toca una vez cada mucho —la
+                  parada, el estado de las fuentes— y como tab competía con lo
+                  que sí se mira todos los días. El contador solo aparece si hay
+                  algo que no está en verde: un ⚙ con número pide atención, uno
+                  sin número es una herramienta guardada. */}
+              <button
+                onClick={() => setTab(tab === "control" ? "ahora" : "control")}
+                title="Control del agente: parada de emergencia y estado de las fuentes"
+                className={`${error ? "" : "ml-auto "}px-3 text-[11px] border-b-2 -mb-px transition-colors ${
+                  tab === "control"
+                    ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+              >
+                ⚙
+                {(ctrl?.resumen.bloquea ?? 0) + (ctrl?.resumen.revisar ?? 0) > 0 && (
+                  <span className="ml-1 text-[9px] tabular-nums text-[#f59e0b]">
+                    {(ctrl?.resumen.bloquea ?? 0) + (ctrl?.resumen.revisar ?? 0)}
+                  </span>
+                )}
+              </button>
             </div>
 
             {/* ── Cuerpo ─────────────────────────────────────────────────── */}
             <div className="overflow-y-auto max-h-[74vh] p-4">
-              {tab === "preguntas" && (
-                <TabPreguntas
-                  data={data} enviando={enviando} notas={notas}
-                  setNota={(id, v) => setNotas((n) => ({ ...n, [id]: v }))}
-                  responder={responder}
-                  setTab={setTab}
-                />
+              {/* AHORA junta lo que espera una decisión: el centinela en vivo,
+                  las preguntas y los avisos. Eran tres tabs que uno tenía que
+                  recorrer para saber si había algo que hacer. */}
+              {tab === "ahora" && (
+                <div className="flex flex-col gap-5">
+                  <TabCentinela cent={cent} marcarVisto={marcarVisto}
+                                recargar={cargarCentinela} />
+                  {nPreg > 0 && (
+                    <TabPreguntas
+                      data={data} enviando={enviando} notas={notas}
+                      setNota={(id, v) => setNotas((n) => ({ ...n, [id]: v }))}
+                      responder={responder}
+                      setTab={setTab}
+                    />
+                  )}
+                  {(data.avisos ?? []).some((a) => !a.resuelto) && (
+                    <TabAvisos avisos={data.avisos ?? []} resolver={resolverAviso}
+                               completar={completarAviso} />
+                  )}
+                </div>
               )}
-              {tab === "avisos" && <TabAvisos avisos={data.avisos ?? []} resolver={resolverAviso} completar={completarAviso} />}
               {tab === "hallazgos" && (
                 <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} ignorar={ignorar} />
               )}
-              {tab === "hizo" && <TabHizo acciones={data.acciones ?? []} />}
-              {tab === "decidido" && <TabDecidido data={data} designorar={designorar} />}
-              {tab === "centinela" && (
-                <TabCentinela cent={cent} marcarVisto={marcarVisto}
-                              recargar={cargarCentinela} />
+              {/* HISTORIAL: lo que ya pasó. No se acciona, así que no merece dos
+                  tabs — se lee de arriba abajo y listo. */}
+              {tab === "historial" && (
+                <div className="flex flex-col gap-5">
+                  <TabHizo acciones={data.acciones ?? []} />
+                  <TabDecidido data={data} designorar={designorar} />
+                </div>
               )}
               {tab === "control" && (
                 <TabControl ctrl={ctrl} setParada={setParada} recargar={cargarControl} />
@@ -1053,107 +1098,86 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── LA BARRA DE FILTROS ───────────────────────────────────────────
-          Sticky: con la lista larga, el filtro tiene que seguir a mano para
-          cambiar de tipo sin volver arriba. */}
-      <div className="sticky top-0 z-10 -mx-4 -mt-4 px-4 pt-4 pb-2 bg-[var(--t-panel)] border-b border-[var(--t-border)] flex flex-wrap items-center gap-1.5">
-        {([["todos", "TODO", data.hallazgos.length]] as [string, string, number][])
-          .concat(tipos.map((t) => [t, TIPO_CHIP[t] ?? t.replace(/_/g, " ").toUpperCase(),
-                                    porTipo[t].length] as [string, string, number]))
-          .map(([k, label, n]) => (
-          <button
-            key={k}
-            onClick={() => setFiltro(k)}
-            title={TIPO_LABEL[k] ?? "Todos los hallazgos"}
-            className={`text-[9px] font-semibold uppercase tracking-widest px-2 py-1 border transition-colors ${
-              filtro === k
-                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+      {/* ── LA BARRA ─────────────────────────────────────────────────────
+          Antes eran TRES renglones: chips de tipo, chips de regla, y una línea
+          de texto explicando el throttle de 1816. Para 75 hallazgos, la mitad
+          de la pantalla era el filtro.
+
+          Ahora es UNO: dos desplegables (el tipo y el error), la búsqueda, y el
+          botón. Un `select` con 9 opciones ocupa lo mismo que un chip y no
+          crece con los datos — que es exactamente lo que hacía que la fila de
+          reglas se fuera a dos líneas apenas aparecía una regla nueva. */}
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 px-4 pt-4 pb-2 bg-[var(--t-panel)] border-b border-[var(--t-border)] flex flex-wrap items-center gap-2">
+        <select
+          value={filtro}
+          onChange={(e) => { setFiltro(e.target.value); setRegla("todas"); }}
+          className="bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
+        >
+          <option value="todos">Todo ({data.hallazgos.length})</option>
+          {tipos.map((t) => (
+            <option key={t} value={t}>
+              {TIPO_CHIP[t] ?? t.replace(/_/g, " ")} ({porTipo[t].length})
+            </option>
+          ))}
+        </select>
+
+        {/* El segundo nivel solo existe si hay más de una regla: con una sola no
+            ofrece ninguna decisión y sería un desplegable de un solo ítem. */}
+        {reglas.length > 1 && (
+          <select
+            value={reglaOk}
+            onChange={(e) => setRegla(e.target.value)}
+            className="bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
           >
-            {label}
-            <span className="ml-1.5 tabular-nums opacity-70">{n}</span>
-          </button>
-        ))}
+            <option value="todas">Cualquier error ({nVisiblesPre})</option>
+            {reglas.map(([rg, n]) => (
+              <option key={rg} value={rg}>{rg.replace(/_/g, " ")} ({n})</option>
+            ))}
+          </select>
+        )}
+
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="buscar ticker, regla o motivo…"
-          className="ml-auto w-56 bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
+          placeholder="buscar…"
+          className="w-40 bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
         />
-        {/* Lo que el filtro está ESCONDIENDO. Sin este número, una búsqueda sin
-            resultados y una lista vacía de verdad se ven igual. */}
+
         {(q.trim() || filtro !== "todos" || reglaOk !== "todas") && (
           <button
             onClick={() => { setFiltro("todos"); setQ(""); setRegla("todas"); }}
             className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
           >
-            {nVisibles} de {data.hallazgos.length} · limpiar ✕
+            {nVisibles} de {data.hallazgos.length} ✕
           </button>
         )}
-      </div>
 
-      {/* ── DIAGNOSTICAR TODO ─────────────────────────────────────────────
-          Corre sobre lo FILTRADO. El botón dice el número para que no haya
-          sorpresa: «analizar todo» sobre 84 y sobre 30 son cosas distintas. */}
-      <div className="flex flex-wrap items-center gap-2">
+        {/* El botón, a la derecha y con el número adentro. La explicación del
+            throttle («con 1816 son ~2 min, 1 pedido por segundo, es el límite
+            del plan») ocupaba un renglón entero para decir algo que solo
+            importa una vez: pasa al `title`. */}
         <button
           disabled={corriendo || nVisibles === 0}
           onClick={() => void lanzar(false)}
-          className="text-[9px] font-semibold uppercase tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t-accent)]"
+          title={`Diagnostica los ${nVisibles} contra 1816. Tarda ~${Math.ceil(nVisibles * 1.4 / 60)} min: el plan permite 1 pedido por segundo.`}
+          className="ml-auto text-[9px] font-semibold uppercase tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t-accent)]"
         >
-          {corriendo ? "Diagnosticando…" : `⚑ Diagnosticar los ${nVisibles}`}
+          {corriendo ? "diagnosticando…" : `⚑ Diagnosticar ${nVisibles}`}
         </button>
-        {/* SIN RED es una opción y no el default: el user fue explícito en que
-            los créditos están para gastarse. Queda porque el modo local
-            devuelve en segundos lo que con 1816 tarda minutos — cuando uno
-            quiere una foto rápida, la cola de 1,2s por caso es el costo real. */}
+        {/* «SIN RED» no le decía nada a nadie: nombraba la IMPLEMENTACIÓN (que
+            no sale a internet) en vez de lo que uno gana (que vuelve en
+            segundos). Ahora dice RÁPIDO, que es la razón para elegirlo. */}
         <button
           disabled={corriendo || nVisibles === 0}
           onClick={() => void lanzar(true)}
-          title="Solo lo que se puede saber sin salir a la red: instantáneo y sin créditos"
+          title="Solo lo que se puede saber sin consultar a 1816: vuelve en segundos y no gasta créditos. Algunos casos quedan sin diagnosticar."
           className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-30"
         >
-          sin red
+          rápido
         </button>
-        {!corriendo && nVisibles > 0 && (
-          // La ESPERA, dicha ANTES. Sin esto, el que arranca una corrida de 3
-          // minutos cree que se colgó y la vuelve a arrancar.
-          <span className="text-[9px] text-[var(--t-text-dim)]">
-            con 1816 son ~{Math.ceil(nVisibles * 1.4 / 60)} min (1 pedido por
-            segundo, es el límite del plan) · sin red, segundos
-          </span>
-        )}
       </div>
 
       {run && <InformeMasivo run={run} simular={simular} sims={sims} />}
-
-      {/* ── SEGUNDO NIVEL: POR QUÉ ERROR ──────────────────────────────────
-          Aparece solo si hay MÁS DE UNA regla en lo visible: con una sola, la
-          fila de chips no ofrece ninguna decisión y es ruido. Va fuera de la
-          barra sticky para que ésta no crezca y se coma media pantalla. */}
-      {reglas.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] mr-1">
-            por error
-          </span>
-          {([["todas", `TODOS (${reglas.length})`, nVisiblesPre]] as [string, string, number][])
-            .concat(reglas.map(([r, n]) =>
-              [r, r.replace(/_/g, " ").toUpperCase(), n] as [string, string, number]))
-            .map(([k, label, n]) => (
-            <button
-              key={k}
-              onClick={() => setRegla(k)}
-              className={`text-[9px] uppercase tracking-wide px-2 py-0.5 border transition-colors ${
-                reglaOk === k
-                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                  : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"}`}
-            >
-              {label}
-              <span className="ml-1.5 tabular-nums opacity-70">{n}</span>
-            </button>
-          ))}
-        </div>
-      )}
 
       {visibles.length === 0 && (
         <p className="text-[11px] text-[var(--t-text-muted)]">
