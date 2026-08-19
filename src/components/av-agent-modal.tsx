@@ -304,25 +304,6 @@ export function AvAgentModal() {
     }
   }, []);
 
-  // Mientras releva, se pregunta si terminó. Cuando termina, se recarga la vista
-  // sola: pedir «volver a mirar» y tener que apretar ↻ después sería la mitad
-  // del trabajo.
-  useEffect(() => {
-    if (!relevando) return;
-    let vivo = true;
-    const id = setInterval(async () => {
-      try {
-        const e = await fetchJson<{ si: boolean }>("/api/ia/av-agent/relevar");
-        if (!vivo || e.si) return;
-        clearInterval(id);
-        setRelevando(false);
-        setRelevAviso("");
-        await cargar();
-      } catch { /* el próximo tick reintenta */ }
-    }, 4000);
-    return () => { vivo = false; clearInterval(id); };
-  }, [relevando, cargar]);
-
   const cargarCentinela = useCallback(async () => {
     try {
       setCent(await fetchJson<Centinela>("/api/ia/av-agent/centinela"));
@@ -362,6 +343,25 @@ export function AvAgentModal() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  // Mientras releva, se pregunta si terminó. Cuando termina, se recarga la vista
+  // sola: pedir «volver a mirar» y tener que apretar ↻ después sería la mitad
+  // del trabajo.
+  useEffect(() => {
+    if (!relevando) return;
+    let vivo = true;
+    const id = setInterval(async () => {
+      try {
+        const e = await fetchJson<{ si: boolean }>("/api/ia/av-agent/relevar");
+        if (!vivo || e.si) return;
+        clearInterval(id);
+        setRelevando(false);
+        setRelevAviso("");
+        await cargar();
+      } catch { /* el próximo tick reintenta */ }
+    }, 4000);
+    return () => { vivo = false; clearInterval(id); };
+  }, [relevando, cargar]);
 
   // Una sola carga al montar, para tener el contador en la barra sin abrir nada.
   // El tablero viene con ella: **la PARADA tiene que verse en la barra**, no
