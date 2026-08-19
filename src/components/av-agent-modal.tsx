@@ -790,7 +790,6 @@ export function AvAgentModal() {
               {([
                 ["ahora", "AHORA", nAhora],
                 ["hallazgos", "ENCONTRÓ", data.hallazgos.length],
-                ["skills", "SKILLS", 0],
                 ["historial", "HISTORIAL",
                   (data.acciones ?? []).length + data.decididas.length],
               ] as [Tab, string, number][]).map(([k, label, n]) => (
@@ -812,6 +811,22 @@ export function AvAgentModal() {
                   {error}
                 </span>
               )}
+              {/* SKILLS va A LA DERECHA y SIN contador, separada de las otras
+                  tres. Las de la izquierda son una BANDEJA —lo que hay para
+                  hacer hoy, y por eso llevan número—; SKILLS es el catálogo de
+                  lo que el agente sabe hacer: no se «atiende», se consulta. Y el
+                  contador estaba clavado en 0, que además de inútil se leía como
+                  «no tiene ninguna». */}
+              <button
+                onClick={() => setTab("skills")}
+                title="Todo lo que el agente sabe hacer, y cuáles usan IA"
+                className={`${error ? "" : "ml-auto "}px-4 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px border-l border-l-[var(--t-border)] transition-colors ${
+                  tab === "skills"
+                    ? "border-b-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-b-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+              >
+                SKILLS
+              </button>
               {/* CONTROL, en un ⚙ a la derecha. Se toca una vez cada mucho —la
                   parada, el estado de las fuentes— y como tab competía con lo
                   que sí se mira todos los días. El contador solo aparece si hay
@@ -820,7 +835,7 @@ export function AvAgentModal() {
               <button
                 onClick={() => setTab(tab === "control" ? "ahora" : "control")}
                 title="Control del agente: parada de emergencia y estado de las fuentes"
-                className={`${error ? "" : "ml-auto "}px-3 text-[11px] border-b-2 -mb-px transition-colors ${
+                className={`px-3 text-[11px] border-b-2 -mb-px transition-colors ${
                   tab === "control"
                     ? "border-[var(--t-accent)] text-[var(--t-accent)]"
                     : "border-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
