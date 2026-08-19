@@ -169,7 +169,9 @@ const crudo = (n: number | null | undefined) =>
 
 // Paleta de la torta/carteras: azules de la planilla original, en el orden
 // ARS / DL / HD / FCI. Definidos acá y no en CSS porque recharts los necesita
-// como string y son identidad de dato, no de tema.
+// como string y son identidad de dato, no de tema. Las carteras que NO son
+// canónicas (el informe abre un cuadro para cualquiera que aparezca cargada)
+// caen en PALETA_SERIE por posición.
 const COLOR_CARTERA: Record<string, string> = {
   ARS: "#7ec8f0", DL: "#4a93d9", HD: "#a8cdf0", FCI: "#1f4e96",
 };
@@ -395,8 +397,12 @@ function TabResumen({ data }: { data: Vista }) {
                 <PieChart>
                   <Pie data={torta} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="80%"
                        paddingAngle={1} stroke="var(--t-panel)">
-                    {torta.map((t) => (
-                      <Cell key={t.cartera} fill={COLOR_CARTERA[t.cartera] ?? "#888"} />
+                    {/* Una cartera fuera de las 4 canónicas (DEUDORES, etc.) toma
+                        un color de la paleta de series en vez de un gris único:
+                        dos carteras nuevas del mismo gris son una sola porción. */}
+                    {torta.map((t, i) => (
+                      <Cell key={t.cartera}
+                            fill={COLOR_CARTERA[t.cartera] ?? PALETA_SERIE[i % PALETA_SERIE.length]} />
                     ))}
                   </Pie>
                   <Legend verticalAlign="middle" align="right" layout="vertical"
@@ -449,8 +455,8 @@ function CuadroPeriodo({ bloque }: { bloque: Bloque }) {
           ))}
           {bloque.otras_carteras && (
             <tr className="border-t border-[var(--t-border)] bg-[var(--t-tint-amber)]">
-              <td className="px-3 py-1" title="Activos cuya cartera en Manager → Títulos no es ARS/DL/HD/FCI">
-                Otras carteras
+              <td className="px-3 py-1" title="Activos SIN FICHA en Manager → Títulos: no existen en el maestro, así que no tienen cartera">
+                Sin cartera
               </td>
               <td className="px-3 py-1 text-right">{fmt0(bloque.otras_carteras.monto)}</td>
               <td className="px-3 py-1 text-right text-[var(--t-text-dim)]">
@@ -655,9 +661,9 @@ function TabActivos({ data, periodo, puedeEscribir, onCambio }: {
 
       {det.huerfanos.length > 0 && (
         <div className="px-3 py-2 border border-[var(--t-accent)] bg-[var(--t-tint-amber)] text-[10px] text-[var(--t-text)]">
-          {det.huerfanos.length} título(s) cargados cuya CARTERA en Manager → Títulos no es
-          ARS/DL/HD/FCI (o que no tienen ficha): {det.huerfanos.map((h) => h.ticker || h.unidad).join(", ")}.
-          Suman al total pero no entran a ningún cuadro por cartera — corregí su ficha en Manager → Títulos.
+          {det.huerfanos.length} título(s) cargados SIN FICHA en Manager → Títulos (no existen en el
+          maestro, así que no tienen cartera): {det.huerfanos.map((h) => h.ticker || h.unidad).join(", ")}.
+          Suman al total pero no entran a ningún cuadro por cartera — dalos de alta en Manager → Títulos.
         </div>
       )}
 
