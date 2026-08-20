@@ -34,7 +34,8 @@ import { fetchJson } from "@/lib/fetch-json";
  */
 type Item = {
   id: number; etiqueta: string; hecho: boolean; hecho_at: string | null;
-  datos: { cuenta?: string; moneda?: string; saldo?: number; signo?: string };
+  datos: { cuenta?: string; moneda?: string; saldo?: number; signo?: string;
+           grupo?: string };
 };
 type Aviso = {
   id: number; ticker: string; clave: string;
@@ -110,7 +111,7 @@ export function MisAvisos() {
           silencia para siempre con un click deja de ser un aviso. */}
       {urgente && (
         <div className="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center p-4">
-          <div className="w-[720px] max-w-[96vw] bg-[var(--t-panel)] border border-[var(--t-accent)] shadow-2xl flex flex-col max-h-[86vh]">
+          <div className="w-[1100px] max-w-[97vw] bg-[var(--t-panel)] border border-[var(--t-accent)] shadow-2xl flex flex-col max-h-[86vh]">
             <div className="flex items-baseline gap-2 px-4 py-2 border-b border-[var(--t-border)]">
               <span className="text-[11px] font-semibold tracking-widest text-[var(--t-accent)]">
                 {urgente.que_hacer}
@@ -124,54 +125,85 @@ export function MisAvisos() {
                 {urgente.por_que}
               </p>
             )}
-            <div className="overflow-y-auto px-4 py-2">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] text-left">
-                    <th className="font-normal py-1 w-8"></th>
-                    <th className="font-normal py-1">Cuenta</th>
-                    <th className="font-normal py-1 w-16">Moneda</th>
-                    <th className="font-normal py-1 w-32 text-right">Saldo</th>
-                    <th className="font-normal py-1 w-24"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--t-border)]">
-                  {(urgente.items ?? []).map((it) => {
-                    const neg = (it.datos.saldo ?? 0) < 0;
-                    return (
-                      <tr key={it.id} className={it.hecho ? "opacity-45" : ""}>
-                        <td className="py-1">
-                          <input
-                            type="checkbox" checked={it.hecho}
-                            onChange={() => void marcarItem(it.id, !it.hecho)}
-                            className="cursor-pointer"
-                          />
-                        </td>
-                        <td className={`py-1 ${it.hecho ? "line-through" : ""}`}>
-                          {it.datos.cuenta ?? it.etiqueta}
-                        </td>
-                        <td className="py-1 text-[var(--t-text-muted)]">
-                          {it.datos.moneda}
-                        </td>
-                        <td className="py-1 text-right tabular-nums font-semibold"
-                            style={{ color: neg ? "var(--t-neg)" : "var(--t-pos)" }}>
-                          {(it.datos.saldo ?? 0).toLocaleString("es-AR",
-                            { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        {/* CUÁNDO se marcó. El user pidió que persista con su
-                            hora — y verla es lo que hace que se note que quedó
-                            registrado, no solo tildado. */}
-                        <td className="py-1 text-[9px] text-[var(--t-text-dim)] tabular-nums">
-                          {it.hecho_at
-                            ? new Date(it.hecho_at).toLocaleTimeString("es-AR",
-                                { hour: "2-digit", minute: "2-digit" })
-                            : ""}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            {/* ── CUATRO CUADRANTES ────────────────────────────────────
+                ARS a la izquierda, dólares a la derecha, 50 y 50. Arriba lo
+                positivo, abajo lo negativo. El encabezado CUENTA · SALDO va UNA
+                vez por columna y no se repite abajo — el user lo pidió así y
+                tiene razón: repetirlo parte visualmente algo que es una sola
+                tabla.
+
+                Top 5 por cuadrante, los que más pesan. Es lo que hay que
+                atender hoy; el resto está en SALDOS y el detalle lo dice. */}
+            <div className="overflow-y-auto px-4 py-2 grid grid-cols-2 gap-x-6">
+              {(["ARS", "USD"] as const).map((grupo) => {
+                const del = (urgente.items ?? []).filter(
+                  (i) => (i.datos.grupo ?? "ARS") === grupo);
+                const pos = del.filter((i) => (i.datos.saldo ?? 0) > 0);
+                const neg = del.filter((i) => (i.datos.saldo ?? 0) < 0);
+                return (
+                  <div key={grupo} className="min-w-0">
+                    <div className="flex items-baseline gap-2 pb-0.5 border-b border-[var(--t-border)]">
+                      <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+                        {grupo}
+                      </span>
+                      <span className="ml-auto text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                        cuenta
+                      </span>
+                      <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)] w-28 text-right">
+                        saldo
+                      </span>
+                    </div>
+                    {[pos, neg].map((bloque, bi) => (
+                      <div key={bi} className={bi ? "mt-2" : ""}>
+                        {bloque.length === 0 ? (
+                          <p className="text-[9px] text-[var(--t-text-dim)] py-1">
+                            sin {bi ? "descubiertos" : "saldos a favor"}
+                          </p>
+                        ) : bloque.map((it) => {
+                          const neg2 = (it.datos.saldo ?? 0) < 0;
+                          return (
+                            <div key={it.id}
+                                 className={`flex items-baseline gap-2 py-0.5 ${
+                                   it.hecho ? "opacity-45" : ""}`}>
+                              <input
+                                type="checkbox" checked={it.hecho}
+                                onChange={() => void marcarItem(it.id, !it.hecho)}
+                                className="cursor-pointer shrink-0"
+                              />
+                              <span className={`text-[10px] truncate flex-1 min-w-0 ${
+                                    it.hecho ? "line-through" : ""}`}
+                                    title={`${it.datos.cuenta} · ${it.datos.moneda}`}>
+                                {it.datos.cuenta ?? it.etiqueta}
+                              </span>
+                              {/* La MONEDA exacta: adentro de USD conviven USD,
+                                  USDL y USDC (billete y cable) y no son lo
+                                  mismo. Agruparlas sin decir cuál es sería
+                                  perderlas. */}
+                              {it.datos.moneda !== grupo && (
+                                <span className="text-[8px] text-[var(--t-text-dim)] shrink-0">
+                                  {it.datos.moneda}
+                                </span>
+                              )}
+                              <span className="text-[10px] tabular-nums font-semibold w-28 text-right shrink-0"
+                                    style={{ color: neg2 ? "var(--t-neg)" : "var(--t-pos)" }}>
+                                {(it.datos.saldo ?? 0).toLocaleString("es-AR",
+                                  { minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2 })}
+                              </span>
+                              <span className="text-[8px] text-[var(--t-text-dim)] tabular-nums w-8 shrink-0">
+                                {it.hecho_at
+                                  ? new Date(it.hecho_at).toLocaleTimeString("es-AR",
+                                      { hour: "2-digit", minute: "2-digit" })
+                                  : ""}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
             <div className="flex items-center gap-3 px-4 py-2 border-t border-[var(--t-border)]">
               <span className="text-[9px] text-[var(--t-text-dim)]">
