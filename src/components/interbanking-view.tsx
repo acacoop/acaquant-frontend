@@ -2914,7 +2914,12 @@ function ModalConciliar({
    * ⚠️ Se guarda la DESCRIPCIÓN tal como viene de SU lado: si el movimiento
    * sobra en el mayor, como lo escribe HYGIRUS; si falta, como lo escribe el
    * banco. Es lo que lo hace encontrable en el sistema donde hay que ir a
-   * arreglarlo — traducirlo sería obligar a buscar a ciegas. */
+   * arreglarlo — traducirlo sería obligar a buscar a ciegas.
+   *
+   * ⚠️ Y viaja `mov_ref` con la identidad del movimiento. Sin eso, dos
+   * movimientos distintos que se escriben igual (dos `N/C - CRED REVERSO PASE E`
+   * de $50.000 el mismo día) se pisaban entre sí en la base y quedaba anotado
+   * uno solo, por la mitad de la diferencia. */
   async function confirmar(c: Candidato) {
     if (!cuentaId) return;
     setBusy(true); setErr(null);
@@ -2925,7 +2930,7 @@ function ModalConciliar({
         body: JSON.stringify({
           cuenta_id: Number(cuentaId), fecha, accion: c.accion,
           descripcion: m.descripcion, importe: m.importe_firmado,
-          diferencia: res?.diferencia ?? null,
+          diferencia: res?.diferencia ?? null, mov_ref: m.mov_hash,
         }),
       });
       if (!r.ok) {
