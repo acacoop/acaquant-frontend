@@ -49,6 +49,18 @@ type Aviso = {
 // app está de fondo. Con el espacio adentro, para poder sacarlo por largo exacto.
 const MARCA = "(!) ";
 
+// ⚠️ **UNA SOLA DEFINICIÓN DE COLUMNAS, para el título Y para las filas.**
+//
+// Antes el encabezado era un `flex` con `ml-auto` y las filas eran otra cosa
+// (checkbox + `flex-1` + ancho fijo + la hora). Dos estructuras distintas no
+// pueden quedar alineadas por casualidad, y no quedaban: CUENTA terminaba pegado
+// a SALDO y SALDO caía corrido por el ancho de la columna de la hora. Con la
+// misma grilla en los dos, la alineación es por construcción — no se puede
+// romper tocando una sola de las dos partes.
+//
+//   0.9rem  el checkbox    1fr  la cuenta    7rem  el saldo    2rem  la hora
+const COLS = "grid grid-cols-[0.9rem_1fr_7rem_2rem] gap-2 items-baseline";
+
 export function MisAvisos() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [abierto, setAbierto] = useState(false);
@@ -212,16 +224,22 @@ export function MisAvisos() {
                 const neg = del.filter((i) => (i.datos.saldo ?? 0) < 0);
                 return (
                   <div key={grupo} className="min-w-0">
-                    <div className="flex items-baseline gap-2 pb-0.5 border-b border-[var(--t-border)]">
-                      <span className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
-                        {grupo}
-                      </span>
-                      <span className="ml-auto text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                    {/* La MONEDA va un escalón arriba (pedido del user): es el
+                        nombre del bloque, no una columna de la tabla. Poniéndola
+                        en la misma línea empujaba a CUENTA y SALDO fuera de sus
+                        columnas. */}
+                    <p className="text-[10px] font-semibold tracking-widest text-[var(--t-accent)]">
+                      {grupo}
+                    </p>
+                    <div className={`${COLS} pb-0.5 border-b border-[var(--t-border)]`}>
+                      <span />
+                      <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)]">
                         cuenta
                       </span>
-                      <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)] w-28 text-right">
+                      <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-dim)] text-right">
                         saldo
                       </span>
+                      <span />
                     </div>
                     {[pos, neg].map((bloque, bi) => (
                       <div key={bi} className={bi ? "mt-2" : ""}>
@@ -233,14 +251,14 @@ export function MisAvisos() {
                           const neg2 = (it.datos.saldo ?? 0) < 0;
                           return (
                             <div key={it.id}
-                                 className={`flex items-baseline gap-2 py-0.5 ${
+                                 className={`${COLS} py-0.5 ${
                                    it.hecho ? "opacity-45" : ""}`}>
                               <input
                                 type="checkbox" checked={it.hecho}
                                 onChange={() => void marcarItem(it.id, !it.hecho)}
-                                className="cursor-pointer shrink-0"
+                                className="cursor-pointer"
                               />
-                              <span className={`text-[10px] truncate flex-1 min-w-0 ${
+                              <span className={`text-[10px] truncate min-w-0 ${
                                     it.hecho ? "line-through" : ""}`}
                                     title={`${it.datos.cuenta} · ${it.datos.moneda}`}>
                                 {it.datos.cuenta ?? it.etiqueta}
@@ -253,13 +271,13 @@ export function MisAvisos() {
                                   número que no existe: cable y billete no se
                                   suman. Las otras dos quedan fuera y el detalle
                                   del mensaje dice cuántas son. */}
-                              <span className="text-[10px] tabular-nums font-semibold w-28 text-right shrink-0"
+                              <span className="text-[10px] tabular-nums font-semibold text-right"
                                     style={{ color: neg2 ? "var(--t-neg)" : "var(--t-pos)" }}>
                                 {(it.datos.saldo ?? 0).toLocaleString("es-AR",
                                   { minimumFractionDigits: 2,
                                     maximumFractionDigits: 2 })}
                               </span>
-                              <span className="text-[8px] text-[var(--t-text-dim)] tabular-nums w-8 shrink-0">
+                              <span className="text-[8px] text-[var(--t-text-dim)] tabular-nums">
                                 {it.hecho_at
                                   ? new Date(it.hecho_at).toLocaleTimeString("es-AR",
                                       { hour: "2-digit", minute: "2-digit" })
