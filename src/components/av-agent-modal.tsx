@@ -78,6 +78,11 @@ type Hallazgo = {
   // DISTINTO de 0 votos (eso sí es un dato: nadie juzgó nunca esta regla).
   confianza?: { humanos: number; aciertos: number; votos: number;
                 precision: number | null; suficiente: boolean } | null;
+  // ¿YA SE VOTÓ este par (caso, causa)? Lo manda el backend leyendo el eval
+  // set. Sin esto los botones ¿ACERTÓ? reaparecen en cada rueda sobre lo
+  // mismo — los BOPREALes llegaron a 17/17 y el user tuvo que verlos de nuevo.
+  ya_votado?: boolean;
+  voto?: boolean;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -2047,14 +2052,22 @@ function Confianza({ c }: { c: Hallazgo["confianza"] }) {
 //  · **Votar NO cambia nada del sistema.** No re-clasifica el hallazgo ni corrige
 //    el dato: es una anotación sobre el AGENTE, no sobre el bono. Mezclarlas
 //    haría que corregir el diagnóstico parezca arreglar el problema.
-//  · **Se puede votar el mismo caso muchas veces y todas quedan.** Si el agente
-//    cambia de opinión sobre LOC6O dentro de un mes, la historia de los dos
-//    juicios es justamente lo que dice si mejoró.
+//  · **UNA VEZ POR PAR (caso, causa), no una por rueda.** El user, con los
+//    BOPREALes en 17/17 y los botones ahí otra vez: *«¡otra vez lo mismo, ya lo
+//    completé 40 veces y sigue apareciendo!»*. El HALLAZGO reaparece cada rueda
+//    y eso está bien —el problema sigue— pero el VOTO mide al AGENTE, no al día:
+//    repetirlo no agrega un dato y convierte la pantalla en un formulario que
+//    hay que volver a llenar todas las mañanas. El backend manda `ya_votado` y
+//    acá se muestra el voto en vez de volver a preguntar. Si el agente cambia de
+//    CAUSA es un par nuevo y sí se pregunta; y CAMBIAR el voto sigue estando a
+//    un click, porque un voto que no se puede corregir queda mal para siempre.
 function Voto({ h }: { h: Hallazgo }) {
-  const [estado, setEstado] = useState<"" | "si" | "no" | "listo" | "error">("");
+  const [estado, setEstado] = useState<"" | "si" | "no" | "listo" | "error">(
+    h.ya_votado ? "listo" : "");
   const [motivo, setMotivo] = useState("");
   const [causa, setCausa] = useState("");
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState(
+    h.ya_votado ? (h.voto ? "✔ ya votaste: acertó" : "✖ ya votaste: no acertó") : "");
 
   const enviar = useCallback(async (acierta: boolean) => {
     setMsg("");
