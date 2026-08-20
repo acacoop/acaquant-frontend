@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { usePoll } from "@/lib/use-poll";
 
 /**
@@ -126,6 +126,10 @@ import { usePoll } from "@/lib/use-poll";
  *    movimientos — sus descripciones y comprobantes no tienen NADA en común con
  *    los del banco (`[Op. 1130699] bco a bco` contra `TRANSF.O/BANCOS MISMO
  *    TIT`), así que cruzarlos por texto no era una opción.
+ *
+ *    Los dos detalles se ven en MOVIMIENTOS (uno por uno) o en CONSOLIDADO
+ *    (juntados por concepto, con la suma y desplegables). El toggle es uno solo
+ *    para las dos tablas y el TOTAL no cambia entre vistas.
  *
  *    ⚠️ El navegador no interpreta el archivo: solo lo convierte en filas y
  *    columnas crudas y las manda. Qué columna es el saldo y cómo se lee la
@@ -378,15 +382,29 @@ type RespConciliacion = {
    *  banco y los del mayor no tienen NADA en común en fechas ni comprobantes
    *  (`[Op. 1130699] bco a bco` contra `TRANSF.O/BANCOS MISMO TIT`), así que
    *  ponerlos al lado invitaría a cruzarlos por donde no se puede. Lo único que
-   *  se compara de verdad es el IMPORTE. */
-  banco_movimientos: { descripcion: string; importe: number }[];
+   *  se compara de verdad es el IMPORTE.
+   *
+   *  `grupo` es la clave del CONSOLIDADO y la calcula el BACKEND: qué se
+   *  considera «el mismo movimiento» es un criterio de negocio y vive testeado
+   *  allá, no acá. Del lado del mayor NO es el concepto (que trae el número de
+   *  asiento y el del comprobante, y por eso es único fila por fila). */
+  banco_movimientos: {
+    descripcion: string; grupo: string; concepto: string; importe: number }[];
   banco_suma: number;
-  mayor_movimientos: { concepto: string; importe: number; fila: number }[];
+  mayor_movimientos: {
+    concepto: string; grupo: string; importe: number; fila: number }[];
   mayor_suma: number;
   /** El margen con que se buscó la explicación. Se muestra: un criterio que
    *  decide qué aparece en pantalla no puede vivir escondido en el código. */
   tolerancia: number | null;
 };
+
+/** Una fila de cualquiera de los dos lados de la conciliación. `grupo` es la
+ *  clave con que se consolida y `detalle` el texto largo que se ve al abrir el
+ *  grupo (del lado del banco, el concepto de Interbanking, que es distinto de
+ *  la descripción truncada que manda el banco). */
+type FilaLado = {
+  texto: string; importe: number; grupo: string; detalle?: string };
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
   fecha: "", conectados: [], puede_escribir: false, desglose: [], bancos: [], cuentas: 0,
@@ -2871,6 +2889,8 @@ function ModalConciliar({
   const [res, setRes] = useState<RespConciliacion | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Detalle o consolidado por concepto. Uno solo para las dos tablas.
+  const [vista, setVista] = useState<"movimientos" | "consolidado">("movimientos");
   // Qué explicaciones ya se anotaron. Se marca en la pantalla para que nadie
   // confirme dos veces lo mismo mirando la misma lista.
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
@@ -3091,20 +3111,51 @@ function ModalConciliar({
                   - …`) y la descripción del banco entra en una línea. Partir al
                   50% dejaba aire de sobra a la izquierda y cortaba justo lo que
                   hay que leer a la derecha. */}
+              {/* ⚠️ El toggle es UNO SOLO para las dos tablas. Con uno por lado
+                  se podía quedar mirando un detalle contra un consolidado, que
+                  es justo la comparación que no significa nada. */}
+              <div className="flex items-center gap-1">
+                {(["movimientos", "consolidado"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setVista(v)}
+                    className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border ${
+                      vista === v
+                        ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                        : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:bg-[var(--t-surface)]"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+                <Ayuda texto={
+                  "CONSOLIDADO junta los movimientos por concepto y suma los "
+                  + "importes. Clic en un renglón lo abre y muestra los "
+                  + "movimientos que lo componen.\n\n"
+                  + "El concepto del mayor viene con el número de asiento y el "
+                  + "del comprobante adentro, que cambian en cada fila; se "
+                  + "agrupa por el TIPO (Depósito, Extracción, …).\n\n"
+                  + "El TOTAL de cada lado es el mismo en las dos vistas."
+                } />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-[minmax(0,4fr)_minmax(0,6fr)] gap-3">
                 <LadoConciliacion
                   titulo="Movimientos del banco"
                   filas={res.banco_movimientos.map((m) => ({
-                    texto: m.descripcion, importe: m.importe }))}
+                    texto: m.descripcion, importe: m.importe, grupo: m.grupo,
+                    detalle: m.concepto || m.descripcion }))}
                   suma={res.banco_suma}
                   moneda={moneda}
+                  consolidado={vista === "consolidado"}
                 />
                 <LadoConciliacion
                   titulo="Movimientos del mayor"
                   filas={res.mayor_movimientos.map((m) => ({
-                    texto: m.concepto, importe: m.importe }))}
+                    texto: m.concepto, importe: m.importe, grupo: m.grupo }))}
                   suma={res.mayor_suma}
                   moneda={moneda}
+                  consolidado={vista === "consolidado"}
                 />
               </div>
 
@@ -3258,25 +3309,92 @@ function Numero({
  * los dos lados A LA VEZ. Con fechas, comprobantes y códigos, cada lista ocuparía
  * la pantalla entera y habría que scrollear para comparar, que es exactamente lo
  * que no sirve.
+ *
+ * En CONSOLIDADO junta las filas por `grupo` y suma. La clave la calcula el
+ * backend: acá no se decide qué es «el mismo movimiento», solo se suma.
+ *
+ * ⚠️ El TOTAL de abajo es el mismo en las dos vistas —sale de `suma`, no de lo
+ * que se está mostrando—. Cambiar de pestaña no puede cambiar el número.
  */
 function LadoConciliacion({
-  titulo, filas, suma, moneda,
+  titulo, filas, suma, moneda, consolidado,
 }: {
   titulo: string;
-  filas: { texto: string; importe: number }[];
+  filas: FilaLado[];
   suma: number;
   moneda: string;
+  consolidado: boolean;
 }) {
+  const [abierto, setAbierto] = useState<Record<string, boolean>>({});
+
+  // Ordenado por importe absoluto: lo grande arriba. Alfabético dejaría el
+  // movimiento de mil millones abajo de todo por empezar con T.
+  const grupos = useMemo(() => {
+    const m = new Map<string, { clave: string; total: number; items: FilaLado[] }>();
+    for (const f of filas) {
+      const g = m.get(f.grupo) ?? { clave: f.grupo, total: 0, items: [] };
+      g.total = Math.round((g.total + f.importe) * 100) / 100;
+      g.items.push(f);
+      m.set(f.grupo, g);
+    }
+    return [...m.values()].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
+  }, [filas]);
+
   return (
     <div className="border border-[var(--t-border-2)]">
       <div className="px-2 py-1 bg-[var(--t-surface-2)] flex items-center gap-2 text-[11px] border-b border-[var(--t-border-2)]">
         <span className="uppercase tracking-wide">{titulo}</span>
-        <span className="text-[var(--t-text-dim)]">{filas.length}</span>
+        <span className="text-[var(--t-text-dim)]">
+          {consolidado
+            ? `${grupos.length} concepto${grupos.length === 1 ? "" : "s"} · ${filas.length} mov`
+            : filas.length}
+        </span>
       </div>
       <div className="max-h-[300px] overflow-auto">
         <table className="w-full border-collapse">
           <tbody>
-            {filas.map((f, i) => (
+            {consolidado && grupos.map((g) => (
+              <Fragment key={g.clave}>
+                <tr
+                  onClick={() => setAbierto((p) => ({ ...p, [g.clave]: !p[g.clave] }))}
+                  className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface)]"
+                  title="Ver los movimientos que lo componen"
+                >
+                  {/* Sin `copiar` en el renglón del grupo: el clic acá es
+                      DESPLEGAR, y una celda que además copia haría las dos
+                      cosas de un mismo clic. Los movimientos de adentro sí. */}
+                  <Td pad="px-1.5 py-[2px]" className="text-[10px] w-full leading-[1.15] break-words">
+                    <span className="text-[var(--t-text-dim)] mr-1">
+                      {abierto[g.clave] ? "▾" : "▸"}
+                    </span>
+                    {g.clave}
+                    <span className="ml-1.5 text-[var(--t-text-dim)]">×{g.items.length}</span>
+                  </Td>
+                  <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums font-semibold ${
+                    g.total < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+                  }`}>
+                    {plata(g.total)}
+                  </Td>
+                </tr>
+                {abierto[g.clave] && g.items.map((f, i) => (
+                  <tr key={i} className="border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+                    <Td
+                      copiar={f.texto}
+                      pad="pl-5 pr-1.5 py-[2px]"
+                      className="text-[10px] w-full leading-[1.15] break-words text-[var(--t-text-dim)]"
+                    >
+                      {f.detalle || f.texto}
+                    </Td>
+                    <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums ${
+                      f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+                    }`} copiar={plata(f.importe)}>
+                      {plata(f.importe)}
+                    </Td>
+                  </tr>
+                ))}
+              </Fragment>
+            ))}
+            {!consolidado && filas.map((f, i) => (
               // `w-full` en la descripción: se lleva TODO el sobrante y el
               // importe queda pegado a la derecha. Sin eso la tabla reparte el
               // ancho por igual y quedan diez centímetros de aire entre las dos
