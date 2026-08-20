@@ -21,6 +21,21 @@ import "./globals.css";
 // request (con su cookie/headers de CF Access).
 export const dynamic = "force-dynamic";
 
+// ── QUÉ BUILD ESTÁS VIENDO ──────────────────────────────────────────────────
+// Tres veces en un día pasó lo mismo: se pushea un cambio de pantalla, el user
+// mira la app y no cambió nada, y hay que decidir a ciegas entre «hay un bug» y
+// «todavía no deployó». No es una duda menor: **buscar el bug en el lugar
+// equivocado cuesta más que el cambio.** Y la pestaña abierta agrega su propia
+// trampa — una página cargada hace horas sigue corriendo el build viejo aunque
+// Vercel ya haya publicado el nuevo, así que ni siquiera alcanza con mirar
+// Deployments.
+//
+// Con el commit a la vista la pregunta se contesta mirando: si el número no es
+// el del último push, es despliegue (o falta recargar), no código.
+//
+// Vercel lo expone solo en el build; en local no existe y dice `dev`.
+const BUILD = (process.env.VERCEL_GIT_COMMIT_SHA || "dev").slice(0, 7);
+
 export const metadata: Metadata = {
   title: "ACAQuant",
   description: "TradingAV — Terminal para mercados argentinos",
@@ -98,6 +113,10 @@ export default async function RootLayout({
         <footer className="flex items-center gap-3 h-5 px-3 bg-[var(--t-panel)] border-t border-[var(--t-border)] text-[10px] text-[var(--t-text-muted)]">
           <ThemeToggle />
           <span>ACA VALORES &middot; MERCADO DE CAPITALES</span>
+          <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums"
+                title={`Build ${BUILD}. Si no es el último commit, lo que ves es una versión anterior: recargá la página.`}>
+            {BUILD}
+          </span>
           <div className="ml-auto flex items-center gap-3">
             {/* Briefing de apertura (QuantAI P1): botón inline + modal.
                 Se auto-oculta sin módulo `ia` (decide el backend). */}
