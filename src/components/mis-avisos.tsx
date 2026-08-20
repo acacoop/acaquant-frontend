@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchJson } from "@/lib/fetch-json";
 
 /**
@@ -45,6 +45,10 @@ type Aviso = {
   items?: Item[]; pendientes?: number;
 };
 
+// Lo que se le antepone al título de la pestaña cuando hay algo esperando y la
+// app está de fondo. Con el espacio adentro, para poder sacarlo por largo exacto.
+const MARCA = "(!) ";
+
 export function MisAvisos() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [abierto, setAbierto] = useState(false);
@@ -53,7 +57,13 @@ export function MisAvisos() {
   // deja de ser un aviso. Al recargar vuelve — y vence solo a la medianoche.
   const [pospuestos, setPospuestos] = useState<Set<number>>(new Set());
 
+  // Cuándo se pidió por última vez. Alt-tab dispara `focus` cada vez, y este
+  // componente vive en la barra de TODAS las vistas: sin este freno, alguien que
+  // salta entre ventanas pega un request por salto.
+  const ultimoRef = useRef(0);
+
   const cargar = useCallback(async () => {
+    ultimoRef.current = Date.now();
     try {
       const r = await fetchJson<{ avisos?: Aviso[] }>("/api/avisos");
       setAvisos(r.avisos ?? []);
@@ -62,11 +72,53 @@ export function MisAvisos() {
     }
   }, []);
 
+  // ⚠️ **TIENE QUE APARECER SIN TOCAR NADA** (user, 2026-08-20: *«hay que
+  // actualizar la página, es decir inviable… hay gente que deja esto de fondo»*).
+  //
+  // Un `setInterval` solo NO alcanza, y el motivo no es la app: **el navegador
+  // frena los timers de una pestaña que está en segundo plano.** Chrome los baja
+  // a uno por minuto y, pasados unos minutos sin mirarla, puede congelarlos del
+  // todo. O sea que justo en el caso que el user describe —la app abierta atrás
+  // toda la tarde— el reloj es lo primero que deja de andar, y el aviso aparece
+  // recién cuando alguien recarga. Que es como no avisar.
+  //
+  // Por eso se despierta **por evento** y no solo por reloj:
+  //
+  //   · vuelve a la pestaña / a la ventana  → pide en el acto
+  //   · vuelve internet después de un corte → pide en el acto
+  //   · atrás/adelante del navegador        → pide en el acto (bfcache)
+  //
+  // Y mientras está oculta **no pide nada**: el timer no iba a correr igual, así
+  // que en vez de pelearle al navegador se apaga y se recupera al volver. Sale
+  // más barato en requests que el poll de antes y llega antes.
+  const [oculto, setOculto] = useState(false);
   useEffect(() => {
-    void cargar();
-    // 5 minutos: esto no es tiempo real, es una lista de tareas.
-    const id = setInterval(() => void cargar(), 5 * 60_000);
-    return () => clearInterval(id);
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const parar = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const despertar = () => {
+      const visible = document.visibilityState === "visible";
+      setOculto(!visible);
+      if (!visible) { parar(); return; }
+      // Al volver se pide en el acto, salvo que se acabe de pedir.
+      if (Date.now() - ultimoRef.current > 10_000) void cargar();
+      // 60s con la pantalla a la vista. Es una lista de tareas, no tiempo real,
+      // pero el de saldos sale 16:45 y el mercado cierra 17:00: con 5 minutos se
+      // perdía un tercio de la ventana esperando. El resto de la app pollea más
+      // seguido que esto (Tesorería 20s, Senebis 10s).
+      if (!timer) timer = setInterval(() => void cargar(), 60_000);
+    };
+    despertar();
+    document.addEventListener("visibilitychange", despertar);
+    window.addEventListener("focus", despertar);
+    window.addEventListener("online", despertar);
+    window.addEventListener("pageshow", despertar);
+    return () => {
+      parar();
+      document.removeEventListener("visibilitychange", despertar);
+      window.removeEventListener("focus", despertar);
+      window.removeEventListener("online", despertar);
+      window.removeEventListener("pageshow", despertar);
+    };
   }, [cargar]);
 
   const marcarItem = useCallback(async (itemId: number, hecho: boolean) => {
@@ -89,14 +141,27 @@ export function MisAvisos() {
     await cargar();
   };
 
-  // Sin nada pendiente NO se dibuja. Un indicador permanente en cero enseña a
-  // no mirarlo, y el día que diga 1 tampoco se va a mirar.
-  if (avisos.length === 0) return null;
-
   // EL QUE INTERRUMPE. Uno por vez: dos modales encimados no son el doble de
   // urgente, son ninguno.
   const urgente = avisos.find(
     (a) => a.interrumpe && !pospuestos.has(a.id) && (a.pendientes ?? 0) > 0);
+
+  // ── LA PESTAÑA AVISA ────────────────────────────────────────────────────
+  // Con la app de fondo el modal está abierto pero nadie lo está mirando. Lo
+  // único que se ve de una pestaña que no estás mirando es su TÍTULO, así que
+  // ahí va la marca. Se saca sola al volver.
+  //
+  // No se pisa el título: se le pone un prefijo y se lo quita. La vista es dueña
+  // de su nombre y este componente vive en la barra de todas.
+  useEffect(() => {
+    const limpio = document.title.startsWith(MARCA)
+      ? document.title.slice(MARCA.length) : document.title;
+    document.title = urgente && oculto ? MARCA + limpio : limpio;
+  }, [urgente, oculto]);
+
+  // Sin nada pendiente NO se dibuja. Un indicador permanente en cero enseña a
+  // no mirarlo, y el día que diga 1 tampoco se va a mirar.
+  if (avisos.length === 0) return null;
 
   return (
     <>
