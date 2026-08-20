@@ -144,6 +144,73 @@ const num = (s: string): number | null => {
 };
 const aCrudo = (n: number | null) => (n != null ? String(n).replace(".", ",") : "");
 
+// Sin acentos y en minúscula: el filtro de contraparte se tipea a mano y
+// "Argenfunds" tiene que encontrar a "ARGENFUNDS".
+const normalizar = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// La contraparte tal como se ve en la columna: interno → nº · denominación,
+// externo → nombre del agente. Es también lo que ofrece el desplegable.
+const etiquetaContraparte = (o: Orden): string =>
+  o.tipo_contraparte === "externo"
+    ? (o.agente ?? "").trim()
+    : [o.cc, o.cc_denominacion].filter(Boolean).join(" · ");
+
+// Lo que se matchea al tipear: la etiqueta + los números (agente / cuenta),
+// para poder buscar tanto por nombre como por número.
+const buscableContraparte = (o: Orden) =>
+  normalizar([etiquetaContraparte(o), o.agente_numero, o.cc, o.nro_contraparte,
+              o.contraparte].filter(Boolean).join(" "));
+
+// ── Orden de las columnas de la tab ÓRDENES ───────────────────────────────
+type ColOrden =
+  | "estado" | "id" | "operacion" | "concertacion" | "liquidacion" | "plazo"
+  | "especie" | "vn" | "px" | "monto" | "contraparte" | "cp" | "mercado"
+  | "obs" | "cargo";
+type Sort = { col: ColOrden; dir: "asc" | "desc" };
+
+const VALOR_COL: Record<ColOrden, (o: Orden) => string | number | null> = {
+  estado: (o) => o.estado,
+  id: (o) => o.id,
+  operacion: (o) => o.operacion,
+  concertacion: (o) => o.concertacion,
+  liquidacion: (o) => o.liquidacion,
+  plazo: (o) => o.plazo,
+  especie: (o) => o.especie,
+  vn: (o) => o.vn,
+  px: (o) => o.px,
+  monto: (o) => o.monto,
+  contraparte: (o) => etiquetaContraparte(o),
+  cp: (o) => o.cp,
+  mercado: (o) => o.mercado,
+  obs: (o) => (o.es_mae ? "MAE" : o.cargan_ellos ? "ELLOS" : o.tipo),
+  cargo: (o) => o.creado_por,
+};
+
+// Numérico si LOS DOS valores son números (cubre cp/plazo, que son texto pero
+// suelen tener números adentro); si no, alfabético en español.
+const cmpValor = (a: string | number, b: string | number) => {
+  const na = typeof a === "number" ? a : Number(String(a).replace(",", "."));
+  const nb = typeof b === "number" ? b : Number(String(b).replace(",", "."));
+  if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+  return String(a).localeCompare(String(b), "es");
+};
+
+const ordenarPor = (filas: Orden[], sort: Sort | null): Orden[] => {
+  if (!sort) return filas;
+  const valor = VALOR_COL[sort.col];
+  const dir = sort.dir === "asc" ? 1 : -1;
+  return [...filas].sort((a, b) => {
+    const va = valor(a);
+    const vb = valor(b);
+    // Los vacíos van SIEMPRE al final, en los dos sentidos.
+    const na = va == null || va === "";
+    const nb = vb == null || vb === "";
+    if (na || nb) return na && nb ? 0 : na ? 1 : -1;
+    return dir * cmpValor(va, vb);
+  });
+};
+
 // Nombres lindos de los campos para el tooltip de las marcas de edición.
 const LABEL_CAMPO: Record<string, string> = {
   operacion: "operación", concertacion: "concertación", liquidacion: "liquidación",
@@ -798,6 +865,10 @@ export function SenebisView() {
   const [fEstado, setFEstado] = useState<"" | "pendiente" | "completada">("");
   // MAE: "" = todas (con MAE) · "sin" = excluir MAE · "solo" = solo MAE.
   const [fMae, setFMae] = usePersistedState<"" | "sin" | "solo">("senebis.mae", "");
+  // CONTRAPARTE: se aplica en el front, SOLO a la tab ÓRDENES (los espejos son
+  // el archivo tal cual). Cuelga de los otros filtros: las opciones salen de lo
+  // que ya devolvió el backend para fecha/estado/MAE.
+  const [fContraparte, setFContraparte] = useState("");
 
   const [data, setData] = useState<OpsResp | null>(null);
   const [excel, setExcel] = useState<ExcelResp | null>(null);
@@ -1004,6 +1075,30 @@ export function SenebisView() {
   const conectados = data?.conectados ?? [];
   const ordenes = data?.ordenes ?? [];
 
+  // Opciones del filtro de contraparte: las que EXISTEN en lo que hoy trae la
+  // vista (con su conteo), no un catálogo aparte.
+  const opcionesContraparte = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of ordenes) {
+      const l = etiquetaContraparte(o) || "—";
+      m.set(l, (m.get(l) ?? 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([label, n]) => ({ label, n }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, [ordenes]);
+
+  // Lo que ve la tab ÓRDENES. Los espejos siguen recibiendo la lista completa:
+  // ahí `ordenes` es solo el mapa id→orden para poder editar.
+  const ordenesVisibles = useMemo(() => {
+    const q = normalizar(fContraparte.trim());
+    if (!q) return ordenes;
+    return ordenes.filter((o) => buscableContraparte(o).includes(q));
+  }, [ordenes, fContraparte]);
+  const pendientes = useMemo(
+    () => ordenesVisibles.filter((o) => o.estado === "pendiente").length,
+    [ordenesVisibles]);
+
   return (
     <div className="h-full flex flex-col min-h-0">
       {/* Header: sub-tabs + filtros + presencia + acciones */}
@@ -1023,7 +1118,7 @@ export function SenebisView() {
           <FiltroGrupo label="Estado">
             <Chip active={fEstado === ""} onClick={() => setFEstado("")}>TODAS</Chip>
             <Chip active={fEstado === "pendiente"} onClick={() => setFEstado("pendiente")}>
-              PENDIENTES{data ? ` (${data.pendientes})` : ""}
+              PENDIENTES{data ? ` (${pendientes})` : ""}
             </Chip>
             <Chip active={fEstado === "completada"} onClick={() => setFEstado("completada")}>COMPLETADAS</Chip>
           </FiltroGrupo>
@@ -1033,6 +1128,11 @@ export function SenebisView() {
             <Chip active={fMae === "sin"} onClick={() => setFMae("sin")}>SIN</Chip>
             <Chip active={fMae === "solo"} onClick={() => setFMae("solo")}>SOLO</Chip>
           </FiltroGrupo>
+          {/* Solo afecta a la tab ÓRDENES (los espejos son el archivo tal cual). */}
+          <FiltroContraparte
+            valor={fContraparte} onCambio={setFContraparte}
+            opciones={opcionesContraparte} deshabilitado={tab !== "ordenes"}
+          />
         </div>
 
         <div className="ml-auto flex items-center gap-3">
@@ -1085,7 +1185,7 @@ export function SenebisView() {
       <div className="flex-1 min-h-0 overflow-auto">
         {tab === "ordenes" ? (
           <TablaOrdenes
-            ordenes={ordenes} busyId={busyId} puedeEscribir={puedeEscribir} esAdmin={esAdmin}
+            ordenes={ordenesVisibles} busyId={busyId} puedeEscribir={puedeEscribir} esAdmin={esAdmin}
             onEstado={toggleEstado} onEditar={abrirEdicion} onVisto={marcarVisto}
           />
         ) : tab === "quantex" ? (
@@ -1143,30 +1243,41 @@ function TablaOrdenes({ ordenes, busyId, puedeEscribir, esAdmin, onEstado, onEdi
   // a la izquierda y números a la derecha el valor quedaba lejos de su columna.
   const TH = "text-center text-[9px] uppercase text-[var(--t-text-muted)] px-2 py-1 whitespace-nowrap";
   const TD = "px-2 py-1 text-[11px] whitespace-nowrap text-center";
+  // Click en el header: asc → desc → sin orden (vuelve al orden del backend,
+  // más nuevas primero).
+  const [sort, setSort] = usePersistedState<Sort | null>("senebis.ordenes.sort", null);
+  const alOrdenar = (col: ColOrden) =>
+    setSort((p) =>
+      p?.col !== col ? { col, dir: "asc" }
+        : p.dir === "asc" ? { col, dir: "desc" } : null);
+  const filas = useMemo(() => ordenarPor(ordenes, sort), [ordenes, sort]);
+  const th = (col: ColOrden, label: string) => (
+    <ThOrden col={col} label={label} sort={sort} onSort={alOrdenar} className={TH} />
+  );
   return (
     <table className="w-full border-collapse">
       <thead className="sticky top-0 bg-[var(--t-panel)] z-10">
         <tr className="border-b border-[var(--t-border)]">
-          <th className={TH}>Estado</th>
-          <th className={TH}>ID</th>
-          <th className={TH}>Operación</th>
-          <th className={TH}>Concert.</th>
-          <th className={TH}>Liquid.</th>
-          <th className={TH}>Plazo</th>
-          <th className={TH}>Especie</th>
-          <th className={TH}>VN</th>
-          <th className={TH}>PX</th>
-          <th className={TH}>Monto</th>
-          <th className={TH}>Contraparte</th>
-          <th className={TH}>CP</th>
-          <th className={TH}>Mercado</th>
-          <th className={TH}>Obs</th>
-          <th className={TH}>Cargó</th>
+          {th("estado", "Estado")}
+          {th("id", "ID")}
+          {th("operacion", "Operación")}
+          {th("concertacion", "Concert.")}
+          {th("liquidacion", "Liquid.")}
+          {th("plazo", "Plazo")}
+          {th("especie", "Especie")}
+          {th("vn", "VN")}
+          {th("px", "PX")}
+          {th("monto", "Monto")}
+          {th("contraparte", "Contraparte")}
+          {th("cp", "CP")}
+          {th("mercado", "Mercado")}
+          {th("obs", "Obs")}
+          {th("cargo", "Cargó")}
           <th className={TH} />
         </tr>
       </thead>
       <tbody>
-        {ordenes.map((o) => {
+        {filas.map((o) => {
           const pend = o.estado === "pendiente";
           // El estado de un día anterior no se toca (server-side igual lo
           // rechaza) — solo admin, como corrección consciente.
@@ -1500,6 +1611,98 @@ function FiltroGrupo({ label, children }: { label: string; children: React.React
       <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-muted)]">{label}</span>
       <div className="flex border border-[var(--t-border-2)] divide-x divide-[var(--t-border-2)]">
         {children}
+      </div>
+    </div>
+  );
+}
+
+/** Header ordenable de la tab ÓRDENES: asc → desc → sin orden. La flecha
+ *  apagada está SIEMPRE para que se vea que la columna se puede ordenar. */
+function ThOrden({ col, label, sort, onSort, className }: {
+  col: ColOrden; label: string; sort: Sort | null;
+  onSort: (c: ColOrden) => void; className: string;
+}) {
+  const activo = sort?.col === col;
+  return (
+    <th
+      onClick={() => onSort(col)}
+      title={activo
+        ? `ordenado por ${label} (${sort!.dir === "asc" ? "menor a mayor" : "mayor a menor"}) — click para cambiar`
+        : `ordenar por ${label}`}
+      className={`${className} cursor-pointer select-none hover:text-[var(--t-text)]`}
+    >
+      {label}
+      <span className={`ml-0.5 ${activo ? "text-[var(--t-accent)]" : "opacity-25"}`}>
+        {activo && sort!.dir === "desc" ? "▼" : "▲"}
+      </span>
+    </th>
+  );
+}
+
+/** Filtro por CONTRAPARTE de la tab ÓRDENES: se escribe libre (matchea nombre
+ *  o número) y el desplegable ofrece solo las que hay en el filtro actual. */
+function FiltroContraparte({ valor, onCambio, opciones, deshabilitado }: {
+  valor: string;
+  onCambio: (v: string) => void;
+  opciones: { label: string; n: number }[];
+  deshabilitado?: boolean;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const q = normalizar(valor.trim());
+  const vistas = q ? opciones.filter((o) => normalizar(o.label).includes(q)) : opciones;
+  return (
+    <div className={`flex items-center gap-1.5 ${deshabilitado ? "opacity-40" : ""}`}>
+      <span className="text-[8px] uppercase tracking-widest text-[var(--t-text-muted)]">Contraparte</span>
+      <div className="relative">
+        <input
+          value={valor}
+          disabled={deshabilitado}
+          placeholder="TODAS"
+          title={deshabilitado
+            ? "el filtro de contraparte aplica a la tab ÓRDENES (los espejos muestran el archivo tal cual)"
+            : "escribí nombre o número — respeta los filtros de fecha, estado y MAE"}
+          onChange={(e) => { onCambio(e.target.value); setAbierto(true); }}
+          onFocus={() => setAbierto(true)}
+          onBlur={() => setTimeout(() => setAbierto(false), 200)}
+          onKeyDown={(e) => { if (e.key === "Escape") { onCambio(""); setAbierto(false); } }}
+          className="bg-[var(--t-panel)] border border-[var(--t-border-2)] text-[9px] uppercase pl-1.5 pr-5 py-0.5 w-[170px] text-[var(--t-text)] placeholder:text-[var(--t-text-muted)] focus:border-[var(--t-accent)] focus:outline-none"
+        />
+        {!!valor && (
+          <button
+            onMouseDown={(e) => { e.preventDefault(); onCambio(""); }}
+            title="quitar el filtro"
+            className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-[var(--t-text-dim)] hover:text-[var(--t-neg)]"
+          >
+            ✕
+          </button>
+        )}
+        {abierto && !deshabilitado && (
+          <div className="absolute z-30 top-full left-0 min-w-full w-max max-w-[320px] max-h-56 overflow-y-auto border border-[var(--t-accent)] bg-[var(--t-panel)] shadow-lg">
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onCambio(""); setAbierto(false); }}
+              className="block w-full text-left px-2 py-1 text-[10px] uppercase text-[var(--t-text-dim)] hover:bg-[var(--t-surface)]"
+            >
+              todas
+            </button>
+            {!vistas.length && (
+              <div className="px-2 py-1 text-[10px] text-[var(--t-text-dim)]">
+                ninguna contraparte coincide en el filtro actual
+              </div>
+            )}
+            {vistas.map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); onCambio(o.label); setAbierto(false); }}
+                className="flex w-full items-center justify-between gap-3 px-2 py-1 text-[10px] text-[var(--t-text)] hover:bg-[var(--t-surface)]"
+              >
+                <span className="truncate">{o.label}</span>
+                <span className="text-[var(--t-text-dim)]">{o.n}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
