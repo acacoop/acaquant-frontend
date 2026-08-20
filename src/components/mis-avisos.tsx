@@ -112,19 +112,24 @@ export function MisAvisos() {
       {urgente && (
         <div className="fixed inset-0 z-[90] bg-black/70 flex items-center justify-center p-4">
           <div className="w-[1100px] max-w-[97vw] bg-[var(--t-panel)] border border-[var(--t-accent)] shadow-2xl flex flex-col max-h-[86vh]">
-            <div className="flex items-baseline gap-2 px-4 py-2 border-b border-[var(--t-border)]">
-              <span className="text-[11px] font-semibold tracking-widest text-[var(--t-accent)]">
-                {urgente.que_hacer}
-              </span>
-              <span className="ml-auto text-[10px] tabular-nums text-[var(--t-text-dim)]">
-                {urgente.pendientes} sin marcar de {urgente.items?.length ?? 0}
-              </span>
-            </div>
-            {urgente.por_que && (
-              <p className="px-4 pt-2 text-[10px] text-[var(--t-text-muted)]">
-                {urgente.por_que}
+            {/* ── DOS LÍNEAS Y NADA MÁS ────────────────────────────────
+                Pedido del user (2026-08-20): quién manda, qué pasa, y abajo las
+                tablas. Antes había un título que contaba («46 cuenta(s) tuyas
+                EN DESCUBIERTO»), un contador arriba a la derecha y un párrafo
+                explicando cómo usar la grilla — tres bloques de texto antes de
+                lo único que hay que mirar. **El modal se abre para actuar, no
+                para leer.**
+
+                Los números NO se borraron: el contador y el detalle bajaron al
+                pie, que es donde se miran cuando ya se decidió algo. */}
+            <div className="px-4 pt-2.5 pb-2 border-b border-[var(--t-border)]">
+              <p className="text-[11px] font-semibold tracking-widest text-[var(--t-accent)]">
+                AV AGENT — TENÉS UN MENSAJE NUEVO!
               </p>
-            )}
+              <p className="text-[11px] text-[var(--t-text)] mt-0.5">
+                {urgente.que_hacer}
+              </p>
+            </div>
             {/* ── CUATRO CUADRANTES ────────────────────────────────────
                 ARS a la izquierda, dólares a la derecha, 50 y 50. Arriba lo
                 positivo, abajo lo negativo. El encabezado CUENTA · SALDO va UNA
@@ -206,11 +211,18 @@ export function MisAvisos() {
             </div>
             <div className="flex items-center gap-3 px-4 py-2 border-t border-[var(--t-border)]">
               <span className="text-[9px] text-[var(--t-text-dim)]">
+                {/* Lo que quedó AFUERA se sigue diciendo — abajo. Truncar en
+                    silencio se lee como «esto es todo lo que hay», y eso no
+                    deja de ser cierto por mover el texto de lugar. */}
+                {urgente.por_que ? `${urgente.por_que} ` : ""}
                 Vale por hoy. Al marcar todas se cierra solo.
+              </span>
+              <span className="ml-auto shrink-0 text-[9px] tabular-nums text-[var(--t-text-dim)]">
+                {urgente.pendientes} sin marcar de {urgente.items?.length ?? 0}
               </span>
               <button
                 onClick={() => setPospuestos((s) => new Set(s).add(urgente.id))}
-                className="ml-auto text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+                className="shrink-0 text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
               >
                 lo veo en un rato
               </button>
