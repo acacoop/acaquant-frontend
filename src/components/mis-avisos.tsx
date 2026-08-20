@@ -175,15 +175,14 @@ export function MisAvisos() {
                                     title={`${it.datos.cuenta} · ${it.datos.moneda}`}>
                                 {it.datos.cuenta ?? it.etiqueta}
                               </span>
-                              {/* La MONEDA exacta: adentro de USD conviven USD,
-                                  USDL y USDC (billete y cable) y no son lo
-                                  mismo. Agruparlas sin decir cuál es sería
-                                  perderlas. */}
-                              {it.datos.moneda !== grupo && (
-                                <span className="text-[8px] text-[var(--t-text-dim)] shrink-0">
-                                  {it.datos.moneda}
-                                </span>
-                              )}
+                              {/* SIN columna de moneda: la columna YA es la
+                                  moneda. El aviso cubre solo ARS y USD (user:
+                                  «es ARS y USD, no USDC o USDL») — mi primera
+                                  versión metía USDL/USDC adentro de USD «para
+                                  que no desaparezcan», y eso hacía leer un
+                                  número que no existe: cable y billete no se
+                                  suman. Las otras dos quedan fuera y el detalle
+                                  del mensaje dice cuántas son. */}
                               <span className="text-[10px] tabular-nums font-semibold w-28 text-right shrink-0"
                                     style={{ color: neg2 ? "var(--t-neg)" : "var(--t-pos)" }}>
                                 {(it.datos.saldo ?? 0).toLocaleString("es-AR",
