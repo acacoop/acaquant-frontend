@@ -375,6 +375,18 @@ type RespConciliacion = {
   diferencia: number | null;
   concilia: boolean | null;
   movimientos_dia: number;
+  /** Los gastos que cobró el banco ese día y su reparto por impuesto. Salen de
+   *  la MISMA función que la columna del consolidado, así que son el mismo
+   *  número que muestra el modal de MOVIMIENTOS.
+   *
+   *  ⚠️ En POSITIVO (lo que se llevó el banco), al revés que los movimientos de
+   *  la lista. Es la convención del resto de INTERBANKING y se respeta para que
+   *  el número se pueda comparar entre pantallas sin darlo vuelta.
+   *
+   *  **null** sin una sola regla cargada: «no sabemos» y «no hubo gastos» son
+   *  cosas distintas. */
+  gastos: number | null;
+  gastos_desglose: Desglose | null;
   candidatos: Candidato[];
   candidatos_truncados: boolean;
   avisos: string[];
@@ -663,6 +675,7 @@ export function InterbankingView() {
       {conciliar && (
         <ModalConciliar
           bancos={resp.bancos}
+          baldes={resp.desglose}
           fecha={resp.fecha || fecha}
           puedeEscribir={resp.puede_escribir}
           onCerrar={() => setConciliar(false)}
@@ -2879,9 +2892,10 @@ function claveCand(c: Candidato) {
 }
 
 function ModalConciliar({
-  bancos, fecha, puedeEscribir, onCerrar,
+  bancos, baldes, fecha, puedeEscribir, onCerrar,
 }: {
-  bancos: Banco[]; fecha: string; puedeEscribir: boolean; onCerrar: () => void;
+  bancos: Banco[]; baldes: Balde[]; fecha: string; puedeEscribir: boolean;
+  onCerrar: () => void;
 }) {
   const [banco, setBanco] = useState("");
   const [cuentaId, setCuentaId] = useState("");
@@ -3106,6 +3120,82 @@ function ModalConciliar({
                   donde no se puede. Lo único comparable es el IMPORTE, y por eso
                   las dos columnas de números quedan alineadas a la derecha, a la
                   misma altura: el ojo hace la comparación solo. */}
+              {/* ⚠️ GASTOS BANCARIOS del lado del BANCO, con el mismo bloque que
+                  el modal de MOVIMIENTOS (mismo número, misma función que lo
+                  deriva) porque son el caso típico de «falta en el mayor»: el
+                  banco cobra la comisión y el IVA el mismo día y el sistema
+                  contable los registra al mes, o no los registra. Si la
+                  diferencia es del orden de este total, ya sabés por dónde
+                  empezar a buscar.
+
+                  Es un CORTE TRANSVERSAL de los mismos movimientos, no una
+                  parte más: por eso NO toca ninguno de los dos totales de abajo
+                  y por eso el rótulo dice de qué lado sale. */}
+              {res.gastos != null && (
+                <div className="px-2 py-1.5 border border-[var(--t-border-2)] bg-[var(--t-surface-2)] flex flex-wrap items-stretch gap-4">
+                  <div className="pr-4 border-r-2 border-[var(--t-border-2)] flex items-center">
+                    <Dato
+                      label="Gastos bancarios (banco)"
+                      valor={plata(res.gastos, moneda)}
+                      copiar={plata(res.gastos)}
+                      fuerte
+                    />
+                  </div>
+                  <div className="flex flex-col justify-center gap-1">
+                    <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+                      = suma de
+                    </span>
+                    <div className="flex flex-wrap gap-x-5 gap-y-2">
+                      {/* Solo los baldes CON importe. Los ocho en cero al lado
+                          del que sí tiene plata son ocho números que hay que
+                          descartar de a uno antes de leer el que importa. */}
+                      {baldes
+                        .filter((b) => !!res.gastos_desglose?.[b.clave])
+                        .map((b) => (
+                          <Dato
+                            key={b.clave}
+                            label={b.etiqueta}
+                            valor={plata(res.gastos_desglose?.[b.clave] ?? null)}
+                            copiar={plata(res.gastos_desglose?.[b.clave] ?? null)}
+                            chico
+                          />
+                        ))}
+                      {/* Gasto que no cayó en ningún balde: hay que verlo, no
+                          esconderlo adentro de otra celda. */}
+                      {!!res.gastos_desglose?.resto && (
+                        <Dato
+                          label="Movimientos restantes"
+                          valor={plata(res.gastos_desglose.resto)}
+                          copiar={plata(res.gastos_desglose.resto)}
+                          clase="text-[var(--t-accent)]"
+                          chico
+                        />
+                      )}
+                      {!res.gastos && (
+                        <span className="text-[11px] text-[var(--t-text-dim)]">
+                          Ningún movimiento del día está clasificado como gasto.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="ml-auto flex items-center">
+                    <Ayuda texto={
+                      "Los gastos que cobró el BANCO ese día, repartidos por "
+                      + "impuesto. Es el mismo número que muestra el modal de "
+                      + "MOVIMIENTOS: sale de las mismas reglas.\n\n"
+                      + "Va en POSITIVO (cuánto se llevó el banco), al revés "
+                      + "que los movimientos de abajo, donde un débito es "
+                      + "negativo.\n\n"
+                      + "No suma ni resta a los totales: son los mismos "
+                      + "movimientos mirados por otro corte.\n\n"
+                      + "Sirve porque es el caso típico de «falta en el mayor»: "
+                      + "el banco cobra hoy y el sistema contable lo registra "
+                      + "después."
+                    } />
+                  </div>
+                </div>
+              )}
+
               {/* ⚠️ Las dos mitades NO son iguales: el concepto del mayor es
                   larguísimo (`[Op. 1131651] Pago c/retención ganancias RG 830
                   - …`) y la descripción del banco entra en una línea. Partir al
