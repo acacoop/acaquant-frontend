@@ -96,6 +96,16 @@ type Hallazgo = {
   // juzga al agente, no arregla el dato — mezclarlos escondería un bono roto.
   // Lo decide el backend por el mismo motivo que `accion`.
   atendido?: string | null;
+  // ── LA MEMORIA DEL HALLAZGO (backend §0.bd) ────────────────────────────
+  // Hasta hoy TODO se veía «de hoy»: la foto se reescribe en cada corrida, así
+  // que un problema de hace dos semanas y uno de recién eran idénticos en
+  // pantalla. Con identidad estable el objeto acumula historia.
+  dias_abierto?: number | null;   // desde cuándo, de verdad
+  veces?: number | null;          // cuántas corridas lleva sin resolverse
+  // ⚠️ Se arregló y REAPARECIÓ. Es la señal más fuerte que hay —dice que el
+  // arreglo no sirvió— y por eso se marca aparte de la antigüedad: contarlo
+  // como «uno viejo más» la borra.
+  volvio?: boolean;
   // ⚠️ **QUÉ SE LE PUEDE PREGUNTAR A ESTA FILA.** `juicio` = el agente dedujo
   // una causa y puede errarle → ¿ACERTÓ?. `observacion` = copió un hecho (un
   // ERROR del log del motor, un 500 del proveedor) → «¿acertó?» no tiene
@@ -2013,6 +2023,24 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                 <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums truncate"
                       title={h.ticker}>
                   {h.ticker}
+                  {/* VOLVIÓ primero: gana sobre cualquier otra marca. */}
+                  {h.volvio && (
+                    <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-neg)]"
+                          title="Esto ya se había resuelto y volvió a aparecer. El arreglo no aguantó.">
+                      ↩ volvió
+                    </span>
+                  )}
+                  {/* DESDE CUÁNDO. Un problema crónico y uno de recién se
+                      atienden distinto y hasta hoy se veían igual. Se muestra
+                      solo a partir del día: «hace 4 h» no cambia ninguna
+                      decisión y ocupa lugar. */}
+                  {(h.dias_abierto ?? 0) >= 1 && (
+                    <span className="ml-1 text-[8px] font-normal text-[var(--t-text-dim)]"
+                          title={`Abierto hace ${h.dias_abierto} días · visto ${h.veces ?? 1} veces`}>
+                      {Math.round(h.dias_abierto ?? 0)}d
+                      {(h.veces ?? 0) > 1 ? ` ×${h.veces}` : ""}
+                    </span>
+                  )}
                   {h.atendido && (
                     <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-accent)]"
                           title={h.atendido === "aplicado"
