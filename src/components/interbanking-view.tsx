@@ -2987,7 +2987,9 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
         <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
           <tr className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
             <th className="text-left px-2 py-1 font-medium">Cuenta</th>
-            <ThTablero dia={dApertura} sep>Saldo inicio</ThTablero>
+            {/* «cierre» y no la fecha sola: el saldo inicial de hoy ES el cierre
+                de ayer, y con solo la fecha se lee como si fuera otra cosa. */}
+            <ThTablero dia={`cierre ${dApertura}`} sep>Saldo inicio</ThTablero>
             <ThTablero sep>Gastos</ThTablero>
             <ThTablero dia={dDia} sep>Debe</ThTablero>
             <ThTablero dia={dDia}>Haber</ThTablero>
