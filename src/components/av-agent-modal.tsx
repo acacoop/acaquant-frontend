@@ -46,7 +46,7 @@ import { fetchJson } from "@/lib/fetch-json";
 // del sistema (un cron, una tabla que quedó vieja) con las mismas ocho lentes que
 // un bono, y no escribe nada. Comparte el componente a propósito — que SALUD y un
 // bono se lean IGUAL es lo que permite que una sola cabeza mire las dos cosas.
-type Modo = "alta" | "flujos" | "arreglo" | "salud" | "sin_precio" | "pata"
+type Modo = "alta" | "flujos" | "arreglo" | "salud" | "sin_precio" | "espejo" | "pata"
   | "apuntar";
 // Devuelve una PROMESA, no `void`. Con `void` el `await` del lote no esperaba
 // nada y las 10 aplicaciones salían todas juntas: se pisan entre sí escribiendo
@@ -258,6 +258,13 @@ type Vigilado = {
   // backend por la misma razón que `recien`: el criterio tiene que ser uno solo.
   dias_abierto?: number | null;
   vuelto_at?: string | null;
+  /** El texto LARGO del hallazgo (`evidencia.texto`): qué pasó · a qué afecta ·
+   *  si sigue. Los motores lo traen desde siempre y la pantalla mostraba solo
+   *  el título recortado — el user: *«sin información, sin contexto… si tenemos
+   *  los logs tenemos los datos»*. Los datos estaban; no se dibujaban. */
+  detalle?: string;
+  /** La línea de log cruda. Es la evidencia, y va detrás de un click. */
+  muestra?: string;
 };
 
 // LO QUE PASÓ HOY. El corte por día (en hora ARGENTINA) lo hace el backend:
@@ -265,6 +272,11 @@ type Vigilado = {
 // que ser uno solo.
 type LoDeHoy = {
   desde: string;
+  /** LO QUE ESTÁ ROTO AHORA, sea o no novedad del día. Motores y proveedores:
+   *  con el corte por día, un motor roto hace tres días NO entraba — cuanto más
+   *  tiempo llevaba roto, menos visible era. Los tipos los declara el backend
+   *  (`av_agent.EN_AHORA_SIEMPRE`). */
+  roto?: Vigilado[];
   aparecio: Vigilado[];
   volvio: Vigilado[];
   se_arreglo: Vigilado[];
@@ -790,6 +802,15 @@ export function AvAgentModal() {
       ? (aplicar ? "pata/pedir" : "pata")
       : modo === "sin_precio"
       ? "sin-precio"
+      // ⚠️ **NO ES LA CADENA DE CURVAS.** `sin_espejo_en_assets` se emite con
+      // tipo `tasa_sospechosa`, así que sin este desvío DIAGNOSTICAR abría el
+      // arreglo de curvas y mostraba veinte pasos de 1816, paridad y XIRR sobre
+      // un bono cuyo problema es una fila de catálogo. El user: *«¿qué tiene que
+      // ver la paridad y la valuación? Justamente no tiene nada que ver con
+      // 1816»*. El desvío lo decide el BACKEND (`ACCION_POR_REGLA`); acá solo se
+      // enruta.
+      : modo === "espejo"
+      ? "espejo"
       : modo === "salud"
       ? "salud"
       : modo === "flujos"
@@ -810,7 +831,7 @@ export function AvAgentModal() {
             : modo === "apuntar"
             // El backend NO escribe sin `aplicar`: sin él devuelve qué haría.
             ? { ticker, aplicar }
-            : (modo === "sin_precio" || modo === "pata")
+            : (modo === "sin_precio" || modo === "pata" || modo === "espejo")
             ? { ticker }
             : { ticker, curva_1816: curva1816, ...extra }),
         });
@@ -2745,6 +2766,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                     {primera && (h.accion === "alta" || h.accion === "flujos"
                       || h.accion === "arreglo" || h.accion === "salud"
                       || h.accion === "sin_precio" || h.accion === "pata"
+                      || h.accion === "espejo"
                       || h.accion === "apuntar") && (
                       <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                     modo={h.accion} />
@@ -3051,6 +3073,14 @@ const COPY = {
   sin_precio: {
     simular: "¿Por qué?", aplicar: "", hecho: "", cer: "",
   },
+  // SOLO LECTURA. Tres causas que se arreglan distinto —falta la ficha · la
+  // ficha existe SIN ticker · la ficha tiene OTRO ticker— y la segunda es la que
+  // más importa distinguir: mandar a dar de alta un título que ya está dado de
+  // alta crea un duplicado. El arreglo se hace en Manager → TÍTULOS y por eso el
+  // agente no escribe: pisar el catálogo maestro no es una acción de un click.
+  espejo: {
+    simular: "¿Por qué falta?", aplicar: "", hecho: "", cer: "",
+  },
   // LA ÚNICA de rueda que además ESCRIBE. Busca la pata en dólares en las dos
   // fuentes (`mercado.especies` y el catálogo de Primary) y, si hay algo que
   // pedir, la siembra y la suscribe: el motor la levanta en 5s, sin reiniciar.
@@ -3163,7 +3193,7 @@ function AccionCadena({ h, sim, simular, modo }: {
     ? Boolean((r?.propuesta as Record<string, unknown> | undefined))
     : modo === "pata"
     ? Boolean(r?.pedible)
-    : (modo === "salud" || modo === "sin_precio")
+    : (modo === "salud" || modo === "sin_precio" || modo === "espejo")
     ? false
     : veredicto
     ? veredicto.puede_aplicar !== false
@@ -3228,7 +3258,7 @@ function AccionCadena({ h, sim, simular, modo }: {
           lectura, no porque el agente haya frenado nada. Pintarlo en rojo diría
           que el chequeo está trabado cuando el diagnóstico salió bien. */}
       {ok && !puedeAplicar && !aplicado && modo !== "salud"
-        && modo !== "sin_precio" && modo !== "pata" && (
+        && modo !== "sin_precio" && modo !== "pata" && modo !== "espejo" && (
         <span className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-neg)] text-[var(--t-neg)]">
           ✘ Bloqueado
         </span>
@@ -3269,6 +3299,15 @@ function AccionCadena({ h, sim, simular, modo }: {
               que es LITERAL lo que ya dice la fila dos centímetros arriba. Tres
               veces el mismo texto en la misma tarjeta (fila, resumen, veredicto)
               no informa: cansa y hace dudar de si son cosas distintas. */}
+          {ok && modo === "espejo" && (
+            // LA CAUSA en una frase, y si es UN CAMPO o falta la ficha entera.
+            // Es la diferencia entre completar y dar de alta — y dar de alta lo
+            // que ya existe crea un duplicado.
+            <>
+              {String((r.causa as string) ?? "")}
+              {r.un_campo === true ? " · falta UN campo, no la ficha" : ""}
+            </>
+          )}
           {ok && modo === "sin_precio" && (
             // La CAUSA y de quién es. «No es un bug nuestro» es la mitad del
             // valor del diagnóstico: evita perseguir un problema que no existe.
@@ -3324,7 +3363,7 @@ function AccionCadena({ h, sim, simular, modo }: {
             </>
           )}
           {ok && modo !== "salud" && modo !== "sin_precio" && modo !== "pata"
-            && modo !== "apuntar" && (
+            && modo !== "espejo" && modo !== "apuntar" && (
             <>
               {aplicado ? copy.hecho : ""}
               {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
@@ -5042,7 +5081,8 @@ function TabCentinela({ cent, recargar }: {
   // ⚠️ **SIN EL CORTE DEL DÍA NO SE INVENTA UN DÍA.** Si el backend viene viejo
   // (deploy desparejo), decir «hoy no pasó nada» sería justo la falla que esta
   // tab no puede tener: afirmar calma sin haber podido mirar.
-  const nada = !!hoy && hoy.novedades === 0 && hoy.se_arreglo.length === 0;
+  const nada = !!hoy && hoy.novedades === 0 && hoy.se_arreglo.length === 0
+    && !(hoy.roto ?? []).length;
 
   return (
     <div className="flex flex-col gap-4">
@@ -5105,6 +5145,14 @@ function TabCentinela({ cent, recargar }: {
           falló es la única fila que cambia lo que uno pensaba que sabía. */}
       {hoy && (
         <>
+          {/* ⚠️⚠️ **PRIMERO LO QUE ESTÁ ROTO AHORA.** El user: *«¿que estas
+              alertas no estén en el AHORA?? ¿Cómo no me va a avisar justo de
+              los motores en el AHORA?»*. Va arriba de las novedades porque un
+              motor caído le corta el feed de precios a la mesa: no hay nada en
+              esta pantalla que importe más. Y NO se filtra por día — con el
+              corte por novedad, cuanto más tiempo llevaba roto menos se veía. */}
+          <Novedad titulo="ROTO AHORA" filas={hoy.roto ?? []} tono="neg"
+                   ayuda="no es del día: está roto en este momento" />
           <Novedad titulo="VOLVIÓ" filas={hoy.volvio} tono="neg"
                    ayuda="se había arreglado y volvió" />
           <Novedad titulo="APARECIÓ HOY" filas={hoy.aparecio} tono="texto"
@@ -5167,7 +5215,7 @@ function Novedad({ titulo, filas, tono, ayuda, plegado = false }: {
       </div>
       {abierto && (
       <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-        {filas.map((f) => (
+        {filas.map((f, i) => (
           <div key={f.clave}
                className="grid grid-cols-[3px_130px_170px_1fr_auto] items-baseline gap-2 px-2 py-1">
             <span className="self-stretch" style={{ background: SEV_COLOR[f.severidad] }} />
@@ -5180,7 +5228,7 @@ function Novedad({ titulo, filas, tono, ayuda, plegado = false }: {
               {f.regla.replace(/_/g, " ")}
             </span>
             <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0">
-              {f.motivo}
+              <Motivo f={f} anterior={filas[i - 1]} />
             </span>
             {/* ⚠️ La HORA, no «hace 21 h». En una lista que YA es del día, «hace
                 cuánto» obliga a hacer la resta para ubicar el hecho — y era
@@ -5194,6 +5242,56 @@ function Novedad({ titulo, filas, tono, ayuda, plegado = false }: {
       </div>
       )}
     </div>
+  );
+}
+
+
+// El MOTIVO de una fila, sin repetirlo y con el contexto que ya existía.
+//
+// ⚠️ **DOS QUEJAS, UNA SOLA CAUSA: el renglón no distingue lo que se repite de
+// lo que es propio de esa fila.**
+//
+// (1) *«nuevamente lo que te dije mil veces»* — tres filas seguidas de
+//     `sin_tea_con_precio` escribían las MISMAS dos líneas de texto («tiene
+//     precio y flujo pero el motor no persiste TEA…»). El motivo es de la
+//     REGLA, no del bono: repetirlo por fila ocupa tres renglones para decir
+//     una sola cosa, y encima esconde lo que sí cambia, que es el ticker. Se
+//     escribe UNA vez y las siguientes muestran «↑ mismo motivo».
+//
+// (2) *«sin información, sin contexto… si tenemos los logs tenemos los datos»* —
+//     al revés en los motores: ahí el texto largo (`evidencia.texto`, con QUÉ
+//     PASÓ · A QUÉ AFECTA · SI SIGUE) **ya venía del backend desde siempre** y
+//     la pantalla dibujaba solo el título recortado. Los datos estaban; no se
+//     mostraban.
+//
+// Las dos se arreglan con la misma regla: **mostrar lo que esta fila agrega**.
+function Motivo({ f, anterior }: { f: Vigilado; anterior?: Vigilado }) {
+  const repetido = !!anterior && anterior.motivo === f.motivo;
+  return (
+    <>
+      {repetido ? (
+        <span className="text-[var(--t-text-dim)]" title={f.motivo}>
+          ↑ mismo motivo
+        </span>
+      ) : (
+        <span>{f.motivo}</span>
+      )}
+      {/* El contexto propio de ESTA fila. Va siempre —también cuando el motivo
+          se repite— porque es justamente lo que la distingue. */}
+      {f.detalle && (
+        <span className="block text-[9px] text-[var(--t-text-dim)] leading-snug whitespace-pre-wrap">
+          <Marcado t={f.detalle} />
+        </span>
+      )}
+      {/* La línea de log CRUDA, detrás de un `title`: es la evidencia, y quien
+          la necesita la busca — ocupando cero renglones para el que no. */}
+      {f.muestra && (
+        <span className="block text-[9px] font-mono text-[var(--t-text-dim)] truncate"
+              title={f.muestra}>
+          {f.muestra.split("\n")[0]}
+        </span>
+      )}
+    </>
   );
 }
 
