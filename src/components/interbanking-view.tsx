@@ -131,6 +131,14 @@ import { usePoll } from "@/lib/use-poll";
  *    (juntados por concepto, con la suma y desplegables). El toggle es uno solo
  *    para las dos tablas y el TOTAL no cambia entre vistas.
  *
+ *    CALZAR POR IMPORTE (botón al lado) esconde de las DOS listas los
+ *    movimientos que tienen su igual del otro lado, y deja la lista corta de lo
+ *    que descalza. El calce lo hace el BACKEND, por importe y UNO A UNO: las
+ *    leyendas de los dos lados no se parecen ni se pueden cruzar por texto. Los
+ *    gastos bancarios quedan marcados `imp` porque descalzan seguido y por una
+ *    razón conocida. ⚠️ Ahí el TOTAL del pie SÍ cambia (y el rótulo también):
+ *    la resta de los dos totales sin calzar es exactamente la diferencia.
+ *
  *    ⚠️ El navegador no interpreta el archivo: solo lo convierte en filas y
  *    columnas crudas y las manda. Qué columna es el saldo y cómo se lee la
  *    `D`/`A` que le da el signo (D = positivo, A = negativo) lo decide el
@@ -355,6 +363,13 @@ type Candidato = {
   /** El mismo importe pero de la otra mano — el sistema contable lleva la cuenta
    *  del otro lado. Se marca en vez de disimularlo. */
   signo_invertido: boolean;
+  /** No da exacto ni dentro del margen de redondeo, pero le pega cerca. Se
+   *  muestra igual —esconderla manda a hacer a mano la misma suma— pero MARCADA:
+   *  una explicación aproximada no se puede confundir con una que cierra. */
+  aproximado: boolean;
+  /** Por qué está en la lista, cuando no salió de la búsqueda genérica (el
+   *  conjunto de gastos bancarios del día, por ejemplo). */
+  motivo: string | null;
 };
 
 type RespConciliacion = {
@@ -401,14 +416,33 @@ type RespConciliacion = {
    *  allá, no acá. Del lado del mayor NO es el concepto (que trae el número de
    *  asiento y el del comprobante, y por eso es único fila por fila). */
   banco_movimientos: {
-    descripcion: string; grupo: string; concepto: string; importe: number }[];
+    descripcion: string; grupo: string; concepto: string; importe: number;
+    /** Con qué movimiento del mayor coincide el importe (`null` = ninguno). */
+    calce: string | null;
+    /** Qué impuesto es, si el movimiento está clasificado como gasto. */
+    balde: string | null }[];
   banco_suma: number;
   mayor_movimientos: {
-    concepto: string; grupo: string; importe: number; fila: number }[];
+    concepto: string; grupo: string; importe: number; fila: number;
+    calce: string | null }[];
   mayor_suma: number;
+  /** El resumen del CALCE POR IMPORTE. La resta de las dos sumas «sin calzar»
+   *  ES la diferencia —los pares se cancelan entre sí—, así que la vista
+   *  filtrada muestra exactamente los movimientos que la producen. */
+  calce: {
+    pares: number;
+    banco_sin_calzar: number;
+    mayor_sin_calzar: number;
+    banco_suma_sin_calzar: number;
+    mayor_suma_sin_calzar: number;
+  };
   /** El margen con que se buscó la explicación. Se muestra: un criterio que
    *  decide qué aparece en pantalla no puede vivir escondido en el código. */
   tolerancia: number | null;
+  /** El del último recurso (explicaciones aproximadas). Con más razón se
+   *  muestra: es el que más fácil puede hacer pasar una coincidencia por un
+   *  hallazgo. */
+  tolerancia_aproximada: number | null;
 };
 
 /** Una fila de cualquiera de los dos lados de la conciliación. `grupo` es la
@@ -416,7 +450,13 @@ type RespConciliacion = {
  *  grupo (del lado del banco, el concepto de Interbanking, que es distinto de
  *  la descripción truncada que manda el banco). */
 type FilaLado = {
-  texto: string; importe: number; grupo: string; detalle?: string };
+  texto: string; importe: number; grupo: string; detalle?: string;
+  /** Marca del par cuando este movimiento tiene su igual del otro lado. */
+  calce?: string | null;
+  /** El impuesto, ya traducido a su etiqueta. Un descalce en un impuesto es
+   *  esperable —el banco lo cobra hoy y contabilidad lo carga después— y no
+   *  vale lo mismo que un descalce en una transferencia. */
+  impuesto?: string | null };
 
 const CONSOLIDADO_VACIO: RespConsolidado = {
   fecha: "", conectados: [], puede_escribir: false, desglose: [], bancos: [], cuentas: 0,
@@ -3140,6 +3180,9 @@ function ModalConciliar({
   const [busy, setBusy] = useState(false);
   // Detalle o consolidado por concepto. Uno solo para las dos tablas.
   const [vista, setVista] = useState<"movimientos" | "consolidado">("movimientos");
+  // CALZAR POR IMPORTE: esconde de las DOS listas los movimientos que tienen su
+  // igual del otro lado. Lo que queda es la lista corta de lo que hay que mirar.
+  const [soloSinCalzar, setSoloSinCalzar] = useState(false);
   // Qué explicaciones ya se anotaron. Se marca en la pantalla para que nadie
   // confirme dos veces lo mismo mirando la misma lista.
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
@@ -3222,6 +3265,14 @@ function ModalConciliar({
     () => cuentas.find((c) => String(c.id) === cuentaId) ?? null, [cuentas, cuentaId]);
 
   const moneda = res?.cuenta?.moneda ?? cuenta?.moneda ?? "";
+
+  // La etiqueta del impuesto, para marcarlo en la lista. El backend manda la
+  // CLAVE del balde; `resto` es el gasto que no cayó en ninguno y se dice
+  // «gasto» — verlo importa más que clasificarlo bien.
+  const etiquetaBalde = useCallback(
+    (clave: string | null) => (
+      !clave ? null : baldes.find((b) => b.clave === clave)?.etiqueta ?? "gasto"),
+    [baldes]);
 
   async function correr() {
     if (!cuentaId) { setErr("Elegí la cuenta."); return; }
@@ -3549,6 +3600,43 @@ function ModalConciliar({
                   + "agrupa por el TIPO (Depósito, Extracción, …).\n\n"
                   + "El TOTAL de cada lado es el mismo en las dos vistas."
                 } />
+
+                {/* ⚠️ CALZAR POR IMPORTE. Las leyendas de los dos lados no se
+                    parecen y cambian todo el tiempo, así que cruzarlas por
+                    texto es imposible: lo único que significa lo mismo de los
+                    dos lados es el IMPORTE. Prendido, esconde los pares y deja
+                    la lista corta de lo que descalza — que es lo que hay que
+                    mirar. El calce lo hace el BACKEND, uno a uno. */}
+                <button
+                  onClick={() => setSoloSinCalzar((v) => !v)}
+                  className={`ml-2 px-2 py-0.5 text-[10px] uppercase tracking-wide border ${
+                    soloSinCalzar
+                      ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                      : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:bg-[var(--t-surface)]"
+                  }`}
+                >
+                  {soloSinCalzar ? "Solo sin calzar ✓" : "Calzar por importe"}
+                </button>
+                {res.calce.pares > 0 && (
+                  <span className="text-[10px] text-[var(--t-text-dim)]">
+                    {res.calce.pares} par{res.calce.pares === 1 ? "" : "es"}
+                    {" · "}quedan {res.calce.banco_sin_calzar} banco
+                    {" / "}{res.calce.mayor_sin_calzar} mayor
+                  </span>
+                )}
+                <Ayuda texto={
+                  "Empareja los movimientos de los dos lados que tienen el MISMO "
+                  + "importe y los saca de la vista. Lo que queda es lo que no "
+                  + "coincidió con nada del otro lado.\n\n"
+                  + "Se calza UNO A UNO: si el mismo importe aparece 3 veces de "
+                  + "un lado y 2 del otro, se calzan 2 pares y queda 1 suelto. "
+                  + "Calzar el grupo contra el grupo taparía justo el que falta.\n\n"
+                  + "Los movimientos marcados IMPUESTO son gastos del banco: "
+                  + "esos suelen entrar solos y descalzan seguido porque "
+                  + "contabilidad los registra después. Empezá por los otros.\n\n"
+                  + "La RESTA de los dos totales sin calzar es exactamente la "
+                  + "diferencia de saldos: los pares se cancelan entre sí."
+                } />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-[minmax(0,4fr)_minmax(0,6fr)] gap-3">
@@ -3556,18 +3644,22 @@ function ModalConciliar({
                   titulo="Movimientos del banco"
                   filas={res.banco_movimientos.map((m) => ({
                     texto: m.descripcion, importe: m.importe, grupo: m.grupo,
+                    calce: m.calce, impuesto: etiquetaBalde(m.balde),
                     detalle: m.concepto || m.descripcion }))}
                   suma={res.banco_suma}
                   moneda={moneda}
                   consolidado={vista === "consolidado"}
+                  soloSinCalzar={soloSinCalzar}
                 />
                 <LadoConciliacion
                   titulo="Movimientos del mayor"
                   filas={res.mayor_movimientos.map((m) => ({
-                    texto: m.concepto, importe: m.importe, grupo: m.grupo }))}
+                    texto: m.concepto, importe: m.importe, grupo: m.grupo,
+                    calce: m.calce }))}
                   suma={res.mayor_suma}
                   moneda={moneda}
                   consolidado={vista === "consolidado"}
+                  soloSinCalzar={soloSinCalzar}
                 />
               </div>
 
@@ -3580,6 +3672,11 @@ function ModalConciliar({
                   {/* El margen con que se buscó, a la vista: un criterio que
                       decide qué aparece en pantalla no puede vivir escondido. */}
                   {!!res.tolerancia && ` · margen ±${plata(res.tolerancia)}`}
+                  {/* El margen laxo solo se nombra cuando de hecho se usó: es el
+                      que más fácil hace pasar una coincidencia por un hallazgo,
+                      y anunciarlo cuando no hizo falta le resta peso al resto. */}
+                  {res.candidatos.some((c) => c.aproximado) && !!res.tolerancia_aproximada
+                    && ` · aproximadas hasta ±${plata(res.tolerancia_aproximada)}`}
                   {res.candidatos_truncados && " — no se exploraron todas las combinaciones."}
                 </div>
               )}
@@ -3606,6 +3703,23 @@ function ModalConciliar({
                     <span className="text-[var(--t-text-dim)]">
                       {c.cantidad} movimiento{c.cantidad === 1 ? "" : "s"}
                     </span>
+                    {/* ⚠️ APROXIMADA: no cierra, le pega cerca. Se muestra
+                        —esconderla manda a hacer a mano la misma suma— pero
+                        marcada y con el resto al lado. Una explicación que le
+                        erra por poco y no lo dice es peor que ninguna. */}
+                    {c.aproximado && (
+                      <span
+                        className="px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+                        title="No da exacto: la suma se acerca a la diferencia pero no la iguala. Mirá el resto."
+                      >
+                        aproximada
+                      </span>
+                    )}
+                    {c.motivo && (
+                      <span className="text-[10px] text-[var(--t-text-dim)]">
+                        {c.motivo}
+                      </span>
+                    )}
                     {c.signo_invertido && (
                       <span
                         className="px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
@@ -3727,17 +3841,34 @@ function Numero({
  *
  * ⚠️ El TOTAL de abajo es el mismo en las dos vistas —sale de `suma`, no de lo
  * que se está mostrando—. Cambiar de pestaña no puede cambiar el número.
+ *
+ * ⚠️ **Con SOLO SIN CALZAR prendido el total SÍ cambia, y tiene que cambiar**:
+ * ahí ya no se está mirando el día entero sino lo que descalza, y el número que
+ * importa es el de esa lista corta. La resta de los dos totales sin calzar da
+ * exactamente la diferencia de saldos —los pares se cancelan entre sí—, así que
+ * el total viejo en esa vista no significaría nada. Por eso el rótulo también
+ * cambia: dos números distintos no pueden llamarse igual.
  */
 function LadoConciliacion({
-  titulo, filas, suma, moneda, consolidado,
+  titulo, filas: todas, suma, moneda, consolidado, soloSinCalzar,
 }: {
   titulo: string;
   filas: FilaLado[];
   suma: number;
   moneda: string;
   consolidado: boolean;
+  soloSinCalzar: boolean;
 }) {
   const [abierto, setAbierto] = useState<Record<string, boolean>>({});
+
+  const filas = useMemo(
+    () => (soloSinCalzar ? todas.filter((f) => !f.calce) : todas),
+    [todas, soloSinCalzar]);
+  const total = useMemo(
+    () => (soloSinCalzar
+      ? Math.round(filas.reduce((a, f) => a + f.importe, 0) * 100) / 100
+      : suma),
+    [soloSinCalzar, filas, suma]);
 
   // Ordenado por importe absoluto: lo grande arriba. Alfabético dejaría el
   // movimiento de mil millones abajo de todo por empezar con T.
@@ -3761,6 +3892,11 @@ function LadoConciliacion({
             ? `${grupos.length} concepto${grupos.length === 1 ? "" : "s"} · ${filas.length} mov`
             : filas.length}
         </span>
+        {soloSinCalzar && todas.length > filas.length && (
+          <span className="text-[10px] text-[var(--t-text-dim)]">
+            ({todas.length - filas.length} calzados, ocultos)
+          </span>
+        )}
       </div>
       <div className="max-h-[300px] overflow-auto">
         <table className="w-full border-collapse">
@@ -3821,6 +3957,18 @@ function LadoConciliacion({
                   className="text-[10px] w-full leading-[1.15] break-words"
                 >
                   {f.texto}
+                  {/* Un descalce en un impuesto es esperable —el banco lo cobra
+                      hoy y contabilidad lo carga después— y no vale lo mismo
+                      que un descalce en una transferencia. Se marca para poder
+                      saltearlo con la vista, no para esconderlo. */}
+                  {f.impuesto && (
+                    <span
+                      className="ml-1.5 px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+                      title={`Gasto bancario · ${f.impuesto}. Suele entrar solo y contabilidad lo registra después.`}
+                    >
+                      imp
+                    </span>
+                  )}
                 </Td>
                 <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums ${
                   f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
@@ -3842,8 +3990,10 @@ function LadoConciliacion({
       {/* El TOTAL de cada lado, a la misma altura en los dos: la resta entre los
           dos números es la que explica la diferencia de saldos. */}
       <div className="px-2 py-1 border-t border-[var(--t-border-2)] flex items-center gap-2 text-[11px] bg-[var(--t-surface-2)]">
-        <span className="uppercase tracking-wide text-[var(--t-text-dim)]">Total</span>
-        <span className="ml-auto font-semibold tabular-nums">{plata(suma, moneda)}</span>
+        <span className="uppercase tracking-wide text-[var(--t-text-dim)]">
+          {soloSinCalzar ? "Total sin calzar" : "Total"}
+        </span>
+        <span className="ml-auto font-semibold tabular-nums">{plata(total, moneda)}</span>
       </div>
     </div>
   );
