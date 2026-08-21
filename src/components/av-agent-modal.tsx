@@ -3436,6 +3436,13 @@ type Paso = {
   // LO QUE EL AGENTE SABE HACER con este control. Viene RESUELTO del backend
   // (qué control tiene qué acción) — así una acción nueva aparece sola, sin
   // tocar el front.
+  /** Qué CLASE de renglón es: `prueba` decide (y puede trabar), `contexto`
+   *  describe, `aprender` es material de estudio de OTROS casos, `veredicto` es
+   *  la conclusión. Lo deriva el backend — el front no reclasifica. */
+  capa?: string;
+  /** Traba la escritura porque se probó que **está BIEN**, no porque esté mal.
+   *  Es el mismo booleano con el significado opuesto y se dibujaba igual. */
+  nada_que_hacer?: boolean;
   hacer?: { accion: string; titulo: string; campo: string; casos: number;
             pendientes: number;
             /** A quién YA se le avisó y todavía no lo cerró. Lo resuelve el
@@ -3462,7 +3469,12 @@ type Propuesta = {
 type Veredicto = {
   estado: string; texto: string;
   puede_aplicar?: boolean; puede_auto?: boolean;
-  conteo?: { ok: number; info: number; revisar: number; bloquea: number; no_se: number };
+  conteo?: { ok: number; info: number; revisar: number; bloquea: number; no_se: number;
+             prueba?: number; contexto?: number; aprender?: number };
+  /** LA OTRA PREGUNTA. `estado`/`texto` dicen si se puede APLICAR; esto dice
+   *  QUÉ LE PASA al bono y en qué paso se trabó. Salen de los mismos pasos, así
+   *  que no pueden contradecirse. */
+  desenlace?: { clase: string; traba: string; titulo: string; que_hacer: string };
 };
 
 // Un insumo del cálculo: el número Y de dónde salió. El "de dónde" pesa tanto
@@ -3700,13 +3712,38 @@ function PanelHacer({ h }: { h: NonNullable<Paso["hacer"]> }) {
   );
 }
 
+// Los `**` del backend, en negrita de verdad.
+//
+// ⚠️ Se veían CRUDOS: la pantalla mostraba «Σ de las amortizaciones futuras =
+// **100.00** en 3 cupón/es» con los asteriscos puestos. El backend viene
+// marcando lo importante desde siempre —es justo el número que hay que mirar—
+// y el front lo tiraba como texto plano, así que el énfasis no solo no ayudaba:
+// agregaba ruido a un renglón que ya era denso.
+//
+// Sin `dangerouslySetInnerHTML` y sin librería: se parte por `**` y los tramos
+// impares van en negrita. Nada de lo que llega puede convertirse en markup, que
+// es la única propiedad que importa acá — parte de este texto viene de errores
+// y de nombres de instrumento.
+function Marcado({ t }: { t: string }) {
+  if (!t) return null;
+  const partes = t.split("**");
+  return (
+    <>
+      {partes.map((x, i) => i % 2
+        ? <strong key={i} className="font-semibold text-[var(--t-text)]">{x}</strong>
+        : <span key={i}>{x}</span>)}
+    </>
+  );
+}
+
 function Chequeos({ pasos, veredicto, calculo }: {
   pasos: Paso[];
   veredicto?: Veredicto;
   calculo?: Insumo[];
 }) {
-  const [abierto, setAbierto] = useState(false);
+  const [ver, setVer] = useState<"" | "prueba" | "contexto" | "aprender">("");
   const [verCalculo, setVerCalculo] = useState(false);
+
   // El RESUMEN lo cuenta el backend (`veredicto.conteo`) — contarlo acá otra vez
   // sería la tercera copia del mismo criterio, que es cómo nacieron las dos
   // contradicciones que este rediseño arregla. El fallback local existe solo por
@@ -3719,73 +3756,179 @@ function Chequeos({ pasos, veredicto, calculo }: {
     no_se: pasos.filter((p) => p.estado === "no_se_puede_saber").length,
   };
 
+  // ── LAS CUATRO CAPAS (§0.bx) ──────────────────────────────────────────────
+  //
+  // El user, mirando 20 pasos de BPOD7: *«es demasiado complicado entender qué
+  // es lo que pasa, es como que no tiene un CICLO… uno debería dar paso a otro
+  // y que quede marcado DÓNDE QUEDÓ TRABADO. Pero tampoco que el user vea
+  // absolutamente todo… yo que lo estoy entrenando quiero ver más fácil el
+  // problema»*.
+  //
+  // El problema no era la cantidad: era que **cuatro naturalezas distintas se
+  // dibujaban iguales**. Una prueba que decide, un dato de contexto, una
+  // lección de OTRO caso y la conclusión, todas al mismo peso — así que para
+  // encontrar el problema había que leer las veinte. La capa la manda el
+  // backend; acá solo se agrupa. Los pasos viejos (sin `capa`) caen en
+  // `prueba`, que es donde estaban antes: un deploy desparejo no esconde nada.
+  const capaDe = (p: Paso) =>
+    p.capa ?? (p.estado === "info" ? "contexto" : "prueba");
+  const pruebas = pasos.filter((p) => capaDe(p) === "prueba");
+  const contexto = pasos.filter((p) => capaDe(p) === "contexto");
+  const aprender = pasos.filter((p) => capaDe(p) === "aprender");
+  const conclusion = pasos.find((p) => capaDe(p) === "veredicto");
+
+  const d = veredicto?.desenlace;
+  // DÓNDE SE TRABÓ. El backend nombra la clave; acá se busca el paso para poder
+  // mostrarlo entero SIN desplegar nada. Es lo único que se ve por default,
+  // porque es literalmente lo que el user pidió ver primero.
+  const traba = d?.traba ? pasos.find((p) => p.clave === d.traba) : undefined;
+
+  // El color y el ícono del desenlace. `viejo` es POSITIVO (el bono está bien)
+  // aunque venga de un paso que bloquea: pintarlo rojo fue el bug.
+  const DES: Record<string, { color: string; icono: string }> = {
+    roto:  { color: "var(--t-neg)",  icono: "✘" },
+    no_se: { color: "var(--t-text-dim)", icono: "?" },
+    viejo: { color: "var(--t-pos)",  icono: "✔" },
+    mirar: { color: "#f59e0b",       icono: "▲" },
+    listo: { color: "var(--t-pos)",  icono: "✔" },
+  };
+  const des = DES[d?.clase ?? ""] ?? { color: "var(--t-text-muted)", icono: "·" };
+
   return (
     <div className="basis-full mt-1">
-      <button
-        onClick={() => setAbierto((v) => !v)}
-        className="flex items-baseline gap-1.5 text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
-      >
-        <span>{abierto ? "▾" : "▸"} Cadena completa</span>
-        <span className="tabular-nums normal-case tracking-normal">
-          <span style={{ color: "var(--t-pos)" }}>{c.ok} ok</span>
-          {c.bloquea > 0 && <span className="text-[var(--t-neg)]"> · {c.bloquea} bloquea</span>}
-          {c.revisar > 0 && <span style={{ color: "#f59e0b" }}> · {c.revisar} a revisar</span>}
-          {c.no_se > 0 && <span className="text-[var(--t-text-dim)]"> · {c.no_se} sin verificar</span>}
-          {c.info > 0 && <span className="text-[var(--t-text-dim)]"> · {c.info} informativos</span>}
-        </span>
-      </button>
-
-      {veredicto && (
-        <p className="text-[10px] leading-snug mt-0.5"
-           style={{ color: PASO_COLOR[veredicto.estado] ?? "var(--t-text-muted)" }}>
-          {veredicto.texto}
-        </p>
-      )}
-
-      {/* CÓMO SE CALCULÓ. Una tasa sin su memoria de cálculo no se puede
-          auditar: solo se puede creer o no creer. Acá está cada insumo con su
-          fuente — que es lo que permite explicar una divergencia en vez de
-          quedarse con "202 bps y no sé por qué". */}
-      {(calculo?.length ?? 0) > 0 && (
-        <div className="mt-0.5">
-          <button
-            onClick={() => setVerCalculo((v) => !v)}
-            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
-          >
-            {verCalculo ? "▾" : "▸"} Cómo se calculó
-          </button>
-          {verCalculo && (
-            <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-              {calculo!.map((i) => (
-                <div key={i.campo} className="grid grid-cols-[110px_1fr] gap-2 px-2 py-1 items-baseline">
-                  <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
-                    {i.campo}
-                  </span>
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-[var(--t-text)] tabular-nums">
-                      {typeof i.valor === "number" ? i.valor.toLocaleString("es-AR", {
-                        maximumFractionDigits: 6 }) : String(i.valor ?? "—")}
-                    </span>
-                    <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
-                      {i.fuente}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* ── 1. QUÉ PASA. Una línea, arriba de todo. ─────────────────────────
+          Antes lo primero que se leía era «✘ BLOQUEADO — 1 paso lo bloquea», que
+          contesta *«¿puedo escribir?»*. La pregunta que uno se hace primero es
+          *«¿qué le pasa?»*, y la respuesta estaba doce renglones más abajo
+          diciendo lo contrario. */}
+      {d && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[11px] font-bold" style={{ color: des.color }}>
+            {des.icono}
+          </span>
+          <div className="min-w-0">
+            <span className="text-[11px] font-semibold" style={{ color: des.color }}>
+              {d.titulo}
+            </span>
+            <span className="ml-1.5 text-[10px] text-[var(--t-text-muted)]">
+              <Marcado t={d.que_hacer} />
+            </span>
+          </div>
         </div>
       )}
 
-      {abierto && (
+      {/* ── 2. EL PASO EXACTO DONDE SE TRABÓ, abierto y sin pedir permiso. ──
+          «Que quede marcado dónde quedó trabado» — textual. Los otros pasos que
+          tampoco pasan pueden ser consecuencia de éste; el primero es el que hay
+          que leer, y por eso es el único que se abre solo. */}
+      {traba && (
+        <div className="mt-1 border-l-2 pl-2 py-0.5" style={{ borderColor: des.color }}>
+          <span className="text-[10px] font-semibold text-[var(--t-text)]">
+            {traba.titulo}
+          </span>
+          {traba.tabla && (
+            <span className="ml-1.5 text-[9px] font-mono text-[var(--t-text-dim)]">
+              {traba.tabla}
+            </span>
+          )}
+          <p className="text-[10px] leading-snug text-[var(--t-text-muted)] whitespace-pre-wrap">
+            <Marcado t={traba.detalle} />
+          </p>
+          {traba.hacer && <PanelHacer h={traba.hacer} />}
+        </div>
+      )}
+
+      {/* ── 3. LA CONCLUSIÓN del diagnóstico local, si la hay. ──────────────
+          Va acá y no perdida en la lista: es la frase que resume el análisis. */}
+      {conclusion && (
+        <p className="mt-1 text-[10px] leading-snug text-[var(--t-text-muted)] whitespace-pre-wrap">
+          <Marcado t={conclusion.detalle} />
+        </p>
+      )}
+
+      {/* ── 4. LO DEMÁS, PLEGADO Y SEPARADO POR NATURALEZA. ─────────────────
+          Nada se esconde: se deja de competir por el lugar. Una por vez, como
+          el menú de SKILLS. */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {([["prueba", "los pasos", pruebas.length],
+           ["contexto", "contexto", contexto.length],
+           ["aprender", "para aprender", aprender.length]] as
+           ["prueba" | "contexto" | "aprender", string, number][])
+          .filter(([, , n]) => n > 0)
+          .map(([k, label, n]) => (
+            <button
+              key={k}
+              onClick={() => setVer((v) => (v === k ? "" : k))}
+              className={`text-[9px] uppercase tracking-widest px-2 py-0.5 border transition-colors ${
+                ver === k
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+            >
+              {label} <span className="tabular-nums opacity-70">{n}</span>
+            </button>
+          ))}
+        <span className="text-[9px] tabular-nums text-[var(--t-text-dim)]">
+          <span style={{ color: "var(--t-pos)" }}>{c.ok} ok</span>
+          {c.bloquea > 0 && <span className="text-[var(--t-neg)]"> · {c.bloquea} bloquea</span>}
+          {c.revisar > 0 && <span style={{ color: "#f59e0b" }}> · {c.revisar} a revisar</span>}
+          {c.no_se > 0 && <span> · {c.no_se} sin verificar</span>}
+        </span>
+        {(calculo?.length ?? 0) > 0 && (
+          <button
+            onClick={() => setVerCalculo((v) => !v)}
+            className="ml-auto text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+          >
+            {verCalculo ? "▾" : "▸"} cómo se calculó
+          </button>
+        )}
+      </div>
+
+      {/* CÓMO SE CALCULÓ. Una tasa sin su memoria de cálculo no se puede
+          auditar: solo se puede creer o no creer. */}
+      {verCalculo && (calculo?.length ?? 0) > 0 && (
+        <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+          {calculo!.map((i) => (
+            <div key={i.campo} className="grid grid-cols-[110px_1fr] gap-2 px-2 py-1 items-baseline">
+              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)]">
+                {i.campo}
+              </span>
+              <div className="min-w-0">
+                <span className="text-[10px] text-[var(--t-text)] tabular-nums">
+                  {typeof i.valor === "number" ? i.valor.toLocaleString("es-AR", {
+                    maximumFractionDigits: 6 }) : String(i.valor ?? "—")}
+                </span>
+                <p className="text-[10px] leading-snug text-[var(--t-text-muted)]">
+                  {i.fuente}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ver !== "" && (
         <ol className="mt-1 border-l border-[var(--t-border)] pl-2 space-y-1">
-          {pasos.map((p) => (
-            <li key={p.clave} className="grid grid-cols-[14px_1fr] gap-1.5 items-baseline">
+          {(ver === "prueba" ? pruebas : ver === "contexto" ? contexto : aprender)
+            .map((p) => {
+            const esTraba = !!d?.traba && p.clave === d.traba;
+            return (
+            <li key={p.clave}
+                className={`grid grid-cols-[14px_1fr] gap-1.5 items-baseline ${
+                  esTraba ? "bg-[var(--t-surface)] -ml-2 pl-2" : ""}`}>
               <span className="text-[10px] font-bold" style={{ color: PASO_COLOR[p.estado] }}>
                 {PASO_ICONO[p.estado] ?? "·"}
               </span>
               <div className="min-w-0">
                 <span className="text-[10px] text-[var(--t-text)]">{p.titulo}</span>
+                {/* ⚠️ **ACÁ SE TRABÓ**, también adentro de la lista. Ver la
+                    cadena entera y tener que volver arriba a recordar cuál era
+                    el paso malo es la mitad del trabajo que esto vino a sacar. */}
+                {esTraba && (
+                  <span className="ml-1.5 text-[8px] uppercase tracking-widest font-semibold"
+                        style={{ color: des.color }}>
+                    ← acá se trabó
+                  </span>
+                )}
                 {p.tabla && (
                   <span className="ml-1.5 text-[9px] font-mono text-[var(--t-text-dim)]">
                     {p.tabla}
@@ -3797,7 +3940,7 @@ function Chequeos({ pasos, veredicto, calculo }: {
                     chorizo — el user: «necesito que estén en modo listado, no
                     tirados así uno al lado del otro que no entiendo nada». */}
                 <p className="text-[10px] leading-snug text-[var(--t-text-muted)] whitespace-pre-wrap">
-                  {p.detalle}
+                  <Marcado t={p.detalle} />
                 </p>
                 {/* `accion` en un paso de SALUD es una URL: el ATAJO para ir a
                     arreglarlo. Decir «se corrige en Manager → TÍTULOS» y hacer
@@ -3820,16 +3963,19 @@ function Chequeos({ pasos, veredicto, calculo }: {
                     ✎ queda en AVISOS: {p.aviso}
                   </p>
                 )}
-                {p.hacer && <PanelHacer h={p.hacer} />}
+                {/* El panel de acción NO se repite si ya está arriba en la
+                    traba: dos botones idénticos en la misma pantalla es la
+                    duda de «¿cuál aprieto?» que no tiene por qué existir. */}
+                {p.hacer && !esTraba && <PanelHacer h={p.hacer} />}
               </div>
             </li>
-          ))}
+            );
+          })}
         </ol>
       )}
     </div>
   );
 }
-
 // ── TAB 3: el LIBRO — qué escribió, cuándo y dónde ─────────────────────────
 
 // AVISOS — la contrapartida de "el agente hace el 95% y te deja el 5%".
