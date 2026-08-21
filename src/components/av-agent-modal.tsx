@@ -113,6 +113,10 @@ type Hallazgo = {
   pregunta?: string | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
+  // Lo marcaste «✖ es ruido». Hasta 2026-08-21 ese voto se guardaba y no lo
+  // leía nadie: la fila quedaba exactamente donde estaba, que es la peor
+  // versión posible de un botón porque parece que hizo algo.
+  es_ruido?: boolean;
 };
 type Pregunta = {
   id: number; clave: string; tipo: string; pregunta: string; opciones: string[];
@@ -1742,6 +1746,10 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   // «voté» de «apliqué»: votar no arregla nada, y si el voto marcara la fila
   // como hecha los 17 BOPREALes desaparecían de la vista estando rotos.
   const [verHechos, setVerHechos] = useState(false);
+  // Lo que dijiste que no querías ver. Aparte de «ya hechos» a propósito:
+  // «lo atendí» y «no me lo muestres» son dos decisiones distintas y
+  // mezclarlas haría que destapar una destape la otra.
+  const [verRuido, setVerRuido] = useState(false);
 
   const tipos = useMemo(
     () => Object.keys(porTipo).sort(
@@ -1760,6 +1768,9 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   const nHechos = useMemo(
     () => data.hallazgos.filter((h) => h.atendido).length,
     [data.hallazgos]);
+  const nRuido = useMemo(
+    () => data.hallazgos.filter((h) => h.es_ruido).length,
+    [data.hallazgos]);
 
   const preFiltrados = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -1773,6 +1784,10 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
       // Igual que el corte del mercado, va ANTES de la búsqueda: si uno tipea el
       // ticker de algo que ya arregló, lo quiere encontrar igual.
       if (!verHechos && !t) hs = hs.filter((h) => !h.atendido);
+      // Igual que los otros dos cortes, ANTES de la búsqueda: si tipeás el
+      // ticker de algo que descartaste, lo encontrás igual — que es lo que
+      // hace reversible la decisión desde la app.
+      if (!verRuido && !t) hs = hs.filter((h) => !h.es_ruido);
       if (t) {
         hs = hs.filter((h) =>
           h.ticker.toLowerCase().includes(t) ||
@@ -1782,7 +1797,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
       if (hs.length) out.push([tipo, hs]);
     }
     return out;
-  }, [porTipo, tipos, filtro, q, verMercado, verHechos]);
+  }, [porTipo, tipos, filtro, q, verMercado, verHechos, verRuido]);
 
   // Las reglas presentes, con su cuenta, **ordenadas por cantidad**: la causa
   // que más aparece es la que conviene atacar primero, y es la que uno busca.
@@ -1950,6 +1965,25 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                 : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
           >
             {verHechos ? "▾" : "▸"} {nHechos} ya hechos
+          </button>
+        )}
+
+        {/* LO QUE DIJISTE QUE ES RUIDO. Mismo criterio que los otros dos
+            cortes: el número SIEMPRE a la vista y el clic lo destapa. Esconder
+            un problema real sin dejar cómo volver es el riesgo entero de este
+            botón — por eso se cuenta, se destapa y la búsqueda lo encuentra. */}
+        {nRuido > 0 && (
+          <button
+            onClick={() => setVerRuido((v) => !v)}
+            title={"Dijiste «es ruido»: no querés ver esto. Sigue en la lista y "
+                   + "se destapa acá; para volver atrás, abrilo y tocá «cambiar» "
+                   + "en el voto."}
+            className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
+              verRuido
+                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
+          >
+            {verRuido ? "▾" : "▸"} {nRuido} dijiste que es ruido
           </button>
         )}
 
