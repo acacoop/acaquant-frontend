@@ -117,6 +117,11 @@ type Hallazgo = {
   // leía nadie: la fila quedaba exactamente donde estaba, que es la peor
   // versión posible de un botón porque parece que hizo algo.
   es_ruido?: boolean;
+  // EL NOMBRE PARA LA PANTALLA. Para un bono es el ticker; para un chequeo es
+  // su título humano («Patas en dólares que nadie pide»), que ya venía en la
+  // evidencia y no lo leía nadie. Lo resuelve el BACKEND para que las dos
+  // pantallas que muestran hallazgos digan lo mismo.
+  nombre?: string;
 };
 type Pregunta = {
   id: number; clave: string; tipo: string; pregunta: string; opciones: string[];
@@ -1724,6 +1729,57 @@ function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
 // mudó a la cocina y se plegó. Acá adentro conviven los tres grupos que antes
 // competían por la pantalla principal: lo que no viste, lo que ya viste (sigue
 // abierto) y lo que se arregló solo.
+// LO QUE YA ATENDISTE. Salió de la lista de trabajo (§0.bq) y vive en
+// ¿AGUANTAN?, que es donde se mira si volvió a romperse.
+//
+// La distinción `aplicado` / `votado` importa y la hace el BACKEND: aplicar un
+// arreglo cambia el dato, votar solo dice que lo miraste. Si las mostráramos
+// igual, «17 hechos» incluiría diecisiete cosas que siguen rotas.
+function Hechos({ filas }: { filas: Hallazgo[] }) {
+  if (!filas.length) return null;
+  return (
+    <div>
+      <div className="flex items-baseline gap-2">
+        <h3 className="text-[10px] font-semibold tracking-widest text-[var(--t-text)]">
+          YA LO ATENDISTE
+        </h3>
+        <span className={SUB}>{filas.length}</span>
+        <span className="text-[9px] text-[var(--t-text-dim)]">
+          esperando que el detector confirme
+        </span>
+      </div>
+      <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+        {filas.map((h, i) => (
+          <div key={`${h.ticker}-${h.regla}-${i}`}
+               className="grid grid-cols-[190px_150px_1fr_auto] items-baseline gap-2 px-2 py-1">
+            <span className="text-[11px] font-bold text-[var(--t-text)] leading-tight"
+                  title={h.ticker}>
+              {h.nombre || h.ticker}
+            </span>
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
+                  title={h.regla}>
+              {h.regla.replace(/_/g, " ")}
+            </span>
+            <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0 truncate"
+                  title={h.motivo}>
+              {h.motivo}
+            </span>
+            <span className="text-[9px] uppercase tracking-widest whitespace-nowrap"
+                  style={{ color: h.atendido === "aplicado"
+                    ? "var(--t-pos)" : "var(--t-text-dim)" }}
+                  title={h.atendido === "aplicado"
+                    ? "Se aplicó el arreglo: el dato cambió."
+                    : "Lo votaste, pero el dato no se tocó — no había botón o no lo apretaste."}>
+              {h.atendido === "aplicado" ? "✔ arreglado" : "votado"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 function VigilanciaAbierta({ cent, marcarVisto }: {
   cent: Centinela;
   marcarVisto: (claves: string[]) => Promise<void>;
@@ -1912,7 +1968,6 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // decide el BACKEND (`h.atendido`), que es el único que sabe distinguir
   // «voté» de «apliqué»: votar no arregla nada, y si el voto marcara la fila
   // como hecha los 17 BOPREALes desaparecían de la vista estando rotos.
-  const [verHechos, setVerHechos] = useState(false);
   // Lo que dijiste que no querías ver. Aparte de «ya hechos» a propósito:
   // «lo atendí» y «no me lo muestres» son dos decisiones distintas y
   // mezclarlas haría que destapar una destape la otra.
@@ -1950,7 +2005,14 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       if (!verMercado && !t) hs = hs.filter((h) => h.de_quien !== "mercado");
       // Igual que el corte del mercado, va ANTES de la búsqueda: si uno tipea el
       // ticker de algo que ya arregló, lo quiere encontrar igual.
-      if (!verHechos && !t) hs = hs.filter((h) => !h.atendido);
+      // ⚠️ **LO HECHO NO ESTÁ EN LA LISTA, NI DESTAPABLE.** Antes era un toggle
+      // y lo hecho seguía ocupando la lista de trabajo, en gris. El user: *«si
+      // algo ya está hecho tiene que salir de acá y en todo caso pasar a esto
+      // de que se controla si se volvió a romper»*. Vive en ¿AGUANTAN?.
+      //
+      // La BÚSQUEDA sí lo encuentra: tipear el ticker de algo que arreglaste y
+      // que no aparezca sería esconderlo, no ordenarlo.
+      if (!t) hs = hs.filter((h) => !h.atendido);
       // Igual que los otros dos cortes, ANTES de la búsqueda: si tipeás el
       // ticker de algo que descartaste, lo encontrás igual — que es lo que
       // hace reversible la decisión desde la app.
@@ -1964,7 +2026,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       if (hs.length) out.push([tipo, hs]);
     }
     return out;
-  }, [porTipo, tipos, filtro, q, verMercado, verHechos, verRuido]);
+  }, [porTipo, tipos, filtro, q, verMercado, verRuido]);
 
   // Las reglas presentes, con su cuenta, **ordenadas por cantidad**: la causa
   // que más aparece es la que conviene atacar primero, y es la que uno busca.
@@ -2059,21 +2121,13 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
 
   return (
     <div className="flex flex-col gap-4">
-      {/* EL RECUENTO, arriba de todo — mismo formato que SKILLS: qué hay, en
-          qué estado, y a la derecha para qué sirve esta tab. */}
-      <div className="flex flex-wrap items-baseline gap-3 border border-[var(--t-border)] px-2.5 py-1.5">
-        <span className="text-[11px] text-[var(--t-text)]">
-          <strong className="tabular-nums">{data.hallazgos.length}</strong> hallazgos
-        </span>
-        <span className={SUB}>
-          <span className="text-[var(--t-text)]">{nPorHacer}</span> por resolver
-          {(data.atendidos ?? 0) > 0 && <> · <span className="text-[var(--t-pos)]">{data.atendidos}</span> ya hechos</>}
-          {(data.es_ruido ?? 0) > 0 && <> · {data.es_ruido} marcados ruido</>}
-        </span>
-        <span className={`${SUB} ml-auto`}>
-          acá se arregla — lo que pasó hoy está en AHORA
-        </span>
-      </div>
+      {/* ⚠️ Acá vivía un cuadro con «132 hallazgos · 115 por resolver · 17 ya
+          hechos» y «acá se arregla — lo que pasó hoy está en AHORA». El user:
+          *«sacar esa parte del cuadro con esos textos que ocupan un lugar
+          tremendo»*. Y tiene razón: **el menú de abajo ya dice los cuatro
+          números**, así que era un renglón entero repitiendo lo que se lee dos
+          centímetros más abajo. La frase explicativa se dice UNA vez, cuando
+          se aprende la pantalla; no todos los días. */}
 
       {/* ── EL MENÚ HORIZONTAL ─────────────────────────────────────────────
           Cuatro entradas, cada una con su número y su submétrica debajo, igual
@@ -2081,13 +2135,21 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           deja elegir a dónde ir SIN entrar. */}
       <div className="flex items-stretch flex-wrap border-b border-[var(--t-border)] -mt-1">
         {([
-          ["lista", "LA LISTA", data.hallazgos.length,
-           `${nPorHacer} por resolver`],
+          // ⚠️ **EL NÚMERO ES LO QUE FALTA HACER, no el total.** Decía 132 y
+          // adentro 17 ya estaban hechos: el contador prometía más trabajo del
+          // que había. La lista de trabajo cuenta trabajo.
+          ["lista", "LA LISTA", nPorHacer, "para resolver"],
           ["importa", "QUÉ PIDE ALGO", data.que_importa?.piden_algo ?? 0,
            data.que_importa ? `de ${data.que_importa.abiertos} abiertos` : "sin datos"],
-          ["aguantan", "¿AGUANTAN?", data.seguimiento?.en_prueba ?? 0,
+          // ⚠️ **LO YA HECHO VIVE ACÁ** (§0.bq). El user: *«si algo ya está
+          // hecho tiene que salir de acá y en todo caso pasar a esto de que se
+          // controla si se volvió a romper»*. Exacto: lo que atendiste no es
+          // trabajo pendiente, es un arreglo esperando confirmación — que es
+          // literalmente lo que esta sub-tab mide.
+          ["aguantan", "¿AGUANTAN?",
+           (data.seguimiento?.en_prueba ?? 0) + (data.atendidos ?? 0),
            data.seguimiento?.aguantaron
-             ? `${data.seguimiento.aguantaron} aguantaron` : "en prueba"],
+             ? `${data.seguimiento.aguantaron} aguantaron` : "esperando"],
           ["vigilancia", "VIGILANCIA", cent?.abiertos.length ?? 0,
            (cent?.sin_ver ?? 0) > 0 ? `${cent?.sin_ver} sin ver` : "todo visto"],
         ] as [typeof sub, string, number, string][]).map(([k, label, n, pie]) => (
@@ -2111,9 +2173,22 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       {sub === "importa" && (data.que_importa
         ? <QueImporta q={data.que_importa} />
         : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
-      {sub === "aguantan" && (data.seguimiento
-        ? <Seguimiento s={data.seguimiento} />
-        : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
+      {sub === "aguantan" && (
+        <div className="flex flex-col gap-4">
+          {data.seguimiento && <Seguimiento s={data.seguimiento} />}
+          {/* LO QUE ATENDISTE, esperando confirmación. Está acá y no en la
+              lista porque ya no es trabajo: es un arreglo del que todavía no
+              sabemos si aguantó. Sin esta tabla, el número del menú apuntaría
+              a nada — que es el defecto que este proyecto se comió tres veces. */}
+          <Hechos filas={data.hallazgos.filter((h) => h.atendido)} />
+          {!data.seguimiento && !data.hallazgos.some((h) => h.atendido) && (
+            <p className="text-[11px] text-[var(--t-text-muted)]">
+              Todavía no arreglaste nada: cuando apliques un arreglo o votes un
+              hallazgo, aparece acá hasta que el detector confirme.
+            </p>
+          )}
+        </div>
+      )}
       {sub === "vigilancia" && (cent
         ? <VigilanciaAbierta cent={cent} marcarVisto={marcarVisto} />
         : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
@@ -2194,22 +2269,9 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
             </button>
           )}
 
-          {/* LO YA HECHO, contado aunque esté escondido. Mismo criterio que el
-              corte del mercado: el número siempre a la vista, el clic lo destapa. */}
-          {nHechos > 0 && (
-            <button
-              onClick={() => setVerHechos((v) => !v)}
-              title={"Ya lo atendiste: aplicaste su arreglo, o —si la fila no tiene "
-                     + "botón— ya lo votaste y no queda nada más que hacer. Sigue "
-                     + "en la lista: solo deja de ser lo primero que se ve."}
-              className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
-                verHechos
-                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                  : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
-            >
-              {verHechos ? "▾" : "▸"} {nHechos} ya hechos
-            </button>
-          )}
+          {/* ⚠️ Acá estaba el toggle «17 YA HECHOS». Se fue con ellos: lo que ya
+              atendiste no es trabajo pendiente y no tiene por qué competir por
+              esta lista. Vive en ¿AGUANTAN?, con su número en el menú. */}
 
           {/* LO QUE DIJISTE QUE ES RUIDO. Mismo criterio que los otros dos
               cortes: el número SIEMPRE a la vista y el clic lo destapa. Esconder
@@ -2271,10 +2333,10 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
             {/* Si lo que vació la lista es que YA ESTÁ TODO ATENDIDO, decirlo así
                 y no como «ningún hallazgo coincide con el filtro»: son dos cosas
                 muy distintas y una de las dos es una buena noticia. */}
-            {!verHechos && nHechos > 0 && nHechos === data.hallazgos.length ? (
+            {nHechos > 0 && nHechos === data.hallazgos.length ? (
               <>
-                No queda nada por hacer: los {nHechos} hallazgos ya pasaron por tus
-                manos. Siguen ahí — tocá «{nHechos} ya hechos» para verlos.
+                No queda nada por hacer: los {nHechos} hallazgos ya pasaron por
+                tus manos. Están en ¿AGUANTAN?, esperando confirmación.
               </>
             ) : (
               <>
@@ -2326,9 +2388,15 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                 >
                   <span className="self-stretch" style={{ background: SEV_TINT[h.severidad] }}
                         title={`severidad ${h.severidad}`} />
-                  <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums truncate"
+                  {/* ⚠️ `truncate` se fue de los sujetos LARGOS: cortar el
+                      nombre de un chequeo a la mitad —«control:comitentes_sin_
+                      nive…»— deja la fila sin decir qué es, que es todo lo que
+                      esa columna tiene que hacer. Los tickers siguen truncados:
+                      ahí el texto entra siempre. */}
+                  <span className={`text-[11px] font-bold text-[var(--t-text)] ${
+                          sujetoLargo ? "leading-tight" : "tabular-nums truncate"}`}
                         title={h.ticker}>
-                    {h.ticker}
+                    {h.nombre || h.ticker}
                     {/* VOLVIÓ primero: gana sobre cualquier otra marca. */}
                     {h.volvio && (
                       <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-neg)]"
