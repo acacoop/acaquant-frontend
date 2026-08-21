@@ -222,6 +222,9 @@ type Vigilado = {
   // aparecido» no son lo mismo: llamar NUEVO a algo de hace 10 h quema el
   // rótulo para todos los demás.
   recien?: boolean;
+  // La antigüedad CANÓNICA, la del objeto — la misma que ve ENCONTRÓ. Sale del
+  // backend por la misma razón que `recien`: el criterio tiene que ser uno solo.
+  dias_abierto?: number | null;
 };
 // Un chequeo que se ROMPIÓ y este admin todavía no vio. Viene de SALUD, que
 // sigue siendo el dueño de la evaluación — el agente solo es la puerta.
@@ -4065,8 +4068,21 @@ function TabCentinela({ cent, marcarVisto, recargar, seguimiento }: {
   const sinVer = sinVerTodos.filter((f) => f.recien);
   const vienenDeAntes = sinVerTodos.filter((f) => !f.recien);
   const yaVistos = cent.abiertos.filter((f) => f.visto_at);
-  // Lo que la lista principal muestra. Los vistos entran solo si se pidieron.
-  const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
+  // ⚠️⚠️ **EL TÍTULO ESTABA Y LAS FILAS NO.** Acá decía
+  //
+  //     const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
+  //
+  // o sea que «VIENE DE ANTES, SIN VER · 5» se dibujaba con su contador y su
+  // botón de marcar los 5… **y las cinco filas no aparecían en ningún lado**.
+  // Cinco cosas abiertas, sin ver, anunciadas en la pantalla y sin forma de
+  // mirarlas. Es la versión más pura de lo que el user viene diciendo: la
+  // pantalla afirma que hay algo y no lo muestra.
+  //
+  // El orden es el de la urgencia: lo que apareció recién, después lo que
+  // arrastra, y los vistos al final solo si se piden.
+  const enLista = verVistos
+    ? [...sinVer, ...vienenDeAntes, ...yaVistos]
+    : [...sinVer, ...vienenDeAntes];
 
   return (
     <div className="flex flex-col gap-4">
@@ -4222,7 +4238,15 @@ function TabCentinela({ cent, marcarVisto, recargar, seguimiento }: {
                 <span className="text-[var(--t-text-muted)]">
                   confirmado hace {edad(f.ultimo_at)}
                 </span>
-                {" · desde hace "}{edad(f.abierto_at)} · ×{f.veces}
+                {/* La antigüedad sale del OBJETO cuando existe: es la misma
+                    que muestra ENCONTRÓ. Mientras fueron dos relojes, AHORA
+                    podía decir «recién» de algo que la otra tab daba por
+                    abierto hacía once días. */}
+                {" · desde hace "}
+                {f.dias_abierto != null && f.dias_abierto >= 1
+                  ? `${Math.round(f.dias_abierto)}d`
+                  : edad(f.abierto_at)}
+                {" · ×"}{f.veces}
               </span>
             </div>
           ))}
