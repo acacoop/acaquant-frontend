@@ -3634,6 +3634,11 @@ function ModalConciliar({
                   + "Los movimientos marcados IMPUESTO son gastos del banco: "
                   + "esos suelen entrar solos y descalzan seguido porque "
                   + "contabilidad los registra después. Empezá por los otros.\n\n"
+                  + "La lista se parte por signo: lo que ENTRÓ arriba y lo que "
+                  + "SALIÓ abajo, de mayor a menor y con el subtotal de cada "
+                  + "bloque. Una diferencia se explica con movimientos de un "
+                  + "solo signo, así que ese subtotal es el número a comparar "
+                  + "contra la diferencia.\n\n"
                   + "La RESTA de los dos totales sin calzar es exactamente la "
                   + "diferencia de saldos: los pares se cancelan entre sí."
                 } />
@@ -3848,6 +3853,13 @@ function Numero({
  * exactamente la diferencia de saldos —los pares se cancelan entre sí—, así que
  * el total viejo en esa vista no significaría nada. Por eso el rótulo también
  * cambia: dos números distintos no pueden llamarse igual.
+ *
+ * ⚠️ Y ahí la lista además **se parte por signo**: lo que ENTRÓ arriba y lo que
+ * SALIÓ abajo, cada bloque de mayor a menor y con su subtotal. Es la forma de la
+ * pregunta que se está haciendo: una diferencia se explica con movimientos de un
+ * solo lado —«faltan estos» o «sobran estos»—, nunca mezclando, así que el
+ * subtotal de un bloque es el número que hay que comparar contra la diferencia.
+ * Mezclados y en el orden del banco, eso había que sumarlo a mano.
  */
 function LadoConciliacion({
   titulo, filas: todas, suma, moneda, consolidado, soloSinCalzar,
@@ -3883,6 +3895,105 @@ function LadoConciliacion({
     return [...m.values()].sort((a, b) => Math.abs(b.total) - Math.abs(a.total));
   }, [filas]);
 
+  /** Los dos bloques por signo (solo en SIN CALZAR). `null` = lista corrida.
+   *
+   *  Los dos se arman SIEMPRE, aunque queden vacíos: un bloque ausente se lee
+   *  como «no miré eso», y acá «no hay ingresos sin calzar» es justamente un
+   *  dato — dice de qué lado está el problema. */
+  const bloques = useMemo(() => {
+    if (!soloSinCalzar) return null;
+    const porImporte = (a: number, b: number) => Math.abs(b) - Math.abs(a);
+    return ([
+      ["Ingresos", (v: number) => v >= 0],
+      ["Egresos", (v: number) => v < 0],
+    ] as const).map(([rotulo, deEsteLado]) => ({
+      rotulo,
+      filas: filas.filter((f) => deEsteLado(f.importe))
+        .sort((a, b) => porImporte(a.importe, b.importe)),
+      grupos: grupos.filter((g) => deEsteLado(g.total))
+        .sort((a, b) => porImporte(a.total, b.total)),
+      total: Math.round(filas.filter((f) => deEsteLado(f.importe))
+        .reduce((a, f) => a + f.importe, 0) * 100) / 100,
+    }));
+  }, [soloSinCalzar, filas, grupos]);
+
+  const renglonGrupo = (g: { clave: string; total: number; items: FilaLado[] }) => (
+    <Fragment key={g.clave}>
+      <tr
+        onClick={() => setAbierto((p) => ({ ...p, [g.clave]: !p[g.clave] }))}
+        className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface)]"
+        title="Ver los movimientos que lo componen"
+      >
+        {/* Sin `copiar` en el renglón del grupo: el clic acá es DESPLEGAR, y una
+            celda que además copia haría las dos cosas de un mismo clic. Los
+            movimientos de adentro sí. */}
+        <Td pad="px-1.5 py-[2px]" className="text-[10px] w-full leading-[1.15] break-words">
+          <span className="text-[var(--t-text-dim)] mr-1">
+            {abierto[g.clave] ? "▾" : "▸"}
+          </span>
+          {g.clave}
+          <span className="ml-1.5 text-[var(--t-text-dim)]">×{g.items.length}</span>
+        </Td>
+        <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums font-semibold ${
+          g.total < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+        }`}>
+          {plata(g.total)}
+        </Td>
+      </tr>
+      {abierto[g.clave] && g.items.map((f, i) => (
+        <tr key={i} className="border-b border-[var(--t-border)] bg-[var(--t-surface)]">
+          <Td
+            copiar={f.texto}
+            pad="pl-5 pr-1.5 py-[2px]"
+            className="text-[10px] w-full leading-[1.15] break-words text-[var(--t-text-dim)]"
+          >
+            {f.detalle || f.texto}
+          </Td>
+          <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums ${
+            f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+          }`} copiar={plata(f.importe)}>
+            {plata(f.importe)}
+          </Td>
+        </tr>
+      ))}
+    </Fragment>
+  );
+
+  // `w-full` en la descripción: se lleva TODO el sobrante y el importe queda
+  // pegado a la derecha. Sin eso la tabla reparte el ancho por igual y quedan
+  // diez centímetros de aire entre las dos columnas, que es lo que hacía
+  // imposible comparar de un vistazo. Y `break-words`: el concepto del mayor no
+  // cabe en una línea, así que baja de renglón en vez de empujar la columna del
+  // importe fuera de la pantalla.
+  const renglonFila = (f: FilaLado, clave: string) => (
+    <tr key={clave} className="border-b border-[var(--t-border)]">
+      <Td
+        copiar={f.texto}
+        pad="px-1.5 py-[2px]"
+        className="text-[10px] w-full leading-[1.15] break-words"
+      >
+        {f.texto}
+        {/* Un descalce en un impuesto es esperable —el banco lo cobra hoy y
+            contabilidad lo carga después— y no vale lo mismo que un descalce en
+            una transferencia. Se marca para poder saltearlo, no para
+            esconderlo. */}
+        {f.impuesto && (
+          <span
+            className="ml-1.5 px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
+            title={`Gasto bancario · ${f.impuesto}. Suele entrar solo y contabilidad lo registra después.`}
+          >
+            imp
+          </span>
+        )}
+      </Td>
+      <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums ${
+        f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+      }`} copiar={plata(f.importe)}>
+        {plata(f.importe)}
+      </Td>
+    </tr>
+  );
+
   return (
     <div className="border border-[var(--t-border-2)]">
       <div className="px-2 py-1 bg-[var(--t-surface-2)] flex items-center gap-2 text-[11px] border-b border-[var(--t-border-2)]">
@@ -3901,83 +4012,41 @@ function LadoConciliacion({
       <div className="max-h-[300px] overflow-auto">
         <table className="w-full border-collapse">
           <tbody>
-            {consolidado && grupos.map((g) => (
-              <Fragment key={g.clave}>
-                <tr
-                  onClick={() => setAbierto((p) => ({ ...p, [g.clave]: !p[g.clave] }))}
-                  className="border-b border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface)]"
-                  title="Ver los movimientos que lo componen"
-                >
-                  {/* Sin `copiar` en el renglón del grupo: el clic acá es
-                      DESPLEGAR, y una celda que además copia haría las dos
-                      cosas de un mismo clic. Los movimientos de adentro sí. */}
-                  <Td pad="px-1.5 py-[2px]" className="text-[10px] w-full leading-[1.15] break-words">
-                    <span className="text-[var(--t-text-dim)] mr-1">
-                      {abierto[g.clave] ? "▾" : "▸"}
+            {!bloques && consolidado && grupos.map(renglonGrupo)}
+            {!bloques && !consolidado && filas.map((f, i) => renglonFila(f, String(i)))}
+
+            {bloques?.map((b) => (
+              <Fragment key={b.rotulo}>
+                <tr className="border-b border-[var(--t-border-2)] bg-[var(--t-surface-2)]">
+                  <td className="px-1.5 py-[3px] text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">
+                    {b.rotulo}
+                    <span className="ml-1.5 normal-case">
+                      {consolidado ? b.grupos.length : b.filas.length}
                     </span>
-                    {g.clave}
-                    <span className="ml-1.5 text-[var(--t-text-dim)]">×{g.items.length}</span>
-                  </Td>
-                  <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums font-semibold ${
-                    g.total < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
+                  </td>
+                  {/* El subtotal del bloque: es EL número que se compara contra
+                      la diferencia, porque una explicación vive entera de un
+                      solo signo. */}
+                  <td className={`px-1.5 py-[3px] text-right text-[10px] whitespace-nowrap tabular-nums font-semibold ${
+                    b.total < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
                   }`}>
-                    {plata(g.total)}
-                  </Td>
+                    {plata(b.total)}
+                  </td>
                 </tr>
-                {abierto[g.clave] && g.items.map((f, i) => (
-                  <tr key={i} className="border-b border-[var(--t-border)] bg-[var(--t-surface)]">
-                    <Td
-                      copiar={f.texto}
-                      pad="pl-5 pr-1.5 py-[2px]"
-                      className="text-[10px] w-full leading-[1.15] break-words text-[var(--t-text-dim)]"
-                    >
-                      {f.detalle || f.texto}
-                    </Td>
-                    <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums ${
-                      f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
-                    }`} copiar={plata(f.importe)}>
-                      {plata(f.importe)}
-                    </Td>
+                {consolidado
+                  ? b.grupos.map(renglonGrupo)
+                  : b.filas.map((f, i) => renglonFila(f, `${b.rotulo}-${i}`))}
+                {(consolidado ? b.grupos : b.filas).length === 0 && (
+                  <tr className="border-b border-[var(--t-border)]">
+                    <td colSpan={2} className="px-1.5 py-[3px] text-[10px] text-[var(--t-text-dim)]">
+                      Ninguno sin calzar.
+                    </td>
                   </tr>
-                ))}
+                )}
               </Fragment>
             ))}
-            {!consolidado && filas.map((f, i) => (
-              // `w-full` en la descripción: se lleva TODO el sobrante y el
-              // importe queda pegado a la derecha. Sin eso la tabla reparte el
-              // ancho por igual y quedan diez centímetros de aire entre las dos
-              // columnas, que es lo que hacía imposible comparar de un vistazo.
-              // Y `break-words`: el concepto del mayor no cabe en una línea, así
-              // que baja de renglón en vez de empujar la columna del importe
-              // fuera de la pantalla.
-              <tr key={i} className="border-b border-[var(--t-border)]">
-                <Td
-                  copiar={f.texto}
-                  pad="px-1.5 py-[2px]"
-                  className="text-[10px] w-full leading-[1.15] break-words"
-                >
-                  {f.texto}
-                  {/* Un descalce en un impuesto es esperable —el banco lo cobra
-                      hoy y contabilidad lo carga después— y no vale lo mismo
-                      que un descalce en una transferencia. Se marca para poder
-                      saltearlo con la vista, no para esconderlo. */}
-                  {f.impuesto && (
-                    <span
-                      className="ml-1.5 px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]"
-                      title={`Gasto bancario · ${f.impuesto}. Suele entrar solo y contabilidad lo registra después.`}
-                    >
-                      imp
-                    </span>
-                  )}
-                </Td>
-                <Td right pad="px-1.5 py-[2px]" className={`text-[10px] whitespace-nowrap tabular-nums ${
-                  f.importe < 0 ? "text-[var(--t-neg)]" : "text-[var(--t-pos)]"
-                }`} copiar={plata(f.importe)}>
-                  {plata(f.importe)}
-                </Td>
-              </tr>
-            ))}
-            {filas.length === 0 && (
+
+            {filas.length === 0 && !bloques && (
               <tr>
                 <td colSpan={2} className="px-2 py-3 text-[11px] text-[var(--t-text-dim)]">
                   Sin movimientos.
