@@ -27,6 +27,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { Cell, Pie, PieChart } from "recharts";
 
 import { fetchJson } from "@/lib/fetch-json";
 import { fmtFechaCorta, MESES_CORTOS } from "@/lib/fmt";
@@ -259,7 +260,18 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                       sub={a.a3500 ? `A3500 ${fmt2(a.a3500)}` : "sin A3500"} />
           </div>
 
+          {/* Mismo reparto que la pantalla: la torta a la izquierda y los dos
+              cuadros apilados a la derecha. El informe impreso y el de la
+              pantalla tienen que verse como el mismo documento — si no, el que
+              lo recibe no puede seguirlo mientras alguien se lo explica sobre la
+              app. */}
           <div className="grid grid-cols-2 gap-6">
+            <div>
+              <TituloBloque>Composición al {fmtFechaCorta(a.fecha)}</TituloBloque>
+              <TortaCarteras carteras={a.carteras} />
+            </div>
+
+            <div className="flex flex-col gap-4">
             <div>
               <TituloBloque>Composición por cartera</TituloBloque>
               <table className="w-full text-[10px]">
@@ -313,8 +325,8 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
             <div>
               <TituloBloque>
                 {datos.resumen.anterior
-                  ? `Comparativo · cierre al ${fmtFechaCorta(datos.resumen.anterior.fecha)}`
-                  : "Comparativo"}
+                  ? `Cierre anterior · ${fmtFechaCorta(datos.resumen.anterior.fecha)}`
+                  : "Cierre anterior"}
               </TituloBloque>
               {datos.resumen.anterior ? (
                 <table className="w-full text-[10px]">
@@ -345,6 +357,7 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
                   No hay un cierre de mes anterior para comparar.
                 </p>
               )}
+            </div>
             </div>
           </div>
         </Hoja>
@@ -486,7 +499,7 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
     // pedir 210 hace que cualquier redondeo (un borde, el padding del pie)
     // empuje unos píxeles a una segunda página y el PDF salga con hojas en
     // blanco intercaladas. Medido: con 210mm, 6 hojas daban 7 páginas.
-    <section className="hoja bg-white text-neutral-900 shadow-lg"
+    <section className="hoja sin-marca-de-agua bg-white text-neutral-900 shadow-lg"
              style={{ width: "297mm", minHeight: "205mm",
                       printColorAdjust: "exact",
                       WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
@@ -512,6 +525,62 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
         <span className="ml-auto">Hoja {n}</span>
       </footer>
     </section>
+  );
+}
+
+/**
+ * La torta de la hoja 1 — la misma que la pantalla, con las porciones y el
+ * porcentaje escrito en la leyenda.
+ *
+ * ⚠️ **Medidas FIJAS, no `ResponsiveContainer`.** El contenedor responsivo mide
+ * su caja con un `ResizeObserver` y dibuja recién después: en una hoja que se
+ * está por imprimir eso es una carrera que a veces pierde y deja el SVG en cero.
+ * La hoja tiene un ancho conocido (297mm), así que el gráfico puede tener
+ * medidas exactas y dibujarse en el primer render. Es el único lugar de la app
+ * donde conviene lo fijo sobre lo responsivo, y el motivo es la impresión.
+ *
+ * Solo se dibujan las carteras con monto POSITIVO: una cartera en negativo
+ * (efectivo en descubierto) no es una porción de nada. El porcentaje es la
+ * `ponderacion` que ya viene del backend, la misma que imprime el cuadro de al
+ * lado — calcularlo acá sería tener el mismo número en dos lugares.
+ */
+function TortaCarteras({ carteras }: {
+  carteras: (Monto & { cartera: string; label: string })[];
+}) {
+  const datos = carteras
+    .filter((c) => c.monto > 0)
+    .map((c) => ({ name: c.label, value: c.monto, cartera: c.cartera, pond: c.ponderacion }));
+
+  if (!datos.length) {
+    return <p className="text-[10px] text-neutral-500">Sin carteras con monto positivo.</p>;
+  }
+  return (
+    <div className="flex items-center gap-6">
+      <PieChart width={250} height={250}>
+        <Pie data={datos} dataKey="value" nameKey="name" cx={120} cy={120}
+             innerRadius={52} outerRadius={110} paddingAngle={1} stroke="#fff"
+             isAnimationActive={false}>
+          {datos.map((d, i) => (
+            <Cell key={d.cartera} fill={carteraColor(d.cartera, i)} />
+          ))}
+        </Pie>
+      </PieChart>
+      {/* La leyenda es HTML propio y no el <Legend> de recharts por dos motivos:
+          la librería la ordena por cómo quedaron dibujados los sectores —no por
+          el orden del cuadro de al lado, y dos listas de lo mismo en distinto
+          orden hacen que alguien lea mal el informe—, y además en la versión 3
+          ya no se le puede pasar el contenido armado. */}
+      <ul className="text-[10px] leading-relaxed">
+        {datos.map((d, i) => (
+          <li key={d.cartera} className="flex items-baseline gap-2">
+            <span className="inline-block w-2.5 h-2.5 shrink-0"
+                  style={{ background: carteraColor(d.cartera, i) }} />
+            <span className="text-neutral-700">{d.name}</span>
+            <span className="ml-auto pl-3 tabular-nums font-semibold">{fmtPct(d.pond)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -583,6 +652,12 @@ const CSS_IMPRESION = `
   #reporte-imprimible { margin: 0 !important; display: block !important; }
   .reporte-overlay > style { display: none !important; }
   .no-imprimir { display: none !important; }
+  /* La marca de agua global que la app le pone a todos los charts no va en el
+     reporte: la hoja YA lleva el logo en la barra azul de arriba, y repetirlo
+     detrás de la torta lo único que hace es taparle la leyenda.
+     (Sin acentos graves en este comentario: está adentro de un template
+     literal y lo cerrarían.) */
+  .hoja .recharts-wrapper::before { display: none !important; }
   .hoja, .hoja * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

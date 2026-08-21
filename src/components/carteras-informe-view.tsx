@@ -26,7 +26,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -318,9 +317,14 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
 
 function TabResumen({ data, usd }: { data: Vista; usd: boolean }) {
   const a = data.resumen.actual;
+  // La torta solo dibuja lo que suma: una cartera en negativo (efectivo en
+  // descubierto) no es una porción de nada. El PORCENTAJE que se muestra es la
+  // `ponderacion` que ya viene del backend —la misma que imprime el cuadro de al
+  // lado— y no uno calculado acá: dos números que deberían ser el mismo,
+  // calculados en dos lugares, es la forma de que un día no coincidan.
   const torta = useMemo(
     () => a.carteras.filter((c) => c.monto > 0)
-      .map((c) => ({ name: c.label, value: c.monto, cartera: c.cartera })),
+      .map((c) => ({ name: c.label, value: c.monto, cartera: c.cartera, pond: c.ponderacion })),
     [a.carteras],
   );
   return (
@@ -345,31 +349,54 @@ function TabResumen({ data, usd }: { data: Vista; usd: boolean }) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
         <Panel titulo={`Composición al ${fmtFechaCorta(a.fecha)}`}>
-          <div className="h-[300px] p-2">
+          <div className="h-[300px] p-2 flex items-center gap-3">
             {torta.length === 0 ? (
-              <div className="h-full grid place-items-center text-[11px] text-[var(--t-text-muted)]">
+              <div className="h-full w-full grid place-items-center text-[11px] text-[var(--t-text-muted)]">
                 Sin posiciones con valuación.
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={torta} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="80%"
-                       paddingAngle={1} stroke="var(--t-panel)">
-                    {torta.map((t, i) => (
-                      <Cell key={t.cartera} fill={carteraColor(t.cartera, i)} />
-                    ))}
-                  </Pie>
-                  <Legend verticalAlign="middle" align="right" layout="vertical"
-                          wrapperStyle={{ fontSize: 11 }} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 11 }}
-                    formatter={(v, n) => {
-                      const m = Number(v);
-                      return [`${fmt0(m)} (${fmtPct(a.valuacion_ars ? m / a.valuacion_ars : null)})`, String(n)];
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <>
+                <div className="flex-1 min-w-0 h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={torta} dataKey="value" nameKey="name" innerRadius="52%" outerRadius="80%"
+                           paddingAngle={1} stroke="var(--t-panel)">
+                        {torta.map((t, i) => (
+                          <Cell key={t.cartera} fill={carteraColor(t.cartera, i)} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ background: "var(--t-panel)", border: "1px solid var(--t-border-2)", fontSize: 11 }}
+                        formatter={(v, n) => {
+                          const m = Number(v);
+                          return [`${fmt0(m)} (${fmtPct(a.valuacion_ars ? m / a.valuacion_ars : null)})`, String(n)];
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* La leyenda es HTML propio y no el <Legend> de recharts. Dos
+                    motivos: la librería la ordena por cómo quedaron dibujados
+                    los sectores y no por el orden del cuadro de al lado —dos
+                    listas de lo mismo, una al lado de la otra y en distinto
+                    orden, hacen que alguien lea mal el informe—, y así la
+                    leyenda es IDÉNTICA a la de la hoja del reporte, que ya no
+                    puede usar la de la librería. El porcentaje es la
+                    `ponderacion` que viene del backend: la misma que imprime la
+                    tabla, no una cuenta hecha acá. */}
+                <ul className="shrink-0 pr-2 text-[11px] leading-relaxed">
+                  {torta.map((t, i) => (
+                    <li key={t.cartera} className="flex items-baseline gap-2">
+                      <span className="inline-block w-2.5 h-2.5 shrink-0"
+                            style={{ background: carteraColor(t.cartera, i) }} />
+                      <span className="text-[var(--t-text)]">{t.name}</span>
+                      <span className="ml-auto pl-3 tabular-nums font-semibold text-[var(--t-text-dim)]">
+                        {fmtPct(t.pond)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </div>
         </Panel>

@@ -146,6 +146,11 @@
   z-index: 0;
 }
 
+/* Sin marca de agua: para charts que ya viven adentro de algo que lleva el logo
+   (las hojas del REPORTE de carteras, que lo tienen en la barra azul de arriba).
+   Repetirlo detrás del gráfico solo le tapa la leyenda. */
+.light .sin-marca-de-agua .recharts-wrapper::before { display: none; }
+
 /* Override puntual: en charts marcados con `wm-corner`, la marca de agua va
    arriba a la derecha y más chica, para no taparse con las barras/datos
    (ej. "Volumen operado" en Negocio → Movimientos). Hereda la opacidad de la
