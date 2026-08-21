@@ -2370,15 +2370,44 @@ function AccionCadena({ h, sim, simular, modo }: {
   const [pedido, setPedido] = useState<Record<string, string>>({});
   const [rechequeando, setRechequeando] = useState(false);
   const [rechequeo, setRechequeo] = useState("");
+  // El diagnóstico RECIÉN corrido. Pisa al que vino con la vista: si no, la
+  // tarjeta muestra el conteo nuevo arriba de la cadena vieja.
+  const [simLocal, setSimLocal] = useState<Record<string, unknown> | null>(null);
+  const [resuelto, setResuelto] = useState(false);
 
+  // ⚠️⚠️ **EL RE-CHEQUEO PINTABA EL CONTEO NUEVO ARRIBA DE LA CADENA VIEJA.** El
+  // user (2026-08-21), después de dar de alta las 4 contrapartes:
+  //
+  //     ↻ CHEQUEAR AHORA  →  «0 siguen · 4 se resolvieron»
+  //     ...y abajo seguían los 4 casos listados, con «hace 7 d»
+  //
+  // > *«El volver a chequear dice que sí pero no corta el resto del mensaje ni
+  // > nada, mantiene todo en vez de decir que ya está resuelto. No tiene memoria
+  // > de los cambios.»*
+  //
+  // Y sí tenía memoria: el backend los había cerrado. Lo que faltaba era pisar
+  // la tarjeta con el diagnóstico recalculado. **Dos verdades contradiciéndose
+  // en la misma tarjeta se leen como que el sistema no se enteró** — peor que no
+  // haber puesto el botón.
   const rechequear = async (chequeoId: string) => {
     setRechequeando(true);
     setRechequeo("");
     try {
-      const r = await fetchJson<{ ok: boolean; texto?: string; error?: string }>(
+      const r = await fetchJson<{
+        ok: boolean; texto?: string; error?: string; resuelto?: boolean;
+        diagnostico?: Record<string, unknown>;
+      }>(
         `/api/ia/av-agent/salud/recontrolar?control_id=${encodeURIComponent(chequeoId)}`,
         { method: "POST" });
       setRechequeo(r.ok ? (r.texto ?? "listo") : `✘ ${r.error ?? "falló"}`);
+      // La cadena se REEMPLAZA por la recién corrida. Si el backend no la pudo
+      // rehacer, se deja la vieja: mejor una foto de hace un rato que ninguna.
+      if (r.ok && r.diagnostico) {
+        setSimLocal(r.diagnostico);
+      }
+      // Y si no queda ninguno, la lista de la vista tiene que enterarse: si no,
+      // el chequeo sigue en rojo hasta el próximo poll.
+      if (r.ok) setResuelto(r.resuelto === true);
     } catch (e) {
       setRechequeo(`✘ ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -2390,8 +2419,8 @@ function AccionCadena({ h, sim, simular, modo }: {
   // doc que cargó la mesa.
   const curva = modo === "alta" ? String((h.evidencia ?? {}).curva_1816 ?? "") : "";
   if (modo === "alta" && !curva) return null;
-  const corriendo = sim === null;
-  const r = sim as Record<string, unknown> | undefined;
+  const corriendo = sim === null && !simLocal;
+  const r = (simLocal ?? sim) as Record<string, unknown> | undefined;
   const ok = r?.ok === true;
   const aplicable = r?.aplicable === true;
   const aplicado = r?.aplicado === true;
@@ -2508,7 +2537,20 @@ function AccionCadena({ h, sim, simular, modo }: {
         </button>
       )}
       {rechequeo && (
-        <span className="text-[9px] text-[var(--t-accent)]">{rechequeo}</span>
+        <span className={`text-[9px] ${resuelto
+          ? "text-[var(--t-pos)] font-bold" : "text-[var(--t-accent)]"}`}>
+          {rechequeo}
+        </span>
+      )}
+      {/* RESUELTO se dice fuerte y una sola vez. La fila de arriba sigue
+          diciendo «4 anomalías sin resolver» hasta el próximo poll —el título
+          viene de la corrida guardada— así que sin este cartel la tarjeta se
+          contradice sola. */}
+      {resuelto && (
+        <span className="w-full text-[10px] text-[var(--t-pos)]">
+          ✔ Ya no queda ninguno. El título de arriba se actualiza en la próxima
+          pasada del agente.
+        </span>
       )}
       {r && (
         <span className={`text-[9px] ${r.ok === false ? "text-[var(--t-neg)]" : "text-[var(--t-text-dim)]"}`}>
