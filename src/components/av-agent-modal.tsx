@@ -102,6 +102,18 @@ type Hallazgo = {
   // pantalla. Con identidad estable el objeto acumula historia.
   dias_abierto?: number | null;   // desde cuándo, de verdad
   veces?: number | null;          // cuántas corridas lleva sin resolverse
+  // ── CUÁNTOS CASOS TIENE ESTE CHEQUEO, AHORA ────────────────────────────
+  // Solo para las filas de SALUD. `n_casos` lo REESCRIBE el backend en cada
+  // lectura contra `salud.evaluar()`; `n_casos_foto` es lo que decía la foto
+  // de anoche, y viene SOLO si cambió.
+  //
+  // ⚠️ Por qué importa: un control con 8 casos del que se arreglan 5 SIGUE
+  // rojo, así que la fila se queda — y hasta hoy se quedaba con el texto
+  // congelado en «8». El user arregló cosas de verdad tres veces seguidas y
+  // la pantalla mostró el mismo número, dígito por dígito. Sin el delta no
+  // hay ninguna forma de ver el avance parcial, que es cómo avanza casi todo.
+  n_casos?: number | null;
+  n_casos_foto?: number | null;
   // ⚠️ Se arregló y REAPARECIÓ. Es la señal más fuerte que hay —dice que el
   // arreglo no sirvió— y por eso se marca aparte de la antigüedad: contarlo
   // como «uno viejo más» la borra.
@@ -2761,6 +2773,22 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                             title={`Abierto hace ${h.dias_abierto} días · visto ${h.veces ?? 1} veces`}>
                         {Math.round(h.dias_abierto ?? 0)}d
                         {(h.veces ?? 0) > 1 ? ` ×${h.veces}` : ""}
+                      </span>
+                    )}
+                    {/* CUÁNTOS QUEDAN · CUÁNTOS ERAN. El verde es la única
+                        señal de que lo que hiciste sirvió. */}
+                    {typeof h.n_casos === "number" && (
+                      <span className="ml-1 text-[8px] font-normal tabular-nums text-[var(--t-text-dim)]"
+                            title={typeof h.n_casos_foto === "number"
+                              ? `Quedan ${h.n_casos} casos. Cuando se sacó la foto eran ${h.n_casos_foto}.`
+                              : `${h.n_casos} casos abiertos en este control`}>
+                        {h.n_casos} caso{h.n_casos === 1 ? "" : "s"}
+                        {typeof h.n_casos_foto === "number" && (
+                          <span className={h.n_casos < h.n_casos_foto
+                            ? "ml-1 text-[var(--t-pos)]" : "ml-1 text-[var(--t-neg)]"}>
+                            {h.n_casos < h.n_casos_foto ? "▼" : "▲"} eran {h.n_casos_foto}
+                          </span>
+                        )}
                       </span>
                     )}
                     {h.atendido && (
