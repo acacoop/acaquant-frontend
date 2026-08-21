@@ -387,7 +387,7 @@ function haceCuanto(iso: string | null): string {
 // herramienta.
 // TRES, agrupadas por lo que hay que HACER con cada una — no por de dónde sale
 // el dato. `control` existe pero no es una tab: vive en el ⚙ de la derecha.
-type Tab = "ahora" | "hallazgos" | "skills" | "historial" | "control";
+type Tab = "ahora" | "hallazgos" | "skills" | "agenda" | "historial" | "control";
 
 // Una pregunta que el agente sabe contestar. Sale del backend, así que el día
 // que se agregue una aparece sola: la pantalla no tiene su propia lista.
@@ -403,6 +403,33 @@ type Skill = {
   usa_ia: "no" | "opcional" | "si"; para_que_la_ia: string;
   donde: string; fuente: string; extra?: Record<string, unknown> | null;
 };
+// LO QUE EL AGENTE HACE DURANTE EL DÍA (tab CONTROL). Todo DERIVADO en el
+// backend (`api/services/av_agent_agenda.py`): catálogo de skills × crontab ×
+// `manager.job_runs` × hallazgos abiertos. El front no calcula nada — si
+// calculara, la pantalla y el backend podrían decir cosas distintas.
+type AgendaPieza = {
+  nombre: string; que_hace: string; dominio?: string;
+  usa_ia: "no" | "opcional" | "si";
+};
+type AgendaFila = {
+  job: string; cada: string;
+  ultima: string | null; estado: string | null; resumen: string;
+  hace_s: number | null;
+  /** `null` = NO SE PUDO JUZGAR (sin schedule legible o sin ninguna corrida).
+   *  Es distinto de `false`, y por eso no se pinta verde. */
+  atrasado: boolean | null;
+  piezas: AgendaPieza[];
+  encontrados: number;
+};
+type AgendaVista = {
+  ok: boolean; filas: AgendaFila[];
+  piezas: number; atrasados: number; sin_juzgar: number; al_dia: number;
+  /** Habilidades que existen pero NO corren solas (explicar un cálculo, mandar
+   *  un mensaje): se usan a pedido. Va declarado para que la diferencia con el
+   *  total de SKILLS no se lea como que faltan. */
+  a_pedido?: number;
+};
+
 type SkillsVista = {
   total: number;
   por_tipo: Record<string, Skill[]>;
@@ -427,7 +454,16 @@ function cuandoCorre(cron: string): string {
   if (hora === "*") return `cada hora${dias}`;
   if (hora.includes(",") || hora.includes("-") || hora.includes("/"))
     return `varias veces por día${dias}`;
-  return `${hora.padStart(2, "0")}:${min.padStart(2, "0")} UTC${dias}`;
+  // ⚠️ **EL CRON ES UTC, LA PANTALLA ES ART.** El user: *«basta de UTC y esas
+  // cosas, horario argentino mostrar»*. Argentina es UTC−3 todo el año (no hay
+  // horario de verano), así que la conversión es una resta y no puede errarle
+  // por estación. Si cruza la medianoche el DÍA también se corre, y por eso el
+  // rótulo de días deja de valer: se muestra el cron crudo antes que mentir.
+  const h = Number(hora);
+  if (!Number.isFinite(h)) return cron;
+  const hAr = h - 3;
+  if (hAr < 0) return `${String(hAr + 24).padStart(2, "0")}:${min.padStart(2, "0")} (día anterior)`;
+  return `${String(hAr).padStart(2, "0")}:${min.padStart(2, "0")}${dias}`;
 }
 
 // Qué hizo cada acción, en castellano. El nombre técnico (`ignorar_ticker`) va
@@ -526,6 +562,19 @@ export function AvAgentModal() {
     }
   }, []);
 
+  // LA AGENDA (tab CONTROL). Se carga al abrir junto con el resto: el contador
+  // de atrasados vive en la barra de tabs, así que tiene que existir antes de
+  // que alguien entre a la tab — si se cargara al entrar, el número aparecería
+  // recién después de haber ido a buscarlo, que es cuando ya no sirve.
+  const [agenda, setAgenda] = useState<AgendaVista | null>(null);
+  const cargarAgenda = useCallback(async () => {
+    try {
+      setAgenda(await fetchJson<AgendaVista>("/api/ia/av-agent/agenda"));
+    } catch {
+      setAgenda(null);
+    }
+  }, []);
+
   const cargar = useCallback(async () => {
     try {
       setData(await fetchJson<Vista>("/api/ia/av-agent/vista"));
@@ -560,7 +609,8 @@ export function AvAgentModal() {
   // El tablero viene con ella: **la PARADA tiene que verse en la barra**, no
   // adentro de una tab que hay que ir a buscar. Un agente frenado del que uno se
   // entera abriendo el modal es un agente que va a quedar frenado tres días.
-  useEffect(() => { void cargar(); void cargarControl(); }, [cargar, cargarControl]);
+  useEffect(() => { void cargar(); void cargarControl(); void cargarAgenda(); },
+            [cargar, cargarControl, cargarAgenda]);
 
   // El latido es de 30s: pollear cada 20 deja el círculo como mucho un ciclo
   // atrasado. Es UN request chico y es lo que sostiene la afirmación «prendido».
@@ -980,10 +1030,33 @@ export function AvAgentModal() {
                   lo que el agente sabe hacer: no se «atiende», se consulta. Y el
                   contador estaba clavado en 0, que además de inútil se leía como
                   «no tiene ninguna». */}
+              {/* CONTROL — *«qué estoy haciendo»*. Va PEGADA a SKILLS porque son
+                  las dos caras de lo mismo y se leen juntas: SKILLS dice **qué
+                  sé hacer** y CONTROL dice **si lo estoy haciendo**. Un catálogo
+                  sin la segunda pregunta promete capacidades sin decir cuáles
+                  corren de verdad, que es justo lo que el user quiere poder
+                  mostrarle a alguien de afuera. El número solo aparece si hay
+                  algo atrasado o sin poder juzgar: un contador que siempre está
+                  se deja de mirar. */}
+              <button
+                onClick={() => setTab("agenda")}
+                title="Todo lo que el agente monitorea durante el día, con su ritmo y su última corrida"
+                className={`${error ? "" : "ml-auto "}px-4 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px border-l border-l-[var(--t-border)] transition-colors ${
+                  tab === "agenda"
+                    ? "border-b-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-b-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+              >
+                CONTROL
+                {(agenda?.atrasados ?? 0) + (agenda?.sin_juzgar ?? 0) > 0 && (
+                  <span className="ml-1.5 tabular-nums text-[#f59e0b]">
+                    {(agenda?.atrasados ?? 0) + (agenda?.sin_juzgar ?? 0)}
+                  </span>
+                )}
+              </button>
               <button
                 onClick={() => setTab("skills")}
                 title="Todo lo que el agente sabe hacer, y cuáles usan IA"
-                className={`${error ? "" : "ml-auto "}px-4 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px border-l border-l-[var(--t-border)] transition-colors ${
+                className={`px-4 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px border-l border-l-[var(--t-border)] transition-colors ${
                   tab === "skills"
                     ? "border-b-[var(--t-accent)] text-[var(--t-accent)]"
                     : "border-b-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
@@ -997,7 +1070,7 @@ export function AvAgentModal() {
                   sin número es una herramienta guardada. */}
               <button
                 onClick={() => setTab(tab === "control" ? "ahora" : "control")}
-                title="Control del agente: parada de emergencia y estado de las fuentes"
+                title="Parada de emergencia y estado de las fuentes"
                 className={`px-3 text-[11px] border-b-2 -mb-px transition-colors ${
                   tab === "control"
                     ? "border-[var(--t-accent)] text-[var(--t-accent)]"
@@ -1081,6 +1154,9 @@ export function AvAgentModal() {
               )}
               {tab === "control" && (
                 <TabControl ctrl={ctrl} setParada={setParada} recargar={cargarControl} />
+              )}
+              {tab === "agenda" && (
+                <TabAgenda v={agenda} recargar={cargarAgenda} />
               )}
               {tab === "skills" && (
                 <TabSkills />
@@ -1176,6 +1252,182 @@ type EvalResumen = {
   fallos: { caso: string; causa_dicha: string; causa_correcta: string | null;
             nota: string | null; por: string | null }[];
 };
+
+// ── TAB CONTROL — QUÉ ESTÁ HACIENDO EL AGENTE, HOY ──────────────────────────
+//
+// Pedido del user (2026-08-22): *«que figure todo lo que el agente está
+// monitoreando durante el día, actualización de la última vez y eso… es como si
+// viniera mi jefe y me diga qué estás haciendo y vea desglosado todo lo que
+// hago. De esa manera alguien puede ver fácil si hay algo que NO está
+// haciendo»*.
+//
+// **La última frase manda el diseño.** SKILLS ya contesta *qué sé hacer*; lo que
+// faltaba es *¿lo estoy haciendo?*, y eso solo sale de cruzar el catálogo con
+// las corridas reales. Por eso el eje de la pantalla es **la RUTINA que corre**
+// (el job), no el dominio: si un job está caído, las doce piezas que viven
+// adentro están ciegas al mismo tiempo — agrupado por dominio se verían doce
+// problemas distintos en vez de una sola causa.
+//
+// El front NO calcula nada: los cuatro números y el veredicto de atraso los
+// arma `api/services/av_agent_agenda.py`. Recalcular acá sería la falla que ya
+// nos costó tres incidentes: dos copias del mismo criterio que se contradicen.
+function TabAgenda({ v, recargar }: {
+  v: AgendaVista | null;
+  recargar: () => void | Promise<void>;
+}) {
+  const [abiertas, setAbiertas] = useState<Set<string>>(new Set());
+  const [todo, setTodo] = useState(false);
+
+  if (!v) {
+    return <p className="text-[11px] text-[var(--t-text-muted)]">Cargando…</p>;
+  }
+  if (!v.filas.length) {
+    return (
+      <p className="text-[11px] text-[var(--t-neg)]">
+        No pude armar la agenda. Esto NO quiere decir que el agente esté
+        parado — quiere decir que no puedo verlo, que es peor.
+      </p>
+    );
+  }
+
+  const abrir = (k: string) => setAbiertas((s) => {
+    const n = new Set(s);
+    if (n.has(k)) { n.delete(k); } else { n.add(k); }
+    return n;
+  });
+
+  // El nombre del job en legible. `jobs.controles_datos` → `controles datos`.
+  // El nombre técnico igual viaja en el `title`: la pantalla se lee, pero
+  // después alguien tiene que ir a buscar ese job al Droplet.
+  const legible = (j: string) => j.replace(/^jobs\./, "").replace(/_/g, " ");
+
+  // El color del renglón. Tres estados, no dos: **`null` no es verde**. Un job
+  // que no pude juzgar (sin schedule legible o sin ninguna corrida registrada)
+  // pintado de verde sería exactamente la mentira que esta tab vino a impedir.
+  const color = (a: boolean | null) =>
+    a === true ? "var(--t-neg)" : a === false ? "var(--t-pos)" : "#f59e0b";
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* LOS CUATRO NÚMEROS. `sin juzgar` va SIEMPRE, aunque sea 0: sin él,
+          «0 atrasadas» se lee como «todo al día» cuando puede ser «no pude
+          mirar tres». */}
+      <div className="flex flex-wrap items-baseline gap-3 border border-[var(--t-border)] px-2.5 py-1.5">
+        <span className="text-[11px] text-[var(--t-text)]">
+          <strong className="tabular-nums">{v.piezas}</strong> cosas monitoreadas
+          {" "}en <strong className="tabular-nums">{v.filas.length}</strong> rutinas
+        </span>
+        <span className={SUB}>
+          <span className="text-[var(--t-pos)]">{v.al_dia}</span> al día ·{" "}
+          <span style={{ color: v.atrasados ? "var(--t-neg)" : undefined }}>
+            {v.atrasados}
+          </span> atrasadas ·{" "}
+          <span style={{ color: v.sin_juzgar ? "#f59e0b" : undefined }}>
+            {v.sin_juzgar}
+          </span> sin poder juzgar
+        </span>
+        <button
+          onClick={() => { setTodo((t) => !t); setAbiertas(new Set()); }}
+          className="ml-auto text-[9px] uppercase tracking-widest text-[var(--t-text-muted)] hover:text-[var(--t-accent)]"
+        >
+          {todo ? "plegar" : "ver todo"}
+        </button>
+        <button onClick={() => void recargar()}
+                className="text-[10px] text-[var(--t-text-muted)] hover:text-[var(--t-accent)]">
+          ↻
+        </button>
+      </div>
+
+      {/* UNA FILA POR RUTINA. Poco texto y la hora bien: cada cuánto debería
+          correr, cuándo corrió de verdad, cómo salió y qué dejó abierto. */}
+      <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+        {v.filas.map((f) => {
+          const ab = todo || abiertas.has(f.job);
+          return (
+            <div key={f.job}>
+              <button
+                onClick={() => abrir(f.job)}
+                className="w-full grid grid-cols-[3px_minmax(0,1fr)_120px_92px_56px_46px] items-baseline gap-2 px-2 py-1 text-left hover:bg-[var(--t-surface)]"
+              >
+                <span className="self-stretch" style={{ background: color(f.atrasado) }} />
+                <span className="min-w-0">
+                  <span className="text-[11px] font-semibold text-[var(--t-text)]" title={f.job}>
+                    {legible(f.job)}
+                  </span>
+                  {f.resumen && (
+                    <span className="ml-2 text-[9px] text-[var(--t-text-dim)] truncate">
+                      {f.resumen}
+                    </span>
+                  )}
+                </span>
+                {/* CADA CUÁNTO DEBERÍA. Sale del crontab real, no de una lista
+                    en el front: un horario copiado a mano se desincroniza el
+                    día que se cambia el cron y nadie se entera. */}
+                <span className="text-[9px] text-[var(--t-text-muted)] truncate"
+                      title={f.cada}>
+                  {cuandoCorre(f.cada)}
+                </span>
+                {/* CUÁNDO CORRIÓ DE VERDAD, en hora argentina. */}
+                <span className="text-[9px] tabular-nums whitespace-nowrap"
+                      style={{ color: color(f.atrasado) }}
+                      title={f.hace_s === null ? "sin corridas registradas"
+                                               : haceCuanto(f.ultima)}>
+                  {f.ultima ? cuando(f.ultima) : "nunca"}
+                </span>
+                {/* QUÉ ENCONTRÓ Y SIGUE ABIERTO. Es lo que separa «corrió» de
+                    «sirvió»: un job verde que hace un mes no encuentra nada
+                    puede estar mirando una tabla vacía. */}
+                <span className="text-[9px] tabular-nums text-right"
+                      style={{ color: f.encontrados ? "#f59e0b" : "var(--t-text-dim)" }}
+                      title="hallazgos suyos todavía abiertos">
+                  {f.encontrados || "—"}
+                </span>
+                <span className="text-[9px] tabular-nums text-right text-[var(--t-text-dim)]">
+                  {ab ? "▾" : "▸"} {f.piezas.length}
+                </span>
+              </button>
+              {ab && (
+                <ul className="bg-[var(--t-surface)] border-t border-[var(--t-border)]">
+                  {f.piezas.map((pz) => (
+                    <li key={pz.nombre}
+                        className="grid grid-cols-[14px_170px_minmax(0,1fr)] items-baseline gap-2 pl-4 pr-2 py-0.5">
+                      {/* Quién lo hace: una función o el modelo. Es el dato que
+                          decide cuánto confiar en el resultado. */}
+                      <span className="text-[8px] text-[var(--t-text-dim)]"
+                            title={pz.usa_ia === "no" ? "lo hace una función, sin IA"
+                              : pz.usa_ia === "si" ? "depende del modelo"
+                              : "usa IA solo para redactar"}>
+                        {pz.usa_ia === "no" ? "ƒ" : "IA"}
+                      </span>
+                      <span className="text-[10px] text-[var(--t-text)] truncate"
+                            title={pz.nombre}>
+                        {pz.nombre}
+                      </span>
+                      <span className="text-[9px] text-[var(--t-text-muted)] truncate"
+                            title={pz.que_hace}>
+                        {pz.que_hace}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className={SUB}>
+        el ritmo sale del crontab y la corrida de <span className="font-mono">job_runs</span>
+        {" "}— nada de esto está escrito a mano acá, así que una rutina nueva
+        aparece sola
+        {(v.a_pedido ?? 0) > 0 && (
+          <> · otras <strong className="tabular-nums">{v.a_pedido}</strong>{" "}
+          habilidades no corren solas, se usan a pedido (SKILLS)</>
+        )}
+      </p>
+    </div>
+  );
+}
 
 function TabSkills() {
   const [v, setV] = useState<SkillsVista | null>(null);
@@ -2066,15 +2318,6 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
     return out;
   }, [preFiltrados, reglaOk]);
 
-  if (data.hallazgos.length === 0) {
-    return (
-      <p className="text-[11px] text-[var(--t-text-muted)]">
-        No encontré nada. Si todavía no corrí, la lista está vacía porque no miré —
-        no porque esté todo bien.
-      </p>
-    );
-  }
-
   const nVisibles = visibles.reduce((a, [, hs]) => a + hs.length, 0);
   const nVisiblesPre = preFiltrados.reduce((a, [, hs]) => a + hs.length, 0);
   // Lo que TODAVÍA pide trabajo, sin importar el filtro puesto: ni atendido ni
@@ -2082,6 +2325,14 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // del menú tiene que decir por qué entrarías, no cuántas filas hay.
   const nPorHacer = data.hallazgos.filter(
     (h) => !h.atendido && !h.es_ruido).length;
+  // Los SUJETOS cuyo arreglo ya se APLICÓ (no solo votado): es lo que hace que
+  // el informe masivo no vuelva a ofrecer lo que ya hiciste, ni siquiera
+  // después de recargar. Sale del objeto, vía `hallazgos[].atendido`.
+  const yaHecho = useMemo(
+    () => new Set(data.hallazgos
+      .filter((h) => h.atendido === "aplicado")
+      .map((h) => h.ticker.trim().toUpperCase())),
+    [data.hallazgos]);
 
   // ── EL DIAGNÓSTICO MASIVO ─────────────────────────────────────────────────
   // Corre sobre LO FILTRADO, no sobre los 84: «diagnosticá los 30 de
@@ -2134,6 +2385,24 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
     const id = setInterval(() => void tick(), 2000);
     return () => { vivo = false; clearInterval(id); };
   }, [corriendo]);
+
+  // ⚠️⚠️ **LA SALIDA TEMPRANA VA ACÁ, DESPUÉS DE TODOS LOS HOOKS — y no es
+  // estilo, es un cuelgue.** Estaba arriba, en el medio de la lista de hooks, y
+  // React exige que la CANTIDAD de hooks sea la misma en cada render: con la
+  // lista vacía se ejecutaban 12 y con un hallazgo 18. O sea que **abrir
+  // ENCONTRÓ sin nada y esperar a que el poll trajera el primer hallazgo tiraba
+  // «Rendered more hooks than during the previous render» y la pantalla se iba
+  // a blanco** — justo en la transición que más pasa. `eslint` lo marcaba
+  // (`react-hooks/rules-of-hooks`) y estaba enterrado entre los errores que ya
+  // venían de antes.
+  if (data.hallazgos.length === 0) {
+    return (
+      <p className="text-[11px] text-[var(--t-text-muted)]">
+        No encontré nada. Si todavía no corrí, la lista está vacía porque no miré —
+        no porque esté todo bien.
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -2342,7 +2611,8 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           </button>
         </div>
 
-        {run && <InformeMasivo run={run} simular={simular} sims={sims} />}
+        {run && <InformeMasivo run={run} simular={simular} sims={sims}
+                                yaHecho={yaHecho} />}
 
         {visibles.length === 0 && (
           <p className="text-[11px] text-[var(--t-text-muted)]">
@@ -3167,7 +3437,14 @@ type Paso = {
   // (qué control tiene qué acción) — así una acción nueva aparece sola, sin
   // tocar el front.
   hacer?: { accion: string; titulo: string; campo: string; casos: number;
-            pendientes: number } | null;
+            pendientes: number;
+            /** A quién YA se le avisó y todavía no lo cerró. Lo resuelve el
+             *  backend leyendo la MISMA tabla que la campanita del
+             *  destinatario, así la tarjeta no puede decir «avisale» con el
+             *  mensaje ya en su bandeja. */
+            avisado?: { para: string; creado_at: string | null }[];
+            /** Cuántos avisos sobre esto ya se dieron por cerrados. */
+            avisado_cerrado?: number } | null;
 };
 
 // Una propuesta esperando OK. `propuesto` puede venir VACÍO a propósito (el ping
@@ -3294,15 +3571,48 @@ function PanelHacer({ h }: { h: NonNullable<Paso["hacer"]> }) {
     setOcupado("");
   };
 
+  // ⚠️ **LO YA AVISADO CAMBIA EL BOTÓN, NO SOLO EL TEXTO.** El user (2026-08-22):
+  // *«yo antes ya le mandé el mail pero no me dice AVISADO A LA PERSONA… dice IR
+  // A ARREGLARLO, esperando… no es claro»*. Con el mensaje esperando en la
+  // bandeja del otro, un botón que dice «qué proponés» invita a mandar de nuevo
+  // exactamente lo mismo — y un mensaje repetido informa MENOS. Se sigue
+  // pudiendo re-avisar (a veces hace falta), pero el botón lo dice.
+  const avisado = h.avisado ?? [];
+
   return (
     <div className="mt-1">
+      {avisado.length > 0 && (
+        <div className="mb-1 flex flex-wrap items-baseline gap-2 border-l-2 pl-2"
+             style={{ borderColor: "var(--t-pos)" }}>
+          <span className="text-[9px] font-semibold uppercase tracking-widest text-[var(--t-pos)]">
+            ya avisado
+          </span>
+          {avisado.map((a) => (
+            <span key={a.para} className="text-[10px] text-[var(--t-text)]">
+              {a.para}
+              <span className={`ml-1 ${SUB}`}>{cuando(a.creado_at)}</span>
+            </span>
+          ))}
+          <span className={SUB}>sigue abierto en su bandeja</span>
+        </div>
+      )}
+      {avisado.length === 0 && (h.avisado_cerrado ?? 0) > 0 && (
+        <p className="mb-1 text-[10px]" style={{ color: "#f59e0b" }}>
+          Se avisó {h.avisado_cerrado} vez/veces y lo dieron por cerrado, pero
+          el control sigue marcando casos.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-1.5">
         <button
           disabled={!!ocupado}
           onClick={() => void cargar(true)}
-          className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-40"
+          className={`text-[9px] uppercase tracking-widest px-2 py-0.5 border disabled:opacity-40 ${
+            avisado.length
+              ? "border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+              : "border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)]"}`}
         >
-          {ocupado === "proponiendo" ? "pensando…" : "qué proponés"}
+          {ocupado === "proponiendo" ? "pensando…"
+            : avisado.length ? "volver a avisar" : "qué proponés"}
         </button>
         {h.pendientes > 0 && props === null && (
           <button
@@ -4017,10 +4327,24 @@ const EST_MASIVO: Record<string, { label: string; color: string }> = {
 };
 const ORDEN_MASIVO = ["error", "no_pudo", "bloqueado", "sin_puerta", "listo"];
 
-function InformeMasivo({ run, simular, sims }: {
+function InformeMasivo({ run, simular, sims, yaHecho }: {
   run: RunMasivo;
   simular: Simular;
   sims: Record<string, Record<string, unknown> | null>;
+  // ⚠️⚠️ **LO APLICADO SALE DEL OBJETO, NO DE UN MAPA EN MEMORIA** (§0.bw).
+  //
+  // El panel decía «✔ 5 aplicados» y el botón seguía ofreciendo «APLICAR LOS 5
+  // LISTOS». Dos motivos, y el segundo es el grave:
+  //
+  //   · `listos` se calculaba sobre `run.informe`, que es una FOTO congelada:
+  //     aplicar no la cambia, así que el botón volvía a ofrecer lo mismo.
+  //   · y la marca por fila salía de `sims`, un `useState` — o sea que **al
+  //     recargar la página se perdía** y los cinco volvían a figurar sin hacer.
+  //
+  // Para eso existen los objetos: el estado de un problema no puede vivir en la
+  // memoria del navegador. Esto viene de `hallazgos[].atendido`, que lo calcula
+  // el backend desde `av_agent_items` y sobrevive al reload.
+  yaHecho: Set<string>;
 }) {
   const [copiado, setCopiado] = useState(false);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -4047,7 +4371,18 @@ function InformeMasivo({ run, simular, sims }: {
     setPensando(false);
   };
 
-  const listos = run.informe.filter((f) => f.estado === "listo" && f.accion);
+  // Se mira el OBJETO primero y la sesión después: lo segundo cubre el rato
+  // entre que aplicás y que la vista se recarga, lo primero cubre todo lo demás.
+  const hecho = (f: FilaInforme) =>
+    yaHecho.has(f.sujeto.trim().toUpperCase())
+    || (sims[f.sujeto] as Record<string, unknown> | undefined)?.aplicado === true;
+  const listos = run.informe.filter(
+    (f) => f.estado === "listo" && f.accion && !hecho(f));
+  // Cuántos de los que el informe dio por listos ya están hechos. Va a la
+  // vista SIEMPRE: un botón que pasa de «5 listos» a no estar, sin decir por
+  // qué, se lee como que algo se rompió.
+  const yaAplicados = run.informe.filter(
+    (f) => f.estado === "listo" && f.accion && hecho(f)).length;
 
   // SECUENCIAL y no en paralelo: cada aplicación escribe en `mercado.curvas` y
   // vuelve a leer la vista. En paralelo se pisan entre sí y el error de uno se
@@ -4094,6 +4429,11 @@ function InformeMasivo({ run, simular, sims }: {
         {/* EL LOTE. Aplicar de a uno los 10 que el informe ya declaró listos es
             trabajo que el informe vino a evitar. No saltea nada: cada uno pasa
             por su propia cadena server-side, uno detrás de otro. */}
+        {yaAplicados > 0 && (
+          <span className="text-[9px] text-[var(--t-pos)]">
+            ✔ {yaAplicados} ya aplicado{yaAplicados === 1 ? "" : "s"}
+          </span>
+        )}
         {listos.length > 0 && (
           <button
             disabled={!!lote}
@@ -4230,7 +4570,9 @@ function InformeMasivo({ run, simular, sims }: {
                   la cadena entera antes de escribir, así que esto no es un
                   atajo que saltea el pre-flight: es el mismo camino, sin
                   obligar a volver a buscar el bono en la lista. */}
-              {f.estado === "listo" && f.accion && (
+              {/* El botón desaparece cuando ya se hizo: dejarlo puesto al lado
+                  de un «✔ aplicado» es la contradicción que el user marcó. */}
+              {f.estado === "listo" && f.accion && !hecho(f) && (
                 <button
                   disabled={sims[f.sujeto] === null}
                   onClick={() => simular(f.sujeto, "", true, {}, f.accion as Modo)}
@@ -4239,7 +4581,7 @@ function InformeMasivo({ run, simular, sims }: {
                   {sims[f.sujeto] === null ? "…" : "aplicar"}
                 </button>
               )}
-              {(sims[f.sujeto] as Record<string, unknown> | undefined)?.aplicado === true && (
+              {hecho(f) && (
                 <span className="ml-2 text-[9px] text-[var(--t-pos)]">✔ aplicado</span>
               )}
               {(sims[f.sujeto] as Record<string, unknown> | undefined)?.ok === false && (
@@ -4621,8 +4963,12 @@ function TabCentinela({ cent, recargar }: {
                    ayuda="se había arreglado y volvió" />
           <Novedad titulo="APARECIÓ HOY" filas={hoy.aparecio} tono="texto"
                    ayuda="no estaba ayer" />
+          {/* PLEGADO: lo que se arregló no pide nada, y mezclado con lo que
+              sí pide era lo que confundía. Se anuncia con su número y se abre
+              si a alguien le interesa. */}
           <Novedad titulo="SE ARREGLÓ" filas={hoy.se_arreglo} tono="pos"
-                   ayuda="cerró solo — no pide nada, es para que lo sepas" />
+                   ayuda="cerró solo — no pide nada, es para que lo sepas"
+                   plegado />
         </>
       )}
     </div>
@@ -4633,24 +4979,47 @@ function TabCentinela({ cent, recargar }: {
 // Un bloque de novedad del día. **El mismo formato para las tres**: lo que
 // cambia es el rótulo y el color, no la forma. Tres layouts distintos para tres
 // listas de lo mismo es parte de lo que hacía ilegible la pantalla anterior.
-function Novedad({ titulo, filas, tono, ayuda }: {
+function Novedad({ titulo, filas, tono, ayuda, plegado = false }: {
   titulo: string;
   filas: Vigilado[];
   tono: "neg" | "pos" | "texto";
   ayuda: string;
+  /** Arranca cerrado: el bloque se anuncia con su número y se abre con la
+   *  flechita. Es para lo que **no pide nada** — el user: *«que venga como
+   *  filtrado, si no confunde»*. Lo que hay que hacer NUNCA va plegado. */
+  plegado?: boolean;
 }) {
+  const [abierto, setAbierto] = useState(!plegado);
   if (!filas.length) return null;
   const color = tono === "neg" ? "var(--t-neg)"
     : tono === "pos" ? "var(--t-pos)" : "var(--t-text)";
   return (
     <div>
       <div className="flex items-baseline gap-2">
-        <h3 className="text-[10px] font-semibold tracking-widest" style={{ color }}>
-          {titulo}
-        </h3>
-        <span className={SUB}>{filas.length}</span>
-        <span className="text-[9px] text-[var(--t-text-dim)]">{ayuda}</span>
+        {plegado ? (
+          <button onClick={() => setAbierto((v) => !v)}
+                  className="flex items-baseline gap-2 hover:opacity-80">
+            <span className="text-[9px] text-[var(--t-text-dim)] w-2 inline-block">
+              {abierto ? "\u25be" : "\u25b8"}
+            </span>
+            <h3 className="text-[10px] font-semibold tracking-widest" style={{ color }}>
+              {titulo}
+            </h3>
+            <span className={SUB}>{filas.length}</span>
+          </button>
+        ) : (
+          <>
+            <h3 className="text-[10px] font-semibold tracking-widest" style={{ color }}>
+              {titulo}
+            </h3>
+            <span className={SUB}>{filas.length}</span>
+          </>
+        )}
+        {abierto && (
+          <span className="text-[9px] text-[var(--t-text-dim)]">{ayuda}</span>
+        )}
       </div>
+      {abierto && (
       <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
         {filas.map((f) => (
           <div key={f.clave}
@@ -4677,6 +5046,7 @@ function Novedad({ titulo, filas, tono, ayuda }: {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
