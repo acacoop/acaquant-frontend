@@ -78,7 +78,13 @@ type Hallazgo = {
   // CUÁNTO ACIERTA esta causa, medido. `null` = no se pudo medir, que es
   // DISTINTO de 0 votos (eso sí es un dato: nadie juzgó nunca esta regla).
   confianza?: { humanos: number; aciertos: number; votos: number;
-                precision: number | null; suficiente: boolean } | null;
+                precision: number | null; suficiente: boolean;
+                // CAUSA PROBADA: el agente ya demostró que la entiende (mismo
+                // umbral que abre la compuerta de autonomía). Deja de pedir el
+                // voto — no por caso, que eso ya lo hace `ya_votado`, sino por
+                // CAUSA: con `pata_equivocada` en 17/17, un BOPREAL nuevo pedía
+                // el voto 18 y eso no agrega ninguna evidencia.
+                probada?: boolean } | null;
   // ¿YA SE VOTÓ este par (caso, causa)? Lo manda el backend leyendo el eval
   // set. Sin esto los botones ¿ACERTÓ? reaparecen en cada rueda sobre lo
   // mismo — los BOPREALes llegaron a 17/17 y el user tuvo que verlos de nuevo.
@@ -2129,12 +2135,21 @@ function Confianza({ c }: { c: Hallazgo["confianza"] }) {
 //    CAUSA es un par nuevo y sí se pregunta; y CAMBIAR el voto sigue estando a
 //    un click, porque un voto que no se puede corregir queda mal para siempre.
 function Voto({ h }: { h: Hallazgo }) {
+  // Arranca cerrado también cuando la CAUSA ya está probada, no solo cuando este
+  // caso ya se votó. Se puede abrir igual desde «cambiar»: una causa probada que
+  // empieza a fallar es justo lo que hay que poder registrar, y el ✖ la baja del
+  // umbral sola en la próxima lectura.
+  const probada = h.confianza?.probada === true;
   const [estado, setEstado] = useState<"" | "si" | "no" | "listo" | "error">(
-    h.ya_votado ? "listo" : "");
+    h.ya_votado || probada ? "listo" : "");
   const [motivo, setMotivo] = useState("");
   const [causa, setCausa] = useState("");
   const [msg, setMsg] = useState(
-    h.ya_votado ? (h.voto ? "✔ ya votaste: acertó" : "✖ ya votaste: no acertó") : "");
+    h.ya_votado
+      ? (h.voto ? "✔ ya votaste: acertó" : "✖ ya votaste: no acertó")
+      : probada
+      ? `✔ causa probada (${h.confianza?.aciertos}/${h.confianza?.humanos})`
+      : "");
 
   const enviar = useCallback(async (acierta: boolean) => {
     setMsg("");
