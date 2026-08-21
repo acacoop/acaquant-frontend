@@ -170,6 +170,16 @@ type Vista = {
   pendientes: Pendiente[];
   acciones: Accion[];
   capacidades: { puede_ignorar: boolean; puede_dar_de_alta: boolean; motivo_alta: string };
+  // LOS ARREGLOS CON EL RELOJ CORRIENDO (backend §0.bi). Lo único que el agente
+  // sabe de sí mismo SIN que se lo diga nadie: de lo que dio por resuelto,
+  // cuánto aguantó. Un ✔ tuyo es una opinión; que algo no haya vuelto en 30
+  // días no lo es.
+  seguimiento?: {
+    en_prueba: number; aguantaron: number;
+    proximos: { clave: string; sujeto: string; regla: string; titulo: string;
+                dias: number; hitos: number; de: number; confianza: number;
+                proximo_hito_en_dias: number | null; aguanto: boolean }[];
+  };
 };
 
 // EL TABLERO. Las fuentes usan el MISMO vocabulario de estados que el pre-flight
@@ -964,7 +974,8 @@ export function AvAgentModal() {
                     <Rotos items={rotos} entendido={entendido} />
                   )}
                   <TabCentinela cent={cent} marcarVisto={marcarVisto}
-                                recargar={cargarCentinela} />
+                                recargar={cargarCentinela}
+                                seguimiento={data?.seguimiento} />
                   {nPreg > 0 && (
                     <TabPreguntas
                       data={data} enviando={enviando} notas={notas}
@@ -3948,10 +3959,77 @@ function Rotos({ items, entendido }: {
   );
 }
 
-function TabCentinela({ cent, marcarVisto, recargar }: {
+/** ¿LOS ARREGLOS DEL AGENTE AGUANTAN?
+ *
+ * El escalonado 1·2·3·7·14·30 (backend §0.bi). Un arreglo no se da por bueno
+ * cuando se escribe: se da por bueno cuando el problema **no vuelve**, y eso
+ * tarda. Cada hito que pasa suma confianza; volver una vez la borra entera.
+ *
+ * Se muestra plegado porque es CONTEXTO, no trabajo: cuántos hay en prueba es
+ * el número que importa, y el detalle lo pide el que quiere mirarlo.
+ */
+function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <div className="border border-[var(--t-border)] px-3 py-2">
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className="w-full flex flex-wrap items-baseline gap-2 text-left"
+        title="Un arreglo se da por bueno cuando el problema no vuelve, no cuando se escribe. Cada hito que pasa suma confianza."
+      >
+        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+          {abierto ? "▾" : "▸"} ¿los arreglos aguantan?
+        </span>
+        {s.en_prueba > 0 && (
+          <span className="text-[10px] text-[var(--t-text)]">
+            {s.en_prueba} en prueba
+          </span>
+        )}
+        {s.aguantaron > 0 && (
+          <span className="text-[10px] text-[var(--t-pos)]">
+            ✔ {s.aguantaron} aguantaron
+          </span>
+        )}
+      </button>
+      {abierto && s.proximos.length > 0 && (
+        <div className="mt-2 flex flex-col gap-0.5">
+          {s.proximos.map((x) => (
+            <div key={x.clave}
+                 className="grid grid-cols-[110px_1fr_auto] gap-2 items-baseline text-[10px]">
+              <span className="text-[var(--t-text)] truncate" title={x.sujeto}>
+                {x.sujeto}
+              </span>
+              <span className="text-[var(--t-text-dim)] truncate" title={x.titulo}>
+                {x.regla.replace(/_/g, " ")}
+              </span>
+              <span className="text-[var(--t-text-muted)] tabular-nums">
+                {/* Los hitos cumplidos, y CUÁNDO es el próximo control: sin
+                    eso, «2/6» no dice si la novedad llega mañana o en tres
+                    semanas. */}
+                {x.hitos}/{x.de}
+                {x.proximo_hito_en_dias !== null
+                  ? ` · próximo a los ${x.proximo_hito_en_dias}d`
+                  : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {abierto && s.proximos.length === 0 && (
+        <p className="mt-2 text-[10px] text-[var(--t-text-dim)]">
+          Ningún arreglo con el reloj corriendo todavía.
+        </p>
+      )}
+    </div>
+  );
+}
+
+
+function TabCentinela({ cent, marcarVisto, recargar, seguimiento }: {
   cent: Centinela | null;
   marcarVisto: (claves: string[]) => Promise<void>;
   recargar: () => void | Promise<void>;
+  seguimiento?: Vista["seguimiento"];
 }) {
   const [verResueltos, setVerResueltos] = useState(false);
   // ⚠️ **LO VISTO SE PLIEGA, NO SE QUEDA EN LA LISTA** (user, 2026-08-19: *«marqué
@@ -4036,6 +4114,17 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
           ↻
         </button>
       </div>
+
+      {/* ── LOS ARREGLOS CON EL RELOJ CORRIENDO ──────────────────────────
+          Lo único que el agente sabe de sí mismo SIN que se lo diga nadie: de
+          lo que dio por resuelto, cuánto aguantó. Un ✔ tuyo es una opinión;
+          que algo no haya vuelto en 30 días no lo es.
+
+          Va acá arriba y en una línea: es contexto de cómo viene el agente, no
+          una lista de trabajo. Se despliega si querés el detalle. */}
+      {seguimiento && (seguimiento.en_prueba > 0 || seguimiento.aguantaron > 0) && (
+        <Seguimiento s={seguimiento} />
+      )}
 
       {/* ── LO NUEVO ────────────────────────────────────────────────────── */}
       {sinVer.length > 0 && (
