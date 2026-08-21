@@ -41,6 +41,7 @@ import { fetchJson } from "@/lib/fetch-json";
 import { readSheetRows } from "@/lib/xlsx-read";
 import { exportToXlsx } from "@/lib/xlsx-export";
 import { NumeroInput } from "./numero-input";
+import { Dato, fmt0, fmt2, fmtPct, Panel, Pill } from "./ui/informe";
 
 // ── Contrato /api/aca/vista ────────────────────────────────────────────────
 type PeriodoMeta = {
@@ -117,12 +118,9 @@ const INPUT =
   "bg-[var(--t-surface)] border border-[var(--t-border-2)] text-[11px] px-2 py-1 " +
   "text-[var(--t-text)] focus:border-[var(--t-accent)] focus:outline-none";
 
-const fmt0 = (n: number | null | undefined) =>
-  n == null ? "—" : Math.round(n).toLocaleString("es-AR");
-const fmt2 = (n: number | null | undefined, dec = 2) =>
-  n == null ? "—" : n.toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
-const fmtPct = (n: number | null | undefined, dec = 1) =>
-  n == null ? "—" : (n * 100).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec }) + "%";
+// fmt0 / fmt2 / fmtPct viven en `ui/informe` junto con Pill/Panel/Dato — los
+// comparte NEGOCIO → CARTERAS. Dos informes que redondean distinto se leen como
+// si los números no cerraran.
 const signo = (n: number | null | undefined) =>
   n == null ? "" : n < 0 ? "text-[var(--t-neg)]" : n > 0 ? "text-[var(--t-pos)]" : "";
 
@@ -186,44 +184,10 @@ const TITULO_GRAFICO: Record<string, string> = {
 type Tab = "resumen" | "carteras" | "activos" | "metricas" | "historico";
 
 // ── Piezas chicas ──────────────────────────────────────────────────────────
-function Pill({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1 text-[11px] tracking-wide border ${
-        active
-          ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-          : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-text)]"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
-function Panel({ titulo, extra, children }: {
-  titulo: string; extra?: React.ReactNode; children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col min-h-0 border border-[var(--t-border)] bg-[var(--t-panel)] overflow-hidden">
-      <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-1.5 border-b border-[var(--t-border)] bg-[var(--t-brand)]">
-        <span className="text-[11px] font-semibold text-white tracking-wide">{titulo}</span>
-        {extra}
-      </div>
-      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
-    </div>
-  );
-}
-
-function Dato({ label, valor, sub }: { label: string; valor: string; sub?: string }) {
-  return (
-    <div className="px-3 py-2 border border-[var(--t-border)] bg-[var(--t-panel)]">
-      <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{label}</div>
-      <div className="text-[15px] font-semibold text-[var(--t-text)] tabular-nums">{valor}</div>
-      {sub && <div className="text-[9px] text-[var(--t-text-muted)]">{sub}</div>}
-    </div>
-  );
-}
+// Pill / Panel / Dato viven en `ui/informe` (2026-08-21): son el diseño de
+// INFORME y lo comparte NEGOCIO → CARTERAS. Con una copia por vista, el próximo
+// ajuste de cabecera o borde hacía que los dos informes se vieran distinto sin
+// que nadie lo decidiera.
 
 // ── Vista ──────────────────────────────────────────────────────────────────
 export function AcaView() {

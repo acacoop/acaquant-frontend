@@ -1,17 +1,50 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ValuacionesView } from "@/components/valuaciones-view";
+import { CarterasEvolucionView } from "@/components/carteras-evolucion-view";
+import { CarterasInformeView, type InformeTab } from "@/components/carteras-informe-view";
 import { PnLTitulosView } from "@/components/pnl-titulos-view";
 import { PnLTotalesView } from "@/components/pnl-totales-view";
 import { PnlAjustesModal } from "@/components/pnl-ajustes-modal";
 import { CuentaCombobox, type CuentaDoc } from "@/components/aum-view";
+import { Pill } from "@/components/ui/informe";
 
-// Sub-vistas dentro de VALUACIONES (igual orden que tenía la sub-tab
-// dentro de /aum antes del refactor). Persistimos `sub` y `cuenta` en la
-// URL para no perder la posición al refrescar.
-const _VAL_SUBTABS = ["portafolio", "pnl_titulos", "totales"] as const;
+// NEGOCIO → CARTERAS — la barra de la vista y el estado que comparten sus tabs.
+//
+// **Refactor 2026-08-21.** La tab PORTAFOLIO era un tablero de cuatro paneles
+// apretados donde cada número había que buscarlo. Se partió en las tres tabs con
+// las que la mesa ya lee una cartera en `/aca` —RESUMEN, ACTIVOS, MÉTRICAS— más
+// EVOLUCIÓN, que es la mitad de abajo del tablero viejo (el chart y la tabla
+// mensual) y la única pantalla que cuenta el RENDIMIENTO en vez de una foto.
+//
+// PNL TÍTULOS y TOTALES quedaron intactas: son otra pregunta (el PnL boleto por
+// boleto y el consolidado de TODAS las cuentas, que ni siquiera mira el selector
+// de cuenta).
+//
+// Las tres primeras las sirve UN componente y UN fetch (`/vista`): moverse entre
+// RESUMEN y MÉTRICAS no vuelve a pegarle a la base ni a correr el motor de PnL.
+// Por eso `CarterasInformeView` se renderiza desde la MISMA rama del árbol para
+// las tres — si cada tab lo montara por su lado, React lo desmontaría y cada
+// click volvería a pagar la consulta.
+
+// Sub-vistas, en el orden en que se leen. `sub` y `cuenta` viven en la URL para
+// no perder la posición al refrescar (y para poder mandar un link).
+const _VAL_SUBTABS = ["resumen", "activos", "metricas", "evolucion",
+                      "pnl_titulos", "totales"] as const;
 type ValSubtab = (typeof _VAL_SUBTABS)[number];
+
+const _LABEL: Record<ValSubtab, string> = {
+  resumen: "RESUMEN",
+  activos: "ACTIVOS",
+  metricas: "MÉTRICAS",
+  evolucion: "EVOLUCIÓN",
+  pnl_titulos: "PNL TÍTULOS",
+  totales: "TOTALES",
+};
+
+const _TABS_INFORME = ["resumen", "activos", "metricas"] as const;
+const _esInforme = (t: ValSubtab): t is InformeTab =>
+  (_TABS_INFORME as readonly string[]).includes(t);
 
 function _readUrlParam(name: string): string | null {
   if (typeof window === "undefined") return null;
@@ -36,7 +69,7 @@ export function ValuacionesShell() {
     const v = _readUrlParam("sub");
     return (_VAL_SUBTABS as readonly string[]).includes(v || "")
       ? (v as ValSubtab)
-      : "portafolio";
+      : "resumen";
   });
   // Modal de AJUSTES DE PnL (eventos corporativos sin boleto: splits, canjes).
   // `ajustesVersion` se bumpea tras cada escritura y remonta PNL TÍTULOS
@@ -47,7 +80,7 @@ export function ValuacionesShell() {
   // Sync subtab + cuenta a la URL (replaceState para no llenar el history).
   useEffect(() => {
     _writeUrlParams({
-      sub: valSubtab !== "portafolio" ? valSubtab : null,
+      sub: valSubtab !== "resumen" ? valSubtab : null,
       cuenta: valCuenta || null,
     });
   }, [valSubtab, valCuenta]);
@@ -116,21 +149,11 @@ export function ValuacionesShell() {
             AJUSTES
           </button>
           {_VAL_SUBTABS.map((s) => (
-            <button
-              key={s}
-              onClick={() => setValSubtab(s)}
-              className={`px-3 py-0.5 text-[10px] font-semibold tracking-wide border transition-colors ${
-                valSubtab === s
-                  ? "bg-[var(--t-accent)] text-[var(--t-on-accent)] border-[var(--t-accent)]"
-                  : "bg-transparent text-[var(--t-text-dim)] border-[var(--t-border-2)] hover:text-[var(--t-accent)] hover:border-[var(--t-accent)]"
-              }`}
-            >
-              {s === "portafolio"
-                ? "PORTAFOLIO"
-                : s === "pnl_titulos"
-                  ? "PNL TÍTULOS"
-                  : "TOTALES"}
-            </button>
+            <Pill key={s} label={_LABEL[s]} active={valSubtab === s}
+                  onClick={() => setValSubtab(s)}
+                  title={s === "totales"
+                    ? "Consolidado de TODAS las cuentas — no mira el selector de cuenta"
+                    : undefined} />
           ))}
         </div>
       </div>
@@ -139,21 +162,26 @@ export function ValuacionesShell() {
         {valSubtab === "totales" ? (
           // TOTALES no depende de una cuenta específica — agrega TODAS.
           <PnLTotalesView />
-        ) : valCuenta ? (
-          valSubtab === "portafolio" ? (
-            <ValuacionesView
-              idCuenta={valCuenta}
-              nombreCuenta={
-                cuentas.find((c) => c.id_cuenta === valCuenta)?.cuenta
-              }
-            />
-          ) : (
-            <PnLTitulosView key={ajustesVersion} idCuenta={valCuenta} />
-          )
-        ) : (
+        ) : !valCuenta ? (
           <div className="h-full flex items-center justify-center text-[var(--t-text-muted)] text-sm">
             Cargando cuentas…
           </div>
+        ) : _esInforme(valSubtab) ? (
+          // Las tres tabs del informe comparten este componente A PROPÓSITO:
+          // así comparten también el fetch y cambiar de tab no cuesta una
+          // consulta ni una corrida del motor de PnL.
+          <CarterasInformeView
+            idCuenta={valCuenta}
+            nombreCuenta={cuentas.find((c) => c.id_cuenta === valCuenta)?.cuenta}
+            tab={valSubtab}
+          />
+        ) : valSubtab === "evolucion" ? (
+          <CarterasEvolucionView
+            idCuenta={valCuenta}
+            nombreCuenta={cuentas.find((c) => c.id_cuenta === valCuenta)?.cuenta}
+          />
+        ) : (
+          <PnLTitulosView key={ajustesVersion} idCuenta={valCuenta} />
         )}
       </div>
 
