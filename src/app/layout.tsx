@@ -10,6 +10,7 @@ import { MisAvisos } from "@/components/mis-avisos";
 import { AvAgentModal } from "@/components/av-agent-modal";
 import { Header } from "@/components/header";
 import { PerfBoot } from "@/components/perf-boot";
+import { SlotBarraInferior } from "@/components/ui/slot-barra-inferior";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { getMe } from "@/lib/me";
 import "./globals.css";
@@ -118,6 +119,15 @@ export default async function RootLayout({
             {BUILD}
           </span>
           <div className="ml-auto flex items-center gap-3">
+            {/* SLOT DE LA VISTA — acá una pantalla baja sus acciones secundarias
+                (CARTERAS baja AJUSTES y TOTALES). Va PRIMERO, a la izquierda del
+                grupo, para que los botones globales no se muevan de lugar cuando
+                una vista publica los suyos: un botón que cambia de posición
+                según dónde estés se busca con la vista en vez de con la memoria.
+                Vacío no ocupa nada. Ver `ui/slot-barra-inferior.tsx` — el slot
+                NO consulta nada ni decide permisos: dibuja lo que le pasa una
+                vista que ya está gateada por su módulo. */}
+            <SlotBarraInferior />
             {/* Briefing de apertura (QuantAI P1): botón inline + modal.
                 Se auto-oculta sin módulo `ia` (decide el backend). */}
             <BriefingModal />
