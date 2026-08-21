@@ -180,6 +180,20 @@ type Vista = {
                 dias: number; hitos: number; de: number; confianza: number;
                 proximo_hito_en_dias: number | null; aguanto: boolean }[];
   };
+  // DE TODO LO ABIERTO, QUÉ PIDE ALGO HOY (backend §0.bm). La historia se
+  // guardaba desde hace días y esta pantalla seguía ordenando por severidad —
+  // o sea igual que ANTES de tener memoria.
+  que_importa?: {
+    abiertos: number; piden_algo: number;
+    por_banda: Record<string, number>;
+    filas: { clave: string; sujeto: string; regla: string; titulo: string;
+             severidad: string; veces: number; dias_abierto: number;
+             banda: string }[];
+    // Abierto, pero el detector volvió a correr y NO lo re-evaluó. No es lo
+    // mismo que «sigue roto» y hasta acá se veían idénticos.
+    sin_mirar: { clave: string; sujeto: string; regla: string; origen: string;
+                 horas_sin_reevaluar: number }[];
+  };
 };
 
 // EL TABLERO. Las fuentes usan el MISMO vocabulario de estados que el pre-flight
@@ -978,7 +992,8 @@ export function AvAgentModal() {
                   )}
                   <TabCentinela cent={cent} marcarVisto={marcarVisto}
                                 recargar={cargarCentinela}
-                                seguimiento={data?.seguimiento} />
+                                seguimiento={data?.seguimiento}
+                                queImporta={data?.que_importa} />
                   {nPreg > 0 && (
                     <TabPreguntas
                       data={data} enviando={enviando} notas={notas}
@@ -3971,6 +3986,103 @@ function Rotos({ items, entendido }: {
  * Se muestra plegado porque es CONTEXTO, no trabajo: cuántos hay en prueba es
  * el número que importa, y el detalle lo pide el que quiere mirarlo.
  */
+// ── QUÉ PIDE ALGO HOY ───────────────────────────────────────────────────────
+//
+// El número que convierte una lista en una decisión. Con 64 filas abiertas
+// todas iguales, la pantalla es un depósito: *«las cosas en ENCONTRÓ siguen
+// figurando»*. Con «de 64, 3 piden algo», es un tablero.
+const BANDA_TXT: Record<string, string> = {
+  volvio: "volvió después de arreglarse",
+  estancado: "lo viste y sigue igual",
+  arrastra: "abierto hace días y sin ver",
+  nuevo: "apareció hoy",
+};
+const BANDA_COLOR: Record<string, string> = {
+  volvio: "var(--t-neg)",
+  estancado: "var(--t-warn, #b8860b)",
+  arrastra: "var(--t-text-muted)",
+  nuevo: "var(--t-text-dim)",
+};
+
+function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
+  const [abierto, setAbierto] = useState(false);
+  // Las bandas se muestran en el orden de la prioridad, no en el del objeto:
+  // que `volvio` aparezca tercero porque JSON lo puso ahí sería raro de leer.
+  const orden = ["volvio", "estancado", "arrastra", "nuevo"];
+  const hay = orden.filter((b) => (q.por_banda[b] ?? 0) > 0);
+  return (
+    <div className="border border-[var(--t-border)] px-3 py-2">
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className="w-full flex flex-wrap items-baseline gap-2 text-left"
+        title="Un problema que volvió después de arreglarse informa más que uno nuevo: alguien ya lo dio por resuelto y volvió igual."
+      >
+        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+          {abierto ? "▾" : "▸"} qué pide algo hoy
+        </span>
+        <span className="text-[10px] text-[var(--t-text)]">
+          de {q.abiertos} abiertos, <b>{q.piden_algo}</b> piden algo
+        </span>
+        {hay.map((b) => (
+          <span key={b} className="text-[9px] tabular-nums"
+                style={{ color: BANDA_COLOR[b] }}>
+            {q.por_banda[b]} {BANDA_TXT[b]}
+          </span>
+        ))}
+      </button>
+      {abierto && (
+        <div className="mt-2 flex flex-col gap-0.5">
+          {q.filas.map((f) => (
+            <div key={f.clave}
+                 className="grid grid-cols-[110px_150px_1fr_auto] gap-2 items-baseline text-[10px]">
+              <span className="text-[var(--t-text)] truncate" title={f.sujeto}>
+                {f.sujeto}
+              </span>
+              <span className="text-[var(--t-text-dim)] truncate uppercase tracking-wide text-[9px]"
+                    title={f.regla}>
+                {f.regla.replace(/_/g, " ")}
+              </span>
+              <span className="text-[var(--t-text-muted)] truncate" title={f.titulo}>
+                {f.titulo}
+              </span>
+              <span className="tabular-nums whitespace-nowrap text-[9px]"
+                    style={{ color: BANDA_COLOR[f.banda] }}>
+                {BANDA_TXT[f.banda] ?? f.banda}
+                {" · "}{Math.round(f.dias_abierto)}d
+                {f.veces > 1 ? ` ×${f.veces}` : ""}
+              </span>
+            </div>
+          ))}
+          {/* ⚠️ **«SIGUE ROTO» Y «NADIE LO MIRÓ» NO SON LO MISMO**, y hasta acá
+              se veían idénticos: los dos son una fila abierta. Si el detector
+              volvió a correr y a éste no lo refrescó, es que no lo evaluó. */}
+          {q.sin_mirar.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-[var(--t-border)]">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                sigue abierto pero nadie lo volvió a mirar ({q.sin_mirar.length})
+              </span>
+              {q.sin_mirar.map((x) => (
+                <div key={x.clave} className="text-[10px] text-[var(--t-text-muted)]">
+                  {x.sujeto} · {x.regla.replace(/_/g, " ")}
+                  {" · "}<span className="text-[var(--t-text-dim)]">
+                    {x.origen} no lo re-evalúa hace {Math.round(x.horas_sin_reevaluar)}h
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {q.filas.length === 0 && (
+            <p className="text-[10px] text-[var(--t-text-dim)]">
+              Nada abierto.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
   const [abierto, setAbierto] = useState(false);
   return (
@@ -4028,11 +4140,12 @@ function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
 }
 
 
-function TabCentinela({ cent, marcarVisto, recargar, seguimiento }: {
+function TabCentinela({ cent, marcarVisto, recargar, seguimiento, queImporta }: {
   cent: Centinela | null;
   marcarVisto: (claves: string[]) => Promise<void>;
   recargar: () => void | Promise<void>;
   seguimiento?: Vista["seguimiento"];
+  queImporta?: Vista["que_importa"];
 }) {
   const [verResueltos, setVerResueltos] = useState(false);
   // ⚠️ **LO VISTO SE PLIEGA, NO SE QUEDA EN LA LISTA** (user, 2026-08-19: *«marqué
@@ -4138,6 +4251,12 @@ function TabCentinela({ cent, marcarVisto, recargar, seguimiento }: {
 
           Va acá arriba y en una línea: es contexto de cómo viene el agente, no
           una lista de trabajo. Se despliega si querés el detalle. */}
+      {/* Va ARRIBA del seguimiento: primero qué hay que hacer, después si lo
+          que ya se hizo aguantó. */}
+      {queImporta && queImporta.abiertos > 0 && (
+        <QueImporta q={queImporta} />
+      )}
+
       {seguimiento && (seguimiento.en_prueba > 0 || seguimiento.aguantaron > 0) && (
         <Seguimiento s={seguimiento} />
       )}
