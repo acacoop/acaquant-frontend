@@ -122,6 +122,10 @@ type Hallazgo = {
   // evidencia y no lo leía nadie. Lo resuelve el BACKEND para que las dos
   // pantallas que muestran hallazgos digan lo mismo.
   nombre?: string;
+  // DESDE CUÁNDO, en ISO. `dias_abierto` sirve para ordenar y para el color,
+  // pero no ubica el hecho: «4d» no dice si empezó el lunes a la mañana o el
+  // jueves a la noche. La pantalla lo escribe en hora argentina.
+  abierto_at?: string | null;
 };
 type Pregunta = {
   id: number; clave: string; tipo: string; pregunta: string; opciones: string[];
@@ -2023,7 +2027,19 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           h.regla.toLowerCase().includes(t) ||
           h.motivo.toLowerCase().includes(t));
       }
-      if (hs.length) out.push([tipo, hs]);
+      // ⚠️ **MÁS RECIENTE PRIMERO** (§0.br). Pedido del user, y no es gusto:
+      // dentro de un tipo las filas venían en el orden que las devolvió la
+      // query —o sea ninguno— así que lo que apareció recién quedaba enterrado
+      // entre lo de la semana pasada. Sin `abierto_at` (un hallazgo que
+      // todavía no se espejó como objeto) va al final: no se inventa una fecha
+      // para poder ordenarlo.
+      if (hs.length) {
+        out.push([tipo, [...hs].sort((a, b) => {
+          const ta = a.abierto_at ? Date.parse(a.abierto_at) : 0;
+          const tb = b.abierto_at ? Date.parse(b.abierto_at) : 0;
+          return tb - ta;
+        })]);
+      }
     }
     return out;
   }, [porTipo, tipos, filtro, q, verMercado, verRuido]);
@@ -2376,11 +2392,15 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                 // columna más ancha.
                 const sujetoLargo = SUJETO_LARGO.has(h.tipo);
                 return (
+                /* La COLUMNA DE HORA (§0.br) entra al final, angosta y con
+                   ancho fijo: así las horas quedan alineadas y se puede barrer
+                   la columna de un vistazo. Y el `py` baja de 1 a 0.5 — con 130
+                   filas, cada 4px de alto son media pantalla. */
                 <div
                   key={`${h.ticker}-${h.regla}-${i}`}
                   className={`grid ${sujetoLargo
-                    ? "grid-cols-[3px_190px_150px_1fr_auto]"
-                    : "grid-cols-[3px_72px_150px_1fr_auto]"} items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]${
+                    ? "grid-cols-[3px_190px_150px_1fr_auto_46px]"
+                    : "grid-cols-[3px_72px_150px_1fr_auto_46px]"} items-baseline gap-2 px-2 py-0.5 hover:bg-[var(--t-surface)]${
                     // YA HECHO: apagada, pero legible. Se ve solo con «ya hechos»
                     // destapado; ahí la marca es lo que distingue lo que uno ya
                     // tocó de lo que todavía no.
@@ -2476,6 +2496,22 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                   >
                     Ignorar
                   </button>
+                  {/* ── LA HORA (§0.br) ────────────────────────────────────
+                      **Desde cuándo está abierto, en hora ARGENTINA.** El
+                      motivo ya traía un `· 12:25` pegado al final del texto,
+                      pero ahí no se puede barrer ni ordenar: hay que leer la
+                      frase entera de cada fila para ubicarla en el tiempo.
+                      Como columna, el ojo la recorre de una.
+
+                      De HOY muestra la hora; de otro día, la fecha — repetir
+                      «22/08» ciento treinta veces gasta ancho sin informar. El
+                      `title` siempre trae las dos cosas. */}
+                  <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums self-center text-right"
+                        title={h.abierto_at
+                          ? `abierto desde ${fechaHora(h.abierto_at)}`
+                          : "sin registrar"}>
+                    {cuando(h.abierto_at)}
+                  </span>
                 </div>
               ); }); })()}
             </div>
@@ -4647,10 +4683,34 @@ function Novedad({ titulo, filas, tono, ayuda }: {
 
 
 // La hora del día, sin fecha: en una lista que ya es de hoy, la fecha es ruido.
+// ⚠️ **LA ZONA SE DECLARA, NO SE HEREDA DEL NAVEGADOR.** Sin `timeZone`, esto
+// escribía la hora de la máquina del que mira: en la oficina coincide con ART
+// por casualidad, y desde un teléfono en otra zona —o con el reloj mal puesto—
+// la pantalla miente sin avisar. El user: *«basta de UTC y esas cosas, horario
+// argentino mostrar»*. Vale para todos: se declara siempre.
+const TZ_AR = "America/Argentina/Buenos_Aires";
+
 function hora(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ""
-    : d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    : d.toLocaleTimeString("es-AR",
+        { timeZone: TZ_AR, hour: "2-digit", minute: "2-digit" });
+}
+
+// Fecha + hora ARGENTINA, corta. Para la columna de ENCONTRÓ: si es de hoy
+// alcanza la hora, y si no, el día — poner la fecha completa en todas las filas
+// gasta ancho para repetir «22/08» ciento treinta veces.
+function cuando(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hoy = new Date().toLocaleDateString("es-AR", { timeZone: TZ_AR });
+  const suyo = d.toLocaleDateString("es-AR", { timeZone: TZ_AR });
+  return suyo === hoy
+    ? d.toLocaleTimeString("es-AR",
+        { timeZone: TZ_AR, hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString("es-AR",
+        { timeZone: TZ_AR, day: "2-digit", month: "2-digit" });
 }
