@@ -243,6 +243,18 @@ type Vigilado = {
   // La antigüedad CANÓNICA, la del objeto — la misma que ve ENCONTRÓ. Sale del
   // backend por la misma razón que `recien`: el criterio tiene que ser uno solo.
   dias_abierto?: number | null;
+  vuelto_at?: string | null;
+};
+
+// LO QUE PASÓ HOY. El corte por día (en hora ARGENTINA) lo hace el backend:
+// el navegador no puede mirar el reloj mientras dibuja, y el criterio tiene
+// que ser uno solo.
+type LoDeHoy = {
+  desde: string;
+  aparecio: Vigilado[];
+  volvio: Vigilado[];
+  se_arreglo: Vigilado[];
+  novedades: number;
 };
 // Un chequeo que se ROMPIÓ y este admin todavía no vio. Viene de SALUD, que
 // sigue siendo el dueño de la evaluación — el agente solo es la puerta.
@@ -263,6 +275,7 @@ type Centinela = {
             // latía cada 300s y lo dábamos por muerto a los 90.
             cadencia_s: number; muere_en_s: number } | null;
   abiertos: Vigilado[]; resueltos: Vigilado[];
+  hoy?: LoDeHoy;
 };
 
 type Control = {
@@ -761,7 +774,12 @@ export function AvAgentModal() {
   // Lo que espera una decisión: lo nuevo del centinela + las preguntas + los
   // avisos abiertos. Es UN número, y es el único que tiene que mirar el que
   // abre la pantalla para saber si hay algo que hacer.
-  const nAhora = (cent?.sin_ver ?? 0) + nPreg
+  // ⚠️ **EL CONTADOR TIENE QUE CONTAR LO QUE LA TAB MUESTRA** (§0.bo). Decía
+  // `cent.sin_ver`, o sea el BACKLOG sin ver — por eso ponía «AHORA 1» y abajo
+  // salía un control de hacía 21 horas: el número y la lista hablaban de cosas
+  // distintas. Ahora cuenta las novedades del DÍA, que es lo único que la tab
+  // dibuja. Las preguntas y los avisos siguen sumando: también esperan algo.
+  const nAhora = (cent?.hoy?.novedades ?? 0) + nPreg
     + (data?.avisos ?? []).filter((a) => !a.resuelto).length;
 
   return (
@@ -994,10 +1012,7 @@ export function AvAgentModal() {
                   {rotos.length > 0 && (
                     <Rotos items={rotos} entendido={entendido} />
                   )}
-                  <TabCentinela cent={cent} marcarVisto={marcarVisto}
-                                recargar={cargarCentinela}
-                                seguimiento={data?.seguimiento}
-                                queImporta={data?.que_importa} />
+                  <TabCentinela cent={cent} recargar={cargarCentinela} />
                   {nPreg > 0 && (
                     <TabPreguntas
                       data={data} enviando={enviando} notas={notas}
@@ -1013,7 +1028,9 @@ export function AvAgentModal() {
                 </div>
               )}
               {tab === "hallazgos" && (
-                <TabHallazgos porTipo={porTipo} data={data} sims={sims} simular={simular} ignorar={ignorar} />
+                <TabHallazgos porTipo={porTipo} data={data} sims={sims}
+                              simular={simular} ignorar={ignorar}
+                              cent={cent} marcarVisto={marcarVisto} />
               )}
               {/* HISTORIAL: lo que ya pasó. No se acciona, así que no merece dos
                   tabs — se lee de arriba abajo y listo. */}
@@ -1696,12 +1713,148 @@ function Tarjeta({ p, enviando, nota, setNota, responder, compacta = false }: {
 
 // ── TAB 2: lo que encontró ─────────────────────────────────────────────────
 
-function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
+// EL BACKLOG DEL CENTINELA, que antes ERA la tab AHORA.
+//
+// Sigue siendo trabajo real —131 cosas abiertas— y por eso no se borró: se
+// mudó a la cocina y se plegó. Acá adentro conviven los tres grupos que antes
+// competían por la pantalla principal: lo que no viste, lo que ya viste (sigue
+// abierto) y lo que se arregló solo.
+function VigilanciaAbierta({ cent, marcarVisto }: {
+  cent: Centinela;
+  marcarVisto: (claves: string[]) => Promise<void>;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  const [verVistos, setVerVistos] = useState(false);
+  const [verResueltos, setVerResueltos] = useState(false);
+  const sinVer = cent.abiertos.filter((f) => !f.visto_at);
+  const yaVistos = cent.abiertos.filter((f) => f.visto_at);
+  if (!cent.abiertos.length && !cent.resueltos.length) return null;
+
+  const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
+  return (
+    <div className="border border-[var(--t-border)] px-3 py-2">
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className="w-full flex flex-wrap items-baseline gap-2 text-left"
+        title="Lo que la vigilancia en vivo tiene abierto. Es acumulado, no del día: por eso vive acá y no en AHORA."
+      >
+        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+          {abierto ? "▾" : "▸"} vigilancia en vivo
+        </span>
+        <span className="text-[10px] text-[var(--t-text)]">
+          {cent.abiertos.length} abiertos
+        </span>
+        {sinVer.length > 0 && (
+          <span className="text-[9px] text-[var(--t-neg)]">
+            {sinVer.length} sin ver
+          </span>
+        )}
+      </button>
+
+      {abierto && (
+        <div className="mt-2 flex flex-col gap-2">
+          {sinVer.length > 0 && (
+            <div className="flex items-baseline gap-2">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
+                sin ver
+              </span>
+              <span className={SUB}>{sinVer.length}</span>
+              {/* Marcar todo de una: revisar 30 casillas es la forma más rápida
+                  de que nadie marque nada. NO los resuelve ni los esconde. */}
+              <button
+                onClick={() => void marcarVisto(sinVer.map((f) => f.clave))}
+                className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+              >
+                marcar los {sinVer.length} como vistos
+              </button>
+            </div>
+          )}
+          {yaVistos.length > 0 && (
+            <button
+              onClick={() => setVerVistos((v) => !v)}
+              className="self-start text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+              title="Siguen abiertos: los marcaste vistos, así que dejaron de esperar una decisión."
+            >
+              {verVistos ? "▾" : "▸"} {yaVistos.length} ya vistos (siguen abiertos)
+            </button>
+          )}
+          {enLista.length > 0 && (
+            <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+              {enLista.map((f) => (
+                <div key={f.clave}
+                     className={`grid grid-cols-[3px_130px_170px_1fr_auto] items-baseline gap-2 px-2 py-1 ${
+                       f.visto_at ? "opacity-60" : ""}`}>
+                  <span className="self-stretch" style={{ background: SEV_COLOR[f.severidad] }} />
+                  <span className="text-[11px] font-bold text-[var(--t-text)] truncate"
+                        title={f.sujeto}>
+                    {!f.visto_at && <span className="text-[var(--t-neg)]">• </span>}
+                    {f.sujeto}
+                  </span>
+                  <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
+                        title={f.regla}>
+                    {f.regla.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0">
+                    {f.motivo}
+                  </span>
+                  <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap self-center"
+                        title={`confirmado ${f.ultimo_at} · apareció ${f.abierto_at}`}>
+                    <span className="text-[var(--t-text-muted)]">
+                      confirmado hace {edad(f.ultimo_at)}
+                    </span>
+                    {" · desde hace "}
+                    {f.dias_abierto != null && f.dias_abierto >= 1
+                      ? `${Math.round(f.dias_abierto)}d`
+                      : edad(f.abierto_at)}
+                    {" · ×"}{f.veces}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {cent.resueltos.length > 0 && (
+            <div>
+              <button
+                onClick={() => setVerResueltos((v) => !v)}
+                className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+              >
+                {verResueltos ? "▾" : "▸"} se arreglaron solos ({cent.resueltos.length})
+              </button>
+              {/* No se borran a propósito: «se arregló solo» es información, y
+                  ver los que van y vienen es cómo se detecta un intermitente. */}
+              {verResueltos && (
+                <div className="mt-1 flex flex-col gap-0.5">
+                  {cent.resueltos.map((f) => (
+                    <div key={f.clave} className="text-[10px] text-[var(--t-text-dim)]">
+                      <span className="text-[var(--t-pos)]">✔</span> {f.sujeto}
+                      {" · "}{f.regla.replace(/_/g, " ")}
+                      {" · duró "}{edad(f.abierto_at)}{" · ×"}{f.veces}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function TabHallazgos({ porTipo, data, sims, simular, ignorar,
+                       cent, marcarVisto }: {
   porTipo: Record<string, Hallazgo[]>;
   data: Vista;
   sims: Record<string, Record<string, unknown> | null>;
   simular: Simular;
   ignorar: (ticker: string) => void;
+  // ⚠️ **BAJARON DE AHORA** (§0.bo). No se borraron: AHORA es informativo y del
+  // día, así que la priorización, el seguimiento de arreglos y el backlog del
+  // centinela viven acá — que es la cocina. Sacarlos de la app habría dejado
+  // 131 cosas abiertas sin ninguna pantalla, que es peor que el desorden.
+  cent: Centinela | null;
+  marcarVisto: (claves: string[]) => Promise<void>;
 }) {
   // EL FILTRO. Con 84 hallazgos apilados en cinco secciones, la pantalla era un
   // scroll infinito donde para llegar a `tasa_sospechosa` había que pasar por
@@ -1887,6 +2040,19 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* ── LO QUE BAJÓ DE AHORA (§0.bo) ────────────────────────────────────
+          Las tres viven acá porque ninguna era del DÍA: son el acumulado y sus
+          herramientas, o sea la cocina. Van plegadas y arriba de la lista —
+          contexto de por dónde empezar, no filas que compitan con ella. */}
+      {data.que_importa && data.que_importa.abiertos > 0 && (
+        <QueImporta q={data.que_importa} />
+      )}
+      {data.seguimiento
+        && (data.seguimiento.en_prueba > 0 || data.seguimiento.aguantaron > 0) && (
+        <Seguimiento s={data.seguimiento} />
+      )}
+      {cent && <VigilanciaAbierta cent={cent} marcarVisto={marcarVisto} />}
+
       {/* ── LA BARRA ─────────────────────────────────────────────────────
           Antes eran TRES renglones: chips de tipo, chips de regla, y una línea
           de texto explicando el throttle de 1816. Para 75 hallazgos, la mitad
@@ -4174,100 +4340,64 @@ function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
 }
 
 
-function TabCentinela({ cent, marcarVisto, recargar, seguimiento, queImporta }: {
+// ══ AHORA — EL DÍA DE HOY, Y NADA MÁS ══════════════════════════════════════
+//
+// ⚠️⚠️ **AHORA Y ENCONTRÓ ERAN LOS DOS UN BACKLOG.** Por eso nadie podía decir
+// en qué se diferencian. La tab decía **AHORA 1** y abajo mostraba un control
+// abierto hacía 21 horas, con 131 filas plegadas, 40 resueltas y el
+// seguimiento de arreglos viejos. El user, 2026-08-22:
+//
+//   *«AHORA es para lo que está pasando EXCLUSIVAMENTE en el día de hoy…
+//    ENCONTRÓ es donde está toda la cocina para solucionar cosas. AHORA es
+//    solamente informativo y JUSTAMENTE NO PUEDE FALLAR.»*
+//
+// La jerarquía que queda:
+//
+//   AHORA      informa. Las tres novedades del día y el latido. Cero botones
+//              de trabajo, cero listas plegadas, cero backlog.
+//   ENCONTRÓ   la cocina: todo lo abierto, con sus herramientas.
+//
+// Lo que se fue de acá: «qué pide algo hoy», «¿los arreglos aguantan?», «viene
+// de antes sin ver», «ya vistos» y «se arreglaron solos». **Ninguna era del
+// día** — todas eran el acumulado con otro nombre.
+//
+// Y el latido pasa a ser UNA LÍNEA. El título REVISANDO + la cadencia ocupaban
+// más que las novedades que tenían que anunciar, y repetían lo que ya dice la
+// barra de arriba («censo hace 52 min · vigilando cada 30s»).
+function TabCentinela({ cent, recargar }: {
   cent: Centinela | null;
-  marcarVisto: (claves: string[]) => Promise<void>;
   recargar: () => void | Promise<void>;
-  seguimiento?: Vista["seguimiento"];
-  queImporta?: Vista["que_importa"];
 }) {
-  const [verResueltos, setVerResueltos] = useState(false);
-  // ⚠️ **LO VISTO SE PLIEGA, NO SE QUEDA EN LA LISTA** (user, 2026-08-19: *«marqué
-  // como leído un montón y siguen apareciendo grisados»*).
-  //
-  // El diseño original decía —y con razón— que marcar visto NO puede RESOLVER ni
-  // BORRAR el hallazgo: si el botón hiciera desaparecer cosas, nadie lo tocaría.
-  // Pero de ahí se sacó la conclusión de más: dejarlos EN LA MISMA LISTA, en gris.
-  // Con 20 abiertos, marcar los 20 no cambia nada en pantalla, y un botón que no
-  // cambia nada se lee como roto.
-  //
-  // La tab se llama AHORA y su contrato es «lo que espera una decisión tuya». Un
-  // hallazgo ya visto sigue ABIERTO pero ya no espera nada: no se pierde, se
-  // pliega. Queda contado, a un clic, y con el mismo detalle.
-  const [verVistos, setVerVistos] = useState(false);
-
   if (!cent) {
     return <p className="text-[11px] text-[var(--t-text-muted)]">Cargando…</p>;
   }
 
-  // ⚠️ **«NUEVO» NO PUEDE DECIRLO DE ALGO DE HACE 10 HORAS.** El user, mirando
-  // un `control:patas_dolar_sin_pedir` bajo el título NUEVO, SIN VER, con
-  // «desde hace 10 h · ×474» al lado: *«no termino de entender por qué muestra
-  // esto ahora»*. Y tenía razón: no pasó nada ahora. Lo único «nuevo» era que
-  // todavía no había apretado el botón de visto.
-  //
-  // Sin ver y RECIÉN APARECIDO son dos cosas distintas, y llamarlas igual hace
-  // que uno desconfíe del rótulo: si lo que dice NUEVO tiene medio día, ninguno
-  // de los otros carteles se lee en serio tampoco.
-  // `recien` lo calcula el BACKEND: el navegador no puede mirar el reloj
-  // mientras dibuja, y además el criterio tiene que ser uno solo.
-  const sinVerTodos = cent.abiertos.filter((f) => !f.visto_at);
-  const sinVer = sinVerTodos.filter((f) => f.recien);
-  const vienenDeAntes = sinVerTodos.filter((f) => !f.recien);
-  const yaVistos = cent.abiertos.filter((f) => f.visto_at);
-  // ⚠️⚠️ **EL TÍTULO ESTABA Y LAS FILAS NO.** Acá decía
-  //
-  //     const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
-  //
-  // o sea que «VIENE DE ANTES, SIN VER · 5» se dibujaba con su contador y su
-  // botón de marcar los 5… **y las cinco filas no aparecían en ningún lado**.
-  // Cinco cosas abiertas, sin ver, anunciadas en la pantalla y sin forma de
-  // mirarlas. Es la versión más pura de lo que el user viene diciendo: la
-  // pantalla afirma que hay algo y no lo muestra.
-  //
-  // El orden es el de la urgencia: lo que apareció recién, después lo que
-  // arrastra, y los vistos al final solo si se piden.
-  const enLista = verVistos
-    ? [...sinVer, ...vienenDeAntes, ...yaVistos]
-    : [...sinVer, ...vienenDeAntes];
+  const hoy = cent.hoy;
+  // ⚠️ **SIN EL CORTE DEL DÍA NO SE INVENTA UN DÍA.** Si el backend viene viejo
+  // (deploy desparejo), decir «hoy no pasó nada» sería justo la falla que esta
+  // tab no puede tener: afirmar calma sin haber podido mirar.
+  const nada = !!hoy && hoy.novedades === 0 && hoy.se_arreglo.length === 0;
 
   return (
     <div className="flex flex-col gap-4">
-      {/* El estado, en castellano. Acá decía «VIGILANDO · latió hace 32s ·
-          ciclo 10 · fuera de rueda · late cada 5 min · se apaga en 867s si no
-          vuelve · 2038 ms». Siete datos, cuatro de ellos sobre el MECANISMO
-          (latir, ciclos, cuándo se apagaría) que no cambian nada de lo que uno
-          hace. Quedan dos: si está funcionando, y desde cuándo no da señales
-          cuando no. El resto vive en el `title`. */}
-      <div className={`border p-3 flex flex-wrap items-center gap-3 ${
-        cent.vivo ? "border-[var(--t-border)]" : "border-[var(--t-neg)]"}`}>
-        <span className="inline-flex items-center gap-2"
+      {/* ── EL LATIDO, EN UNA LÍNEA ─────────────────────────────────────────
+          El punto verde y listo. La cadencia, los ciclos y cuándo se apagaría
+          son datos del MECANISMO y viven en el `title`: no cambian nada de lo
+          que uno hace. Lo único que sube a la línea es lo que sí cambia algo —
+          que esté APAGADO, porque entonces el silencio de abajo no vale. */}
+      <div className="flex items-center gap-2">
+        <span className={`inline-block w-[7px] h-[7px] rounded-full ${
+          cent.vivo && cent.latido?.en_rueda ? "animate-pulse" : ""}`}
+              style={{ background: cent.vivo ? "var(--t-pos)" : "var(--t-neg)" }}
               title={cent.latido
                 ? `Revisa cada ${cent.latido.cadencia_s}s · ${cent.latido.ciclo} revisiones · última hace ${cent.latido.hace_s}s`
-                : "sin datos"}>
-          <span className={`inline-block w-[8px] h-[8px] rounded-full ${
-            cent.vivo && cent.latido?.en_rueda ? "animate-pulse" : ""}`}
-                style={{ background: cent.vivo ? "var(--t-pos)" : "var(--t-neg)" }} />
-          <span className="text-[11px] font-semibold tracking-widest"
-                style={{ color: cent.vivo ? "var(--t-pos)" : "var(--t-neg)" }}>
-            {cent.vivo ? "REVISANDO" : "SIN REVISAR"}
-          </span>
-        </span>
-        <span className="text-[10px] text-[var(--t-text-dim)]">
-          {cent.vivo
-            ? `cada ${cent.latido && cent.latido.cadencia_s >= 60
-                ? `${Math.round(cent.latido.cadencia_s / 60)} min` : "30s"}`
-              + `${cent.latido?.en_rueda ? "" : " · mercado cerrado"}`
-            : `sin señales desde hace ${cent.latido ? Math.round(cent.latido.hace_s / 60) : "?"} min`}
-        </span>
+                : "sin datos"} />
         {!cent.vivo && (
-          <span className="text-[10px] text-[var(--t-neg)] w-full">
-            En el Droplet: <span className="font-mono">systemctl status av_agent_centinela</span>
-          </span>
-        )}
-        {cent.latido?.error && (
-          <span className="text-[10px] text-[var(--t-neg)] w-full">
-            último error: {cent.latido.error}
+          <span className="text-[10px] font-semibold tracking-widest text-[var(--t-neg)]">
+            SIN REVISAR
+            <span className="ml-2 font-normal tracking-normal">
+              hace {cent.latido ? Math.round(cent.latido.hace_s / 60) : "?"} min
+            </span>
           </span>
         )}
         <button
@@ -4278,158 +4408,107 @@ function TabCentinela({ cent, marcarVisto, recargar, seguimiento, queImporta }: 
         </button>
       </div>
 
-      {/* ── LOS ARREGLOS CON EL RELOJ CORRIENDO ──────────────────────────
-          Lo único que el agente sabe de sí mismo SIN que se lo diga nadie: de
-          lo que dio por resuelto, cuánto aguantó. Un ✔ tuyo es una opinión;
-          que algo no haya vuelto en 30 días no lo es.
-
-          Va acá arriba y en una línea: es contexto de cómo viene el agente, no
-          una lista de trabajo. Se despliega si querés el detalle. */}
-      {/* Va ARRIBA del seguimiento: primero qué hay que hacer, después si lo
-          que ya se hizo aguantó. */}
-      {queImporta && queImporta.abiertos > 0 && (
-        <QueImporta q={queImporta} />
-      )}
-
-      {seguimiento && (seguimiento.en_prueba > 0 || seguimiento.aguantaron > 0) && (
-        <Seguimiento s={seguimiento} />
-      )}
-
-      {/* ── LO NUEVO ────────────────────────────────────────────────────── */}
-      {sinVer.length > 0 && (
-        <div className="flex items-baseline gap-2">
-          <h3 className={TITULO}>NUEVO, SIN VER</h3>
-          <span className={SUB}>{sinVer.length}</span>
-          {/* Marcar todo visto es una sola acción porque revisar 30 casillas es
-              la forma más rápida de que nadie marque nada. NO los resuelve ni
-              los esconde: solo dejan de ser «nuevos». */}
-          <button
-            onClick={() => void marcarVisto(sinVer.map((f) => f.clave))}
-            className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
-          >
-            marcar los {sinVer.length} como vistos
-          </button>
-        </div>
-      )}
-
-      {/* LO QUE NO ES NUEVO PERO TAMPOCO ESTÁ VISTO. Mismo botón, otro rótulo:
-          lo que cambia es la expectativa de quien lee. */}
-      {vienenDeAntes.length > 0 && (
-        <div className="flex items-baseline gap-2">
-          <h3 className={TITULO}>VIENE DE ANTES, SIN VER</h3>
-          <span className={SUB}>{vienenDeAntes.length}</span>
-          <span className="text-[9px] text-[var(--t-text-dim)]">
-            no apareció recién: sigue abierto de antes
-          </span>
-          <button
-            onClick={() => void marcarVisto(vienenDeAntes.map((f) => f.clave))}
-            className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
-          >
-            marcar los {vienenDeAntes.length} como vistos
-          </button>
-        </div>
-      )}
-
-      {/* EL PLIEGUE. Va abajo del bloque de «nuevo, sin ver» y arriba de la
-          lista: es el que explica por qué la lista tiene menos filas de las que
-          uno esperaba. Sin este renglón, plegar sería esconder. */}
-      {yaVistos.length > 0 && (
-        <button
-          onClick={() => setVerVistos((v) => !v)}
-          className="self-start text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
-          title="Siguen abiertos: los marcaste vistos, así que dejaron de esperar una decisión."
-        >
-          {verVistos ? "▾" : "▸"} {yaVistos.length} ya vistos
-          {verVistos ? " — ocultar" : " (siguen abiertos)"}
-        </button>
-      )}
-
-      {enLista.length === 0 ? (
-        <p className="text-[11px] text-[var(--t-text-muted)]">
-          {yaVistos.length > 0
-            ? `Nada nuevo. Los ${yaVistos.length} abiertos ya los viste — siguen `
-              + "acá arriba, plegados."
-            : cent.vivo
-            ? "Nada abierto. El centinela está mirando y no encuentra nada."
-            : "Nada abierto — pero el centinela está apagado, así que esto no "
-              + "significa que todo esté bien."}
+      {!cent.vivo && (
+        <p className="text-[10px] text-[var(--t-neg)]">
+          En el Droplet: <span className="font-mono">systemctl status av_agent_centinela</span>
         </p>
-      ) : (
-        <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-          {enLista.map((f) => (
-            <div key={f.clave}
-                 className={`grid grid-cols-[3px_120px_170px_1fr_auto] items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)] ${
-                   f.visto_at ? "opacity-60" : ""}`}>
-              <span className="self-stretch" style={{ background: SEV_COLOR[f.severidad] }} />
-              <span className="text-[11px] font-bold text-[var(--t-text)] truncate"
-                    title={f.sujeto}>
-                {!f.visto_at && <span className="text-[var(--t-neg)]">• </span>}
-                {f.sujeto}
-              </span>
-              <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
-                    title={f.regla}>
-                {f.regla.replace(/_/g, " ")}
-              </span>
-              <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0">
-                {f.motivo}
-              </span>
-              {/* ⚠️ **PRIMERO CUÁNDO SE CONFIRMÓ, DESPUÉS DESDE CUÁNDO.**
-                  (user, 2026-08-19: *«los avisos y las alertas no pueden quedar
-                  desactualizados; todo lo que está tiene que ser la posta»*.)
-
-                  Acá se leía «hace 22 h», que es **cuándo APARECIÓ** el aviso —
-                  y al lado de un motivo en pasado («la última corrida falló») se
-                  lee como que el aviso quedó viejo. La pregunta que uno se hace
-                  es la otra: *¿esto sigue pasando AHORA?*
-
-                  `ultimo_at` la contesta y ya se estaba guardando: el centinela
-                  lo refresca en cada pasada, así que «confirmado hace 30s»
-                  significa que treinta segundos atrás seguía siendo cierto. Va
-                  primero; la antigüedad y el ×N quedan de contexto. */}
-              <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap self-center"
-                    title={`confirmado ${f.ultimo_at} · apareció ${f.abierto_at} · visto ${f.veces} veces`}>
-                <span className="text-[var(--t-text-muted)]">
-                  confirmado hace {edad(f.ultimo_at)}
-                </span>
-                {/* La antigüedad sale del OBJETO cuando existe: es la misma
-                    que muestra ENCONTRÓ. Mientras fueron dos relojes, AHORA
-                    podía decir «recién» de algo que la otra tab daba por
-                    abierto hacía once días. */}
-                {" · desde hace "}
-                {f.dias_abierto != null && f.dias_abierto >= 1
-                  ? `${Math.round(f.dias_abierto)}d`
-                  : edad(f.abierto_at)}
-                {" · ×"}{f.veces}
-              </span>
-            </div>
-          ))}
-        </div>
+      )}
+      {cent.latido?.error && (
+        <p className="text-[10px] text-[var(--t-neg)]">
+          último error: {cent.latido.error}
+        </p>
       )}
 
-      {/* ── LO QUE SE ARREGLÓ SOLO ──────────────────────────────────────── */}
-      {cent.resueltos.length > 0 && (
-        <div>
-          <button
-            onClick={() => setVerResueltos(!verResueltos)}
-            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
-          >
-            {verResueltos ? "▾" : "▸"} se arreglaron solos ({cent.resueltos.length})
-          </button>
-          {/* No se borran a propósito: «se arregló solo» es información, y ver
-              los que van y vienen es cómo se detecta un intermitente. */}
-          {verResueltos && (
-            <div className="mt-1 flex flex-col gap-0.5">
-              {cent.resueltos.map((f) => (
-                <div key={f.clave} className="text-[10px] text-[var(--t-text-dim)]">
-                  <span className="text-[var(--t-pos)]">✔</span> {f.sujeto}
-                  {" · "}{f.regla.replace(/_/g, " ")}
-                  {" · duró "}{edad(f.abierto_at)}{" · ×"}{f.veces}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {!hoy && (
+        <p className="text-[11px] text-[var(--t-neg)]">
+          No puedo separar lo de hoy — el backend todavía no manda el corte del
+          día. Esto NO quiere decir que no haya pasado nada: mirá ENCONTRÓ.
+        </p>
+      )}
+
+      {nada && (
+        <p className="text-[11px] text-[var(--t-text-muted)]">
+          {cent.vivo
+            ? "Hoy no pasó nada nuevo. Lo que sigue abierto de antes está en ENCONTRÓ."
+            : "Hoy no apareció nada — pero el agente está apagado, así que esto "
+              + "no quiere decir que todo esté bien."}
+        </p>
+      )}
+
+      {/* El orden es el de lo que informa, no el del alfabeto: un arreglo que
+          falló es la única fila que cambia lo que uno pensaba que sabía. */}
+      {hoy && (
+        <>
+          <Novedad titulo="VOLVIÓ" filas={hoy.volvio} tono="neg"
+                   ayuda="se había arreglado y volvió" />
+          <Novedad titulo="APARECIÓ HOY" filas={hoy.aparecio} tono="texto"
+                   ayuda="no estaba ayer" />
+          <Novedad titulo="SE ARREGLÓ" filas={hoy.se_arreglo} tono="pos"
+                   ayuda="cerró solo — no pide nada, es para que lo sepas" />
+        </>
       )}
     </div>
   );
+}
+
+
+// Un bloque de novedad del día. **El mismo formato para las tres**: lo que
+// cambia es el rótulo y el color, no la forma. Tres layouts distintos para tres
+// listas de lo mismo es parte de lo que hacía ilegible la pantalla anterior.
+function Novedad({ titulo, filas, tono, ayuda }: {
+  titulo: string;
+  filas: Vigilado[];
+  tono: "neg" | "pos" | "texto";
+  ayuda: string;
+}) {
+  if (!filas.length) return null;
+  const color = tono === "neg" ? "var(--t-neg)"
+    : tono === "pos" ? "var(--t-pos)" : "var(--t-text)";
+  return (
+    <div>
+      <div className="flex items-baseline gap-2">
+        <h3 className="text-[10px] font-semibold tracking-widest" style={{ color }}>
+          {titulo}
+        </h3>
+        <span className={SUB}>{filas.length}</span>
+        <span className="text-[9px] text-[var(--t-text-dim)]">{ayuda}</span>
+      </div>
+      <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+        {filas.map((f) => (
+          <div key={f.clave}
+               className="grid grid-cols-[3px_130px_170px_1fr_auto] items-baseline gap-2 px-2 py-1">
+            <span className="self-stretch" style={{ background: SEV_COLOR[f.severidad] }} />
+            <span className="text-[11px] font-bold text-[var(--t-text)] truncate"
+                  title={f.sujeto}>
+              {f.sujeto}
+            </span>
+            <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
+                  title={f.regla}>
+              {f.regla.replace(/_/g, " ")}
+            </span>
+            <span className="text-[10px] text-[var(--t-text-muted)] leading-snug min-w-0">
+              {f.motivo}
+            </span>
+            {/* ⚠️ La HORA, no «hace 21 h». En una lista que YA es del día, «hace
+                cuánto» obliga a hacer la resta para ubicar el hecho — y era
+                justamente lo que dejaba pasar una fila vieja por nueva. */}
+            <span className="text-[9px] text-[var(--t-text-dim)] tabular-nums whitespace-nowrap self-center"
+                  title={`confirmado ${f.ultimo_at}`}>
+              {hora(f.vuelto_at ?? f.resuelto_at ?? f.abierto_at)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+// La hora del día, sin fecha: en una lista que ya es de hoy, la fecha es ruido.
+function hora(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
