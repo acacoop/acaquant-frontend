@@ -3173,6 +3173,37 @@ function ModalConciliar({
     setBusy(false);
   }
 
+  /** Drill-down: abre el detalle de UNA fila del tablero.
+   *
+   * Usa `GET /conciliar/cuenta`, que devuelve la MISMA respuesta que el POST con
+   * archivo pero leyendo el mayor que ya está en la base — por eso reusa `res` y
+   * todo el bloque de abajo sin duplicar una línea de render.
+   *
+   * También mueve `banco`/`cuentaId`: los selectores de arriba leen de ahí, y si
+   * no se movieran, el detalle mostraría una cuenta y el encabezado otra.
+   */
+  const abrirCuenta = useCallback(async (f: FilaTablero) => {
+    setDetalle(true);
+    setBanco(f.banco);
+    setCuentaId(String(f.id));
+    setBusy(true); setErr(null); setRes(null);
+    try {
+      const r = await fetch(
+        `/api/back-office/interbanking/conciliar/cuenta?cuenta_id=${f.id}`
+        + `&fecha=${encodeURIComponent(fecha)}`);
+      if (!r.ok) {
+        setErr((await r.json().catch(() => ({}))).detail
+               ?? "No se pudo abrir el detalle de esa cuenta.");
+        return;
+      }
+      setRes(await r.json());
+    } catch {
+      setErr("No se pudo abrir el detalle de esa cuenta.");
+    } finally {
+      setBusy(false);
+    }
+  }, [fecha]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCerrar(); };
     document.addEventListener("keydown", onKey);
