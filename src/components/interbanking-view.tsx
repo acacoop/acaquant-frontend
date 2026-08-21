@@ -455,6 +455,10 @@ const COL_DATO = "w-[13%] border-l border-[var(--t-border)]";
  *  columnas son muchas y angostas, y forzarles un porcentaje las desbordaría. */
 const COL_SEP = "border-l border-[var(--t-border)]";
 
+/** Fondo de las columnas que salen del MAYOR (saldo inicio, debe, haber, saldo
+ *  final), para separarlas de un vistazo de las que salen del banco. */
+const COL_MAYOR = "bg-[var(--t-accent)]/[0.07]";
+
 function plata(v: number | null | undefined, moneda = "") {
   if (v === null || v === undefined) return "—";
   const s = new Intl.NumberFormat("es-AR", {
@@ -2898,12 +2902,13 @@ type RespTablero = {
  * `saldo_final − saldo_inicio` se simplifica a `debe + haber`: los dos términos
  * salen del mayor y no podría mostrar un descuadre ni queriendo.
  *
- * ⚠️ **Los GASTOS son informativos y no entran en ningún total.** Si sumaran al
- * saldo final, se contarían dos veces el día que el equipo los cargue en el
- * mayor. Por eso `dif_sin_gastos` viene en `null` cuando ya no hay diferencia:
- * el gasto se calcula de los movimientos del BANCO y sigue valiendo lo mismo
- * esté o no cargado del otro lado, así que seguir restándolo publicaría un
- * número que no existe.
+ * ⚠️ **Los GASTOS no entran en ningún total.** Si sumaran al saldo final, se
+ * contarían dos veces el día que el equipo los cargue en el mayor. La columna
+ * propia se sacó (era informativa y ensuciaba la grilla): queda solo
+ * `dif_sin_gastos`, que viene en `null` cuando ya no hay diferencia —el gasto se
+ * calcula de los movimientos del BANCO y sigue valiendo lo mismo esté o no
+ * cargado del otro lado, así que seguir restándolo publicaría un número que no
+ * existe.
  */
 function TableroConciliacion({ fecha, onAbrirCuenta }: {
   fecha: string; onAbrirCuenta: (f: FilaTablero) => void;
@@ -2991,11 +2996,10 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
             <th className="text-left px-2 py-1 font-medium">Cuenta</th>
             {/* «cierre» y no la fecha sola: el saldo inicial de hoy ES el cierre
                 de ayer, y con solo la fecha se lee como si fuera otra cosa. */}
-            <ThTablero dia={`cierre ${dApertura}`} sep>Saldo inicio</ThTablero>
-            <ThTablero sep>Gastos</ThTablero>
-            <ThTablero dia={dDia} sep>Debe</ThTablero>
-            <ThTablero dia={dDia}>Haber</ThTablero>
-            <ThTablero dia={dDia} sep>Saldo final</ThTablero>
+            <ThTablero dia={`cierre ${dApertura}`} sep mayor>Saldo inicio</ThTablero>
+            <ThTablero dia={dDia} sep mayor>Debe</ThTablero>
+            <ThTablero dia={dDia} mayor>Haber</ThTablero>
+            <ThTablero dia={dDia} sep mayor>Saldo final</ThTablero>
             <ThTablero dia={dDia}>Cierre banco</ThTablero>
             <ThTablero sep>Diferencia</ThTablero>
             <ThTablero>Dif. sin gastos</ThTablero>
@@ -3022,21 +3026,17 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
                   </span>
                 )}
               </td>
-              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP}`}
+              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP} ${COL_MAYOR}`}
                   title={f.saldo_inicio_fuente ?? undefined}>
                 {plata(f.saldo_inicio)}
               </td>
-              {/* Informativo: no suma a nada. */}
-              <td className={`text-right px-2 py-1 tabular-nums text-[var(--t-text-dim)] ${COL_SEP}`}>
-                {plata(f.gastos)}
-              </td>
-              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP}`}>
+              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP} ${COL_MAYOR}`}>
                 {f.movimientos_mayor ? plata(f.debe) : "—"}
               </td>
-              <td className="text-right px-2 py-1 tabular-nums">
+              <td className={`text-right px-2 py-1 tabular-nums ${COL_MAYOR}`}>
                 {f.movimientos_mayor ? plata(f.haber) : "—"}
               </td>
-              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP}`}>
+              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP} ${COL_MAYOR}`}>
                 {plata(f.saldo_final)}
               </td>
               <td className="text-right px-2 py-1 tabular-nums text-[var(--t-text-dim)]">
@@ -3057,7 +3057,7 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
             </tr>
           ))}
           {!filas.length && (
-            <tr><td colSpan={9} className="px-3 py-6 text-[var(--t-text-dim)]">
+            <tr><td colSpan={8} className="px-3 py-6 text-[var(--t-text-dim)]">
               {soloDif ? "Ninguna cuenta tiene diferencia." : "No hay cuentas."}
             </td></tr>
           )}
@@ -3082,11 +3082,12 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
  *  Se llama `ThTablero` y no `Th` porque **ya hay un `Th` en este archivo** (el
  *  de las tablas de movimientos): dos declaraciones con el mismo nombre compilan
  *  en el editor pero rompen el build. */
-function ThTablero({ children, dia, sep }: {
-  children: React.ReactNode; dia?: string; sep?: boolean;
+function ThTablero({ children, dia, sep, mayor }: {
+  children: React.ReactNode; dia?: string; sep?: boolean; mayor?: boolean;
 }) {
   return (
-    <th className={`text-right px-2 py-1 font-medium align-bottom ${sep ? COL_SEP : ""}`}>
+    <th className={`text-right px-2 py-1 font-medium align-bottom ${sep ? COL_SEP : ""} ${
+      mayor ? COL_MAYOR : ""}`}>
       <div>{children}</div>
       {dia && (
         <div className="text-[9px] normal-case text-[var(--t-text-muted)]">{dia}</div>
