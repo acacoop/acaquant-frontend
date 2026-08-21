@@ -349,6 +349,10 @@ type MovCandidato = {
   codigo_banco: string | null;
   comprobante: number | null;
   ignorado: boolean;
+  /** Qué impuesto es, si el movimiento es un gasto bancario. Adentro de una
+   *  explicación de once movimientos, saber cuáles son gastos es lo que la
+   *  vuelve accionable: esos entran solos, los otros hay que cargarlos. */
+  balde: string | null;
 };
 
 /** Una combinación de movimientos cuya suma da exactamente la diferencia. */
@@ -435,6 +439,11 @@ type RespConciliacion = {
     mayor_sin_calzar: number;
     banco_suma_sin_calzar: number;
     mayor_suma_sin_calzar: number;
+    /** Cuánto de lo que quedó sin calzar son GASTOS. Es la partición que
+     *  importa para trabajar: los gastos suelen entrar solos y el resto hay
+     *  que cargarlo a mano — dos tareas distintas dentro de una diferencia. */
+    banco_gastos_sin_calzar: number;
+    banco_gastos_movimientos: number;
   };
   /** El margen con que se buscó la explicación. Se muestra: un criterio que
    *  decide qué aparece en pantalla no puede vivir escondido en el código. */
@@ -3183,6 +3192,10 @@ function ModalConciliar({
   // CALZAR POR IMPORTE: esconde de las DOS listas los movimientos que tienen su
   // igual del otro lado. Lo que queda es la lista corta de lo que hay que mirar.
   const [soloSinCalzar, setSoloSinCalzar] = useState(false);
+  // Y los GASTOS aparte: descalzan casi siempre y por una razón conocida (el
+  // banco cobra hoy, contabilidad los registra al mes). Sacándolos queda lo que
+  // de verdad hay que ir a cargar a mano.
+  const [ocultarGastos, setOcultarGastos] = useState(false);
   // Qué explicaciones ya se anotaron. Se marca en la pantalla para que nadie
   // confirme dos veces lo mismo mirando la misma lista.
   const [confirmados, setConfirmados] = useState<Record<string, boolean>>({});
@@ -3624,6 +3637,30 @@ function ModalConciliar({
                     {" / "}{res.calce.mayor_sin_calzar} mayor
                   </span>
                 )}
+                {/* Los gastos aparte: descalzan casi siempre y por una razón
+                    conocida. Sacarlos deja lo que de verdad hay que ir a cargar
+                    a mano — pero el número sigue a la vista, nunca se esconde
+                    en silencio. */}
+                {!!res.calce.banco_gastos_movimientos && (
+                  <button
+                    onClick={() => setOcultarGastos((v) => !v)}
+                    className={`ml-2 px-2 py-0.5 text-[10px] uppercase tracking-wide border ${
+                      ocultarGastos
+                        ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                        : "border-[var(--t-border-2)] text-[var(--t-text-dim)] hover:bg-[var(--t-surface)]"
+                    }`}
+                    title="Sacar de la lista los gastos bancarios: entran solos y contabilidad los registra después"
+                  >
+                    {ocultarGastos ? "Gastos ocultos ✓" : "Ocultar gastos"}
+                  </button>
+                )}
+                {!!res.calce.banco_gastos_movimientos && (
+                  <span className="text-[10px] text-[var(--t-text-dim)]">
+                    {res.calce.banco_gastos_movimientos} gasto
+                    {res.calce.banco_gastos_movimientos === 1 ? "" : "s"} sin calzar
+                    {" · "}{plata(res.calce.banco_gastos_sin_calzar)}
+                  </span>
+                )}
                 <Ayuda texto={
                   "Empareja los movimientos de los dos lados que tienen el MISMO "
                   + "importe y los saca de la vista. Lo que queda es lo que no "
@@ -3633,7 +3670,9 @@ function ModalConciliar({
                   + "Calzar el grupo contra el grupo taparía justo el que falta.\n\n"
                   + "Los movimientos marcados IMPUESTO son gastos del banco: "
                   + "esos suelen entrar solos y descalzan seguido porque "
-                  + "contabilidad los registra después. Empezá por los otros.\n\n"
+                  + "contabilidad los registra después. OCULTAR GASTOS los saca "
+                  + "de la lista (el total de lo que se sacó queda arriba) y "
+                  + "deja lo que de verdad hay que ir a cargar a mano.\n\n"
                   + "La lista se parte por signo: lo que ENTRÓ arriba y lo que "
                   + "SALIÓ abajo, de mayor a menor y con el subtotal de cada "
                   + "bloque. Una diferencia se explica con movimientos de un "
@@ -3655,6 +3694,7 @@ function ModalConciliar({
                   moneda={moneda}
                   consolidado={vista === "consolidado"}
                   soloSinCalzar={soloSinCalzar}
+                  ocultarGastos={ocultarGastos}
                 />
                 <LadoConciliacion
                   titulo="Movimientos del mayor"
@@ -3665,6 +3705,7 @@ function ModalConciliar({
                   moneda={moneda}
                   consolidado={vista === "consolidado"}
                   soloSinCalzar={soloSinCalzar}
+                  ocultarGastos={ocultarGastos}
                 />
               </div>
 
@@ -3773,7 +3814,17 @@ function ModalConciliar({
                       {c.movimientos.map((m) => (
                         <tr key={m.mov_hash} className="border-b border-[var(--t-border-2)]">
                           <Td className="whitespace-nowrap">{m.hora || "—"}</Td>
-                          <Td copiar={m.descripcion}>{m.descripcion || "—"}</Td>
+                        <Td copiar={m.descripcion}>
+                          {m.descripcion || "—"}
+                          {/* Adentro de una explicación de once movimientos, cuál
+                              es gasto es lo que la vuelve accionable: esos entran
+                              solos, los otros hay que cargarlos. */}
+                          {m.balde && (
+                            <span className="ml-1.5 px-1 text-[9px] uppercase bg-[var(--t-tint-amber)] text-[var(--t-accent)]">
+                              imp
+                            </span>
+                          )}
+                        </Td>
                           <Td className={COL_SEP}>{m.concepto || "—"}</Td>
                           <Td center className={COL_SEP}>{m.codigo || "—"}</Td>
                           <Td center className={COL_SEP}>{m.comprobante ?? "—"}</Td>
@@ -3862,7 +3913,7 @@ function Numero({
  * Mezclados y en el orden del banco, eso había que sumarlo a mano.
  */
 function LadoConciliacion({
-  titulo, filas: todas, suma, moneda, consolidado, soloSinCalzar,
+  titulo, filas: todas, suma, moneda, consolidado, soloSinCalzar, ocultarGastos,
 }: {
   titulo: string;
   filas: FilaLado[];
@@ -3870,17 +3921,30 @@ function LadoConciliacion({
   moneda: string;
   consolidado: boolean;
   soloSinCalzar: boolean;
+  ocultarGastos: boolean;
 }) {
   const [abierto, setAbierto] = useState<Record<string, boolean>>({});
 
   const filas = useMemo(
-    () => (soloSinCalzar ? todas.filter((f) => !f.calce) : todas),
-    [todas, soloSinCalzar]);
+    () => todas.filter((f) => !(soloSinCalzar && f.calce) && !(ocultarGastos && f.impuesto)),
+    [todas, soloSinCalzar, ocultarGastos]);
+  // ⚠️ Los escondidos se CUENTAN y se muestran arriba. Un filtro que se lleva
+  // plata en silencio hace que el total del pie no se pueda explicar.
+  const escondidos = useMemo(() => {
+    const gastos = todas.filter((f) => ocultarGastos && f.impuesto
+                                       && !(soloSinCalzar && f.calce));
+    return {
+      calzados: todas.filter((f) => soloSinCalzar && f.calce).length,
+      gastos: gastos.length,
+      gastosTotal: Math.round(gastos.reduce((a, f) => a + f.importe, 0) * 100) / 100,
+    };
+  }, [todas, soloSinCalzar, ocultarGastos]);
+  const filtrando = soloSinCalzar || ocultarGastos;
   const total = useMemo(
-    () => (soloSinCalzar
+    () => (filtrando
       ? Math.round(filas.reduce((a, f) => a + f.importe, 0) * 100) / 100
       : suma),
-    [soloSinCalzar, filas, suma]);
+    [filtrando, filas, suma]);
 
   // Ordenado por importe absoluto: lo grande arriba. Alfabético dejaría el
   // movimiento de mil millones abajo de todo por empezar con T.
@@ -4003,9 +4067,14 @@ function LadoConciliacion({
             ? `${grupos.length} concepto${grupos.length === 1 ? "" : "s"} · ${filas.length} mov`
             : filas.length}
         </span>
-        {soloSinCalzar && todas.length > filas.length && (
+        {escondidos.calzados > 0 && (
           <span className="text-[10px] text-[var(--t-text-dim)]">
-            ({todas.length - filas.length} calzados, ocultos)
+            ({escondidos.calzados} calzados, ocultos)
+          </span>
+        )}
+        {escondidos.gastos > 0 && (
+          <span className="text-[10px] text-[var(--t-accent)]">
+            {escondidos.gastos} gastos ocultos · {plata(escondidos.gastosTotal)}
           </span>
         )}
       </div>
@@ -4060,7 +4129,9 @@ function LadoConciliacion({
           dos números es la que explica la diferencia de saldos. */}
       <div className="px-2 py-1 border-t border-[var(--t-border-2)] flex items-center gap-2 text-[11px] bg-[var(--t-surface-2)]">
         <span className="uppercase tracking-wide text-[var(--t-text-dim)]">
-          {soloSinCalzar ? "Total sin calzar" : "Total"}
+          {!filtrando ? "Total"
+            : `Total ${[soloSinCalzar && "sin calzar", ocultarGastos && "sin gastos"]
+                .filter(Boolean).join(" · ")}`}
         </span>
         <span className="ml-auto font-semibold tabular-nums">{plata(total, moneda)}</span>
       </div>
