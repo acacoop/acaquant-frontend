@@ -1952,8 +1952,20 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
 
       {visibles.length === 0 && (
         <p className="text-[11px] text-[var(--t-text-muted)]">
-          Ningún hallazgo coincide con {q.trim() ? `«${q}»` : "el filtro puesto"}.
-          Los {data.hallazgos.length} siguen ahí — es el filtro, no la lista.
+          {/* Si lo que vació la lista es que YA ESTÁ TODO ATENDIDO, decirlo así
+              y no como «ningún hallazgo coincide con el filtro»: son dos cosas
+              muy distintas y una de las dos es una buena noticia. */}
+          {!verHechos && nHechos > 0 && nHechos === data.hallazgos.length ? (
+            <>
+              No queda nada por hacer: los {nHechos} hallazgos ya pasaron por tus
+              manos. Siguen ahí — tocá «{nHechos} ya hechos» para verlos.
+            </>
+          ) : (
+            <>
+              Ningún hallazgo coincide con {q.trim() ? `«${q}»` : "el filtro puesto"}.
+              Los {data.hallazgos.length} siguen ahí — es el filtro, no la lista.
+            </>
+          )}
         </p>
       )}
 
