@@ -2926,10 +2926,12 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
 
   const filas = useMemo(() => {
     if (!data) return [];
-    // Con diferencia, o con motivo: las que no se pudieron calcular también hay
-    // que verlas, si no "sin problemas" y "no sé" se confunden.
+    // SOLO las que tienen diferencia de verdad. Las que no se pudieron comparar
+    // se veían acá y llenaban el filtro de filas con «—» (8 de 13 en la primera
+    // corrida real), que es lo contrario de lo que el filtro promete. No quedan
+    // escondidas: el contador «N sin comparar» de la barra las sigue cantando.
     return soloDif
-      ? data.filas.filter((f) => f.concilia === false || f.motivo)
+      ? data.filas.filter((f) => f.concilia === false)
       : data.filas;
   }, [data, soloDif]);
 
