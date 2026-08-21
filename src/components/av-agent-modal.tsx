@@ -258,6 +258,10 @@ type Vigilado = {
   // backend por la misma razón que `recien`: el criterio tiene que ser uno solo.
   dias_abierto?: number | null;
   vuelto_at?: string | null;
+  /** El nombre LEGIBLE — `control:patas_equivocadas` → `patas equivocadas`. Lo
+   *  deriva el backend, igual que en ENCONTRÓ: dos pantallas que muestran el
+   *  mismo hallazgo tienen que llamarlo igual. */
+  nombre?: string;
   /** El texto LARGO del hallazgo (`evidencia.texto`): qué pasó · a qué afecta ·
    *  si sigue. Los motores lo traen desde siempre y la pantalla mostraba solo
    *  el título recortado — el user: *«sin información, sin contexto… si tenemos
@@ -1138,7 +1142,8 @@ export function AvAgentModal() {
               {tab === "hallazgos" && (
                 <TabHallazgos porTipo={porTipo} data={data} sims={sims}
                               simular={simular} ignorar={ignorar}
-                              cent={cent} marcarVisto={marcarVisto} />
+                              cent={cent} marcarVisto={marcarVisto}
+                              recargar={cargar} />
               )}
               {/* HISTORIAL: lo que ya pasó. No se acciona, así que no merece dos
                   tabs — se lee de arriba abajo y listo. */}
@@ -2177,7 +2182,7 @@ function VigilanciaAbierta({ cent, marcarVisto }: {
 
 
 function TabHallazgos({ porTipo, data, sims, simular, ignorar,
-                       cent, marcarVisto }: {
+                       cent, marcarVisto, recargar }: {
   porTipo: Record<string, Hallazgo[]>;
   data: Vista;
   sims: Record<string, Record<string, unknown> | null>;
@@ -2189,6 +2194,10 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // 131 cosas abiertas sin ninguna pantalla, que es peor que el desorden.
   cent: Centinela | null;
   marcarVisto: (claves: string[]) => Promise<void>;
+  /** Vuelve a leer la vista. Lo necesita el VOTO: sin esto el «✔ te sirve»
+   *  vivía en un `useState` que muere al cambiar de tab, y al volver la fila
+   *  aparecía otra vez con los botones. */
+  recargar: () => Promise<void>;
 }) {
   // EL FILTRO. Con 84 hallazgos apilados en cinco secciones, la pantalla era un
   // scroll infinito donde para llegar a `tasa_sospechosa` había que pasar por
@@ -2388,6 +2397,34 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
       setCorriendo(false);
     }
   }, [planos, filtro, reglaOk, q]);
+
+  // ⚠️⚠️ **EL INFORME SE RECUPERA AL VOLVER A LA TAB.** El user: *«literal,
+  // cuando estás en una vista, si hacés algo y te vas a otra desaparece todo.
+  // Estaba haciendo el diagnóstico, me pasé de ENCONTRÓ a AVISOS, cuando volví
+  // se borró todo»*.
+  //
+  // Y no se borraba nada: el informe vive en el BACKEND (`GET /masivo` devuelve
+  // la última corrida). Lo que se perdía era el `useState` de este componente,
+  // que React desmonta al cambiar de tab. O sea que una corrida de 4 minutos y
+  // 92 casos desaparecía de la pantalla por tocar otra solapa, y la única forma
+  // de recuperarla era volver a correrla.
+  //
+  // Se lee UNA vez al montar. Sin `corriendo`, así que no arranca ningún poll:
+  // es una lectura y listo.
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const r = await fetchJson<RunMasivo>("/api/ia/av-agent/masivo");
+        if (!vivo || !r?.id) return;
+        setRun(r);
+        // Si quedó corriendo (se cerró el modal a mitad), el poll se reengancha
+        // solo — que es lo que uno espera al volver.
+        if (r.estado === "corriendo") setCorriendo(true);
+      } catch { /* sin informe previo no hay nada que recuperar */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
   // El POLL. Arranca cuando hay una corrida y se apaga sola al terminar — un
   // poll que sigue después del final es tráfico que nadie mira.
@@ -2776,7 +2813,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
                         un hallazgo que solo se mira. Restringirlo a los accionables
                         dejaría sin medir justo a los que todavía no sabemos si
                         valen la pena automatizar. */}
-                    {primera && <Voto h={h} />}
+                    {primera && <Voto h={h} recargar={recargar} />}
                   </div>
                   {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
                       valor de la lista depende de poder sacarle lo que no importa.
@@ -2887,7 +2924,7 @@ function Confianza({ c }: { c: Hallazgo["confianza"] }) {
 //    acá se muestra el voto en vez de volver a preguntar. Si el agente cambia de
 //    CAUSA es un par nuevo y sí se pregunta; y CAMBIAR el voto sigue estando a
 //    un click, porque un voto que no se puede corregir queda mal para siempre.
-function Voto({ h }: { h: Hallazgo }) {
+function Voto({ h, recargar }: { h: Hallazgo; recargar?: () => Promise<void> }) {
   // Arranca cerrado también cuando la CAUSA ya está probada, no solo cuando este
   // caso ya se votó. Se puede abrir igual desde «cambiar»: una causa probada que
   // empieza a fallar es justo lo que hay que poder registrar, y el ✖ la baja del
@@ -2946,13 +2983,28 @@ function Voto({ h }: { h: Hallazgo }) {
         setMsg(observacion
           ? (acierta ? "✔ te sirve" : "✖ anotado: es ruido")
           : (acierta ? "✔ acertó" : "✖ registrado"));
+        // ⚠️⚠️ **ESTO FALTABA, Y ERA TODO EL BUG.** El voto se guardaba bien y
+        // la pantalla NO se recargaba: el «✔ te sirve» vivía en un `useState`
+        // de este componente. Al cambiar de tab el componente se desmonta, al
+        // volver lee `h.ya_votado` del `data` VIEJO —que sigue en false— y
+        // vuelve a dibujar los botones.
+        //
+        // El user: *«me voy de ENCONTRÓ a AHORA, vuelvo, y NO HACE NADA, es
+        // clickear al pedo»*. Tenía razón literal: el click no cambiaba nada
+        // que sobreviviera al render siguiente.
+        //
+        // Y de yapa es lo que hace que «✖ es ruido» SAQUE la fila: el backend
+        // ya la marca `es_ruido` y la vista la filtra — pero solo cuando los
+        // datos se vuelven a leer.
+        await recargar?.();
       }
       else { setEstado("error"); setMsg(r.error ?? "no se pudo guardar"); }
     } catch (e) {
       setEstado("error");
       setMsg(e instanceof Error ? e.message : String(e));
     }
-  }, [h.ticker, h.regla, h.tipo, h.dominio_eval, observacion, motivo, causa]);
+  }, [h.ticker, h.regla, h.tipo, h.dominio_eval, observacion, motivo, causa,
+      recargar]);
 
   if (estado === "listo") {
     return (
@@ -5217,11 +5269,18 @@ function Novedad({ titulo, filas, tono, ayuda, plegado = false }: {
       <div className="mt-1 border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
         {filas.map((f, i) => (
           <div key={f.clave}
-               className="grid grid-cols-[3px_130px_170px_1fr_auto] items-baseline gap-2 px-2 py-1">
+               className="grid grid-cols-[3px_minmax(120px,auto)_150px_1fr_auto] items-baseline gap-2 px-2 py-1">
             <span className="self-stretch" style={{ background: SEV_COLOR[f.severidad] }} />
-            <span className="text-[11px] font-bold text-[var(--t-text)] truncate"
+            {/* ⚠️ **NO SE TRUNCA.** El user: *«los títulos no pueden estar así
+                cortados, no se entiende nada»* — y tenía razón:
+                `control:patas_equiv…` no dice absolutamente nada. Dos cambios:
+                el backend manda el nombre SIN el prefijo de familia (que ya se
+                lee en la columna de al lado) y la columna deja de tener ancho
+                fijo. El sujeto crudo queda en el `title`: para buscarlo en la
+                base hace falta el nombre exacto. */}
+            <span className="text-[11px] font-bold text-[var(--t-text)] whitespace-nowrap"
                   title={f.sujeto}>
-              {f.sujeto}
+              {f.nombre || f.sujeto}
             </span>
             <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
                   title={f.regla}>
