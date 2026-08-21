@@ -2987,14 +2987,14 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
         <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
           <tr className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
             <th className="text-left px-2 py-1 font-medium">Cuenta</th>
-            <Th dia={dApertura} sep>Saldo inicio</Th>
-            <Th sep>Gastos</Th>
-            <Th dia={dDia} sep>Debe</Th>
-            <Th dia={dDia}>Haber</Th>
-            <Th dia={dDia} sep>Saldo final</Th>
-            <Th dia={dDia}>Cierre banco</Th>
-            <Th sep>Diferencia</Th>
-            <Th>Dif. sin gastos</Th>
+            <ThTablero dia={dApertura} sep>Saldo inicio</ThTablero>
+            <ThTablero sep>Gastos</ThTablero>
+            <ThTablero dia={dDia} sep>Debe</ThTablero>
+            <ThTablero dia={dDia}>Haber</ThTablero>
+            <ThTablero dia={dDia} sep>Saldo final</ThTablero>
+            <ThTablero dia={dDia}>Cierre banco</ThTablero>
+            <ThTablero sep>Diferencia</ThTablero>
+            <ThTablero>Dif. sin gastos</ThTablero>
           </tr>
         </thead>
         <tbody>
@@ -3071,10 +3071,14 @@ function TableroConciliacion({ fecha, onAbrirCuenta }: {
   );
 }
 
-/** Encabezado del tablero. `dia` va debajo del rótulo porque cada columna es de
- *  un día distinto — el saldo inicial es de AYER y el resto de hoy— y sin verlo
- *  ahí mismo la grilla se lee como si todo fuera del mismo día. */
-function Th({ children, dia, sep }: {
+/** Encabezado del tablero de conciliación. `dia` va debajo del rótulo porque
+ *  cada columna es de un día distinto —el saldo inicial es de AYER y el resto de
+ *  hoy— y sin verlo ahí mismo la grilla se lee como si todo fuera del mismo día.
+ *
+ *  Se llama `ThTablero` y no `Th` porque **ya hay un `Th` en este archivo** (el
+ *  de las tablas de movimientos): dos declaraciones con el mismo nombre compilan
+ *  en el editor pero rompen el build. */
+function ThTablero({ children, dia, sep }: {
   children: React.ReactNode; dia?: string; sep?: boolean;
 }) {
   return (
