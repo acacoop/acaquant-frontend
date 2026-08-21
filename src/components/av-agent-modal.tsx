@@ -46,7 +46,8 @@ import { fetchJson } from "@/lib/fetch-json";
 // del sistema (un cron, una tabla que quedó vieja) con las mismas ocho lentes que
 // un bono, y no escribe nada. Comparte el componente a propósito — que SALUD y un
 // bono se lean IGUAL es lo que permite que una sola cabeza mire las dos cosas.
-type Modo = "alta" | "flujos" | "arreglo" | "salud" | "sin_precio" | "pata";
+type Modo = "alta" | "flujos" | "arreglo" | "salud" | "sin_precio" | "pata"
+  | "apuntar";
 // Devuelve una PROMESA, no `void`. Con `void` el `await` del lote no esperaba
 // nada y las 10 aplicaciones salían todas juntas: se pisan entre sí escribiendo
 // en `mercado.curvas` y el error de una se pierde entre las otras nueve. El tipo
@@ -83,6 +84,12 @@ type Hallazgo = {
   // mismo — los BOPREALes llegaron a 17/17 y el user tuvo que verlos de nuevo.
   ya_votado?: boolean;
   voto?: boolean;
+  // ¿YA LO ATENDÍ? `"aplicado"` (apreté el arreglo) · `"votado"` (no hay botón,
+  // así que votar era lo único que se podía hacer) · `""` = pendiente.
+  // **Votar NO cuenta como hecho cuando hay un botón sin apretar**: el voto
+  // juzga al agente, no arregla el dato — mezclarlos escondería un bono roto.
+  // Lo decide el backend por el mismo motivo que `accion`.
+  atendido?: string | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -636,7 +643,14 @@ export function AvAgentModal() {
     // Tres puertas, tres escrituras DISTINTAS: el alta crea el bono entero,
     // `flujos` completa un cronograma vacío y `arreglo` PISA un insumo que ya
     // está. Compartir ruta las haría indistinguibles en el libro de acciones.
-    const ruta = modo === "pata"
+    const ruta = modo === "apuntar"
+      // ⚠️ **EL BOTÓN QUE FALTABA, Y POR ESO VOLVÍAN 17 VECES.** `pata/pedir`
+      // trae una pata que YA cotizaba y deja `mercado.curvas` apuntando a la de
+      // pesos: el user apretaba, salía «✔ pedida» y a la rueda siguiente estaban
+      // todos de nuevo. Esto corrige el master (columna + blob) **y** pide la
+      // pata, así se ve en 5s sin reiniciar el motor.
+      ? "pata/apuntar"
+      : modo === "pata"
       // La ÚNICA puerta de rueda que además escribe. `pata` busca (solo lectura)
       // y `pata/pedir` siembra la especie si falta y la suscribe — el motor la
       // levanta en 5s, sin reiniciar y en plena rueda.
@@ -660,6 +674,9 @@ export function AvAgentModal() {
           // comentario de `detectar_salud` en el backend).
           body: JSON.stringify(modo === "salud"
             ? { chequeo_id: ticker }
+            : modo === "apuntar"
+            // El backend NO escribe sin `aplicar`: sin él devuelve qué haría.
+            ? { ticker, aplicar }
             : (modo === "sin_precio" || modo === "pata")
             ? { ticker }
             : { ticker, curva_1816: curva1816, ...extra }),
@@ -1657,6 +1674,20 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   // escrito acá: esa es justo la copia que ya nos costó que un botón no
   // apareciera nunca.
   const [verMercado, setVerMercado] = useState(false);
+  // ⚠️ **POR DEFECTO, LO QUE FALTA HACER** (user, 2026-08-21: *«¿podemos que
+  // ENCONTRÓ muestre por defecto lo que NO hice? Que estos queden en ENCONTRÓ
+  // pero marcados como ya hechos»*).
+  //
+  // Con 107 filas de las que la mayoría ya pasaron por sus manos, la lista de
+  // trabajo dejó de ser una lista de trabajo: para encontrar lo que faltaba
+  // había que ir leyendo cuál tenía el ✔ y cuál no, fila por fila.
+  //
+  // **Lo atendido NO se borra**: se esconde con el número a la vista y vuelve a
+  // un clic — la misma regla que el corte del mercado. Y quién está atendido lo
+  // decide el BACKEND (`h.atendido`), que es el único que sabe distinguir
+  // «voté» de «apliqué»: votar no arregla nada, y si el voto marcara la fila
+  // como hecha los 17 BOPREALes desaparecían de la vista estando rotos.
+  const [verHechos, setVerHechos] = useState(false);
 
   const tipos = useMemo(
     () => Object.keys(porTipo).sort(
@@ -1672,6 +1703,9 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
   const nMercado = useMemo(
     () => data.hallazgos.filter((h) => h.de_quien === "mercado").length,
     [data.hallazgos]);
+  const nHechos = useMemo(
+    () => data.hallazgos.filter((h) => h.atendido).length,
+    [data.hallazgos]);
 
   const preFiltrados = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -1682,6 +1716,9 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
       // El corte va ANTES de la búsqueda: si uno tipea un ticker ilíquido lo
       // quiere encontrar igual, así que buscar destapa lo oculto.
       if (!verMercado && !t) hs = hs.filter((h) => h.de_quien !== "mercado");
+      // Igual que el corte del mercado, va ANTES de la búsqueda: si uno tipea el
+      // ticker de algo que ya arregló, lo quiere encontrar igual.
+      if (!verHechos && !t) hs = hs.filter((h) => !h.atendido);
       if (t) {
         hs = hs.filter((h) =>
           h.ticker.toLowerCase().includes(t) ||
@@ -1691,7 +1728,7 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
       if (hs.length) out.push([tipo, hs]);
     }
     return out;
-  }, [porTipo, tipos, filtro, q, verMercado]);
+  }, [porTipo, tipos, filtro, q, verMercado, verHechos]);
 
   // Las reglas presentes, con su cuenta, **ordenadas por cantidad**: la causa
   // que más aparece es la que conviene atacar primero, y es la que uno busca.
@@ -1845,6 +1882,23 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
           </button>
         )}
 
+        {/* LO YA HECHO, contado aunque esté escondido. Mismo criterio que el
+            corte del mercado: el número siempre a la vista, el clic lo destapa. */}
+        {nHechos > 0 && (
+          <button
+            onClick={() => setVerHechos((v) => !v)}
+            title={"Ya lo atendiste: aplicaste su arreglo, o —si la fila no tiene "
+                   + "botón— ya lo votaste y no queda nada más que hacer. Sigue "
+                   + "en la lista: solo deja de ser lo primero que se ve."}
+            className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
+              verHechos
+                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
+          >
+            {verHechos ? "▾" : "▸"} {nHechos} ya hechos
+          </button>
+        )}
+
         {(q.trim() || filtro !== "todos" || reglaOk !== "todas") && (
           <button
             onClick={() => { setFiltro("todos"); setQ(""); setRegla("todas"); }}
@@ -1921,13 +1975,25 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                 key={`${h.ticker}-${h.regla}-${i}`}
                 className={`grid ${sujetoLargo
                   ? "grid-cols-[3px_190px_150px_1fr_auto]"
-                  : "grid-cols-[3px_72px_150px_1fr_auto]"} items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]`}
+                  : "grid-cols-[3px_72px_150px_1fr_auto]"} items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]${
+                  // YA HECHO: apagada, pero legible. Se ve solo con «ya hechos»
+                  // destapado; ahí la marca es lo que distingue lo que uno ya
+                  // tocó de lo que todavía no.
+                  h.atendido ? " opacity-45" : ""}`}
               >
                 <span className="self-stretch" style={{ background: SEV_TINT[h.severidad] }}
                       title={`severidad ${h.severidad}`} />
                 <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums truncate"
                       title={h.ticker}>
                   {h.ticker}
+                  {h.atendido && (
+                    <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-accent)]"
+                          title={h.atendido === "aplicado"
+                            ? "ya aplicaste su arreglo"
+                            : "ya lo votaste, y esta fila no tiene nada más que apretar"}>
+                      ✔ {h.atendido}
+                    </span>
+                  )}
                 </span>
                 <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
                       title={h.regla}>
@@ -1959,7 +2025,8 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar }: {
                       botón que no aparece y no avisa por qué. */}
                   {primera && (h.accion === "alta" || h.accion === "flujos"
                     || h.accion === "arreglo" || h.accion === "salud"
-                    || h.accion === "sin_precio" || h.accion === "pata") && (
+                    || h.accion === "sin_precio" || h.accion === "pata"
+                    || h.accion === "apuntar") && (
                     <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
                                   modo={h.accion} />
                   )}
@@ -2216,6 +2283,14 @@ const COPY = {
   pata: {
     simular: "Buscar la pata USD", aplicar: "Pedirla", hecho: "✔ pedida", cer: "",
   },
+  // EL ARREGLO de `pata_equivocada`, que es un problema DISTINTO al de arriba
+  // aunque compartan tipo: acá la pata existe y cotiza — lo que está mal es a
+  // cuál apunta el master. Corrige el campo y de paso la pide, así se ve en el
+  // acto. Es la fila que el user votó 17 veces sin que nada la resolviera.
+  apuntar: {
+    simular: "¿A qué pata apunta?", aplicar: "Apuntar el master",
+    hecho: "✔ apuntado", cer: "",
+  },
 } as const;
 
 function AccionCadena({ h, sim, simular, modo }: {
@@ -2277,7 +2352,12 @@ function AccionCadena({ h, sim, simular, modo }: {
   // pedida y con precio, cuando no hay pata, o cuando no se pudo leer el
   // catálogo. Las tres son razones distintas para no ofrecer el botón y ninguna
   // se puede deducir de los pasos sin volver a escribir el criterio acá.
-  const puedeAplicar = modo === "pata"
+  const puedeAplicar = modo === "apuntar"
+    // El backend simula devolviendo la PROPUESTA. Sin propuesta no hay nada que
+    // apretar: o el caso ya se resolvió solo, o la regla no supo un valor seguro
+    // (y adivinar la pata por sufijo es justo lo que REGLA #9 prohíbe).
+    ? Boolean((r?.propuesta as Record<string, unknown> | undefined))
+    : modo === "pata"
     ? Boolean(r?.pedible)
     : (modo === "salud" || modo === "sin_precio")
     ? false
@@ -2402,7 +2482,32 @@ function AccionCadena({ h, sim, simular, modo }: {
                 : ""}
             </>
           )}
-          {ok && modo !== "salud" && modo !== "sin_precio" && modo !== "pata" && (
+          {ok && modo === "apuntar" && (
+            // **DE dónde A dónde**, cortito y con los dos símbolos a la vista.
+            // Es toda la decisión: si la propuesta no es la pata que uno
+            // esperaba, no se aprieta. Un «listo para aplicar» sin decir qué se
+            // escribe es pedir un OK a ciegas.
+            <>
+              {r.ya_no_esta
+                ? "ya no aparece: se resolvió solo"
+                : r.sin_propuesta
+                ? "no puedo proponer una pata segura para este caso"
+                : (r.aplicadas as number) > 0
+                ? `${copy.hecho} · ${String(r.texto ?? "")}`
+                : (r.fallidas as number) > 0
+                ? `no quedó: ${String(r.texto ?? "")}`
+                : (() => {
+                    const pr = r.propuesta as Record<string, string> | undefined;
+                    const corto = (s: string) => s?.split(" - ")[2] ?? s ?? "";
+                    return pr
+                      ? `el master dice «${corto(pr.antes)}» y la pata que cotiza `
+                        + `es «${corto(pr.propuesto)}»`
+                      : "";
+                  })()}
+            </>
+          )}
+          {ok && modo !== "salud" && modo !== "sin_precio" && modo !== "pata"
+            && modo !== "apuntar" && (
             <>
               {aplicado ? copy.hecho : ""}
               {/* En el ARREGLO lo que importa es el ANTES → DESPUÉS: ver solo el
