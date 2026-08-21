@@ -2905,7 +2905,9 @@ type RespTablero = {
  * esté o no cargado del otro lado, así que seguir restándolo publicaría un
  * número que no existe.
  */
-function TableroConciliacion({ fecha }: { fecha: string }) {
+function TableroConciliacion({ fecha, onAbrirCuenta }: {
+  fecha: string; onAbrirCuenta: (f: FilaTablero) => void;
+}) {
   const [data, setData] = useState<RespTablero | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [soloDif, setSoloDif] = useState(false);
@@ -2998,7 +3000,9 @@ function TableroConciliacion({ fecha }: { fecha: string }) {
         <tbody>
           {filas.map((f) => (
             <tr key={f.id}
-                className={`border-t border-[var(--t-border)] ${
+                onClick={() => onAbrirCuenta(f)}
+                title="Ver los movimientos de los dos lados y qué podría explicar la diferencia"
+                className={`border-t border-[var(--t-border)] cursor-pointer hover:bg-[var(--t-surface)] ${
                   f.concilia === false ? "bg-[var(--t-danger)]/5" : ""}`}>
               <td className="px-2 py-1">
                 <span className={f.tiene_mayor ? "" : "text-[var(--t-text-muted)]"}>
@@ -3119,6 +3123,9 @@ function ModalConciliar({
   // El archivo queda como segundo camino, que sigue siendo el único para una
   // cuenta sin `codigo_contable` asignado.
   const [modo, setModo] = useState<"tablero" | "archivo">("tablero");
+  // Drill-down de una fila del tablero: el MISMO detalle que el archivo, con el
+  // mayor que ya está en la base. Por eso reusa `res` y todo el bloque de abajo.
+  const [detalle, setDetalle] = useState(false);
   const [res, setRes] = useState<RespConciliacion | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -3218,7 +3225,7 @@ function ModalConciliar({
             {(["tablero", "archivo"] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => setModo(m)}
+                onClick={() => { setModo(m); setDetalle(false); setRes(null); setErr(null); }}
                 className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border ${
                   modo === m
                     ? "border-[var(--t-accent)] text-[var(--t-accent)]"
@@ -3314,7 +3321,23 @@ function ModalConciliar({
         <ErrorLinea error={err} />
 
         <div className="flex-1 min-h-0 overflow-auto">
-          {modo === "tablero" && <TableroConciliacion fecha={fecha} />}
+          {modo === "tablero" && !detalle && (
+            <TableroConciliacion fecha={fecha} onAbrirCuenta={abrirCuenta} />
+          )}
+
+          {modo === "tablero" && detalle && (
+            <div className="px-3 pt-2">
+              <button
+                onClick={() => { setDetalle(false); setRes(null); setErr(null); }}
+                className="px-2 py-0.5 text-[11px] uppercase tracking-wide border border-[var(--t-border-2)] hover:bg-[var(--t-surface)]"
+              >
+                ← Volver al tablero
+              </button>
+              {busy && (
+                <span className="ml-2 text-[11px] text-[var(--t-text-dim)]">Buscando…</span>
+              )}
+            </div>
+          )}
 
           {modo === "archivo" && !res && !busy && (
             <div className="px-3 py-6 text-[var(--t-text-dim)]">
@@ -3323,7 +3346,7 @@ function ModalConciliar({
             </div>
           )}
 
-          {modo === "archivo" && res && (
+          {res && (modo === "archivo" || detalle) && (
             <div className="p-3 flex flex-col gap-3">
               {/* Los tres números. */}
               <div className="flex flex-wrap gap-4 items-end">
