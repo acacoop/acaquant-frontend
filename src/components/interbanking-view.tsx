@@ -2868,6 +2868,203 @@ function ModalPendientes({
 
 /* ── CONCILIAR contra el mayor del sistema contable ──────────────────────── */
 
+/** Una fila del TABLERO: una cuenta bancaria con su mayor del día. */
+type FilaTablero = {
+  id: number; banco: string; banco_nombre: string; tipo: string; moneda: string;
+  etiqueta: string; numero: string; manual: boolean;
+  tiene_mayor: boolean; codigo_contable: string | null;
+  saldo_inicio: number | null; saldo_inicio_fuente: string | null;
+  gastos: number | null; debe: number; haber: number; movimientos_mayor: number;
+  saldo_final: number | null; cierre_banco: number | null; ajuste_manual: number;
+  diferencia: number | null; concilia: boolean | null;
+  dif_sin_gastos: number | null; motivo: string | null;
+};
+
+type RespTablero = {
+  fecha: string; fecha_apertura: string; filas: FilaTablero[];
+  sin_mayor: number;
+  mayor_sync: { corrida_at: string; movimientos_banco: number; ok: boolean } | null;
+};
+
+/**
+ * TABLERO: todas las cuentas de un vistazo, sin subir ningún archivo.
+ *
+ * El mayor lo trae `jobs/mayor_sync` de la API de contabilidad y vive en
+ * `bancos.mayor_movimientos`, así que acá solo se pinta. Reemplaza al flujo de
+ * exportar el .xlsx de HYGIRUS cuenta por cuenta, que sigue existiendo en la otra
+ * pestaña — es el único camino para una cuenta que todavía no está mapeada.
+ *
+ * ⚠️ **La DIFERENCIA es contra el cierre del BANCO**, no contra el saldo inicial.
+ * `saldo_final − saldo_inicio` se simplifica a `debe + haber`: los dos términos
+ * salen del mayor y no podría mostrar un descuadre ni queriendo.
+ *
+ * ⚠️ **Los GASTOS son informativos y no entran en ningún total.** Si sumaran al
+ * saldo final, se contarían dos veces el día que el equipo los cargue en el
+ * mayor. Por eso `dif_sin_gastos` viene en `null` cuando ya no hay diferencia:
+ * el gasto se calcula de los movimientos del BANCO y sigue valiendo lo mismo
+ * esté o no cargado del otro lado, así que seguir restándolo publicaría un
+ * número que no existe.
+ */
+function TableroConciliacion({ fecha }: { fecha: string }) {
+  const [data, setData] = useState<RespTablero | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [soloDif, setSoloDif] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    setData(null); setErr(null);
+    fetch(`/api/back-office/interbanking/conciliar/tablero?fecha=${fecha}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? "");
+        return r.json();
+      })
+      .then((j) => { if (vivo) setData(j); })
+      .catch(() => { if (vivo) setErr("No pude traer el tablero."); });
+    return () => { vivo = false; };
+  }, [fecha]);
+
+  const filas = useMemo(() => {
+    if (!data) return [];
+    // Con diferencia, o con motivo: las que no se pudieron calcular también hay
+    // que verlas, si no "sin problemas" y "no sé" se confunden.
+    return soloDif
+      ? data.filas.filter((f) => f.concilia === false || f.motivo)
+      : data.filas;
+  }, [data, soloDif]);
+
+  if (err) return <ErrorLinea error={err} />;
+  if (!data) {
+    return <div className="px-3 py-6 text-[var(--t-text-dim)]">Cargando el tablero…</div>;
+  }
+
+  const conDif = data.filas.filter((f) => f.concilia === false).length;
+  const sinDato = data.filas.filter((f) => f.motivo).length;
+
+  return (
+    <div className="flex flex-col">
+      {/* Cuándo se trajo el mayor. NO es decorativo: entre dos corridas del
+          mismo día una cuenta se movió 2.008 millones, así que una diferencia
+          grande puede ser simplemente que Contabilidad no terminó de cargar. */}
+      <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border-2)] flex flex-wrap items-center gap-3 text-[11px]">
+        <span className="text-[var(--t-text-dim)]">
+          Apertura: cierre del banco al{" "}
+          <span className="text-[var(--t-text)]">{data.fecha_apertura}</span>
+        </span>
+        <span className="text-[var(--t-text-dim)]">
+          Mayor traído:{" "}
+          {data.mayor_sync ? (
+            <span className="text-[var(--t-text)]">
+              {new Date(data.mayor_sync.corrida_at).toLocaleString("es-AR")}
+              {" · "}{data.mayor_sync.movimientos_banco} movs
+            </span>
+          ) : (
+            <span className="text-[var(--t-warn)]">nunca para este día</span>
+          )}
+        </span>
+        {conDif > 0 && (
+          <span className="text-[var(--t-danger)]">{conDif} con diferencia</span>
+        )}
+        {sinDato > 0 && (
+          <span className="text-[var(--t-warn)]">{sinDato} sin datos para comparar</span>
+        )}
+        {data.sin_mayor > 0 && (
+          <span className="text-[var(--t-text-muted)]">
+            {data.sin_mayor} cuenta(s) sin mayor asociado
+          </span>
+        )}
+        <label className="ml-auto flex items-center gap-1 cursor-pointer">
+          <input type="checkbox" checked={soloDif}
+                 onChange={(e) => setSoloDif(e.target.checked)} />
+          <span className="uppercase tracking-wide text-[10px]">Solo con diferencia</span>
+        </label>
+      </div>
+
+      <table className="w-full border-collapse text-[11px]">
+        <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
+          <tr className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
+            <th className="text-left px-2 py-1 font-medium">Cuenta</th>
+            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Saldo inicio</th>
+            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Gastos</th>
+            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Debe</th>
+            <th className="text-right px-2 py-1 font-medium">Haber</th>
+            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Saldo final</th>
+            <th className="text-right px-2 py-1 font-medium">Cierre banco</th>
+            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Diferencia</th>
+            <th className="text-right px-2 py-1 font-medium">Dif. sin gastos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr key={f.id}
+                className={`border-t border-[var(--t-border)] ${
+                  f.concilia === false ? "bg-[var(--t-danger)]/5" : ""}`}>
+              <td className="px-2 py-1">
+                <span className={f.tiene_mayor ? "" : "text-[var(--t-text-muted)]"}>
+                  {f.etiqueta || f.numero}
+                </span>
+                <span className="text-[var(--t-text-muted)] ml-1">
+                  {f.tipo} {f.moneda}
+                </span>
+                {!f.tiene_mayor && (
+                  <span className="ml-1 text-[9px] uppercase text-[var(--t-text-muted)]"
+                        title="Esta cuenta no tiene código contable asignado: no hay mayor que comparar">
+                    sin mayor
+                  </span>
+                )}
+              </td>
+              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP}`}
+                  title={f.saldo_inicio_fuente ?? undefined}>
+                {plata(f.saldo_inicio)}
+              </td>
+              {/* Informativo: no suma a nada. */}
+              <td className={`text-right px-2 py-1 tabular-nums text-[var(--t-text-dim)] ${COL_SEP}`}>
+                {plata(f.gastos)}
+              </td>
+              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP}`}>
+                {f.movimientos_mayor ? plata(f.debe) : "—"}
+              </td>
+              <td className="text-right px-2 py-1 tabular-nums">
+                {f.movimientos_mayor ? plata(f.haber) : "—"}
+              </td>
+              <td className={`text-right px-2 py-1 tabular-nums ${COL_SEP}`}>
+                {plata(f.saldo_final)}
+              </td>
+              <td className="text-right px-2 py-1 tabular-nums text-[var(--t-text-dim)]">
+                {plata(f.cierre_banco)}
+              </td>
+              <td className={`text-right px-2 py-1 tabular-nums font-semibold ${COL_SEP} ${
+                    f.concilia === false ? "text-[var(--t-danger)]"
+                      : f.concilia ? "text-[var(--t-ok)]" : ""}`}
+                  title={f.motivo ?? undefined}>
+                {f.motivo ? "—" : plata(f.diferencia)}
+              </td>
+              <td className="text-right px-2 py-1 tabular-nums"
+                  title={f.dif_sin_gastos === null && f.concilia
+                    ? "Sin diferencia: no hay nada que explicar"
+                    : undefined}>
+                {plata(f.dif_sin_gastos)}
+              </td>
+            </tr>
+          ))}
+          {!filas.length && (
+            <tr><td colSpan={9} className="px-3 py-6 text-[var(--t-text-dim)]">
+              {soloDif ? "Ninguna cuenta tiene diferencia." : "No hay cuentas."}
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+
+      {sinDato > 0 && (
+        <div className="px-3 py-2 text-[11px] text-[var(--t-text-dim)] border-t border-[var(--t-border-2)]">
+          Las filas con «—» en DIFERENCIA no se pudieron comparar (falta el saldo
+          del banco de alguno de los dos días). Pasá el mouse por encima para ver
+          el motivo. <b>No son cuentas conciliadas</b>: es que no hay con qué comparar.
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Compara UN número contra otro: el saldo al cierre que tenemos del banco y el
  * último saldo del mayor de HYGIRUS. Si no coinciden, muestra qué movimientos
@@ -2900,6 +3097,10 @@ function ModalConciliar({
   const [banco, setBanco] = useState("");
   const [cuentaId, setCuentaId] = useState("");
   const [archivo, setArchivo] = useState<File | null>(null);
+  // El TABLERO es lo primero que se ve: cubre todas las cuentas sin pedir nada.
+  // El archivo queda como segundo camino, que sigue siendo el único para una
+  // cuenta sin `codigo_contable` asignado.
+  const [modo, setModo] = useState<"tablero" | "archivo">("tablero");
   const [res, setRes] = useState<RespConciliacion | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -2995,16 +3196,47 @@ function ModalConciliar({
             Conciliar
           </span>
           <span className="text-[var(--t-accent)]">{fecha}</span>
+          <div className="flex">
+            {(["tablero", "archivo"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setModo(m)}
+                className={`px-2 py-0.5 text-[10px] uppercase tracking-wide border ${
+                  modo === m
+                    ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                    : "border-[var(--t-border-2)] text-[var(--t-text-muted)] hover:text-[var(--t-text)]"
+                }`}
+              >
+                {m === "tablero" ? "Tablero" : "Por archivo"}
+              </button>
+            ))}
+          </div>
           <Ayuda texto={
-            "Compara el saldo al cierre que tenemos del banco contra el ÚLTIMO "
-            + "saldo del mayor del sistema contable.\n\n"
-            + "Del Excel se usa un solo número: el último saldo, que es el "
-            + "vigente. El signo lo da la letra — D (deudor) es POSITIVO y "
-            + "A (acreedor) es NEGATIVO.\n\n"
-            + "Si hay diferencia, se busca qué combinación de movimientos del "
-            + "día la suma. Son POSIBLES explicaciones: con muchos movimientos, "
-            + "más de una combinación puede dar el mismo número.\n\n"
-            + "No se guarda nada."
+            modo === "tablero"
+              ? "Todas las cuentas de un vistazo. El mayor lo trae solo el job de "
+                + "contabilidad, no hay que subir nada.\n\n"
+                + "SALDO INICIO es el cierre del BANCO del día hábil anterior. "
+                + "DEBE y HABER son del mayor de este día. SALDO FINAL = inicio "
+                + "+ debe + haber.\n\n"
+                + "DIFERENCIA = saldo final del mayor − cierre del BANCO de hoy. "
+                + "Positiva: al mayor le falta registrar algo que el banco sí "
+                + "tiene.\n\n"
+                + "GASTOS es informativo y NO entra en ningún total — sale de la "
+                + "vista principal. DIF. SIN GASTOS resta esos gastos para ver si "
+                + "además hay otra cosa; cuando ya no hay diferencia muestra «—», "
+                + "porque el gasto se calcula del BANCO y seguiría restándose "
+                + "aunque el equipo ya lo haya cargado en el mayor.\n\n"
+                + "Mirá la hora de MAYOR TRAÍDO: el día no está cerrado y "
+                + "Contabilidad sigue cargando asientos durante la rueda."
+              : "Compara el saldo al cierre que tenemos del banco contra el ÚLTIMO "
+                + "saldo del mayor del sistema contable.\n\n"
+                + "Del Excel se usa un solo número: el último saldo, que es el "
+                + "vigente. El signo lo da la letra — D (deudor) es POSITIVO y "
+                + "A (acreedor) es NEGATIVO.\n\n"
+                + "Si hay diferencia, se busca qué combinación de movimientos del "
+                + "día la suma. Son POSIBLES explicaciones: con muchos movimientos, "
+                + "más de una combinación puede dar el mismo número.\n\n"
+                + "No se guarda nada."
           } />
           <button
             onClick={onCerrar}
@@ -3015,6 +3247,7 @@ function ModalConciliar({
         </div>
 
         {/* Elegir la cuenta y el archivo. */}
+        {modo === "archivo" && (
         <div className="shrink-0 px-3 py-2 border-b border-[var(--t-border-2)] flex flex-wrap items-center gap-2">
           <select
             value={banco}
@@ -3058,18 +3291,21 @@ function ModalConciliar({
             </span>
           )}
         </div>
+        )}
 
         <ErrorLinea error={err} />
 
         <div className="flex-1 min-h-0 overflow-auto">
-          {!res && !busy && (
+          {modo === "tablero" && <TableroConciliacion fecha={fecha} />}
+
+          {modo === "archivo" && !res && !busy && (
             <div className="px-3 py-6 text-[var(--t-text-dim)]">
               Elegí la cuenta y subí el Excel del mayor de ESA cuenta.
               Se compara contra el día {fecha}.
             </div>
           )}
 
-          {res && (
+          {modo === "archivo" && res && (
             <div className="p-3 flex flex-col gap-3">
               {/* Los tres números. */}
               <div className="flex flex-wrap gap-4 items-end">
