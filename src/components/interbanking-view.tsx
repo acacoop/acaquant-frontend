@@ -2909,7 +2909,6 @@ function TableroConciliacion({ fecha }: { fecha: string }) {
   const [data, setData] = useState<RespTablero | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [soloDif, setSoloDif] = useState(false);
-
   useEffect(() => {
     let vivo = true;
     setData(null); setErr(null);
@@ -2939,38 +2938,41 @@ function TableroConciliacion({ fecha }: { fecha: string }) {
 
   const conDif = data.filas.filter((f) => f.concilia === false).length;
   const sinDato = data.filas.filter((f) => f.motivo).length;
+  // Cada columna es de un día distinto y eso NO se deduce mirando los números:
+  // el saldo inicial es el cierre del banco de AYER y todo lo demás es de hoy.
+  const ddmm = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7);
+  const dApertura = ddmm(data.fecha_apertura);
+  const dDia = ddmm(data.fecha);
 
   return (
     <div className="flex flex-col">
       {/* Cuándo se trajo el mayor. NO es decorativo: entre dos corridas del
           mismo día una cuenta se movió 2.008 millones, así que una diferencia
-          grande puede ser simplemente que Contabilidad no terminó de cargar. */}
+          grande puede ser simplemente que Contabilidad no terminó de cargar.
+          El resto del contexto (qué día es cada columna) vive en los
+          encabezados: repetirlo acá en prosa confundía más que ayudar. */}
       <div className="shrink-0 px-3 py-1.5 border-b border-[var(--t-border-2)] flex flex-wrap items-center gap-3 text-[11px]">
         <span className="text-[var(--t-text-dim)]">
-          Apertura: cierre del banco al{" "}
-          <span className="text-[var(--t-text)]">{data.fecha_apertura}</span>
-        </span>
-        <span className="text-[var(--t-text-dim)]">
-          Mayor traído:{" "}
+          Mayor:{" "}
           {data.mayor_sync ? (
             <span className="text-[var(--t-text)]">
-              {new Date(data.mayor_sync.corrida_at).toLocaleString("es-AR")}
+              {new Date(data.mayor_sync.corrida_at).toLocaleString("es-AR", {
+                day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+              })}
               {" · "}{data.mayor_sync.movimientos_banco} movs
             </span>
           ) : (
-            <span className="text-[var(--t-warn)]">nunca para este día</span>
+            <span className="text-[var(--t-warn)]">sin traer</span>
           )}
         </span>
         {conDif > 0 && (
           <span className="text-[var(--t-danger)]">{conDif} con diferencia</span>
         )}
         {sinDato > 0 && (
-          <span className="text-[var(--t-warn)]">{sinDato} sin datos para comparar</span>
+          <span className="text-[var(--t-warn)]">{sinDato} sin comparar</span>
         )}
         {data.sin_mayor > 0 && (
-          <span className="text-[var(--t-text-muted)]">
-            {data.sin_mayor} cuenta(s) sin mayor asociado
-          </span>
+          <span className="text-[var(--t-text-muted)]">{data.sin_mayor} sin mayor</span>
         )}
         <label className="ml-auto flex items-center gap-1 cursor-pointer">
           <input type="checkbox" checked={soloDif}
@@ -2983,14 +2985,14 @@ function TableroConciliacion({ fecha }: { fecha: string }) {
         <thead className="sticky top-0 bg-[var(--t-surface-2)] z-10">
           <tr className="text-[10px] uppercase tracking-wide text-[var(--t-text-muted)]">
             <th className="text-left px-2 py-1 font-medium">Cuenta</th>
-            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Saldo inicio</th>
-            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Gastos</th>
-            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Debe</th>
-            <th className="text-right px-2 py-1 font-medium">Haber</th>
-            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Saldo final</th>
-            <th className="text-right px-2 py-1 font-medium">Cierre banco</th>
-            <th className={`text-right px-2 py-1 font-medium ${COL_SEP}`}>Diferencia</th>
-            <th className="text-right px-2 py-1 font-medium">Dif. sin gastos</th>
+            <Th dia={dApertura} sep>Saldo inicio</Th>
+            <Th sep>Gastos</Th>
+            <Th dia={dDia} sep>Debe</Th>
+            <Th dia={dDia}>Haber</Th>
+            <Th dia={dDia} sep>Saldo final</Th>
+            <Th dia={dDia}>Cierre banco</Th>
+            <Th sep>Diferencia</Th>
+            <Th>Dif. sin gastos</Th>
           </tr>
         </thead>
         <tbody>
@@ -3062,6 +3064,22 @@ function TableroConciliacion({ fecha }: { fecha: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Encabezado del tablero. `dia` va debajo del rótulo porque cada columna es de
+ *  un día distinto — el saldo inicial es de AYER y el resto de hoy— y sin verlo
+ *  ahí mismo la grilla se lee como si todo fuera del mismo día. */
+function Th({ children, dia, sep }: {
+  children: React.ReactNode; dia?: string; sep?: boolean;
+}) {
+  return (
+    <th className={`text-right px-2 py-1 font-medium align-bottom ${sep ? COL_SEP : ""}`}>
+      <div>{children}</div>
+      {dia && (
+        <div className="text-[9px] normal-case text-[var(--t-text-muted)]">{dia}</div>
+      )}
+    </th>
   );
 }
 
