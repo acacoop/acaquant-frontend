@@ -35,7 +35,6 @@ import {
 
 import dynamic from "next/dynamic";
 
-import { PosicionDetalle, type PnLRow } from "@/components/pnl-titulos-view";
 import { carteraColor, carteraShort } from "@/lib/carteras";
 import { fetchJson } from "@/lib/fetch-json";
 import { fmtFechaCorta } from "@/lib/fmt";
@@ -91,7 +90,6 @@ type Vista = {
   pnl_disponible: boolean;
   costo_total: number | null; pnl_total: number | null;
   costo_total_usd: number | null; pnl_total_usd: number | null;
-  pnl_detalle: Record<string, PnLRow>;
   n: number;
 };
 
@@ -174,8 +172,6 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
   const [fecha, setFecha] = useState<string | null>(null);
   const [horizonte, setHorizonte] = useState<"t0" | "t1">("t1");
   const [usdPedido, setUsd] = useState(false);
-  // Título elegido en ACTIVOS → panel de AUDITORÍA (PnL, flujo y boletos).
-  const [sel, setSel] = useState<string | null>(null);
   const [reporte, setReporte] = useState(false);
 
   // El fetch va DERECHO en el efecto y el spinner lo prenden los handlers.
@@ -193,9 +189,6 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
       .then((d) => {
         if (!vivo) return;
         setData(d);
-        // La selección de ACTIVOS se limpia acá: el título elegido pertenecía a
-        // la posición que se acaba de reemplazar.
-        setSel(null);
         setError(null);
       })
       .catch((e) => { if (vivo) setError(String(e instanceof Error ? e.message : e)); })
@@ -299,7 +292,7 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
         ) : tab === "resumen" ? (
           <TabResumen data={data} usd={usd} />
         ) : tab === "activos" ? (
-          <TabActivos data={data} usd={usd} sel={sel} onSel={setSel} idCuenta={idCuenta} />
+          <TabActivos data={data} usd={usd} idCuenta={idCuenta} />
         ) : (
           <TabMetricas m={data.metricas} usd={usd} />
         )}
@@ -465,12 +458,16 @@ function Cuadro({ titulo, bloque, usd }: { titulo: string; bloque: Bloque; usd: 
 // lugares distintos en cada cuadro — cuatro tablas sueltas en vez de un informe.
 const COLS_ACTIVOS = ["14%", "14%", "6%", "10%", "7%", "9%", "8%", "10%", "6%", "9%", "7%"];
 
-function TabActivos({ data, usd, sel, onSel, idCuenta }: {
-  data: Vista; usd: boolean; sel: string | null; onSel: (u: string | null) => void;
-  idCuenta: string;
+// La tab NO tiene panel de auditoría (2026-08-21). Lo tuvo una versión y se
+// sacó: esta vista es la CARTERA y los títulos que hay adentro. El PnL boleto
+// por boleto es otra pregunta y ya tiene su pantalla —PNL TÍTULOS—, así que
+// tenerlo también acá partía el ancho en dos para mostrar algo que vive al lado.
+// Sin ese panel los cuadros por cartera usan la hoja entera, que es lo que hace
+// legible una cartera de 200 títulos.
+function TabActivos({ data, usd, idCuenta }: {
+  data: Vista; usd: boolean; idCuenta: string;
 }) {
   const router = useRouter();
-  const filaSel = sel ? data.pnl_detalle[sel] : undefined;
   // Menú contextual (click derecho) para operar una posición. Se cierra con
   // cualquier click, scroll, resize o Escape: un menú flotante que sobrevive al
   // scroll queda apuntando a una fila que ya no está debajo.
@@ -492,104 +489,82 @@ function TabActivos({ data, usd, sel, onSel, idCuenta }: {
   }, [ctx]);
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-start">
-      <div className="xl:col-span-2 flex flex-col gap-3">
-        {data.detalle.huerfanos.length > 0 && (
-          <div className="px-3 py-2 border border-[var(--t-accent)] text-[10px] text-[var(--t-text)]">
-            {data.detalle.huerfanos.length} título(s) sin ficha en Manager → Títulos
-            ({data.detalle.huerfanos.slice(0, 8).join(", ")}
-            {data.detalle.huerfanos.length > 8 ? "…" : ""}): suman al total pero no tienen
-            cartera, así que van al cuadro «Sin cartera» y no entran a ninguna métrica por cartera.
-          </div>
-        )}
-        {data.detalle.bloques.map((b) => (
-          <Panel key={b.cartera || "_sin"} titulo={b.label}
-                 extra={
-                   <span className="text-[11px] text-white tabular-nums">
-                     {fmt0(usd ? b.total_usd : b.total)} · {fmtPct(b.ponderacion)}
-                   </span>
-                 }>
-            <table className="w-full text-[11px] table-fixed">
-              <colgroup>{COLS_ACTIVOS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-              <thead>
-                <tr className="text-[9px] uppercase text-[var(--t-text-muted)] bg-[var(--t-surface)]">
-                  <th className="text-left px-2 py-1 font-medium">Ticker</th>
-                  <th className="text-left px-2 py-1 font-medium">Emisor</th>
-                  <th className="text-center px-2 py-1 font-medium">Calif.</th>
-                  <th className="text-center px-2 py-1 font-medium">Clase Act.</th>
-                  <th className="text-center px-2 py-1 font-medium">Venc.</th>
-                  <th className="text-right px-2 py-1 font-medium">Cantidad</th>
-                  <th className="text-right px-2 py-1 font-medium">Precio</th>
-                  <th className="text-right px-2 py-1 font-medium">Valuación</th>
-                  <th className="text-right px-2 py-1 font-medium">% Cart.</th>
-                  <th className="text-right px-2 py-1 font-medium">PnL</th>
-                  <th className="text-right px-2 py-1 font-medium">Gan %</th>
-                </tr>
-              </thead>
-              <tbody className="tabular-nums">
-                {b.filas.length === 0 && (
-                  <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
-                    Sin títulos en esta cartera.
-                  </td></tr>
-                )}
-                {b.filas.map((f) => {
-                  const val = usd ? f.valuacion_usd : f.valuacion;
-                  const pnl = usd ? f.pnl_usd : f.pnl;
-                  const gan = usd ? f.gan_pct_usd : f.gan_pct;
-                  const activa = sel === f.unidad;
-                  return (
-                    <tr key={f.unidad}
-                        onClick={() => onSel(activa ? null : f.unidad)}
-                        onContextMenu={(e) => {
-                          if (_esCash(f)) return;   // el efectivo no se opera
-                          e.preventDefault();
-                          setCtx({ x: e.clientX, y: e.clientY, pos: f });
-                        }}
-                        title="Click para auditar el título (PnL, flujo y boletos) · click derecho para operarlo"
-                        className={`border-t border-[var(--t-border)] cursor-pointer ${
-                          activa ? "bg-[var(--t-surface)]" : "hover:bg-[var(--t-surface)]"}`}>
-                      <td className="px-2 py-1 text-[var(--t-text)] truncate" title={f.unidad}>{f.ticker}</td>
-                      <td className="px-2 py-1 text-[var(--t-text-dim)] truncate" title={f.emisor}>{f.emisor}</td>
-                      <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{f.calificacion}</td>
-                      <td className="px-2 py-1 text-center text-[var(--t-text-dim)] truncate">{f.clase_activo}</td>
-                      <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">
-                        {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
-                      </td>
-                      <td className="px-2 py-1 text-right">{fmt2(f.cantidad, 2)}</td>
-                      <td className="px-2 py-1 text-right">{fmt2(f.precio, 2)}</td>
-                      <td className="px-2 py-1 text-right">{fmt0(val)}</td>
-                      <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
-                      <td className={`px-2 py-1 text-right ${pnl == null ? "" : pnl < 0 ? "text-[var(--t-neg)]" : pnl > 0 ? "text-[var(--t-pos)]" : ""}`}>
-                        {fmt0(pnl)}
-                      </td>
-                      <td className={`px-2 py-1 text-right ${gan == null ? "" : gan < 0 ? "text-[var(--t-neg)]" : gan > 0 ? "text-[var(--t-pos)]" : ""}`}>
-                        {gan == null ? "—" : fmt2(gan, 1) + "%"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Panel>
-        ))}
-      </div>
-
-      {/* AUDITORÍA — el mismo panel de la vista vieja. Es lo que hace que el
-          informe siga siendo auditable: cada número tiene sus boletos atrás. */}
-      <div className="xl:sticky xl:top-0">
-        <Panel titulo="AUDITORÍA"
-               extra={<span className="text-[10px] text-white/70">
-                 {filaSel ? (filaSel.display_name || filaSel.ticker) : "sin título seleccionado"}
-               </span>}>
-          {filaSel
-            ? <PosicionDetalle row={filaSel} esUSD={usd} />
-            : <div className="px-3 py-6 text-[11px] text-[var(--t-text-muted)] text-center">
-                {data.pnl_disponible
-                  ? "Elegí un título para ver su PnL, su flujo y sus boletos."
-                  : "El cost-basis se calcula contra la posición de HOY: para una fecha histórica no hay auditoría por título."}
-              </div>}
+    <div className="flex flex-col gap-3">
+      {data.detalle.huerfanos.length > 0 && (
+        <div className="px-3 py-2 border border-[var(--t-accent)] text-[10px] text-[var(--t-text)]">
+          {data.detalle.huerfanos.length} título(s) sin ficha en Manager → Títulos
+          ({data.detalle.huerfanos.slice(0, 8).join(", ")}
+          {data.detalle.huerfanos.length > 8 ? "…" : ""}): suman al total pero no tienen
+          cartera, así que van al cuadro «Sin cartera» y no entran a ninguna métrica por cartera.
+        </div>
+      )}
+      {data.detalle.bloques.map((b) => (
+        <Panel key={b.cartera || "_sin"} titulo={b.label}
+               extra={
+                 <span className="text-[11px] text-white tabular-nums">
+                   {fmt0(usd ? b.total_usd : b.total)} · {fmtPct(b.ponderacion)}
+                 </span>
+               }>
+          <table className="w-full text-[11px] table-fixed">
+            <colgroup>{COLS_ACTIVOS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+            <thead>
+              <tr className="text-[9px] uppercase text-[var(--t-text-muted)] bg-[var(--t-surface)]">
+                <th className="text-left px-2 py-1 font-medium">Ticker</th>
+                <th className="text-left px-2 py-1 font-medium">Emisor</th>
+                <th className="text-center px-2 py-1 font-medium">Calif.</th>
+                <th className="text-center px-2 py-1 font-medium">Clase Act.</th>
+                <th className="text-center px-2 py-1 font-medium">Venc.</th>
+                <th className="text-right px-2 py-1 font-medium">Cantidad</th>
+                <th className="text-right px-2 py-1 font-medium">Precio</th>
+                <th className="text-right px-2 py-1 font-medium">Valuación</th>
+                <th className="text-right px-2 py-1 font-medium">% Cart.</th>
+                <th className="text-right px-2 py-1 font-medium">PnL</th>
+                <th className="text-right px-2 py-1 font-medium">Gan %</th>
+              </tr>
+            </thead>
+            <tbody className="tabular-nums">
+              {b.filas.length === 0 && (
+                <tr><td colSpan={11} className="px-2 py-3 text-center text-[var(--t-text-muted)]">
+                  Sin títulos en esta cartera.
+                </td></tr>
+              )}
+              {b.filas.map((f) => {
+                const val = usd ? f.valuacion_usd : f.valuacion;
+                const pnl = usd ? f.pnl_usd : f.pnl;
+                const gan = usd ? f.gan_pct_usd : f.gan_pct;
+                return (
+                  <tr key={f.unidad}
+                      onContextMenu={(e) => {
+                        if (_esCash(f)) return;   // el efectivo no se opera
+                        e.preventDefault();
+                        setCtx({ x: e.clientX, y: e.clientY, pos: f });
+                      }}
+                      title="Click derecho para operar este título"
+                      className="border-t border-[var(--t-border)] hover:bg-[var(--t-surface)]">
+                    <td className="px-2 py-1 text-[var(--t-text)] truncate" title={f.unidad}>{f.ticker}</td>
+                    <td className="px-2 py-1 text-[var(--t-text-dim)] truncate" title={f.emisor}>{f.emisor}</td>
+                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">{f.calificacion}</td>
+                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)] truncate">{f.clase_activo}</td>
+                    <td className="px-2 py-1 text-center text-[var(--t-text-dim)]">
+                      {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
+                    </td>
+                    <td className="px-2 py-1 text-right">{fmt2(f.cantidad, 2)}</td>
+                    <td className="px-2 py-1 text-right">{fmt2(f.precio, 2)}</td>
+                    <td className="px-2 py-1 text-right">{fmt0(val)}</td>
+                    <td className="px-2 py-1 text-right text-[var(--t-text-dim)]">{fmtPct(f.share_cartera)}</td>
+                    <td className={`px-2 py-1 text-right ${pnl == null ? "" : pnl < 0 ? "text-[var(--t-neg)]" : pnl > 0 ? "text-[var(--t-pos)]" : ""}`}>
+                      {fmt0(pnl)}
+                    </td>
+                    <td className={`px-2 py-1 text-right ${gan == null ? "" : gan < 0 ? "text-[var(--t-neg)]" : gan > 0 ? "text-[var(--t-pos)]" : ""}`}>
+                      {gan == null ? "—" : fmt2(gan, 1) + "%"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </Panel>
-      </div>
+      ))}
 
       {ctx && (
         <div

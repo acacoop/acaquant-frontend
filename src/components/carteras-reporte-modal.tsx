@@ -87,10 +87,107 @@ type MesResumen = {
   tem_periodo: number | null; twr_base100: number;
 };
 
+/**
+ * `805` + `"[805] MOLLO NICOLAS EZEQUIEL"` → `"805 · MOLLO NICOLAS EZEQUIEL"`.
+ *
+ * La denominación que manda Aunesa YA TRAE el número de comitente adelante,
+ * entre corchetes. Concatenarla con el id daba «805 · [805] MOLLO NICOLAS
+ * EZEQUIEL» en la cabecera de todas las hojas. Se saca el prefijo en vez de
+ * dejar de mostrar el id, porque el id es lo que la mesa usa para identificar la
+ * cuenta y el nombre solo no alcanza (hay homónimos).
+ */
+export function tituloCuenta(idCuenta: string, nombre?: string): string {
+  const limpio = (nombre || "").replace(/^\s*\[[^\]]*\]\s*/, "").trim();
+  return limpio ? `${idCuenta} · ${limpio}` : idCuenta;
+}
+
 const mesLargo = (m: string) => {
   const [y, mm] = (m || "").split("-");
   return y && mm ? `${MESES_CORTOS[Number(mm) - 1] ?? mm} ${y.slice(2)}` : "—";
 };
+
+// ── Cuántas carteras entran en una hoja ────────────────────────────────────
+//
+// **El problema que resuelve.** La primera versión imprimía UNA HOJA POR
+// CARTERA. Con la cartera típica —tres o cuatro carteras de pocos títulos— eso
+// da cuatro hojas con dos renglones cada una y el resto en blanco. Y al revés,
+// una cartera de 200 títulos igual iba a una hoja sola y la partía el navegador
+// donde le quedaba cómodo, sin repetir de qué cartera era la continuación.
+//
+// **La escala.** No se cuenta en carteras ni en hojas: se cuenta en RENGLONES,
+// que es lo único que escala igual para una cuenta con 5 títulos y para una con
+// 300. La hoja tiene `CAPACIDAD` renglones útiles y cada cartera cuesta sus
+// filas más `ALTO_CABECERA` (su título y el encabezado de la tabla). Las
+// carteras se van metiendo EN ORDEN —el orden es por monto y decirlo distinto
+// que la pantalla sería otro informe— y se abre hoja nueva recién cuando no
+// entra nada más.
+//
+// **Cuándo se parte una cartera.** Si no entra entera pero en la hoja quedan al
+// menos `CORTE_MINIMO` renglones, se corta: entra lo que entra y sigue en la
+// hoja siguiente marcada «(cont.)». Ese mínimo existe para no dejar el título de
+// una cartera con dos filas colgando al pie de una hoja, que se lee peor que
+// empezarla limpia en la próxima.
+//
+// Los dos números están CALIBRADOS contra el PDF real (se genera y se cuentan
+// páginas), no estimados: ver la nota de `Hoja` sobre el alto útil.
+
+/**
+ * Renglones de tabla que entran en una hoja A4 apaisada, debajo de la cabecera
+ * azul y arriba del pie.
+ *
+ * **MEDIDO, no estimado.** Se generó el PDF con una cartera de N títulos y se
+ * contaron sus páginas contra la cantidad de hojas del modal: con 38 renglones
+ * las dos cifras coinciden y con 42 aparece una página de más (una hoja se
+ * desborda). Queda en 36 —dos menos que el máximo que entra— como margen para
+ * una fila más alta de lo normal: un emisor largo, un ticker de FCI con el
+ * nombre completo del fondo.
+ *
+ * Si algún día se cambia el tamaño de letra de la tabla o el alto de la
+ * cabecera, este número hay que volver a medirlo: no se deduce del CSS.
+ */
+const CAPACIDAD = 36;
+/** Lo que cuesta abrir una cartera: su título + el encabezado de la tabla. */
+const ALTO_CABECERA = 3;
+/** Menos renglones libres que esto y la cartera arranca en la hoja siguiente. */
+const CORTE_MINIMO = 5;
+
+type BloqueActivos = DatosReporte["detalle"]["bloques"][number];
+type ParteHoja = { bloque: BloqueActivos; filas: BloqueActivos["filas"]; desde: number; cont: boolean };
+export type HojaActivos = { partes: ParteHoja[] };
+
+export function paginarActivos(bloques: BloqueActivos[]): HojaActivos[] {
+  const hojas: HojaActivos[] = [];
+  let actual: ParteHoja[] = [];
+  let libre = CAPACIDAD;
+
+  const cerrar = () => {
+    if (actual.length) hojas.push({ partes: actual });
+    actual = [];
+    libre = CAPACIDAD;
+  };
+
+  for (const b of bloques) {
+    if (!b.filas.length) continue;      // una cartera vacía no abre cuadro
+    let i = 0;
+    let cont = false;
+    while (i < b.filas.length) {
+      const cabenAca = libre - ALTO_CABECERA;
+      // No entra ni el título con unas pocas filas → hoja nueva.
+      if (cabenAca < CORTE_MINIMO) {
+        cerrar();
+        continue;
+      }
+      const n = Math.min(b.filas.length - i, cabenAca);
+      actual.push({ bloque: b, filas: b.filas.slice(i, i + n), desde: i, cont });
+      libre -= ALTO_CABECERA + n;
+      i += n;
+      cont = true;                       // lo que siga de ESTA cartera va marcado
+      if (i < b.filas.length) cerrar();  // quedó cola: sigue en la próxima hoja
+    }
+  }
+  cerrar();
+  return hojas;
+}
 
 // ── El modal ───────────────────────────────────────────────────────────────
 
@@ -119,13 +216,10 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
   }, [idCuenta]);
 
   const a = datos.resumen.actual;
-  const titulo = `${idCuenta}${nombreCuenta ? ` · ${nombreCuenta}` : ""}`;
+  const titulo = tituloCuenta(idCuenta, nombreCuenta);
   const fecha = fmtFechaCorta(datos.fecha);
 
-  // Una hoja por cartera en ACTIVOS: es el corte natural del documento y evita
-  // tener que paginar a mano. Una cartera con muchos títulos crece más que un A4
-  // y el navegador la parte solo al imprimir.
-  const hojas = useMemo(() => datos.detalle.bloques.filter((b) => b.filas.length), [datos]);
+  const hojas = useMemo(() => paginarActivos(datos.detalle.bloques), [datos]);
 
   // ⚠️ **Portal a `<body>`, y no es cosmético: sin esto el PDF sale de UNA
   // página.** El modal se renderiza adentro de la vista, que cuelga de un
@@ -255,47 +349,55 @@ export function CarterasReporteModal({ datos, idCuenta, nombreCuenta, onCerrar }
           </div>
         </Hoja>
 
-        {hojas.map((b, i) => (
-          <Hoja key={b.cartera || "_sin"} n={2 + i}
-                titulo={`Activos · ${b.label}`} cuenta={titulo} fecha={fecha}>
-            <div className="flex items-baseline gap-3 mb-2">
-              <TituloBloque>{b.label}</TituloBloque>
-              <span className="ml-auto text-[11px] tabular-nums font-semibold">
-                {fmt0(b.total)} · {fmtPct(b.ponderacion)} de la cartera
-              </span>
-            </div>
-            <table className="w-full text-[9px]">
-              <thead>
-                <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
-                  <th className="text-left py-1">Ticker</th>
-                  <th className="text-left py-1">Emisor</th>
-                  <th className="text-center py-1">Calif.</th>
-                  <th className="text-center py-1">Clase</th>
-                  <th className="text-center py-1">Venc.</th>
-                  <th className="text-right py-1">Cantidad</th>
-                  <th className="text-right py-1">Precio</th>
-                  <th className="text-right py-1">Valuación</th>
-                  <th className="text-right py-1 w-14">% Cart.</th>
-                </tr>
-              </thead>
-              <tbody className="tabular-nums">
-                {b.filas.map((f) => (
-                  <tr key={f.unidad} className="border-b border-neutral-200">
-                    <td className="py-0.5">{f.ticker}</td>
-                    <td className="py-0.5 text-neutral-600">{f.emisor}</td>
-                    <td className="py-0.5 text-center text-neutral-600">{f.calificacion}</td>
-                    <td className="py-0.5 text-center text-neutral-600">{f.clase_activo}</td>
-                    <td className="py-0.5 text-center text-neutral-600">
-                      {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
-                    </td>
-                    <td className="py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
-                    <td className="py-0.5 text-right">{fmt2(f.precio, 2)}</td>
-                    <td className="py-0.5 text-right">{fmt0(f.valuacion)}</td>
-                    <td className="py-0.5 text-right text-neutral-500">{fmtPct(f.share_cartera)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {hojas.map((hoja, i) => (
+          <Hoja key={i} n={2 + i}
+                titulo={`Activos${hojas.length > 1 ? ` (${i + 1}/${hojas.length})` : ""}`}
+                cuenta={titulo} fecha={fecha}>
+            {hoja.partes.map((parte) => (
+              <div key={`${parte.bloque.cartera}-${parte.desde}`} className="mb-4 last:mb-0">
+                <div className="flex items-baseline gap-3">
+                  <TituloBloque>
+                    {parte.bloque.label}
+                    {parte.cont && <span className="font-normal normal-case"> (cont.)</span>}
+                  </TituloBloque>
+                  <span className="ml-auto text-[10px] tabular-nums font-semibold">
+                    {fmt0(parte.bloque.total)} · {fmtPct(parte.bloque.ponderacion)} de la cartera
+                  </span>
+                </div>
+                <table className="w-full text-[9px]">
+                  <thead>
+                    <tr className="text-[8px] uppercase text-neutral-500 border-b border-neutral-300">
+                      <th className="text-left py-1">Ticker</th>
+                      <th className="text-left py-1">Emisor</th>
+                      <th className="text-center py-1">Calif.</th>
+                      <th className="text-center py-1">Clase</th>
+                      <th className="text-center py-1">Venc.</th>
+                      <th className="text-right py-1">Cantidad</th>
+                      <th className="text-right py-1">Precio</th>
+                      <th className="text-right py-1">Valuación</th>
+                      <th className="text-right py-1 w-14">% Cart.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="tabular-nums">
+                    {parte.filas.map((f) => (
+                      <tr key={f.unidad} className="border-b border-neutral-200">
+                        <td className="py-0.5">{f.ticker}</td>
+                        <td className="py-0.5 text-neutral-600">{f.emisor}</td>
+                        <td className="py-0.5 text-center text-neutral-600">{f.calificacion}</td>
+                        <td className="py-0.5 text-center text-neutral-600">{f.clase_activo}</td>
+                        <td className="py-0.5 text-center text-neutral-600">
+                          {f.vencimiento ? fmtFechaCorta(f.vencimiento) : "—"}
+                        </td>
+                        <td className="py-0.5 text-right">{fmt2(f.cantidad, 2)}</td>
+                        <td className="py-0.5 text-right">{fmt2(f.precio, 2)}</td>
+                        <td className="py-0.5 text-right">{fmt0(f.valuacion)}</td>
+                        <td className="py-0.5 text-right text-neutral-500">{fmtPct(f.share_cartera)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
           </Hoja>
         ))}
 
@@ -385,8 +487,17 @@ function Hoja({ n, titulo, cuenta, fecha, children }: {
     // empuje unos píxeles a una segunda página y el PDF salga con hojas en
     // blanco intercaladas. Medido: con 210mm, 6 hojas daban 7 páginas.
     <section className="hoja bg-white text-neutral-900 shadow-lg"
-             style={{ width: "297mm", minHeight: "205mm" }}>
-      <header className="flex items-center gap-3 px-6 py-3 text-white" style={{ background: AZUL }}>
+             style={{ width: "297mm", minHeight: "205mm",
+                      printColorAdjust: "exact",
+                      WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
+      {/* ⚠️ `printColorAdjust: exact` NO es decorativo: sin eso el navegador
+          imprime SIN fondos salvo que el usuario tilde «Gráficos de fondo» en el
+          diálogo, y nadie lo tilda. Sin fondo, la barra azul desaparece y el
+          texto blanco queda blanco sobre blanco — la hoja sale con el título
+          fantasma y sin logo, que es exactamente como salió el primer PDF. */}
+      <header className="flex items-center gap-3 px-6 py-3 text-white"
+              style={{ background: AZUL, printColorAdjust: "exact",
+                       WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
         {/* eslint-disable-next-line @next/next/no-img-element -- se imprime; el
             wrapper de next/image complica el layout de la hoja */}
         <img src="/logo-login.png" alt="ACA Valores" className="h-7 w-auto" />
@@ -472,6 +583,10 @@ const CSS_IMPRESION = `
   #reporte-imprimible { margin: 0 !important; display: block !important; }
   .reporte-overlay > style { display: none !important; }
   .no-imprimir { display: none !important; }
+  .hoja, .hoja * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   .hoja {
     box-shadow: none !important;
     margin: 0 !important;
