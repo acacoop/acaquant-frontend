@@ -198,6 +198,11 @@ type Vista = {
     sin_mirar: { clave: string; sujeto: string; regla: string; origen: string;
                  horas_sin_reevaluar: number }[];
   };
+  // Cuántas de la lista ya pasaron por tus manos y cuántas descartaste. Van
+  // SIEMPRE, aunque estén escondidas: un filtro que oculta sin decir cuánto
+  // oculta es lo mismo que truncar en silencio.
+  atendidos?: number;
+  es_ruido?: number;
 };
 
 // EL TABLERO. Las fuentes usan el MISMO vocabulario de estados que el pre-flight
@@ -1723,7 +1728,7 @@ function VigilanciaAbierta({ cent, marcarVisto }: {
   cent: Centinela;
   marcarVisto: (claves: string[]) => Promise<void>;
 }) {
-  const [abierto, setAbierto] = useState(false);
+  const abierto = true;   // es una sub-tab: ya la elegiste, no la pliegues
   const [verVistos, setVerVistos] = useState(false);
   const [verResueltos, setVerResueltos] = useState(false);
   const sinVer = cent.abiertos.filter((f) => !f.visto_at);
@@ -1733,14 +1738,10 @@ function VigilanciaAbierta({ cent, marcarVisto }: {
   const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
   return (
     <div className="border border-[var(--t-border)] px-3 py-2">
-      <button
-        onClick={() => setAbierto((v) => !v)}
+      <div
         className="w-full flex flex-wrap items-baseline gap-2 text-left"
         title="Lo que la vigilancia en vivo tiene abierto. Es acumulado, no del día: por eso vive acá y no en AHORA."
       >
-        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-          {abierto ? "▾" : "▸"} vigilancia en vivo
-        </span>
         <span className="text-[10px] text-[var(--t-text)]">
           {cent.abiertos.length} abiertos
         </span>
@@ -1749,7 +1750,7 @@ function VigilanciaAbierta({ cent, marcarVisto }: {
             {sinVer.length} sin ver
           </span>
         )}
-      </button>
+      </div>
 
       {abierto && (
         <div className="mt-2 flex flex-col gap-2">
@@ -1861,6 +1862,19 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // todo lo demás — y una vez abajo se perdía el contexto de cuánto quedaba.
   // Con un tipo por vez, la vista entra en una pantalla y el resto sigue contado
   // arriba: nada se esconde, solo deja de competir por el lugar.
+  // ── LA SUB-TAB (§0.bp) ──────────────────────────────────────────────────
+  //
+  // Pedido del user, mirando ENCONTRÓ con tres cajas colapsables apiladas
+  // arriba de la lista: *«queda horrible… quiero que quede como lo de SKILLS,
+  // las mains horizontales y las opciones abajo. Es fundamental la UX/UI porque
+  // si no es inentendible»*.
+  //
+  // Tenía razón y es el mismo error que ya había en SKILLS antes de su menú:
+  // **apilar secciones obliga a scrollear para saber qué hay**, y encima acá
+  // cada una arrancaba plegada — o sea que la pantalla mostraba tres títulos y
+  // ningún contenido. Un menú horizontal muestra las cuatro de una y se mira
+  // UNA por vez, que es como se consulta.
+  const [sub, setSub] = useState<"lista" | "importa" | "aguantan" | "vigilancia">("lista");
   const [filtro, setFiltro] = useState<string>("todos");
   // La BÚSQUEDA es el otro camino: cuando uno ya sabe el ticker, filtrar por tipo
   // es el paso de más. Matchea sujeto, regla y motivo — los tres son cosas que
@@ -1985,6 +1999,11 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
 
   const nVisibles = visibles.reduce((a, [, hs]) => a + hs.length, 0);
   const nVisiblesPre = preFiltrados.reduce((a, [, hs]) => a + hs.length, 0);
+  // Lo que TODAVÍA pide trabajo, sin importar el filtro puesto: ni atendido ni
+  // descartado. Va en el recuento y en la submétrica de LA LISTA — el número
+  // del menú tiene que decir por qué entrarías, no cuántas filas hay.
+  const nPorHacer = data.hallazgos.filter(
+    (h) => !h.atendido && !h.es_ruido).length;
 
   // ── EL DIAGNÓSTICO MASIVO ─────────────────────────────────────────────────
   // Corre sobre LO FILTRADO, no sobre los 84: «diagnosticá los 30 de
@@ -2040,302 +2059,362 @@ function TabHallazgos({ porTipo, data, sims, simular, ignorar,
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── LO QUE BAJÓ DE AHORA (§0.bo) ────────────────────────────────────
-          Las tres viven acá porque ninguna era del DÍA: son el acumulado y sus
-          herramientas, o sea la cocina. Van plegadas y arriba de la lista —
-          contexto de por dónde empezar, no filas que compitan con ella. */}
-      {data.que_importa && data.que_importa.abiertos > 0 && (
-        <QueImporta q={data.que_importa} />
-      )}
-      {data.seguimiento
-        && (data.seguimiento.en_prueba > 0 || data.seguimiento.aguantaron > 0) && (
-        <Seguimiento s={data.seguimiento} />
-      )}
-      {cent && <VigilanciaAbierta cent={cent} marcarVisto={marcarVisto} />}
-
-      {/* ── LA BARRA ─────────────────────────────────────────────────────
-          Antes eran TRES renglones: chips de tipo, chips de regla, y una línea
-          de texto explicando el throttle de 1816. Para 75 hallazgos, la mitad
-          de la pantalla era el filtro.
-
-          Ahora es UNO: dos desplegables (el tipo y el error), la búsqueda, y el
-          botón. Un `select` con 9 opciones ocupa lo mismo que un chip y no
-          crece con los datos — que es exactamente lo que hacía que la fila de
-          reglas se fuera a dos líneas apenas aparecía una regla nueva. */}
-      <div className="sticky top-0 z-10 -mx-4 -mt-4 px-4 pt-4 pb-2 bg-[var(--t-panel)] border-b border-[var(--t-border)] flex flex-wrap items-center gap-2">
-        <select
-          value={filtro}
-          onChange={(e) => { setFiltro(e.target.value); setRegla("todas"); }}
-          className="bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
-        >
-          <option value="todos">Todo ({data.hallazgos.length})</option>
-          {tipos.map((t) => (
-            <option key={t} value={t}>
-              {TIPO_CHIP[t] ?? t.replace(/_/g, " ")} ({porTipo[t].length})
-            </option>
-          ))}
-        </select>
-
-        {/* El segundo nivel solo existe si hay más de una regla: con una sola no
-            ofrece ninguna decisión y sería un desplegable de un solo ítem. */}
-        {reglas.length > 1 && (
-          <select
-            value={reglaOk}
-            onChange={(e) => setRegla(e.target.value)}
-            className="bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
-          >
-            <option value="todas">Cualquier error ({nVisiblesPre})</option>
-            {reglas.map(([rg, n]) => (
-              <option key={rg} value={rg}>{rg.replace(/_/g, " ")} ({n})</option>
-            ))}
-          </select>
-        )}
-
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="buscar…"
-          className="w-40 bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
-        />
-
-        {/* EL MERCADO, contado aunque esté oculto. **Un filtro que esconde sin
-            decir cuánto esconde es truncar en silencio** — la misma regla que
-            obliga a los workflows a loguear lo que dejaron afuera. Acá el número
-            está siempre a la vista y el clic lo destapa. */}
-        {nMercado > 0 && (
-          <button
-            onClick={() => setVerMercado((v) => !v)}
-            title={"Iliquidez: el símbolo está suscripto y el mercado no le puso "
-                   + "punta. No hay nada que arreglar de este lado — por eso no "
-                   + "encabeza la lista de trabajo."}
-            className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
-              verMercado
-                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
-          >
-            {verMercado ? "▾" : "▸"} {nMercado} del mercado
-          </button>
-        )}
-
-        {/* LO YA HECHO, contado aunque esté escondido. Mismo criterio que el
-            corte del mercado: el número siempre a la vista, el clic lo destapa. */}
-        {nHechos > 0 && (
-          <button
-            onClick={() => setVerHechos((v) => !v)}
-            title={"Ya lo atendiste: aplicaste su arreglo, o —si la fila no tiene "
-                   + "botón— ya lo votaste y no queda nada más que hacer. Sigue "
-                   + "en la lista: solo deja de ser lo primero que se ve."}
-            className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
-              verHechos
-                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
-          >
-            {verHechos ? "▾" : "▸"} {nHechos} ya hechos
-          </button>
-        )}
-
-        {/* LO QUE DIJISTE QUE ES RUIDO. Mismo criterio que los otros dos
-            cortes: el número SIEMPRE a la vista y el clic lo destapa. Esconder
-            un problema real sin dejar cómo volver es el riesgo entero de este
-            botón — por eso se cuenta, se destapa y la búsqueda lo encuentra. */}
-        {nRuido > 0 && (
-          <button
-            onClick={() => setVerRuido((v) => !v)}
-            title={"Dijiste «es ruido»: no querés ver esto. Sigue en la lista y "
-                   + "se destapa acá; para volver atrás, abrilo y tocá «cambiar» "
-                   + "en el voto."}
-            className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
-              verRuido
-                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
-                : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
-          >
-            {verRuido ? "▾" : "▸"} {nRuido} dijiste que es ruido
-          </button>
-        )}
-
-        {(q.trim() || filtro !== "todos" || reglaOk !== "todas") && (
-          <button
-            onClick={() => { setFiltro("todos"); setQ(""); setRegla("todas"); }}
-            className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
-          >
-            {nVisibles} de {data.hallazgos.length} ✕
-          </button>
-        )}
-
-        {/* El botón, a la derecha y con el número adentro. La explicación del
-            throttle («con 1816 son ~2 min, 1 pedido por segundo, es el límite
-            del plan») ocupaba un renglón entero para decir algo que solo
-            importa una vez: pasa al `title`. */}
-        <button
-          disabled={corriendo || nVisibles === 0}
-          onClick={() => void lanzar(false)}
-          title={`Diagnostica los ${nVisibles} contra 1816. Tarda ~${Math.ceil(nVisibles * 1.4 / 60)} min: el plan permite 1 pedido por segundo.`}
-          className="ml-auto text-[9px] font-semibold uppercase tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t-accent)]"
-        >
-          {corriendo ? "diagnosticando…" : `⚑ Diagnosticar ${nVisibles}`}
-        </button>
-        {/* «SIN RED» no le decía nada a nadie: nombraba la IMPLEMENTACIÓN (que
-            no sale a internet) en vez de lo que uno gana (que vuelve en
-            segundos). Ahora dice RÁPIDO, que es la razón para elegirlo. */}
-        <button
-          disabled={corriendo || nVisibles === 0}
-          onClick={() => void lanzar(true)}
-          title="Solo lo que se puede saber sin consultar a 1816: vuelve en segundos y no gasta créditos. Algunos casos quedan sin diagnosticar."
-          className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-30"
-        >
-          rápido
-        </button>
+      {/* EL RECUENTO, arriba de todo — mismo formato que SKILLS: qué hay, en
+          qué estado, y a la derecha para qué sirve esta tab. */}
+      <div className="flex flex-wrap items-baseline gap-3 border border-[var(--t-border)] px-2.5 py-1.5">
+        <span className="text-[11px] text-[var(--t-text)]">
+          <strong className="tabular-nums">{data.hallazgos.length}</strong> hallazgos
+        </span>
+        <span className={SUB}>
+          <span className="text-[var(--t-text)]">{nPorHacer}</span> por resolver
+          {(data.atendidos ?? 0) > 0 && <> · <span className="text-[var(--t-pos)]">{data.atendidos}</span> ya hechos</>}
+          {(data.es_ruido ?? 0) > 0 && <> · {data.es_ruido} marcados ruido</>}
+        </span>
+        <span className={`${SUB} ml-auto`}>
+          acá se arregla — lo que pasó hoy está en AHORA
+        </span>
       </div>
 
-      {run && <InformeMasivo run={run} simular={simular} sims={sims} />}
+      {/* ── EL MENÚ HORIZONTAL ─────────────────────────────────────────────
+          Cuatro entradas, cada una con su número y su submétrica debajo, igual
+          que los dominios de SKILLS. La submétrica no es decoración: es lo que
+          deja elegir a dónde ir SIN entrar. */}
+      <div className="flex items-stretch flex-wrap border-b border-[var(--t-border)] -mt-1">
+        {([
+          ["lista", "LA LISTA", data.hallazgos.length,
+           `${nPorHacer} por resolver`],
+          ["importa", "QUÉ PIDE ALGO", data.que_importa?.piden_algo ?? 0,
+           data.que_importa ? `de ${data.que_importa.abiertos} abiertos` : "sin datos"],
+          ["aguantan", "¿AGUANTAN?", data.seguimiento?.en_prueba ?? 0,
+           data.seguimiento?.aguantaron
+             ? `${data.seguimiento.aguantaron} aguantaron` : "en prueba"],
+          ["vigilancia", "VIGILANCIA", cent?.abiertos.length ?? 0,
+           (cent?.sin_ver ?? 0) > 0 ? `${cent?.sin_ver} sin ver` : "todo visto"],
+        ] as [typeof sub, string, number, string][]).map(([k, label, n, pie]) => (
+          <button
+            key={k}
+            onClick={() => setSub(k)}
+            className={`px-3 py-1.5 text-[10px] font-semibold tracking-widest border-b-2 -mb-px transition-colors ${
+              sub === k
+                ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                : "border-transparent text-[var(--t-text-muted)] hover:text-[var(--t-text)]"}`}
+          >
+            {label}
+            <span className="ml-1.5 tabular-nums opacity-60">{n}</span>
+            <span className="block text-[8px] font-normal tracking-normal text-[var(--t-text-dim)]">
+              {pie}
+            </span>
+          </button>
+        ))}
+      </div>
 
-      {visibles.length === 0 && (
-        <p className="text-[11px] text-[var(--t-text-muted)]">
-          {/* Si lo que vació la lista es que YA ESTÁ TODO ATENDIDO, decirlo así
-              y no como «ningún hallazgo coincide con el filtro»: son dos cosas
-              muy distintas y una de las dos es una buena noticia. */}
-          {!verHechos && nHechos > 0 && nHechos === data.hallazgos.length ? (
-            <>
-              No queda nada por hacer: los {nHechos} hallazgos ya pasaron por tus
-              manos. Siguen ahí — tocá «{nHechos} ya hechos» para verlos.
-            </>
-          ) : (
-            <>
-              Ningún hallazgo coincide con {q.trim() ? `«${q}»` : "el filtro puesto"}.
-              Los {data.hallazgos.length} siguen ahí — es el filtro, no la lista.
-            </>
+      {sub === "importa" && (data.que_importa
+        ? <QueImporta q={data.que_importa} />
+        : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
+      {sub === "aguantan" && (data.seguimiento
+        ? <Seguimiento s={data.seguimiento} />
+        : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
+      {sub === "vigilancia" && (cent
+        ? <VigilanciaAbierta cent={cent} marcarVisto={marcarVisto} />
+        : <p className="text-[11px] text-[var(--t-text-muted)]">Sin datos todavía.</p>)}
+
+      {/* ── LA LISTA ─────────────────────────────────────────────────
+          Todo lo de abajo —la barra de filtros, el diagnóstico masivo y
+          las secciones por tipo— es UNA de las cuatro sub-tabs. Sin este
+          corte la barra quedaba a la vista mientras mirabas el
+          seguimiento, filtrando algo que no estaba en pantalla. */}
+      {sub === "lista" && (
+        <>
+        {/* ── LA BARRA ─────────────────────────────────────────────────────
+            Antes eran TRES renglones: chips de tipo, chips de regla, y una línea
+            de texto explicando el throttle de 1816. Para 75 hallazgos, la mitad
+            de la pantalla era el filtro.
+
+            Ahora es UNO: dos desplegables (el tipo y el error), la búsqueda, y el
+            botón. Un `select` con 9 opciones ocupa lo mismo que un chip y no
+            crece con los datos — que es exactamente lo que hacía que la fila de
+            reglas se fuera a dos líneas apenas aparecía una regla nueva. */}
+        {/* ⚠️ El `-mt-4` se fue: tiraba la barra hacia arriba para pegarla al borde
+            del panel, y eso valía cuando era el PRIMER elemento de la tab. Ahora
+            abajo del menú horizontal, ese tirón la montaba encima de las
+            sub-tabs. Sigue sticky —que la barra se vaya de pantalla con 130
+            filas es peor— pero ya no se sube a nada. */}
+        <div className="sticky top-0 z-10 -mx-4 px-4 pt-2 pb-2 bg-[var(--t-panel)] border-b border-[var(--t-border)] flex flex-wrap items-center gap-2">
+          <select
+            value={filtro}
+            onChange={(e) => { setFiltro(e.target.value); setRegla("todas"); }}
+            className="bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
+          >
+            <option value="todos">Todo ({data.hallazgos.length})</option>
+            {tipos.map((t) => (
+              <option key={t} value={t}>
+                {TIPO_CHIP[t] ?? t.replace(/_/g, " ")} ({porTipo[t].length})
+              </option>
+            ))}
+          </select>
+
+          {/* El segundo nivel solo existe si hay más de una regla: con una sola no
+              ofrece ninguna decisión y sería un desplegable de un solo ítem. */}
+          {reglas.length > 1 && (
+            <select
+              value={reglaOk}
+              onChange={(e) => setRegla(e.target.value)}
+              className="bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] outline-none focus:border-[var(--t-accent)]"
+            >
+              <option value="todas">Cualquier error ({nVisiblesPre})</option>
+              {reglas.map(([rg, n]) => (
+                <option key={rg} value={rg}>{rg.replace(/_/g, " ")} ({n})</option>
+              ))}
+            </select>
           )}
-        </p>
-      )}
 
-      {visibles.map(([tipo, hs]) => (
-        <section key={tipo}>
-          <div className="flex items-baseline gap-2 mb-1.5">
-            <h3 className={TITULO}>{(TIPO_LABEL[tipo] ?? tipo).toUpperCase()}</h3>
-            <span className={SUB}>{hs.length}</span>
-          </div>
-          {/* Tabla y no lista: son filas homogéneas (ticker · regla · motivo) y
-              alinearlas deja comparar de un vistazo, que es justo lo que uno hace
-              con 38 tasas sospechosas. */}
-          {/* **Un BONO, un diagnóstico.** Un mismo ticker puede disparar VARIAS
-              reglas —CO3D7 sale por `sin_tea_con_precio` Y por
-              `paridad_fuera_de_rango`, y son 5 de los 38— pero el bono es uno
-              solo y la propuesta de arreglo también. Sin esto la cadena entera
-              se renderiza dos veces para el mismo instrumento, y como el estado
-              de la simulación se guarda POR TICKER las dos filas mostrarían
-              exactamente el mismo resultado: el que mira cree que son dos cosas
-              distintas y son la misma. La acción va en la PRIMERA aparición; las
-              otras siguen mostrando su motivo, que es lo que las distingue. */}
-          <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
-            {(() => { const vistos = new Set<string>(); return hs.map((h, i) => {
-              const primera = !vistos.has(h.ticker);
-              vistos.add(h.ticker);
-              // El SUJETO de un hallazgo del SISTEMA no es un ticker de 4
-              // letras sino el id del chequeo (`job:mercado_1816_series`), un
-              // path o una tabla: en la columna de 72px entraba «job:merc» y
-              // las filas quedaban indistinguibles. Misma tabla, primera
-              // columna más ancha.
-              const sujetoLargo = SUJETO_LARGO.has(h.tipo);
-              return (
-              <div
-                key={`${h.ticker}-${h.regla}-${i}`}
-                className={`grid ${sujetoLargo
-                  ? "grid-cols-[3px_190px_150px_1fr_auto]"
-                  : "grid-cols-[3px_72px_150px_1fr_auto]"} items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]${
-                  // YA HECHO: apagada, pero legible. Se ve solo con «ya hechos»
-                  // destapado; ahí la marca es lo que distingue lo que uno ya
-                  // tocó de lo que todavía no.
-                  h.atendido ? " opacity-45" : ""}`}
-              >
-                <span className="self-stretch" style={{ background: SEV_TINT[h.severidad] }}
-                      title={`severidad ${h.severidad}`} />
-                <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums truncate"
-                      title={h.ticker}>
-                  {h.ticker}
-                  {/* VOLVIÓ primero: gana sobre cualquier otra marca. */}
-                  {h.volvio && (
-                    <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-neg)]"
-                          title="Esto ya se había resuelto y volvió a aparecer. El arreglo no aguantó.">
-                      ↩ volvió
-                    </span>
-                  )}
-                  {/* DESDE CUÁNDO. Un problema crónico y uno de recién se
-                      atienden distinto y hasta hoy se veían igual. Se muestra
-                      solo a partir del día: «hace 4 h» no cambia ninguna
-                      decisión y ocupa lugar. */}
-                  {(h.dias_abierto ?? 0) >= 1 && (
-                    <span className="ml-1 text-[8px] font-normal text-[var(--t-text-dim)]"
-                          title={`Abierto hace ${h.dias_abierto} días · visto ${h.veces ?? 1} veces`}>
-                      {Math.round(h.dias_abierto ?? 0)}d
-                      {(h.veces ?? 0) > 1 ? ` ×${h.veces}` : ""}
-                    </span>
-                  )}
-                  {h.atendido && (
-                    <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-accent)]"
-                          title={h.atendido === "aplicado"
-                            ? "ya aplicaste su arreglo"
-                            : "ya lo votaste, y esta fila no tiene nada más que apretar"}>
-                      ✔ {h.atendido}
-                    </span>
-                  )}
-                </span>
-                <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
-                      title={h.regla}>
-                  {h.regla.replace(/_/g, " ")}
-                  {/* ── LA CONFIANZA MEDIDA ──────────────────────────────
-                      Sin esto, los 20 hallazgos se leen todos igual aunque el
-                      sistema ya sepa que una causa acertó 10/10 y otra nunca se
-                      votó. Con esto dejás de revisar 20 cosas con el mismo
-                      cuidado y mirás las que el agente todavía no demostró que
-                      entiende.
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="buscar…"
+            className="w-40 bg-transparent border border-[var(--t-border)] px-2 py-1 text-[10px] text-[var(--t-text)] placeholder:text-[var(--t-text-dim)] outline-none focus:border-[var(--t-accent)]"
+          />
 
-                      Se muestra SOLO cuando hay votos humanos: un «0/0» en cada
-                      fila sería ruido en las 20 y no informa nada que la propia
-                      ausencia no diga. */}
-                  <Confianza c={h.confianza} />
-                </span>
-                <div className="min-w-0">
-                  <span className="text-[10px] text-[var(--t-text-muted)] leading-snug">
-                    {h.motivo}
-                  </span>
-                  {/* ENCONTRÓ deja de ser solo un comentario: donde hay algo que
-                      el agente PUEDE hacer, el botón está en la misma fila. Un
-                      hallazgo accionable que obliga a irse a otra pantalla es un
-                      hallazgo que no se acciona. */}
-                  {/* ENCONTRÓ deja de ser solo un comentario: donde el agente
-                      PUEDE hacer algo, el botón está en la misma fila. **Qué
-                      puede hacer lo dice el backend** (`h.accion`) — replicar
-                      acá la lista de tipos accionables es cómo se consigue un
-                      botón que no aparece y no avisa por qué. */}
-                  {primera && (h.accion === "alta" || h.accion === "flujos"
-                    || h.accion === "arreglo" || h.accion === "salud"
-                    || h.accion === "sin_precio" || h.accion === "pata"
-                    || h.accion === "apuntar") && (
-                    <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
-                                  modo={h.accion} />
-                  )}
-                  {/* EL VOTO va en TODA fila, tenga acción o no. Lo que se está
-                      midiendo es si el DIAGNÓSTICO acertó, y eso aplica igual a
-                      un hallazgo que solo se mira. Restringirlo a los accionables
-                      dejaría sin medir justo a los que todavía no sabemos si
-                      valen la pena automatizar. */}
-                  {primera && <Voto h={h} />}
-                </div>
-                {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
-                    valor de la lista depende de poder sacarle lo que no importa.
-                    Reversible desde la tab DECIDIDO. */}
-                <button
-                  onClick={() => ignorar(h.ticker)}
-                  title="No me interesa: no vuelve a aparecer (reversible en DECIDIDO)"
-                  className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 self-center border border-transparent text-[var(--t-text-dim)] hover:border-[var(--t-neg)] hover:text-[var(--t-neg)]"
+          {/* EL MERCADO, contado aunque esté oculto. **Un filtro que esconde sin
+              decir cuánto esconde es truncar en silencio** — la misma regla que
+              obliga a los workflows a loguear lo que dejaron afuera. Acá el número
+              está siempre a la vista y el clic lo destapa. */}
+          {nMercado > 0 && (
+            <button
+              onClick={() => setVerMercado((v) => !v)}
+              title={"Iliquidez: el símbolo está suscripto y el mercado no le puso "
+                     + "punta. No hay nada que arreglar de este lado — por eso no "
+                     + "encabeza la lista de trabajo."}
+              className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
+                verMercado
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
+            >
+              {verMercado ? "▾" : "▸"} {nMercado} del mercado
+            </button>
+          )}
+
+          {/* LO YA HECHO, contado aunque esté escondido. Mismo criterio que el
+              corte del mercado: el número siempre a la vista, el clic lo destapa. */}
+          {nHechos > 0 && (
+            <button
+              onClick={() => setVerHechos((v) => !v)}
+              title={"Ya lo atendiste: aplicaste su arreglo, o —si la fila no tiene "
+                     + "botón— ya lo votaste y no queda nada más que hacer. Sigue "
+                     + "en la lista: solo deja de ser lo primero que se ve."}
+              className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
+                verHechos
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
+            >
+              {verHechos ? "▾" : "▸"} {nHechos} ya hechos
+            </button>
+          )}
+
+          {/* LO QUE DIJISTE QUE ES RUIDO. Mismo criterio que los otros dos
+              cortes: el número SIEMPRE a la vista y el clic lo destapa. Esconder
+              un problema real sin dejar cómo volver es el riesgo entero de este
+              botón — por eso se cuenta, se destapa y la búsqueda lo encuentra. */}
+          {nRuido > 0 && (
+            <button
+              onClick={() => setVerRuido((v) => !v)}
+              title={"Dijiste «es ruido»: no querés ver esto. Sigue en la lista y "
+                     + "se destapa acá; para volver atrás, abrilo y tocá «cambiar» "
+                     + "en el voto."}
+              className={`text-[9px] uppercase tracking-widest px-2 py-1 border ${
+                verRuido
+                  ? "border-[var(--t-accent)] text-[var(--t-accent)]"
+                  : "border-[var(--t-border)] text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"}`}
+            >
+              {verRuido ? "▾" : "▸"} {nRuido} dijiste que es ruido
+            </button>
+          )}
+
+          {(q.trim() || filtro !== "todos" || reglaOk !== "todas") && (
+            <button
+              onClick={() => { setFiltro("todos"); setQ(""); setRegla("todas"); }}
+              className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)] hover:text-[var(--t-accent)]"
+            >
+              {nVisibles} de {data.hallazgos.length} ✕
+            </button>
+          )}
+
+          {/* El botón, a la derecha y con el número adentro. La explicación del
+              throttle («con 1816 son ~2 min, 1 pedido por segundo, es el límite
+              del plan») ocupaba un renglón entero para decir algo que solo
+              importa una vez: pasa al `title`. */}
+          <button
+            disabled={corriendo || nVisibles === 0}
+            onClick={() => void lanzar(false)}
+            title={`Diagnostica los ${nVisibles} contra 1816. Tarda ~${Math.ceil(nVisibles * 1.4 / 60)} min: el plan permite 1 pedido por segundo.`}
+            className="ml-auto text-[9px] font-semibold uppercase tracking-widest px-3 py-1 border border-[var(--t-accent)] text-[var(--t-accent)] hover:bg-[var(--t-accent)] hover:text-[var(--t-on-accent)] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t-accent)]"
+          >
+            {corriendo ? "diagnosticando…" : `⚑ Diagnosticar ${nVisibles}`}
+          </button>
+          {/* «SIN RED» no le decía nada a nadie: nombraba la IMPLEMENTACIÓN (que
+              no sale a internet) en vez de lo que uno gana (que vuelve en
+              segundos). Ahora dice RÁPIDO, que es la razón para elegirlo. */}
+          <button
+            disabled={corriendo || nVisibles === 0}
+            onClick={() => void lanzar(true)}
+            title="Solo lo que se puede saber sin consultar a 1816: vuelve en segundos y no gasta créditos. Algunos casos quedan sin diagnosticar."
+            className="text-[9px] uppercase tracking-widest px-2 py-1 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)] disabled:opacity-30"
+          >
+            rápido
+          </button>
+        </div>
+
+        {run && <InformeMasivo run={run} simular={simular} sims={sims} />}
+
+        {visibles.length === 0 && (
+          <p className="text-[11px] text-[var(--t-text-muted)]">
+            {/* Si lo que vació la lista es que YA ESTÁ TODO ATENDIDO, decirlo así
+                y no como «ningún hallazgo coincide con el filtro»: son dos cosas
+                muy distintas y una de las dos es una buena noticia. */}
+            {!verHechos && nHechos > 0 && nHechos === data.hallazgos.length ? (
+              <>
+                No queda nada por hacer: los {nHechos} hallazgos ya pasaron por tus
+                manos. Siguen ahí — tocá «{nHechos} ya hechos» para verlos.
+              </>
+            ) : (
+              <>
+                Ningún hallazgo coincide con {q.trim() ? `«${q}»` : "el filtro puesto"}.
+                Los {data.hallazgos.length} siguen ahí — es el filtro, no la lista.
+              </>
+            )}
+          </p>
+        )}
+
+        {visibles.map(([tipo, hs]) => (
+          <section key={tipo}>
+            <div className="flex items-baseline gap-2 mb-1.5">
+              <h3 className={TITULO}>{(TIPO_LABEL[tipo] ?? tipo).toUpperCase()}</h3>
+              <span className={SUB}>{hs.length}</span>
+            </div>
+            {/* Tabla y no lista: son filas homogéneas (ticker · regla · motivo) y
+                alinearlas deja comparar de un vistazo, que es justo lo que uno hace
+                con 38 tasas sospechosas. */}
+            {/* **Un BONO, un diagnóstico.** Un mismo ticker puede disparar VARIAS
+                reglas —CO3D7 sale por `sin_tea_con_precio` Y por
+                `paridad_fuera_de_rango`, y son 5 de los 38— pero el bono es uno
+                solo y la propuesta de arreglo también. Sin esto la cadena entera
+                se renderiza dos veces para el mismo instrumento, y como el estado
+                de la simulación se guarda POR TICKER las dos filas mostrarían
+                exactamente el mismo resultado: el que mira cree que son dos cosas
+                distintas y son la misma. La acción va en la PRIMERA aparición; las
+                otras siguen mostrando su motivo, que es lo que las distingue. */}
+            <div className="border border-[var(--t-border)] divide-y divide-[var(--t-border)]">
+              {(() => { const vistos = new Set<string>(); return hs.map((h, i) => {
+                const primera = !vistos.has(h.ticker);
+                vistos.add(h.ticker);
+                // El SUJETO de un hallazgo del SISTEMA no es un ticker de 4
+                // letras sino el id del chequeo (`job:mercado_1816_series`), un
+                // path o una tabla: en la columna de 72px entraba «job:merc» y
+                // las filas quedaban indistinguibles. Misma tabla, primera
+                // columna más ancha.
+                const sujetoLargo = SUJETO_LARGO.has(h.tipo);
+                return (
+                <div
+                  key={`${h.ticker}-${h.regla}-${i}`}
+                  className={`grid ${sujetoLargo
+                    ? "grid-cols-[3px_190px_150px_1fr_auto]"
+                    : "grid-cols-[3px_72px_150px_1fr_auto]"} items-baseline gap-2 px-2 py-1 hover:bg-[var(--t-surface)]${
+                    // YA HECHO: apagada, pero legible. Se ve solo con «ya hechos»
+                    // destapado; ahí la marca es lo que distingue lo que uno ya
+                    // tocó de lo que todavía no.
+                    h.atendido ? " opacity-45" : ""}`}
                 >
-                  Ignorar
-                </button>
-              </div>
-            ); }); })()}
-          </div>
-        </section>
-      ))}
+                  <span className="self-stretch" style={{ background: SEV_TINT[h.severidad] }}
+                        title={`severidad ${h.severidad}`} />
+                  <span className="text-[11px] font-bold text-[var(--t-text)] tabular-nums truncate"
+                        title={h.ticker}>
+                    {h.ticker}
+                    {/* VOLVIÓ primero: gana sobre cualquier otra marca. */}
+                    {h.volvio && (
+                      <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-neg)]"
+                            title="Esto ya se había resuelto y volvió a aparecer. El arreglo no aguantó.">
+                        ↩ volvió
+                      </span>
+                    )}
+                    {/* DESDE CUÁNDO. Un problema crónico y uno de recién se
+                        atienden distinto y hasta hoy se veían igual. Se muestra
+                        solo a partir del día: «hace 4 h» no cambia ninguna
+                        decisión y ocupa lugar. */}
+                    {(h.dias_abierto ?? 0) >= 1 && (
+                      <span className="ml-1 text-[8px] font-normal text-[var(--t-text-dim)]"
+                            title={`Abierto hace ${h.dias_abierto} días · visto ${h.veces ?? 1} veces`}>
+                        {Math.round(h.dias_abierto ?? 0)}d
+                        {(h.veces ?? 0) > 1 ? ` ×${h.veces}` : ""}
+                      </span>
+                    )}
+                    {h.atendido && (
+                      <span className="ml-1 text-[8px] font-normal uppercase tracking-widest text-[var(--t-accent)]"
+                            title={h.atendido === "aplicado"
+                              ? "ya aplicaste su arreglo"
+                              : "ya lo votaste, y esta fila no tiene nada más que apretar"}>
+                        ✔ {h.atendido}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[9px] uppercase tracking-wide text-[var(--t-text-dim)] truncate"
+                        title={h.regla}>
+                    {h.regla.replace(/_/g, " ")}
+                    {/* ── LA CONFIANZA MEDIDA ──────────────────────────────
+                        Sin esto, los 20 hallazgos se leen todos igual aunque el
+                        sistema ya sepa que una causa acertó 10/10 y otra nunca se
+                        votó. Con esto dejás de revisar 20 cosas con el mismo
+                        cuidado y mirás las que el agente todavía no demostró que
+                        entiende.
+
+                        Se muestra SOLO cuando hay votos humanos: un «0/0» en cada
+                        fila sería ruido en las 20 y no informa nada que la propia
+                        ausencia no diga. */}
+                    <Confianza c={h.confianza} />
+                  </span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-[var(--t-text-muted)] leading-snug">
+                      {h.motivo}
+                    </span>
+                    {/* ENCONTRÓ deja de ser solo un comentario: donde hay algo que
+                        el agente PUEDE hacer, el botón está en la misma fila. Un
+                        hallazgo accionable que obliga a irse a otra pantalla es un
+                        hallazgo que no se acciona. */}
+                    {/* ENCONTRÓ deja de ser solo un comentario: donde el agente
+                        PUEDE hacer algo, el botón está en la misma fila. **Qué
+                        puede hacer lo dice el backend** (`h.accion`) — replicar
+                        acá la lista de tipos accionables es cómo se consigue un
+                        botón que no aparece y no avisa por qué. */}
+                    {primera && (h.accion === "alta" || h.accion === "flujos"
+                      || h.accion === "arreglo" || h.accion === "salud"
+                      || h.accion === "sin_precio" || h.accion === "pata"
+                      || h.accion === "apuntar") && (
+                      <AccionCadena h={h} sim={sims[h.ticker]} simular={simular}
+                                    modo={h.accion} />
+                    )}
+                    {/* EL VOTO va en TODA fila, tenga acción o no. Lo que se está
+                        midiendo es si el DIAGNÓSTICO acertó, y eso aplica igual a
+                        un hallazgo que solo se mira. Restringirlo a los accionables
+                        dejaría sin medir justo a los que todavía no sabemos si
+                        valen la pena automatizar. */}
+                    {primera && <Voto h={h} />}
+                  </div>
+                  {/* IGNORAR vive en TODA fila, no solo donde hay una acción: el
+                      valor de la lista depende de poder sacarle lo que no importa.
+                      Reversible desde la tab DECIDIDO. */}
+                  <button
+                    onClick={() => ignorar(h.ticker)}
+                    title="No me interesa: no vuelve a aparecer (reversible en DECIDIDO)"
+                    className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 self-center border border-transparent text-[var(--t-text-dim)] hover:border-[var(--t-neg)] hover:text-[var(--t-neg)]"
+                  >
+                    Ignorar
+                  </button>
+                </div>
+              ); }); })()}
+            </div>
+          </section>
+        ))}
+        </>
+      )}
     </div>
   );
 }
@@ -4205,21 +4284,20 @@ const BANDA_COLOR: Record<string, string> = {
 };
 
 function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
-  const [abierto, setAbierto] = useState(false);
+  // ⚠️ **SIN PLIEGUE PROPIO.** Antes era una caja colapsable apilada arriba de
+  // la lista; ahora es el contenido de una sub-tab, y una sub-tab que además
+  // hay que desplegar son dos clics para ver lo que ya elegiste ver.
+  const abierto = true;
   // Las bandas se muestran en el orden de la prioridad, no en el del objeto:
   // que `volvio` aparezca tercero porque JSON lo puso ahí sería raro de leer.
   const orden = ["volvio", "estancado", "arrastra", "nuevo"];
   const hay = orden.filter((b) => (q.por_banda[b] ?? 0) > 0);
   return (
     <div className="border border-[var(--t-border)] px-3 py-2">
-      <button
-        onClick={() => setAbierto((v) => !v)}
+      <div
         className="w-full flex flex-wrap items-baseline gap-2 text-left"
         title="Un problema que volvió después de arreglarse informa más que uno nuevo: alguien ya lo dio por resuelto y volvió igual."
       >
-        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-          {abierto ? "▾" : "▸"} qué pide algo hoy
-        </span>
         <span className="text-[10px] text-[var(--t-text)]">
           de {q.abiertos} abiertos, <b>{q.piden_algo}</b> piden algo
         </span>
@@ -4229,7 +4307,7 @@ function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
             {q.por_banda[b]} {BANDA_TXT[b]}
           </span>
         ))}
-      </button>
+      </div>
       {abierto && (
         <div className="mt-2 flex flex-col gap-0.5">
           {q.filas.map((f) => (
@@ -4284,17 +4362,13 @@ function QueImporta({ q }: { q: NonNullable<Vista["que_importa"]> }) {
 
 
 function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
-  const [abierto, setAbierto] = useState(false);
+  const abierto = true;   // es una sub-tab: ya la elegiste, no la pliegues
   return (
     <div className="border border-[var(--t-border)] px-3 py-2">
-      <button
-        onClick={() => setAbierto((v) => !v)}
+      <div
         className="w-full flex flex-wrap items-baseline gap-2 text-left"
         title="Un arreglo se da por bueno cuando el problema no vuelve, no cuando se escribe. Cada hito que pasa suma confianza."
       >
-        <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]">
-          {abierto ? "▾" : "▸"} ¿los arreglos aguantan?
-        </span>
         {s.en_prueba > 0 && (
           <span className="text-[10px] text-[var(--t-text)]">
             {s.en_prueba} en prueba
@@ -4305,7 +4379,7 @@ function Seguimiento({ s }: { s: NonNullable<Vista["seguimiento"]> }) {
             ✔ {s.aguantaron} aguantaron
           </span>
         )}
-      </button>
+      </div>
       {abierto && s.proximos.length > 0 && (
         <div className="mt-2 flex flex-col gap-0.5">
           {s.proximos.map((x) => (
