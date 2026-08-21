@@ -96,6 +96,11 @@ type Hallazgo = {
   // juzga al agente, no arregla el dato — mezclarlos escondería un bono roto.
   // Lo decide el backend por el mismo motivo que `accion`.
   atendido?: string | null;
+  // ⚠️ **QUÉ SE LE PUEDE PREGUNTAR A ESTA FILA.** `juicio` = el agente dedujo
+  // una causa y puede errarle → ¿ACERTÓ?. `observacion` = copió un hecho (un
+  // ERROR del log del motor, un 500 del proveedor) → «¿acertó?» no tiene
+  // respuesta posible: la respuesta es siempre que sí. Lo decide el backend.
+  pregunta?: string | null;
   tipo: string; ticker: string; regla: string; severidad: string;
   motivo: string; evidencia: Record<string, unknown> | null;
 };
@@ -193,6 +198,10 @@ type Vigilado = {
   motivo: string; abierto_at: string; ultimo_at: string; veces: number;
   visto_at: string | null; resuelto_at: string | null; resuelto_como: string | null;
   de_quien?: string | null;
+  // ¿Apareció RECIÉN? Lo decide el backend (dos horas). «Sin ver» y «recién
+  // aparecido» no son lo mismo: llamar NUEVO a algo de hace 10 h quema el
+  // rótulo para todos los demás.
+  recien?: boolean;
 };
 // Un chequeo que se ROMPIÓ y este admin todavía no vio. Viene de SALUD, que
 // sigue siendo el dueño de la evaluación — el agente solo es la puerta.
@@ -2140,13 +2149,25 @@ function Voto({ h }: { h: Hallazgo }) {
   // empieza a fallar es justo lo que hay que poder registrar, y el ✖ la baja del
   // umbral sola en la próxima lectura.
   const probada = h.confianza?.probada === true;
+  // ⚠️ **A UNA OBSERVACIÓN NO SE LE PREGUNTA «¿ACERTÓ?».** El user, mirando tres
+  // filas de motores: *«es inentendible si acertó o no, o sea ¿acertó QUÉ? Algunos
+  // son siempre SÍ claramente… pero ¿qué hacemos con eso?»*. Cuando el hallazgo
+  // es un ERROR copiado del log, no hay nada que acertar — y esos «siempre sí»
+  // llegaban a 10/10 y marcaban la causa como lista para automatizar con
+  // evidencia que no mide nada. La pregunta útil es otra: **¿te sirve verla?**,
+  // que es exactamente el «¿qué hacemos con eso?».
+  const observacion = h.pregunta === "observacion";
+  // Una observación NO se calla por «causa probada»: probada mide aciertos y acá
+  // no se está midiendo eso.
   const [estado, setEstado] = useState<"" | "si" | "no" | "listo" | "error">(
-    h.ya_votado || probada ? "listo" : "");
+    h.ya_votado || (probada && !observacion) ? "listo" : "");
   const [motivo, setMotivo] = useState("");
   const [causa, setCausa] = useState("");
   const [msg, setMsg] = useState(
     h.ya_votado
-      ? (h.voto ? "✔ ya votaste: acertó" : "✖ ya votaste: no acertó")
+      ? (h.pregunta === "observacion"
+          ? (h.voto ? "✔ dijiste que te sirve" : "✖ dijiste que es ruido")
+          : (h.voto ? "✔ ya votaste: acertó" : "✖ ya votaste: no acertó"))
       : probada
       ? `✔ causa probada (${h.confianza?.aciertos}/${h.confianza?.humanos})`
       : "");
@@ -2166,18 +2187,28 @@ function Voto({ h }: { h: Hallazgo }) {
             dominio: h.dominio_eval ?? "bono",
             // La CAUSA es la regla: es la unidad que después se automatiza o no.
             causa: h.regla,
+            // El TIPO viaja para que el BACKEND decida si esto es un juicio o
+            // una observación. El front NO manda el `origen`: si lo mandara,
+            // podría anotar un «¿te sirve?» como si moviera la compuerta de
+            // autonomía.
+            tipo: h.tipo,
             acierta,
             nota: acierta ? "" : motivo.trim(),
             causa_correcta: acierta ? "" : causa.trim(),
           }),
         });
-      if (r.ok) { setEstado("listo"); setMsg(acierta ? "✔ acertó" : "✖ registrado"); }
+      if (r.ok) {
+        setEstado("listo");
+        setMsg(observacion
+          ? (acierta ? "✔ te sirve" : "✖ anotado: es ruido")
+          : (acierta ? "✔ acertó" : "✖ registrado"));
+      }
       else { setEstado("error"); setMsg(r.error ?? "no se pudo guardar"); }
     } catch (e) {
       setEstado("error");
       setMsg(e instanceof Error ? e.message : String(e));
     }
-  }, [h.ticker, h.regla, h.dominio_eval, motivo, causa]);
+  }, [h.ticker, h.regla, h.tipo, h.dominio_eval, observacion, motivo, causa]);
 
   if (estado === "listo") {
     return (
@@ -2197,23 +2228,30 @@ function Voto({ h }: { h: Hallazgo }) {
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1.5">
       <span className="text-[9px] uppercase tracking-widest text-[var(--t-text-dim)]"
-            title="¿La causa que dio el agente es la correcta? Tu voto no cambia nada del sistema: mide al agente.">
-        ¿acertó?
+            title={observacion
+              ? "Esto no es un diagnóstico: el agente copió un hecho (una línea de ERROR del log, un 500 del proveedor). No hay nada que acertar. Lo que sirve saber es si querés seguir viéndolo."
+              : "¿La causa que dio el agente es la correcta? Tu voto no cambia nada del sistema: mide al agente."}>
+        {observacion ? "¿te sirve verlo?" : "¿acertó?"}
       </span>
       <button
         onClick={() => void enviar(true)}
         className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-pos)] hover:text-[var(--t-pos)]"
       >
-        ✔ sí
+        {observacion ? "✔ sirve" : "✔ sí"}
       </button>
       <button
-        onClick={() => setEstado(estado === "no" ? "" : "no")}
+        onClick={() => {
+          // «No me sirve verla» ES la explicación entera: pedirle una nota es
+          // fricción sobre la única respuesta que se puede dar sin investigar.
+          if (observacion) { void enviar(false); return; }
+          setEstado(estado === "no" ? "" : "no");
+        }}
         className={`text-[9px] uppercase tracking-widest px-2 py-0.5 border ${
           estado === "no"
             ? "border-[var(--t-neg)] text-[var(--t-neg)]"
             : "border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-neg)] hover:text-[var(--t-neg)]"}`}
       >
-        ✖ no
+        {observacion ? "✖ es ruido" : "✖ no"}
       </button>
       {/* El ✖ PIDE el motivo antes de mandarse. No es fricción: un «está mal»
           suelto no se puede usar para arreglar la regla, así que sería un voto
@@ -3852,7 +3890,20 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
     return <p className="text-[11px] text-[var(--t-text-muted)]">Cargando…</p>;
   }
 
-  const sinVer = cent.abiertos.filter((f) => !f.visto_at);
+  // ⚠️ **«NUEVO» NO PUEDE DECIRLO DE ALGO DE HACE 10 HORAS.** El user, mirando
+  // un `control:patas_dolar_sin_pedir` bajo el título NUEVO, SIN VER, con
+  // «desde hace 10 h · ×474» al lado: *«no termino de entender por qué muestra
+  // esto ahora»*. Y tenía razón: no pasó nada ahora. Lo único «nuevo» era que
+  // todavía no había apretado el botón de visto.
+  //
+  // Sin ver y RECIÉN APARECIDO son dos cosas distintas, y llamarlas igual hace
+  // que uno desconfíe del rótulo: si lo que dice NUEVO tiene medio día, ninguno
+  // de los otros carteles se lee en serio tampoco.
+  // `recien` lo calcula el BACKEND: el navegador no puede mirar el reloj
+  // mientras dibuja, y además el criterio tiene que ser uno solo.
+  const sinVerTodos = cent.abiertos.filter((f) => !f.visto_at);
+  const sinVer = sinVerTodos.filter((f) => f.recien);
+  const vienenDeAntes = sinVerTodos.filter((f) => !f.recien);
   const yaVistos = cent.abiertos.filter((f) => f.visto_at);
   // Lo que la lista principal muestra. Los vistos entran solo si se pidieron.
   const enLista = verVistos ? [...sinVer, ...yaVistos] : sinVer;
@@ -3917,6 +3968,24 @@ function TabCentinela({ cent, marcarVisto, recargar }: {
             className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
           >
             marcar los {sinVer.length} como vistos
+          </button>
+        </div>
+      )}
+
+      {/* LO QUE NO ES NUEVO PERO TAMPOCO ESTÁ VISTO. Mismo botón, otro rótulo:
+          lo que cambia es la expectativa de quien lee. */}
+      {vienenDeAntes.length > 0 && (
+        <div className="flex items-baseline gap-2">
+          <h3 className={TITULO}>VIENE DE ANTES, SIN VER</h3>
+          <span className={SUB}>{vienenDeAntes.length}</span>
+          <span className="text-[9px] text-[var(--t-text-dim)]">
+            no apareció recién: sigue abierto de antes
+          </span>
+          <button
+            onClick={() => void marcarVisto(vienenDeAntes.map((f) => f.clave))}
+            className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+          >
+            marcar los {vienenDeAntes.length} como vistos
           </button>
         </div>
       )}
