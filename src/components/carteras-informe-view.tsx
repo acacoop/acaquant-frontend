@@ -33,20 +33,31 @@ import {
   Tooltip,
 } from "recharts";
 
+import dynamic from "next/dynamic";
+
 import { PosicionDetalle, type PnLRow } from "@/components/pnl-titulos-view";
 import { carteraColor, carteraShort } from "@/lib/carteras";
 import { fetchJson } from "@/lib/fetch-json";
 import { fmtFechaCorta } from "@/lib/fmt";
 import { exportToXlsx, timestampSuffix } from "@/lib/xlsx-export";
-import { Dato, fmt0, fmt2, fmtPct, Panel } from "./ui/informe";
+import { fmt0, fmt2, fmtPct, Panel } from "./ui/informe";
+
+// El reporte se baja recién al abrirlo: son cuatro hojas de maquetado que la
+// mayoría de las veces nadie mira, y pagarlas en cada carga de la vista sería
+// gastar en algo que casi nunca se usa. Sin SSR porque no aporta nada al HTML
+// inicial — es un modal.
+const CarterasReporteModal = dynamic(
+  () => import("@/components/carteras-reporte-modal").then((m) => m.CarterasReporteModal),
+  { ssr: false },
+);
 
 // ── Contrato /api/valuaciones/{id}/vista ───────────────────────────────────
 type Monto = { monto: number; monto_usd: number | null; ponderacion: number | null };
 type CarteraMonto = Monto & { cartera: string; label: string };
 type SinClasificar = Monto & { claves: string[] };
 type Bloque = {
-  fecha: string | null; mep: number | null;
-  valuacion_ars: number; valuacion_usd: number | null;
+  fecha: string | null; mep: number | null; a3500: number | null;
+  valuacion_ars: number; valuacion_usd: number | null; valuacion_a3500: number | null;
   carteras: CarteraMonto[]; otras_carteras: Monto | null;
   total_dolarizado: Monto; total_pesos: Monto; sin_clasificar: SinClasificar;
   n_activos: number;
@@ -68,7 +79,8 @@ type MetricaFila = { clave: string; monto: number; monto_usd: number | null; n: 
 type BloqueClase = { cartera: string; label: string; total: number; total_usd: number | null; filas: MetricaFila[] };
 type Vista = {
   id_cuenta: string;
-  fecha: string | null; fecha_anterior: string | null; mep: number | null;
+  fecha: string | null; fecha_anterior: string | null;
+  mep: number | null; a3500: number | null;
   horizonte: "t0" | "t1" | null; historico: boolean;
   resumen: { actual: Bloque; anterior: Bloque | null };
   detalle: { bloques: BloqueActivos[]; huerfanos: string[]; total: number; total_usd: number | null };
@@ -129,9 +141,20 @@ const BTN_ON =
   "px-2 py-0.5 text-[10px] tracking-wide border border-[var(--t-accent)] " +
   "bg-[var(--t-accent)] text-[var(--t-on-accent)]";
 
-/** El signo del número decide el color; 0 va neutro. */
-const tono = (n: number | null | undefined) =>
-  n == null || n === 0 ? null : n > 0 ? "pos" as const : "neg" as const;
+/** Una celda de la cinta de arriba. Sin borde propio: el borde lo pone el
+ *  `divide-x` del contenedor, que es lo que hace que las cuatro se lean como una
+ *  sola pieza. `ancho` es para las que llevan un número grande. */
+function Celda({ label, valor, sub, ancho = false }: {
+  label: string; valor: string; sub?: string; ancho?: boolean;
+}) {
+  return (
+    <div className={`px-4 py-2 ${ancho ? "min-w-[11rem]" : "min-w-[8.5rem]"} flex-1`}>
+      <div className="text-[9px] uppercase tracking-wide text-[var(--t-text-muted)]">{label}</div>
+      <div className="text-[17px] font-semibold text-[var(--t-text)] tabular-nums leading-tight">{valor}</div>
+      {sub && <div className="text-[9px] text-[var(--t-text-muted)] tabular-nums">{sub}</div>}
+    </div>
+  );
+}
 
 /** El monto de un agregado en la moneda elegida. Sin MEP el USD es null, y el
  *  toggle está deshabilitado, así que nunca se muestra un 0 falso. */
@@ -153,6 +176,7 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
   const [usdPedido, setUsd] = useState(false);
   // Título elegido en ACTIVOS → panel de AUDITORÍA (PnL, flujo y boletos).
   const [sel, setSel] = useState<string | null>(null);
+  const [reporte, setReporte] = useState(false);
 
   // El fetch va DERECHO en el efecto y el spinner lo prenden los handlers.
   //
@@ -252,6 +276,10 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
 
         <div className="ml-auto flex items-center gap-2">
           {cargando && <span className="text-[10px] text-[var(--t-text-muted)]">actualizando…</span>}
+          <button className={BTN} onClick={() => setReporte(true)}
+                  title="El informe como documento, hoja por hoja — se imprime o se guarda como PDF">
+            REPORTE
+          </button>
           <button className={BTN}
                   onClick={() => void exportarInforme(data, idCuenta, nombreCuenta)}>
             ⬇ EXCEL
@@ -283,6 +311,12 @@ export function CarterasInformeView({ idCuenta, nombreCuenta, tab }: {
           </div>
         )}
       </div>
+
+      {reporte && (
+        <CarterasReporteModal datos={data} idCuenta={idCuenta}
+                              nombreCuenta={nombreCuenta}
+                              onCerrar={() => setReporte(false)} />
+      )}
     </div>
   );
 }
@@ -296,23 +330,24 @@ function TabResumen({ data, usd }: { data: Vista; usd: boolean }) {
       .map((c) => ({ name: c.label, value: c.monto, cartera: c.cartera })),
     [a.carteras],
   );
-  const pnl = usd ? data.pnl_total_usd : data.pnl_total;
-  const costo = usd ? data.costo_total_usd : data.costo_total;
-  const ganPct = costo && costo > 0 && pnl != null ? pnl / costo : null;
-
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
-        <Dato label="Posición al" valor={fmtFechaCorta(a.fecha)}
-              sub={`${a.n_activos} títulos${data.historico ? "" : ` · ${(data.horizonte ?? "t1").toUpperCase()}`}`} />
-        <Dato label="Valuación ARS" valor={fmt0(a.valuacion_ars)} />
-        <Dato label="Valuación USD" valor={fmt0(a.valuacion_usd)}
-              sub={a.mep ? `al MEP ${fmt2(a.mep)}` : "falta el MEP de esa fecha"} />
-        <Dato label="Costo" valor={fmt0(costo)}
-              sub={data.pnl_disponible ? undefined : "sin cost-basis para esta fecha"} />
-        <Dato label="PnL" valor={fmt0(pnl)} tono={tono(pnl)}
-              sub={data.pnl_disponible ? "no realizado + cobros" : "—"} />
-        <Dato label="Ganancia" valor={fmtPct(ganPct)} tono={tono(ganPct)} sub="sobre el costo" />
+      {/* LA CINTA — cuánto vale la cuenta, a los tres cambios que se usan.
+          Es UNA pieza continua (celdas separadas por una línea, sin aire entre
+          medio) y no seis cards flotando: seis rectángulos con espacio alrededor
+          se leen como seis cosas sueltas, y esto es UNA respuesta.
+          COSTO / PNL / GANANCIA se sacaron a propósito (2026-08-21): la primera
+          línea del informe contesta CUÁNTO VALE, no cuánto se ganó — el PnL está
+          título por título en ACTIVOS y mes a mes en EVOLUCIÓN, que es donde se
+          lo mira de verdad. */}
+      <div className="flex flex-wrap border border-[var(--t-border)] bg-[var(--t-panel)] divide-x divide-[var(--t-border)]">
+        <Celda label="Posición al" valor={fmtFechaCorta(a.fecha)}
+               sub={`${a.n_activos} títulos${data.historico ? "" : ` · ${(data.horizonte ?? "t1").toUpperCase()}`}`} />
+        <Celda label="Valuación ARS" valor={fmt0(a.valuacion_ars)} ancho />
+        <Celda label="Valuación USD" valor={fmt0(a.valuacion_usd)}
+               sub={a.mep ? `MEP ${fmt2(a.mep)}` : "sin MEP para esa fecha"} ancho />
+        <Celda label="Valuación oficial" valor={fmt0(a.valuacion_a3500)}
+               sub={a.a3500 ? `A3500 ${fmt2(a.a3500)}` : "sin A3500 para esa fecha"} ancho />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -592,54 +627,99 @@ function TabActivos({ data, usd, sel, onSel, idCuenta }: {
 }
 
 // ── MÉTRICAS ───────────────────────────────────────────────────────────────
+//
+// **Rediseño 2026-08-21.** Antes era una grilla de paneles, uno por cartera y
+// uno por eje: cinco o seis cuadros de UNA fila cada uno, cada uno ocupando una
+// celda entera de la grilla. El 80% de la pantalla era aire. El contenido estaba
+// bien; el formato no: un panel con cabecera, borde y padding es un envase caro
+// para tres números.
+//
+// Ahora son TRES columnas, una por EJE (clase de activo · emisor · calificación),
+// y cada una es una lista continua. Lo que llena el espacio horizontal que
+// sobraba es una BARRA proporcional: el mismo dato que el porcentaje, pero
+// comparable de un vistazo sin leer cifra por cifra.
+//
+// La barra se escala contra la fila MÁS GRANDE del bloque, no contra 100%. Es a
+// propósito: una cuenta con efectivo en descubierto tiene filas negativas, así
+// que los shares no suman 100 y una barra sobre 100% dejaría todo el bloque
+// aplastado contra la izquierda. Escalada al máximo del bloque, la comparación
+// entre filas —que es lo que se mira— sigue siendo exacta.
 
 function TabMetricas({ m, usd }: { m: Vista["metricas"]; usd: boolean }) {
+  const total = usd ? m.total_usd : m.total;
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
-      {/* Por CLASE va dentro de cada cartera (denominador: la cartera) — la
-          pregunta es cómo se compone ESA cartera. Por EMISOR y CALIFICACIÓN va
-          sobre el total (denominador: la cuenta) — ahí la pregunta es cuánto
-          pesa ese riesgo en toda la cartera. Los dos denominadores los resuelve
-          el backend; acá solo se muestran. */}
-      {m.por_clase.map((b) => (
-        <Panel key={b.cartera} titulo={`${b.label} · por clase`}
-               extra={<span className="text-[11px] text-white tabular-nums">{fmt0(usd ? b.total_usd : b.total)}</span>}>
-          <TablaMetrica filas={b.filas} usd={usd} />
-        </Panel>
-      ))}
-      <Panel titulo="Por emisor"
-             extra={<span className="text-[11px] text-white tabular-nums">{fmt0(usd ? m.total_usd : m.total)}</span>}>
-        <TablaMetrica filas={m.por_emisor} usd={usd} />
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
+      <Panel titulo="Por clase de activo"
+             extra={<span className="text-[11px] text-white tabular-nums">{fmt0(total)}</span>}>
+        {/* Las clases van agrupadas por cartera: la cartera es un renglón de
+            título, no un panel propio. Eso es lo que colapsó cinco cuadros en
+            una sola lista sin perder de quién es cada clase. */}
+        {m.por_clase.map((b) => (
+          <div key={b.cartera}>
+            <div className="flex items-baseline gap-2 px-3 py-1 bg-[var(--t-surface)] border-t border-[var(--t-border)]">
+              <span className="text-[10px] font-semibold text-[var(--t-text)] tracking-wide">{b.label}</span>
+              <span className="ml-auto text-[10px] text-[var(--t-text-dim)] tabular-nums">
+                {fmt0(usd ? b.total_usd : b.total)}
+              </span>
+            </div>
+            <ListaMetrica filas={b.filas} usd={usd} />
+          </div>
+        ))}
+        {m.por_clase.length === 0 && <Vacio />}
       </Panel>
+
+      <Panel titulo="Por emisor"
+             extra={<span className="text-[11px] text-white tabular-nums">{fmt0(total)}</span>}>
+        <ListaMetrica filas={m.por_emisor} usd={usd} />
+      </Panel>
+
       <Panel titulo="Por calificación"
-             extra={<span className="text-[11px] text-white tabular-nums">{fmt0(usd ? m.total_usd : m.total)}</span>}>
-        <TablaMetrica filas={m.por_calificacion} usd={usd} />
+             extra={<span className="text-[11px] text-white tabular-nums">{fmt0(total)}</span>}>
+        <ListaMetrica filas={m.por_calificacion} usd={usd} />
       </Panel>
     </div>
   );
 }
 
-function TablaMetrica({ filas, usd }: { filas: MetricaFila[]; usd: boolean }) {
-  if (filas.length === 0) {
-    return <div className="px-3 py-3 text-[11px] text-[var(--t-text-muted)]">Sin filas.</div>;
-  }
+function Vacio() {
+  return <div className="px-3 py-3 text-[11px] text-[var(--t-text-muted)]">Sin filas.</div>;
+}
+
+function ListaMetrica({ filas, usd }: { filas: MetricaFila[]; usd: boolean }) {
+  // Escala del bloque: la fila de mayor valor absoluto marca el 100% de ancho.
+  const tope = useMemo(
+    () => Math.max(1, ...filas.map((f) => Math.abs(f.monto))),
+    [filas],
+  );
+  if (filas.length === 0) return <Vacio />;
   return (
-    <table className="w-full text-[11px]">
-      <tbody className="tabular-nums">
-        {filas.map((f) => (
-          <tr key={f.clave} className="border-t border-[var(--t-border)]">
-            <td className="px-3 py-1 text-[var(--t-text)]">
-              {f.clave}
-              <span className="ml-1 text-[9px] text-[var(--t-text-muted)]">×{f.n}</span>
-            </td>
-            <td className={`px-3 py-1 text-right ${f.monto ? "" : "text-[var(--t-text-muted)]"}`}>
-              {f.monto ? fmt0(enMoneda(f, usd)) : "-"}
-            </td>
-            <td className="px-3 py-1 text-right text-[var(--t-text-dim)] w-20">{fmtPct(f.share)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div>
+      {filas.map((f) => {
+        const neg = f.monto < 0;
+        const ancho = Math.min(100, (Math.abs(f.monto) / tope) * 100);
+        return (
+          <div key={f.clave}
+               className="relative px-3 py-1 border-t border-[var(--t-border)]"
+               title={`${f.clave} · ${f.n} título${f.n === 1 ? "" : "s"}`}>
+            {/* La barra va DETRÁS del texto, no en una columna aparte: así usa
+                el ancho que sobraba en vez de robarle lugar a las cifras. */}
+            <div aria-hidden
+                 className={`absolute inset-y-0 left-0 ${neg ? "bg-[var(--t-neg)]/12" : "bg-[var(--t-accent)]/12"}`}
+                 style={{ width: `${ancho}%` }} />
+            <div className="relative flex items-baseline gap-2 text-[11px]">
+              <span className="truncate text-[var(--t-text)]">{f.clave}</span>
+              <span className="text-[9px] text-[var(--t-text-muted)] shrink-0">×{f.n}</span>
+              <span className={`ml-auto tabular-nums shrink-0 ${neg ? "text-[var(--t-neg)]" : ""}`}>
+                {fmt0(enMoneda(f, usd))}
+              </span>
+              <span className="tabular-nums shrink-0 w-14 text-right text-[var(--t-text-dim)]">
+                {fmtPct(f.share)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
