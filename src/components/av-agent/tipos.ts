@@ -209,6 +209,9 @@ export type RunMasivo = {
   resumen: { por_estado: Record<string, number>; por_causa: Record<string, number>;
              segundos: number };
   texto: string;
+  // CERRADO en pantalla (2026-08-22): el run quedaba pegado para siempre. La
+  // marca vive en el BACKEND — cerrar y recargar no lo revive.
+  visto_at?: string | null;
 };
 
 // EL CENTINELA. `vivo` sale de la EDAD del último latido, no de que alguna vez

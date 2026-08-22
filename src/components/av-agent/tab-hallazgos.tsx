@@ -202,7 +202,7 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   cent: Centinela | null;
   marcarVisto: (claves: string[]) => Promise<void>;
 }) {
-  const { leer, llamar } = useDatos();
+  const { leer, llamar, escribir } = useDatos();
   // EL FILTRO. Con 84 hallazgos apilados en cinco secciones, la pantalla era un
   // scroll infinito donde para llegar a `tasa_sospechosa` había que pasar por
   // todo lo demás — y una vez abajo se perdía el contexto de cuánto quedaba.
@@ -374,12 +374,28 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
   // posible sin un segundo selector.
   const [run, setRun] = useState<RunMasivo | null>(null);
   const [corriendo, setCorriendo] = useState(false);
+  // CERRAR EL INFORME (user, 2026-08-22: «no se puede cerrar, está 100%
+  // estático»). La marca vive en el BACKEND (`visto_at`): cerrar acá y
+  // recargar la página no lo revive. `verCerrado` es solo el «ver de nuevo»
+  // de esta sesión de pantalla.
+  const [verCerrado, setVerCerrado] = useState(false);
+  const cerrarInforme = useCallback(async () => {
+    if (!run) return;
+    try {
+      await escribir(`/api/ia/av-agent/masivo/visto?run_id=${run.id}`,
+                     undefined, []);
+      const r = await leer<RunMasivo>("/api/ia/av-agent/masivo");
+      if (r?.id) setRun(r);
+      setVerCerrado(false);
+    } catch { /* si no se pudo marcar, el informe se queda — mejor de más */ }
+  }, [run, escribir, leer]);
 
   const planos = useMemo(
     () => visibles.flatMap(([, hs]) => hs), [visibles]);
 
   const lanzar = useCallback(async (sinRed: boolean) => {
     setCorriendo(true);
+    setVerCerrado(false);
     try {
       // `llamar`: lanza un CÁLCULO en background; el estado que muta (el run)
       // se sigue por el poll de abajo, no por relectura de un recurso.
@@ -671,8 +687,23 @@ export function TabHallazgos({ porTipo, data, sims, simular, ignorar,
           </button>
         </div>
 
-        {run && <InformeMasivo run={run} simular={simular} sims={sims}
-                                yaHecho={yaHecho} />}
+        {run && run.visto_at && !corriendo && !verCerrado ? (
+          // El informe CERRADO no desaparece: queda en una línea, reabrible.
+          // Borrarlo del todo haría irrecuperable una corrida de minutos.
+          <div className="flex items-center gap-2 px-3 py-1.5 border border-[var(--t-border)] text-[10px] text-[var(--t-text-dim)]">
+            <span>INFORME #{run.id} · cerrado</span>
+            <button
+              onClick={() => setVerCerrado(true)}
+              className="ml-auto text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+            >
+              ver de nuevo
+            </button>
+          </div>
+        ) : run && (
+          <InformeMasivo run={run} simular={simular} sims={sims}
+                         yaHecho={yaHecho}
+                         cerrar={run.estado !== "corriendo" ? cerrarInforme : undefined} />
+        )}
 
         {visibles.length === 0 && (
           <p className="text-[11px] text-[var(--t-text-muted)]">
@@ -1521,10 +1552,14 @@ export function AccionCadena({ h, sim, simular, modo }: {
   );
 }
 
-export function InformeMasivo({ run, simular, sims, yaHecho }: {
+export function InformeMasivo({ run, simular, sims, yaHecho, cerrar }: {
   run: RunMasivo;
   simular: Simular;
   sims: Record<string, Record<string, unknown> | null>;
+  /** Cierra el informe en pantalla (marca `visto_at` en el backend). Solo
+   *  llega cuando el run NO está corriendo — uno en curso se frena, no se
+   *  cierra. */
+  cerrar?: () => void | Promise<void>;
   // ⚠️⚠️ **LO APLICADO SALE DEL OBJETO, NO DE UN MAPA EN MEMORIA** (§0.bw).
   //
   // El panel decía «✔ 5 aplicados» y el botón seguía ofreciendo «APLICAR LOS 5
@@ -1661,6 +1696,15 @@ export function InformeMasivo({ run, simular, sims, yaHecho }: {
         >
           {copiado ? "✔ copiado" : "copiar informe"}
         </button>
+        {cerrar && (
+          <button
+            onClick={() => void cerrar()}
+            title="Cierra el informe: queda en una línea, reabrible. No borra nada."
+            className="text-[9px] uppercase tracking-widest px-2 py-0.5 border border-[var(--t-border)] text-[var(--t-text-muted)] hover:border-[var(--t-accent)] hover:text-[var(--t-accent)]"
+          >
+            ✕ cerrar
+          </button>
+        )}
       </div>
 
       {/* La BARRA de progreso. Con 2-3 minutos de corrida, un spinner sin número

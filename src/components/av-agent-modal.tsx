@@ -390,19 +390,18 @@ function ModalImpl() {
           style={{ background: cent?.vivo ? "var(--t-pos)" : "var(--t-text-dim)" }}
         />
         <span className="tracking-widest">AV AGENT</span>
-        {/* Lo NUEVO y sin ver, en la barra. Es la única señal que puede
-            interrumpir: un hallazgo que apareció hace un minuto y que nadie
-            miró. En rojo, separado del contador de preguntas. */}
-        {(cent?.sin_ver ?? 0) > 0 && (
+        {/* ⚠️ **EL BADGE CUENTA LO MISMO QUE LA TAB QUE ABRE** (user,
+            2026-08-22: «abajo me marca 7 y entrás y son 10»). Acá había DOS
+            badges con OTROS números: el rojo era `cent.sin_ver` (el backlog
+            sin ver, que vive en ENCONTRÓ → VIGILANCIA) y el otro las
+            preguntas — ninguno era lo que AHORA muestra. Es la misma regla de
+            §0.bo aplicada un nivel más arriba: un contador que no cierra con
+            la lista que abre hace dudar de los dos. Ahora es UN badge =
+            `nAhora`, exactamente el número que la tab AHORA lleva en su
+            pestaña. */}
+        {nAhora > 0 && (
           <span className="px-1 rounded-sm bg-[var(--t-neg)] text-[var(--t-on-accent)] text-[9px] font-bold tabular-nums">
-            {cent!.sin_ver}
-          </span>
-        )}
-        {/* El contador es la única señal proactiva: si tiene preguntas, se ve
-            desde cualquier pantalla sin abrir nada. */}
-        {nPreg > 0 && (
-          <span className="px-1 rounded-sm bg-[var(--t-accent)] text-[var(--t-on-accent)] text-[9px] font-bold tabular-nums">
-            {nPreg}
+            {nAhora}
           </span>
         )}
       </button>
